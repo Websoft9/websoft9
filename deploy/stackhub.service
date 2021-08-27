@@ -1,0 +1,16 @@
+[Unit]
+Description=My fastapi app
+Requires=network.target
+After=network.target
+
+[Service]
+KillSignal=SIGQUIT
+WorkingDirectory=/data/develop/stackhub/api
+ExecStart=python3 uvicorn main:app --reload
+Restart=always
+Type=notify
+NotifyAccess=all
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
