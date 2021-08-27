@@ -1,6 +1,8 @@
 # StackHub
 
-StackHub is for opensource stacks automation.
+本项目开发中...
+
+StackHub is for opensource stacks automation, it is developing...
 
 ## Funtction
 

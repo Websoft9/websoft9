@@ -1,0 +1,3 @@
+架构：后台JS框架+后端Python提供API服务
+
+后端：Python, Docker, Docker-compose, FastAPI, Typer
