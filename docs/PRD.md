@@ -25,10 +25,11 @@ Http（get/post）
 | appName       | 安装app的名称|  str  |可选  |
 
 e.g.
+```
 {
     "appName":"redmine"
 }
-
+```
 #### 返回数据
 
 | 变量名       | 说明       | 类型  | 备注  |
@@ -38,6 +39,7 @@ e.g.
 | data       | APP相关信息|  Json  |主容器名： websoft9-appName App端口: port(9001) |
 
 e.g.  
+```
 {
     "code":"1",
     "message":"appName安装成功",
@@ -48,6 +50,7 @@ e.g.
         "info": "XXXX"
     }
 }
+```
 
 #### 接口主要内容
 
@@ -73,9 +76,11 @@ Http（get/post）
 | appName       | 卸载app的名称|  str  |可选  |
 
 e.g.
+```
 {
     "appName":"redmine"
 }
+```
 
 #### 返回数据
 
@@ -84,8 +89,10 @@ e.g.
 | code       | 接口是否调用成功标志|  str  |"0":失败 "1":成功   |
 | message       | 接口返回信息|  str  |如接口调用成功时返回"appName卸载成功"  |
 
-e.g.  
+e.g.
+```  
 {
     "code":"0",
     "message":"appName卸载失败，任然在运行，端口为9001，请ssh登陆如服务器后使用docker-ps查看，并手动停止容器"
 }
+```
