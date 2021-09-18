@@ -55,6 +55,7 @@ do
     esac
     shift
 done
+
    
   [ ! -n "$repo_name" ] && exit 1
 
@@ -150,7 +151,7 @@ install_docker_compose(){
 
 save_images(){
     sudo rm -rf /tmp/docker-$repo_name
-    sudo git clone https://github.com/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name
+    sudo git clone https://github.com/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name || sudo git clone https://github.com.cnpmjs.org/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name
     sudo docker rmi `docker images -aq` -f &>/dev/null || true
 
 # Rename compose and env file name
@@ -170,7 +171,7 @@ save_images(){
 installation(){
     sudo rm -rf $install_dir 
     sudo mkdir -p $install_dir /credentials 1>/dev/null 2>&1 &&  cd $install_dir  
-    sudo git clone https://github.com/Websoft9/docker-$repo_name.git $install_dir 
+    sudo git clone https://github.com/Websoft9/docker-$repo_name.git $install_dir   || sudo git clone https://github.com.cnpmjs.org/Websoft9/docker-$repo_name.git $install_dir
 
 # Rename compose and env file name
     cd $install_dir
