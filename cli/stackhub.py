@@ -1,38 +1,48 @@
 #!/usr/bin/env python3
 
 import os, io, sys, platform, shutil, urllib3, json, time, subprocess
+import model, controller
 
 
 import typer
 
 app = typer.Typer()
 
-
 @app.command()
-def list(name: str):
+def list():
     '''print the lists file'''
-    typer.echo(f"Hello {name}")
+    controller.Print.printRepo()
     
     
 @app.command()
 def update(name: str):
     '''update the local lists cache'''
     typer.echo(f"Hello {name}")
-data
+
+
 @app.command()
 def upgrade(name: str):
     '''upgrade one application'''
     typer.echo(f"Hello {name}")
+    
     
 @app.command()
 def search(name: str):
     '''Search application you want to install'''
     typer.echo(f"Hello {name}")
 
+
 @app.command()
 def show(name: str):
     '''show the detail of application'''
     typer.echo(f"Hello {name}")
+    
+    
+@app.command()
+def package(name: str):
+    '''package one application for no network environment'''
+    typer.echo(f"Hello {name}")
+
 
 @app.command()
 def install(name: str, formal: bool = False, type: str = None):

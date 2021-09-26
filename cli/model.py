@@ -34,5 +34,18 @@ class Github:
     def __init__(self):
         pass
     
-    def 
-print(SmoothUrl.res(github_url))
+    def gitClone():
+        pass
+    
+    
+
+
+class FileOp:
+    '''File operation'''
+    
+    def __init__(self):
+        pass
+    
+    def printJson(path: str):
+        with open(path,newline='') as file:
+            print(file.read())
