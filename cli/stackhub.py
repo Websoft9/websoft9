@@ -12,7 +12,11 @@ app = typer.Typer()
 def list():
     '''print the lists file'''
     controller.Print.printRepo()
-    
+
+@app.command()
+def gitclone(name: str):
+    '''git clone'''
+    controller.Github.gitClone(name)
     
 @app.command()
 def update(name: str):

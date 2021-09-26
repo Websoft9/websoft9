@@ -5,9 +5,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, U
 import urllib.parse
 import urllib.request
 
-# for Git clone HA
-github_url = ("https://github.com", "https://github.com.cnpmjs.org", "https://hub.fastgit.org")
-
 class SmoothUrl:
     ''' get url '''
     
