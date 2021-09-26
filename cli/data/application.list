@@ -1,0 +1,233 @@
+Websoft9/ansible-discuz	Automatic installation for Discuz on Linux	public	2021-09-26T06:45:41Z
+Websoft9/role_docker	Install Docker and some applications on Docker	public	2021-09-26T06:35:40Z
+Websoft9/ansible-superset	Automatic installation for Apache Superset on Linux	public	2021-09-26T03:19:56Z
+Websoft9/ansible-gitlab	Automatic installation for GitLab on Linux	public	2021-09-24T09:57:37Z
+Websoft9/docker-falcon	Docker Compose to deploy Falcon-Plus in production	public, fork	2021-09-24T02:58:00Z
+Websoft9/StackHub	CLI to install hot open source stacks	public	2021-09-23T10:06:45Z
+Websoft9/ansible-ansible	This repository is only for developer who want to testing and learning Ansible	public	2021-09-18T11:08:52Z
+Websoft9/ansible-jenkins	Automatic installation for Jenkins on Linux	public	2021-09-18T03:40:34Z
+Websoft9/docker-wordpress	Docker Compose to deploy WordPress in production	public, fork	2021-09-18T02:23:33Z
+Websoft9/ansible-linux	Linux 运维脚本、GUI安装以及学习文档	public	2021-09-17T10:21:05Z
+Websoft9/docker-jenkins	Docker Compose to deploy Jenkins in production	public, fork	2021-09-17T06:40:23Z
+Websoft9/docker-alfresco	Docker Compose to deploy Alfresco in production	public, fork	2021-09-16T08:45:48Z
+Websoft9/ansible-neo4j	Automatic installation for Neo4j on Linux	public	2021-09-16T03:36:19Z
+Websoft9/docker-netdata	Docker Compose to deploy NetData in production	public	2021-09-16T02:57:54Z
+Websoft9/docker-superset	Docker Compose to deploy Superset in production	public, fork	2021-09-14T02:51:48Z
+Websoft9/docker-graylog	Docker Compose to deploy Graylog in production	public, fork	2021-09-13T17:52:13Z
+Websoft9/docker-minio		public	2021-09-13T10:31:30Z
+Websoft9/role_os	useful tools for OS image, e.g GNOME	public	2021-09-13T08:31:01Z
+Websoft9/docker-mariadb	Docker Compose to deploy MariaDB in production	public, fork	2021-09-13T00:43:54Z
+Websoft9/docker-nocodb		public	2021-09-12T09:28:21Z
+Websoft9/docker-kong	Docker-compose.yml for kong, konga and postgres using official image.	public, fork	2021-09-10T08:51:27Z
+Websoft9/doc-legal	Websoft9产品、网站的法律与规范，包括开源协议，用户许可协议、安全规范等	public	2021-09-10T03:50:20Z
+Websoft9/docker-caddy	Docker Compose to deploy Caddy v2 in production	public, fork	2021-09-10T02:06:35Z
+Websoft9/ansible-couchdb	Automatic installation for CouchDB on Linux	public	2021-09-09T10:01:30Z
+Websoft9/ansible-python	Ansible Automatic deployment Python&Django runtime on Linux	public	2021-09-09T06:20:25Z
+Websoft9/role_python	Install Python and popular applications of Python	public	2021-09-09T03:49:07Z
+Websoft9/ansible-ruby		public	2021-09-08T03:44:01Z
+Websoft9/docker-apisix		public	2021-09-07T10:03:21Z
+Websoft9/role_neo4j	Neo4j installation on Linux	public	2021-09-07T09:18:21Z
+Websoft9/docker-ckan		public	2021-09-04T08:56:27Z
+Websoft9/docker-directus		public	2021-09-04T08:35:51Z
+Websoft9/ansible-lnmp	Automatic installation for LEMP(LNMP) on Linux	public	2021-09-03T10:50:48Z
+Websoft9/ansible-onlyoffice	Automatic installation for OnlyOffice on Linux	public	2021-09-03T09:12:48Z
+Websoft9/role_mysql	Automatic MySQL installation	public	2021-09-03T04:41:22Z
+Websoft9/ansible-mysql	Automatic installation for MySQL on Linux（MySQL自动安装程序）	public	2021-09-03T02:29:59Z
+Websoft9/docker-onlyoffice	Docker compose for ONLYOFFICE CommunityServer	public, fork	2021-09-02T06:58:37Z
+Websoft9/win_ansible-sqlserver	适用于Windows自动安装SQLServer	public	2021-09-02T02:51:02Z
+Websoft9/docker-jitsi	Jitsi Meet on Docker	public, fork	2021-09-01T06:25:47Z
+Websoft9/role_redis	Install Redis and RedisInsight on Linux	public	2021-09-01T06:09:15Z
+Websoft9/docker-owncloud	Docker Compose to deploy ownCloud in production	public, fork	2021-08-31T10:50:07Z
+Websoft9/role_haproxy		public	2021-08-31T09:19:50Z
+Websoft9/role_varnish	Automatic Varnish installation	public	2021-08-31T09:17:15Z
+Websoft9/ansible-joomla	Automatic depoyment & installation for Joomla on Linux	public	2021-08-31T02:53:34Z
+Websoft9/ansible-docker	Automatic depoyment & installation for Docker on Linux	public	2021-08-30T05:55:51Z
+Websoft9/ansible-haproxy	Ansible automatic installation scripts for HAProxy	public	2021-08-30T03:38:03Z
+Websoft9/docker-nextcloud	Docker Compose to deploy Nextcloud in production	public, fork	2021-08-27T01:29:56Z
+Websoft9/ansible-phpapps	Automatic installation for phpApps on Linux（PHP应用自动安装程序）	public	2021-08-26T10:17:20Z
+Websoft9/ansible-magento	Automatic depoyment & installation for Magento on Linux	public	2021-08-26T08:33:13Z
+Websoft9/role_cloud	role_cloud	public	2021-08-26T08:14:59Z
+Websoft9/ansible-wordpress	Automatic installation for WordPress on Linux	public	2021-08-25T08:19:02Z
+Websoft9/role_nodejs	Install Node, PM2 and framework based on Node	public	2021-08-24T03:43:57Z
+Websoft9/ansible-graylog	Automatic installation for Graylog on Linux	public	2021-08-24T03:36:27Z
+Websoft9/docker-erpnext	Docker Compose to deploy ERPNext in production	public, fork	2021-08-23T10:09:28Z
+Websoft9/ansible-erpnext	Automatic installation for ERPNext on Linux	public	2021-08-23T10:00:37Z
+Websoft9/ansible-nodejs	Ansible Automatic deployment Node.js runtime on Linux	public	2021-08-23T09:32:56Z
+Websoft9/ansible-grafana	Automation installation & deployment for Grafana on Linux	public	2021-08-23T08:10:18Z
+Websoft9/ansible-rabbitmq	Automatic installation for RabbitMQ on Linux	public	2021-08-23T07:46:11Z
+Websoft9/ansible-sqlserver		public	2021-08-23T06:43:32Z
+Websoft9/ansible-mongodb	Automatic installation for MongoDB on Linux（MongoDB自动安装程序）	public	2021-08-23T06:18:15Z
+Websoft9/role_rabbitmq	Automatic RabbiMQ installation	public	2021-08-23T04:16:20Z
+Websoft9/role_mongodb	Install MongoDB on Linux	public	2021-08-20T09:29:22Z
+Websoft9/ansible-nextcloud	Automatic installation for Nextcloud on Linux（Nextcloud自动安装程序）	public	2021-08-20T08:16:17Z
+Websoft9/ansible-odoo	Automatic deployment for Odoo on Linux	public	2021-08-20T07:58:53Z
+Websoft9/ansible-opencart	Automatic installation for OpenCart on Linux	public	2021-08-20T06:40:39Z
+Websoft9/ansible-owncloud	Docker Compose to deploy ownCloud in production	public	2021-08-20T06:37:37Z
+Websoft9/ansible-moodle	Automatic installation for Moodle on Linux（Moodle 自动安装程序）	public	2021-08-20T03:45:45Z
+Websoft9/ansible-mingdao	Automatic deployment for Mingdao on Linux（明道私有云自动安装程序）	public	2021-08-20T03:39:47Z
+Websoft9/ansible-metabase	Automatic installation for Metabase on Linux	public	2021-08-20T03:33:48Z
+Websoft9/ansible-memcached	Automatic depoyment & installation for Memcached on Linux	public	2021-08-20T03:28:13Z
+Websoft9/ansible-mediawiki	Automatic installation for Mediawiki on Linux（Mediawiki 自动安装程序）	public	2021-08-20T03:24:13Z
+Websoft9/ansible-mattermost	Ansible Automatic deployment Mattermost on Linux	public	2021-08-20T03:21:02Z
+Websoft9/ansible-mariadb	Automatic installation for MariaDB on Linux（MariaDB自动安装程序）	public	2021-08-20T02:37:48Z
+Websoft9/ansible-kafka	Automatic installation for Kafka on Linux	public	2021-08-20T02:25:55Z
+Websoft9/ansible-tensorflow	Automatic installation for TensorFlow on Linux	public	2021-08-20T02:18:58Z
+Websoft9/ansible-webmin		public	2021-08-20T02:13:21Z
+Websoft9/ansible-zabbix	Automatic installation for Zabbix on Linux	public	2021-08-20T01:50:35Z
+Websoft9/ansible-zentao	Automatic depoyment & installation for Zentao on Linux	public	2021-08-20T01:26:57Z
+Websoft9/ansible-java	Ansible Automatic deployment Java runtime on Linux	public	2021-08-20T01:13:39Z
+Websoft9/ansible-scratch	Automatic depoyment & installation for Scratch on Linux	public	2021-08-19T09:42:54Z
+Websoft9/ansible-seafile	Automatic installation for Seafile on Linux（Seafile 自动安装程序）	public	2021-08-19T09:21:53Z
+Websoft9/ansible-sqlite	Automatic installation for SQLite on Linux	public	2021-08-19T09:14:40Z
+Websoft9/ansible-rocketmq	ansible installation rocketmq deployment-automation websoft9	public	2021-08-19T08:42:15Z
+Websoft9/ansible-redis	Automatic installation for Redis on Linux（Redis自动安装程序）	public	2021-08-19T08:03:09Z
+Websoft9/ansible-rocketchat	Automatic installation for Rocket.Chat on Linux	public	2021-08-19T07:51:56Z
+Websoft9/ansible-rethinkdb	rethinkdb ansible installation-automation deployment-automation websoft9	public	2021-08-19T07:11:38Z
+Websoft9/ansible-redmine	Automatic installation for Redmine on Linux（Redmine自动安装程序）	public	2021-08-19T07:06:09Z
+Websoft9/ansible-drupal	Automatic depoyment & installation for Drupal on Linux	public	2021-08-19T06:55:40Z
+Websoft9/ansible-ghost	Automatic depoyment & installation for Ghost on Linux	public	2021-08-19T06:39:07Z
+Websoft9/ansible-postgresql	Ansible Automatic deployment PostgreSQL on Linux	public	2021-08-19T06:19:27Z
+Websoft9/ansible-prestashop	Automatic depoyment & installation for Prestashop on Linux	public	2021-08-19T05:49:27Z
+Websoft9/docker-prometheus	Docker Compose to deploy Prometheus in production	public	2021-08-19T04:13:37Z
+Websoft9/ansible-lcmp	ansible-lcmp	public	2021-08-19T04:06:57Z
+Websoft9/ansible-opencv		public	2021-08-19T03:59:03Z
+Websoft9/ansible-awx	Automatic installation for AWX (Ansible Tower Communiy) on Linux	public	2021-08-19T03:28:26Z
+Websoft9/ansible-bt	Automatic installation for BT on Linux（宝塔自动安装程序）	public	2021-08-19T02:55:46Z
+Websoft9/ansible-oracledatabase	DB oracle	public	2021-08-19T01:59:38Z
+Websoft9/ansible-codeserver	Automatic depoyment & installation for code-server on Linux	public	2021-08-19T01:44:16Z
+Websoft9/ansible-cloudbeaver	Automatic installation for CloudBeaver on Linux	public	2021-08-19T01:35:54Z
+Websoft9/ansible-elk		public	2021-08-18T09:58:06Z
+Websoft9/ansible-canvas	Automatic depoyment & installation for Canvas LMS on Linux	public	2021-08-18T09:43:03Z
+Websoft9/ansible-knowage	Ansible automatic deployment Knowage on Linux	public	2021-08-18T09:31:00Z
+Websoft9/ansible-activemq	Automatic installation for ActiveMQ on Linux	public	2021-08-18T07:52:52Z
+Websoft9/docker-dgraph	Docker Compose to deploy Dgraph in production	public	2021-08-18T07:51:23Z
+Websoft9/ansible-template	Template for Ansible repository	public	2021-08-18T07:49:44Z
+Websoft9/ansible-alfresco	Automatic installation for Alfresco on Linux（Alfresco 自动安装程序）	public	2021-08-18T07:49:29Z
+Websoft9/docker-couchdb	Docker Compose to deploy Apache CouchDB in production	public, fork	2021-08-18T03:39:31Z
+Websoft9/docker-kafka	Docker Compose to deploy Kafka in production	public, fork	2021-08-18T02:47:03Z
+Websoft9/docker-jupyterhub	Docker Compose to deploy JupyterHub in production	public, fork	2021-08-18T01:49:05Z
+Websoft9/docker-redisinsight	Docker Compose to deploy RedisInsight in production	public	2021-08-18T00:35:05Z
+Websoft9/docker-opencart	Docker Compose to deploy OpenCart in production	public, fork	2021-08-17T10:23:40Z
+Websoft9/docker-theia	Docker Compose to deploy Theia in production	public	2021-08-17T08:57:35Z
+Websoft9/docker-saleor	Docker Compose to deploy Salor in production	public, fork	2021-08-17T07:31:23Z
+Websoft9/docker-rethinkdb	Docker Compose to deploy RethinkDB in production	public, fork	2021-08-17T07:12:56Z
+Websoft9/docker-geoserver	Docker Compose to deploy GeoServer in production	public, fork	2021-08-17T06:47:32Z
+Websoft9/docker-cloudbeaver	Docker Compose to deploy CloudBeaver in production	public, fork	2021-08-17T06:14:54Z
+Websoft9/docker-nopcommerce	Install and run your first nopCommerce project using Docker	public, fork	2021-08-17T06:00:08Z
+Websoft9/docker-strapi	Install and run your first Strapi project using Docker	public, fork	2021-08-17T03:43:24Z
+Websoft9/docker-zentao	Docker Compose to deploy ZentaoPMS(禅道) in production	public	2021-08-17T03:00:56Z
+Websoft9/docker-xwiki	Docker Compose to deploy XWiki in production	public, fork	2021-08-17T02:32:24Z
+Websoft9/docker-knowage	Docker Compose to deploy Knowage in production	public, fork	2021-08-17T01:12:41Z
+Websoft9/docker-elk	Docker Compose to deploy Elastic stack (ELK) in production	public, fork	2021-08-17T01:10:13Z
+Websoft9/docker-template		public	2021-08-17T01:05:39Z
+Websoft9/docker-redis	Docker Compose to deploy Redis in production	public, fork	2021-08-17T01:04:31Z
+Websoft9/docker-phpmyadmin	Docker container for phpMyAdmin	public, fork	2021-08-17T01:03:59Z
+Websoft9/docker-mautic	Docker Compose to deploy Mautic in production	public, fork	2021-08-17T01:03:53Z
+Websoft9/docker-mattermost	Docker Compose to deploy Mattermost in production	public, fork	2021-08-17T01:03:53Z
+Websoft9/docker-memcached	Docker Compose to deploy Memcached in production	public, fork	2021-08-17T01:03:52Z
+Websoft9/docker-moodle	Docker Compose to deploy Moodle in production	public, fork	2021-08-17T01:03:50Z
+Websoft9/docker-mediawiki	Docker Compose to deploy MediaWiki in production	public, fork	2021-08-17T01:03:50Z
+Websoft9/docker-gogs	Docker Compose to deploy Gogs in production	public, fork	2021-08-17T01:03:49Z
+Websoft9/docker-rocketchat	Docker Compose to deploy Rocket.Chat in production	public, fork	2021-08-17T01:03:41Z
+Websoft9/docker-varnish	Docker Compose to deploy Varnish in production	public, fork	2021-08-17T01:03:38Z
+Websoft9/docker-rabbitmq	Docker Compose to deploy RabbitMQ in production	public, fork	2021-08-17T01:03:38Z
+Websoft9/docker-odoo	Docker Compose to deploy Odoo in production	public, fork	2021-08-17T01:03:38Z
+Websoft9/docker-joomla	Docker Compose to deploy Joomla in production	public, fork	2021-08-17T01:03:38Z
+Websoft9/docker-tomcat	Docker Official Image packaging for Apache Tomcat	public, fork	2021-08-17T01:03:37Z
+Websoft9/docker-prestashop	Docker Compose to deploy Prestashop in production	public, fork	2021-08-17T01:03:37Z
+Websoft9/docker-httpd	Docker Official Image packaging for Apache HTTP Server	public, fork	2021-08-17T01:03:36Z
+Websoft9/docker-haproxy	Docker Compose to deploy HAProxy in production	public, fork	2021-08-17T01:03:35Z
+Websoft9/docker-mongodb	Docker Compose to deploy MongoDB in production	public, fork	2021-08-17T01:03:34Z
+Websoft9/docker-magento	Docker Compose to deploy Magento in production	public, fork	2021-08-17T01:03:34Z
+Websoft9/docker-grafana	Docker Compose to deploy Grafana in production	private	2021-08-17T01:03:33Z
+Websoft9/docker-projector	Docker Compose to deploy Mingdaoyun-community in production	public, fork	2021-08-17T01:03:28Z
+Websoft9/docker-postgresql	Docker Compose to deploy PostgreSQL in production	public, fork	2021-08-17T01:03:23Z
+Websoft9/docker-pgadmin	Docker Compose to deploy pgAdmin in production	public, fork	2021-08-17T01:03:21Z
+Websoft9/docker-mongoexpress	Docker Compose to deploy MongoExpress in production	public, fork	2021-08-17T01:03:18Z
+Websoft9/docker-pimcore	Docker Compose to deploy Pimcore in production	public, fork	2021-08-17T01:03:17Z
+Websoft9/docker-portainer	Compose setup for Portainer	public, fork	2021-08-17T01:03:17Z
+Websoft9/docker-neo4j	Docker Compose to deploy Neo4j in production	public, fork	2021-08-17T01:03:17Z
+Websoft9/docker-mingdao	Docker Compose to deploy Mingdaoyun-community in production	public	2021-08-17T01:03:17Z
+Websoft9/docker-metabase	Docker Compose to deploy Metabase in production	public, fork	2021-08-17T01:03:17Z
+Websoft9/docker-nginx	Docker Compose to deploy NGINX in production	public, fork	2021-08-17T01:03:15Z
+Websoft9/docker-jumpserver	Docker Compose to deploy JumpServer in production	public, fork	2021-08-17T01:03:15Z
+Websoft9/docker-mysql	Docker Compose to deploy MySQL Community Server	public, fork	2021-08-17T01:03:15Z
+Websoft9/docker-jetty	jetty docker	public, fork	2021-08-17T01:03:14Z
+Websoft9/docker-influxdata	Docker Compose to deploy InfluxData in production	public, fork	2021-08-17T01:03:13Z
+Websoft9/docker-guacamole	Docker Compose to deploy Apache Guacamole Server	public, fork	2021-08-17T01:03:10Z
+Websoft9/docker-gitlab	Docker Compose to deploy Gitlab in production	public, fork	2021-08-17T01:02:58Z
+Websoft9/docker-bigbluebutton	Docker files for BigBlueButton	public, fork	2021-08-17T01:02:55Z
+Websoft9/docker-cmak	CMAK (previous known as Kafka Manager) As Docker Image	public, fork	2021-08-17T01:02:55Z
+Websoft9/docker-drupal	Docker Compose to deploy Drupal in production	public, fork	2021-08-17T01:02:55Z
+Websoft9/docker-logstash	Docker Compose to deploy Logstash in production	public, fork	2021-08-16T08:33:27Z
+Websoft9/docker-redash	Make Your Company Data Driven. Connect to any data source, easily visualize, dashboard and share your data.	public, fork	2021-08-13T12:55:12Z
+Websoft9/docker-squid	Docker Compose to deploy Squid in production	public	2021-08-13T07:44:21Z
+Websoft9/ansible-lamp	Automatic installation for LAMP on Linux	public	2021-08-12T06:20:20Z
+Websoft9/docker-tinyproxy		public	2021-08-11T10:13:51Z
+Websoft9/role_rethinkdb	Install RethinkDB on Linux	public	2021-08-11T06:47:43Z
+Websoft9/role_elasticsearch		public	2021-08-10T10:15:28Z
+Websoft9/role_init	Initialization And Random Password	public	2021-08-10T09:45:10Z
+Websoft9/role_nginx	Install Nginx and configure vhost	public	2021-08-10T09:02:49Z
+Websoft9/recruitment	Websoft9 人才招募	public	2021-08-09T03:03:31Z
+Websoft9/docker-zammad	Zammad Docker images for docker-compose	public, fork	2021-08-07T08:03:05Z
+Websoft9/docker-rancher		public	2021-08-06T04:27:07Z
+Websoft9/docker-awx	Docker Compose to deploy AWX in production	public, fork	2021-08-05T01:07:23Z
+Websoft9/role_common	common role	public	2021-08-03T03:53:30Z
+Websoft9/googlecloud-platform		public	2021-07-29T03:47:43Z
+Websoft9/role_ruby		public	2021-07-28T07:18:26Z
+Websoft9/role_kibana	ELK kibana	public	2021-07-28T03:33:51Z
+Websoft9/docker-seafile	Docker Compose to deploy Seafile in production	public, fork	2021-07-26T08:13:15Z
+Websoft9/docker-onlyofficedocs	Docker Compose to deploy OLYOFFICE Docs in production	public, fork	2021-07-23T08:02:00Z
+Websoft9/docker-codeserver	Docker Compose to deploy CodesServer in production	public, fork	2021-07-23T06:27:27Z
+Websoft9/role_apache		public	2021-07-22T08:53:28Z
+Websoft9/docker-akeneo	Docker Compose to deploy Akeneo in production	public, fork	2021-07-22T04:10:48Z
+Websoft9/role_mariadb		public	2021-07-21T10:03:05Z
+Websoft9/role_postgresql	Install PostgreSQL and configure it	public	2021-07-21T08:23:12Z
+Websoft9/role_tomcat	Install Tomcat	public	2021-07-20T06:04:33Z
+Websoft9/docker-zabbix	Docker Compose to deploy Zabbix in production	public, fork	2021-07-20T05:51:53Z
+Websoft9/docker-kibana	Docker Compose to deploy Kibana in production	public	2021-07-20T05:51:45Z
+Websoft9/docker-memadmin	Memcached admin for docker	public, fork	2021-07-20T05:51:44Z
+Websoft9/docker-redmine	Docker Compose to deploy Redmine in production	public, fork	2021-07-20T05:51:36Z
+Websoft9/docker-countly	Docker Compose to deploy Sever in production	public, fork	2021-07-20T05:51:21Z
+Websoft9/docker-elasticsearch	Docker Compose to deploy Elasticsearch in production	public, fork	2021-07-20T05:51:12Z
+Websoft9/role_php		public	2021-07-19T07:44:35Z
+Websoft9/role_oracledb		public	2021-07-16T06:25:08Z
+Websoft9/role_memcached		public	2021-06-30T06:20:46Z
+Websoft9/9panel	9Panel是由Websoft9自主研发的镜像可视化安装向导工具	public	2021-06-25T09:40:18Z
+Websoft9/huaweicloud-platform	Using the Images of Websoft9, you should have some skills on HUAWEI CLOUD	public	2021-06-25T09:18:52Z
+Websoft9/win-ansible-template	Ansible repository template for Windows of Websoft9	public	2021-06-19T10:11:58Z
+Websoft9/websoft9.github.io	All html docs of Websoft9	public	2021-06-19T10:11:52Z
+Websoft9/role_wkhtmltopdf	Docker Compose to deploy WkhtmltoPDF in production	public	2021-06-19T10:11:42Z
+Websoft9/role_uwsgi		public	2021-06-19T10:11:34Z
+Websoft9/role_tools	Useful tools for application	public	2021-06-19T10:11:30Z
+Websoft9/role_tomcat-nginx		public	2021-06-19T10:11:27Z
+Websoft9/role_template	template for module role	public	2021-06-19T10:11:19Z
+Websoft9/role_sqlite		public	2021-06-19T10:11:15Z
+Websoft9/role_runtime		public	2021-06-19T10:11:11Z
+Websoft9/role_preend		public	2021-06-19T10:10:47Z
+Websoft9/role_passenger	Install Passenger open source with Nginx or Apache	public	2021-06-19T10:10:35Z
+Websoft9/role_lnmp	role_lnmp	public	2021-06-19T10:09:54Z
+Websoft9/role_lamp	role_lamp	public	2021-06-19T10:09:50Z
+Websoft9/role_kafka	Automatic Kafka installation	public	2021-06-19T10:09:47Z
+Websoft9/role_jetty		public	2021-06-19T10:09:43Z
+Websoft9/role_jdk	Install JDK&JRE on Linux	public	2021-06-19T10:09:39Z
+Websoft9/role_inotify_watch		public	2021-06-19T10:09:35Z
+Websoft9/role_end	role_end	public	2021-06-19T10:09:23Z
+Websoft9/role_caddy		public	2021-06-19T10:09:04Z
+Websoft9/mgithub	Github 批量管理工具，基于 GitHub CLI, Git	public	2021-06-19T10:08:51Z
+Websoft9/docker-collabora	Collabora Online is a collaborative online office suite based on LibreOffice technology. This is also the source for the Collabora Office apps for iOS and Android.	public, fork	2021-06-19T09:45:49Z
+Websoft9/azure-platform	Using the Images of Websoft9, you should have some skills on Azure	public	2021-06-19T09:44:58Z
+Websoft9/aws-platform	Using the Images of Websoft9, you should have some skills on AWS CLOUD	public	2021-06-19T09:44:55Z
+Websoft9/alibabacloud-platform	Using the Images of Websoft9, you should have some skills on Alibaba CLOUD	public	2021-06-19T09:44:51Z
+Websoft9/ansible-alldocs		public	2021-06-17T11:43:03Z
+Websoft9/role_9panel		public	2021-04-23T06:42:14Z
+Websoft9/doc-faq	The most common guide for user, including cloud service use, account password, etc.	public	2021-04-20T08:37:12Z
+Websoft9/mpackage	Auto build rpm/deb packges	public	2021-01-19T06:34:09Z
+Websoft9/win-ansible-phpstudy		public	2020-11-11T07:01:09Z
+Websoft9/win-ansible-xampp	待研发	public	2020-11-11T07:00:01Z
+Websoft9/windows	Windows云服务器其运维指南，以及一些有用的小工具	public	2020-11-11T06:59:22Z
+Websoft9/win-ansible-wampserver	WampServer自动化安装脚本	public	2020-11-11T06:58:06Z
+Websoft9/win-ansible-dotnet	.net	public	2020-11-11T06:51:40Z
+Websoft9/win_ansible_phpstudy	Install ansible on windows server	public	2020-11-11T06:49:07Z
+Websoft9/win_ansible_wamp		public	2020-11-11T06:47:27Z
+Websoft9/tencentcloud-platform	腾讯云平台文档	public	2020-11-11T06:46:00Z
