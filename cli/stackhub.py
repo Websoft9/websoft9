@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 import os, io, sys, platform, shutil, urllib3, json, time, subprocess
 import model, controller
-
 
 import typer
 
@@ -14,9 +14,11 @@ def list():
     controller.Print.printRepo()
 
 @app.command()
-def gitclone(name: str):
-    '''git clone'''
-    controller.Github.gitClone(name)
+def create(app_name: str, project_name: Optional[str] = None):
+    '''create one application'''
+    create = controller.Create(app_name, project_name)
+    create.downRepo()
+    create.upRepo()
     
 @app.command()
 def update(name: str):
@@ -46,17 +48,6 @@ def show(name: str):
 def package(name: str):
     '''package one application for no network environment'''
     typer.echo(f"Hello {name}")
-
-
-@app.command()
-def install(name: str, formal: bool = False, type: str = None):
-    '''install one application'''
-    if formal:
-        typer.echo(f"Goodbye Ms. {name}. Have a good day.")
-    else:
-        typer.echo(f"Bye {name}!")
-    
-    os.system("gh repo list websoft9 --public --no-archived")
 
 
 if __name__ == "__main__":
