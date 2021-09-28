@@ -1,4 +1,5 @@
-import model, os
+import model, os, sys, subprocess
+from model import GitOp
 
 path_repo = "./data/application.list"
 path_project = ""
@@ -29,14 +30,27 @@ class Create:
             self.folder = self.app_name
     
     def downRepo(self):
+        '''download repository'''
+        
         cmd = "git clone --depth=1 " + model.SmoothUrl.res(github_url) + "/websoft9/docker-" + self.app_name + " " + self.folder
         if os.path.exists("./"+self.folder):
             print(os.path.abspath(self.folder)+" folder already exists")
+            sys.exit(0)
         else:
-            os.system(cmd)
+            GitOp.gitClone(cmd)
+            
+    def setEnv(self):
+        '''set the usable port for application'''
+        
+        pass
             
     def upRepo(self):
+        '''docker-compose up repository'''
+        
         cmd = "docker-compose -f docker-compose-production.yml --env-file .env_all up -d"
         print(cmd)
         os.chdir(self.folder)
         os.system(cmd)
+        
+    def printResult(self):
+        pass

@@ -1,1 +1,1 @@
-yum install git pwgen jq wget curl figlet boxes -y
+yum install git wget figlet boxes -y

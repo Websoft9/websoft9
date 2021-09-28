@@ -19,6 +19,13 @@ def create(app_name: str, project_name: Optional[str] = None):
     create = controller.Create(app_name, project_name)
     create.downRepo()
     create.upRepo()
+    create.setEnv()
+    create.printResult()
+
+@app.command()
+def start(app_name: str, project_name: Optional[str] = None):
+    '''start one application'''
+    pass
     
 @app.command()
 def update(name: str):

@@ -1,1 +1,3 @@
 typer
+psutil
+jq
