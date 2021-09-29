@@ -31,7 +31,7 @@ class GitOp:
     def __init__(self):
         pass
     
-    def gitClone(cmd: str):
+    def gitClone(self, cmd: str):
         '''git clone'''
         try:
             print("Command is： "+cmd)
@@ -46,12 +46,28 @@ class FileOp:
     def __init__(self):
         pass
     
-    def printJson(path: str):
+    def printJson(self, path: str):
+        '''output file content'''
+        
         with open(path,newline='') as file:
             print(file.read())
     
-    def convertToJson(path: str):
-        pass
+    def fileToJson(self, path: str, remark: Optional[str] = "#", separate: Optional[str] = "="):
+        ''' convert file to Json '''
+        
+        dict = {}
+        with open(path) as fh:
+            for line in fh:
+                
+                print(line.find(remark))
+                if line.find(remark) != 0:
+                    item, value = line.strip().split(separate, -1)
+                    item = line.strip()
+                    dict[item] = value
+                else:
+                    continue
+        fh.close()        
+        print (dict)
             
 
 class NetOp:
@@ -85,7 +101,7 @@ class SecurityOp:
         pass
     
     def randomPass(self, length: Optional[int] = 16):
-        '''set password'''
+        '''set strong password'''
         
         alphabet = string.ascii_letters + string.digits
         while True:
@@ -97,6 +113,6 @@ class SecurityOp:
         print(password)
     
      
-test=SecurityOp()
+test=FileOp()
 #test.setPort(9001)
-test.randomPass(25)
+test.fileToJson('./joomla/.env_all')
