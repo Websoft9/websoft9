@@ -41,7 +41,8 @@ class Create:
             
     def setEnv(self):
         '''set the usable port for application'''
-        
+        fileop=FileOp()
+        print(fileop.fileToJson('./joomla/.env_all'))
         pass
             
     def upRepo(self):
@@ -54,3 +55,5 @@ class Create:
         
     def printResult(self):
         pass
+    
+

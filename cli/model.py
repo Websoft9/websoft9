@@ -11,7 +11,7 @@ class SmoothUrl:
     def __init__(self):
         pass
     
-    def res(url_list: Tuple):
+    def res(self, url_list: Tuple):
         
         for item in url_list:
             try:
@@ -58,16 +58,16 @@ class FileOp:
         dict = {}
         with open(path) as fh:
             for line in fh:
+                if line == "\n":
+                    continue
                 
-                print(line.find(remark))
                 if line.find(remark) != 0:
                     item, value = line.strip().split(separate, -1)
-                    item = line.strip()
                     dict[item] = value
                 else:
                     continue
         fh.close()        
-        print (dict)
+        return dict
             
 
 class NetOp:
@@ -111,8 +111,3 @@ class SecurityOp:
                     and sum(c.isdigit() for c in password) >= 3):
                 break
         print(password)
-    
-     
-test=FileOp()
-#test.setPort(9001)
-test.fileToJson('./joomla/.env_all')
