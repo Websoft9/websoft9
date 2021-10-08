@@ -32,23 +32,26 @@ class Create:
     def downRepo(self):
         '''download repository'''
         
-        cmd = "git clone --depth=1 " + model.SmoothUrl.res(github_url) + "/websoft9/docker-" + self.app_name + " " + self.folder
+        geturl = model.SmoothUrl()
+        gitop = model.GitOp()
+        
+        cmd = "git clone --depth=1 " + geturl.res(github_url) + "/websoft9/docker-" + self.app_name + " " + self.folder
         if os.path.exists("./"+self.folder):
             print(os.path.abspath(self.folder)+" folder already exists")
             sys.exit(0)
         else:
-            GitOp.gitClone(cmd)
+            gitop.gitClone(cmd)
             
     def setEnv(self):
         '''set the usable port for application'''
-        fileop=FileOp()
-        print(fileop.fileToJson('./joomla/.env_all'))
+        fileop=model.FileOp()
+        print(fileop.fileToJson('./drupal/.env'))
         pass
             
     def upRepo(self):
         '''docker-compose up repository'''
         
-        cmd = "docker-compose -f docker-compose-production.yml --env-file .env_all up -d"
+        cmd = "docker-compose up -d"
         print(cmd)
         os.chdir(self.folder)
         os.system(cmd)
