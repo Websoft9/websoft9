@@ -18,8 +18,8 @@ def create(app_name: str, project_name: Optional[str] = None):
     '''create one application'''
     create = controller.Create(app_name, project_name)
     create.downRepo()
-    create.upRepo()
     create.setEnv()
+    create.upRepo()
     create.printResult()
 
 @app.command()

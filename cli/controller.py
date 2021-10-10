@@ -45,7 +45,7 @@ class Create:
     def setEnv(self):
         '''set the usable port for application'''
         fileop=model.FileOp()
-        print(fileop.fileToJson('./drupal/.env'))
+        print(fileop.fileToJson(self.folder+'/.env'))
         pass
             
     def upRepo(self):

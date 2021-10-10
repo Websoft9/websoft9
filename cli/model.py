@@ -55,6 +55,8 @@ class FileOp:
     def fileToJson(self, path: str, remark: Optional[str] = "#", separate: Optional[str] = "="):
         ''' convert file to Json '''
         
+        print(path)
+
         dict = {}
         with open(path) as fh:
             for line in fh:
