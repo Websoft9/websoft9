@@ -54,9 +54,6 @@ class FileOp:
     
     def fileToJson(self, path: str, remark: Optional[str] = "#", separate: Optional[str] = "="):
         ''' convert file to Json '''
-        
-        print(path)
-
         dict = {}
         with open(path) as fh:
             for line in fh:
@@ -65,7 +62,8 @@ class FileOp:
                 
                 if line.find(remark) != 0:
                     item, value = line.strip().split(separate, -1)
-                    dict[item] = value
+                    if value != "":
+                        dict[item] = value
                 else:
                     continue
         fh.close()        
@@ -81,7 +79,7 @@ class NetOp:
     def checkPort(self, port: int):
         '''check the target port's status'''
         search_key = "port="+str(port)
-        if str(psutil.net_connections()).find(search_key) != -1:
+        if str(+psutil.net_connections()).find(search_key) != -1:
             print(str(port)+" is used")
             return False
         else:

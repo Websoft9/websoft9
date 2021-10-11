@@ -1,16 +1,10 @@
-class Card:
-    def __init__(self, rank, suit):
-        self.suit = suit
-        self.rank = rank
-        self.hard, self.soft = self._points()
+import model,re
 
-class NumberCard( Card ):
-    def _points(self):
-        return int(self.rank), int(self.rank)
-    
-class AceCard( Card ):
-    def _points(self):
-        return 1, 11
+env = {}
+fileop=model.FileOp()
+env = fileop.fileToJson('c2/.env')
 
-nc=NumberCard(11,12)
-print(nc)
+for key,value in env.items():
+    if re.match(pattern,key,re.I) != None:
+        print(value)
+
