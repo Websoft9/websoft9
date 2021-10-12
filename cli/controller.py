@@ -1,11 +1,11 @@
-import model, os, sys, subprocess
+import model, os, sys, subprocess, re
 from model import GitOp
 
 path_repo = "./data/application.list"
 path_project = ""
 
 # for Git clone HA
-github_url = ("https://github.com", "https://github.com.cnpmjs.org", "https://hub.fastgit.org")
+github_url = ("https://github.com", "https://hub.fastgit.org", "https://github.com.cnpmjs.org")
 
 class Print:
     
@@ -43,10 +43,42 @@ class Create:
             gitop.gitClone(cmd)
             
     def setEnv(self):
-        '''set the usable port for application'''
-        fileop=model.FileOp()
-        print(fileop.fileToJson(self.folder+'/.env'))
-        pass
+        '''reset the password | port | container_name for application'''
+        
+        fileop=model.FileOp(self.folder+'/.env')
+        securityop=model.SecurityOp()
+        netop=model.NetOp()
+        
+        env_dict = fileop.fileToDict()
+        env_str = fileop.fileToString()
+        port_list = []
+        
+        for key in list(env_dict.keys()):
+            if env_dict[key] in ["", "True", "False"]:
+                del env_dict[key]
+
+        for key,value in env_dict.items():
+            # replace password
+            if re.match('\w*PASSWORD',key,re.I) != None:
+                env_str = env_str.replace(key+"="+value, key+"="+securityop.randomPass())
+                
+            # replace port
+            if re.match('\w*PORT',key,re.I) != None:
+                port = int(value)
+                while port in port_list or not netop.checkPort(port):
+                    port = port + 1
+                port_list.append(port)
+                env_str = env_str.replace(key+"="+value, key+"="+str(port))
+            
+            # replace app_container 
+            if re.match('\w*APP_CONTAINER_NAME',key,re.I) != None:
+                env_str = env_str.replace(key+"="+value, key+"="+self.folder)
+                
+            # replace app_network 
+            if re.match('\w*APP_NETWORK',key,re.I) != None:
+                env_str = env_str.replace(key+"="+value, key+"="+self.folder)
+            
+            fileop.stringToFile(env_str)
             
     def upRepo(self):
         '''docker-compose up repository'''
@@ -58,5 +90,3 @@ class Create:
         
     def printResult(self):
         pass
-    
-

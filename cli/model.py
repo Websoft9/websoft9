@@ -43,27 +43,36 @@ class GitOp:
 class FileOp:
     '''File operation'''
     
-    def __init__(self):
-        pass
+    def __init__(self, path: str):
+        self.path = path
     
-    def printJson(self, path: str):
+    def printFile(self):
         '''output file content'''
-        
-        with open(path,newline='') as file:
+        with open(self.path,newline='') as file:
             print(file.read())
+            
+    def fileToString(self):
+        '''read file content'''
+        with open(self.path,'r') as file:
+            return file.read()
+        
+    def stringToFile(self, content: Optional[str] = ""):
+        '''string content to file'''
+        with open(self.path,'w+') as file:
+            return file.write(content)
+        file.close()
     
-    def fileToJson(self, path: str, remark: Optional[str] = "#", separate: Optional[str] = "="):
+    def fileToDict(self, remark: Optional[str] = "#", separate: Optional[str] = "="):
         ''' convert file to Json '''
         dict = {}
-        with open(path) as fh:
+        with open(self.path) as fh:
             for line in fh:
                 if line == "\n":
                     continue
                 
                 if line.find(remark) != 0:
                     item, value = line.strip().split(separate, -1)
-                    if value != "":
-                        dict[item] = value
+                    dict[item] = value
                 else:
                     continue
         fh.close()        
@@ -79,20 +88,11 @@ class NetOp:
     def checkPort(self, port: int):
         '''check the target port's status'''
         search_key = "port="+str(port)
-        if str(+psutil.net_connections()).find(search_key) != -1:
+        if str(psutil.net_connections()).find(search_key) != -1:
             print(str(port)+" is used")
             return False
         else:
-            print(str(port)+" is free")
             return True
-     
-    def setPort(self, port: int):
-        '''set usable port'''
-        while self.checkPort(port) == False:
-            port=port+1
-         
-        print(port)
-        return port
 
 class SecurityOp:
     '''Password and security operation'''
@@ -110,4 +110,4 @@ class SecurityOp:
                     and any(c.isupper() for c in password)
                     and sum(c.isdigit() for c in password) >= 3):
                 break
-        print(password)
+        return password
