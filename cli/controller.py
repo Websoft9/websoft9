@@ -83,10 +83,21 @@ class Create:
     def upRepo(self):
         '''docker-compose up repository'''
         
-        cmd = "docker-compose up -d"
-        print(cmd)
+        cmd_up = "docker-compose up -d"
+        cmd_down = "docker-compose down -v"
         os.chdir(self.folder)
-        os.system(cmd)
+        
+        try:
+            os.system(cmd_up)
+        except:
+            print("Create failed")
+            os.system(cmd_down)
+            sys.exit(0)
         
     def printResult(self):
         pass
+    
+
+class Manage(model.DockerComposeOp):
+    pass
+

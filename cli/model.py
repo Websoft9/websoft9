@@ -111,3 +111,52 @@ class SecurityOp:
                     and sum(c.isdigit() for c in password) >= 3):
                 break
         return password
+    
+class DockerComposeOp:
+    '''Docker Compose operation'''
+    
+    def __int__(self, path: Optional[str] = ""):
+        
+        self.cmd_up = "docker-compose up -d"
+        self.cmd_stop = "docker-compose stop"
+        self.cmd_down = "docker-compose down"
+        self.path = path
+        
+        try:
+            os.chdir(self.path)
+        except:
+            print("No found project directory")
+            sys.exit(0)
+    
+    def up(self):
+        '''docker-compose up'''
+        try:
+            os.system(cmd_up)
+        except:
+            print("Create failed")
+            os.system(cmd_up)
+            sys.exit(0)
+    
+    def stop(self):
+        '''docker-compose stop'''
+        try:
+            os.system(cmd_stop)
+        except:
+            print("Stop failed, suggest try it again")
+            sys.exit(0)
+    
+    def down(self):
+        '''docker-compose down'''
+        try:
+            os.system(cmd_down)
+        except:
+            print("Down failed, suggest try it again")
+            sys.exit(0)
+            
+            
+class DockerOp:
+    ''' Docker operation '''
+    def __init__(self):
+        pass
+    
+    

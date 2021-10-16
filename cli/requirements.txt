@@ -1,3 +1,5 @@
 typer
 psutil
 jq
+docker
+docker-compose
