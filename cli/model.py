@@ -1,5 +1,5 @@
 
-import os, io, sys, platform, psutil, json, secrets, string
+import os, io, sys, platform, psutil, json, secrets, string, docker
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 import urllib.request
@@ -157,6 +157,17 @@ class DockerComposeOp:
 class DockerOp:
     ''' Docker operation '''
     def __init__(self):
-        pass
+        self.client = docker.from_env()
     
-    
+    def lsContainer(self):
+        container_list = []
+        
+        for container in self.client.containers.list(all):
+            container_list.append(container.name)
+        return container_list
+
+    def lsProject(self):
+        project_dict = {}
+
+        for name in self.lsContainer():
+            print(self.client.containers.get(name).labels)

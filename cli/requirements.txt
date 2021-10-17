@@ -1,5 +1,5 @@
 typer
 psutil
-jq
+pyjq 
 docker
 docker-compose

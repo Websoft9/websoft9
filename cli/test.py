@@ -1,5 +1,4 @@
-import docker
+import model
+docker = model.DockerOp()
 
-client = docker.from_env()
-for image in client.images.list():
-  print(image.id)
+docker.lsProject()
