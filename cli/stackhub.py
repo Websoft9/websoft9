@@ -9,9 +9,10 @@ import typer
 app = typer.Typer()
 
 @app.command()
-def list():
-    '''print the lists file'''
-    controller.Print.printRepo()
+def ls(status: Optional[str] = 'all'):
+    '''list all the project have installed'''
+    print = controller.Print(status)
+    print.lsProject()
 
 @app.command()
 def create(app_name: str, project_name: Optional[str] = None):

@@ -9,11 +9,17 @@ github_url = ("https://github.com", "https://hub.fastgit.org", "https://github.c
 
 class Print:
     
-    def __init__(self):
-        pass
+    '''display all any information you want'''
+    
+    def __init__(self, status: Optional[str] = 'all'):
+        self.status = status
     
     def printRepo():
         model.FileOp.printJson(path_repo)
+        
+    def lsProject(self):
+        ls = model.DockerOp(self.status)
+        ls.lsProject()
 
 
 class Create:

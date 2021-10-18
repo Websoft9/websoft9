@@ -156,18 +156,26 @@ class DockerComposeOp:
             
 class DockerOp:
     ''' Docker operation '''
-    def __init__(self):
+    def __init__(self, status: Optional[str] = 'all'):
         self.client = docker.from_env()
+        self.status = status
     
     def lsContainer(self):
         container_list = []
         
-        for container in self.client.containers.list(all):
+        for container in self.client.containers.list(self.status):
             container_list.append(container.name)
         return container_list
 
-    def lsProject(self):
+    def getProject(self):
         project_dict = {}
 
         for name in self.lsContainer():
-            print(self.client.containers.get(name).labels)
+            project_dict[self.client.containers.get(name).labels['com.docker.compose.project']] = self.client.containers.get(name).labels['com.docker.compose.project.working_dir']
+        
+        return project_dict
+    
+    def lsProject(self):
+        '''list all project and path'''
+        for key, value in self.getProject().items():
+            print(key,value)
