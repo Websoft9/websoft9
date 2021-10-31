@@ -11,8 +11,8 @@ app = typer.Typer()
 @app.command()
 def ls(status: Optional[str] = 'all'):
     '''list all the project have installed'''
-    print = controller.Print(status)
-    print.lsProject()
+    myprint = controller.Print(status)
+    myprint.lsProject()
 
 @app.command()
 def create(app_name: str, project_name: Optional[str] = None):
@@ -50,8 +50,7 @@ def search(name: str):
 def show(name: str):
     '''show the detail of application'''
     typer.echo(f"Hello {name}")
-    
-    
+
 @app.command()
 def package(name: str):
     '''package one application for no network environment'''

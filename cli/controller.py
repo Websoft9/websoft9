@@ -11,7 +11,7 @@ class Print:
     
     '''display all any information you want'''
     
-    def __init__(self, status: Optional[str] = 'all'):
+    def __init__(self, status:str):
         self.status = status
     
     def printRepo():
