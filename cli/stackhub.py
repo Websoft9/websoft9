@@ -22,16 +22,41 @@ def create(app_name: str, project_name: Optional[str] = None):
     create.setEnv()
     create.upRepo()
     create.printResult()
-
-@app.command()
-def start(app_name: str, project_name: Optional[str] = None):
-    '''start one application'''
-    pass
     
 @app.command()
-def update(name: str):
+def up(path: str):
+    '''up one deleted application'''
+    status = controller.Status("application", path)
+    status.startApp()
+
+@app.command()
+def start(project_name: str):
+    '''start one stopped application'''
+    status = controller.Status(project_name)
+    status.startApp()
+    
+@app.command()
+def stop(project_name: str):
+    '''start one running application'''
+    status = controller.Status(project_name)
+    status.stopApp()
+
+@app.command()
+def restart(project_name: str):
+    '''Restart one application'''
+    status = controller.Status(project_name)
+    status.retartApp()
+
+@app.command()
+def erase(project_name: str):
+    '''erase or delete an application'''
+    status = controller.Status(project_name)
+    status.eraseApp()
+    
+@app.command()
+def update(project_name: str):
     '''update the local lists cache'''
-    typer.echo(f"Hello {name}")
+    typer.echo(f"Hello {project_name}")
 
 
 @app.command()

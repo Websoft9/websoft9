@@ -104,6 +104,40 @@ class Create:
         pass
     
 
-class Manage(model.DockerComposeOp):
-    pass
+class Status:
+    
+    '''The status operation of project, e.g Start | Stop | Restart | Erase'''
+    
+    def __init__(self, project_name: str, project_path: Optional[str] = None):
+        
+        self.project_name = project_name
+        self.project_path = project_path
+        self.dockerop = model.DockerOp()
+        
+        projectdict = self.dockerop.getProject()
+        
+        if self.project_path == None:
+            try:
+                self.project_path = projectdict[self.project_name]
+                self.dockercomposeop = model.DockerComposeOp(self.project_path)
+            except:
+                print("No this application!")
+                sys.exit(0)
 
+    def stopApp(self):
+        pass
+    
+    def upApp(self):
+        pass
+    
+    def startApp(self):
+        pass
+    
+    def retartApp(self):
+        pass
+    
+    def eraseApp(self):
+        self.dockercomposeop.down()
+        
+    def upApp(self):
+        self.dockercomposeop.up(self.project_path)
