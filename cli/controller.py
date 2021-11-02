@@ -1,3 +1,4 @@
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 import model, os, sys, subprocess, re
 from model import GitOp
 
@@ -108,36 +109,41 @@ class Status:
     
     '''The status operation of project, e.g Start | Stop | Restart | Erase'''
     
-    def __init__(self, project_name: str, project_path: Optional[str] = None):
+    def __init__(self, project_name: str, **parameter):
         
         self.project_name = project_name
-        self.project_path = project_path
         self.dockerop = model.DockerOp()
         
         projectdict = self.dockerop.getProject()
         
-        if self.project_path == None:
+        if self.project_name != None:
             try:
                 self.project_path = projectdict[self.project_name]
-                self.dockercomposeop = model.DockerComposeOp(self.project_path)
             except:
                 print("No this application!")
                 sys.exit(0)
+        
+        else
+            try: 
+                self.project_path = parameter[project-directory]
+            except:
+                print("Directory not exist, please check it")
+                sys.exit(0)
+    
+        self.dockercomposeop = model.DockerComposeOp(self.project_path)
 
     def stopApp(self):
         pass
     
     def upApp(self):
-        pass
+        print("It up the application at directory: "+self.project_path)
+        self.dockercomposeop.execute()
     
     def startApp(self):
         pass
     
-    def retartApp(self):
-        pass
+    def restartApp(self):
+        self.dockercomposeop.execute()
     
-    def eraseApp(self):
-        self.dockercomposeop.down()
-        
-    def upApp(self):
-        self.dockercomposeop.up(self.project_path)
+    def deleteApp(self):
+        self.dockercomposeop.execute()

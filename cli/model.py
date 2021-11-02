@@ -115,45 +115,27 @@ class SecurityOp:
 class DockerComposeOp:
     '''Docker Compose operation'''
     
-    def __init__(self, path: Optional[str] = ''):
+    def __init__(self, command: str, **parameter):
         
-        self.cmd_up = "docker-compose up -d"
-        self.cmd_stop = "docker-compose stop"
-        self.cmd_down = "docker-compose down"
-        self.path = path
+        self.cmd = "docker-compose "+ command
+        
+        for key, value in parameter.items():
+            self.cmd = self.cmd + " --" + key + " " + value
         
         try:
-            os.chdir(self.path)
+            os.chdir(self.parameter[project-directory])
         except:
             print("Not found project directory")
             sys.exit(0)
     
-    def up(self):
-        '''docker-compose up'''
+    def execute(self):
+        '''docker-compose command executing'''
         try:
-            os.system(self.cmd_up)
+            os.system(self.cmd)
         except:
-            print("Create failed")
-            os.system(self.cmd_up)
+            print("This operation execute failed")
             sys.exit(0)
-    
-    def stop(self):
-        '''docker-compose stop'''
-        try:
-            os.system(self.cmd_stop)
-        except:
-            print("Stop failed, suggest try it again")
-            sys.exit(0)
-    
-    def down(self):
-        '''docker-compose down'''
-        try:
-            os.system(self.cmd_down)
-        except:
-            print("Down failed, suggest try it again")
-            sys.exit(0)
-            
-            
+
 class DockerOp:
     ''' Docker operation '''
     def __init__(self, status: Optional[str] = 'all'):

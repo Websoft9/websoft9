@@ -26,8 +26,8 @@ def create(app_name: str, project_name: Optional[str] = None):
 @app.command()
 def up(path: str):
     '''up one deleted application'''
-    status = controller.Status("application", path)
-    status.startApp()
+    status = controller.Status(None, path)
+    status.upApp()
 
 @app.command()
 def start(project_name: str):
@@ -48,16 +48,15 @@ def restart(project_name: str):
     status.retartApp()
 
 @app.command()
-def erase(project_name: str):
+def delete(project_name: str):
     '''erase or delete an application'''
     status = controller.Status(project_name)
-    status.eraseApp()
+    status.deleteApp()
     
 @app.command()
 def update(project_name: str):
     '''update the local lists cache'''
     typer.echo(f"Hello {project_name}")
-
 
 @app.command()
 def upgrade(name: str):
@@ -70,7 +69,6 @@ def search(name: str):
     '''Search application you want to install'''
     typer.echo(f"Hello {name}")
 
-
 @app.command()
 def show(name: str):
     '''show the detail of application'''
@@ -80,7 +78,6 @@ def show(name: str):
 def package(name: str):
     '''package one application for no network environment'''
     typer.echo(f"Hello {name}")
-
 
 if __name__ == "__main__":
     app()
