@@ -57,7 +57,8 @@ do
 done
 
    
-  [ ! -n "$repo_name" ] && exit 1
+  [ ! -n "$repo_name" ] && echo "Please input your want to installing App name!" && exit 1
+  [ "$repo_name" != "wordpress"  ] && echo "You can only install wordpress!" && exit 1
 
 install_tools(){
   if command -v apt > /dev/null;then  
@@ -140,11 +141,7 @@ download_docker_compose(){
 }
 
 install_docker_compose(){ 
-    curl -L "https://github.com/docker/compose/releases/download/1.29.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 1>/dev/null 2>&1
-    sudo chmod +x /usr/local/bin/docker-compose 
-    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose &>/dev/mull || true
-    sudo echo `docker-compose -v`
-    sudo echo -e "docker-compose installed successfully"
+    echo -e "docker-compose installing... " && sudo yum install -y docker-compose && sudo chmod +x /usr/bin/docker-compose && ln -sf /usr/bin/docker-compose  /usr/local/bin && sudo systemctl start docker && sudo echo -e "docker-compose installed successfully"
 }
 
 save_images(){
@@ -462,7 +459,8 @@ make_package(){
 print_information(){
   sudo figlet websoft9
 # Check if the repo exists
-  repo_name_exists=$(curl -s --head https://github.com/Websoft9/docker-$repo_name | head -n 1 |grep -c '200') 
+  echo "Check if $repo_name exists..."
+  repo_name_exists=$(curl -s --head https://github.com.cnpmjs.org/Websoft9/docker-$repo_name | head -n 1 |grep -c '200') 
   [ "$repo_name_exists" -ne 1 ] && sudo echo -e "The repo does not exist !" && exit 1 
       
 # Print installation information
