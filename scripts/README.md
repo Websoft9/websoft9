@@ -39,7 +39,7 @@ art               2.0       99f4472fd521   37 minutes ago   1.27GB
 
 ## Excute
 
-### Excute roles
+### Get project from volumes
 
 
 ```
@@ -60,4 +60,14 @@ Please choose the number for MySQL version [ 1/2/3/4...]
  4: MySQL 8.0
  [3]: 
 
+```
+
+### Get project and edit in Container
+
+```
+docker run -d --name art -v /root/role_mysql:/ansible/role_mysql art:2.0
+
+[root@VM-74-236-centos ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND            CREATED         STATUS         PORTS     NAMES
+f8ec36905530   art:2.0   "/usr/sbin/init"   9 minutes ago   Up 9 minutes             art
 ```
