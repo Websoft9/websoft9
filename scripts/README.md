@@ -1,5 +1,6 @@
 ## build
 
+docker build -t art:1.0 .
 ```
 [root@VM-74-236-centos ~]# docker build -t art:2.0 .
 Sending build context to Docker daemon  451.1kB
