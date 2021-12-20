@@ -15,6 +15,3 @@ RUN ansible-playbook role_common/tests/test.yml
 RUN git clone https://github.com/Websoft9/role_template
 
 VOLUME "/ansible"
-
-# Define the entry point for the docker container.
-CMD ["bash" "-c" "echo ansible RunTime is OK!"]
