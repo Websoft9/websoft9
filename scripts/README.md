@@ -36,3 +36,28 @@ art               1.0       2735478ce859   37 minutes ago   1.27GB
 art               2.0       99f4472fd521   37 minutes ago   1.27GB
 
 ```
+
+## Excute
+
+### Excute roles
+
+
+```
+docker run -d --name art -v /root/role_mysql:/ansible/role_mysql art:2.0
+
+[root@VM-74-236-centos ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND            CREATED         STATUS         PORTS     NAMES
+f8ec36905530   art:2.0   "/usr/sbin/init"   9 minutes ago   Up 9 minutes             art
+
+container:
+[root@f8ec36905530 ansible]# ansible-playbook role_mysql/tests/test.yml 
+
+Please choose the number for MySQL version [ 1/2/3/4...] 
+
+ 1: MySQL 5.5
+ 2: MySQL 5.6
+ 3: MySQL 5.7
+ 4: MySQL 8.0
+ [3]: 
+
+```
