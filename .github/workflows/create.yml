@@ -1,4 +1,4 @@
-name: Create new vendor folder
+name: Create APPS from template
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - 'apps/add'
 jobs:
   build:
-    name: Create vendor
+    name: Create apps
     runs-on: ubuntu-latest
     env:
       TAGS: latest
@@ -17,8 +17,7 @@ jobs:
 
       - name: Creating
         run: |
-          cd apps
-          cd list && python3 create.py
+          cd apps && python3 create.py
         
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
