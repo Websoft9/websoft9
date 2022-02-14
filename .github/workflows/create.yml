@@ -1,0 +1,25 @@
+name: Create new vendor folder
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'apps/add'
+jobs:
+  build:
+    name: Create vendor
+    runs-on: ubuntu-latest
+    env:
+      TAGS: latest
+    steps:
+      - uses: actions/checkout@v2
+        name: Check out code
+
+      - name: Creating
+        run: |
+          cd apps
+          cd list && python3 create.py
+        
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: new vendor
