@@ -22,12 +22,8 @@ mylists=ReadLists("add")
 # 批量处理，创建项目文件夹，issue
 for mylist in mylists:
     print("处理 "+mylist+" ...\n")
-    path=os.getcwd()+"/"+mylist+"/README.md"
-    print(path)
-    print(os.path.exists(path))
-    if not os.path.exists(path):
-      os.system("git clone --depth https://github.com/Websoft9/ansible-template "+ mylist)
-      os.system("cd "+ mylist +" && rm -rf .git .github docs")
+    os.system("git clone --depth=1 https://github.com/Websoft9/ansible-template "+ mylist)
+    os.system("cd "+ mylist +" && rm -rf .git .github docs")
     os.system("echo '' > lists")
 
 print("\n执行完成，并清空列表")
