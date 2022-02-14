@@ -1,0 +1,53 @@
+{
+  "name": "rabbitmq",
+  "trademark": "RabbitMQ",
+  "official_url": "https://rabbitmq.io/",
+  "support_os": "CentOS7.x, Ubuntu20.04, Amazon Linux2",
+  "introduction_extra": {
+    "en": "CentOS7.x, Ubuntu20.04, Amazon Linux2",
+    "zh": "本项目支持的一系列开源PHP应用，包括：</br>                   </br>[chanzhi,cmseasy,codiad,dolibarr,dreamfactory,dzzoffice,empirecms,espocrm,kodcloud,laravel,mantisbt,matomo,onethink,pydio,ranzhi,resourcespace,suitecrm,symfony,testlink,thinkcmf,thinkphp,vanilla,vtigercrm,zurmo,zdoo](/roles/phpapps/tasks)等</br>                   </br>对于更热门的PHP应用程序，我们为之开发了单独的项目</br>                   </br>* [WordPress](https://github.com/Websoft9/ansible-wordpress)</br>* [Joomla](https://github.com/Websoft9/ansible-joomla)</br>* [Drupal](https://github.com/Websoft9/ansible-drupal)</br>* [ownCloud](https://github.com/Websoft9/ansible-owncloud)"
+  },
+  "requirements_cpu": "2",
+  "requirements_memory": "4",
+  "requirements_Bandwidth": "100",
+  "requirements_disk": "20",
+  "requirements_swap": "2",
+  "requirements_configure_url": "https://www.rabbitmq.com/download.html",
+  "components": "RabbitMQ, MySQL8.0, MongoDB, adminMongo on Docker, phpMyAdmin on Docker, Nginx or Apache(optional)",
+  "components_extra": {
+    "en": "the extral compentents: chanzhi, cmseasy, codiad, dolibarr, dreamfactory. ",
+    "zh": "额外的相关应用组件为chanzhi，cmseasy，codiad，dolibarr, dreamfactory。"
+  },
+  "install_way": {
+    "en": "Package isntallation | Compile isntallation for source | Isntallation for download binaries files ",
+    "zh": "包安装 | 下载源码编译安装 | 下载可执行二进制包解压安装"
+  },
+  "install_url": "https://www.rabbitmq.com/download.html",
+  "release_extra": {
+    "en": "Learn more about [Version](version.md).",
+    "zh": "阅读应用的[版本号管理](version.md)文档，了解更多详情。"
+  },
+  "faqs": {
+    "en": [
+      {
+        "question": "Why add this question？",
+        "answer": "This is a good question, it can make humans feedoom!"
+      },
+      {
+        "question": "Why change template？",
+        "answer": "World is changed!"
+      }
+     ],
+     "zh": [
+      {
+        "question": "为什么要追加问题1？",
+        "answer": "这是指一个范例，没什么特别的。"
+      },
+      {
+        "question": "为什么要追加问题2？",
+        "answer": "十万个为什么。"
+      }
+     ]
+  }
+ 
+}

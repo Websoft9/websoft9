@@ -1,0 +1,121 @@
+#1 Prepare
+#2 Install
+#3 Configure
+#4 Verify
+
+
+#1 Prepare
+- name: Create rabbitmq User
+  user:
+    name: rabbitmq
+    shell: /usr/sbin/nologin
+
+- name: Create rabbitmq directory
+  file:
+    path: /data/wwwroot/rabbitmq
+    state: directory
+    owner: rabbitmq
+    group: rabbitmq
+    recurse: yes
+    
+#2 Install
+- name: Install this role on {{ansible_os_family}}
+  include: "{{ansible_os_family}}.yml"
+  
+
+#3 Configure
+- block:
+  - name: Copy jdk_env to /etc/profile.d
+    template:
+      src: rabbitmq_env.sh
+      dest: '/etc/profile.d'
+      mode: 0640
+      
+- block:     
+  - name: Export ORACLE_HOME environment variable for this shell
+    shell: |
+      export ORACLE_BASE=/opt/oracle 
+      export ORACLE_HOME=/opt/oracle/product/18c/dbhomeXE
+      export ORACLE_SID=XE
+      export PATH=$PATH:$ORACLE_HOME/bin
+    
+- name: Download rabbitmq
+  get_url:
+    dest: /data/wwwroot/rabbitmq
+    url: "{{rabbitmq_download_url}}"
+    owner: rabbitmq
+    group: rabbitmq
+
+- name: Set rabbitmq config
+  template:
+    src: rabbitmq.conf.jinja2
+    dest: /data/wwwroot/rabbitmq/rabbitmq.conf
+    owner: rabbitmq
+    group: rabbitmq
+
+- name: Setting rabbitmq service
+  copy:
+    src: rabbitmq.service
+    dest: /lib/systemd/system/rabbitmq.service
+
+- name: Restart rabbitmq
+  service:
+    name: rabbitmq.service
+    state: restarted
+    enabled: yes
+
+- name: Create rabbitmq System User
+  user:
+      name: rabbitmq 
+      create_home: no 
+      home: /opt/rabbitmq
+      shell: /usr/sbin/nologin
+
+- name: Download rabbitmq
+  unarchive:
+      src: "{{rabbitmq_download_url}}"
+      dest: /opt/ 
+      group: rabbitmq 
+      remote_src: yes
+      owner: rabbitmq
+      mode: g+w
+
+- name: Create the storage directory for files.
+  file:
+      path: /opt/rabbitmq/data
+      state: directory 
+      owner: rabbitmq 
+      group: rabbitmq
+      mode: g+w
+      
+- name: Set database connection /opt/rabbitmq/config/config.json
+  lineinfile:
+    dest: /opt/rabbitmq/config/config.json
+    regexp: '"DataSource":'
+    line: '    "DataSource": "{{rabbitmq_db_user}}:{{rabbitmq_db_password}}@tcp(localhost:3306)/{{rabbitmq_db_name}}?charset=utf8mb4,utf8&readTimeout=30s&writeTimeout=30s",'
+    backrefs: yes 
+
+#4 Verify
+
+# set soft link, -f enforce the exist links
+# ln -sf src des
+- name: set soft link
+  shell: |
+    ln -sf /opt/rabbitmq  /data/wwwroot
+    ln -sf /opt/rabbitmq/config /data/config
+
+# Check version,
+# must use sudo sh -c to solve the no-root permission
+- block:
+  - name: Check RabbitMQ Version
+    shell: sudo sh -c "rabbitmqctl status | grep 'RabbitMQ version' 1>> /data/logs/install_version.txt"
+
+  - name: Check Erlang Version
+    shell: sudo sh -c 'echo "Erlang $(yum info erlang | grep Version | sed -n 1p)" 1>> /data/logs/install_version.txt'
+    when: ansible_os_family=="RedHat"
+
+# check service state
+- name: Check RabbitMQ Service
+  shell: systemctl status rabbitmq | grep Active*
+  register: check_rabbitmq_service
+  notify: check_rabbitmq_service
