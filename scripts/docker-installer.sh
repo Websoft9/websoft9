@@ -505,10 +505,7 @@ if [ $make_package = true ]; then
    install_docker_compose
    download_docker_source
    download_docker_compose
-   echo 1111
    save_images
-   echo 222
    add_install_script
-   echo 33
    make_package
 fi
