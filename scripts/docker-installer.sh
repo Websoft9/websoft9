@@ -154,11 +154,8 @@ save_images(){
     sudo git clone https://github.com/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name || sudo git clone https://github.com.cnpmjs.org/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name
     sudo docker rmi `docker images -aq` -f &>/dev/null || true
 
-# Rename compose and env file name
     cd /tmp/docker-$repo_name
-    #sudo rm -rf docker-compose.yml .env
-    #sudo mv $compose_file_name docker-compose.yml 1>/dev/null 2>&1
-    #sudo mv .env_all .env 1>/dev/null 2>&1
+
 
 # Pull images and save images
     sudo systemctl start docker
@@ -175,9 +172,6 @@ installation(){
 
 # Rename compose and env file name
     cd $install_dir
-    #sudo rm -rf docker-compose.yml .env 
-    #sudo mv $compose_file_name docker-compose.yml 1>/dev/null 2>&1
-    #sudo mv .env_all .env 1>/dev/null 2>&1
 
 # Stop the container and remove the Volumes for sec_installation
     cd $install_dir
