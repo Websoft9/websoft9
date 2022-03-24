@@ -455,7 +455,7 @@ sudo chmod +x /tmp/setup.sh
 get_install_information(){
    install_dir=`curl -s https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/variables.json |jq -r .installpath` 1>/dev/null
    compose_file_name=`curl -s https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/variables.json |jq -r .compose_file` 1>/dev/null
-   compose_env_url="https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/.env_all"
+   compose_env_url="https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/.env"
    url_status=`curl -s -m 5 -IL $compose_env_url |grep 200 || true`
 if [[ $url_status == "" ]];then
        sudo echo "The env file does not exist"
