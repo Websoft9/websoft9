@@ -55,6 +55,7 @@ do
     esac
     shift
 done
+
    
   [ ! -n "$repo_name" ] && exit 1
 
@@ -148,14 +149,11 @@ install_docker_compose(){
 
 save_images(){
     sudo rm -rf /tmp/docker-$repo_name
-    sudo git clone https://github.com/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name
+    sudo git clone https://github.com/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name || sudo git clone https://github.com.cnpmjs.org/Websoft9/docker-$repo_name.git /tmp/docker-$repo_name
     sudo docker rmi `docker images -aq` -f &>/dev/null || true
 
-# Rename compose and env file name
     cd /tmp/docker-$repo_name
-    sudo rm -rf docker-compose.yml .env
-    sudo mv $compose_file_name docker-compose.yml 1>/dev/null 2>&1
-    sudo mv .env_all .env 1>/dev/null 2>&1
+
 
 # Pull images and save images
     sudo systemctl start docker
@@ -168,13 +166,10 @@ save_images(){
 installation(){
     sudo rm -rf $install_dir 
     sudo mkdir -p $install_dir /credentials 1>/dev/null 2>&1 &&  cd $install_dir  
-    sudo git clone https://github.com/Websoft9/docker-$repo_name.git $install_dir 
+    sudo git clone https://github.com/Websoft9/docker-$repo_name.git $install_dir   || sudo git clone https://github.com.cnpmjs.org/Websoft9/docker-$repo_name.git $install_dir
 
 # Rename compose and env file name
     cd $install_dir
-    sudo rm -rf docker-compose.yml .env 
-    sudo mv $compose_file_name docker-compose.yml 1>/dev/null 2>&1
-    sudo mv .env_all .env 1>/dev/null 2>&1
 
 # Stop the container and remove the Volumes for sec_installation
     cd $install_dir
@@ -435,7 +430,7 @@ sudo chmod +x /tmp/setup.sh
 get_install_information(){
    install_dir=`curl -s https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/variables.json |jq -r .installpath` 1>/dev/null
    compose_file_name=`curl -s https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/variables.json |jq -r .compose_file` 1>/dev/null
-   compose_env_url="https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/.env_all"
+   compose_env_url="https://raw.githubusercontent.com/Websoft9/docker-$repo_name/main/.env"
    url_status=`curl -s -m 5 -IL $compose_env_url |grep 200 || true`
 if [[ $url_status == "" ]];then
        sudo echo "The env file does not exist"
