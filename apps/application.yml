@@ -5,7 +5,16 @@
 
   vars_files:
     - vars/main.yml
+    
+  pre_tasks:
+    - name: Check interfaction exists
+      stat:
+        path: roles/{{appname}}/tests/test.yml
+      register: interfaction_exists
 
+    - include: roles/{{appname}}/tests/test.yml
+      when: interfaction_exists.stat.exists
+      
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
