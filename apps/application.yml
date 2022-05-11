@@ -7,7 +7,7 @@
     - vars/main.yml
 
   pre_tasks:
-    - include_task: roles/common/installapp.yml
+    - include: roles/common/installapp.yml
       
   roles:
     - { role: role_common, tags: "role_common" }
