@@ -6,15 +6,13 @@
   vars_files:
     - vars/main.yml
 
-  pre_tasks:
-    - include: roles/common/installapp.yml
-      
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
     - { role: role_docker, tags: "role_docker" }
     - { role: role_nginx, tags: "role_nginx" }
     - { role: role_mysql, tags: "role_mysql" }
+    - { role: common, tags: "common" }
     - { role: "{{appname}}", tags: "{{appname}}" }
     - { role: role_init, tags: "role_init" }
     - { role: role_preend, tags: "preend" }

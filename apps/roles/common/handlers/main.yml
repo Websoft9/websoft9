@@ -1,0 +1,3 @@
+- name: check_{{appname}}_service
+  debug:
+    var: check_{{appname}}_service.stdout
