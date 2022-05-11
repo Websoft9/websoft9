@@ -21,7 +21,7 @@
   with_items:
     - "/data/apps/{{appname}}/volumes"
 
-- name: Create docker self volumes to DiscuzQ
+- name: Create docker self volumes to {{appname}}
   file:
     src: "{{item.src}}"
     dest: "{{item.dest}}"
