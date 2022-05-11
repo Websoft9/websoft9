@@ -5,28 +5,15 @@
 
   vars_files:
     - vars/main.yml
-    - roles/{{appname}}/vars/defaut.yml
-
-   pre-task:  
-
-1. 必须传递一个真实有效的 appname
-
-2.git clone docker-project
-
-3.run docker
-
-4.目录统一性（与 app 无关）
-
-5. role 有关的是：初始化、Nginx 配置文件
-  
-  include:- roles/{{appname}}/tests/test.yml
+    - roles/{{appname}}/vars/main.yml
 
   roles:
-    - {role: role_common, tags: "role_common"}  
-    - {role: role_cloud, tags: "role_cloud"}  
-    - {role: role_docker, tags: "role_docker"}  
-    - {role: role_nginx, tags: "role_nginx"}  
-    - {role: {{appname}}, tags: "{{appname}}"}  
-    - {role: role_init, tags: "role_init"}
-    - {role: role_preend, tags: "preend"}
-    - {role: role_end, tags: "role_end"}
+    - { role: role_common, tags: "role_common" }
+    - { role: role_cloud, tags: "role_cloud" }
+    - { role: role_docker, tags: "role_docker" }
+    - { role: role_nginx, tags: "role_nginx" }
+    - { role: role_mysql, tags: "role_mysql" }
+    - { role: "{{appname}}", tags: "{{appname}}" }
+    - { role: role_init, tags: "role_init" }
+    - { role: role_preend, tags: "preend" }
+    - { role: role_end, tags: "role_end" }
