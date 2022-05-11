@@ -30,8 +30,3 @@
   with_items:
     - {src: "/var/lib/docker/volumes/discuzq_discuzq/_data", dest: "{{discuzq_root_directory}}/volumes/discuzq"}
     - {src: "/var/lib/docker/volumes/discuzq-mysql/_data", dest: "{{discuzq_root_directory}}/volumes/mysql"}
-
-- name: Check {{appname}} Service
-  shell: docker ps
-  register: check_{{appname}}_service
-  notify: check_{{appname}}_service
