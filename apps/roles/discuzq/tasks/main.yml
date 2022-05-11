@@ -30,8 +30,8 @@
     force: yes
   with_items:
     - {src: "/var/lib/docker/volumes/discuzq_discuzq/_data", dest: "{{discuzq_root_directory}}/volumes/discuzq"}
-    - {src: "/var/lib/docker/volumes/discuzq-mysql/_data",dest: "{{discuzq_root_directory}}/volumes/mysql"}
-    - {src: "/var/lib/docker/volumes/discuzq-mysql/_data",dest: "/data/db/mysql/data"}
+    - {src: "/var/lib/docker/volumes/discuzq-mysql/_data", dest: "{{discuzq_root_directory}}/volumes/mysql"}
+    - {src: "/var/lib/docker/volumes/discuzq-mysql/_data", dest: "/data/db/mysql/data"}
 
 - block:
     - name: Check Discuzq Version
