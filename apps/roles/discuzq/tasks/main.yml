@@ -1,2 +1,7 @@
-- name: Check Discuzq Version
+- name: Check {{appname}} Version
   shell: sudo echo "DiscuzQ version $(docker exec -it discuzq bash -c 'grep -rn "const VERSION =" /var/www/discuz/vendor/discuz/core/src/Foundation/Application.php | awk "{print \$5}" | tr -d ";"')" 1>> /data/logs/install_version.txt
+
+- name: Check {{appname}} Service
+  shell: docker ps
+  register: check_{{appname}}_service
+  notify: check_{{appname}}_service
