@@ -31,7 +31,7 @@
     - {src: "/var/lib/docker/volumes/discuzq_discuzq/_data", dest: "/data/apps/{{appname}}/volumes/discuzq"}
     - {src: "/var/lib/docker/volumes/discuzq-mysql/_data", dest: "/data/apps/{{appname}}/volumes/mysql"}
 
-#- name: Check {{appname}} Service
-#  shell: docker ps
-#  register: check_discuzq_service
-#  notify: check_{{appname}}_service
+- name: Check Docker Container Service
+  shell: docker ps
+  register: check_container_service
+  notify: check_container_service
