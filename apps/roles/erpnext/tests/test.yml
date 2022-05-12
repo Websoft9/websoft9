@@ -15,6 +15,11 @@
     erpnext_version_meta: [13, 12, 11]
     erpnext_version: erpnext_version_meta[{{ version_options.user_input }}]
 
+- name: Clone {{appname}} in Websoft9
+  git:
+    repo: "https://github.com/Websoft9/docker-{{appname}}.git"
+    dest: /data/apps/{{appname}}
+
 - name: Config .env for start containers
   shell: |
     public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
