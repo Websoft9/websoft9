@@ -33,7 +33,7 @@
       dest: "/data/apps/{{appname}}/volumes/{{item | replace('  ', '') | replace(':', '')}}"
       state: link
       force: yes
-    loop: {{volume_names.stout}}
+    loop: "{{volume_names.stout}}"
 
 - name: Check Docker Container Service
   shell: docker ps
