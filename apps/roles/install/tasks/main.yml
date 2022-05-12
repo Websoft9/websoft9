@@ -3,7 +3,7 @@
       path: /data/apps/{{appname}}
     register: app_exists
 
-- name: Clone {{appname}} in Websoft9
+- name: Clone {{appname}} in Websoft9 if pretask do this
   git:
     repo: "https://github.com/Websoft9/docker-{{appname}}.git"
     dest: /data/apps/{{appname}}
