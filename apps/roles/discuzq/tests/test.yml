@@ -3,13 +3,12 @@
       [Discuzq Version] Choice Discuzq version?
       0: latest
       1: 3.1
-      Default is 0
+      private: no
+      Default:0
   register: version_options
 
 - debug:
-    msg: "Your selected version is {{ version_options}}"
-  vars:
-    discuzq_version: "{{ (desktop_options.user_input is truthy) | ternary(desktop_options.user_input, '0') }}"
+    msg: "Your selected version is {{ version_options.user_input}}"
 
-- debug:
-    msg: "install discuzq version is {{ discuzq_version }}"
+- set_fact:
+    discuzq_version: "{{ version_options.user_input }}"
