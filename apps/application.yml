@@ -20,7 +20,6 @@
     - { role: role_cloud, tags: "role_cloud" }
     - { role: role_docker, tags: "role_docker" }
     - { role: role_nginx, tags: "role_nginx" }
-    - { role: role_mysql, tags: "role_mysql" }
     - { role: common, tags: "common" }
     - { role: "{{appname}}", tags: "{{appname}}" }
     - { role: role_init, tags: "role_init" }
