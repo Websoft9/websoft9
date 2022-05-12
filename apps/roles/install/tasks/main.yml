@@ -21,15 +21,20 @@
   with_items:
     - "/data/apps/{{appname}}/volumes"
 
-- name: Create docker self volumes to DiscuzQ
-  file:
-    src: "{{item.src}}"
-    dest: "{{item.dest}}"
-    state: link
-    force: yes
-  with_items:
-    - {src: "/var/lib/docker/volumes/discuzq_discuzq/_data", dest: "/data/apps/{{appname}}/volumes/discuzq"}
-    - {src: "/var/lib/docker/volumes/discuzq-mysql/_data", dest: "/data/apps/{{appname}}/volumes/mysql"}
+- name: Set softlink of all volumes
+  block:
+  - name: Get volumes name
+    shell: sed -n '/^volumes:/,/^network/{p}'  /data/apps/{{appname}}/docker-compose.yml | grep -v volumes:
+    register: volume_names
+    
+  - name: Create softlink of volumes
+    file:
+      src: "{{item.src}}"
+      dest: "{{item.dest}}"
+      state: link
+      force: yes
+    with_items:
+    - {src: "/var/lib/docker/volumes/discuzq_{{volume_names}}/_data", dest: "/data/apps/{{appname}}/volumes/{{volume_names}}"}
 
 - name: Check Docker Container Service
   shell: docker ps
