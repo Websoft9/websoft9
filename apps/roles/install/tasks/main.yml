@@ -24,7 +24,7 @@
 - name: Set softlink of all volumes
   block:
   - name: Get volumes name
-    shell: sed -n '/^volumes:/,/^network/{p}'  /data/apps/"{{appname}}"/docker-compose.yml | grep -v "volumes:"
+    shell: sed -n '/^volumes:/,/^network/{p}'  /data/apps/"{{appname}}"/docker-compose.yml |head  -n -2 | grep -v "volumes:"
     register: volume_names
     
   - name: Create softlink of volumes
