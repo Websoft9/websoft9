@@ -1,7 +1,7 @@
- - name: Check {{appname}} exists
-    stat:
-      path: /data/apps/{{appname}}
-    register: app_exists
+- name: Check {{appname}} exists
+  stat:
+    path: /data/apps/{{appname}}
+  register: app_exists
 
 - name: Clone {{appname}} in Websoft9 if pretask do this
   git:
