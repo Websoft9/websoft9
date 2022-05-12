@@ -29,12 +29,11 @@
     
   - name: Create softlink of volumes
     file:
-      src: "{{item.src}}"
-      dest: "{{item.dest}}"
+      src: "/var/lib/docker/volumes/discuzq_{{item | replace('  ', '') | replace(':', '')}}/_data"
+      dest: "/data/apps/{{appname}}/volumes/{{item | replace('  ', '') | replace(':', '')}}"
       state: link
       force: yes
-    with_items:
-    - {src: "/var/lib/docker/volumes/discuzq_{{volume_names}}/_data", dest: "/data/apps/{{appname}}/volumes/{{volume_names}}"}
+    loop: {{volume_names.stout}}
 
 - name: Check Docker Container Service
   shell: docker ps
