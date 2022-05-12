@@ -1,11 +1,14 @@
-- name: Delete {{appname}} dir for sec_installation
-  shell: rm -rf /data/apps/{{appname}}
+ - name: Check {{appname}} exists
+    stat:
+      path: /data/apps/{{appname}}
+    register: app_exists
 
 - name: Clone {{appname}} in Websoft9
   git:
     repo: "https://github.com/Websoft9/docker-{{appname}}.git"
     dest: /data/apps/{{appname}}
-
+  when: not app_exists.stat.exists
+ 
 - name: Rename and Run docker-compose
   shell: |
     docker-compose up -d
