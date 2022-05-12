@@ -1,0 +1,22 @@
+- pause:
+    prompt: |
+      Choice Erpnext version: 
+      0: ERPNext13
+      1: ERPNext12
+      1: ERPNext11
+      private: no
+      Default:0
+  register: version_options
+
+- debug:
+    msg: "Your selected version is {{ version_options.user_input}}"
+
+- set_fact:
+    erpnext_version_meta: [13, 12, 11]
+    erpnext_version: erpnext_version_meta[{{ version_options.user_input }}]
+
+- name: Config .env for start containers
+  shell: |
+    public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{erpnext_version}}/g' /data/apps/{{appname}}/.env
+    sed -i "s/erp.example.com/$public_ip/g"  /data/apps/{{appname}}/.env
