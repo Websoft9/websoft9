@@ -13,7 +13,7 @@
 
 - set_fact:
     erpnext_version_meta: [13, 12, 11]
-    erpnext_version: erpnext_version_meta[{{ version_options.user_input }}]
+    erpnext_version: {{erpnext_version_meta[version_options.user_input]}}
 
 - name: Delete {{appname}} dir for sec_installation
   shell: rm -rf /data/apps/{{appname}}
