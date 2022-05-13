@@ -7,6 +7,17 @@
     - vars/main.yml
 
   pre_tasks:
+    - name: Create directory and clone the app-project
+      block:
+        - name: Create app directory
+          shell: mkdir -p /data/apps
+        - name: Delete {{appname}} dir for sec_installation
+          shell: rm -rf /data/apps/{{appname}}
+        - name: Clone {{appname}} in Websoft9
+          git:
+            repo: "https://github.com/Websoft9/docker-{{appname}}.git"
+            dest: /data/apps/{{appname}}
+            
     - name: Check interfaction exists
       stat:
         path: roles/{{appname}}/tests/test.yml
