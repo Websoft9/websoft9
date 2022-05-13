@@ -16,14 +16,14 @@ init_docker:
     admin_username: Administrator
     admin_password: "admin"
     service_after: "docker.service"
-    compose_path: "/data/wwwroot/erpnext/docker-compose.yml"
+    compose_path: "/data/apps/erpnext/docker-compose.yml"
     compose_commands:
-      - cd /data/wwwroot/erpnext
+      - cd /data/apps/erpnext
       - public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
-      - sudo sed -i "s/admin/$new_password/g" /data/wwwroot/erpnext/.env
-      - sudo sed -i "s/123456/$new_password/g" /data/wwwroot/erpnext/.env
-      - sudo sed -i "s/APP_SITE_URL.*/APP_SITE_URL=$public_ip/g" /data/wwwroot/erpnext/.env
-      - sudo sed -i "s/APP_SITE_NAME=.*/APP_SITE_NAME=\`$public_ip\`/g" /data/wwwroot/erpnext/.env
+      - sudo sed -i "s/admin/$new_password/g" /data/apps/erpnext/.env
+      - sudo sed -i "s/123456/$new_password/g" /data/apps/erpnext/.env
+      - sudo sed -i "s/APP_SITE_URL.*/APP_SITE_URL=$public_ip/g" /data/apps/erpnext/.env
+      - sudo sed -i "s/APP_SITE_NAME=.*/APP_SITE_NAME=\`$public_ip\`/g" /data/apps/erpnext/.env
       - sudo docker volume prune -f
     volumes:
-      - /data/wwwroot/erpnext/volumes
+      - /data/apps/erpnext/volumes
