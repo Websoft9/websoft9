@@ -25,4 +25,4 @@ init_docker:
     service_after: "docker.service"
     compose_path: "/data/apps/discuzq/docker-compose.yml"
     compose_commands:
-      - 'sudo sed -i "s/DB_MYSQL_PASSWORD=.*/DB_MYSQL_PASSWORD=$new_password/g" /data/wwwroot/discuzq/.env'
+      - 'sudo sed -i "s/DB_MYSQL_PASSWORD=.*/DB_MYSQL_PASSWORD=$new_password/g" /data/apps/discuzq/.env'
