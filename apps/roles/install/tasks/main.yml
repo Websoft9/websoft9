@@ -27,8 +27,10 @@
 - name: Set softlink of all volumes
   block:
   - name: Get volumes name
-    shell: sed -n '/^volumes:/,/^network/{p}'  /data/apps/"{{appname}}"/docker-compose.yml |head  -n -2 | grep -v "volumes:"
+    shell: docker-compose config --volumes
     register: volume_names
+    args:
+      chdir: "/data/apps/{{appname}}"
     
   - name: Create softlink of volumes
     file:
