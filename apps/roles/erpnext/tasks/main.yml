@@ -1,2 +1,2 @@
 - name: Check {{appname}} Version
-  shell: sudo echo "DiscuzQ version $(docker exec -it discuzq bash -c 'grep -rn "const VERSION =" /var/www/discuz/vendor/discuz/core/src/Foundation/Application.php | awk "{print \$5}" | tr -d ";"')" 1>> /data/logs/install_version.txt
+  shell: sudo echo "erpnext version:" $(docker exec -it $(docker ps |grep frappe-socketio |awk '{print $1}') cat app_versions.json |grep -m 1 "erpnext" |awk '{print $2}') |sudo tee -a /data/logs/install_version.txt 
