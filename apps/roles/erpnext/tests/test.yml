@@ -12,8 +12,16 @@
     msg: "Your selected version is {{ version_options.user_input}}"
 
 - set_fact:
-    erpnext_version_meta: [13, 12, 11]
-    erpnext_version: {{erpnext_version_meta[version_options.user_input]}}
+    erpnext_version: "13"
+  when: version_options.user_input == '0'
+
+- set_fact:
+    erpnext_version: "12"
+  when: version_options.user_input == '1'
+
+- set_fact:
+    erpnext_version: "11"
+  when: version_options.user_input == '2'
 
 - name: Config .env for start containers
   shell: |
