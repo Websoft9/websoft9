@@ -34,8 +34,8 @@
     
   - name: Create softlink of volumes
     file:
-      src: "/var/lib/docker/volumes/discuzq_{{item | replace('  ', '') | replace(':', '')}}/_data"
-      dest: "/data/apps/{{appname}}/volumes/{{item | replace('  ', '') | replace(':', '')}}"
+      src: "/var/lib/docker/volumes/docker_{{item}}/_data"
+      dest: "/data/apps/{{appname}}/volumes/{{item}}"
       state: link
       force: yes
     loop: "{{volume_names.stdout_lines}}"
