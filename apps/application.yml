@@ -5,7 +5,7 @@
 
   vars_files:
     - vars/main.yml
-  
+
   pre_tasks:
     - name: Create directory and clone the app-project
       block:
@@ -17,14 +17,28 @@
           git:
             repo: "https://github.com/Websoft9/docker-{{appname}}.git"
             dest: "{{installpath}}/{{appname}}"
-            
-    - name: Check interfaction exists
-      stat:
-        path: roles/{{appname}}/tests/test.yml
-      register: interfaction_exists
 
-    - include: roles/{{appname}}/tests/test.yml
-      when: interfaction_exists.stat.exists
+    - name: Check Pre.yml exists
+      stat:
+        path: roles/{{appname}}/tasks/Pre.yml
+      register: pre_exists
+
+    - name: Excute Pre.yml
+      include_role:
+        name: "{{appname}}"
+        tasks_from: "Pre"
+      when: pre_exists.stat.exists
+
+    - name: Check Post.yml exists
+      stat:
+        path: roles/{{appname}}/tasks/Post.yml
+      register: post_exists
+
+    - name: Excute Pre.yml
+      include_role:
+        name: "{{appname}}"
+        tasks_from: "Post"
+      when: post_exists.stat.exists
 
   roles:
     - { role: role_common, tags: "role_common" }
