@@ -1,4 +1,4 @@
 - name: Copy create_users.sh to /opt/
-  copy:
+  template:
     src: create_users.sh
     dest: /opt/create_users.sh
