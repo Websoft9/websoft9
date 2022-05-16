@@ -16,7 +16,7 @@
         - name: Clone {{appname}} in Websoft9
           git:
             repo: "https://github.com/Websoft9/docker-{{appname}}.git"
-            dest: {{installpath}}/{{appname}}
+            dest: "{{installpath}}/{{appname}}"
             
     - name: Check interfaction exists
       stat:
