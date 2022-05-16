@@ -23,7 +23,7 @@
         path: roles/{{appname}}/tasks/Pre.yml
       register: pre_exists
 
-    - name: Excute Pre.yml
+    - name: Excute Preparation before main
       include_role:
         name: "{{appname}}"
         tasks_from: "Pre"
@@ -34,7 +34,7 @@
         path: roles/{{appname}}/tasks/Post.yml
       register: post_exists
 
-    - name: Excute Pre.yml
+    - name: Excute Post after main
       include_role:
         name: "{{appname}}"
         tasks_from: "Post"
