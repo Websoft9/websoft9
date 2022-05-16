@@ -23,7 +23,7 @@
     
   - name: Create softlink of volumes
     file:
-      src: "/var/lib/docker/volumes/{{appname}}_{{appname}}-{{item}}/_data"
+      src: "/var/lib/docker/volumes/{{appname}}_{{item}}/_data"
       dest: "{{installpath}}/{{appname}}/volumes/{{item}}"
       state: link
       force: yes
