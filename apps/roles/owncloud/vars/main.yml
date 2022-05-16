@@ -1,0 +1,31 @@
+common_install_docker: True
+docker_install: False
+
+mysql_install_server: False
+mysql_version: "5.7"
+
+docker_applications: [phpmyadmin]
+
+nginx_reverse_proxy_port: "9001"
+nginx_certbot: True
+
+init_docker:
+  metabase:
+    admin_username: "admin@metabase.local"
+    admin_password: "123456"
+    db: mysql
+    db_name: metabase
+    db_username: root
+    db_password: "123456"
+    service_after: "docker.service"
+    compose_path: "/data/apps/metabase/docker-compose.yml"
+    compose_commands:
+      - sudo sed -i "s/123456/$new_password/g" /data/apps/metabase/.env
+    volumes:
+      - /data/apps/metabase/volumes
+    commands:
+      - sudo systemctl stop nginx
+      - cd /opt
+      - chmod +x create_users.sh
+      - MB_HOSTNAME=localhost MB_PORT=9001 MB_ADMIN_PASSWORD=$new_password ./create_users.sh
+      - sudo systemctl start nginx
