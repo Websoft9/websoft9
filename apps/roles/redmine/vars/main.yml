@@ -1,0 +1,31 @@
+common_install_docker: True
+docker_install: False
+
+mysql_install_server: False
+mysql_version: "5.7"
+
+docker_applications: [phpmyadmin]
+
+nginx_appname: "redmine"
+nginx_vhost_mode: "reverse"
+nginx_reverse_proxy_port: "9007"
+nginx_certbot: True
+
+init_docker:
+  redmine:
+    db: redmine
+    db_name: redmine
+    db_username: root
+    db_password: "123456"
+    admin_username: admin
+    admin_password: "admin"
+    service_after: "docker.service"
+    compose_path: "/data/apps/redmine/docker-compose.yml"
+    compose_commands:
+      - sudo sed -i "s/123456/$new_password/g" /data/apps/redmine/.env
+    volumes:
+      - /data/apps/redmine/volumes
+    commands:
+      - sleep 60
+      - app_pass=$(echo -n $new_password | sha1sum|awk 'BEGIN{ORS=""}{print $1}'|sha1sum|awk '{print $1}')
+      - sudo mysql -uroot -p$new_password -h 127.0.0.1 redmine -e "update users set hashed_password = '$app_pass', salt ='', admin = 1 where login = 'admin';"

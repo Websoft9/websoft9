@@ -1,0 +1,4 @@
+- name: Check {{appname}} Version
+  shell: |
+    sudo echo "redmine version:" $(docker inspect redmine:$(docker images | grep redmine |awk '{print $2}') |grep -m 1 "REDMINE_VERSION"|cut -d'=' -f2|cut -d"\"" -f1) |sudo tee -a /data/logs/install_version.txt
+    sudo echo "mysql version:" $(docker inspect mysql:$(docker images | grep mysql |awk '{print $2}') |grep  -m 1 "MYSQL_VERSION" |cut -d '=' -f 2 |cut -d '-' -f 1) |sudo tee -a /data/logs/install_version.txt
