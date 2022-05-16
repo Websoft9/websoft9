@@ -1,0 +1,4 @@
+- name: Copy create_users.sh to /opt/
+  copy:
+    src: create_users.sh
+    dest: /opt/create_users.sh
