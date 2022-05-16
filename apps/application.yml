@@ -10,13 +10,13 @@
     - name: Create directory and clone the app-project
       block:
         - name: Create app directory
-          shell: mkdir -p /data/apps
+          shell: mkdir -p {{installpath}}
         - name: Delete {{appname}} dir for sec_installation
-          shell: rm -rf /data/apps/{{appname}}
+          shell: rm -rf {{installpath}}/{{appname}}
         - name: Clone {{appname}} in Websoft9
           git:
             repo: "https://github.com/Websoft9/docker-{{appname}}.git"
-            dest: /data/apps/{{appname}}
+            dest: {{installpath}}/{{appname}}
             
     - name: Check interfaction exists
       stat:
