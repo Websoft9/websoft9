@@ -1,0 +1,39 @@
+# global
+region: "0"
+
+common_install_docker: False
+docker_install: True
+
+nginx_certbot: true
+nginx_reverse_proxy_port: "9001"
+
+# docker
+docker_applications:
+  - pgadmin
+
+init_docker:
+  pgadmin:
+    admin_username: user@domain.com
+    admin_password: "SuperSecret"
+    service_after: "docker.service"
+    compose_path: "/data/apps/pgadmin/docker-compose.yml"
+    compose_commands:
+      - sudo sed -i "s/SuperSecret/$new_password/g" /data/apps/pgadmin/docker-compose.yml
+  superset:
+    admin_username: admin
+    admin_password: "admin"
+    db: postgresql
+    db_name: superset
+    db_username: superset
+    db_password: "superset"
+    service_after: "docker.service"
+    compose_path: "/data/apps/superset/docker-compose.yml"
+    compose_commands:
+      - sudo sed -i "s/DB_POSTGRESQL_PASSWORD=superset/DB_POSTGRESQL_PASSWORD=$new_password/g" /data/apps/superset/.env
+      - sudo sed -i 's/ADMIN_PASSWORD="admin"/ADMIN_PASSWORD="'$new_password'"/g' /data/apps/superset/src/docker/docker-init.sh
+    volumes:
+      - /data/apps/superset/volumes
+    commands:
+      - sudo docker-compose -f /data/apps/superset/docker-compose.yml restart
+      - sleep 180s
+      - if [ -d "/usr/local/aegis" ];then docker exec -it superset-app mkdir /root/.pip;docker cp /root/.pip/pip.conf superset-app:/root/.pip/;docker exec -it superset-app pip install elasticsearch-dbapi;fi
