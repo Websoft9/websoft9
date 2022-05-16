@@ -1,2 +1,8 @@
+- name: wait for {{appname}} start
+  wait_for:
+    port: "{{nginx_reverse_proxy_port}}"
+    delay: 10
+    timeout: 300
+
 - name: Check {{appname}} Version
   shell: sudo echo "erpnext version:" $(docker exec -it $(docker ps |grep frappe-socketio |awk '{print $1}') cat app_versions.json |grep -m 1 "erpnext" |awk '{print $2}') |sudo tee -a /data/logs/install_version.txt 
