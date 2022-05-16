@@ -23,5 +23,5 @@
 - name: Config .env for start containers
   shell: |
     public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
-    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{erpnext_version}}/g' /data/apps/{{appname}}/.env
-    sed -i "s/erp.example.com/$public_ip/g"  /data/apps/{{appname}}/.env
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{erpnext_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i "s/erp.example.com/$public_ip/g"  {{installpath}}/{{appname}}/.env
