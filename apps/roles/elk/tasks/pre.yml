@@ -1,0 +1,20 @@
+- pause:
+    prompt: |
+      Do you want to delete containers and images (y/n): 
+      'y': Delete image
+      'n': Do not delete image
+      private: no
+      Default: 'y'
+  register: delete_image
+
+- set_fact:
+    elk_delete_image: "{{delete_image.user_input}}"
+
+- debug:
+    msg: "elk_delete_image is {{elk_delete_image}}"
+
+- name: Config .env for start containers
+  shell: |
+    public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{erpnext_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i "s/erp.example.com/$public_ip/g"  {{installpath}}/{{appname}}/.env

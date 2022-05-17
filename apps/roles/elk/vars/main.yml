@@ -1,0 +1,17 @@
+# global
+region: "0"
+
+common_install_docker: True
+docker_install: False
+
+nginx_vhost_mode: "reverse"
+nginx_reverse_proxy_port: "9001"
+nginx_appname: "ELK"
+
+init_application:
+  elk:
+    username: elastic
+    password: "elastic123"
+    commands:
+      - sudo sed -i "s/elastic123/$new_password/g" `grep 'elastic123' /data/apps/elk/.env -rnl`
+      - sudo sed -i "s/elastic123/$new_password/g" `grep 'elastic123' /data/apps/elk/src/logstash/pipeline/logstash.conf -rnl`
