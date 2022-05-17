@@ -1,31 +1,27 @@
-common_install_docker: True
-docker_install: False
+# Global
+region: "0"
 
-mysql_install_server: False
-mysql_version: "5.7"
+common_os_support: ["CentOS", "Ubuntu", "Amazon", "OracleLinux"]
 
-docker_applications: [phpmyadmin]
-
-nginx_reverse_proxy_port: "9001"
 nginx_certbot: True
+nginx_reverse_proxy_port: "9001"
+
+# docker
+docker_applications:
+  - phpmyadmin
 
 init_docker:
   nextcloud:
-    admin_username: "admin@metabase.local"
-    admin_password: "123456"
+    admin_username: "admin"
+    admin_password: "admin"
     db: mysql
-    db_name: metabase
+    db_name: nextcloud
     db_username: root
     db_password: "123456"
     service_after: "docker.service"
     compose_path: "/data/apps/nextcloud/docker-compose.yml"
     compose_commands:
       - sudo sed -i "s/123456/$new_password/g" /data/apps/nextcloud/.env
+      - sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD==$new_password/g" /data/apps/nextcloud/.env
     volumes:
-      - /data/apps/metabase/volumes
-    commands:
-      - sudo systemctl stop nginx
-      - cd /opt
-      - chmod +x create_users.sh
-      - MB_HOSTNAME=localhost MB_PORT=9001 MB_ADMIN_PASSWORD=$new_password ./create_users.sh
-      - sudo systemctl start nginx
+      - /data/apps/nextcloud/volumes

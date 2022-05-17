@@ -8,10 +8,6 @@ nginx_certbot: True
 nginx_vhost_mode: reverse
 nginx_reverse_proxy_port: "9001"
 
-# role_mysql
-mysql_version: "5.7"
-mysql_install_server: "False"
-
 # docker
 docker_applications:
   - phpmyadmin
