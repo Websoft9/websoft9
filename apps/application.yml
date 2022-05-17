@@ -18,7 +18,7 @@
             repo: "https://github.com/Websoft9/docker-{{appname}}.git"
             dest: "{{installpath}}/{{appname}}"
 
-    - name: Check Pre.yml exists
+    - name: Check pre.yml exists
       stat:
         path: roles/{{appname}}/tasks/Pre.yml
       register: pre_exists
@@ -26,19 +26,8 @@
     - name: Excute Preparation before main
       include_role:
         name: "{{appname}}"
-        tasks_from: "Pre"
+        tasks_from: "pre"
       when: pre_exists.stat.exists
-
-    - name: Check Post.yml exists
-      stat:
-        path: roles/{{appname}}/tasks/Post.yml
-      register: post_exists
-
-    - name: Excute Post after main
-      include_role:
-        name: "{{appname}}"
-        tasks_from: "Post"
-      when: post_exists.stat.exists
 
   roles:
     - { role: role_common, tags: "role_common" }
