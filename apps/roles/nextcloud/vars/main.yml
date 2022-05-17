@@ -22,6 +22,6 @@ init_docker:
     compose_path: "/data/apps/nextcloud/docker-compose.yml"
     compose_commands:
       - sudo sed -i "s/123456/$new_password/g" /data/apps/nextcloud/.env
-      - sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD==$new_password/g" /data/apps/nextcloud/.env
+      - sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/nextcloud/.env
     volumes:
       - /data/apps/nextcloud/volumes
