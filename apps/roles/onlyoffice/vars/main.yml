@@ -1,29 +1,28 @@
+region: "0"
 common_install_docker: True
 docker_install: False
-mariadb_install_server: False
 
-nginx_reverse_proxy_port: "8000"
+nginx_appname: "onlyoffice"
+nginx_vhost_mode: "reverse"
+nginx_reverse_proxy_port: "9003"
+nginx_certbot: True
 
 docker_applications:
   - phpmyadmin
+  - onlyofficedocs
 
 init_docker:
-  erpnext:
-    db: mariadb
-    db_name: erpnext
-    db_username: root
+  onlyoffice:
+    db: onlyoffice
+    db_name: onlyoffice
+    db_username: onlyoffice
     db_password: "123456"
-    admin_username: Administrator
-    admin_password: "admin"
     service_after: "docker.service"
-    compose_path: "/data/apps/erpnext/docker-compose.yml"
+    compose_path: "/data/apps/onlyoffice/docker-compose.yml"
     compose_commands:
-      - cd /data/apps/erpnext
-      - public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
-      - sudo sed -i "s/admin/$new_password/g" /data/apps/erpnext/.env
-      - sudo sed -i "s/123456/$new_password/g" /data/apps/erpnext/.env
-      - sudo sed -i "s/APP_SITE_URL.*/APP_SITE_URL=$public_ip/g" /data/apps/erpnext/.env
-      - sudo sed -i "s/APP_SITE_NAME=.*/APP_SITE_NAME=\`$public_ip\`/g" /data/apps/erpnext/.env
-      - sudo docker volume prune -f
+      - export DOCKER_CLIENT_TIMEOUT=500
+      - export COMPOSE_HTTP_TIMEOUT=500
+      - sudo sed -i "s/123456/$new_password/g" /data/apps/onlyoffice/.env
+      - sudo sed -i "s/123456/$new_password/g" /data/apps/onlyoffice/src/config/mysql/docker-entrypoint-initdb.d/onlyoffice-initdb.sql
     volumes:
-      - /data/apps/erpnext/volumes
+      - /data/apps/onlyoffice/volumes
