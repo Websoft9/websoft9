@@ -20,7 +20,7 @@
 
     - name: Check pre.yml exists
       stat:
-        path: roles/{{appname}}/tasks/Pre.yml
+        path: roles/{{appname}}/tasks/pre.yml
       register: pre_exists
 
     - name: Excute Preparation before main
