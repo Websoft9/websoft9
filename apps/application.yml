@@ -18,16 +18,18 @@
             repo: "https://github.com/Websoft9/docker-{{appname}}.git"
             dest: "{{installpath}}/{{appname}}"
 
-    - name: Check pre.yml exists
-      stat:
-        path: roles/{{appname}}/tasks/pre.yml
-      register: pre_exists
+    - name: Excute Preparation if have pre.yml
+      block:
+        - name: Check pre.yml exists
+          stat:
+            path: roles/{{appname}}/tasks/pre.yml
+          register: pre_exists
 
-    - name: Excute Preparation before main
-      include_role:
-        name: "{{appname}}"
-        tasks_from: "pre"
-      when: pre_exists.stat.exists
+        - name: Excute Preparation before main
+          include_role:
+            name: "{{appname}}"
+            tasks_from: "pre"
+          when: pre_exists.stat.exists
 
   roles:
     - { role: role_common, tags: "role_common" }
