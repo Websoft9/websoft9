@@ -34,7 +34,6 @@
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
-    - { role: role_docker, tags: "role_docker" }
     - { role: role_nginx, tags: "role_nginx" }
     - { role: install, tags: "install" }
     - { role: "{{appname}}", tags: "{{appname}}" }
