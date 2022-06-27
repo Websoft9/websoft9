@@ -1,4 +1,4 @@
-- name: Deployment Application
+- name: Deploy Application
   hosts: all
   become: yes
   become_method: sudo
@@ -7,7 +7,7 @@
     - vars/main.yml
 
   pre_tasks:
-    - name: Create directory and clone the app-project
+    - name: Git Clone app docker repository
       block:
         - name: Create app directory
           shell: mkdir -p {{installpath}}
@@ -20,12 +20,12 @@
 
     - name: Excute Preparation if have pre.yml
       block:
-        - name: Check pre.yml exists
+        - name: Check if pre.yml exists
           stat:
             path: roles/{{appname}}/tasks/pre.yml
           register: pre_exists
 
-        - name: Excute Preparation before main
+        - name: Excute pre.yml
           include_role:
             name: "{{appname}}"
             tasks_from: "pre"
