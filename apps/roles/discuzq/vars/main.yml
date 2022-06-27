@@ -1,7 +1,8 @@
 # Global
 region: "0"
 
-common_os_support: ["CentOS", "Ubuntu", "Amazon", "OracleLinux"]
+common_install_docker: True
+common_os_support: ["CentOS", "Ubuntu", "Amazon", "OracleLinux", "Debian"]
 
 nginx_appname: "discuzq"
 nginx_certbot: True
