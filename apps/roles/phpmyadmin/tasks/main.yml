@@ -1,0 +1,20 @@
+- name: Clone phpmyadmin in Websoft9
+  git:
+    repo: "https://github.com/Websoft9/docker-phpmyadmin.git"
+    dest: "{{installpath}}/phpmyadmin"
+
+- name: Docker compose up
+  shell: |
+    docker compose up -d
+    sleep 30
+  args:
+    chdir: "{{installpath}}/phpmyadmin"
+
+- name: wait for phpmyadmin start
+  wait_for:
+    port: "9090"
+    delay: 10
+    timeout: 120
+
+- name: Check phpmyadmin Version
+  shell: sudo echo "phpmyadmin version $(docker exec -i phpmyadmin bash -c 'cat /var/www/html/package.json | grep version')" 1>> /data/logs/install_version.txt

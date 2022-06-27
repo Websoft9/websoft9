@@ -1,5 +1,5 @@
 ---
-dependencies: [phpmyadmin]
+dependencies: []
 
 galaxy_info:
   author:
