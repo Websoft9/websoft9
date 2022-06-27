@@ -1,4 +1,4 @@
-- name: Rename and Run docker-compose
+- name: Docker compose up
   shell: |
     docker compose up -d
     sleep 30
@@ -16,7 +16,7 @@
 - name: Add softlink of all volumes for app root directory
   block:
   - name: Get volumes name
-    shell: docker-compose config --volumes
+    shell: docker compose config --volumes
     register: volume_names
     args:
       chdir: "{{installpath}}/{{appname}}"
