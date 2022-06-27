@@ -1,6 +1,6 @@
 - name: Rename and Run docker-compose
   shell: |
-    docker-compose up -d
+    docker compose up -d
     sleep 30
   args:
     chdir: "{{installpath}}/{{appname}}"
@@ -11,9 +11,9 @@
     state: directory
     recurse: yes
   with_items:
-    - "{{installpath}}/{{appname}}/volumes"
+    - "{{installpath}}/{{appname}}/data"
 
-- name: Set softlink of all volumes
+- name: Add softlink of all volumes for app root directory
   block:
   - name: Get volumes name
     shell: docker-compose config --volumes
@@ -24,7 +24,7 @@
   - name: Create softlink of volumes
     file:
       src: "/var/lib/docker/volumes/{{appname}}_{{item}}/_data"
-      dest: "{{installpath}}/{{appname}}/volumes/{{item}}"
+      dest: "{{installpath}}/{{appname}}/data/{{item}}"
       state: link
       force: yes
     loop: "{{volume_names.stdout_lines}}"
