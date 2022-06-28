@@ -9,10 +9,6 @@ nginx_certbot: True
 nginx_vhost_mode: reverse
 nginx_reverse_proxy_port: "9001"
 
-# dependencies's dependencies
-dependencies_apps:
-  - phpmyadmin
-
 init_docker:
   discuzq:
     db: mysql
