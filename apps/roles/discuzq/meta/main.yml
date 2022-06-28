@@ -1,5 +1,5 @@
 ---
-dependencies: {{dependencies_apps}}
+dependencies: "{{dependencies_apps}}"
 
 galaxy_info:
   author:
