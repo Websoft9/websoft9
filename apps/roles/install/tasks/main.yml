@@ -31,7 +31,7 @@
 
 - name: Check Docker Container Service
   shell: |
-    echo "docker ps  --format '{{ json . }}' | jq -s 'map({name:.Names,status:.Status})'" >> /tmp/test.sh
+    echo \"docker ps  --format '{{ json . }}' | jq -s 'map({name:.Names,status:.Status})'\" >> /tmp/test1.sh
     bash /tmp/test.sh
   register: check_container_service
   notify: check_container_service
