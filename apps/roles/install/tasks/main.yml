@@ -30,8 +30,6 @@
     loop: "{{volume_names.stdout_lines}}"
 
 - name: Check Docker Container Service
-  shell: |
-    echo \"docker ps  --format '{{ json . }}' | jq -s 'map({name:.Names,status:.Status})'\" >> /tmp/test1.sh
-    bash /tmp/test.sh
+  shell: docker ps
   register: check_container_service
   notify: check_container_service
