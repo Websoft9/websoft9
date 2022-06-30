@@ -24,7 +24,6 @@
           uri:
             url: "https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml"
           register: pre_exists
-          fail_when: false
           
         - name: Excute pre.yml
           include_role:
