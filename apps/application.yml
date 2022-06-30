@@ -23,7 +23,9 @@
         - name: Check if pre.yml exists
           uri:
             url: "https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml"
+            return_content: yes
           register: pre_exists
+          failed_when: "'FAILED' in pre_exists.stdout"
           
         - name: Excute pre.yml
           include_role:
