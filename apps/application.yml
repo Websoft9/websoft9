@@ -21,8 +21,9 @@
     - name: Excute Preparation if have pre.yml
       block:
         - name: Check if pre.yml exists
-          stat:
-            path: roles/{{appname}}/tasks/pre.yml
+          uri:
+            url: https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml
+            eturn_content: yes
           register: pre_exists
 
         - name: Create app directory
