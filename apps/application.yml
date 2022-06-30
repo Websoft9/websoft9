@@ -25,6 +25,8 @@
             path: roles/{{appname}}/tasks/pre.yml
           register: pre_exists
 
+        - name: Create app directory
+          shell: pwd >> /tmp/test
         - debug: msg="{{pre_exists}}"
           
         - name: Excute pre.yml
