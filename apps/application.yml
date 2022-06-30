@@ -23,7 +23,7 @@
         - name: Check if pre.yml exists
           uri:
             url: https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml
-            eturn_content: yes
+            return_content: yes
           register: pre_exists
 
         - name: Create app directory
