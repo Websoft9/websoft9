@@ -14,8 +14,8 @@
         echo: no
     - name: Delete contains and images resources
       shell: |
-        docker-compose down -v
+        docker compose down -v
         docker system prune --all --force
       args:
-        chdir: /data/wwwroot/elk
+        chdir: /data/apps/elk
   when: elk_delete_image == 'y'
