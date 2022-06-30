@@ -20,5 +20,3 @@ init_docker:
       - sudo sed -i "s/APP_SITE_URL.*/APP_SITE_URL=$public_ip/g" /data/apps/erpnext/.env
       - sudo sed -i "s/APP_SITE_NAME=.*/APP_SITE_NAME=\`$public_ip\`/g" /data/apps/erpnext/.env
       - sudo docker volume prune -f
-    volumes:
-      - /data/apps/erpnext/volumes
