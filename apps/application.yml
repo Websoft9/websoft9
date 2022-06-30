@@ -25,6 +25,9 @@
             path: roles/{{appname}}/tasks/pre.yml
           register: pre_exists
 
+        - debug: msg="Path exists and is a directory"
+          when: pre_exists.stat.exists
+          
         - name: Excute pre.yml
           include_role:
             name: "{{appname}}"
