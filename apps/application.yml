@@ -32,7 +32,7 @@
           include_role:
             name: "{{appname}}"
             tasks_from: "pre"
-          when: pre_exists.status == 200
+          when: pre_exists.status is defined and pre_exists.status == 200
 
   roles:
     - { role: role_common, tags: "role_common" }
