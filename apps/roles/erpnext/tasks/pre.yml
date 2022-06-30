@@ -10,9 +10,9 @@
 
 - set_fact:
     erpnext_version_meta:
-      "0": "13"
-      "1": "12"
-      "2": "11"
+      "0": "14"
+      "1": "13"
+      "2": "12"
 
 - set_fact:
     erpnext_version: "{{erpnext_version_meta[version_options.user_input]}}"
