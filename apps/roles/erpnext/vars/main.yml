@@ -1,11 +1,6 @@
 common_install_docker: True
-docker_install: False
-mariadb_install_server: False
 
 nginx_reverse_proxy_port: "8000"
-
-docker_applications:
-  - phpmyadmin
 
 init_docker:
   erpnext:
