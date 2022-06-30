@@ -25,16 +25,12 @@
             url: https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml
             return_content: yes
           register: pre_exists
-
-        - name: Create app directory
-          shell: pwd >> /tmp/test
-        - debug: msg="{{pre_exists}}"
           
         - name: Excute pre.yml
           include_role:
             name: "{{appname}}"
             tasks_from: "pre"
-          when: pre_exists.stat.exists
+          when: pre_exists.status == 200
 
   roles:
     - { role: role_common, tags: "role_common" }
