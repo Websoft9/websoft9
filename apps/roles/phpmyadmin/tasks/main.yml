@@ -1,3 +1,6 @@
+- name: Delete phpmyadmin dir for sec_installation
+  shell: rm -rf {{installpath}}/phpmyadmin
+
 - name: Clone phpmyadmin in Websoft9
   git:
     repo: "https://github.com/Websoft9/docker-phpmyadmin.git"
