@@ -7,7 +7,7 @@
     - vars/main.yml
 
   pre_tasks:
-    - name: Git Clone app docker repository
+    - name: Excute base roles for apps
       block:
         - name: Include base roles
           include_role:
@@ -15,14 +15,6 @@
           with_items:
             - role_common
             - role_cloud
-        - name: Create app directory
-          shell: mkdir -p {{installpath}}
-        - name: Delete {{appname}} dir for sec_installation
-          shell: rm -rf {{installpath}}/{{appname}}
-        - name: Clone {{appname}} in Websoft9
-          git:
-            repo: "https://github.com/Websoft9/docker-{{appname}}.git"
-            dest: "{{installpath}}/{{appname}}"
 
     - name: Excute Preparation if have pre.yml
       block:
