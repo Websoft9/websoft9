@@ -1,11 +1,3 @@
-- name: Delete {{appname}} dir for sec_installation
-  shell: rm -rf {{installpath}}/{{appname}}
-  
-- name: Clone {{appname}} in Websoft9
-  git:
-    repo: "https://github.com/Websoft9/docker-{{appname}}.git"
-    dest: "{{installpath}}/{{appname}}"
-            
 - name: Docker compose up
   shell: |
     docker compose up -d
