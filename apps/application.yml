@@ -13,8 +13,8 @@
           include_role:
             name: "{{item}}"
           with_items:
-            - role_common
-            - role_cloud
+            - "role_common"
+            - "role_cloud"
 
     - name: Git Clone app docker repository(step:2)
       block:
