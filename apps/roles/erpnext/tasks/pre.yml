@@ -1,9 +1,9 @@
 - pause:
     prompt: |
       Choice Erpnext version: 
-      0: ERPNext13
-      1: ERPNext12
-      2: ERPNext11
+      0: ERPNext14
+      1: ERPNext13
+      2: ERPNext12
       private: no
       Default:0
   register: version_options
