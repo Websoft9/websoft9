@@ -1,9 +1,10 @@
 # 概述
 
 StackHub主要架构和技术选型如下：
-架构：后台JS框架+后端Python提供API服务  
-后端：Python, Docker, Docker-compose, FastAPI, Typer
-打包工具：[porter](https://porter.sh/)
+
+* 架构：后台JS框架+后端Python提供API服务  
+* 后端：Python, Docker, Docker-compose, FastAPI, Typer  
+* 打包工具：[porter](https://porter.sh/)
 
 ## 后端接口说明
 
