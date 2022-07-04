@@ -37,7 +37,7 @@
           failed_when: false
           
         - name: Excute pre.yml
-          include_role:
+          import_role:
             name: "{{appname}}"
             tasks_from: "pre"
           when: pre_exists.status is defined and pre_exists.status == 200
