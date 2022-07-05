@@ -9,9 +9,7 @@
     - roles/{{appname}}/defaults/main.yml
     
   pre_tasks:
-    - name: Install {{appname}}
-      include_tasks: tasks/install.yml
-    - name: Excute base roles for apps(step1)
+    - name: Excute base roles for apps
       block:
         - name: Include base roles
           include_role:
@@ -20,7 +18,7 @@
             - role_common
             - role_cloud
             
-    - name: Git Clone app docker repository(step2)
+    - name: Git Clone app docker repository
       block:
         - name: Create app directory
           shell: mkdir -p {{installpath}}
@@ -31,7 +29,7 @@
             repo: "https://github.com/Websoft9/docker-{{appname}}.git"
             dest: "{{installpath}}/{{appname}}"
 
-    - name: Excute Preparation if have pre.yml(step3)
+    - name: Excute Preparation if have pre.yml
       block:
         - name: Check if pre.yml exists
           uri:
@@ -46,7 +44,11 @@
           
     - name: Install {{appname}}
       include_tasks: tasks/install.yml
-  
+      
+  handlers:
+    - name: check_container_service
+      debug:
+        var: check_container_service.stdout
   roles:
     - { role: role_nginx, tags: "role_nginx" }
     - { role: "{{appname}}", tags: "{{appname}}" }
