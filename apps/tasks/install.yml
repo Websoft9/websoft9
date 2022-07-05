@@ -1,3 +1,7 @@
+- name: Create docker network websoft9
+  shell: docker network create websoft9
+  fail_when: False
+    
 - name: Docker compose up
   shell: |
     docker compose up -d
