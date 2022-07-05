@@ -39,5 +39,6 @@
   notify: check_container_service
 
 handlers:
-  - name: restart httpd
-    service: name=httpd state=restarted
+  - name: check_container_service
+    debug:
+      var: check_container_service.stdout
