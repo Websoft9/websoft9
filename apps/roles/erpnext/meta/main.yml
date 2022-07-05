@@ -1,8 +1,6 @@
 ---
 dependencies: [phpmyadmin]
 
-allow_duplicates: false
-
 galaxy_info:
   author: 
   description:
