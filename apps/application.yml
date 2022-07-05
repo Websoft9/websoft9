@@ -9,6 +9,8 @@
     - roles/{{appname}}/defaults/main.yml
     
   pre_tasks:
+    - name: Install {{appname}}
+      include_tasks: tasks/install.yml
     - name: Excute base roles for apps(step1)
       block:
         - name: Include base roles
