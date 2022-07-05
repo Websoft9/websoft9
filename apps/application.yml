@@ -45,9 +45,9 @@
           when: pre_exists.status is defined and pre_exists.status == 200
 
   roles:
+    - { role: "{{appname}}", tags: "{{appname}}" }
     - { role: role_nginx, tags: "role_nginx" }
     - { role: install, tags: "install" }
-    - { role: "{{appname}}", tags: "{{appname}}" }
     - { role: role_init, tags: "role_init" }
     - { role: role_preend, tags: "preend" }
     - { role: role_end, tags: "role_end" }
