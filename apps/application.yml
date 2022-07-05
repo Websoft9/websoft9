@@ -10,7 +10,7 @@
     - debug:
         msg: "{{nginx_reverse_proxy_port}}"
     - debug:
-        msg: "{{nginx_reverse_proxy_port2}}"
+        msg: "{{nginx_listen_port}}"
     - name: Excute base roles for apps(step1)
       block:
         - name: Include base roles
