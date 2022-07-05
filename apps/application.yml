@@ -8,7 +8,7 @@
 
   pre_tasks:
     - debug:
-        msg: "{{nginx_reverse_proxy_port}}"--"{{nginx_reverse_proxy_port2}}"
+        msg: "{{nginx_reverse_proxy_port}}"
     - name: Excute base roles for apps(step1)
       block:
         - name: Include base roles
