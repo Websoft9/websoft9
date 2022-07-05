@@ -42,8 +42,9 @@
           include_tasks: roles/{{appname}}/tasks/pre.yml
           when: pre_exists.status is defined and pre_exists.status == 200
           
-        - name: Excute install.yml
-          include_tasks: tasks/install.yml
+      - name: Install {{appname}}
+        include_tasks: tasks/install.yml
+  
   roles:
     - { role: role_nginx, tags: "role_nginx" }
     - { role: "{{appname}}", tags: "{{appname}}" }
