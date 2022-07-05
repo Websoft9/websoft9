@@ -49,6 +49,7 @@
     - name: check_container_service
       debug:
         var: check_container_service.stdout
+
   roles:
     - { role: role_nginx, tags: "role_nginx" }
     - { role: "{{appname}}", tags: "{{appname}}" }
