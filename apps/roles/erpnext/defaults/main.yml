@@ -1,1 +1,1 @@
-nginx_reverse_proxy_port: "9008"
+nginx_listen_port: "9008"
