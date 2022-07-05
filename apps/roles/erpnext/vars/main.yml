@@ -1,6 +1,6 @@
 common_install_docker: True
 
-nginx_reverse_proxy_port: "9001"
+nginx_reverse_proxy_port: "9003"
 
 init_docker:
   erpnext:
