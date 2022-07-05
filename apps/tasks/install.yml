@@ -37,3 +37,7 @@
   shell: docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',state:'.State'\}\)
   register: check_container_service
   notify: check_container_service
+
+handlers:
+  - name: restart httpd
+    service: name=httpd state=restarted
