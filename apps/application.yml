@@ -5,7 +5,9 @@
 
   vars_files:
     - vars/main.yml
-
+    - roles/{{appname}}/vars/main.yml
+    - roles/{{appname}}/defaults/main.yml
+    
   pre_tasks:
     - debug:
         msg: "{{nginx_reverse_proxy_port}}"
