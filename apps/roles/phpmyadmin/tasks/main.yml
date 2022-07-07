@@ -1,18 +1,3 @@
-- name: Delete phpmyadmin dir for sec_installation
-  shell: rm -rf {{installpath}}/phpmyadmin
-
-- name: Clone phpmyadmin in Websoft9
-  git:
-    repo: "https://github.com/Websoft9/docker-phpmyadmin.git"
-    dest: "{{installpath}}/phpmyadmin"
-
-- name: Docker compose up
-  shell: |
-    docker compose up -d
-    sleep 30
-  args:
-    chdir: "{{installpath}}/phpmyadmin"
-
 - name: wait for phpmyadmin start
   wait_for:
     port: "{{phpmyadmin_port}}"
