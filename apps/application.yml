@@ -44,6 +44,11 @@
           
     - name: Install {{appname}}
       include_tasks: tasks/install.yml
+      vars:
+        appname: "{{item}}"
+      with_items:
+        - discuzq
+        - phpmyadmin
       
   handlers:
     - name: check_container_service
