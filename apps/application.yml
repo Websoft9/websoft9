@@ -49,7 +49,12 @@
       with_items:
         - discuzq
         - phpmyadmin
-      
+ 
+    - name: Check Docker Container Service
+      shell: docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',state:'.State'\}\)
+      register: check_container_service
+      notify: check_container_service
+  
   handlers:
     - name: check_container_service
       debug:
