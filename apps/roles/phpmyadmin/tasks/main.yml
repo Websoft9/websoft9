@@ -6,8 +6,3 @@
 
 - name: Check phpmyadmin Version
   shell: sudo echo "phpmyadmin version $(docker exec -i phpmyadmin bash -c 'cat /var/www/html/package.json | grep version')" 1>> /data/logs/install_version.txt
-
-- name: Check Docker Container Service
-  shell: docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',state:'.State'\}\)
-  register: check_container_service
-  notify: check_container_service
