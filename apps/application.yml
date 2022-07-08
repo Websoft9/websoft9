@@ -45,11 +45,9 @@
     - name: Install {{appname}}
       include_tasks: tasks/install.yml
       vars:
-        appname: "{{item}}"
-      with_items:
-        - discuzq
-        - phpmyadmin
- 
+        app: "{{item}}"
+      with_items: "{{applist}}"
+
     - name: Check Docker Container Service
       shell: docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',state:'.State'\}\)
       register: check_container_service
