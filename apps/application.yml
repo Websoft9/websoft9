@@ -46,7 +46,7 @@
       include_tasks: tasks/install.yml
       vars:
         app: "{{item}}"
-      with_items: "{{applist}}"
+      loop: "{{applist}}"
 
     - name: Check Docker Container Service
       shell: docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',state:'.State'\}\)
