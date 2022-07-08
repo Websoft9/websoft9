@@ -7,15 +7,15 @@
     docker compose up -d
     sleep 30
   args:
-    chdir: "{{installpath}}/{{appname}}"
+    chdir: "{{installpath}}/{{app}}"
 
-- name: Recursively create directory for {{appname}}
+- name: Recursively create directory for {{app}}
   file:
     path: "{{ item }}"
     state: directory
     recurse: yes
   with_items:
-    - "{{installpath}}/{{appname}}/data"
+    - "{{installpath}}/{{app}}/data"
 
 - name: Add softlink of all volumes for app root directory
   block:
@@ -23,12 +23,12 @@
     shell: docker compose config --volumes
     register: volume_names
     args:
-      chdir: "{{installpath}}/{{appname}}"
+      chdir: "{{installpath}}/{{app}}"
     
   - name: Create softlink of volumes
     file:
-      src: "/var/lib/docker/volumes/{{appname}}_{{item}}/_data"
-      dest: "{{installpath}}/{{appname}}/data/{{item}}"
+      src: "/var/lib/docker/volumes/{{app}}_{{item}}/_data"
+      dest: "{{installpath}}/{{app}}/data/{{item}}"
       state: link
       force: yes
     loop: "{{volume_names.stdout_lines}}"
