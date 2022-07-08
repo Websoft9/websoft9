@@ -2,6 +2,28 @@
   shell: docker network create websoft9
   failed_when: False
 
+- name: Git Clone app docker repository
+  block:
+    - name: Delete {{app}} dir for sec_installation
+      shell: rm -rf {{installpath}}/{{app}}
+    - name: Clone {{app}} in Websoft9
+      git:
+        repo: "https://github.com/Websoft9/docker-{{app}}.git"
+        dest: "{{installpath}}/{{app}}"
+
+- name: Excute Preparation if have pre.yml
+  block:
+    - name: Check if pre.yml exists
+      uri:
+        url: "https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{app}}/tasks/pre.yml"
+        return_content: yes
+      register: pre_exists
+      failed_when: false
+      
+    - name: Excute pre.yml
+      include_tasks: roles/{{app}}/tasks/pre.yml
+      when: pre_exists.status is defined and pre_exists.status == 200
+          
 - name: Docker compose up
   shell: |
     docker compose up -d
