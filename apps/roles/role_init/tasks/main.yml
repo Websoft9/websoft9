@@ -26,14 +26,3 @@
   service:
     name: init-apps
     enabled: yes
-
-- block:
-    - name: Check init, if /credentials/* file not exist or no content, stop and exit Ansible
-      shell: |
-        [  -s /credentials/password.txt ] && [  -s /credentials/init.sh ] && init_initpasswd=true || init_initpasswd=false
-        echo $init_initpasswd
-      register: init_check
-
-    - name: Output error when init.sh fail
-      fail: msg="init role is not done,exit!"
-      when: init_check.stdout == "false"
