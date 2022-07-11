@@ -7,19 +7,18 @@
     - vars/main.yml
 
   pre_tasks:
-    - name: test
-      shell: cat /tmp/test
-      register: rt
-    - debug:
-        msg: "{{rt}}"
-    
-    - name: Git Clone StackHub repository
+    - name: Get applist
       block:
-        - name: Clone {{appname}} in Websoft9
-          git:
-            repo: "https://github.com/Websoft9/StackHub.git"
-            dest: "/tmp/StackHub"
+        - name: Get appname and dependencies, combine to a applist
+          shell : |
+            echo "{{appname}}" > /tmp/applist
+            wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/meta/main.yml   
+            cat main.yml | sed -n '/dependencies/,/galaxy_info/{//!p}'|grep -|awk -F'- ' '{print $2}' >>/tmp/applist
+            cat /tmp/applist
+          register: applist
 
+        - debug: 
+            msg: You will install {{applist.stdout_lines}}
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
