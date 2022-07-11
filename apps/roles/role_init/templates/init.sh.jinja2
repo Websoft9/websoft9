@@ -7,7 +7,7 @@ sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.
 #1 init for applist of .env
 {% for app_name in applist.stdout_lines %}
 sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
-sudo sed -i "s/_PASSWORD=.*/_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
 sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d --no-recreate
 {% endfor %}
 
