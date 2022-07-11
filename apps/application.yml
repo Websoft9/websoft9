@@ -7,8 +7,11 @@
     - vars/main.yml
 
   pre_tasks:
+    - name: test
+      shell: cat /tmp/test
+      register: rt
     - debug:
-        msg: "start"
+        msg: "{{rt}}"
     
     - name: Git Clone StackHub repository
       block:
