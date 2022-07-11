@@ -4,7 +4,7 @@
         path: /credentials
         state: directory
 
-    - name: Create a PHP  symbolic link
+    - name: Create a symbolic link of app
       file:
         src: "{{installpath}}/{{item}}/.env"
         dest: "/credentials/{{item}}_password.txt"
