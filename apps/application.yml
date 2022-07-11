@@ -17,9 +17,6 @@
             cat /tmp/applist
           register: applist
 
-        - debug: 
-            msg: You will install {{item}}
-          loop: "{{applist.stdout_lines}}"
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
