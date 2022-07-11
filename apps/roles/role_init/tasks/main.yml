@@ -1,21 +1,22 @@
 - block:
-  - name: Create credentials Folder
-    file:
-      path: /credentials
-      state: directory
+    - name: Create credentials Folder
+      file:
+        path: /credentials
+        state: directory
 
-  - name: Upload Databases Password
-    template:
-      src: password.txt.jinja2
-      dest: /credentials/password.txt
-      mode: 0640
+    - name: Create a PHP  symbolic link
+      file:
+        src: "{{installpath}}/{{app}}/.env"
+        dest: "/credentials/{{item}}_password.txt"
+        state: link
+      loop: "{{applist.stdout_lines}}"
 
 - name: Copy Init Script
   template:
     src: init.sh.jinja2
     dest: /credentials/init.sh
     mode: 0750
-    
+
 - name: Upload init-apps.service
   template:
     src: init-apps.service.jinja2
@@ -26,13 +27,13 @@
     name: init-apps
     enabled: yes
 
-- block: 
-  - name: Check init, if /credentials/* file not exist or no content, stop and exit Ansible
-    shell: |
-      [  -s /credentials/password.txt ] && [  -s /credentials/init.sh ] && init_initpasswd=true || init_initpasswd=false
-      echo $init_initpasswd
-    register: init_check
+- block:
+    - name: Check init, if /credentials/* file not exist or no content, stop and exit Ansible
+      shell: |
+        [  -s /credentials/password.txt ] && [  -s /credentials/init.sh ] && init_initpasswd=true || init_initpasswd=false
+        echo $init_initpasswd
+      register: init_check
 
-  - name: Output error when init.sh fail
-    fail: msg="init role is not done,exit!"
-    when: init_check.stdout == "false"
+    - name: Output error when init.sh fail
+      fail: msg="init role is not done,exit!"
+      when: init_check.stdout == "false"
