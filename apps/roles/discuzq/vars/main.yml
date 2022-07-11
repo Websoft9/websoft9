@@ -1,21 +1,2 @@
-# Global
-region: "0"
-
-common_install_docker: True
-common_os_support: ["CentOS", "Ubuntu", "Amazon", "OracleLinux", "Debian"]
-
 nginx_appname: "discuzq"
-nginx_certbot: True
-nginx_vhost_mode: reverse
 nginx_reverse_proxy_port: "9001"
-
-init_docker:
-  discuzq:
-    db: mysql
-    db_name: discuzq
-    db_username: root
-    db_password: "123456"
-    service_after: "docker.service"
-    compose_path: "/data/apps/discuzq/docker-compose.yml"
-    compose_commands:
-      - 'sudo sed -i "s/DB_MYSQL_PASSWORD=.*/DB_MYSQL_PASSWORD=$new_password/g" /data/apps/discuzq/.env'
