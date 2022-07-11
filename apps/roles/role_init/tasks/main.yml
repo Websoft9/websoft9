@@ -6,7 +6,7 @@
 
     - name: Create a PHP  symbolic link
       file:
-        src: "{{installpath}}/{{app}}/.env"
+        src: "{{installpath}}/{{item}}/.env"
         dest: "/credentials/{{item}}_password.txt"
         state: link
       loop: "{{applist.stdout_lines}}"
