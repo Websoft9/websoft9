@@ -1,0 +1,45 @@
+#1  install snap tools
+- block:
+  - name: Install snap tools
+    apt: 
+      name: snapd
+      update_cache: yes
+      
+  - name: Install and upgrade core 
+    shell: |
+      snap install core 
+      snap refresh core
+      ln -sf /snap /data
+    failed_when: false
+  when: nginx_certbot
+    
+#2 Install and config Nginx
+- name: import an official nginx signing key
+  apt_key: 
+    url: https://nginx.org/keys/nginx_signing.key
+    state: present
+
+- name: Import Nginx Official Repo
+  apt_repository:
+    repo: deb [arch=amd64] http://nginx.org/packages/ubuntu {{ansible_distribution_release}} nginx
+    filename: nginx
+    update_cache: yes
+
+- name: Install Nginx 
+  apt:
+    name: nginx
+
+- name: Install htpassword
+  apt: 
+    name: apache2-utils
+  when: nginx_login_account is defined and nginx_login_account != none
+
+- name: Change Directory Owner
+  file:
+    path: /data/{{item}}
+    state: directory
+    owner: www-data
+    group: www-data
+  with_items:
+    - wwwroot
+    - cert

@@ -1,0 +1,106 @@
+- block:
+  - debug: 
+      msg: "Wait 200s for install pip and python"
+  
+  - name: Sleep wait for Oracle linux install pip and python which is very slowly
+    shell: sleep 200s
+    when: ansible_distribution == "OracleLinux"
+  
+- name: System Upgrade
+  yum: name=* state=latest
+  when: common_system_upgrade and (init == '1' or init == 1) 
+
+- name: OracleLinux8 create pip softlink
+  shell: |
+    ln -sf /usr/bin/pip-3 /usr/bin/pip3
+  when: ansible_distribution == 'OracleLinux' and ansible_distribution_major_version == "8"
+  
+- name: Install Extra Packages for Enterprise Linux on {{ansible_distribution}}, exclude Amazon because scl will cause yum update error
+  yum: 
+    name: [epel-release,centos-release-scl]
+    update_cache: yes
+    state: latest
+  failed_when: False
+  when: ansible_distribution != 'Amazon' and ansible_distribution != 'OracleLinux'
+
+- block:
+  - name: Install epel repo for OracleLinux
+    yum:
+      name: oracle-epel-release-el{{ansible_distribution_major_version}}
+
+  - name: Install scl repo for OracleLinux
+    yum:
+      name: scl-utils
+  when: ansible_distribution == 'OracleLinux'
+
+- block:
+  - name: Set swapiness
+    sysctl:
+      name: vm.swappiness
+      value: "10"
+
+  - name: Fix No space left on device
+    sysctl:
+      name: fs.inotify.max_user_watches
+      value: "8192000"
+  when: ansible_distribution != 'OracleLinux'
+  
+- block:
+  - name: Install Extra Packages for Enterprise Linux on {{ansible_distribution}},there is [releaseserver] in the linux repo,so download from websoft9 self repo 
+    shell: |
+      amazon-linux-extras install epel -y
+      wget -O /etc/yum.repos.d/CentOS7-Base.repo https://raw.githubusercontent.com/websoft9/role_common/master/files/CentOS7-Base.repo
+
+  - name: delete amazon repo priority
+    lineinfile:
+        dest: "{{item}}"
+        regexp: "^priority"
+        state: absent
+    loop:
+      - /etc/yum.repos.d/amzn2-extras.repo
+      - /etc/yum.repos.d/amzn2-core.repo
+  when: ansible_distribution == 'Amazon'
+
+- block:
+  - name: Install Common Software
+    yum: 
+      name: "{{ item }}"
+      state: latest
+      update_cache: yes
+    register: common_install_result
+    failed_when: False
+    loop: "{{ common_packages_redhat }}"
+
+  - debug: 
+      msg: "{{ common_install_result | json_query('results[*].results[*]') }}"
+      
+  - block:
+    - name: Install extra Software
+      yum: 
+        name: "{{ item }}"
+        state: latest
+        update_cache: yes
+      register: extra_install_result
+      failed_when: False
+      loop: "{{ common_packages_redhat_extra }}"
+
+    - debug: 
+        msg: "{{ extra_install_result | json_query('results[*].results[*]') }}"
+    when: common_packages_redhat_extra is defined and common_packages_redhat_extra is not none and common_packages_redhat_extra != ""
+
+  when: common_install_components
+  
+- name: Setting rc.d 0750
+  file:
+    path: /etc/rc.d/rc.local
+    mode: 0750
+  when: common_set_rclocal
+
+- block:
+  - name: Disable SELinux temporarily(have not  SELinux on Debian )
+    shell: sudo setenforce 0
+    
+  - name: Disable SELinux ermanently
+    selinux:
+      state: disabled
+  when: ansible_selinux.status != "disabled"

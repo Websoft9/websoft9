@@ -1,0 +1,24 @@
+# wordpress | discuz | joomla , if you use Websoft9's php applicaiton repository, suggest you use the appname in the directory: /etc/nginx/conf.d/rewrite
+nginx_appname: "example"
+
+# reverse | alias | www | 
+nginx_vhost_mode: "www"
+
+# port for java/nodejs...  8080 | 3000, this var must used when [nginx_vhost_mode] is reverse
+nginx_reverse_proxy_port:
+
+# app root directory, this var must used when [nginx_vhost_mode] is www
+# if /data/wwwroot/{{nginx_appname}} in the templates is not suitable for you application, 
+# you should define complete directory, e.g /data/wwwroot/discuz/upload
+nginx_app_root:
+
+# default listen port of default.conf
+nginx_listen_port: "80"
+
+# nginx username and password swith True|False, default credentials is admin/admin
+
+#nginx_login_account: ["admin", "123456"]
+
+nginx_htpasswd: False
+
+nginx_certbot: True

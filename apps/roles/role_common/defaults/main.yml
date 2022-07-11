@@ -1,0 +1,26 @@
+region: "0"
+init: "0"
+
+#Control installation more components
+common_install_python_modules: True
+common_install_components: True
+common_set_rclocal: False
+
+common_os_support: ["CentOS", "Ubuntu", "Amazon", "OracleLinux", "Debian", "RedHat"]
+
+# Useful tools, list var type, e.g: 
+# common_install_tools:
+#   - cockpit
+
+common_install_tools:
+
+# when init=1, need upgrade system
+common_system_upgrade: True
+common_docker_addnetwork: "apps"
+common_install_docker: False
+common_compose_version: "v2.6.0"
+common_repository_url: "https://download.docker.com/linux/centos/docker-ce.repo"
+
+common_packages_redhat_extra: []
+
+common_packages_debian_extra: []

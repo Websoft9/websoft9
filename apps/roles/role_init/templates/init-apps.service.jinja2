@@ -1,0 +1,53 @@
+[Unit]
+Description=Init image powered by Websoft9
+After=network.target systemd-networkd-wait-online.service
+{##############  init databases ##############}
+{% if init_db %}
+{% for dbs_name, dbs_attr in init_db.items() %}
+{% if init_service_unit[dbs_name].before is defined and init_service_unit[dbs_name].before is not none %}
+Before={{init_service_unit[dbs_name].before}}
+{% endif %}
+{% if dbs_attr.service_before is defined and dbs_attr.service_before is not none %}
+Before={{dbs_attr.service_before}}
+{% endif %}
+{% if init_service_unit[dbs_name].after is defined and init_service_unit[dbs_name].after is not none %}
+After={{init_service_unit[dbs_name].after}}
+{% endif %}
+{% if dbs_attr.service_after is defined and dbs_attr.service_after is not none %}
+After={{dbs_attr.service_after}}
+{% endif %}
+{% endfor %}
+{% endif %}
+{############## init applications ##############}
+{% if init_application %}
+{% for app_name,app_attr in init_application.items() %}
+{% if app_attr.service_before is defined and app_attr.service_before is not none %}
+Before={{app_attr.service_before}}
+{% endif %}
+{% if app_attr.service_after is defined and app_attr.service_after is not none %}
+After={{app_attr.service_after}}
+{% endif %}
+{% endfor %}
+{% endif %}
+{############## init docker applications ##############}
+{% if init_docker %}
+{% for docker_name,docker_attr in init_docker.items() %}
+{% if docker_attr.service_before is defined and docker_attr.service_before is not none %}
+Before={{docker_attr.service_before}}
+{% endif %}
+{% if docker_attr.service_after is defined and docker_attr.service_after is not none %}
+After={{docker_attr.service_after}}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+[Service]
+Type=simple
+TimeoutSec=120s
+ExecStart=-/bin/bash /credentials/init.sh
+ExecStartPost=/bin/systemctl disable init-apps
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+---
+- name: end_check_ports
+  debug:
+    var: end_check_ports.stdout_lines
+    
+- name: end_check_versions
+  debug:
+    var: end_check_versions.stdout_lines

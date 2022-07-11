@@ -1,0 +1,91 @@
+{% if nginx_vhost_mode == 'reverse' or nginx_reverse_proxy_port  is not none %}
+server {
+    listen {{ nginx_listen_port }};
+    server_name {{nginx_appname}}.yourdomain.com;
+    location / {
+        proxy_pass  http://127.0.0.1:{{ nginx_reverse_proxy_port }};
+        proxy_redirect     off;
+        proxy_set_header   Host             $host;
+        proxy_set_header   X-Real-IP        $remote_addr;
+        proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_max_temp_file_size 0;
+        proxy_connect_timeout      90;
+        proxy_send_timeout         90;
+        proxy_read_timeout         90;
+        proxy_buffer_size          4k;
+        proxy_buffers              4 32k;
+        proxy_busy_buffers_size    64k;
+        proxy_temp_file_write_size 64k;
+   }
+   error_log /var/log/nginx/{{nginx_appname}}.yourdomain.com-error.log error;
+   access_log  /var/log/nginx/{{nginx_appname}}.yourdomain.com-access.log;
+
+   include extra/*.conf;
+   
+#------------- SSL Start --------------
+
+#------------- SSL End  ---------------
+}
+{% endif %}
+
+{% if nginx_vhost_mode == 'www' and nginx_reverse_proxy_port  is none %}
+server
+{
+    listen 80;
+    server_name {{nginx_appname}}.yourdomain.com;
+    index index.html index.htm index.php; 
+{% if nginx_app_root is not none %}
+    root  {{nginx_app_root}}; 
+{% else %}
+    root  /data/wwwroot/{{nginx_appname}}; 
+{% endif %}
+    error_log /var/log/nginx/{{nginx_appname}}.yourdomain.com-error.log error;
+    access_log  /var/log/nginx/{{nginx_appname}}.yourdomain.com-access.log;
+
+    include extra/*.conf;
+    include conf.d/rewrite/{{nginx_appname}}.conf;
+
+
+#------------- SSL Start --------------
+
+#------------- SSL End  ---------------
+}
+{% endif %}
+
+{% if nginx_vhost_mode == 'alias' %}
+server {
+    listen 80;
+    server_name {{nginx_appname}}.yourdomain.com;
+    index index.html index.htm index.php;
+    
+    location /{{nginx_appname}} {
+        alias /data/apps/{{nginx_appname}};
+        index index.php index.html;
+        location ~ ^/{{nginx_appname}}/.+\.php$ {
+            alias /data/apps/{{nginx_appname}};
+            fastcgi_pass  unix:/run/php-fpm.sock;
+            fastcgi_index  index.php;
+            fastcgi_param  SCRIPT_FILENAME /data/apps/$fastcgi_script_name;
+            include        fastcgi_params;
+        }
+        location ~ .*\.(gif|jpg|jpeg|png|bmp|swf|flv|mp3|wma)$
+        {
+            expires      30d;
+            access_log off;
+        }
+        location ~ .*\.(js|css)$
+        {
+            expires      12h;
+            access_log off;
+        }
+
+        location ~* \.(ftpquota|htaccess|htpasswd|asp|aspx|jsp|asa|mdb)?$ {
+            deny all;
+        }
+    }
+}
+{% endif %}

@@ -1,0 +1,20 @@
+---
+dependencies:
+
+galaxy_info:
+  role_name: common
+  author: 
+  description:
+  company: 
+  license: 
+  min_ansible_version: 
+  platforms:
+    - name: EL
+      versions:
+        - 8
+    - name: Ubuntu
+      versions:
+        - 18.04
+
+  galaxy_tags:
+

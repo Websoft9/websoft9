@@ -1,0 +1,82 @@
+# install snap toos,
+- block:   
+  - name: Install snap tools
+    yum: 
+      name: snapd
+      update_cache: yes      
+  
+  - name: enable and create link for snap
+    shell: |
+      systemctl enable --now snapd.socket
+      ln -sf /var/lib/snapd/snap /snap
+      
+  - name: Install and upgrade core 
+    shell: |
+      snap install core 
+      snap refresh core
+      ln -sf /snap /data
+    failed_when: false
+  when: nginx_certbot
+  
+- block:
+  - name: Import Nginx Official stable Repo
+    yum_repository:
+      name: nginx-stable-repo
+      description: nginx stable repo
+      file: nginx-stable
+      baseurl: http://nginx.org/packages/centos/$releasever/$basearch/
+      gpgcheck: yes
+      enabled: yes
+      gpgkey: https://nginx.org/keys/nginx_signing.key
+
+  - name: Import Nginx Official mainline Repo
+    yum_repository:
+      name: nginx-mainline-repo
+      description: nginx mainline repo
+      file: nginx-mainline
+      baseurl: http://nginx.org/packages/mainline/centos/$releasever/$basearch/
+      gpgcheck: yes
+      enabled: no
+      gpgkey: https://nginx.org/keys/nginx_signing.key
+  when: ansible_distribution == 'CentOS'
+
+- block:
+  - name: Import Nginx Official stable Repo
+    yum_repository:
+      name: nginx-stable-repo
+      description: nginx stable repo
+      file: nginx-stable
+      baseurl: http://nginx.org/packages/centos/7/$basearch/
+      gpgcheck: yes
+      enabled: yes
+      gpgkey: https://nginx.org/keys/nginx_signing.key
+
+  - name: Import Nginx Official mainline Repo
+    yum_repository:
+      name: nginx-mainline-repo
+      description: nginx mainline repo
+      file: nginx-mainline
+      baseurl: http://nginx.org/packages/mainline/centos/7/$basearch/
+      gpgcheck: yes
+      enabled: no
+      gpgkey: https://nginx.org/keys/nginx_signing.key
+  when: ansible_distribution == 'Amazon'
+
+- name: Install Nginx
+  yum:
+    name: nginx
+    
+- name: Install htpassword
+  yum: 
+    name: httpd-tools
+  when: nginx_login_account is defined and nginx_login_account != none
+  
+- name: Change Directory Owner
+  file:
+    path: /data/{{item}}
+    state: directory
+    owner: nginx
+    group: nginx
+  with_items:
+    - wwwroot
+    - cert

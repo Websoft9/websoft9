@@ -1,0 +1,109 @@
+##
+- name: Check Cloud
+  shell : |
+    if [ -f "/etc/waagent.conf" ];then echo "azure";fi
+    if [ -d "/usr/local/aegis" ];then echo "alicloud";fi
+    if [ -f "/snap/bin/amazon-ssm-agent.ssm-cli" ];then echo "aws";fi
+    if [ -f "/usr/bin/amazon-ssm-agent" ];then echo "aws";fi
+    if [ -d "/CloudrResetPwdAgent" ];then echo "huaiwei";fi
+  register: cloud
+  
+- debug:
+    msg: "Cloud platform is {{ cloud.stdout}}"
+    
+- block:
+  - name: Create swap Space
+    command: dd if=/dev/zero of=/mnt/swap bs=256M count=8
+
+  - name: Make swap
+    command: mkswap /mnt/swap
+
+  - name: Action swap
+    command: swapon /mnt/swap
+  
+  - name: Add to fstab
+    lineinfile:
+        dest: /etc/fstab
+        regexp: '/mnt/swap'
+        line: "/mnt/swap swap swap defaults 0 0"
+        state: present
+
+  when: (ansible_swaptotal_mb == 0) and (cloud.stdout != 'azure')
+
+- block:
+  - name: Change ubuntu service name
+    shell: |
+      ln -sf /usr/lib/systemd/system/walinuxagent.service /usr/lib/systemd/system/waagent.service
+      systemctl daemon-reload
+    when: ansible_os_family == 'Debian'
+    
+  - name: ResourceDisk EnableSwap
+    lineinfile:
+      dest: /etc/waagent.conf
+      regexp: 'ResourceDisk.Format=n'
+      line: "ResourceDisk.Format=y"
+      state: present
+
+  - name: ResourceDisk EnableSwap
+    lineinfile:
+      dest: /etc/waagent.conf
+      regexp: 'ResourceDisk.EnableSwap=n'
+      line: "ResourceDisk.EnableSwap=y"
+      state: present
+
+  - name: ResourceDisk SwapSizeMB
+    lineinfile:
+      dest: /etc/waagent.conf
+      regexp: 'ResourceDisk.SwapSizeMB=0'
+      line: "ResourceDisk.SwapSizeMB=4096"
+      state: present
+
+  - name: Restart waagnet
+    service:
+      name: waagent
+      state: restarted
+      enabled: yes
+
+  when: cloud.stdout == 'azure'
+
+- block:
+  - name: AWS Configure
+    apt:
+      name: ec2-instance-connect
+      update_cache: yes
+    when: ansible_os_family == 'Debian'
+
+  - name: AWS Configure
+    yum:
+      name: ec2-instance-connect
+    when: ansible_os_family == 'RedHat'
+    
+  - name: Start ec2-instance-connect
+    service:
+      name: ec2-instance-connect
+      state: started
+      enabled: yes
+    failed_when: False
+    
+  when: cloud.stdout == 'aws'
+  
+# install cloud agent
+- block:
+  - name: Install Aliyun Aqs and aliyun_assist
+    shell: |
+      wget "https://aegis.alicdn.com/download/install/2.0/linux/AliAqsInstall_64.sh" && chmod +x AliAqsInstall_64.sh && ./AliAqsInstall_64.sh sJmepE
+      wget "https://aliyun-client-assist.oss-accelerate.aliyuncs.com/linux/aliyun_assist_latest.rpm"
+      rpm -ivh --force aliyun_assist_latest.rpm
+      #wget "https://aliyun-client-assist.oss-accelerate.aliyuncs.com/linux/aliyun_assist_latest.deb"
+      #dpkg -r aliyun-assist
+      systemctl restart aliyun.service
+    when: cloud.stdout == 'alicloud'
+    
+  
+
+  - name: Install HUAWEICLOUD Agent
+    shell: wget https://telescope-ap-southeast-1.obs.ap-southeast-1.myhuaweicloud.com/scripts/agentBatchPackage.sh && chmod 755 agentBatchPackage.sh && ./agentBatchPackage.sh
+    args:
+      chdir: /usr/local
+    when: cloud.stdout == 'huawei'
+  when: cloud_agent

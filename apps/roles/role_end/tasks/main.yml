@@ -1,0 +1,45 @@
+# print ports and version
+- block:
+  - name: Check all Ports
+    shell: ss -ntlp |awk '{print $4}'
+    register: end_check_ports
+    notify: end_check_ports
+    
+  - name: Display all versions
+    shell: sudo sh -c "cat /data/logs/install_version.txt 2>/dev/null" || echo "no version information"
+    register: end_check_versions
+    notify: end_check_versions
+
+
+- block:
+  - name: Check Cloud
+    shell : |
+      if [ -f "/etc/waagent.conf" ];then echo "azure";fi
+      if [ -d "/usr/local/aegis" ];then echo "alibabacloud";fi
+      if [ -f "/snap/bin/amazon-ssm-agent.ssm-cli" ];then echo "aws";fi
+      if [ -f "/usr/bin/amazon-ssm-agent" ];then echo "aws";fi
+      if [ -d "/CloudrResetPwdAgent" ];then echo "huaiweicloud";fi
+    register: cloud
+    
+  - debug:
+      msg: "Cloud platform is {{cloud.stdout}}"
+      
+  - name: Remove SSH info
+    shell: sudo rm -rf {{item}}
+    with_items:
+      - /home/*/.ssh/*
+      - /root/.ssh/*
+      - /etc/ssh/ssh_host*
+  
+  - name: Init for azure
+    shell: |
+      cloud-init clean
+      waagent -deprovision+user --force
+    when: cloud.stdout == 'azure'
+
+  when: init == '1' or init == 1
+
+# when ansible running as local, reboot can't use
+- name: Reboot 
+  reboot:
+  when: init == '0' or init == 0

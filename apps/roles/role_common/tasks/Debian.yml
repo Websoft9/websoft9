@@ -1,0 +1,65 @@
+- set_fact:
+    ansible_python_interpreter: "/usr/bin/python3"
+
+- name: Update apt repository list cache
+  apt:
+    update_cache: yes
+  
+- name: Upgrade all packages to the latest version for production
+  apt:
+    name: "*"
+    state: latest
+    only_upgrade: yes
+  register: result
+  until: result.msg.find("Could not get lock /var/lib/dpkg") == -1  
+  retries: 50
+  delay: 10
+  failed_when: "'FAILED' in result.stdout"
+  when: common_system_upgrade and (init == '1' or init == 1)
+
+- block:    
+  - name: Install Common Software
+    apt:
+      name: "{{ item }}"
+      state: latest
+      force_apt_get: True
+      allow_unauthenticated: yes
+      update_cache: yes
+    failed_when: False
+    register: common_install_result
+    loop: "{{ common_packages_debian }}"
+
+  - debug: 
+      msg: "{{ common_install_result | json_query('results[*].results[*]') }}"
+      
+  - block:
+    - name: Install extra Software
+      apt:
+        name: "{{ item }}"
+        state: latest
+        force_apt_get: True
+        allow_unauthenticated: yes
+        update_cache: yes
+      failed_when: False
+      register: extra_install_result
+      loop: "{{ common_packages_debian_extra }}"
+
+    - debug: 
+        msg: "{{ extra_install_result | json_query('results[*].results[*]') }}"
+    when: common_packages_debian_extra is defined and common_packages_debian_extra is not none and common_packages_debian_extra != ""
+      
+  when: common_install_components
+
+- block:
+  - name: Setting rc.local
+    file:
+      path: /etc/rc.local
+      state: touch
+      mode: 0750
+
+  - name: Write rc.local
+    shell: echo "#!/bin/bash" > /etc/rc.local
+
+  - name: restart rc.local
+    service: name=rc.local state=restarted enabled=yes
+  when: common_set_rclocal
