@@ -8,7 +8,7 @@
 
   pre_tasks:
     - debug:
-        msg: "{{ dependencies }}"
+        msg: "start"
     
     - name: Git Clone StackHub repository
       block:
