@@ -6,6 +6,17 @@
   vars_files:
     - vars/main.yml
 
+  pre_tasks:
+    - debug:
+        msg: "{{ dependencies }}"
+    
+    - name: Git Clone StackHub repository
+      block:
+        - name: Clone {{appname}} in Websoft9
+          git:
+            repo: "https://github.com/Websoft9/StackHub.git"
+            dest: "/tmp/StackHub"
+
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
