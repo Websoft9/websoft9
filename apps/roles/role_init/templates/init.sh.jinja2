@@ -4,13 +4,33 @@ new_password=$(pwgen -ncCs 14 1)!
 sudo sleep 10s
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
 
-#1 init for applist of .env
 {% for app_name in applist.stdout_lines %}
+
+#1 init for applist of .env
 sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
-sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+
+# init password
+has_app_password=$(cat /data/apps/{{app_name}}/.env |grep APP_PASSWORD)
+if [ $has_app_password == "" ]; then
+  bash /data/apps/{{app_name}}/src/after_up.sh
+else
+  sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+fi 
+
+# init APP_URL
+public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
+
 sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d --no-recreate
-{% endfor %}
 
 #2 init for applist of special
+after_path=/data/apps/{{app_name}}/src/after_up.sh
+if [ -f "$after_path" ]; then
+  bash /data/apps/{{app_name}}/src/after_up.sh
+else
+  echo "There is not after_up"
+fi
+
+{% endfor %}
 
 sudo sh -c 'echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt'
