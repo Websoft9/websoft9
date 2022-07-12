@@ -20,7 +20,7 @@ else
     sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
   else
     sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
-    cat .env |grep "APP_ENCRYPT=" |awk -F"APP_ENCRYPT=" '{ print $2 }' >>/tmp/encrypt.sh
+    cat .env |grep "APP_ENCRYPT=" |awk -F"APP_ENCRYPT=" '{ print $2 }'|awk -F'"' '{ print $2 }' > /tmp/encrypt.sh
     app_encrypt_password=$(bash /tmp/encrypt.sh)
     sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
   fi
