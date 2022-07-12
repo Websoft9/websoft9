@@ -28,7 +28,7 @@ fi
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
 cd /data/apps/{{app_name}}
 source .env
-envsubst < .env > /temp
+envsubst < .env > temp
 cat temp > .env
 rm -f temp
 
