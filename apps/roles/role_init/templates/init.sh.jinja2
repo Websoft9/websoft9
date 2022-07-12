@@ -25,7 +25,10 @@ else
   fi
 fi
 
-# change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023! TODO
+# change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
+source /data/apps/{{app_name}}/.env
+envsubst < .env > /tmp/env
+cat /tmp/env > /data/apps/{{app_name}}/.env
 
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
