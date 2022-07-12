@@ -65,9 +65,6 @@
     - cert
     - apps
   failed_when: False
-
-- name: Create /data/wwwroot softlink to /data/apps
-  shell: ln -sf /data/apps /data/wwwroot
       
 - block:
   - name: set a regular hostname, remove "."
@@ -110,3 +107,15 @@
 
 - name: Check Docker Version
   shell: sudo sh -c "docker -v 1>> /data/logs/install_version.txt"
+  
+
+# Softlink
+- name: Create a symbolic link
+  file:
+    src: '{{item.src}}'
+    dest: '{{item.dest}}'
+    state: link
+    force: yes
+  with_items:
+  - {src: /data/wwwroot/,dest: /data/apps}
+  - {src: /var/lib/docker/,dest: /data/docker}
