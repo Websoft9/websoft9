@@ -12,14 +12,28 @@ sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
 # init password
 has_app_password=$(cat /data/apps/{{app_name}}/.env |grep APP_PASSWORD)
 if [ $has_app_password == "" ]; then
-  bash /data/apps/{{app_name}}/src/after_up.sh
-else
-  sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+  sudo sed -i "s/_PASSWORD=.*/_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+else  
+  # has_app_encrypt
+  has_app_encrypt==$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT="
+  if [ $has_app_encrypt == "" ]; then
+    sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+  else
+    sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+    app_encrypt_password=$(has_app_encrypt)
+    sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
+  fi
+  
 fi 
 
 # init APP_URL
-public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
-sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
+app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
+if [ $app_url_replace == "APP_URL_REPLACE=true" ]; then
+  public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+  sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
+else
+  echo "There is not APP_URL"
+fi 
 
 sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d --no-recreate
 
