@@ -6,10 +6,9 @@
 
     - name: Create a symbolic link of app
       file:
-        src: "{{installpath}}/{{item}}/.env"
-        dest: "/credentials/{{item}}_password.txt"
+        src: "{{installpath}}/{{appname}}/.env"
+        dest: "/credentials/password.txt"
         state: link
-      loop: "{{applist.stdout_lines}}"
 
 - name: Copy Init Script
   template:
