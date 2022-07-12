@@ -24,7 +24,9 @@ else
     app_encrypt_password=$(bash /tmp/encrypt.sh)
     sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
   fi
-fi 
+fi
+
+# change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023! TODO
 
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
