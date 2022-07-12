@@ -15,7 +15,7 @@ if [ $has_app_password == "" ]; then
   sudo sed -i "s/_PASSWORD=.*/_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
 else  
   # has_app_encrypt
-  has_app_encrypt==$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT="
+  has_app_encrypt==$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT=")
   if [ $has_app_encrypt == "" ]; then
     sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
   else
