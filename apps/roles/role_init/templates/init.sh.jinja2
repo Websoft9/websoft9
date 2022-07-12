@@ -24,7 +24,6 @@ else
     app_encrypt_password=$(bash /tmp/encrypt.sh)
     sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
   fi
-  
 fi 
 
 # init APP_URL
