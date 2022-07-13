@@ -117,5 +117,5 @@
     state: link
     force: yes
   with_items:
-  - {src: /data/apps/, dest:/data/wwwroot }
+  - {src: /data/apps/, dest: /data/wwwroot }
   - {src: /var/lib/docker/,dest: /data/docker}
