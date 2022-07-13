@@ -20,10 +20,10 @@ fi
 
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
 cd /data/apps/{{app_name}}
-cp .env temp
-source temp
-envsubst < temp > temp2
-cat temp2 > .env
+export $(cat .env)
+envsubst < .env > temp
+cat temp > .env
+rm -f temp
 cat .env |grep 'DB_\|APP_' > /credentials/password.txt
 
 # init APP_URL
