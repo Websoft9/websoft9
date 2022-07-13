@@ -24,7 +24,10 @@ export $(cat .env)
 envsubst < .env > temp
 cat temp > .env
 rm -f temp
+
+{% if app_name == appname %}
 cat .env |grep 'DB_\|APP_' > /credentials/password.txt
+{% endif %}
 
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
