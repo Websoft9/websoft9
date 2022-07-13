@@ -1,14 +1,7 @@
-- block:
-    - name: Create credentials Folder
-      file:
-        path: /credentials
-        state: directory
-
-    - name: Create a symbolic link of app
-      file:
-        src: "{{installpath}}/{{appname}}/.env"
-        dest: "/credentials/password.txt"
-        state: link
+- name: Create credentials Folder
+  file:
+    path: /credentials
+    state: directory
 
 - name: Copy Init Script
   template:
