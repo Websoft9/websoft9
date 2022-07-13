@@ -10,19 +10,12 @@ sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.
 sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
 
 # init password
-has_app_password=$(cat /data/apps/{{app_name}}/.env |grep APP_PASSWORD)
-if [ $has_app_password == "" ]; then
-  sudo sed -i "s/_PASSWORD=.*/_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
-else  
-  # has_app_encrypt
-  has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT=")
-  if [ $has_app_encrypt == "" ]; then
-    sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
-  else
-    sudo sed -i "s/APP_PASSWORD=.*/APP_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
-    app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh)
-    sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
-  fi
+sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+# has_app_encrypt
+has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT=")
+if [ $has_app_encrypt != "" ]; then
+  app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh $new_password)
+  sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
 fi
 
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
@@ -41,7 +34,9 @@ else
   echo "There is not APP_URL"
 fi 
 
-sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d --no-recreate
+# delete POWER_PASSWORD
+sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
+sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
 
 #2 init for applist of special
 after_path=/data/apps/{{app_name}}/src/after_up.sh
