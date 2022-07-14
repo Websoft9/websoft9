@@ -1,0 +1,11 @@
+[Unit]
+Description=Redmine
+After=nginx.service
+[Service]
+Environment=RAILS_ENV=production
+Type=simple
+WorkingDirectory=/data/wwwroot/redmine
+ExecStart=/usr/local/bin/puma -b tcp://127.0.0.1:9292 -e production 
+User=redmine
+[Install]
+WantedBy=multi-user.target
