@@ -44,7 +44,7 @@ sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
 after_path=/data/apps/{{app_name}}/src/after_up.sh
 if [ -f "$after_path" ]; then
   echo "after_up execute" 1>> /tmp/init_debug.txt
-  bash /data/apps/{{app_name}}/src/after_up.sh $newpassword
+  bash /data/apps/{{app_name}}/src/after_up.sh
 else
   echo "There is not after_up"
 fi
