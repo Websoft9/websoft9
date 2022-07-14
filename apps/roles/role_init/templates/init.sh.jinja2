@@ -14,6 +14,7 @@ sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{ap
 # has_app_encrypt
 has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT=")
 if [ $has_app_encrypt != "" ]; then
+  echo "encrypt password" 1>> /tmp/init_debug.txt
   app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh $new_password)
   sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
 fi
@@ -32,6 +33,7 @@ cat .env |grep 'DB_\|APP_' > /credentials/password.txt
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
 if [ $app_url_replace == "APP_URL_REPLACE=true" ]; then
+  echo "change APP_URL" 1>> /tmp/init_debug.txt
   public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
   sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
 else
@@ -45,7 +47,7 @@ sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
 #2 init for applist of special
 after_path=/data/apps/{{app_name}}/src/after_up.sh
 if [ -f "$after_path" ]; then
-  echo "after_up execute" 1>> /tmp/init_debug.txt'
+  echo "after_up execute" 1>> /tmp/init_debug.txt
   bash /data/apps/{{app_name}}/src/after_up.sh $newpassword
 else
   echo "There is not after_up"
