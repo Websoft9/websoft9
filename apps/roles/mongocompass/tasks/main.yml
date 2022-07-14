@@ -8,6 +8,3 @@
     port: "9090"
     delay: 10
     timeout: 30
-
-- name: Check mongocompass Version
-  shell: sudo echo "mongocompass version $(docker exec -i mongocompass bash -c 'cat /var/www/html/package.json | grep version')" 1>> /data/logs/install_version.txt
