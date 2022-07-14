@@ -1,0 +1,13 @@
+- name: Install {{appname}}
+  include_tasks: tasks/install.yml
+  vars:
+    app: "portainer"
+
+- name: wait for portainer start
+  wait_for:
+    port: "{{portainer_port}}"
+    delay: 10
+    timeout: 30
+
+- name: Check portainer Version
+  shell: sudo echo "portainer version $(docker exec -i portainer bash -c 'cat /var/www/html/package.json | grep version')" 1>> /data/logs/install_version.txt
