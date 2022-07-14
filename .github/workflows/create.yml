@@ -12,10 +12,8 @@ jobs:
     env:
       TAGS: latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          token: ${{ secrets.ACCESS_TOKEN }}
-
+      - uses: actions/checkout@master
+      
       - name: Creating
         run: |
           cd apps && python3 create.py

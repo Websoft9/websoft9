@@ -4,13 +4,49 @@ new_password=$(pwgen -ncCs 14 1)!
 sudo sleep 10s
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
 
-#1 init for applist of .env
 {% for app_name in applist.stdout_lines %}
+
+#1 init for applist of .env
 sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
-sudo sed -i "s/_PASSWORD=.*/_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
-sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d --no-recreate
-{% endfor %}
+
+# init password
+sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
+# has_app_encrypt
+has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT_PASSWORD=")
+if [ $has_app_encrypt != "" ]; then
+  echo "Encrypt password" 1>> /tmp/init_debug.txt
+  app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh $new_password)
+  sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
+fi
+
+# change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
+cd /data/apps/{{app_name}}
+export $(cat .env)
+envsubst < .env > temp
+cat temp > .env
+rm -f temp
+
+# init APP_URL
+app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
+if [ $app_url_replace == "APP_URL_REPLACE=true" ]; then
+  echo "Change APP_URL" 1>> /tmp/init_debug.txt
+  public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+  sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
+else
+  echo "There is not APP_URL"
+fi 
+
+# delete POWER_PASSWORD
+sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
+sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
 
 #2 init for applist of special
+echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
+bash /data/apps/{{app_name}}/src/after_up.sh
+
+{% endfor %}
+
+# create password file for guests
+cat /data/apps/{{appname}}/.env |grep 'DB_\|APP_' > /credentials/password.txt
 
 sudo sh -c 'echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt'

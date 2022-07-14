@@ -2,7 +2,7 @@
 # copy from: https://www.metabase.com/learn/administration/serialization#add-users-to-our-metabase-origin-environment
 
 ADMIN_EMAIL=${MB_ADMIN_EMAIL:-admin@metabase.local}
-ADMIN_PASSWORD=${MB_ADMIN_PASSWORD:-Metapass123}
+ADMIN_PASSWORD=${POWER_PASSWORD:-Metapass123}
 
 METABASE_HOST=${MB_HOSTNAME}
 METABASE_PORT=${MB_PORT:-3000}

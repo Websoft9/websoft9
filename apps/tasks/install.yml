@@ -4,8 +4,9 @@
 
 - name: Git Clone app docker repository
   block:
-    - name: Delete {{app}} dir for sec_installation
+    - name: Delete {{app}} dir for Second installation
       shell: rm -rf {{installpath}}/{{app}}
+      
     - name: Clone {{app}} in Websoft9
       git:
         repo: "https://github.com/Websoft9/docker-{{app}}.git"
