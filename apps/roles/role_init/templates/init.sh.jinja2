@@ -12,7 +12,7 @@ sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
 # init password
 sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
 # has_app_encrypt
-has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT=")
+has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT_PASSWORD=")
 if [ $has_app_encrypt != "" ]; then
   echo "Encrypt password" 1>> /tmp/init_debug.txt
   app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh $new_password)
@@ -41,16 +41,12 @@ sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
 sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
 
 #2 init for applist of special
-after_path=/data/apps/{{app_name}}/src/after_up.sh
-if [ -f "$after_path" ]; then
-  echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
-  bash /data/apps/{{app_name}}/src/after_up.sh
-else
-  echo "There is not after_up"
-fi
+echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
+bash /data/apps/{{app_name}}/src/after_up.sh
 
 {% endfor %}
 
+# create password file for guests
 cat /data/apps/{{appname}}/.env |grep 'DB_\|APP_' > /credentials/password.txt
 
 sudo sh -c 'echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt'
