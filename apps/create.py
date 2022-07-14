@@ -22,7 +22,7 @@ mylists=ReadLists("add")
 # 批量处理，创建项目文件夹，issue
 for mylist in mylists:
     print("处理 "+mylist+" ...\n")
-    os.system("cd apps/roles && cp -R Template " + mylist)
+    os.system("cp -R roles/Template roles/" + mylist)
     os.system("echo '' > add")
 
 print("\n执行完成，并清空列表")
