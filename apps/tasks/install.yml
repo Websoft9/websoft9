@@ -55,3 +55,14 @@
       state: link
       force: yes
     loop: "{{volume_names.stdout_lines}}"
+
+- name: Get all of docker container informations
+  shell: |
+    wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
+    docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',image:'.Image'\}\)
+  register: dockerlist
+
+- name: Recursively create directory for {{app}}
+  shell: bash /tmp/containers_version.sh {{item.containername}} {{item.image}}
+  loop:
+    - "{{dockerlist.stdout}}"
