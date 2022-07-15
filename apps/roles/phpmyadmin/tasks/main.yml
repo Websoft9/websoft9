@@ -8,6 +8,3 @@
     port: "{{phpmyadmin_port}}"
     delay: 10
     timeout: 30
-
-- name: Check phpmyadmin Version
-  shell: sudo echo "phpmyadmin version $(docker exec -i phpmyadmin bash -c 'cat /var/www/html/package.json | grep version')" 1>> /data/logs/install_version.txt
