@@ -14,13 +14,8 @@
   register: check_container_service
   notify: check_container_service
 
-- name: Get all of docker container informations
+- name: Output all containers version
   shell: |
     wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
-    docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',image:'.Image'\}\)
-  register: dockerlist
-
-- name: Output all containers version
-  shell: bash /tmp/containers_version.sh {{item.containername}} {{item.image}}
-  loop:
-    - "{{dockerlist.stdout}}"
+    bash /tmp/containers_version.sh
+    rm -f /tmp/containers_version.sh
