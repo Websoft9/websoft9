@@ -18,14 +18,14 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
   for appname in $appnames; do                                   
   
     if [[ $containername == $appname ]];then
-  	echo "$containername容器匹配成功app:$appname"
+  	echo "$appname和$containername容器匹配成功"
   	wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
   	bash /tmp/$appname_get_version.sh $containername
   	break
     elif [[ $imagename =~ $appname  ]];then
   	tmpvar="-"
   	if [[ $containername =~ $tmpvar ]];then
-  	  echo "$imagename=镜像匹配成功app:$appname"
+  	  echo "$appname和$imagename镜像匹配成功"
   	  wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
   	  bash /tmp/$appname_get_version.sh $containername
   	  break
@@ -33,7 +33,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
   	  echo "need other mothod "
   	fi
     else
-  	echo "容器镜像均未匹配成功app:$appname"
+  	echo "$appname和容器镜像均未匹配成功"
     fi
   done 
 done 
