@@ -21,7 +21,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
   for appname in $appnames; do
     # app的版本已经输出
     if [[ $initdata =~ $appname  ]];then
-      break
+      continue
     fi
     if [[ $containername == $appname ]];then
   	echo "$containername容器匹配成功app:$appname"
