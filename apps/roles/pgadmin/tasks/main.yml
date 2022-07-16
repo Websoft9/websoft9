@@ -5,7 +5,7 @@
 
 - name: wait for pgadmin start
   wait_for:
-    port: "{{pgadmin_port}}"
+    port: "9090"
     delay: 10
     timeout: 30
 
