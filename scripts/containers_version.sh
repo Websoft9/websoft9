@@ -27,7 +27,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
   	echo "$containername容器匹配成功app:$appname"
   	wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
   	bash /tmp/$appname_get_version.sh $containername
-        initdata=$initdata$appname
+        initdata="$initdata $appname"
   	break
     elif [[ $imagename =~ $appname  ]];then
   	tmpvar="-"
@@ -36,7 +36,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
   	  wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
   	  bash /tmp/$appname_get_version.sh $containername
           appnames=(${appnames[*]/$appname})
-          initdata=$initdata$appname
+          initdata="$initdata $appname"
   	  break
   	else
   	  echo "need other mothod "
