@@ -1,6 +1,6 @@
 ---
 dependencies:
-  - pypmyadmin
+  - phpmyadmin
 
 galaxy_info:
   author: 
