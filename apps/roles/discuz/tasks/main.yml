@@ -1,7 +1,7 @@
 - name: Install {{appname}}
   include_tasks: tasks/install.yml
   vars:
-     app: "Template"
+     app: "discuz"
 
 - name: wait for {{appname}} start
   wait_for:
