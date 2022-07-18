@@ -25,11 +25,11 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       if [[ $initdata =~ $appname  ]];then
         continue
       fi
-  	echo "$containername容器匹配成功app:$appname"
-  	initdata="$initdata $appname"
-  	wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
-  	bash /tmp/$appname_get_version.sh $containername
-  	break
+      echo "$containername容器匹配成功app:$appname"
+      initdata="$initdata $appname"
+      wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
+      bash /tmp/$appname_get_version.sh $containername
+      break
     elif [[ $imagename =~ $appname  ]];then
       # app的版本已经输出
       if [[ $initdata =~ $appname  ]];then
@@ -39,10 +39,10 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       if [[ $containername =~ $tmpvar ]];then
          echo "$imagename=镜像匹配成功app:$appname"
          initdata="$initdata $appname"
-  	  wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
-  	  bash /tmp/$appname_get_version.sh $containername
-  	  break
-  	fi
+         wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
+         bash /tmp/$appname_get_version.sh $containername
+         break
+  	  fi
     else
       echo "通过服务名匹配"
     fi
