@@ -9,7 +9,6 @@ else
 fi 
 appnames=$(ls StackHub/apps/roles |grep -v Template |grep -v README.md |grep -v role)
 
-# 匹配成功的APP集合字符串
 targetlist=""
 
 # get all of the running container's information( containername and imagename)
