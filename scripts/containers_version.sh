@@ -26,7 +26,6 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
         continue
       fi
   	echo "$containername容器匹配成功app:$appname"
-  	appnames=(${appnames[*]/$appname})
   	initdata="$initdata $appname"
   	wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
   	bash /tmp/$appname_get_version.sh $containername
