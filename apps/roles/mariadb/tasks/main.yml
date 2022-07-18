@@ -1,10 +1,10 @@
 - name: Install {{appname}}
   include_tasks: tasks/install.yml
   vars:
-     app: "Template"
+     app: "mariadb"
 
 - name: wait for {{appname}} start
   wait_for:
-    port: "{{nginx_reverse_proxy_port}}"
+    port: "3306"
     delay: 10
     timeout: 120
