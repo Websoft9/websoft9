@@ -1,0 +1,33 @@
+- pause:
+    prompt: |
+      Choice MariaDB version: 
+      0: MariaDB10.8
+      1: MariaDB10.7
+      2: MariaDB10.6
+      3: MariaDB10.5
+      4: MariaDB10.4
+      5: MariaDB10.3
+      6: MariaDB10.2
+      private: no
+      Default:0
+  register: version_options
+
+- set_fact:
+    mariadb_version_meta:
+      "0": "10.8"
+      "1": "10.7"
+      "2": "10.6"
+      "3": "10.5"
+      "4": "10.4"
+      "5": "10.3"
+      "6": "10.2"
+      
+- set_fact:
+    mariadb_version: "{{mariadb_version_meta[version_options.user_input]}}"
+
+- debug:
+    msg: "mariadb_version is {{mariadb_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{mariadb_version}}/g' {{installpath}}/{{appname}}/.env
