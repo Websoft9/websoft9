@@ -1,7 +1,6 @@
 ---
-dependencies: []
-
-allow_duplicates: true
+dependencies:
+  - pypmyadmin
 
 galaxy_info:
   author: 
