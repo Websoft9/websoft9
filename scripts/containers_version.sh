@@ -42,7 +42,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
          wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
          bash /tmp/$appname_get_version.sh $containername
          break
-  	  fi
+      fi
     else
       echo "通过服务名匹配"
     fi
