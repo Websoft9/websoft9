@@ -40,14 +40,12 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       if [[ $containername =~ $tmpvar ]];then
          echo "$imagename=镜像匹配成功app:$appname"
          initdata="$initdata $appname"
-      wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
+  	  wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
   	  bash /tmp/$appname_get_version.sh $containername
   	  break
-  	else
-  	  echo "need other mothod "
   	fi
     else
-  	echo "容器镜像均未匹配成功app:$appname"
+      echo "通过服务名匹配"
     fi
   done 
 done 
