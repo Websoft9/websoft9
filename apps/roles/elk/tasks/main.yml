@@ -9,10 +9,6 @@
     delay: 10
     timeout: 300
 
-- name: Check {{appname}} Version
-  shell: |
-    sudo echo -e "elk_version: `docker exec -it elasticstack-elasticsearch bin/elasticsearch --version | awk -F ' ' '{print $2}'`" |sudo tee -a /data/logs/install_version.txt
-
 - block:
     - pause:
         prompt: "Please login to Kibana UI and check it, then input Enter to continue"
