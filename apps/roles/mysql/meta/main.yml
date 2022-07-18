@@ -1,6 +1,7 @@
 ---
-dependencies: []
-
+dependencies:
+  - phpmyadmin
+  
 allow_duplicates: true
 
 galaxy_info:
