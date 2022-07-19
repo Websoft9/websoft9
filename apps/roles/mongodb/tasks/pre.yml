@@ -22,4 +22,4 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{mongodb_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{mongodb_version}}/g' {{installpath}}/{{appname}}/.env
