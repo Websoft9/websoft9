@@ -1,3 +1,1 @@
-- name: check_container_service
-  debug:
-    var: check_container_service.stdout
+
