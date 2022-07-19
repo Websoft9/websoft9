@@ -5,7 +5,7 @@
       1: MySQL5.7
       private: no
       Default:0
-  register: version_options
+  register: mysql_version_options
 
 - set_fact:
     mysql_version_meta:
@@ -13,7 +13,7 @@
       "1": "5.7"
       
 - set_fact:
-    mysql_version: "{{mysql_version_meta[version_options.user_input]}}"
+    mysql_version: "{{mysql_version_meta[mysql_version_options.user_input]}}"
 
 - debug:
     msg: "mysql_version is {{mysql_version}}"
