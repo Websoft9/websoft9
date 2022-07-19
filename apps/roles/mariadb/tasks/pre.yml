@@ -10,7 +10,7 @@
       6: MariaDB10.2
       private: no
       Default:0
-  register: version_options
+  register: mariadb_version_options
 
 - set_fact:
     mariadb_version_meta:
@@ -23,7 +23,7 @@
       "6": "10.2"
       
 - set_fact:
-    mariadb_version: "{{mariadb_version_meta[version_options.user_input]}}"
+    mariadb_version: "{{mariadb_version_meta[mariadb_version_options.user_input]}}"
 
 - debug:
     msg: "mariadb_version is {{mariadb_version}}"
