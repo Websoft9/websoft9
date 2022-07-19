@@ -6,7 +6,7 @@
       2: ERPNext12
       private: no
       Default:0
-  register: version_options
+  register: erpnext_version_options
 
 - set_fact:
     erpnext_version_meta:
@@ -15,7 +15,7 @@
       "2": "12"
 
 - set_fact:
-    erpnext_version: "{{erpnext_version_meta[version_options.user_input]}}"
+    erpnext_version: "{{erpnext_version_meta[erpnext_version_options.user_input]}}"
 
 - debug:
     msg: "erpnext_version is {{erpnext_version}}"
