@@ -2,7 +2,7 @@
   shell: docker network create websoft9
   failed_when: False
 
-- name: Git Clone app docker repository
+- name: Git Clone app docker repository and change public IP
   block:
     - name: Delete {{app}} dir for Second installation
       shell: rm -rf {{installpath}}/{{app}}
@@ -11,7 +11,13 @@
       git:
         repo: "https://github.com/Websoft9/docker-{{app}}.git"
         dest: "{{installpath}}/{{app}}"
-
+        
+    - name: Change Public IP for http_url if APP_URL_REPLACE=true
+      shell: |
+        wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/change_ip.sh
+        bash change_ip.sh "{{appname}}"
+        rm -f change_ip.sh
+        
 - name: Excute Preparation if have pre.yml
   block:
     - name: Check if pre.yml exists
