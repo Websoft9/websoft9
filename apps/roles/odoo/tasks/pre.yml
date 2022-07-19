@@ -7,7 +7,7 @@
       3: Odoo12
       private: no
       Default:0
-  register: version_options
+  register: odoo_version_options
 
 - set_fact:
     odoo_version_meta:
@@ -17,7 +17,7 @@
       "3": "12"
       
 - set_fact:
-    odoo_version: "{{odoo_version_meta[version_options.user_input]}}"
+    odoo_version: "{{odoo_version_meta[odoo_version_options.user_input]}}"
 
 - debug:
     msg: "odoo_version is {{odoo_version}}"
