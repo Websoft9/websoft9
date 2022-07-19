@@ -1,1 +1,27 @@
+- pause:
+    prompt: |
+      Choice Odoo version: 
+      0: Odoo15
+      1: Odoo14
+      2: Odoo13
+      3: Odoo12
+      private: no
+      Default:0
+  register: version_options
 
+- set_fact:
+    odoo_version_meta:
+      "0": "15"
+      "1": "14"
+      "2": "13"
+      "3": "12"
+      
+- set_fact:
+    odoo_version: "{{odoo_version_meta[version_options.user_input]}}"
+
+- debug:
+    msg: "odoo_version is {{odoo_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{odoo_version}}/g' {{installpath}}/{{appname}}/.env
