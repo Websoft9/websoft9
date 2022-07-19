@@ -2,9 +2,3 @@
   include_tasks: tasks/install.yml
   vars:
      app: "mysql"
-
-- name: wait for {{appname}} start
-  wait_for:
-    port: "3306"
-    delay: 10
-    timeout: 120
