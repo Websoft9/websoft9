@@ -1,4 +1,5 @@
-# init APP_URL
+#!/bin/bash
+
 app_url_replace=$(cat /data/apps/$1/.env |grep APP_URL_REPLACE)
 if [ $app_url_replace == "APP_URL_REPLACE=true" ]; then
   echo "Change APP_URL"
