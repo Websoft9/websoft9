@@ -17,6 +17,12 @@
             cat /tmp/applist
           register: applist
 
+    - name: Change Public IP for http_url if APP_URL_REPLACE=true
+      shell: |
+        wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/changeIP.sh
+        bash changeIP.sh "{{appname}}"
+        rm -f changeIP.sh
+
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
