@@ -1,0 +1,23 @@
+- pause:
+    prompt: |
+      Choice Portainer version: 
+      0: PortainerCE
+      1: PortainerEE
+      private: no
+      Default:0
+  register: version_options
+
+- set_fact:
+    portainer_version_meta:
+      "0": "ce"
+      "1": "ee"
+      
+- set_fact:
+    portainer_version: "{{portainer_version_meta[version_options.user_input]}}"
+
+- debug:
+    msg: "portainer_version is {{portainer_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_DISTRIBUTION=.*/APP_DISTRIBUTION={{portainer_version}}/g' {{installpath}}/{{appname}}/.env
