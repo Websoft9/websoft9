@@ -12,12 +12,18 @@
         repo: "https://github.com/Websoft9/docker-{{app}}.git"
         dest: "{{installpath}}/{{app}}"
         
+    - name: Check APP_URL_REPLACE exists
+      shell: |
+        cat "{{installpath}}/{{app}}/.env" |grep APP_URL_REPLACE=true
+      register: http_url_exists
+      failed_when: false
+
     - name: Change Public IP for http_url if APP_URL_REPLACE=true
       shell: |
-        wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/change_ip.sh
-        bash change_ip.sh "{{appname}}"
-        rm -f change_ip.sh
-        
+         public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+         sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app}}/.env
+      when: http_url_exists.stdout != ""
+      
 - name: Excute Preparation if have pre.yml
   block:
     - name: Check if pre.yml exists
