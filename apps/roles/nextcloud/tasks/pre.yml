@@ -1,4 +1,0 @@
-- name: Config .env for start containers
-  shell: |
-    public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
-    sed -i "s/APP_TRUST_URL=.*/APP_TRUST_URL=$public_ip/g" {{installpath}}/{{appname}}/.env
