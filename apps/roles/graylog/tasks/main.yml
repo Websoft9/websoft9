@@ -2,12 +2,3 @@
   include_tasks: tasks/install.yml
   vars:
     app: "graylog"
-
-- name: wait for {{appname}} start
-  wait_for:
-    port: "{{nginx_reverse_proxy_port}}"
-    delay: 10
-    timeout: 120
-
-- name: Check {{appname}} Version
-  shell: sudo echo "graylog version:" $(docker images |grep graylog/graylog |awk '{print $2}')  1>> /data/logs/install_version.txt
