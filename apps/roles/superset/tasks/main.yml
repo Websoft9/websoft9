@@ -1,5 +1,4 @@
-- name: Check {{appname}} Version
-  shell: |
-    sudo echo -e "superset_version: `docker exec -it superset-app /bin/bash -c 'cat /app/superset-frontend/package.json |grep version |sed -n 1p |cut -d: -f 2'`" |sudo tee -a /data/logs/install_version.txt
-    sudo echo -e "postgres_version: `docker exec -it superset-db /bin/bash -c 'psql -V |cut -d " " -f 3'`" |sudo tee -a /data/logs/install_version.txt
-    sudo echo -e "redis_version: `docker exec -it superset-cache /bin/bash -c '/usr/local/bin/redis-server -v |cut -d " " -f 3 |cut -d "=" -f 2'`" |sudo tee -a /data/logs/install_version.txt
+- name: Install {{appname}}
+  include_tasks: tasks/install.yml
+  vars:
+     app: "superset"
