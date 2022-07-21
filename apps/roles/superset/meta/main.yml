@@ -1,5 +1,6 @@
 ---
-dependencies: []
+dependencies:
+  - pgadmin
 
 galaxy_info:
   author: 
