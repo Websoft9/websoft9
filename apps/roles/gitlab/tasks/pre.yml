@@ -1,1 +1,23 @@
+- pause:
+    prompt: |
+      Choice Gitlab version: 
+      0: Gitlabce
+      1: Gitlabee
+      private: no
+      Default:0
+  register: gitlab_version_options
 
+- set_fact:
+    gitlab_version_meta:
+      "0": "ce"
+      "1": "ee"
+
+- set_fact:
+    gitlab_version: "{{gitlab_version_meta[gitlab_version_options.user_input]}}"
+
+- debug:
+    msg: "gitlab_version is {{gitlab_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{gitlab_version}}/g' {{installpath}}/{{appname}}/.env
