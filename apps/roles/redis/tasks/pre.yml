@@ -1,1 +1,25 @@
+- pause:
+    prompt: |
+      Choice Redis version: 
+      0: Redis7
+      1: Redis6
+      2: Redis5
+      private: no
+      Default:0
+  register: redis_version_options
 
+- set_fact:
+    redis_version_meta:
+      "0": "7"
+      "1": "6"
+      "2": "5"
+
+- set_fact:
+    redis_version: "{{redis_version_meta[redis_version_options.user_input]}}"
+
+- debug:
+    msg: "redis_version is {{redis_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{redis_version}}/g' {{installpath}}/{{appname}}/.env
