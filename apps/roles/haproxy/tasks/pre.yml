@@ -1,1 +1,33 @@
+- pause:
+    prompt: |
+      Choice Haproxy version: 
+      0: Haproxy2.6
+      1: Haproxy2.5
+      2: Haproxy2.4
+      3: Haproxy2.3
+      4: Haproxy2.2
+      5: Haproxy2.0
+      6: Haproxy1.8
+      private: no
+      Default:0
+  register: haproxy_version_options
 
+- set_fact:
+    haproxy_version_meta:
+      "0": "2.6"
+      "1": "2.5"
+      "2": "2.4"
+      "3": "2.3"
+      "4": "2.2"
+      "5": "2.0"
+      "6": "1.8"
+
+- set_fact:
+    haproxy_version: "{{haproxy_version_meta[haproxy_version_options.user_input]}}"
+
+- debug:
+    msg: "haproxy_version is {{haproxy_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{haproxy_version}}/g' {{installpath}}/{{appname}}/.env
