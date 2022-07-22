@@ -3,7 +3,7 @@
       Choice SQL Server version: 
       0: SQL Server2022
       1: SQL Server2019
-	    2: SQL Server2017
+      2: SQL Server2017
       private: no
       Default:0
   register: sqlserver_version_options
@@ -13,7 +13,7 @@
       "0": "2022-latest"
       "1": "2019-latest"
       "2": "2017-latest"
-	  
+
 - set_fact:
     sqlserver_version: "{{sqlserver_version_meta[sqlserver_version_options.user_input]}}"
 
