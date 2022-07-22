@@ -1,1 +1,26 @@
+- pause:
+    prompt: |
+      Choice Kafka version: 
+      0: Kafka3.2
+      1: Kafka3.1
+      2: Kafka3.0
+      3: Kafka2.8
+      private: no
+      Default:0
+  register: kafka_version_options
 
+- set_fact:
+    kafka_version_meta:
+      "0": "3.2"
+      "1": "3.2"
+      "2": "3.0"
+      "3": "2.8"
+- set_fact:
+    kafka_version: "{{kafka_version_meta[kafka_version_options.user_input]}}"
+
+- debug:
+    msg: "kafka_version is {{kafka_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{kafka_version}}/g' {{installpath}}/{{appname}}/.env
