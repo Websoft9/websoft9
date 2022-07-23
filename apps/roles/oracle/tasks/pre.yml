@@ -77,4 +77,5 @@
     shell: |
       expect /tmp/login.exp
       docker pull container-registry.oracle.com/database/enterprise:"{{oracle_version}}"
+      rm -f /tmp/login.exp
   when: oracle_edition == "enterprise"
