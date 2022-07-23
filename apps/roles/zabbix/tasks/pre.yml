@@ -20,4 +20,4 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{zabbix_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{zabbix_version}}/g' {{installpath}}/{{appname}}/.env
