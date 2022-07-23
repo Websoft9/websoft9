@@ -7,6 +7,5 @@ send "76487013@qq.com\r"
 expect "Password:"
 send "Qiaofeng1227\r"
 
-
 interact
 expect eof
