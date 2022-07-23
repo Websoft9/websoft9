@@ -1,1 +1,101 @@
+- pause:
+    prompt: |
+      Choice Oracle edition: 
+      0: Oracle enterprise
+      1: Oracle express
+      private: no
+      Default:0
+  register: oracle_edition_options
 
+- set_fact:
+    oracle_edition_meta:
+      "0": "enterprise"
+      "1": "express"
+
+- set_fact:
+    oracle_edition: "{{oracle_edition_meta[oracle_edition_options.user_input]}}"
+
+- block:
+  - pause:
+      prompt: |
+        Choice Oracle version: 
+        0: Oracle 21.3.0
+        1: Oracle 18.4.0
+        private: no
+        Default:0
+    register: oracle_version_options
+
+  - set_fact:
+     oracle_version_meta:
+        "0": "21.3.0-xe"
+        "1": "18.4.0-xe"
+
+  - set_fact:
+      oracle_version: "{{oracle_version_meta[oracle_version_options.user_input]}}"
+
+  - debug:
+      msg: "oracle_version is {{oracle_version}}"
+
+  - name: Config .env for start containers
+    shell: |
+      sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
+  when: oracle_edition == "express"
+
+- block:
+  - pause:
+      prompt: |
+        Choice Oracle version: 
+        0: Oracle 21.3.0
+        1: Oracle 18.4.0
+        private: no
+        Default:0
+    register: oracle_version_options
+
+  - set_fact:
+     oracle_version_meta:
+        "0": "21.3.0-xe"
+        "1": "18.4.0-xe"
+
+  - set_fact:
+      oracle_version: "{{oracle_version_meta[oracle_version_options.user_input]}}"
+
+  - debug:
+      msg: "oracle_version is {{oracle_version}}"
+
+  - name: Config .env for start containers
+    shell: |
+      sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
+  when: oracle_edition == "express"
+
+- block:
+  - pause:
+      prompt: |
+        Choice Oracle version: 
+        0: Oracle 21.3.0.0
+        1: Oracle 19.3.0.0
+        2: Oracle 12.2.0.1
+        private: no
+        Default:0
+    register: oracle_version_options
+
+  - set_fact:
+     oracle_version_meta:
+        "0": "21.3.0.0"
+        "1": "19.3.0.0"
+        "2": "12.2.0.1"
+
+  - set_fact:
+      oracle_version: "{{oracle_version_meta[oracle_version_options.user_input]}}"
+
+  - debug:
+      msg: "oracle_version is {{oracle_version}}"
+
+  - name: Config .env for start containers
+    shell: |
+      sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
+
+  - name: Pull the image of enterprise
+    shell: |
+      docker pull container-registry.oracle.com/database/enterprise:"{{oracle_version}}"
+
+  when: oracle_edition == "enterprise"
