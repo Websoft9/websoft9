@@ -36,9 +36,12 @@
   - debug:
       msg: "oracle_version is {{oracle_version}}"
 
-  - name: Config .env for start containers
+  - name: Config .env and docker-compose for start containers
     shell: |
       sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
+      yq eval 'del(.services.oracleex.profiles)' docker-compose.yml > tmp.yml
+      cat tmp.yml > docker-compose.yml
+      rm -f tmp.yml 
   when: oracle_edition == "express"
 
 - block:
@@ -64,9 +67,12 @@
   - debug:
       msg: "oracle_version is {{oracle_version}}"
            
-  - name: Config .env for start containers
+  - name: Config .env and docker-compose for start containers
     shell: |
       sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
+      yq eval 'del(.services.oracle.profiles)' docker-compose.yml > tmp.yml
+      cat tmp.yml > docker-compose.yml
+      rm -f tmp.yml 
       
   - name: Copy login.exp file
     copy:
