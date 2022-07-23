@@ -63,13 +63,18 @@
 
   - debug:
       msg: "oracle_version is {{oracle_version}}"
-
+           
   - name: Config .env for start containers
     shell: |
       sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
-
+      
+  - name: Copy login.exp file
+    copy:
+      src: login.exp
+      dest: /tmp/login.exp
+      
   - name: Pull the image of enterprise
     shell: |
-      docker login container-registry.oracle.com
+      expect /tmp/login.exp
       docker pull container-registry.oracle.com/database/enterprise:"{{oracle_version}}"
   when: oracle_edition == "enterprise"
