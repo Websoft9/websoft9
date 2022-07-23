@@ -70,5 +70,6 @@
 
   - name: Pull the image of enterprise
     shell: |
+      docker login container-registry.oracle.com
       docker pull container-registry.oracle.com/database/enterprise:"{{oracle_version}}"
   when: oracle_edition == "enterprise"
