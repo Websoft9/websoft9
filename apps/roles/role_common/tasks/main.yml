@@ -77,16 +77,22 @@
   - name: Install snap tools
     yum: 
       name: snapd
-      update_cache: yes      
-  
+      update_cache: yes  
+    when: 
+  - name: Install snap tools
+    apt: 
+      name: snapd
+      update_cache: yes
+    when: ansible_os_family == "Debian"
+ 
   - name: enable and create link for snap and install yq
     shell: |
       systemctl enable --now snapd.socket
       ln -sf /var/lib/snapd/snap /snap
       snap install yq
-
+    when: ansible_os_family == "RedHat"
+    
 # Install docker
-
 - name: Install Docker on {{ansible_distribution}}
   shell: |
     curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
