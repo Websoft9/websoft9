@@ -40,7 +40,7 @@
     shell: |
       sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
       cat {{installpath}}/{{appname}}/docker-compose.yml |yq eval 'del(.services.oracleex.profiles)' > /tmp/tmp.yml
-      cat /tmp/tmp.yml > docker-compose.yml
+      cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
   when: oracle_edition == "express"
 
 - block:
@@ -69,7 +69,6 @@
   - name: Config .env and docker-compose for start containers
     shell: |
       sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
-      yq eval 'del(.services.oracle.profiles)' docker-compose.yml > tmp.yml
-      cat tmp.yml > docker-compose.yml
-      rm -f tmp.yml
+      cat {{installpath}}/{{appname}}/docker-compose.yml |yq eval 'del(.services.oracleex.profiles)' > /tmp/tmp.yml
+      cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
   when: oracle_edition == "enterprise"
