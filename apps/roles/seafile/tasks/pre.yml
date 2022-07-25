@@ -12,7 +12,6 @@
       "0": "seafileltd/seafile-mc"
       "1": "docker.seafile.top/seafileltd/seafile-pro-mc"
 
-	  
 - set_fact:
     seafile_version: "{{seafile_version_meta[seafile_version_options.user_input]}}"
 
