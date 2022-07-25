@@ -1,6 +1,6 @@
 ---
 dependencies:
-  - phpmyadmin
+  - pgadmin
 
 allow_duplicates: true
 
