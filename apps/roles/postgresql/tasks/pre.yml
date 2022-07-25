@@ -1,1 +1,43 @@
+- pause:
+    prompt: |
+      Choice PostgreSQL version: 
+      0: PostgreSQL latest
+      1: PostgreSQL 14
+      2: PostgreSQL 13
+      3: PostgreSQL 12
+      4: PostgreSQL 11
+      5: PostgreSQL 10
+      6: PostgreSQL 9.6
+      7: PostgreSQL 9.5
+	    8: PostgreSQL 9.4
+	    9: PostgreSQL 9.3
+	    10: PostgreSQL 9.2
+	    11: PostgreSQL 9.1
+      private: no
+      Default:0
+  register: postgresql_version_options
 
+- set_fact:
+    postgresql_version_meta:
+      "0": "latest"
+      "1": "14"
+      "2": "13"
+      "3": "12"
+      "4": "11"
+      "5": "10"
+	    "6": "9.6"
+      "7": "9.5"
+      "8": "9.4"
+      "9": "9.3"
+      "10": "9.2"  
+      "11": "9.1"
+	  
+- set_fact:
+    postgresql_version: "{{postgresql_version_meta[postgresql_version_options.user_input]}}"
+
+- debug:
+    msg: "postgresql_version is {{postgresql_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{postgresql_version}}/g' {{installpath}}/{{appname}}/.env
