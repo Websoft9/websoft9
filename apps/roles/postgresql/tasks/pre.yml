@@ -9,10 +9,10 @@
       5: PostgreSQL 10
       6: PostgreSQL 9.6
       7: PostgreSQL 9.5
-	    8: PostgreSQL 9.4
-	    9: PostgreSQL 9.3
-	    10: PostgreSQL 9.2
-	    11: PostgreSQL 9.1
+      8: PostgreSQL 9.4
+      9: PostgreSQL 9.3
+      10: PostgreSQL 9.2
+      11: PostgreSQL 9.1
       private: no
       Default:0
   register: postgresql_version_options
@@ -25,7 +25,7 @@
       "3": "12"
       "4": "11"
       "5": "10"
-	    "6": "9.6"
+      "6": "9.6"
       "7": "9.5"
       "8": "9.4"
       "9": "9.3"
