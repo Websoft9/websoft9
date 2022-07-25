@@ -1,4 +1,5 @@
 common_packages_redhat:
+  - snapd
   - mosh
   - wget
   - openssl
@@ -21,9 +22,9 @@ common_packages_redhat:
   - jq
   - telnet
   - mlocate
-  - snapd
 
 common_packages_debian:
+  - snapd
   - acl
   - mosh
   - curl
@@ -48,4 +49,3 @@ common_packages_debian:
   - net-tools
   - mlocate
   - chrony
-  - snapd
