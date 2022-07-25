@@ -19,8 +19,8 @@
   - pause:
       prompt: |
         Choice Oracle version: 
-        0: Oracle 21.3.0
-        1: Oracle 18.4.0
+        0: Oracle 21
+        1: Oracle 18
         private: no
         Default:0
     register: oracle_version_options
@@ -48,9 +48,9 @@
   - pause:
       prompt: |
         Choice Oracle version: 
-        0: Oracle 21.3.0.0
-        1: Oracle 19.3.0.0
-        2: Oracle 12.2.0.1
+        0: Oracle 21
+        1: Oracle 19
+        2: Oracle 12
         private: no
         Default:0
     register: oracle_version_options
@@ -72,16 +72,5 @@
       sed -i 's/APP_VERSION=.*/APP_VERSION={{oracle_version}}/g' {{installpath}}/{{appname}}/.env
       yq eval 'del(.services.oracle.profiles)' docker-compose.yml > tmp.yml
       cat tmp.yml > docker-compose.yml
-      rm -f tmp.yml 
-      
-  - name: Copy login.exp file
-    copy:
-      src: login.exp
-      dest: /tmp/login.exp
-      
-  - name: Pull the image of enterprise
-    shell: |
-      expect /tmp/login.exp
-      docker pull container-registry.oracle.com/database/enterprise:"{{oracle_version}}"
-      rm -f /tmp/login.exp
+      rm -f tmp.yml
   when: oracle_edition == "enterprise"
