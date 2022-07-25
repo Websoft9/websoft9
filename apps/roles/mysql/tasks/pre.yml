@@ -3,6 +3,8 @@
       Choice MySQL version: 
       0: MySQL8.0
       1: MySQL5.7
+      2: MySQL5.6
+      3: MySQL5.5
       private: no
       Default:0
   register: mysql_version_options
@@ -11,6 +13,8 @@
     mysql_version_meta:
       "0": "8.0"
       "1": "5.7"
+      "2": "5.6"
+      "3": "5.5"
       
 - set_fact:
     mysql_version: "{{mysql_version_meta[mysql_version_options.user_input]}}"
