@@ -1,0 +1,32 @@
+- pause:
+    prompt: |
+      Choice RabbitMQ version: 
+      0: RabbitMQ latest
+      1: RabbitMQ 3.10
+      2: RabbitMQ 3.9
+      3: RabbitMQ 3.8
+      4: RabbitMQ 3.7
+      5: RabbitMQ 3.6
+      private: no
+      Default:0
+  register: rabbitmq_version_options
+
+- set_fact:
+    rabbitmq_version_meta:
+      "0": "latest"
+      "1": "3.10"
+      "2": "3.9"
+      "3": "3.8"
+      "4": "3.7"
+      "5": "3.6"
+
+	  
+- set_fact:
+    rabbitmq_version: "{{rabbitmq_version_meta[rabbitmq_version_options.user_input]}}"
+
+- debug:
+    msg: "rabbitmq_version is {{rabbitmq_version}}"
+
+- name: Config .env for start containers
+  shell: |
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{rabbitmq_version}}/g' {{installpath}}/{{appname}}/.env
