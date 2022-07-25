@@ -31,7 +31,7 @@
       "9": "9.3"
       "10": "9.2"  
       "11": "9.1"
-	  
+
 - set_fact:
     postgresql_version: "{{postgresql_version_meta[postgresql_version_options.user_input]}}"
 
