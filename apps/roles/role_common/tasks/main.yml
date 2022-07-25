@@ -73,10 +73,14 @@
   - hostname:
       name: "{{common_get_hostname.stdout}}"
 
-- block:
-  - name: Install snap and yq
+- block:   
+  - name: Install snap tools
+    yum: 
+      name: snapd
+      update_cache: yes      
+  
+  - name: enable and create link for snap and install yq
     shell: |
-      yum install snapd -y
       systemctl enable --now snapd.socket
       ln -sf /var/lib/snapd/snap /snap
       snap install yq
