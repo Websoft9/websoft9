@@ -73,8 +73,13 @@
   - hostname:
       name: "{{common_get_hostname.stdout}}"
 
-- name: Install yq
-  shell: snap install yq
+- block:
+  - name: Install snap and yq
+    shell: |
+      yum install snapd -y
+      systemctl enable --now snapd.socket
+      ln -sf /var/lib/snapd/snap /snap
+      snap install yq
 
 # Install docker
 
