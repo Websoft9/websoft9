@@ -1,1 +1,25 @@
+- pause:
+    prompt: |
+      Choice ActiveMQ version: 
+      0: ActiveMQ CLASSIC
+      1: ActiveMQ ARTEMIS
+      private: no
+      Default:0
+  register: activemq_version_options
 
+- set_fact:
+    activemq_version_meta:
+      "0": "activemq-classic"
+      "1": "activemq-artemis"
+
+- set_fact:
+    activemq_version: "{{activemq_version_meta[activemq_version_options.user_input]}}"
+
+- debug:
+    msg: "activemq_version is {{activemq_version}}"
+
+  - name: Config .env and docker-compose for start containers
+    shell: |
+      yq eval 'del(.services.{{activemq_version}}.profiles)' docker-compose.yml > tmp.yml
+      cat tmp.yml > docker-compose.yml
+      rm -f tmp.yml 
