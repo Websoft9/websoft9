@@ -78,7 +78,6 @@
     shell: |
       systemctl enable --now snapd.socket
       sleep 30s
-      ln -sf /var/lib/snapd/snap /snap
       snap install yq
     
 # Install docker
