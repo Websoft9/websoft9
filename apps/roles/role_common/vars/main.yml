@@ -21,6 +21,7 @@ common_packages_redhat:
   - jq
   - telnet
   - mlocate
+  - snap
 
 common_packages_debian:
   - acl
@@ -47,3 +48,4 @@ common_packages_debian:
   - net-tools
   - mlocate
   - chrony
+  - snap
