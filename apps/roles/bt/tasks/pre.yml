@@ -1,0 +1,26 @@
+- pause:
+    prompt: |
+      Choice Baota version: 
+      0: Baota English version
+      1: Baota Chinese version
+      private: no
+      Default:0
+  register: baota_version_options
+
+- set_fact:
+    baota_version_meta:
+      "0": "aapanel/aapanel"
+      "1": "btpanel/baota"
+
+- set_fact:
+    baota_version: "{{baota_version_meta[baota_version_options.user_input]}}"
+
+- debug:
+    msg: "baota_version is {{baota_version}}"
+
+  - name: Config .env and docker-compose for start containers
+    shell: |
+	    sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
+      yq eval 'del(.services.{{baota_version.split("/")[0] }}.profiles)' docker-compose.yml > tmp.yml
+      cat tmp.yml > docker-compose.yml
+      rm -f tmp.yml 
