@@ -74,6 +74,17 @@
       name: "{{common_get_hostname.stdout}}"
 
 - block:   
+  - name: Install snap tools
+    yum: 
+      name: snapd
+      update_cache: yes  
+    when: ansible_os_family == "RedHat"
+  - name: Install snap tools
+    apt: 
+      name: snapd
+      update_cache: yes
+    when: ansible_os_family == "Debian"
+ 
   - name: enable and create link for snap and install yq
     shell: |
       systemctl enable --now snapd.socket
