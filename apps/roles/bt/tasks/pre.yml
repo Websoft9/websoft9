@@ -21,15 +21,15 @@
 - name: Config .env and docker-compose for aapanel
   shell: |
     sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
-    yq eval 'del(.services.aapanel.profiles)' docker-compose.yml > tmp.yml
-    cat tmp.yml > docker-compose.yml
-    rm -f tmp.yml
+    yq eval 'del(.services.aapanel.profiles)' {{installpath}}/{{appname}}/docker-compose.yml > /tmp/tmp.yml
+    cat /tmp/tmp.yml > docker-compose.yml
+    rm -f /tmp/tmp.yml
   when: baota_version == "aapanel/aapanel"
 
 - name: Config .env and docker-compose for btpanel
   shell: |
     sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
-    yq eval 'del(.services.btpanel.profiles)' docker-compose.yml > tmp.yml
-    cat tmp.yml > docker-compose.yml
-    rm -f tmp.yml
+    yq eval 'del(.services.btpanel.profiles)' {{installpath}}/{{appname}}/docker-compose.yml > /tmp/tmp.yml
+    cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
+    rm -f /tmp/tmp.yml
   when: baota_version == "btpanel/baota"
