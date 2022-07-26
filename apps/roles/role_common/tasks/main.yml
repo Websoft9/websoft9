@@ -73,12 +73,8 @@
   - hostname:
       name: "{{common_get_hostname.stdout}}"
 
-- block:   
-  - name: enable and create link for snap and install yq
-    shell: |
-      systemctl enable --now snapd.socket
-      sleep 30s
-      snap install yq
+- name: Snap install yq
+  shell: snap install yq
     
 # Install docker
 - name: Install Docker on {{ansible_distribution}}
