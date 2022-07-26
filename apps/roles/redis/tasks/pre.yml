@@ -32,4 +32,4 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{redis_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/APP_REDIS_VERSION=.*/APP_REDIS_VERSION={{redis_version}}/g' {{installpath}}/{{appname}}/.env
