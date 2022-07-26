@@ -51,6 +51,19 @@
   when: common_install_components
 
 - block:
+  - name: Install snap tools
+    apt: 
+      name: snapd
+      update_cache: yes
+      
+  - name: Install and upgrade core 
+    shell: |
+      snap install core 
+      snap refresh core
+      ln -sf /snap /data
+    failed_when: false
+
+- block:
   - name: Setting rc.local
     file:
       path: /etc/rc.local
