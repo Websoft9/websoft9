@@ -89,7 +89,25 @@
     when: common_packages_redhat_extra is defined and common_packages_redhat_extra is not none and common_packages_redhat_extra != ""
 
   when: common_install_components
+
+- block:   
+  - name: Install snap tools
+    yum: 
+      name: snapd
+      update_cache: yes      
   
+  - name: enable and create link for snap
+    shell: |
+      systemctl enable --now snapd.socket
+      ln -sf /var/lib/snapd/snap /snap
+      
+  - name: Install and upgrade core 
+    shell: |
+      snap install core 
+      snap refresh core
+      ln -sf /snap /data
+    failed_when: false
+    
 - name: Setting rc.d 0750
   file:
     path: /etc/rc.d/rc.local
