@@ -18,7 +18,7 @@
 - debug:
     msg: "baota_version is {{baota_version}}"
 
-- name: Config .env and docker-compose for start containers
+- name: Config .env and docker-compose for aapanel
   shell: |
     sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
     yq eval 'del(.services.aapanel.profiles)' docker-compose.yml > tmp.yml
@@ -26,7 +26,7 @@
     rm -f tmp.yml
   when: baota_version == "aapanel/aapanel"
 
-- name: Config .env and docker-compose for start containers
+- name: Config .env and docker-compose for btpanel
   shell: |
     sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
     yq eval 'del(.services.btpanel.profiles)' docker-compose.yml > tmp.yml
