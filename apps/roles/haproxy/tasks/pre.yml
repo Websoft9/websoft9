@@ -30,4 +30,4 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/APP_VERSION=.*/APP_VERSION=v{{haproxy_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{haproxy_version}}/g' {{installpath}}/{{appname}}/.env
