@@ -23,7 +23,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       if [[ $targetlist =~ $appname  ]];then
         continue
       fi
-      echo "$containername容器匹配成功app:$appname"
+      echo "$containername容器名匹配成功app:$appname"
       targetlist="$targetlist $appname"
       wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
       bash /tmp/$appname_get_version.sh $containername
@@ -34,7 +34,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       fi
       tmpvar="-"
       if [[ $containername =~ $tmpvar ]];then
-         echo "$imagename=镜像匹配成功app:$appname"
+         echo "$imagename=镜像名匹配成功app:$appname, and容器名是：$containername"
          targetlist="$targetlist $appname"
          wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
          bash /tmp/$appname_get_version.sh $containername
@@ -45,7 +45,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       services=docker compose -p $realapp ps  --services
       for service in $services; do
         if [[ $service == $appname ]];then
-          echo "$containername容器匹配成功app:$appname"
+          echo "$service服务名匹配成功app:$appname, and容器名是：$containername"
           targetlist="$targetlist $appname"
           wget -O /tmp/$appname_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
           bash /tmp/$appname_get_version.sh $containername
