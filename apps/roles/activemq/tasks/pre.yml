@@ -20,6 +20,6 @@
 
 - name: Config .env and docker-compose for start containers
   shell: |
-    yq eval 'del(.services.{{activemq_version}}.profiles)' {{installpath}}/{{appname}}/docker-compose.yml > /tmptmp.yml
-    cat /tmptmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
-    rm -f /tmptmp.yml
+    yq eval 'del(.services.{{activemq_version}}.profiles)' {{installpath}}/{{appname}}/docker-compose.yml > /tmp/tmp.yml
+    cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
+    rm -f /tmp/tmp.yml
