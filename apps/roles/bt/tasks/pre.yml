@@ -18,9 +18,9 @@
 - debug:
     msg: "baota_version is {{baota_version}}"
 
-  - name: Config .env and docker-compose for start containers
-    shell: |
-      sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
-      yq eval 'del(.services.{{baota_version.split("/")[0] }}.profiles)' docker-compose.yml > tmp.yml
-      cat tmp.yml > docker-compose.yml
-      rm -f tmp.yml 
+- name: Config .env and docker-compose for start containers
+  shell: |
+    sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
+    yq eval 'del(.services.{{baota_version.split("/")[0] }}.profiles)' docker-compose.yml > tmp.yml
+    cat tmp.yml > docker-compose.yml
+    rm -f tmp.yml 
