@@ -20,7 +20,6 @@
       "4": "3.7"
       "5": "3.6"
 
-	  
 - set_fact:
     rabbitmq_version: "{{rabbitmq_version_meta[rabbitmq_version_options.user_input]}}"
 
