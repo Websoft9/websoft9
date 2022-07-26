@@ -26,7 +26,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       echo "$containername容器名匹配成功app:$appname"
       targetlist="$targetlist $appname"
       wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
-      bash /tmp/$appname_get_version.sh $containername
+      bash /tmp/"$appname"_get_version.sh $containername
       break
     elif [[ $imagename =~ $appname  ]];then
       if [[ $targetlist =~ $appname  ]];then
@@ -37,7 +37,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
          echo "$imagename=镜像名匹配成功app:$appname, and容器名是：$containername"
          targetlist="$targetlist $appname"
          wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
-         bash /tmp/$appname_get_version.sh $containername
+         bash /tmp/"$appname"_get_version.sh $containername
          break
       fi
     else
@@ -48,7 +48,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
           echo "$service服务名匹配成功app:$appname, and容器名是：$containername"
           targetlist="$targetlist $appname"
           wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
-          bash /tmp/$appname_get_version.sh $containername
+          bash /tmp/"$appname"_get_version.sh $containername
           break
         fi
       done
