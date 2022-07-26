@@ -105,7 +105,6 @@
     shell: |
       snap install core 
       snap refresh core
-      ln -sf /snap /data
     failed_when: false
     
 - name: Setting rc.d 0750
