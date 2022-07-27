@@ -28,7 +28,18 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-$appname/main/src/get_version.sh
       bash /tmp/"$appname"_get_version.sh $containername
       break
-    elif [[ $imagename =~ $appname  ]];then
+    fi
+  done 
+done 
+
+for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do                                   
+ 
+  containername=$(echo $appinfo |awk -F"%" '{print $1}')
+  imagename=$(echo $appinfo |awk -F"%" '{print $2}')
+  
+  for appname in $appnames; do
+
+    if [[ $imagename =~ $appname  ]];then
       if [[ $targetlist =~ $appname  ]];then
         continue
       fi
