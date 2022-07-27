@@ -32,4 +32,4 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/APP_VERSION=.*/APP_VERSION={{neo4j_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/DB_NEO4J_VERSION=.*/DB_NEO4J_VERSION={{neo4j_version}}/g' {{installpath}}/{{appname}}/.env
