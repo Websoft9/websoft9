@@ -9,8 +9,8 @@
 
 - set_fact:
     baota_version_meta:
-      "0": "aapanel/aapanel"
-      "1": "btpanel/baota"
+      "0": "aapanel"
+      "1": "btpanel"
 
 - set_fact:
     baota_version: "{{baota_version_meta[baota_version_options.user_input]}}"
@@ -18,18 +18,8 @@
 - debug:
     msg: "baota_version is {{baota_version}}"
 
-- name: Config .env and docker-compose for aapanel
+- name: Config .env and docker-compose for start
   shell: |
-    sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
-    yq eval 'del(.services.aapanel.profiles)' {{installpath}}/{{appname}}/docker-compose.yml > /tmp/tmp.yml
+    cat {{installpath}}/{{appname}}/docker-compose.yml |yq eval 'del(.services.aapanel.profiles)'  > /tmp/tmp.yml
     cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
     rm -f /tmp/tmp.yml
-  when: baota_version == "aapanel/aapanel"
-
-- name: Config .env and docker-compose for btpanel
-  shell: |
-    sed -i 's/APP_REPO=.*/APP_REPO={{baota_version}}/g' {{installpath}}/{{appname}}/.env
-    yq eval 'del(.services.btpanel.profiles)' {{installpath}}/{{appname}}/docker-compose.yml > /tmp/tmp.yml
-    cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
-    rm -f /tmp/tmp.yml
-  when: baota_version == "btpanel/baota"
