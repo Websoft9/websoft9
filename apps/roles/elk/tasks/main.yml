@@ -2,14 +2,3 @@
   include_tasks: tasks/install.yml
   vars:
      app: "elk"
-
-- block:
-  - pause:
-      prompt: "Please login to Kibana UI and check it, then input Enter to continue"
-      echo: no
-  - name: Delete contains and images resources
-    shell: |
-      docker compose down -v
-      docker system prune --all --force
-    args:
-      chdir: /data/apps/elk
