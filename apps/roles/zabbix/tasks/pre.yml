@@ -13,11 +13,12 @@
 
 - set_fact:
     zabbix_version_meta:
-      "0": "5.4"
-      "1": "5.2"
-      "2": "5.0"
-      "3": "4.0"
-      "4": "3.0"
+      "0": "6.0"
+      "1": "5.4"
+      "2": "5.2"
+      "3": "5.0"
+      "4": "4.0"
+      "5": "3.0"
 
 - set_fact:
     zabbix_version: "{{zabbix_version_meta[zabbix_version_options.user_input]}}"
