@@ -5,3 +5,12 @@
   include_tasks: tasks/install.yml
   vars:
      app: "ansible"
+
+- name: Unnstall ansible on host
+  shell: |
+    alias ansible='docker exec -it ansible ansible'
+    alias ansible-playbook='docker exec -it ansible ansible-playbook'
+    echo "alias ansible='docker exec -it ansible ansible'" >> /etc/profile.d/ansible.sh
+    echo "alias ansible-playbook='docker exec -it ansible ansible-playbook'" >> /etc/profile.d/ansible.sh
+    source /etc/profile.d/ansible.sh
+
