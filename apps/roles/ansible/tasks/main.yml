@@ -1,3 +1,6 @@
+- name: Unnstall ansible on host
+  shell: rpm -e ansible
+
 - name: Install {{appname}}
   include_tasks: tasks/install.yml
   vars:
