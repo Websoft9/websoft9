@@ -40,4 +40,4 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/DB_POSTGRES_VERSION=.*/DB_POSTGRES_VERSION={{postgresql_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/APP_VERSION=.*/APP_VERSION={{postgresql_version}}/g' {{installpath}}/{{appname}}/.env
