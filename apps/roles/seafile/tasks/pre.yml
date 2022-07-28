@@ -9,8 +9,8 @@
 
 - set_fact:
     seafile_version_meta:
-      "0": "seafileltd\/seafile-mc"
-      "1": "docker.seafile.top\/seafileltd\/seafile-pro-mc"
+      "0": "ce"
+      "1": "pro"
 
 - set_fact:
     seafile_version: "{{seafile_version_meta[seafile_version_options.user_input]}}"
@@ -18,6 +18,16 @@
 - debug:
     msg: "seafile_version is {{seafile_version}}"
 
-- name: Config .env for start containers
+- name: Config .env and docker-compose for start containers
   shell: |
-    sed -i 's/APP_REPO=.*/APP_REPO={{seafile_version}}/g' {{installpath}}/{{appname}}/.env
+    cat {{installpath}}/{{appname}}/docker-compose.yml |yq eval 'del(.services.seafile-ce.profiles)' > /tmp/tmp.yml
+    cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
+    rm -f /tmp/tmp.yml
+  when: seafile_version == "ce"
+  
+- name: Config .env and docker-compose for start containers
+  shell: |
+    cat {{installpath}}/{{appname}}/docker-compose.yml |yq eval 'del(.services.seafile-pro.profiles)' |yq eval 'del(.services.elasticsearch.profiles)' > /tmp/tmp.yml
+    cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
+    rm -f /tmp/tmp.yml
+  when: seafile_version == "pro"
