@@ -1,6 +1,6 @@
 #!/bin/bash
 # support special char [!"`$%()[]{},.*+-:;<=>?_~/|]
-new_password=$(pwgen -ncCs 14 1)!
+new_password=$(pwgen -ncCs 14 1)=
 sudo sleep 10s
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
 
