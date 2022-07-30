@@ -1,1 +1,1 @@
-nginx_reverse_proxy_port: "8080/share/page/"
+nginx_reverse_proxy_port: "8080"
