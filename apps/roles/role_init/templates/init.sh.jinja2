@@ -6,8 +6,12 @@ sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.
 
 {% for app_name in applist.stdout_lines %}
 
+dockercompose_up=$(cat /data/apps/{{app_name}}/.env |grep "APP_COMPOSE_UP=false")
+
 #1 init for applist of .env
-sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
+if [ $dockercompose_up == "" ]; then
+ sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
+fi
 
 # init password
 sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
@@ -38,7 +42,10 @@ fi
 
 # delete POWER_PASSWORD
 sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
-sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
+
+if [ $dockercompose_up == "" ]; then
+ sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
+fi
 
 #2 init for applist of special
 echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
