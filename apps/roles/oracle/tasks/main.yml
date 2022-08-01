@@ -19,4 +19,4 @@
       docker system prune --all --force
     args:
       chdir: /data/apps/oracle
-  when: compose_up 
+  when: delete_image
