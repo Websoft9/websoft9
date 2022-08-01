@@ -33,6 +33,9 @@
   - set_fact:
       oracle_version: "{{oracle_version_meta[oracle_version_options.user_input]}}"
 
+  - set_fact:
+      compose_up: true
+      
   - debug:
       msg: "oracle_version is {{oracle_version}}"
 
