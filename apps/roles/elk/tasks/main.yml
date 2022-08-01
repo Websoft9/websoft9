@@ -3,16 +3,16 @@
   vars:
      app: "elk"
 
-- name: Output elk version
-  shell: |
-    wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
-    bash /tmp/containers_version.sh
-    rm -f /tmp/containers_version.sh
-
 - block:
   - pause:
       prompt: "Please login to Kibana UI and check it, then input Enter to continue"
-      echo: no
+      echo: no  
+  - name: Output elk version
+    shell: |
+      wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
+      bash /tmp/containers_version.sh
+      rm -f /tmp/containers_version.sh
+      sleep 20s
   - name: Delete contains and images resources
     shell: |
       docker compose down -v
