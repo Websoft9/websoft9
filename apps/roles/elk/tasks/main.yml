@@ -2,4 +2,3 @@
   include_tasks: tasks/install.yml
   vars:
      app: "elk"
-     compose_up: false
