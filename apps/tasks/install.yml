@@ -36,34 +36,36 @@
     - name: Excute pre.yml
       include_tasks: roles/{{app}}/tasks/pre.yml
       when: pre_exists.status is defined and pre_exists.status == 200
-          
-- name: Docker compose up
-  shell: |
-    docker compose up -d
-    sleep 30
-  args:
-    chdir: "{{installpath}}/{{app}}"
 
-- name: Recursively create directory for {{app}}
-  file:
-    path: "{{ item }}"
-    state: directory
-    recurse: yes
-  with_items:
-    - "{{installpath}}/{{app}}/data"
-
-- name: Add softlink of all volumes for app root directory
-  block:
-  - name: Get volumes name
-    shell: docker compose config --volumes
-    register: volume_names
+- block:
+  - name: Docker compose up
+    shell: |
+      docker compose up -d
+      sleep 30
     args:
       chdir: "{{installpath}}/{{app}}"
-    
-  - name: Create softlink of volumes
+
+  - name: Recursively create directory for {{app}}
     file:
-      src: "/var/lib/docker/volumes/{{app}}_{{item}}/_data"
-      dest: "{{installpath}}/{{app}}/data/{{item}}"
-      state: link
-      force: yes
-    loop: "{{volume_names.stdout_lines}}"
+      path: "{{ item }}"
+      state: directory
+      recurse: yes
+    with_items:
+      - "{{installpath}}/{{app}}/data"
+
+  - name: Add softlink of all volumes for app root directory
+    block:
+    - name: Get volumes name
+      shell: docker compose config --volumes
+      register: volume_names
+      args:
+        chdir: "{{installpath}}/{{app}}"
+
+    - name: Create softlink of volumes
+      file:
+        src: "/var/lib/docker/volumes/{{app}}_{{item}}/_data"
+        dest: "{{installpath}}/{{app}}/data/{{item}}"
+        state: link
+        force: yes
+      loop: "{{volume_names.stdout_lines}}"
+  when: compose_up
