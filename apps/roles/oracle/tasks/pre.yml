@@ -34,7 +34,7 @@
       oracle_version: "{{oracle_version_meta[oracle_version_options.user_input]}}"
 
   - set_fact:
-      compose_up: true
+      oracle_delete_image: false
       
   - debug:
       msg: "oracle_version is {{oracle_version}}"
@@ -67,7 +67,7 @@
       oracle_version: "{{oracle_version_meta[oracle_version_options.user_input]}}"
       
   - set_fact:
-      compose_up: false
+      oracle_delete_image: true
       
   - debug:
       msg: "oracle_version is {{oracle_version}}"
