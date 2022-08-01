@@ -2,3 +2,21 @@
   include_tasks: tasks/install.yml
   vars:
      app: "oracle"
+
+- block:
+  - pause:
+      prompt: "Please check whether oracle all functions are normal, oracle self and oracle em"
+      echo: no  
+  - name: Output oracle version
+    shell: |
+      wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
+      bash /tmp/containers_version.sh
+      rm -f /tmp/containers_version.sh
+      sleep 20s
+  - name: Delete contains and images resources
+    shell: |
+      docker compose down -v
+      docker system prune --all --force
+    args:
+      chdir: /data/apps/oracle
+  when: compose_up 
