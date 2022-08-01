@@ -9,9 +9,9 @@
       echo: no  
   - name: Output elk version
     shell: |
+      rm -f /tmp/containers_version.sh
       wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
       bash /tmp/containers_version.sh
-      rm -f /tmp/containers_version.sh
       sleep 20s
   - name: Delete contains and images resources
     shell: |
