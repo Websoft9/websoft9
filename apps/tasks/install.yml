@@ -68,4 +68,4 @@
         state: link
         force: yes
       loop: "{{volume_names.stdout_lines}}"
-  when: compose_up
+  when: compose_up is undefined or compose_up
