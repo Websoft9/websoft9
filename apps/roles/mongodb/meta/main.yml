@@ -1,5 +1,6 @@
 ---
-dependencies: []
+dependencies:
+ - mongocompass
 
 allow_duplicates: true
 
