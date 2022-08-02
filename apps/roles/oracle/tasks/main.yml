@@ -5,7 +5,7 @@
 
 - block:
   - pause:
-      prompt: "Please check whether oracle all functions are normal, oracle self and oracle em"
+      prompt: "Please check whether oracle all functions are normal, such as oracle DB and oracle EM"
       echo: no  
   - name: Output oracle version
     shell: |
