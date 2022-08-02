@@ -9,15 +9,15 @@ sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.
 dockercompose_up=$(cat /data/apps/{{app_name}}/.env |grep "APP_COMPOSE_UP=false")
 
 #1 init for applist of .env
-if [ $dockercompose_up == "" ]; then
+if [ ! $dockercompose_up ]; then
  sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
 fi
 
 # init password
 sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
 # has_app_encrypt
-has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT_PASSWORD=")
-if [ $has_app_encrypt != "" ]; then
+has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT_PASSWORD=true")
+if [ $has_app_encrypt = "APP_ENCRYPT_PASSWORD=true" ]; then
   echo "Encrypt password" 1>> /tmp/init_debug.txt
   app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh $new_password)
   sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
@@ -32,7 +32,7 @@ rm -f temp
 
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
-if [ $app_url_replace == "APP_URL_REPLACE=true" ]; then
+if [ $app_url_replace = "APP_URL_REPLACE=true" ]; then
   echo "Change APP_URL" 1>> /tmp/init_debug.txt
   public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
   sudo sed -i "s/APP_URL=.*/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
@@ -43,7 +43,7 @@ fi
 # delete POWER_PASSWORD
 sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
 
-if [ $dockercompose_up == "" ]; then
+if [ ! $dockercompose_up ]; then
  sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
 fi
 
