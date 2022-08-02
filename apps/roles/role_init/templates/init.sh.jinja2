@@ -17,7 +17,7 @@ fi
 sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/{{app_name}}/.env
 # has_app_encrypt
 has_app_encrypt=$(cat /data/apps/{{app_name}}/.env |grep "APP_ENCRYPT_PASSWORD")
-if [ $has_app_encrypt =~ "APP_ENCRYPT_PASSWORD" ]; then
+if [ "$has_app_encrypt" =~ "APP_ENCRYPT_PASSWORD" ]; then
   echo "Encrypt password" 1>> /tmp/init_debug.txt
   app_encrypt_password=$(bash /data/apps/{{app_name}}/src/encrypt.sh $new_password)
   sudo sed -i "s/APP_ENCRYPT_PASSWORD=.*/APP_ENCRYPT_PASSWORD=$app_encrypt_password/g" /data/apps/{{app_name}}/.env
