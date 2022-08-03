@@ -52,12 +52,12 @@ echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
 bash /data/apps/{{app_name}}/src/after_up.sh
 
 #3 create password file for guests
-echo "========= credentials for {{appname}} =========" >> /credentials/password.txt
+echo "========= credentials for {{app_name}} =========" >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_USER' |awk -F"=" '{print $1": "$2}' >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_PASSWORD' |awk -F"=" '{print $1": "$2}' >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_VERSION' |awk -F"=" '{print $1": "$2}' >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_PORT' |awk -F"=" '{print $1": "$2}' >> /credentials/password.txt
-cat /data/apps/{{app_name}}/.env | grep 'DB_' >> /credentials/password.txt
+cat /data/apps/{{app_name}}/.env | grep 'DB_' |awk -F"=" '{print $1": "$2}' >> /credentials/password.txt
 echo " " >> /credentials/password.txt
 {% endfor %}
 
