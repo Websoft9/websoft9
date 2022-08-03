@@ -54,7 +54,7 @@ bash /data/apps/{{app_name}}/src/after_up.sh
 {% endfor %}
 
 # create password file for guests
-grep APP_ /data/apps/{{appname}/.env >> /credentials/password.txt
-grep DB_ /data/apps/{{appname}/.env >> /credentials/password.txt
+cat /data/apps/{{appname}}/.env | grep 'APP_' >> /credentials/password.txt
+cat /data/apps/{{appname}}/.env | grep 'DB_' >> /credentials/password.txt
 
 sudo echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt
