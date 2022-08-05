@@ -83,17 +83,19 @@
   when: ansible_distribution != 'Amazon' and  ansible_distribution != "OracleLinux"
 
 - block:	  
-  - name: Add Docker repository and replace $releasever
-    shell: |
-      wget -O /etc/yum.repos.d/docker-ce.repo "https://download.docker.com/linux/centos/docker-ce.repo"
-      sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
-
+  - name: Add Docker repository
+    shell: wget -O /etc/yum.repos.d/docker-ce.repo "https://download.docker.com/linux/centos/docker-ce.repo"
+    
+  - name: Replace $releasever
+    shell: sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
+    when: ansible_distribution == 'Amazon'
+      
   - name: Install all required packages of Docker on {{ansible_distribution}}
     yum:
       name: [device-mapper-persistent-data,lvm2,docker-ce,docker-ce-cli,containerd.io,docker-compose-plugin,docker-scan-plugin,docker-ce-rootless-extras]
       update_cache: yes
       state: latest
-  when: ansible_distribution == 'Amazon'
+  when: ansible_distribution == 'Amazon' or ansible_distribution == "OracleLinux"
 
 - block:	  
   - name: Add Docker repository and replace $releasever
