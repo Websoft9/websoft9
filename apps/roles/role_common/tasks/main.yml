@@ -93,7 +93,20 @@
       name: [device-mapper-persistent-data,lvm2,docker-ce,docker-ce-cli,containerd.io,docker-compose-plugin,docker-scan-plugin,docker-ce-rootless-extras]
       update_cache: yes
       state: latest
-  when: ansible_distribution == 'Amazon' or ansible_distribution == "OracleLinux"
+  when: ansible_distribution == 'Amazon'
+
+- block:	  
+  - name: Add Docker repository and replace $releasever
+    shell: |
+      wget -O /etc/yum.repos.d/docker-ce.repo "https://download.docker.com/linux/centos/docker-ce.repo"
+      sudo sed -i "s/\$releasever/8/g" /etc/yum.repos.d/docker-ce.repo
+
+  - name: Install all required packages of Docker on {{ansible_distribution}}
+    yum:
+      name: [device-mapper-persistent-data,lvm2,docker-ce,docker-ce-cli,containerd.io,docker-compose-plugin,docker-scan-plugin,docker-ce-rootless-extras]
+      update_cache: yes
+      state: latest
+  when: ansible_distribution == "OracleLinux"
   
 - name: Add permanently alias for docker compose
   shell: |
