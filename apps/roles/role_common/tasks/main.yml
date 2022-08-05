@@ -80,7 +80,7 @@
 - name: Install Docker on {{ansible_distribution}}
   shell: |
     curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
-  when: ansible_distribution != 'Amazon' 
+  when: ansible_distribution != 'Amazon' and  ansible_distribution != "OracleLinux"
 
 - block:	  
   - name: Add Docker repository and replace $releasever
@@ -93,7 +93,7 @@
       name: [device-mapper-persistent-data,lvm2,docker-ce,docker-ce-cli,containerd.io,docker-compose-plugin,docker-scan-plugin,docker-ce-rootless-extras]
       update_cache: yes
       state: latest
-  when: ansible_distribution == 'Amazon'
+  when: ansible_distribution == 'Amazon' or ansible_distribution == "OracleLinux"
   
 - name: Add permanently alias for docker compose
   shell: |
