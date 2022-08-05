@@ -1,0 +1,4 @@
+- name: Install {{appname}}
+  include_tasks: tasks/install.yml
+  vars:
+     app: "Template"
