@@ -1,1 +1,1 @@
-nginx_reverse_proxy_port: "5984/_utils"
+nginx_reverse_proxy_port: "5984"
