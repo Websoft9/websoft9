@@ -3,7 +3,7 @@
       msg: "Wait 200s for install pip and python"
   
   - name: Sleep wait for Oracle linux install pip and python which is very slowly
-    shell: sleep 20s
+    shell: sleep 200s
     when: ansible_distribution == "OracleLinux"
   
 - name: System Upgrade
