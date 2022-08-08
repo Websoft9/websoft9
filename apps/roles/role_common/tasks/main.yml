@@ -75,7 +75,8 @@
 
 - name: Snap install yq
   shell: snap install yq
-    
+  failed_when: False
+
 # Install docker
 - name: Install Docker on {{ansible_distribution}}
   shell: |
