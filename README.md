@@ -24,7 +24,7 @@ StackHub is for opensource stacks automation, it is developing...
 # Get all docker repo of Websoft9 org
 gh repo list Websoft9 -L 500 | awk '{print $1}'  | grep docker > test
 ```
-Allinstall
+All-in-one Installer
 ```
 wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh;bash install.sh -r mongodb
 ```
