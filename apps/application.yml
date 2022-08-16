@@ -21,7 +21,7 @@
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
     - { role: "{{appname}}", tags: "{{appname}}" }
-    - { role: role_nginx, tags: "role_nginx" }
+    - { role: role_nginx, tags: "role_nginx", when: appname != 'bt' }
     - { role: role_init, tags: "role_init" }
     - { role: role_preend, tags: "preend" }
     - { role: role_end, tags: "role_end" }
