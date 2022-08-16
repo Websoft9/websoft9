@@ -39,8 +39,3 @@
 - name: Config .env for start containers
   shell: |
     sed -i 's/APP_VERSION=.*/APP_VERSION={{mongodb_version}}/g' {{installpath}}/{{appname}}/.env
-
-- name: Config .env for Mongo Compass when mongodb_version < 3.6
-  shell: |
-    sed -i 's/APP_VERSION=.*/APP_VERSION=v1.6/g' {{installpath}}/mongocompass/.env
-  when: mongodb_version < 3.6
