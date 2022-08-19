@@ -1,7 +1,8 @@
 ---
 dependencies:
   - phpmyadmin
-
+  - onlyofficedocs
+  
 galaxy_info:
   author: 
   description:
