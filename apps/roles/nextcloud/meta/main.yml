@@ -2,6 +2,7 @@
 dependencies:
   - phpmyadmin
   - onlyofficedocs
+  - mediawiki
   
 galaxy_info:
   author: 
