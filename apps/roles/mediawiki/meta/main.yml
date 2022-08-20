@@ -1,6 +1,5 @@
 ---
-dependencies:
- - phpmyadmin
+dependencies: []
 
 allow_duplicates: true
 
