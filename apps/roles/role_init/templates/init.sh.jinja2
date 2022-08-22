@@ -1,7 +1,7 @@
 #!/bin/bash
 # support special char ["`$%()[]{},.*+-:;<>?_~/|]
 new_password=$(pwgen -ncCs 14 1)!
-sudo sleep 10s
+sudo sleep 5s
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
 
 {% for app_name in applist.stdout_lines %}
@@ -11,6 +11,7 @@ dockercompose_up=$(cat /data/apps/{{app_name}}/.env |grep "APP_COMPOSE_UP=false"
 #1 init for applist of .env
 if [ ! $dockercompose_up ]; then
  sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
+ sleep 20s
 fi
 
 # init password
@@ -45,6 +46,7 @@ sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
 
 if [ ! $dockercompose_up ]; then
  sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
+ sleep 20s
 fi
 
 #2 init for applist of special
