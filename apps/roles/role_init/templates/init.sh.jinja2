@@ -11,7 +11,7 @@ dockercompose_up=$(cat /data/apps/{{app_name}}/.env |grep "APP_COMPOSE_UP=false"
 #1 init for applist of .env
 if [ ! $dockercompose_up ]; then
  sudo docker compose -f  /data/apps/{{app_name}}/docker-compose.yml down -v
- sleep 20s
+ sleep 10s
 fi
 
 # init password
@@ -46,7 +46,7 @@ sudo sed -i "s/POWER_PASSWORD=.*//g" /data/apps/{{app_name}}/.env
 
 if [ ! $dockercompose_up ]; then
  sudo docker compose -f /data/apps/{{app_name}}/docker-compose.yml up -d
- sleep 20s
+ sleep 10s
 fi
 
 #2 init for applist of special
