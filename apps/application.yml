@@ -20,14 +20,14 @@
         - name: Check if nginx is necessary
           shell : |
             wget -N https://raw.githubusercontent.com/Websoft9/docker-{{appname}}/main/.env   
-            grep "APP_HTTP_PORT" .env
-          register: need_nginx
+            cat .env
+          register: env_content
           
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
     - { role: "{{appname}}", tags: "{{appname}}" }
-    - { role: role_nginx, tags: "role_nginx", when: need_nginx.stdout != "" }
+    - { role: role_nginx, tags: "role_nginx", when: env_content.stdout.find('APP_HTTP_PORT') != -1 }
     - { role: role_init, tags: "role_init" }
     - { role: role_preend, tags: "preend" }
     - { role: role_end, tags: "role_end" }
