@@ -4,4 +4,4 @@
      app: "bt"
 
 - name: Output bt version
-  shell: echo "bt version\: latest"  >> /data/logs/install_version.txt
+  shell: echo "bt version latest" >> /data/logs/install_version.txt
