@@ -1,5 +1,13 @@
 #!/bin/bash
 # support special char ["`$%()[]{},.*+-:;<>?_~/|]
+
+replace_with_value_env(){
+  export $(cat .env)
+  envsubst < .env > temp
+  cat temp > .env
+  rm -f temp
+}
+
 new_password=$(pwgen -ncCs 14 1)!
 sudo sleep 5s
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
@@ -26,7 +34,7 @@ fi
 
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
 cd /data/apps/{{app_name}}
-while [ `grep  '\${' .env |wc -l` -ne '0' ]
+while [ `grep -c '\$' .env ` -ne '0' ]
 do
   replace_with_value_env
 done
@@ -64,10 +72,3 @@ echo " " >> /credentials/password.txt
 {% endfor %}
 
 sudo echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt
-
-replace_with_value_env(){
-  export $(cat .env)
-  envsubst < .env > temp
-  cat temp > .env
-  rm -f temp
-}
