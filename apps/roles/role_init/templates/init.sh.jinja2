@@ -26,7 +26,7 @@ fi
 
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
 cd /data/apps/{{app_name}}
-while [ `grep -c "$" .env` -ne '0' ]
+while [ `grep  '\${' .env |wc -l` -ne '0' ]
 do
   replace_with_value_env
 done
