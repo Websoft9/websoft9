@@ -26,10 +26,10 @@ fi
 
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
 cd /data/apps/{{app_name}}
-export $(cat .env)
-envsubst < .env > temp
-cat temp > .env
-rm -f temp
+while [ `grep -c "$" .env` -ne '0' ]
+do
+  replace_with_value_env
+done
 
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
@@ -64,3 +64,10 @@ echo " " >> /credentials/password.txt
 {% endfor %}
 
 sudo echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt
+
+replace_with_value_env(){
+  export $(cat .env)
+  envsubst < .env > temp
+  cat temp > .env
+  rm -f temp
+}
