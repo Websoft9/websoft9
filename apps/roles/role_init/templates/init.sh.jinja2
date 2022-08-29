@@ -34,10 +34,11 @@ fi
 
 # change all the variables to real value,such as DB_MYSQL_PASSWORD=$APP_PASSWORD=>DB_MYSQL_PASSWORD=ues983ks9309023!
 cd /data/apps/{{app_name}}
-while [ `grep -c '\$' .env ` -ne '0' ]
-do
-  replace_with_value_env
-done
+replace_with_value_env
+#while [ `grep -c '\$' .env ` -ne '0' ]
+#do
+#  replace_with_value_env
+#done
 
 # init APP_URL
 app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
