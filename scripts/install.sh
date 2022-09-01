@@ -76,9 +76,8 @@ sudo git clone --depth=1 https://github.com/Websoft9/stackhub.git
 cd stackhub/apps
 sudo echo "localhost" > hosts
 ansible-playbook -i hosts application.yml -c local -e init=$repo_init -e appname=$repo_name
-if [ $? -ne 0  ]; then
-   echo "Ansible execute error!" 1>&2
-   exit 1
+if [ $init -ne 0  ]; then
+   echo "Image build success!"
 else
    echo  "System must restart after 2s, then installation completed"; sleep 2 ; sudo reboot
 fi 
