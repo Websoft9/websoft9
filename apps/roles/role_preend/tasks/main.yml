@@ -4,11 +4,15 @@
 # display os version and image name
 - name: Display os version
   shell: sudo echo  "System version:" "{{ansible_distribution}}" "{{ansible_distribution_version}}"  |sudo tee -a /data/logs/install_version.txt
-
+ 
 - name: Display image name
   shell: sudo echo "Image name:" "{{image}}" |sudo tee -a /data/logs/install_version.txt
   when: image is defined and image is not none
 
+- name: Show confirm if make images
+  shell: sudo echo "本次在测试模式下运行，非特殊情况不能输入【0】来继续生产镜像！" |sudo tee -a /data/logs/install_version.txt 
+  when: init == '0' or init == 0
+  
 - name: Check Docker Container Service
   shell: docker ps  --format \{\{'json .'\}\}| jq -s  map\(\{containername:'.Names',state:'.State'\}\)
   register: check_container_service
