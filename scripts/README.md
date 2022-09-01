@@ -4,34 +4,34 @@
 
 ## install.sh
 
-install.sh 是我们提供的一键安装脚本，用于部署基于 Docker 的应用项目  
-
-install.sh 支持两个参数：
+install.sh 安装 Stackhub 的自动化脚本，支持两个参数：
 
 * -r 代表项目名称，例如：magento, lamp, lnmp, wordpress, joomla, gitlab 等
-* -i 代表是否初始化，支持 0（默认值）和 1 两种参数
+* -i 代表是否用于，支持 0（默认值，即重启）和 1 两种参数
 
 主要有两种使用场景
 
-### 场景1
+### 制作镜像
+
+适用于
 
 ```
-#安装项目，初始化
+# 安装项目
 wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh; bash install.sh -r magento -i 1
 
 # 中断后命令
 cd /tmp/stackhub/apps && ansible-playbook -i hosts application.yml -c local -e init=1 -e appname=magento
-
-
-#安装项目，不初始化
-wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh -r magento -i 0 或
-wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh; bash install.sh -r magento
-
-cd /tmp/stackhub/apps && ansible-playbook -i hosts application.yml -c local -e init=0 -e appname=magento
 ```
 
-### 场景2
+### 场景2 
 
+```
+# 安装项目
+wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh; bash install.sh -r magento -i 0
+
+# 中断后命令
+cd /tmp/stackhub/apps && ansible-playbook -i hosts application.yml -c local -e init=0 -e appname=magento
+```
 
 ## reset_mysql_password.sh
 
