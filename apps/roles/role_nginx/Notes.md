@@ -23,4 +23,32 @@ proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection upgrade;
 ```
 
+## Nginx location order
+```
+location 匹配规则顺序：
+
+1. location = /path{
+
+}
+
+2. location ^~ /path{
+
+}
+
+3. location ~ /path{
+
+}
+或location ~* /path{
+
+}
+
+4. location /path{
+
+}
+
+5. location /{
+
+}
+
+```
 
