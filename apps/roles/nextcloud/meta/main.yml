@@ -1,10 +1,6 @@
 ---
 dependencies:
   - phpmyadmin
-  - onlyofficedocs
-  - mediawiki
-  - superset
-  - zentao
   
 galaxy_info:
   author: 
