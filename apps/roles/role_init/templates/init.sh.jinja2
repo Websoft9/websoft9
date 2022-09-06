@@ -8,6 +8,13 @@ replace_with_value_env(){
   rm -f temp
 }
 
+if [ -d /data/apps/{{app_name}} ]; then
+  echo "It is a docker project"
+else
+  echo "It is not a docker project"
+  exit 1
+fi
+
 new_password=$(pwgen -ncCs 14 1)!
 sudo sleep 5s
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
