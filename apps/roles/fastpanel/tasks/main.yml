@@ -1,4 +1,2 @@
 - name: Install {{appname}}
-  include_tasks: tasks/install.yml
-  vars:
-     app: "Template"
+  shell: wget http://repo.fastpanel.direct/install_fastpanel.sh -O - | bash - 
