@@ -3,4 +3,3 @@
 
 - name: Output version
   shell: echo "fastpanel version refer to https://fastpanel.direct/changelog" >> /data/logs/install_version.txt
-
