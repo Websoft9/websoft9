@@ -1,5 +1,10 @@
+- name: Create credentials Folder
+  file:
+    path: /credentials
+    state: directory
+    
 - name: Install {{appname}}
-  shell: wget http://repo.fastpanel.direct/install_fastpanel.sh -O - | bash -  > /tmp/password.txt 2>&1
+  shell: wget http://repo.fastpanel.direct/install_fastpanel.sh -O - | bash -  > /credentials/password.txt 2>&1
 
 - name: Output version
   shell: echo "fastpanel version refer to https://fastpanel.direct/changelog" >> /data/logs/install_version.txt
