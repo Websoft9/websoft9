@@ -1,2 +1,6 @@
 - name: Install {{appname}}
   shell: wget http://repo.fastpanel.direct/install_fastpanel.sh -O - | bash - 
+
+- name: Output version
+  shell: echo "version refer to: https://fastpanel.direct/changelog" >> /data/logs/install_version.txt
+
