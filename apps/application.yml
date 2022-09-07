@@ -35,7 +35,7 @@
           when: env_content.stdout == ""
           
         - debug:
-            msg: "{{appnme}}"
+            msg: "{{appname}}"
         - debug:
             msg: "{{env_content}}"
   roles:
