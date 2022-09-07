@@ -37,7 +37,8 @@
         - debug:
             msg: "{{appname}}"
         - debug:
-            msg: "{{env_content}}"
+            msg: "hahha"
+          when: env_content.stdout.find('APP_HTTP_PORT') != -1
   roles:
 
     - { role: role_nginx, tags: "role_nginx", when: env_content.stdout.find('APP_HTTP_PORT') != -1 }
