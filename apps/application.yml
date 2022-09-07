@@ -31,13 +31,13 @@
           shell : |
             wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env  
             cat .env
-          register: env_content
+          register: app_without_docker
           when: env_content.stdout == ""
           
         - debug:
             msg: "{{appname}}"
         - debug:
-            msg: "{{env_content}}"
+            msg: "{{app_without_docker}}"
 
   roles:
 
