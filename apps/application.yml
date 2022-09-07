@@ -34,6 +34,8 @@
           register: env_content
           when: env_content.stdout == ""
           
+        - debug:
+            msg: "{{env_content}}"
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
