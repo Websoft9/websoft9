@@ -61,7 +61,7 @@ fi
 
 #2 init for applist of special
 echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
-bash /data/apps/{{app_name}}/src/after_up.sh
+bash /data/apps/{{app_name}}/src/after_up.sh  2>&1 > /dev/null
 
 #3 create password file for guests
 echo "========= credentials for {{app_name}} =========" >> /credentials/password.txt
