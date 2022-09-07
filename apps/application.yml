@@ -25,7 +25,7 @@
           failed_when: False
           
         - debug:
-            msg: "{{env_content}}"
+            msg: "{{env_content.out}}"
             
         - name: App without docker register
           shell : |
@@ -35,7 +35,7 @@
           when: env_content.stdout == ""
           
         - debug:
-            msg: "show {{env_content}}"
+            msg: "show {{appnme}}"
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
