@@ -26,7 +26,7 @@
 
         - name: App without docker register
           shell : |
-            wget -N https://raw.githubusercontent.com/Websoft9/docker-{{appname}}/main/.env   
+            wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env  
             cat .env
           register: env_content
           when: env_content is not defined or env_content is none
