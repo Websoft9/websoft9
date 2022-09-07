@@ -1,1 +1,9 @@
+- name: Create credentials Folder
+  file:
+    path: /credentials
+    state: directory
 
+- name: Create credentials Folder
+  file:
+    path: /data/apps/{{appname}}
+    state: directory
