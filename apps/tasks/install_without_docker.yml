@@ -7,3 +7,6 @@
   file:
     path: /data/apps/{{appname}}
     state: directory
+
+- name: Save .env
+  shell : wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env -O /data/apps/{{appname}}/.env
