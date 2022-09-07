@@ -25,7 +25,7 @@
           failed_when: False
           
         - debug:
-            msg: "{{env_content.out}}"
+            msg: "{{env_content}}"
             
         - name: App without docker register
           shell : |
@@ -37,7 +37,7 @@
         - debug:
             msg: "{{appnme}}"
         - debug:
-            msg: "{{env_content.stdout}}"
+            msg: "{{env_content}}"
   roles:
 
     - { role: role_nginx, tags: "role_nginx", when: env_content.stdout.find('APP_HTTP_PORT') != -1 }
