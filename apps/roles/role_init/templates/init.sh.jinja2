@@ -63,7 +63,10 @@ fi
 echo "Executing after_up.sh" 1>> /tmp/init_debug.txt
 bash /data/apps/{{app_name}}/src/after_up.sh  2>&1 > /dev/null
 
-#3 create password file for guests
+#3 init for applist of special
+bash /data/apps/{{app_name}}/init_without_docker.sh $new_password 2>&1 > /dev/null
+ 
+#4 create password file for guests
 echo "========= credentials for {{app_name}} =========" >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_USER' |awk -F"=" '{print tolower($1)": "$2}' >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_PASSWORD' |awk -F"=" '{print tolower($1)": "$2}' >> /credentials/password.txt
