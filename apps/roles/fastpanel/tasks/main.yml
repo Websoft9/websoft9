@@ -1,7 +1,5 @@
-- name: Create credentials Folder
-  file:
-    path: /credentials
-    state: directory
+- name: Install {{appname}}
+  include_tasks: tasks/install_without_docker.yml
     
 - name: Install {{appname}}
   shell: |
