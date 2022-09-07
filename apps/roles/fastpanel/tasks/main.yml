@@ -1,4 +1,4 @@
-- name: Install {{appname}}
+- name: Install common on app without docker
   include_tasks: tasks/install_without_docker.yml
     
 - name: Install {{appname}}
