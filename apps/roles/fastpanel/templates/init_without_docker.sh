@@ -2,4 +2,4 @@
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 
 newpassword=$1
-echo $newpassword | $newpassword | passwd
+echo $newpassword |passwd --stdin fastuser
