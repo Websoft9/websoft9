@@ -30,7 +30,6 @@
             cat .env
           register: env_content
           when: env_content is not defined or env_content is none
-
           
   roles:
     - { role: role_common, tags: "role_common" }
