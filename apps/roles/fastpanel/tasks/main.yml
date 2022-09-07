@@ -3,9 +3,7 @@
     
 - name: Install {{appname}}
   shell: |
-    wget http://repo.fastpanel.direct/install_fastpanel.sh -O - | bash -  > /credentials/tmp 2>&1
-    grep "Login"  /credentials/tmp >> /credentials/password.txt
-    grep "Password" /credentials/tmp >> /credentials/password.txt
+    wget http://repo.fastpanel.direct/install_fastpanel.sh -O - | bash - 
 
 - name: Output version
   shell: echo "fastpanel version refer to https://fastpanel.direct/changelog" >> /data/logs/install_version.txt
