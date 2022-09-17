@@ -32,6 +32,7 @@ e.g v4.5
 
 - [ ] Ubuntu18.x
 - [ ] Ubuntu20.x
+- [ ] Ubuntu22.x
 - [ ] CentOS7.x
 - [ ] CentOS8.x
 - [ ] AmazonLinux2
