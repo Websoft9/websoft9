@@ -17,7 +17,7 @@
     shell: |
       docker compose down -v
       docker system prune --all --force
-      docker logout
+      docker logout container-registry.oracle.com
     args:
       chdir: /data/apps/oracle
   when: oracle_edition == "enterprise"
