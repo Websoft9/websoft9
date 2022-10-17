@@ -1,20 +1,22 @@
 - pause:
     prompt: |
       Choice Odoo version: 
-      0: Odoo15
-      1: Odoo14
-      2: Odoo13
-      3: Odoo12
+      0: Odoo16
+      1: Odoo15
+      2: Odoo14
+      3: Odoo13
+      4: Odoo12     
       private: no
       Default:0
   register: odoo_version_options
 
 - set_fact:
     odoo_version_meta:
-      "0": "15"
-      "1": "14"
-      "2": "13"
-      "3": "12"
+      "0": "16"
+      "1": "15"
+      "2": "14"
+      "3": "13"
+      "4": "12"
       
 - set_fact:
     odoo_version: "{{odoo_version_meta[odoo_version_options.user_input]}}"
