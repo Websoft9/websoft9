@@ -1,7 +1,7 @@
 - pause:
     prompt: |
       Choice PostgreSQL version: 
-      0: PostgreSQL latest
+      0: PostgreSQL 15
       1: PostgreSQL 14
       2: PostgreSQL 13
       3: PostgreSQL 12
@@ -19,7 +19,7 @@
 
 - set_fact:
     postgresql_version_meta:
-      "0": "latest"
+      "0": "15"
       "1": "14"
       "2": "13"
       "3": "12"
