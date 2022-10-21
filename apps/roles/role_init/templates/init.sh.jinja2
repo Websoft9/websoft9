@@ -69,7 +69,7 @@ bash /data/apps/{{app_name}}/init_without_docker.sh $new_password 2>&1 > /dev/nu
 #4 create password file for guests
 echo "========= credentials for {{app_name}} =========" >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'APP_USER' |awk -F"=" '{print tolower($1)": "$2}' >> /credentials/password.txt
-cat /data/apps/{{app_name}}/.env | grep 'APP_PASSWORD' |awk -F"APP_PASSWORD=" '{print "app_password: "$2}'
+cat /data/apps/{{app_name}}/.env | grep 'APP_PASSWORD' |awk -F"APP_PASSWORD=" '{print "app_password: "$2}' >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep APP_|grep PORT |awk -F"=" '{print tolower($1)": "$2}' >> /credentials/password.txt
 cat /data/apps/{{app_name}}/.env | grep 'DB_' |awk -F"=" '{print tolower($1)": "$2}' >> /credentials/password.txt
 sudo sed -i "s/app_/{{app_name}}_/g" /credentials/password.txt
