@@ -19,7 +19,7 @@
 
         - name: Check if nginx is necessary
           shell : |
-            wget -N https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/{{appname}}/.env
+            wget -N https://raw.githubusercontent.com/Websoft9/docker-{{appname}}/main/.env 
             cat .env
           register: env_content
           failed_when: False
