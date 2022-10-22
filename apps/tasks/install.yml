@@ -5,12 +5,15 @@
 - name: Git Clone app docker repository and change public IP
   block:
     - name: Delete {{app}} dir for Second installation
-      shell: rm -rf {{installpath}}/{{app}}
+      shell: rm -rf {{installpath}}/{{app}} {{installpath}}/library
       
-    - name: Clone {{app}} in Websoft9
+    - name: Clone docker-library in Websoft9
       git:
-        repo: "https://github.com/Websoft9/docker-{{app}}.git"
-        dest: "{{installpath}}/{{app}}"
+        repo: "https://github.com/Websoft9/docker-library.git"
+        dest: "{{installpath}}/library"
+        
+    - name: Clone app from libray
+      shell: cp -r  "{{installpath}}/library/apps/{{app}}"  "{{installpath}}" 
         
     - name: Check APP_URL_REPLACE exists
       shell: |
