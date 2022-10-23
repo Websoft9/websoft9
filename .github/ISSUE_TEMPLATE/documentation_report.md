@@ -1,6 +1,7 @@
 ---
 name: Documentation report
 about: improve current Documentation
+title: 'documentation title for [appname]'
 labels: documentation
 ---
 
