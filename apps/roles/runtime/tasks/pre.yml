@@ -1,1 +1,40 @@
+- pause:
+    prompt: |
+      Choice runtime language: 
+      0: dotnet
+      1: golang
+      2: java-openjdk
+      3: java-zulu
+      4: java-correto
+      5: node
+      6: php
+      7: python
+      8: ruby
+      9: swift
+      private: no
+      Default:0
+  register: baota_version_options
 
+- set_fact:
+    runtime_lang_meta:
+      "0": "dotnet"
+      "1": "golang"
+      "2": "java-openjdk"
+      "3": "java-zulu"
+      "4": "java-correto"
+      "5": "node"
+      "6": "php"
+      "7": "python"
+      "8": "ruby"
+      "9": "swift"
+
+- set_fact:
+    runtime_lang: "{{runtime_lang_meta[baota_version_options.user_input]}}"
+
+- debug:
+    msg: "runtime_language is {{runtime_lang}}"
+
+- name: Combine docker compose files together
+  shell: |
+    cd /data/apps/runtime
+    docker compose -f compose.lang.{{runtime_lang}}.yml -f compose.proxy.nginx.yml -f compose.db.mysql.yml config > docker-compose.yml
