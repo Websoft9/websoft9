@@ -16,6 +16,7 @@
             cat main.yml | sed -n '/dependencies/,/galaxy_info/{//!p}'|grep -|awk -F'- ' '{print $2}' >>/tmp/applist
             cat /tmp/applist
           register: applist
+          delegate_to: 127.0.0.1
 
         - name: Check if nginx is necessary
           shell : |
@@ -23,7 +24,7 @@
             cat .env
           register: env_content
           failed_when: False
-        delegate_to: 127.0.0.1
+          delegate_to: 127.0.0.1
         
   roles:
     - { role: role_common, tags: "role_common" }
