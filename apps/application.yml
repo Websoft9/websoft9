@@ -23,7 +23,8 @@
             cat .env
           register: env_content
           failed_when: False
-
+        delegate_to: 127.0.0.1
+        
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
