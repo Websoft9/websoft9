@@ -37,4 +37,4 @@
 - name: Combine docker compose files together
   shell: |
     cd /data/apps/runtime
-    docker compose -f compose.lang.{{runtime_lang}}.yml -f compose.proxy.nginx.yml -f compose.db.mysql.yml config > docker-compose.yml
+    docker compose -f compose.lang.{{runtime_lang}}.yml -f compose.proxy.nginx.yml -f compose.db.mysql.yml convert --no-interpolate > docker-compose.yml
