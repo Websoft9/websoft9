@@ -76,6 +76,6 @@ sudo sed -i "s/app_/{{app_name}}_/g" /credentials/password.txt
 echo " " >> /credentials/password.txt
 {% endfor %}
 
-bash /data/apps/{{app_name}}/src/nginx/nginx_init.sh
+bash /data/apps/runtime/src/nginx/nginx_init.sh
 
 sudo echo "init docker ended at" $(date -d now)  1>> /tmp/init_debug.txt
