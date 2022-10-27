@@ -1,6 +1,6 @@
 #1 Prepare
 - set_fact:
-    common_cockpit_port: "9099"
+    common_cockpit_port: "9090"
 
 #2 Install cockpit
 - name: Install cockpit
@@ -39,15 +39,10 @@
       # allow http connection, Otherwise, it redirects all HTTP connections to HTTPS
       [WebService]
       AllowUnencrypted = true
+
 - name: Start & Enable cockpit
   shell: |
     systemctl restart cockpit
     systemctl daemon-reload
     systemctl restart cockpit.socket
     systemctl enable --now cockpit.socket
-    
-#4 Check
-- name: Check cockpit Service
-  shell: systemctl status cockpit | grep Active*
-  register: check_cockpit_service
-  notify: check_cockpit_service
