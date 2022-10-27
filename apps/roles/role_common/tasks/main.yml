@@ -73,8 +73,8 @@
   - hostname:
       name: "{{common_get_hostname.stdout}}"
 
-- name: Snap install yq
-  shell: snap install yq
+#- name: Snap install yq
+#  shell: snap install yq
 
 # Install docker
 - name: Install Docker on {{ansible_distribution}}
