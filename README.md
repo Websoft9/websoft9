@@ -1,6 +1,6 @@
 # StackHub
 
-本项目开发中...
+This repository will replace the [ansible project](https://github.com/websoft9private) before
 
 StackHub is for opensource stacks automation, it is developing...
 
