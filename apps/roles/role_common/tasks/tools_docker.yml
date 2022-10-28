@@ -1,1 +1,50 @@
+# Install docker
+- name: Install Docker on {{ansible_distribution}}
+  shell: |
+    curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
+  when: ansible_distribution != 'Amazon' and  ansible_distribution != "OracleLinux"
 
+- block:	  
+  - name: Add Docker repository
+    shell: wget -O /etc/yum.repos.d/docker-ce.repo "https://download.docker.com/linux/centos/docker-ce.repo"
+    
+  - name: Replace $releasever
+    shell: sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
+    when: ansible_distribution == 'Amazon'
+      
+  - name: Install all required packages of Docker on {{ansible_distribution}}
+    yum:
+      name: [device-mapper-persistent-data,lvm2,docker-ce,docker-ce-cli,containerd.io,docker-compose-plugin,docker-scan-plugin,docker-ce-rootless-extras]
+      update_cache: yes
+      state: latest
+  when: ansible_distribution == 'Amazon' or ansible_distribution == "OracleLinux"
+
+- block:	  
+  - name: Add Docker repository and replace $releasever
+    shell: |
+      wget -O /etc/yum.repos.d/docker-ce.repo "https://download.docker.com/linux/centos/docker-ce.repo"
+      sudo sed -i "s/\$releasever/8/g" /etc/yum.repos.d/docker-ce.repo
+
+  - name: Install all required packages of Docker on {{ansible_distribution}}
+    yum:
+      name: [device-mapper-persistent-data,lvm2,docker-ce,docker-ce-cli,containerd.io,docker-compose-plugin,docker-scan-plugin,docker-ce-rootless-extras]
+      update_cache: yes
+      state: latest
+  when: ansible_distribution == "OracleLinux"
+  
+- name: Add permanently alias for docker compose
+  shell: |
+    alias docker-compose='docker compose'
+    echo "alias docker-compose='docker compose'" >> /etc/profile.d/docker-compose.sh
+    source /etc/profile.d/docker-compose.sh
+  args:
+    executable: /bin/bash
+    
+- name: Started and enable Docker
+  service:
+    name: docker 
+    enabled: yes
+    state: restarted
+
+- name: Check Docker Version
+  shell: sudo sh -c "docker -v 1>> /data/logs/install_version.txt"
