@@ -2,3 +2,7 @@
   include_tasks: tasks/install.yml
   vars:
      app: "runtime"
+
+- name: Create docker network websoft9
+  shell: docker stop java8 java11 java13 java14 java15 java18 java 19
+  failed_when: False
