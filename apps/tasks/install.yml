@@ -24,7 +24,7 @@
     - name: Change Public IP for http_url if APP_URL_REPLACE=true
       shell: |
          public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
-         urlstr=`grep  "APP_URL=" .env |cut -d":" -f1`
+         urlstr=`grep  "APP_URL=" /data/apps/{{app}}/.env |cut -d":" -f1`
          sudo sed -i "s/$urlstr/APP_URL=$public_ip/g" /data/apps/{{app}}/.env
       when: http_url_exists.stdout != ""
       
