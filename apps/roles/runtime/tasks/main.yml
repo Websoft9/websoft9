@@ -19,3 +19,10 @@
   shell: |
     yum install https://github.com/45Drives/cockpit-navigator/releases/download/v0.5.10/cockpit-navigator-0.5.10-1.el7.noarch.rpm -y
   when: ansible_os_family == "Redhat"
+
+- name: Install  websoft9's plugins
+  shell: |
+    git clone --depth=1 https://github.com/Websoft9/StackHub.git
+    cp -r StackHub/cockpit/credential /usr/share/cockpit
+    cp -r StackHub/cockpit/phpmyadmin /usr/share/cockpit
+    cp -r StackHub/cockpit/nginxproxymanager /usr/share/cockpit
