@@ -49,6 +49,8 @@ if [ $app_url_replace = "APP_URL_REPLACE=true" ]; then
   sudo sed -i "s/$urlstr/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
 else
   echo "There is not APP_URL"
+  public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+  sudo sed -i "s/appname.example.com/$public_ip/g" /data/apps/{{app_name}}/.env
 fi 
 
 # delete POWER_PASSWORD
