@@ -4,5 +4,17 @@
      app: "runtime"
 
 - name: Stop all of java runtime except java17
-  shell: docker stop java8 java11 java13 java14 java15 java18 java 19
+  shell: docker stop java8 java11 java13 java14 java15 java18 java19
   failed_when: False
+
+- name: Install docker and navigator plugin of cockpit on ubuntu
+  shell: |
+    wget https://launchpad.net/ubuntu/+source/cockpit/215-1~ubuntu19.10.1/+build/18889196/+files/cockpit-docker_215-1~ubuntu19.10.1_all.deb
+    sudo dpkg -i cockpit-docker_215-1~ubuntu19.10.1_all.deb
+    wget https://github.com/45Drives/cockpit-navigator/releases/download/v0.5.10/cockpit-navigator_0.5.10-1focal_all.deb
+    DEBIAN_FRONTEND=noninteractive apt install -y ./cockpit-navigator_0.5.10-1focal_all.deb
+  when: ansible_os_family == "Debian"
+  
+- name: Install  navigator plugin of cockpit on centos
+  shell: |
+    yum install https://github.com/45Drives/cockpit-navigator/releases/download/v0.5.10/cockpit-navigator-0.5.10-1.el7.noarch.rpm
