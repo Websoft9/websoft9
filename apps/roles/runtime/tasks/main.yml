@@ -17,5 +17,5 @@
   
 - name: Install  navigator plugin of cockpit on centos
   shell: |
-    yum install https://github.com/45Drives/cockpit-navigator/releases/download/v0.5.10/cockpit-navigator-0.5.10-1.el7.noarch.rpm
+    yum install https://github.com/45Drives/cockpit-navigator/releases/download/v0.5.10/cockpit-navigator-0.5.10-1.el7.noarch.rpm -y
   when: ansible_os_family == "Redhat"
