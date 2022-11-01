@@ -1,6 +1,6 @@
 #1 Prepare
 - set_fact:
-    common_cockpit_port: "9090"
+    common_cockpit_port: "9099"
 
 #2 Install cockpit
 - name: Install cockpit
