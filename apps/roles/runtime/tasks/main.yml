@@ -26,3 +26,8 @@
     cp -r StackHub/cockpit/credential /usr/share/cockpit
     cp -r StackHub/cockpit/phpmyadmin /usr/share/cockpit
     cp -r StackHub/cockpit/nginxproxymanager /usr/share/cockpit
+
+- name: Hide phpmyadmin's  host
+  shell: |
+    sed -i "s/PMA_ARBITRARY=1/PMA_ARBITRARY=0/g" /data/apps/phpmyadmin/.env
+    cd /data/apps/phpmyadmin && docker compose up -d
