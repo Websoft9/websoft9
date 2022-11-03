@@ -19,7 +19,7 @@
   - name: Download {{wordpress_theme}} theme
     unarchive:
       src: "{{wordpress_theme_download_url}}/{{wordpress_theme}}/{{wordpress_theme}}.zip"
-      dest: /var/lib/docker/volumes/wordpress_wordpress/_data/wp-content/themes
+      dest: /data/apps/wordpress/data/wordpress/wp-content/themes
       owner: www-data
       group: www-data
       remote_src: yes
@@ -27,7 +27,7 @@
   - name: Download plugin
     unarchive:
       src: "{{wordpress_theme_download_url}}/{{wordpress_theme}}/{{item}}.zip"
-      dest: /var/lib/docker/volumes/wordpress_wordpress/_data/wp-content/plugins
+      dest: /data/apps/wordpress/data/wordpress/wp-content/plugins
       owner: www-data
       group: www-data
       remote_src: yes
