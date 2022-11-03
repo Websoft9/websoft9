@@ -1,0 +1,25 @@
+- pause:
+    prompt: |
+      Choice WordPress Theme: 
+      0: default
+      1: avada
+      2: porto
+      3: the7
+      4: divi
+      private: no
+      Default:0
+  register: wordpress_theme_selected
+
+- set_fact:
+    wordpress_theme_option:
+      "0": ""
+      "1": "avada"
+      "2": "porto"
+      "3": "the7"
+      "4": "divi"
+
+- set_fact:
+    wordpress_theme: "{{wordpress_theme_option[wordpress_theme_selected.user_input]}}"
+
+- debug:
+    msg: "WordPress Theme is {{wordpress_theme}}"
