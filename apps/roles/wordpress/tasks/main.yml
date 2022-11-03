@@ -13,7 +13,7 @@
     shell: |
       docker cp wp-cli.phar wordpress:/tmp
       docker exec -it wordpress chmod +x /tmp/wp-cli.phar
-      docker exec -it mv /tmp/wp-cli.phar /usr/local/bin/wp
+      docker exec -it wordpress mv /tmp/wp-cli.phar /usr/local/bin/wp
 
 - block:
   - name: Download {{wordpress_theme}} theme
