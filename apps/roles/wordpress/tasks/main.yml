@@ -3,49 +3,57 @@
   vars: 
      app: "wordpress"
 
-- block:
-  - name: Copy wp-cli
-    copy:
-      src: wp-cli.phar
-      dest: wp-cli.phar
+- name: Install cp-cli
+  - block:
+    - name: Copy wp-cli
+      copy:
+        src: wp-cli.phar
+        dest: wp-cli.phar
 
-  - name: Add Install wp-cli for init
-    shell: |
-      echo "docker cp wp-cli.phar wordpress:/tmp"  >> /data/apps/{{appname}}/src/after_up.sh 
-      echo "docker exec -it wordpress chmod +x /tmp/wp-cli.phar" >> /data/apps/{{appname}}/src/after_up.sh
-      echo "docker exec -it wordpress mv /tmp/wp-cli.phar /usr/local/bin/wp" >> /data/apps/{{appname}}/src/after_up.sh
+    - name: Add Install wp-cli for init
+      shell: |
+        echo "docker cp wp-cli.phar wordpress:/tmp"  >> /data/apps/{{appname}}/src/after_up.sh 
+        echo "docker exec -it wordpress chmod +x /tmp/wp-cli.phar" >> /data/apps/{{appname}}/src/after_up.sh
+        echo "docker exec -it wordpress mv /tmp/wp-cli.phar /usr/local/bin/wp" >> /data/apps/{{appname}}/src/after_up.sh
 
-- block:
-  - name: Download {{wordpress_solution}} theme to host machine
-    unarchive:
-      src: "{{wordpress_theme_download_url}}/{{wordpress_solution}}/{{wordpress_theme_meta[wordpress_solution].theme}}.zip"
-      dest: /data/apps/wordpress/data/backup/theme/{{wordpress_solution}}
-      owner: www-data
-      group: www-data
-      remote_src: yes
+- name: Set the theme solution
+  - block:
+    - name: Download {{wordpress_solution}} theme to host machine
+      unarchive:
+        src: "{{wordpress_theme_download_url}}/{{wordpress_solution}}/{{wordpress_theme_meta[wordpress_solution].theme}}.zip"
+        dest: /data/apps/wordpress/data/backup/theme/{{wordpress_solution}}
+        owner: www-data
+        group: www-data
+        remote_src: yes
 
-  - name: Download plugin to host machine
-    unarchive:
-      src: "{{wordpress_theme_download_url}}/{{wordpress_solution}}/{{item}}.zip"
-      dest: /data/apps/wordpress/data/backup/plugin/{{wordpress_solution}}
-      owner: www-data
-      group: www-data
-      remote_src: yes
-    with_items:
-      - "{{wordpress_theme_meta[wordpress_solution].plugin}}"
-    when: wordpress_theme_meta[wordpress_solution].plugin !=""
+    - name: Download plugin to host machine
+      unarchive:
+        src: "{{wordpress_theme_download_url}}/{{wordpress_solution}}/{{item}}.zip"
+        dest: /data/apps/wordpress/data/backup/plugin/{{wordpress_solution}}
+        owner: www-data
+        group: www-data
+        remote_src: yes
+      with_items:
+        - "{{wordpress_theme_meta[wordpress_solution].plugin}}"
+      when: wordpress_theme_meta[wordpress_solution].plugin !=""
 
-  - name: Add tasks to init
-    shell:
-      echo "docker cp " >> /data/apps/{{appname}}/src/after_up.sh
-      echo "docker cp " >> /data/apps/{{appname}}/src/after_up.sh
+    - name: Template default-constants.php
+      template:
+        src: default-constants.php
+        dest: /data/apps/wordpress/data/backup
+        owner: www-data
+        group: www-data
 
-  when: wordpress_solution != "" and wordpress_solution != "multisite"
+    - name: Add tasks to init
+      shell:
+        echo "docker cp theme" >> /data/apps/{{appname}}/src/after_up.sh
+        echo "docker cp plugins" >> /data/apps/{{appname}}/src/after_up.sh
+        echo "docker cp default-constants.php" >> /data/apps/{{appname}}/src/after_up.sh
+
+    when: wordpress_solution != "" and wordpress_solution != "multisite"
 
 
-- name: Modify wordpress for multisite
+- name: Set the multisite solution
   shell:
     echo "add line [define( 'WP_ALLOW_MULTISITE', true );] to wp-config.php" >> /data/apps/{{appname}}/src/after_up.sh
   when: wordpress_solution == "multisite"
-
-
