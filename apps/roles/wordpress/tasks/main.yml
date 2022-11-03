@@ -3,7 +3,7 @@
   vars: 
      app: "wordpress"
 
-- block: 
+- block:
   - name: Copy wp-cli
     copy:
       src: wp-cli.phar
@@ -11,9 +11,9 @@
 
   - name: Install wp-cli
     shell: |
-      chmod +x wp-cli.phar
-      sudo mv wp-cli.phar /usr/local/bin/wp
-
+      docker cp wp-cli.phar wordpress:/tmp
+      docker exec -it wordpress chmod +x /tmp/wp-cli.phar
+      docker exec -it mv /tmp/wp-cli.phar /usr/local/bin/wp
 
 - block:
   - name: Download {{wordpress_theme}} theme
@@ -38,4 +38,5 @@
   - name: Override the WordPress default theme
     shell: |
       pwd
+
   when: wordpress_theme != ""
