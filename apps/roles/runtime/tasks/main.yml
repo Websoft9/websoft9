@@ -30,4 +30,5 @@
 - name: Hide phpmyadmin's  host
   shell: |
     sed -i "s/PMA_ARBITRARY=1/PMA_ARBITRARY=0/g" /data/apps/phpmyadmin/.env
+    sed -i "s/appname.example.com/appname.example.com\/phpmyadmin/g" /data/apps/phpmyadmin/.env
     cd /data/apps/phpmyadmin && docker compose up -d
