@@ -26,6 +26,8 @@
     cp -r StackHub/cockpit/credential /usr/share/cockpit
     cp -r StackHub/cockpit/phpmyadmin /usr/share/cockpit
     cp -r StackHub/cockpit/nginxproxymanager /usr/share/cockpit
+    echo "UrlRoot=/panel" >> /etc/cockpit/cockpit.conf
+    systemctl restart cockpit
 
 - name: Hide phpmyadmin's  host
   shell: |
