@@ -1,0 +1,12 @@
+#!/usr/bin/expect -f
+#port must > 4 characters
+
+set timeout 30
+spawn /usr/bin/bt
+expect "command number"
+send "8\r"
+expect "new port"
+send "8888\r"
+
+interact
+expect eof
