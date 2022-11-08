@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+set timeout 30
+spawn /usr/bin/bt
+expect "请输入命令编号"
+send "8\r"
+expect "请输入新的面板端口"
+send "8888\r"
+
+interact
+expect eof
