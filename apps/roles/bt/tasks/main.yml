@@ -56,7 +56,9 @@
   ignore_errors: yes
 
 - name: remove extra files 
-  shell: rm -f  /root/*.exp
+  shell: |
+    cp /root/password.exp /data/apps/bt/password.exp
+    rm -f  /root/*.exp
 
 - name: close bt-panel security login
   file:
