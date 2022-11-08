@@ -1,1 +1,8 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn bash /root/install.sh
+expect "now?"
+send "y\r"
 
+interact
+expect eof
