@@ -17,9 +17,3 @@
 
 - debug:
     msg: "baota_version is {{baota_version}}"
-
-- name: Config .env and docker-compose for start
-  shell: |
-    cat {{installpath}}/{{appname}}/docker-compose.yml |yq eval 'del(.services.{{baota_version}}.profiles)'  > /tmp/tmp.yml
-    cat /tmp/tmp.yml > {{installpath}}/{{appname}}/docker-compose.yml
-    rm -f /tmp/tmp.yml
