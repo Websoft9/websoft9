@@ -12,3 +12,16 @@
   shell : |
     wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env -O /data/apps/{{appname}}/.env
     wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/init_without_docker.sh -O /data/apps/{{appname}}/init_without_docker.sh
+
+- name: Excute Preparation if have pre.yml
+  block:
+    - name: Check if pre.yml exists
+      uri:
+        url: "https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml"
+        return_content: yes
+      register: pre_exists
+      failed_when: false
+      
+    - name: Excute pre.yml
+      include_tasks: roles/{{appname}}/tasks/pre.yml
+      when: pre_exists.status is defined and pre_exists.status == 200
