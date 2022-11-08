@@ -9,8 +9,8 @@
 
 - set_fact:
     baota_version_meta:
-      "0": "zh"
-      "1": "en"
+      "0": "en"
+      "1": "zh"
 
 - set_fact:
     baota_version: "{{baota_version_meta[baota_version_options.user_input]}}"
