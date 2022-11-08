@@ -7,8 +7,3 @@
 
 - name: Output version
   shell: echo "fastpanel version refer to https://fastpanel.direct/changelog" >> /data/logs/install_version.txt
-
-- name: Save the init script
-  template:
-    src: init_without_docker.sh
-    dest: /data/apps/{{appname}}/init_without_docker.sh
