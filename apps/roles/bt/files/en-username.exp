@@ -1,0 +1,12 @@
+#!/usr/bin/expect -f
+#username must > 5 characters
+
+set timeout 30
+spawn /usr/bin/bt
+expect "command number"
+send "6\r"
+expect "new username"
+send "administrator\r"
+
+interact
+expect eof
