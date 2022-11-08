@@ -13,7 +13,7 @@
       "1": "zh"
 
 - set_fact:
-    baota_version: "{{baota_version_meta[baota_version_options.user_input]}}"
+    bt_language: "{{baota_version_meta[baota_version_options.user_input]}}"
 
 - debug:
-    msg: "baota_version is {{baota_version}}"
+    msg: "bt_language is {{baota_version}}"
