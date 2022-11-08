@@ -1,0 +1,12 @@
+#!/usr/bin/expect -f
+#username must > 5 characters
+
+set timeout 30
+spawn /usr/bin/bt
+expect "请输入命令编号"
+send "6\r"
+expect "请输入新的面板用户名"
+send "administrator\r"
+
+interact
+expect eof
