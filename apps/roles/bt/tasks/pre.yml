@@ -16,4 +16,4 @@
     bt_language: "{{baota_version_meta[baota_version_options.user_input]}}"
 
 - debug:
-    msg: "bt_language is {{baota_version}}"
+    msg: "bt_language is {{bt_language}}"
