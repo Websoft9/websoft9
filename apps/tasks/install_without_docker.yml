@@ -8,5 +8,7 @@
     path: /data/apps/{{appname}}
     state: directory
 
-- name: Save .env
-  shell : wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env -O /data/apps/{{appname}}/.env
+- name: Save .env and init_without_docker.sh
+  shell : |
+    wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env -O /data/apps/{{appname}}/.env
+    wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/init_without_docker.sh -O /data/apps/{{appname}}/init_without_docker.sh
