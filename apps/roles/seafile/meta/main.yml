@@ -1,6 +1,7 @@
 ---
 dependencies:
- - phpmyadmin
+  - phpmyadmin
+  - onlyofficedocs
 
 allow_duplicates: true
 
