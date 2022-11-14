@@ -8,6 +8,7 @@
       4: Haproxy2.2
       5: Haproxy2.0
       6: Haproxy1.8
+      7: Haproxy1.7
       private: no
       Default:0
   register: haproxy_version_options
@@ -21,6 +22,7 @@
       "4": "2.2"
       "5": "2.0"
       "6": "1.8"
+      "7": "1.7"
 
 - set_fact:
     haproxy_version: "{{haproxy_version_meta[haproxy_version_options.user_input]}}"
