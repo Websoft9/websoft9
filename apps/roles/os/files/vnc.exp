@@ -1,0 +1,13 @@
+#!/usr/bin/expect -f
+set timeout 30
+spawn vncpasswd
+expect "Password"
+send "vnc123456\r"
+expect "Verify"
+send "vnc123456\r"
+expect "Would you like to enter a view-only password"
+send "n\r"
+
+#interact
+expect eof
+catch wait result;
