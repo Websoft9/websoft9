@@ -1,0 +1,25 @@
+- name: Install packages for image importer of alibabacloud
+  shell: |
+    yum install qemu-kvm virt-manager libvirt virt-install openssh-askpass -y
+
+- name: Install aegis
+  shell: |
+    wget {{ os_aegis_download_url }} && chmod +x AliAqsInstall_64.sh && ./AliAqsInstall_64.sh sJmepE  2>/dev/null
+    test -d /usr/local/aegis && bash /usr/local/aegis/aegis_install.sh
+
+- name: Install aliyun_assist
+  shell: yum -y install https://aliyun-client-assist.oss-accelerate.aliyuncs.com/linux/aliyun_assist_latest.rpm
+  when: ansible_os_family == "RedHat"
+
+- name: Install aliyun_assist
+  shell: apt -y install https://aliyun-client-assist.oss-accelerate.aliyuncs.com/linux/aliyun_assist_latest.deb
+  when: ansible_os_family == "Debian"
+  
+- name: Install aliyun_assist
+  shell: |
+    systemctl stop qemu-guest-agent
+    systemctl disable qemu-guest-agent
+  when: ansible_distribution == "RedHat"
+  
+- name: Restart aliyun.service
+  shell: systemctl restart aliyun.service

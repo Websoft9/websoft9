@@ -1,0 +1,61 @@
+- name: Is cloud-init exists
+  shell: ls /etc/cloud/cloud.cfg
+  ignore_errors: True
+  register: result
+
+- debug: var=result.stdout
+
+- name: Install cloud-init
+  shell: |
+    yum install cloud-init
+  when: result.stdout != '/etc/cloud/cloud.cfg'
+  
+- name: Configure cloud-init 
+  template:
+    src: cloud-init.cfg.j2
+    dest: /etc/cloud/cloud.cfg
+  
+- name: Configure time zone and delete useful cloud.conf
+  shell: |
+    timedatectl set-ntp yes
+    timedatectl set-timezone "Asia/Shanghai"
+    timedatectl set-local-rtc yes
+    rm -rf /etc/cloud/cloud.cfg.d/10_updates_policy.cfg
+    rm -rf /etc/cloud/cloud.cfg.d/10-azure-kvp.cfg
+    
+- name: Change PasswordAuthentication
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "PasswordAuthentication no"
+    line: "PasswordAuthentication yes"
+
+- name: Set enable login by root
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "#PermitRootLogin yes"
+    line: "PermitRootLogin yes"
+
+- name: Restart sshd
+  shell: systemctl restart sshd
+
+- name: Uninstall waagent
+  shell: |
+    yum -y remove WALinuxAgent
+    rm -f /etc/waagent.conf.rpmsave
+    rm -rf /var/lib/waagent
+    rm -f /var/log/waagent.log
+  when: ansible_os_family == "RedHat"
+
+- name: Uninstall waagent
+  shell: |
+    apt -y purge walinuxagent
+    rm -rf /var/lib/waagent
+    rm -f /var/log/waagent.log
+  when: ansible_os_family == "Debian"
+  
+- name: Disable firewalld
+  shell: |
+    systemctl stop firewalld
+    systemctl disable firewalld
+    
+- include: "migration/{{os_cloudplatform}}.yml"

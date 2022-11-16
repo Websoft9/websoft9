@@ -1,0 +1,105 @@
+- block:
+  - name: Install GNOME Desktop
+    shell: |
+      yum groupinstall -y 'Server with GUI'
+      systemctl set-default graphical.target
+      systemctl isolate graphical.target
+      systemctl get-default
+    when: os_desktop=="gnome" and ansible_distribution != 'Amazon'
+
+  - name: Install KDE Desktop
+    shell: |
+      yum groupinstall -y "X Window System"
+      yum groupinstall -y "KDE"
+      systemctl set-default graphical.target
+      systemctl isolate graphical.target
+      systemctl get-default
+    when: os_desktop=="kde" and ansible_distribution != 'Amazon'
+
+  - name: Install Xfce Desktop
+    shell: |
+      yum groupinstall -y 'Xfce'
+      sudo bash -c 'echo PREFERRED=/usr/bin/xfce4-session > /etc/sysconfig/desktop'
+    when: os_desktop=="xfce"
+    
+  - name: Install Mate Desktop on AmazonLinux
+    shell: |
+      sudo amazon-linux-extras install -y mate-desktop1.x
+      sudo bash -c 'echo PREFERRED=/usr/bin/mate-session > /etc/sysconfig/desktop'
+    when: os_desktop=="mate" and ansible_distribution == 'Amazon'
+
+  - name: Install Mate Desktop on CentOS
+    shell: |
+      yum groupinstall -y 'MATE Desktop'
+      sudo bash -c 'echo PREFERRED=/usr/bin/mate-session > /etc/sysconfig/desktop'
+    when: os_desktop=="mate" and ansible_distribution == 'CentOS'
+
+  when: ansible_os_family == "RedHat"
+
+- block:
+  - name: Install GNOME Desktop
+    shell: |
+      apt install gnome gnome-session-flashback -y
+    when: os_desktop=="gnome"
+    
+  - name: Install KDE Desktop
+    shell: |
+      echo "/usr/sbin/sddm" > /etc/X11/default-display-manager
+      DEBIAN_FRONTEND=noninteractive apt install kde-plasma-desktop -y
+      echo "plasma_session" >~/.xsession
+    when: os_desktop=="kde"
+
+  - name: Install Xfce Desktop
+    shell: |
+      echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager
+      DEBIAN_FRONTEND=noninteractive apt install -y xfce4
+      echo "xfce4-session" >~/.xsession
+    when: os_desktop=="xfce"
+
+  - name: Install Mate Desktop
+    shell: |
+      apt install -y mate-desktop-environment
+      echo "mate-session" >~/.xsession
+    when: os_desktop=="mate"
+    
+  when: ansible_os_family == "Debian"
+
+- name: Install VNC
+  include: vnc.yml
+
+- block:
+  - name: Check RedHat Mate Desktop Version
+    shell: sudo echo "Mate Desktop version:" `ls /usr/share/doc/ | grep mate-desktop | awk -F '-' '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "RedHat" and os_desktop == "mate" and ansible_distribution != 'Amazon'
+
+  - name: Check AmazonLinux Mate Desktop Version
+    shell: sudo echo "Mate Desktop version:" `ls /usr/share/doc/ | grep mate-terminal | awk -F '-' '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_distribution == 'Amazon' and os_desktop == "mate"
+    
+  - name: Check RedHat Xfce4 Desktop Version
+    shell: sudo echo "Xfce4 Desktop version:" `ls /usr/share/doc | grep '^xfce4-panel' | awk -F '-' '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "RedHat" and os_desktop == "xfce"
+
+  - name: Check RedHat Gnome Desktop Version
+    shell: sudo echo "Gnome Desktop version:" `ls /usr/share/doc | grep '^gnome-desktop' | awk -F '-' '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "RedHat" and os_desktop == "gnome"
+
+  - name: Check RedHat KDE Desktop Version
+    shell: sudo echo "KDE Desktop version:" `ls /usr/share/doc | grep '^kdelibs' | awk -F '-' '{print $2}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "RedHat" and os_desktop == "kde"
+
+  - name: Check Debian Xfce4 Desktop Version
+    shell: sudo echo "Xfce4 Desktop version:" `dpkg -l | grep 'xfce4' -w | sed -n '1p' | awk -F ' ' '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "Debian" and os_desktop == "xfce"
+
+  - name: Check Debian Mate Desktop Version
+    shell: sudo echo "Mate Desktop version:" `grep -E 'Version' /usr/share/doc/mate-session-manager/dbus/mate-session.html | awk '{print $3}' | awk -F '<' '{print $1}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "Debian" and os_desktop == "mate"
+
+  - name: Check Debian Gnome Desktop Version
+    shell: sudo echo "Gnome Desktop version:" `gnome-shell --version | awk '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "Debian" and os_desktop == "gnome"
+
+  - name: Check Debian KDE Desktop Version
+    shell: sudo echo "KDE Desktop version:" `grep 'X-KDE-PluginInfo-Version' /usr/share/kservices5/plasma-dataengine-touchpad.desktop | awk -F '=' '{print $2}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "Debian" and os_desktop == "kde"

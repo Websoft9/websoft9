@@ -1,0 +1,11 @@
+- name: check_vncserver_service
+  debug:
+    var: check_vncserver_service.stdout
+
+- name: check_xrdp_service
+  debug:
+    var: check_xrdp_service.stdout
+    
+- name: check_cockpit_service
+  debug:
+    var: check_cockpit_service.stdout

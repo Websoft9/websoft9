@@ -1,0 +1,166 @@
+{% if os_cloudplatform  == 'tencentcloud' %}
+users:
+ - default
+
+disable_root: 0
+ssh_pwauth:   1
+
+datasource_list: [ ConfigDrive, TencentCloud ]
+datasource:
+  ConfigDrive:
+    dsmode: local
+  TencentCloud:
+    metadata_urls: ['http://169.254.0.23', 'http://metadata.tencentyun.com']
+{% endif %}
+
+{% if os_cloudplatform  == 'huaweicloud' %}
+# The top level settings are used as module
+# and system configuration.
+
+# A set of users which may be applied and/or used by various modules
+# when a 'default' entry is found it will reference the 'default_user'
+# from the distro configuration specified below
+users:
+ - name: root
+   lock_passwd: False
+
+# If this is set, 'root' will not be able to ssh in and they
+# will get a message to login instead as the default $user
+disable_root: false
+ssh_pwauth: true
+
+# This will cause the set+update hostname module to not operate (if true)
+preserve_hostname: false
+
+manage_etc_hosts: localhost
+
+network:
+  config: disabled
+
+apt:
+  preserve_sources_list: true
+
+# Example datasource config
+# datasource:
+#    Ec2:
+#      metadata_urls: [ 'blah.com' ]
+#      timeout: 5 # (defaults to 50 seconds)
+#      max_wait: 10 # (defaults to 120 seconds)
+datasource_list: [ OpenStack ]
+datasource:
+  OpenStack:
+    metadata_urls: ['http://169.254.169.254']
+    max_wait: 120
+    timeout: 5
+    apply_network_config: false
+{% endif %}
+
+{% if os_cloudplatform  == 'alibabacloud' %}
+# The top level settings are used as module
+# and system configuration.
+
+# A set of users which may be applied and/or used by various modules
+# when a 'default' entry is found it will reference the 'default_user'
+# from the distro configuration specified below
+users:
+   - default
+
+user:
+    name: root
+    lock_passwd: False
+
+# If this is set, 'root' will not be able to ssh in and they
+# will get a message to login instead as the default $user
+disable_root: false
+
+# This will cause the set+update hostname module to not operate (if true)
+preserve_hostname: false
+
+manage_etc_hosts: localhost
+
+datasource_list: [ AliYun ]
+
+# Example datasource config
+datasource:
+    AliYun:
+        support_xen: false
+        timeout: 5
+        max_wait: 300
+#      metadata_urls: [ 'blah.com' ]
+
+timezone: "Asia/Shanghai"
+
+growpart:
+  mode: auto
+  devices: [/dev/vda2]
+  ignore_growroot_disabled: false
+
+runcmd:
+  - [pvresize,/dev/vda2]
+  - [lvextend,-l,+100%FREE,/dev/rootvg/rootlv]
+  - [xfs_growfs,/dev/rootvg/rootlv]
+  
+{% endif %}
+# The modules that run in the 'init' stage
+cloud_init_modules:
+ - migrator
+ - source-address
+ - pip-source
+ - seed_random
+ - bootcmd
+ - write-files
+ - [ growpart, once-per-instance ]
+ - [ resizefs, once-per-instance ]
+ - disk_setup
+ - mounts
+ - set_hostname
+ - update_hostname
+ - update_etc_hosts
+ - ca-certs
+ - rsyslog
+ - users-groups
+ - ssh
+
+# The modules that run in the 'config' stage
+cloud_config_modules:
+ - ssh-import-id
+ - locale
+ - set-passwords
+ - spacewalk
+ - yum-add-repo
+ - ntp
+ - timezone
+ - disable-ec2-metadata
+ - runcmd
+# - ntp-conf
+# - chrony-conf
+
+# The modules that run in the 'final' stage
+cloud_final_modules:
+ - package-update-upgrade-install
+ - puppet
+ - chef
+ - mcollective
+ - salt-minion
+ - rightscale_userdata
+ - scripts-vendor
+ - scripts-per-once
+ - scripts-per-boot
+ - scripts-per-instance
+ - scripts-user
+ - ssh-authkey-fingerprints
+ - keys-to-console
+ - phone-home
+ - final-message
+ - power-state-change
+
+# System and/or distro specific settings
+# (not accessible to handlers/transforms)
+system_info:
+   # This will affect which distro class gets used
+   distro: centos
+# Other config here will be given to the distro class and/or path classes
+   paths:
+      cloud_dir: /var/lib/cloud/
+      templates_dir: /etc/cloud/templates/
+   ssh_svcname: sshd

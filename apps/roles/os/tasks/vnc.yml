@@ -1,0 +1,90 @@
+#1 Install VNC
+- block:
+  - name: Install VNC Server on {{ansible_os_family}}
+    yum:
+      name: tigervnc-server
+    when: ansible_os_family == "RedHat"
+  
+  - name: Install VNC Server on {{ansible_os_family}}
+    apt:
+      name: tightvncserver
+    when: ansible_os_family == "Debian"
+
+  - name: Create a random password for VNC
+    set_fact: temp_password="{{ lookup('password', '/tmp/passwordfile length=8 chars=digits') }}"
+
+  - debug:
+      msg: Testing VNC password is {{ temp_password }}
+
+  - name: Configure vncserver password
+    expect:
+      command: vncpasswd
+      responses:
+        "Password": "{{temp_password}}"
+        "Verify": "{{temp_password}}"
+        "view-only": "n"
+      
+#2 Configure VNC
+- name: Copy vncserver.service(when system_user=root) 
+  template: 
+    src: vncserver.service1.j2
+    dest: /lib/systemd/system/vncserver.service
+
+- block:
+  - name: Copy xstartup 
+    template: 
+      src: xstartup.j2
+      dest: /root/.vnc/xstartup
+   
+  - name: Copy xstartup 
+    shell: chmod +x /root/.vnc/xstartup
+  when: ansible_os_family == "Debian"
+
+- name: Restart vncserver
+  service:
+    name: vncserver
+    state: restarted
+    enabled: yes
+
+#3 Install and configure XRDP
+- block:
+  - name: Install Remote tool on {{ansible_os_family}}
+    shell: yum install xrdp -y
+    when: ansible_os_family == "RedHat"
+
+  - name: Install Remote toolon {{ansible_os_family}}
+    shell: apt install xrdp -y
+    when: ansible_os_family == "Debian"
+
+  - name: Start and enable xrdp
+    service:
+      name: xrdp
+      state: restarted
+      enabled: yes
+
+#4 Check
+
+- name: set soft link
+  shell: ln -sf /lib/systemd/system/vncserver.service /lib/systemd/system/vnc.service
+
+- block:
+  - name: Check vncserver Version
+    shell: sudo echo "TigerVNC version:" `vncserver -version | grep "TigerVNC" | sed -n '1p' | awk '{print $3}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "RedHat"
+
+  - name: Check vncserver Version
+    shell: sudo echo "TightVNC version:" `vncserver -version | grep "TightVNC" | sed -n '1p' | awk -F "-" '{print $2}'` | sudo tee -a /data/logs/install_version.txt
+    when: ansible_os_family == "Debian"
+
+  - name: Check vncserver Service
+    shell: systemctl status vncserver | grep Active*
+    register: check_vncserver_service
+    notify: check_vncserver_service
+  
+  - name: Check Xrdp Version
+    shell: sudo echo "xrdp version:" `unbuffer xrdp --version | sed -n '1p' | awk '{print $2}'` | sudo tee -a /data/logs/install_version.txt
+
+  - name: Check xrdp Service
+    shell: systemctl status xrdp | grep Active*
+    register: check_xrdp_service
+    notify: check_xrdp_service

@@ -1,0 +1,66 @@
+{% if os_desktop == 'mate' %}
+#!/bin/sh
+
+# Uncomment the following two lines for normal desktop:
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+#. /etc/X11/xinit/xinitrc
+/usr/bin/{{os_desktop}}-session
+
+[ -x /etc/vnc/xstartup ] && exec /etc/vnc/xstartup
+[ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources
+xsetroot -solid grey
+vncconfig -iconic &
+x-terminal-emulator -geometry 80x24+10+10 -ls -title "$VNCDESKTOP Desktop" &
+x-window-manager &
+
+{% endif %}
+
+{% if os_desktop == 'xfce' %}
+#!/bin/sh
+
+# Uncomment the following two lines for normal desktop:
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+#. /etc/X11/xinit/xinitrc
+/usr/bin/{{os_desktop}}4-session
+
+[ -x /etc/vnc/xstartup ] && exec /etc/vnc/xstartup
+[ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources
+xsetroot -solid grey
+vncconfig -iconic &
+x-terminal-emulator -geometry 80x24+10+10 -ls -title "$VNCDESKTOP Desktop" &
+x-window-manager &
+
+{% endif %}
+
+{% if os_desktop == 'kde' %}
+#!/bin/sh
+
+# Uncomment the following two lines for normal desktop:
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+#. /etc/X11/xinit/xinitrc
+/usr/bin/plasma_session
+
+[ -x /etc/vnc/xstartup ] && exec /etc/vnc/xstartup
+[ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources
+xsetroot -solid grey
+vncconfig -iconic &
+x-terminal-emulator -geometry 80x24+10+10 -ls -title "$VNCDESKTOP Desktop" &
+x-window-manager &
+
+{% endif %}
+
+{% if os_desktop == 'gnome' %}
+ #!/bin/sh
+ autocutsel -fork
+ xrdb $HOME/.Xresources
+ xsetroot -solid grey
+ export XKL_XMODMAP_DISABLE=1
+ export XDG_CURRENT_DESKTOP="GNOME-Flashback:Unity"
+ export XDG_MENU_PREFIX="gnome-flashback-"
+ unset DBUS_SESSION_BUS_ADDRESS
+ gnome-session --session=gnome-flashback-metacity --disable-acceleration-check  &
+
+{% endif %}

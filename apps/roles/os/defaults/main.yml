@@ -1,0 +1,10 @@
+# Install Desktop, e.g [gnome,kde]
+# Debian support: gnome, kde, xfce
+# RedHat support: gnome, kde
+
+os_desktop:
+
+# alibabacloud | tencentcloud | huaweicloud | aws | azure
+os_cloudplatform:
+
+os_aegis_download_url: "https://aegis.alicdn.com/download/install/2.0/linux/AliAqsInstall_64.sh"
