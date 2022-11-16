@@ -1,3 +1,6 @@
+- name: Select desktop at pre.yml
+  include: "pre.yml"
+
 - name: Install Desktop on {{ansible_os_family}}
   include: "{{ansible_os_family}}.yml"
 
