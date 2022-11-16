@@ -22,23 +22,13 @@
       state: latest
     when: ansible_os_family == "Debian"
     
-  - name: copy bt install script
-    copy: src=bt.exp  dest=/root/bt.exp  mode=0644
+  - name: Copy bt install script
+    copy: src=vnc.exp  dest=/tmp/vnc.exp  mode=0644
     
-  - name: Create a random password for VNC
-    set_fact: temp_password="{{ lookup('password', '/tmp/passwordfile length=8 chars=digits') }}"
+  - name: Set vnc password
+    command: expect /tmp/vnc.exp
+    ignore_errors: yes
 
-  - debug:
-      msg: Testing VNC password is {{ temp_password }}
-
-  - name: Configure vncserver password
-    expect:
-      command: vncpasswd
-      responses:
-        "Password": "{{temp_password}}"
-        "Verify": "{{temp_password}}"
-        "view-only": "n"
-      
 #2 Configure VNC
 - name: Copy vncserver.service(when system_user=root) 
   template: 
