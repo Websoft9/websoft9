@@ -26,7 +26,6 @@
         "Password": "{{temp_password}}"
         "Verify": "{{temp_password}}"
         "view-only": "n"
-    var:
       
 #2 Configure VNC
 - name: Copy vncserver.service(when system_user=root) 
