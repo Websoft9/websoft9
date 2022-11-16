@@ -17,5 +17,6 @@
     shell: |
       docker compose down -v
       docker system prune --all --force
+      docker network create websoft9
     args:
       chdir: /data/apps/elk
