@@ -10,9 +10,21 @@
       name: tightvncserver
     when: ansible_os_family == "Debian"
     
-  - set_fact:
-      ansible_python_interpreter: "/usr/bin/python3"
-      
+  - name: install expect
+    yum:
+      name: expect
+      state: latest
+    when: ansible_os_family == "RedHat"
+
+  - name: install expect for ubuntu
+    apt:
+      name: expect
+      state: latest
+    when: ansible_os_family == "Debian"
+    
+  - name: copy bt install script
+    copy: src=bt.exp  dest=/root/bt.exp  mode=0644
+    
   - name: Create a random password for VNC
     set_fact: temp_password="{{ lookup('password', '/tmp/passwordfile length=8 chars=digits') }}"
 
