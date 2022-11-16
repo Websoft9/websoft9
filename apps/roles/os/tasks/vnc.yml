@@ -9,20 +9,6 @@
     apt:
       name: tightvncserver
     when: ansible_os_family == "Debian"
-
-  - name: Create a random password for VNC
-    set_fact: temp_password="{{ lookup('password', '/tmp/passwordfile length=8 chars=digits') }}"
-
-  - debug:
-      msg: Testing VNC password is {{ temp_password }}
-
-  - name: Configure vncserver password
-    expect:
-      command: vncpasswd
-      responses:
-        "Password": "{{temp_password}}"
-        "Verify": "{{temp_password}}"
-        "view-only": "n"
       
 #2 Configure VNC
 - name: Copy vncserver.service(when system_user=root) 
