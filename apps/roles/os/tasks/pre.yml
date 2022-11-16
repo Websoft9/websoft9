@@ -1,0 +1,25 @@
+- pause:
+    prompt: |
+      Choose the Desktop you want to install: 
+      0: Don't install any Desktop
+      1: GNOME
+      2: KDE
+      3: Xfce
+      4: Mate     
+      private: no
+      Default:0
+  register: os_desktop_options
+
+- set_fact:
+    os_desktop_meta:
+      "0": ""
+      "1": "gnome"
+      "2": "kde"
+      "3": "xfce"
+      "4": "mate"
+      
+- set_fact:
+    os_desktop: "{{os_desktop_meta[os_desktop_options.user_input]}}"
+
+- debug:
+    msg: "Now start to install os_desktop is {{os_desktop}}"
