@@ -1,5 +1,5 @@
 - name: Install {{appname}}
-  include_tasks: tasks/install_without_docker.yml.yml
+  include_tasks: tasks/install_without_docker.yml
   vars:
      app: "mingdao"
 
