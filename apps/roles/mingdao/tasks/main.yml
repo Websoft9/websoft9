@@ -17,8 +17,8 @@
     
 - name: Create a file as the identity file
   shell: |
-    touch  /data/wwwroot/mingdao/installer/first
-    ln -sf /data/wwwroot/mingdao/installer /usr/local/MDPrivateDeployment
+    touch  /data/apps/mingdao/installer/first
+    ln -sf /data/apps/mingdao/installer /usr/local/MDPrivateDeployment
     
 - name: Pull mingdao docker image & change tag for automatic installation
   shell: |
@@ -31,7 +31,7 @@
     
 - name: Download mingdao installation tool from {{mingdao_download_url}}
   shell: |
-    curl {{mingdao_download_url}} | tar xvz -C  /data/wwwroot/mingdao/installer
+    curl {{mingdao_download_url}} | tar xvz -C  /data/apps/mingdao/installer
   args:
     chdir: /tmp
 
