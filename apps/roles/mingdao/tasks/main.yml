@@ -15,10 +15,12 @@
     state: directory
     recurse: yes
     
-- name: Create a file as the identity file
+- name: Create a file as the identity file and set env
   shell: |
     touch  /data/apps/mingdao/installer/first
     ln -sf /data/apps/mingdao/installer /usr/local/MDPrivateDeployment
+    echo "vm.max_map_count = 262144" >> /etc/sysctl.conf
+    sysctl -p
     
 - name: Pull mingdao docker image & change tag for automatic installation
   shell: |
