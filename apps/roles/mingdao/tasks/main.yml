@@ -2,3 +2,65 @@
   include_tasks: tasks/install.yml
   vars:
      app: "Template"
+
+- name: Create a directory if it does not exist
+  file:
+    path: /data/apps/mingdao/installer
+    state: directory
+    recurse: yes
+    
+- name: Create MingDao link directory
+  file:
+    path: /usr/local/MDPrivateDeployment
+    state: directory
+    recurse: yes
+    
+- name: Create a file as the identity file
+  shell: |
+    touch  /data/wwwroot/mingdao/installer/first
+    ln -sf /data/wwwroot/mingdao/installer /usr/local/MDPrivateDeployment
+    
+- name: Pull mingdao docker image & change tag for automatic installation
+  shell: |
+    docker pull mdpublic/mingdaoyun-community
+    docker pull mdpublic/mingdaoyun-doc
+    docker tag mdpublic/mingdaoyun-community:latest registry.cn-hangzhou.aliyuncs.com/mdpublic/mingdaoyun-community:{{mingdao_version}}
+    docker rmi mdpublic/mingdaoyun-community:latest
+    docker tag mdpublic/mingdaoyun-doc:latest registry.cn-hangzhou.aliyuncs.com/mdpublic/mingdaoyun-doc:{{mingdao_doc_version}}
+    docker rmi mdpublic/mingdaoyun-doc:latest
+    
+- name: Download mingdao installation tool from {{mingdao_download_url}}
+  shell: |
+    curl {{mingdao_download_url}} | tar xvz -C  /data/wwwroot/mingdao/installer
+  args:
+    chdir: /tmp
+
+- name: Copy mingdao service 
+  copy:
+    src: mingdao.service
+    dest: /lib/systemd/system/mingdao.service
+
+- name: Restart and Enable mingdao service
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: mingdao
+    enabled: yes
+
+
+- name: Create symbolic link
+  file:
+    src: '{{item.src}}'
+    dest: '{{item.dest}}'
+    state: link
+  with_items:
+    - {src: /data/mingdao,dest: /data/apps/mingdao/data}
+    - {src: /data/mingdao/script/volume,dest: /data/apps/mingdao/volume}
+
+# display version 
+- name: Check mingdao version
+  shell: > 
+    sudo echo "mingdao version:" $(docker images |grep mingdaoyun-community |awk '{print $2}') |tee -a /data/logs/install_version.txt
+- name: Check mingdao doc version
+  shell: >
+    sudo echo "mingdao doc version:" $(docker images |grep mingdaoyun-doc |awk '{print $2}') |tee -a /data/logs/install_version.txt
