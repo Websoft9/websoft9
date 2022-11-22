@@ -1,7 +1,7 @@
 - name: Install {{appname}}
-  include_tasks: tasks/install.yml
+  include_tasks: tasks/install_without_docker.yml.yml
   vars:
-     app: "Template"
+     app: "mingdao"
 
 - name: Create a directory if it does not exist
   file:
