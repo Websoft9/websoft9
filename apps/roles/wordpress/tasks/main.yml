@@ -4,17 +4,19 @@
      app: "wordpress"
 
 - block:
+  - name: Create backup directory
+    shell: |
+      mkdir -p /data/apps/wordpress/data/backup
   - name: Copy wp-cli
     copy:
       src: wp-cli.phar
-      dest: wp-cli.phar
+      dest: /data/apps/wordpress/data/backup/wp-cli.phar
 
   - name: Add Install wp-cli for init
     shell: |
       echo "docker cp wp-cli.phar wordpress:/tmp"  >> /data/apps/{{appname}}/src/after_up.sh 
       echo "docker exec -it wordpress chmod +x /tmp/wp-cli.phar" >> /data/apps/{{appname}}/src/after_up.sh
       echo "docker exec -it wordpress mv /tmp/wp-cli.phar /usr/local/bin/wp" >> /data/apps/{{appname}}/src/after_up.sh
-  when: wordpress_solution != "" and wordpress_solution != "multisite"
   
 - block:
   - name: Download {{wordpress_solution}} theme to host machine
@@ -49,10 +51,4 @@
       echo "docker cp plugins" >> /data/apps/{{appname}}/src/after_up.sh
       echo "docker cp default-constants.php" >> /data/apps/{{appname}}/src/after_up.sh
 
-  when: wordpress_solution != "" and wordpress_solution != "multisite"
-
-
-- name: Set the multisite solution
-  shell:
-    echo "add line [define( 'WP_ALLOW_MULTISITE', true );] to wp-config.php" >> /data/apps/{{appname}}/src/after_up.sh
-  when: wordpress_solution == "multisite"
+  when: wordpress_solution != ""
