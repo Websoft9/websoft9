@@ -33,7 +33,7 @@
     shell: |
       echo "cp -r /data/apps/wordpress/data/backup/plugins/* /data/apps/wordpress/data/wordpress/wp-content/plugins" >> /data/apps/{{appname}}/src/after_up.sh
       echo "cp -r /data/apps/wordpress/data/backup/themes/* /data/apps/wordpress/data/wordpress/wp-content/themes" >> /data/apps/{{appname}}/src/after_up.sh
-      echo "sudo sed -i 's/twentytwentytwo/{{wordpress_solution}}/g' /data/apps/wordpress/data/wordpress/wp-includes/default-constants.php" >> /data/apps/{{appname}}/src/after_up.sh
+      echo "sudo sed -i 's/twentytwentythree/{{wordpress_solution}}/g' /data/apps/wordpress/data/wordpress/wp-includes/default-constants.php" >> /data/apps/{{appname}}/src/after_up.sh
       echo "docker restart wordpress" >> /data/apps/{{appname}}/src/after_up.sh
       
   when: wordpress_solution != "" and wordpress_solution != "multisite"
