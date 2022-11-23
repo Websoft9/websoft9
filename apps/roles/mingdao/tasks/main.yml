@@ -39,10 +39,16 @@
   args:
     chdir: /data/apps/mingdao/installer
 
+- name: Copy mingdao  
+  template:
+    src: init_without_docker.sh
+    dest: /etc/profile.d/init_without_docker.sh
+
 - name: Start mingdao
   shell: |
-     cd  /data/apps/mingdao/installer && bash ./service.sh start
-
+     source /etc/profile.d/init_without_docker.sh
+     bash /etc/profile.d/init_without_docker.sh
+     
 # display version 
 - name: Check mingdao version
   shell: > 
