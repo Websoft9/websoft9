@@ -46,6 +46,7 @@
 
 - name: Stay running state
   shell: |
+     echo -e >> /data/apps/mingdao/installer/service.sh
      echo "tail -f /dev/null" >> /data/apps/mingdao/installer/service.sh
     
 - name: Restart and Enable mingdao service
