@@ -32,6 +32,14 @@
     with_items:
       - "{{wordpress_theme_meta[wordpress_solution].plugin}}"
     when: wordpress_theme_meta[wordpress_solution].plugin !=""
+    
+  - name: Install theme and plugins
+    shell: |
+      echo "cp /data/apps/wordpress/data/backup/plugin/* /data/apps/wordpress/data/wordpress/wp-content/plugin" >> /data/apps/{{appname}}/src/after_up.sh
+      echo "cp /data/apps/wordpress/data/backup/theme/* /data/apps/wordpress/data/wordpress/wp-content/theme" >> /data/apps/{{appname}}/src/after_up.sh
+      echo "sudo sed -i 's/twentytwentytwo/{{wordpress_solution}}/g' /data/apps/wordpress/data/wordpress/wp-includes/default-constants.php" >> /data/apps/{{appname}}/src/after_up.sh
+      echo "docker restart wordpress" >> /data/apps/{{appname}}/src/after_up.sh
+      
   when: wordpress_solution != "" and wordpress_solution != "multisite"
 
 - name: Set the multisite solution(TODO)
