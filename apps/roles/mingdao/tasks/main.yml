@@ -39,32 +39,9 @@
   args:
     chdir: /data/apps/mingdao/installer
 
-- name: Copy mingdao service 
-  copy:
-    src: mingdao.service
-    dest: /lib/systemd/system/mingdao.service
-
-- name: Stay running state
+- name: Start mingdao
   shell: |
-     echo -e >> /data/apps/mingdao/installer/service.sh
-     echo "tail -f /dev/null" >> /data/apps/mingdao/installer/service.sh
-    
-- name: Restart and Enable mingdao service
-  systemd:
-    state: restarted
-    daemon_reload: yes
-    name: mingdao
-    enabled: yes
-
-
-- name: Create symbolic link
-  file:
-    src: '{{item.src}}'
-    dest: '{{item.dest}}'
-    state: link
-  with_items:
-    - {src: /data/mingdao,dest: /data/apps/mingdao/data}
-    - {src: /data/mingdao/script/volume,dest: /data/apps/mingdao/volume}
+     cd  /data/apps/mingdao/installer && bash ./service.sh start
 
 # display version 
 - name: Check mingdao version
