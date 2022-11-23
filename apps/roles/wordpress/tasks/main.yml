@@ -17,7 +17,7 @@
   - name: Download {{wordpress_solution}} theme to host machine
     unarchive:
       src: "{{wordpress_theme_download_url}}/{{wordpress_solution}}/{{wordpress_theme_meta[wordpress_solution].theme}}.zip"
-      dest: /data/apps/wordpress/data/backup/theme/{{wordpress_solution}}
+      dest: /data/apps/wordpress/data/backup/theme
       owner: www-data
       group: www-data
       remote_src: yes
@@ -25,7 +25,7 @@
   - name: Download plugin to host machine
     unarchive:
       src: "{{wordpress_theme_download_url}}/{{wordpress_solution}}/{{item}}.zip"
-      dest: /data/apps/wordpress/data/backup/plugin/{{wordpress_solution}}
+      dest: /data/apps/wordpress/data/backup/plugin
       owner: www-data
       group: www-data
       remote_src: yes
