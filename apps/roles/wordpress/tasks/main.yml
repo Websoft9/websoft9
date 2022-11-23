@@ -6,7 +6,8 @@
 - block:
   - name: Create backup directory
     shell: |
-      mkdir -p /data/apps/wordpress/data/backup
+       mkdir -p /data/apps/wordpress/data/backup/plugin
+       mkdir -p /data/apps/wordpress/data/backup/theme
   - name: Copy wp-cli
     copy:
       src: wp-cli.phar
