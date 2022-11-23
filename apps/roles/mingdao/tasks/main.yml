@@ -33,7 +33,8 @@
     
 - name: Download mingdao installation tool from {{mingdao_download_url}}
   shell: |
-    curl {{mingdao_download_url}} | tar xvz -C  /data/apps/mingdao/installer
+    wget -N {{mingdao_download_url}} 
+    tar -xvf  /data/apps/mingdao/installer
   args:
     chdir: /tmp
 
