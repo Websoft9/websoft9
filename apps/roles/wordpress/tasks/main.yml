@@ -31,4 +31,9 @@
     with_items:
       - "{{wordpress_theme_meta[wordpress_solution].plugin}}"
     when: wordpress_theme_meta[wordpress_solution].plugin !=""
-  when: wordpress_solution != ""
+  when: wordpress_solution != "" and wordpress_solution != "multisite"
+
+- name: Set the multisite solution(TODO)
+  shell:
+    echo "add line [define( 'WP_ALLOW_MULTISITE', true );] to wp-config.php" >> /data/apps/{{appname}}/src/after_up.sh
+  when: wordpress_solution == "multisite"
