@@ -34,9 +34,9 @@
 - name: Download mingdao installation tool from {{mingdao_download_url}}
   shell: |
     wget -N {{mingdao_download_url}} 
-    tar -xvf  /data/apps/mingdao/installer
+    tar -xzvf  mingdaoyun_private_deployment_captain_linux_amd64.tar.gz
   args:
-    chdir: /tmp
+    chdir: /data/apps/mingdao/installer
 
 - name: Copy mingdao service 
   copy:
