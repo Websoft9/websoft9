@@ -35,6 +35,7 @@
   shell: |
     wget -N {{mingdao_download_url}} 
     tar -xzvf  mingdaoyun_private_deployment_captain_linux_amd64.tar.gz
+    rm -f mingdaoyun_private_deployment_captain_linux_amd64.tar.gz
   args:
     chdir: /data/apps/mingdao/installer
 
