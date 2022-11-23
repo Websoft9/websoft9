@@ -42,6 +42,10 @@
     src: mingdao.service
     dest: /lib/systemd/system/mingdao.service
 
+- name: Stay running state
+  shell: |
+     echo "tail -f /dev/null" >> /data/apps/mingdao/installer/service.sh
+    
 - name: Restart and Enable mingdao service
   systemd:
     state: restarted
