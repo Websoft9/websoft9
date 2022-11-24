@@ -24,8 +24,12 @@
     
 - name: Pull mingdao docker image & change tag for automatic installation
   shell: |
-    docker pull registry.cn-hangzhou.aliyuncs.com/mdpublic/mingdaoyun-community:{{mingdao_version}}
-    docker pull registry.cn-hangzhou.aliyuncs.com/mdpublic/mingdaoyun-doc:{{mingdao_doc_version}}
+    docker pull mdpublic/mingdaoyun-community
+    docker pull mdpublic/mingdaoyun-doc
+    docker tag mdpublic/mingdaoyun-community:latest registry.cn-hangzhou.aliyuncs.com/mdpublic/mingdaoyun-community:{{mingdao_version}}
+    docker rmi mdpublic/mingdaoyun-community:latest
+    docker tag mdpublic/mingdaoyun-doc:latest registry.cn-hangzhou.aliyuncs.com/mdpublic/mingdaoyun-doc:{{mingdao_doc_version}}
+    docker rmi mdpublic/mingdaoyun-doc:latest
     
 - name: Download mingdao installation tool from {{mingdao_download_url}}
   shell: |
