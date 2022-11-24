@@ -3,8 +3,8 @@
 # 2021-11-17 更新2.4.1
 # 2021-12-23 更新2.10.1
 # 2022-4-1 更新3.1.0
-# 2022-11-22 更新3.6.0
+# 2022-11-22 更新3.7.0
 
-mingdao_download_url: "https://pdpublic.mingdao.com/private-deployment/3.6.0/mingdaoyun_private_deployment_captain_linux_amd64.tar.gz"
-mingdao_version: "3.6.0"
+mingdao_download_url: "https://pdpublic.mingdao.com/private-deployment/3.7.0/mingdaoyun_private_deployment_captain_linux_amd64.tar.gz"
+mingdao_version: "3.7.0"
 mingdao_doc_version: "1.2.0"
