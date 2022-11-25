@@ -47,7 +47,7 @@
 - name: Start mingdao
   shell: |
      source /etc/profile.d/init_without_docker.sh
-     bash /etc/profile.d/init_without_docker.sh
+     cd  /data/apps/mingdao/installer && bash ./service.sh start
      
 # display version 
 - name: Check mingdao version
