@@ -8,10 +8,11 @@
     shell: |
        mkdir -p /data/apps/wordpress/data/backup/plugins
        mkdir -p /data/apps/wordpress/data/backup/themes
-  - name: Copy wp-cli
-    copy:
-      src: wp-cli.phar
-      dest: /data/apps/wordpress/data/backup/wp-cli.phar
+  - name: Download wp-cli
+    shell: |
+      cd /data/apps/wordpress/data/backup
+      curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+      chmod +x wp-cli.phar
   
 - block:
   - name: Download {{wordpress_solution}} theme to host machine
