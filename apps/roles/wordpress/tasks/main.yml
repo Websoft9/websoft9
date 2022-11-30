@@ -13,6 +13,7 @@
       cd /data/apps/wordpress/data/backup
       curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
       chmod +x wp-cli.phar
+      mv wp-cli.phar wp
   
 - block:
   - name: Download {{wordpress_solution}} theme to host machine
