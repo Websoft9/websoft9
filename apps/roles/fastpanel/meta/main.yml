@@ -1,8 +1,8 @@
 ---
 dependencies: []
+version: "2022-07-22"
 
 allow_duplicates: true
-version: "2022-07-22"
 
 galaxy_info:
   author: 
