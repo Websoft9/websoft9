@@ -14,3 +14,10 @@
       curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
       chmod +x wp-cli.phar
       mv wp-cli.phar wp
+
+- block:
+  - name: Delete minio all config
+    shell: |
+       cd /data/apps/minio && docker compose down -v
+       rm -rf /data/apps/minio
+  when: wordpress_solution == ""
