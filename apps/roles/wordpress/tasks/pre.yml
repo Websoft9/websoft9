@@ -1,0 +1,19 @@
+- pause:
+    prompt: |
+      Choice WordPress Solution: 
+      0: default
+      1: HP(高性能)
+      private: no
+      Default:0
+  register: wordpress_solution_selected
+
+- set_fact:
+    wordpress_solution_option:
+      "0": ""
+      "1": "hp"
+
+- set_fact:
+    wordpress_solution: "{{wordpress_solution_option[wordpress_solution_selected.user_input]}}"
+
+- debug:
+    msg: "WordPress Solution is {{wordpress_solution}}"
