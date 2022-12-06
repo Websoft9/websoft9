@@ -1,6 +1,7 @@
 ---
 dependencies:
   - phpmyadmin
+  - minio
 
 allow_duplicates: true
 
