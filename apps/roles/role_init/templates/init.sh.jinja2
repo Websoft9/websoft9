@@ -14,6 +14,12 @@ sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.
 
 {% for app_name in applist.stdout_lines %}
 
+if [ ! -d "/data/apps/{{app_name}}" ];then
+  continue
+else
+  echo "this app is ok"
+fi
+
 dockercompose_up=$(cat /data/apps/{{app_name}}/.env |grep "APP_COMPOSE_UP=false")
 
 #1 init for applist of .env
