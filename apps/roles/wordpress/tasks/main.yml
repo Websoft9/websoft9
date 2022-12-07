@@ -16,8 +16,23 @@
       mv wp-cli.phar wp
 
 - block:
-  - name: Delete minio all config
+  - name: Delete  all config
+    shell: |
+       cd /data/apps/minio && docker compose down -v
+       cd /data/apps/matomo && docker compose down -v
+       rm -rf /data/apps/minio /data/apps/matomo
+  when: wordpress_solution == ""
+
+- block:
+  - name: Delete minio  config
     shell: |
        cd /data/apps/minio && docker compose down -v
        rm -rf /data/apps/minio
-  when: wordpress_solution == ""
+  when: wordpress_solution == "matomo"
+
+- block:
+  - name: Delete minio config
+    shell: |
+       cd /data/apps/matomo && docker compose down -v
+       rm -rf /data/apps/matomo
+  when: wordpress_solution == "minio"
