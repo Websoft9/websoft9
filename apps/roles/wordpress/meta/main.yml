@@ -2,7 +2,8 @@
 dependencies:
   - phpmyadmin
   - minio
-
+  - matomo
+  
 allow_duplicates: true
 
 galaxy_info:
