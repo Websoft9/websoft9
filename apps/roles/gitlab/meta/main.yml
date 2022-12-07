@@ -1,5 +1,6 @@
 ---
-dependencies: []
+dependencies: 
+  - jenkins
 
 allow_duplicates: true
 
