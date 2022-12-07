@@ -31,7 +31,7 @@
   when: wordpress_solution == "matomo"
 
 - block:
-  - name: Delete minio config
+  - name: Delete matomo config
     shell: |
        cd /data/apps/matomo && docker compose down -v
        rm -rf /data/apps/matomo
