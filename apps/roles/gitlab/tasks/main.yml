@@ -2,3 +2,10 @@
   include_tasks: tasks/install.yml
   vars:
      app: "gitlab"
+
+- block:
+  - name: Delete jenkins  config
+    shell: |
+       cd /data/apps/jenkins && docker compose down -v
+       rm -rf /data/apps/jenkins
+  when: gitlab_version == "ce" or gitlab_version == "ce"
