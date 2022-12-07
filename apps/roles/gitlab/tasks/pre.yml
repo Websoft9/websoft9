@@ -3,6 +3,7 @@
       Choice Gitlab version: 
       0: Gitlabce
       1: Gitlabee
+      2: Gitlab with Jenkins
       private: no
       Default:0
   register: gitlab_version_options
@@ -11,6 +12,7 @@
     gitlab_version_meta:
       "0": "ce"
       "1": "ee"
+      "2": "jenkins"
 
 - set_fact:
     gitlab_version: "{{gitlab_version_meta[gitlab_version_options.user_input]}}"
