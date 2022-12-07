@@ -10,6 +10,7 @@ replace_with_value_env(){
 
 new_password=$(pwgen -ncCs 14 1)!
 sudo sleep 5s
+echo $new_password >> /tmp/password.txt
 sudo sh -c 'echo "init-password started at" $(date -d now)  1>> /tmp/init_debug.txt'
 
 {% for app_name in applist.stdout_lines %}
