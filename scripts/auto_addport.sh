@@ -10,7 +10,7 @@ do
         app_port=`expr $app_port + 1`
     else
         echo $app_port >> /tmp/port.txt
-        sed -i "s/APP_HTTP_PORT=*/APP_HTTP_PORT=$app_port/g" /data/apps/$1/.env
+        sed -i "s/APP_HTTP_PORT=.*/APP_HTTP_PORT=$app_port/g" /data/apps/$1/.env
         break
     fi
 done
