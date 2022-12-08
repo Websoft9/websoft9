@@ -14,6 +14,12 @@
         
     - name: Clone app from libray
       shell: cp -r  "{{installpath}}/library/apps/{{app}}"  "{{installpath}}" 
+      
+    - name: Input mainapp port
+      shell: |
+        cat "{{installpath}}/library/apps/{{appname}}/.env" |grep APP_HTTP_PORT >> /tmp/port.txt      
+        sed -i "s/APP_HTTP_PORT=//g" /tmp/port.txt
+      when: $(! -s /tmp/port.txt)
         
     - name: Check APP_URL_REPLACE exists
       shell: |
