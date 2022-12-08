@@ -41,6 +41,13 @@
       include_tasks: roles/{{app}}/tasks/pre.yml
       when: pre_exists.status is defined and pre_exists.status == 200
 
+
+- name: If this port in use, add a new port for this app 
+  shell: |
+    wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/auto_addport.sh
+    bash auto_addport.sh
+  when: app != appname
+        
 - block:
   - name: Docker compose up
     shell: |
