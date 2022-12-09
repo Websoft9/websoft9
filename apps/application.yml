@@ -29,7 +29,10 @@
           file:
             path: /credentials
             state: directory
-          
+            
+        - name: Copy get_ip.sh
+          copy: src=../scripts/get_ip.sh  dest=/credentials/get_ip.sh
+       
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
