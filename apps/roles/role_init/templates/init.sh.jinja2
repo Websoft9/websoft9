@@ -48,12 +48,12 @@ else
   app_url_replace=$(cat /data/apps/{{app_name}}/.env |grep APP_URL_REPLACE)
   if [ $app_url_replace = "APP_URL_REPLACE=true" ]; then
     echo "Change APP_URL" 1>> /tmp/init_debug.txt
-    public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+    public_ip=`bash /credentials/get_ip.sh`
     urlstr=`grep  "APP_URL=" /data/apps/{{app_name}}/.env |cut -d":" -f1`
     sudo sed -i "s/$urlstr/APP_URL=$public_ip/g" /data/apps/{{app_name}}/.env
   else
     echo "There is not APP_URL"
-    public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+    public_ip=`bash /credentials/get_ip.sh`
     sudo sed -i "s/appname.example.com/$public_ip/g" /data/apps/{{app_name}}/.env
   fi 
 
