@@ -25,6 +25,9 @@
           register: env_content
           failed_when: False
           delegate_to: 127.0.0.1
+          
+        - name: copy test
+          copy: src=/data/mcloud  dest=/tmp
         
   roles:
     - { role: role_common, tags: "role_common" }
