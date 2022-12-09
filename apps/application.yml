@@ -25,10 +25,6 @@
           failed_when: False
           delegate_to: 127.0.0.1
           
-        - name: copy test
-          shell: pwd >> /tmp/test
-          delegate_to: 127.0.0.1
-          
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
