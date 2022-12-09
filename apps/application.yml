@@ -24,7 +24,15 @@
           register: env_content
           failed_when: False
           delegate_to: 127.0.0.1
-          
+   
+        - name: Create credentials Folder
+          file:
+            path: /credentials
+            state: directory
+        - name: Create credentials Folder2
+          file:
+            path: /credentials
+            state: directory            
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
