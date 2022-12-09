@@ -34,7 +34,7 @@
 
     - name: Change Public IP for http_url if APP_URL_REPLACE=true
       shell: |
-         public_ip=`wget -O - https://download.websoft9.com/ansible/get_ip.sh | bash`
+         public_ip=`bash /credentials/get_ip.sh`
          urlstr=`grep  "APP_URL=" /data/apps/{{app}}/.env |cut -d":" -f1`
          sudo sed -i "s/$urlstr/APP_URL=$public_ip/g" /data/apps/{{app}}/.env
       when: http_url_exists.stdout != ""
@@ -42,21 +42,21 @@
 - name: Excute Preparation if have pre.yml
   block:
     - name: Check if pre.yml exists
-      uri:
-        url: "https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{app}}/tasks/pre.yml"
-        return_content: yes
+      stat:
+        path: ./roles/{{app}}/tasks/pre.yml
       register: pre_exists
-      failed_when: false
+      delegate_to: 127.0.0.1
       
     - name: Excute pre.yml
       include_tasks: roles/{{app}}/tasks/pre.yml
-      when: pre_exists.status is defined and pre_exists.status == 200
+      when: pre_exists.stat.exists == True
 
-
+- name: Copy auto_addport.sh
+  copy: src=../scripts/auto_addport.sh  dest=/tmp/auto_addport.sh
+  
 - name: If this port in use, add a new port for this app 
   shell: |
-    wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/auto_addport.sh
-    bash auto_addport.sh "{{app}}"
+    bash /tmp/auto_addport.sh "{{app}}"
   when: app != appname
         
 - block:
