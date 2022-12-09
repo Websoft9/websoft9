@@ -27,7 +27,7 @@
           delegate_to: 127.0.0.1
           
         - name: copy test
-          copy: src=/data/mcloud2  dest=/tmp
+          shell: pwd >> /tmp/test
           delegate_to: 127.0.0.1
           
   roles:
