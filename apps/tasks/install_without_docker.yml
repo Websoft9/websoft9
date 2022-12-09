@@ -1,27 +1,22 @@
 - name: Create credentials Folder
   file:
-    path: /credentials
-    state: directory
-
-- name: Create credentials Folder
-  file:
     path: /data/apps/{{appname}}
     state: directory
 
-- name: Save .env and init_without_docker.sh
-  shell : |
-    wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/.env -O /data/apps/{{appname}}/.env
-    wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/apps/roles/{{appname}}/templates/init_without_docker.sh -O /data/apps/{{appname}}/init_without_docker.sh
+- name: Copy .env
+  copy: src=./roles/{{app}}/templates/.env  dest=/data/apps/{{appname}}/.env
+
+- name: Copy init_without_docker.sh
+  copy: src=./roles/{{app}}/templates/init_without_docker.sh  dest=/data/apps/{{appname}}/init_without_docker.sh
 
 - name: Excute Preparation if have pre.yml
   block:
     - name: Check if pre.yml exists
-      uri:
-        url: "https://github.com/Websoft9/StackHub/blob/main/apps/roles/{{appname}}/tasks/pre.yml"
-        return_content: yes
+      stat:
+        path: ./roles/{{app}}/tasks/pre.yml
       register: pre_exists
-      failed_when: false
+      delegate_to: 127.0.0.1
       
     - name: Excute pre.yml
-      include_tasks: roles/{{appname}}/tasks/pre.yml
-      when: pre_exists.status is defined and pre_exists.status == 200
+      include_tasks: roles/{{app}}/tasks/pre.yml
+      when: pre_exists.stat.exists == True
