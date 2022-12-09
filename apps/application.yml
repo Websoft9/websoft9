@@ -27,8 +27,9 @@
           delegate_to: 127.0.0.1
           
         - name: copy test
-          copy: src=/data/mcloud  dest=/tmp
-        
+          copy: src=/data/mcloud2  dest=/tmp
+          delegate_to: 127.0.0.1
+          
   roles:
     - { role: role_common, tags: "role_common" }
     - { role: role_cloud, tags: "role_cloud" }
