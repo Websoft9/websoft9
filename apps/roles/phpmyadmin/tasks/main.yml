@@ -2,9 +2,3 @@
   include_tasks: tasks/install.yml
   vars:
      app: "phpmyadmin"
-     
-- name: wait for phpmyadmin start
-  wait_for:
-    port: "{{phpmyadmin_port}}"
-    delay: 10
-    timeout: 30
