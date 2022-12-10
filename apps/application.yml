@@ -9,6 +9,9 @@
   pre_tasks:
     - name: Get applist
       block:
+        - name: Multiply apps execute on second 
+          shell : |
+            echo "" > /tmp/port.txt
         - name: Get appname and dependencies, combine to a applist
           shell : |
             echo "{{appname}}" > applist
