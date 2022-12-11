@@ -1,7 +1,7 @@
 - pause:
     prompt: |
       Choice Zabbix version: 
-      0: Zabbix6.1
+      0: Zabbix6.2
       1: Zabbix5.4
       2: Zabbix5.2
       3: Zabbix5.0
@@ -13,7 +13,7 @@
 
 - set_fact:
     zabbix_version_meta:
-      "0": "6.1"
+      "0": "6.2"
       "1": "5.4"
       "2": "5.2"
       "3": "5.0"
