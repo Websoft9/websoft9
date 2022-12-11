@@ -11,7 +11,7 @@
       block:
         - name: Multiply apps execute on second time
           shell : |
-            echo "" > /tmp/port.txt
+            rm -f /tmp/port.txt
             
         - name: Get appname and dependencies, combine to a applist
           shell : |
