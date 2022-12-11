@@ -8,4 +8,4 @@
     shell: |
        cd /data/apps/jenkins && docker compose down -v
        rm -rf /data/apps/jenkins
-  when: gitlab_version == "ce" or gitlab_version == "ce"
+  when: gitlab_version == "ce" or gitlab_version == "ee"
