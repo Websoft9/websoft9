@@ -47,10 +47,10 @@
 
 # this step may get error most of times
 - name: install bt, waiting for 5-10 mins
-  command: expect /root/bt.exp
+  shell: expect /root/bt.exp
 
 - name: change username & password
-  command: expect /root/{{item}}
+  shell: expect /root/{{item}}
   with_items: "{{bt_filelist}}"
 
 - name: remove extra files 
