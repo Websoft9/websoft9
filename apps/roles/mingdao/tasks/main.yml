@@ -20,6 +20,7 @@
     touch  /data/apps/mingdao/installer/first
     ln -sf /data/apps/mingdao/installer /usr/local/MDPrivateDeployment
     echo "vm.max_map_count = 262144" >> /etc/sysctl.conf
+    sed -i "s/net.ipv4.ip_forward=0/net.ipv4.ip_forward=1/g" /etc/sysctl.conf
     sysctl -p
     
 - name: Pull mingdao docker image & change tag for automatic installation
