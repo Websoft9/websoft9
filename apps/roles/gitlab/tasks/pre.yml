@@ -4,15 +4,17 @@
       0: Gitlabce
       1: Gitlabee
       2: Gitlab with Jenkins
+      3: 极狐中文
       private: no
       Default:0
   register: gitlab_version_options
 
 - set_fact:
     gitlab_version_meta:
-      "0": "ce"
-      "1": "ee"
+      "0": "CE"
+      "1": "EE"
       "2": "jenkins"
+      "3": "JH"
 
 - set_fact:
     gitlab_version: "{{gitlab_version_meta[gitlab_version_options.user_input]}}"
@@ -22,5 +24,5 @@
 
 - name: Config .env for start containers
   shell: |
-    sed -i 's/APP_EDITION=.*/APP_EDITION={{gitlab_version}}/g' {{installpath}}/{{appname}}/.env
+    sed -i 's/\$APP_CE_IMAGEURL/\$APP_{{gitlab_version}}_IMAGEURL/g' {{installpath}}/{{appname}}/.env
   when: gitlab_version != "jenkins"
