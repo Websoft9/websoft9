@@ -1,5 +1,4 @@
 common_packages_redhat:
-  - snapd
   - mosh
   - wget
   - openssl
@@ -24,7 +23,6 @@ common_packages_redhat:
   - mlocate
 
 common_packages_debian:
-  - snapd
   - acl
   - mosh
   - curl
