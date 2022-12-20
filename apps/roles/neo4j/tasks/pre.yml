@@ -7,8 +7,8 @@
       3: Neo4j 4.2
       4: Neo4j 4.1
       5: Neo4j 4.0
-      6: Neo4j 3.5
-      7: Neo4j 3.4 
+      6: Neo4j 5.2
+      7: Neo4j 5.3 
       private: no
       Default:0
   register: neo4j_version_options
@@ -21,8 +21,8 @@
       "3": "4.2"
       "4": "4.1"
       "5": "4.0"
-      "6": "3.5"
-      "7": "3.4"
+      "6": "5.2"
+      "7": "5.3"
       
 - set_fact:
     neo4j_version: "{{neo4j_version_meta[neo4j_version_options.user_input]}}"
