@@ -11,7 +11,7 @@
       7: MongoDB3.4
       8: MongoDB3.3
       9: MongoDB3.2
-      10：MongoDB3.0
+      10：MongoDB6.0
       private: no
       Default:0
   register: mongodb_version_options
@@ -28,7 +28,7 @@
       "7": "3.4"
       "8": "3.3"
       "9": "3.2"
-      "10": "3.0"
+      "10": "6.0"
 
 - set_fact:
     mongodb_version: "{{mongodb_version_meta[mongodb_version_options.user_input]}}"
