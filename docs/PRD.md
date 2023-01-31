@@ -50,7 +50,7 @@
 | casaos-message-bus   |  CasaOS-MessageBus        | 类似一个MQ提供消息的发布/订阅                                                | 
 | casaos-local-storage   |  CasaOS-LocalStorage      | 每隔5S统计磁盘/USB信息,提供监控信息;提供http接口访问disk/usb/storage信息                                           |
 | casaos-user-service   | CasaOS-UserService         | 通过http server提供用户管理的接口                                                   |
-| casaos-app-management | CasaOS-AppManagement         | 提供所有appList的分类/列表/详细信息,信息来源于https://api.casaos.io/casaos-api;过docker来管理app,提供安装/启动/关闭/重启/日志查看等相关接口;docker-compose管理（V2）;使用CasaOS-AppStore中App的元数据|
+| casaos-app-management | CasaOS-AppManagement         | 使用CasaOS-AppStore中App的元数据;提供所有appList的分类/列表/详细信息;通过docker来管理app,提供安装/启动/关闭/重启/日志查看等相关接口;docker-compose管理（V2）;|
 | casaos-gateway   | CasaOS-Gateway         | 1.  提供Gateway自身管理接口,比如切换Gateway的port的接口,查看所有路由的接口2.  提供CasaOS-UI的静态资源访问服务
 3.  根据请求的PATH将请求代理转发至其它模块                                                      |
 | casaos-cli   |  CasaOS-CLI        | 通过命令行的方式来调用CasaOS-Gateway的接口,该模块未完全实现,实现了部分命令                                                |
