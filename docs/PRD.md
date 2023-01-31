@@ -42,6 +42,21 @@
 4. 下载各源码包
 5. 启动个源码对应服务
 
+#### 源码解析
+
+|     运行时项目         | 对应项目源码 | 说明                         |
+| -------------- | -------- | -------------------------------------------------------- |
+| casaos       |    CasaOS      | 每隔5秒通过websocekt推送内存/CPU/网络等系统信息                                                 |
+| casaos-message-bus   |  CasaOS-MessageBus        | 官方+社区                                                | 
+| casaos-local-storage   |  CasaOS-LocalStorage      | 不需任何配置                                             |
+| casaos-user-service   | CasaOS-UserService         | 端口                                                     |
+| casaos-app-management | CasaOS-AppManagement         | Y                                                        |
+| casaos-gateway   | CasaOS-Gateway         | Y                                                        |
+| casaos-cli   |  CasaOS-CLI        | DockerHub                                                |
+| linux-all-casaos      |  CasaOS-UI        | Y                                                        |
+| -        |  CasaOS-Common        | Y                                                        |
+
+
 ## 架构
 
 StackHub主要架构和技术选型如下：
