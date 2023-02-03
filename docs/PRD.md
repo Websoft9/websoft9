@@ -62,6 +62,7 @@
 ### 微服务
 
 * System
+* MQ
 * Monitor 
 * SSH Ternimal
 * File Browser
