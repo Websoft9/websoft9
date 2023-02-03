@@ -65,7 +65,7 @@
 * SSH Ternimal
 * File
 * Storage
-* App
+* App&CLI
 * User
 * Proxy&DNS
 * API gateway
