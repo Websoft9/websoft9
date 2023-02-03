@@ -67,8 +67,8 @@
 * Storage
 * User
 * API gateway
-* Proxy&DNS
-* App&CLI
+* Proxy&DNS（待定）
+* App&CLI（开发）
 
 ![image](https://user-images.githubusercontent.com/16741975/216497356-3913abd2-0b75-4619-8c40-512079e35f5b.png)
 
