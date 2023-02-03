@@ -63,7 +63,7 @@
 
 * Monitor 
 * SSH Ternimal
-* File
+* File Browser
 * Storage
 * User
 * API gateway
