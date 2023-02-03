@@ -65,10 +65,10 @@
 * SSH Ternimal
 * File
 * Storage
-* App&CLI
 * User
-* Proxy&DNS
 * API gateway
+* Proxy&DNS
+* App&CLI
 
 ![image](https://user-images.githubusercontent.com/16741975/216497356-3913abd2-0b75-4619-8c40-512079e35f5b.png)
 
