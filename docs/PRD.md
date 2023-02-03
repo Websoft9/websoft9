@@ -67,6 +67,7 @@
 * Storage
 * User
 * API gateway
+* Web-Container
 * Proxy&DNS（待定）
 * App&CLI（开发）
 
