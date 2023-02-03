@@ -59,8 +59,20 @@
 
 ## 架构
 
-StackHub主要架构和技术选型如下：
+### 微服务
 
-* 架构：后台JS框架+后端Python提供API服务  
+* Monitor 
+* SSH Ternimal
+* File
+* Storage
+* App
+* User
+* Proxy&DNS
+* API gateway
+
+### 基础组件
+
+技术选型如下：
+
+* 架构：JS UI + API Backend  
 * 后端：Python, Docker, Docker-compose, FastAPI, Typer  
-* 打包工具：[porter](https://porter.sh/)
