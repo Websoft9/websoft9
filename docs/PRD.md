@@ -70,6 +70,7 @@
 * User
 * API gateway
 * Web-Container
+* Web-DB
 * Proxy&DNS（待定）
 * App&CLI（开发）
 
