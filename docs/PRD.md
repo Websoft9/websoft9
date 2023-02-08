@@ -61,14 +61,16 @@
 
 ### 微服务
 
+存在的微服务以及选型：  
+
 * System
 * MQ
-* Monitor 
+* Monitor: NetData
 * SSH Ternimal
 * File Browser
 * Storage
 * User
-* API gateway
+* API gateway: Kong
 * Web-Container
 * Web-DB
 * Proxy&DNS（待定）
