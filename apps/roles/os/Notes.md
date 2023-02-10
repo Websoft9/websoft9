@@ -36,7 +36,7 @@ Cockpit 安装已经移到 role_common
 |云平台&桌面名称|  GNOME  |   KDE  |  Xfce  |  Mate  | 
 |  -------------- |  --------------  | --------------  | --------------  | --------------  |
 |阿里云CentOS|  √  ||||
-|阿里云Ubuntu|||||
+|阿里云Ubuntu|√|-|||
 |阿里云OracleLinux|||||
 |腾讯云CentOS|||||
 |腾讯云Ubuntu|||||
