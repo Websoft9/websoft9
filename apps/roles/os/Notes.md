@@ -33,8 +33,9 @@ Cockpit 安装已经移到 role_common
 
 ## 上架版本
 
-|GNOME|KDE|Xfce|Mate|
+|GNOME|KDE|Xfce|Mate|  
 ||||
+
 ## 常见问题
 
 #### 阿里云上 OracleLinux 无法通过控制台下发秘钥对？
