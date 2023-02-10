@@ -33,9 +33,9 @@ Cockpit 安装已经移到 role_common
 
 ## 上架版本
 
-|GNOME|KDE|Xfce|Mate| 
-|  ----  | ----  | ----  | ----  |
-||||
+||GNOME|KDE|Xfce|Mate| 
+|  ---- |  ----  | ----  | ----  | ----  |
+|阿里云Centos|||||
 
 ## 常见问题
 
