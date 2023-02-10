@@ -33,9 +33,19 @@ Cockpit 安装已经移到 role_common
 
 ## 上架版本
 
-||GNOME|KDE|Xfce|Mate| 
+|云平台&桌面名称|GNOME|KDE|Xfce|Mate| 
 |  ---- |  ----  | ----  | ----  | ----  |
-|阿里云Centos|||||
+|阿里云CentOS|||||
+|阿里云Ubuntu|||||
+|阿里云OracleLinux|||||
+|腾讯云CentOS|||||
+|腾讯云Ubuntu|||||
+|华为云CentOS|||||
+|华为云Ubuntu|||||
+|Azure CentOS|||||
+|Azure Ubuntu|||||
+|AWS Amazonlinux|||||
+|AWS Ubuntu|||||
 
 ## 常见问题
 
