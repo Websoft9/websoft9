@@ -31,6 +31,10 @@ Cockpit 安装已经移到 role_common
 1. 安装tigerVNC 之后，默认生成了 vncserver@.server模板，本Ansible role 中的service模板是修改后的内容
 2. 所有的启动设置之前，都可以加上一个连词号（-），表示"抑制错误"，即发生错误的时候，不影响其他命令的执行
 
+## 上架版本
+
+|GNOME|KDE|Xfce|Mate|
+||||
 ## 常见问题
 
 #### 阿里云上 OracleLinux 无法通过控制台下发秘钥对？
