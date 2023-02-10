@@ -33,7 +33,8 @@ Cockpit 安装已经移到 role_common
 
 ## 上架版本
 
-|GNOME|KDE|Xfce|Mate|  
+|GNOME|KDE|Xfce|Mate| 
+|  ----  | ----  | ----  | ----  |
 ||||
 
 ## 常见问题
