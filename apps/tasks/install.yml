@@ -9,7 +9,7 @@
       
     - name: Clone docker-library in Websoft9
       git:
-        repo: "https://github.com/Websoft9/docker-library.git"
+        repo: "https://ghproxy.com/https://github.com/Websoft9/docker-library.git"
         dest: "{{installpath}}/library"
         
     - name: Clone app from libray
