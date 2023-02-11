@@ -2,9 +2,3 @@
   include_tasks: tasks/install.yml
   vars:
      app: "onlyofficedocs"
-
-- name: wait for {{appname}} start
-  wait_for:
-    port: "9002"
-    delay: 10
-    timeout: 120
