@@ -39,7 +39,7 @@ Cockpit 安装已经移到 role_common
 |阿里云Ubuntu|√|-|√|-|
 |阿里云OracleLinux7.8|||||
 |腾讯云CentOS|√|√|-|-|
-|腾讯云Ubuntu|√||||
+|腾讯云Ubuntu|√|-|||
 |华为云CentOS|||||
 |华为云Ubuntu|||||
 |Azure CentOS|||||
