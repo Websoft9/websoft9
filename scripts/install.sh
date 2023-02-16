@@ -44,7 +44,7 @@ if command -v yum > /dev/null; then
   sudo yum makecache 1>/dev/null 2>&1
   sudo yum install -y epel-release 1>/dev/null 2>&1
   
-  sudo yum install yum-utils git libselinux-python git python python3 git -y 1>/dev/null 2>&1
+  sudo yum install yum-utils git libselinux-python python python3 -y 1>/dev/null 2>&1
   sudo python3 -m pip install -U --force-reinstall requests docker 1>/dev/null 2>&1
   if command -v amazon-linux-extras > /dev/null; then
 	echo "amazon-linux-extras install ansible2"
