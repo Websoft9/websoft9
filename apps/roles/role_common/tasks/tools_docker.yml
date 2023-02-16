@@ -36,7 +36,8 @@
   shell: |
     alias docker-compose='docker compose'
     echo "alias docker-compose='docker compose'" >> /etc/profile.d/docker-compose.sh
-    source /etc/profile.d/docker-compose.sh
+    echo "alias docker-compose='docker compose'" >> /root/.bashrc
+    source /etc/profile.d/docker-compose.sh /root/.bashrc
   args:
     executable: /bin/bash
     
