@@ -23,7 +23,6 @@ common_packages_redhat:
   - mlocate
 
 common_packages_debian:
-  - pwgen
   - acl
   - mosh
   - curl
@@ -47,3 +46,4 @@ common_packages_debian:
   - net-tools
   - mlocate
   - chrony
+  - pwgen
