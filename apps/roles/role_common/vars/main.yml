@@ -23,6 +23,7 @@ common_packages_redhat:
   - mlocate
 
 common_packages_debian:
+  - pwgen
   - acl
   - mosh
   - curl
@@ -38,7 +39,6 @@ common_packages_debian:
   - tree
   - vim
   - screen
-  - pwgen
   - git
   - htop
   - imagemagick
