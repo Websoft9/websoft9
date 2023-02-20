@@ -43,7 +43,7 @@ Cockpit 安装已经移到 role_common
 |华为云CentOS|||||
 |华为云Ubuntu|||||
 |Azure CentOS|√|√|√|√|
-|Azure Ubuntu|-||√|-|
+|Azure Ubuntu|-|-|√|-|
 |AWS Amazonlinux|-|-|√|√|
 |AWS Ubuntu|√|-|√|-|
 
