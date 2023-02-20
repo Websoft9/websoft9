@@ -45,7 +45,7 @@ Cockpit 安装已经移到 role_common
 |Azure CentOS|√|√|√|√|
 |Azure Ubuntu|-||√|-|
 |AWS Amazonlinux|-|-|√|√|
-|AWS Ubuntu|√|-|||
+|AWS Ubuntu|√|-|√||
 
 ## 常见问题
 
