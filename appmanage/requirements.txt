@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+gunicorn
+typer
+psutil
+pyjq
