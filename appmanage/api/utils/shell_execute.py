@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
 
 # 执行Shell命令，处理报错和超时，并有返回值
