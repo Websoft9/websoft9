@@ -2,20 +2,33 @@ import os, io, sys, platform, shutil, time, subprocess, json, datetime
 
 from api.utils import shell_execute
 
-# 获取目前安装应用的所有信息
-def get_my_app_list():
+# 获取我的信息的所有信息
+def get_my_app():
 
     my_cmd = my_app()
 
-    apps_info = shell_execute.execute_CommandReturn(my_cmd)
+    output = shell_execute.execute_command_output_all(my_cmd)
+    if int(output["code"]) == 0:
+        output_list = output["result"].split()
+        print(output_list)
+        list = []
+        num = int(len(output_list)/3)
+        for i in range(1,num):
+            app = {}
+            app['name'] = output_list[3*i+1]
+            app['status_code'] = output_list[3*i+2].split("(")[0]
+            app['status'] = output_list[3*i+3]
+            list.append(app)
+        return list
 
-    return apps_info
+    return -1
+
 
 # 生成创建 App 的命令
 def my_app():
 
     my_app_cmd = ''
-    my_app_cmd = "sudo su && docker compose ls"
+    my_app_cmd = "sudo docker compose ls"
 
     return my_app_cmd
 
