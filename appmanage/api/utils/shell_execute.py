@@ -55,8 +55,7 @@ def execute_command_output(cmd_str):
 # cmd_str: 执行的command命令 times：如果不成功的重复次数
 def execute_command_output_all(cmd_str, max_time = 3):
     
-    print(cmd_str)
-    
+    print("start to excute cmd: " + cmd_str)
     excutetime = 0
     while excutetime < max_time:
         process = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
