@@ -2,7 +2,7 @@ import os, io, sys, platform, shutil, time, subprocess, json, datetime
 
 from api.utils import shell_execute
 
-# 获取我的信息的所有信息
+# 获取目前安装应用的所有信息
 def get_my_app():
 
     my_cmd = my_app()
