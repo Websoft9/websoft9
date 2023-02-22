@@ -51,3 +51,18 @@ def execute_command_output(cmd_str):
     out_str = subprocess.getoutput(cmd_str)
     print(out_str)
     return out_str
+
+# cmd_str: 执行的command命令 times：如果不成功的重复次数
+def execute_command_output_all(cmd_str, max_time = 3):
+    
+    print(cmd_str)
+    
+    excutetime = 0
+    while excutetime < max_time:
+        process = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+        if process.returncode == 0:
+            return process.stdout
+        else:
+            excutetime = excutetime + 1    
+
+    return "command excute failed, please check your command!"
