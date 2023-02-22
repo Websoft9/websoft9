@@ -16,8 +16,8 @@ def list_my_apps():
     list = manage.get_my_app()
     return JSONResponse(content=list)
 
-@router.get("/create")
-def start_app(app_name: Optional[str] = None):
+@router.get("/install")
+def install_app(app_name: Optional[str] = None):
 
     return {}
 
