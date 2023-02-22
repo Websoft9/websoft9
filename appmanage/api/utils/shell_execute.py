@@ -46,3 +46,8 @@ def execute_CommandReturn(cmd_str, timeout=30, timeinner=3):
     print('\n此次任务执行失败，请根据下面错误原因排查：')
     print(out_str)
 
+def execute_command_output(cmd_str):
+    print(cmd_str)
+    out_str = subprocess.getoutput  (cmd_str)
+    print(out_str)
+    return out_str
