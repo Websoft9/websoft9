@@ -8,3 +8,5 @@ class App(BaseModel):
     port: int
     volume: str
     url: str
+    user_name: str
+    password: str
