@@ -60,8 +60,8 @@ def execute_command_output_all(cmd_str, max_time = 3):
     while excutetime < max_time:
         process = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
         if process.returncode == 0:
-            return process.stdout
+            return {"code": "0", "result": process.stdout,}
         else:
             excutetime = excutetime + 1    
 
-    return "command excute failed, please check your command!"
+    return {"code": "-1", "result": "command excute failed, please check your command!"}
