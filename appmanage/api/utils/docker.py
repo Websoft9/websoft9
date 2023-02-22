@@ -33,10 +33,10 @@ def create_app_directory(app_name):
     if isexsits:
         return
     #2. git clone https://github.com/Websoft9/docker-library.git项目，将apps复制到/data目录，如果data目录没有，创建
-    shell_execute.execute_command_output_all("git clone https://github.com/Websoft9/docker-library.git")
+    shell_execute.execute_command_output_all("git clone https://github.com/Websoft9/docker-library.git /data")
     if not os.path.exists("/data"):
         os.makedirs("/data")
-    copy_dir("docker-library","/data")
+    copy_dir("/data/docker-library","/data")
 
 def check_app_compose(app_name):
     path = "/data/apps/" + app_name + ".env"
