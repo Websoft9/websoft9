@@ -11,7 +11,6 @@ def get_start_port(port):
     else:
         use_port=xxxport
     
-    
     return use_port
         
         
