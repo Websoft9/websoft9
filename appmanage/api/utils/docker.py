@@ -27,16 +27,16 @@ def copy_dir(src_path, target_path):
         return False
 
 def create_app_directory(app_name):
-    #1.判断/data/apps/app_name是否已经存在，如果已经存在，方法结束
+    # 判断/data/apps/app_name是否已经存在，如果已经存在，方法结束
     path = "/data/apps/"+app_name
     isexsits = os.path.exists(path)
     if isexsits:
         return
-    #2. git clone https://github.com/Websoft9/docker-library.git项目，将apps复制到/data目录，如果data目录没有，创建
-    shell_execute.execute_command_output_all("git clone https://github.com/Websoft9/docker-library.git /data")
+    # 将apps复制到/data目录
     if not os.path.exists("/data"):
         os.makedirs("/data")
-    copy_dir("/data/docker-library","/data")
+    shell_execute.execute_command_output_all("git clone https://ghproxy.com/https://github.com/Websoft9/docker-library.git /tmp")
+    shell_execute.execute_command_output_all("cp -r /tmp/docker-library/apps /data")
 
 def check_app_compose(app_name):
     path = "/data/apps/" + app_name + ".env"
