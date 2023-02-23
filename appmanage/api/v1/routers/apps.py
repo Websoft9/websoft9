@@ -18,8 +18,8 @@ def list_my_apps():
 
 @router.get("/install")
 def install_app(app_name: Optional[str] = None):
-
-    return {}
+    ret = manage.install_app(app_name)
+    return JSONResponse(content=ret)
 
 @router.get("/start")
 def start_app(app_name: Optional[str] = None):
