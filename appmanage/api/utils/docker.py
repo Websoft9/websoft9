@@ -49,8 +49,3 @@ def check_app_compose(app_name):
     #1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（network.py的get_start_port方法）
     use_port = network.get_start_port(port)
     return use_port
-
-
-
-
-
