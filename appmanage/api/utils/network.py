@@ -15,7 +15,3 @@ def get_start_port(port):
             use_port = use_port+1
 
     return use_port
-
-        
-        
-    
