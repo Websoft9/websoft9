@@ -1,7 +1,7 @@
 import os, io, sys, platform, shutil, time, json, datetime
 from api.utils import shell_execute
 
-# 根据.env文件提供的port，判断是否启动
+# 根据.env文件提供的port，找出能正常启动的最小port
 def get_start_port(port):
     print("目前检查"+port+"是否被占用")
     use_port = port
