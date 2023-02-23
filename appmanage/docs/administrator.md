@@ -13,5 +13,7 @@
 pip install -r requirements.txt
 ```
 
+3. 安装docker以及docker compose、创建docker 网络websoft9
+
 ### 启动
 
