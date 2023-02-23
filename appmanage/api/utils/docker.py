@@ -35,8 +35,12 @@ def create_app_directory(app_name):
     # 将apps复制到/data目录
     if not os.path.exists("/data"):
         os.makedirs("/data")
-    shell_execute.execute_command_output_all("git clone https://ghproxy.com/https://github.com/Websoft9/docker-library.git /tmp")
-    shell_execute.execute_command_output_all("cp -r /tmp/docker-library/apps /data")
+        os.makedirs("/data/apps")
+        
+    if not os.path.exists("/tmp/docker-library"):
+        shell_execute.execute_command_output_all("git clone https://ghproxy.com/https://github.com/Websoft9/docker-library.git /tmp")
+    
+    shell_execute.execute_command_output_all("cp -r /tmp/docker-library/apps/"+app_name+" /data/apps")
 
 def check_app_compose(app_name):
     path = "/data/apps/" + app_name + ".env"
