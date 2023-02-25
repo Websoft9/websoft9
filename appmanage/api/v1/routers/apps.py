@@ -25,3 +25,18 @@ def install_app(app_name: Optional[str] = None):
 def start_app(app_name: Optional[str] = None):
 
     return {}
+
+@router.get("/stop")
+def stop_app(app_name: Optional[str] = None):
+
+    return {}
+
+@router.get("/restart")
+def restart_app(app_name: Optional[str] = None):
+
+    return {}
+
+@router.get("/delete")
+def delete_app(app_name: Optional[str] = None):
+
+    return {}
