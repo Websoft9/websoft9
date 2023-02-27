@@ -18,23 +18,6 @@ Show_Help(){
     "
 }
 
-# r:repository; i:init
-while getopts ":r:"":i:"  opt
-do
-    case $opt in
-        r)
-        repo_name=$OPTARG;;
-        i)
-        repo_init=$OPTARG
-        ;;
-        ?)
-        echo "no repository"
-        exit 1;;
-    esac
-done
-echo $repo_name
-echo $repo_init
-
 echo "Pre-installation is starting, please wait for 1-3 minutes..."
 
 # OracleLinux need install oaclelinux-developer-release-e* oracle-nodejs-release-e* oracle-epel-release-e* in Image before this script
@@ -69,6 +52,23 @@ if command -v apt > /dev/null; then
 fi
 
 sudo echo "Pre-installation has beend completed"
+
+# r:repository; i:init
+while getopts ":r:"":i:"  opt
+do
+    case $opt in
+        r)
+        repo_name=$OPTARG;;
+        i)
+        repo_init=$OPTARG
+        ;;
+        ?)
+        echo "no repository"
+        exit 1;;
+    esac
+done
+echo $repo_name
+echo $repo_init
 
 cd /tmp 
 rm -rf stackhub
