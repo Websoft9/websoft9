@@ -1,10 +1,8 @@
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
 import socket
+from threading import Thread
 from api.utils import shell_execute, network, docker
 from api.model.app import App
-import dotenv
-from dotenv import load_dotenv, find_dotenv
-from pathlib import Path
 
 # 获取所有app的信息
 def get_my_app(app_name=None):
@@ -31,26 +29,26 @@ def get_my_app(app_name=None):
             volume = output_list[3 * i+2]     #volume
             # get env info
             path = "/data/apps/" + name + "/.env"
-            load_dotenv(find_dotenv(Path.cwd().joinpath(path)))
-            http_port = os.getenv('APP_HTTP_PORT')
-            db_port = os.getenv('APP_DB_PORT')
+            http_port_env, http_port = docker.read_env(path, "APP_HTTP_PORT")
+            db_port_env, db_port = docker.read_env(path, "APP_DB.*_PORT")
+            print(name+": "+ db_port)
             # get port and url
-            if http_port != None:
+            port = 0
+            url = "-"
+            if http_port != "":
                 port = int(http_port)
                 url = "http://"+ip+":"+str(port)
-            elif db_port != None:
+            elif db_port != "":
                 port = int(db_port)
                 url = "http://" + ip + ":" + str(port)
-            else:
-                port = 0
-                url = "-"
+
             # get user_name
-            user_name = os.getenv('APP_USER')
-            if user_name == None:
+            username_env, user_name = docker.read_env(path, "APP_USER")
+            if user_name == "":
                 user_name = "-"
             # get password
-            password = os.getenv('POWER_PASSWORD')
-            if password == None:
+            password_env, password = docker.read_env(path, "POWER_PASSWORD")
+            if password == "":
                 password = "-"
 
             app = App(id=id, name=name, status_code=status_code, status=status, port=port, volume=volume, url=url, user_name=user_name, password=password)
@@ -76,7 +74,10 @@ def install_app(app_name):
     # check port
     docker.check_app_compose(app_name)
     cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
-    shell_execute.execute_command_output_all(cmd)
-    ret = get_my_app(app_name)
+    t1 = Thread(target=shell_execute.execute_command_output_all, args=(cmd,))
+    t1.start()
+    ret = {}
+    ret["code"] = 0
+    ret["message"] = "应用正在启动中，请过几分钟再查询"
+    ret["data"] = ""
     return ret
-
