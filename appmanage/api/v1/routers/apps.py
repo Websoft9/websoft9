@@ -23,20 +23,20 @@ def install_app(app_name: Optional[str] = None):
 
 @router.get("/start")
 def start_app(app_name: Optional[str] = None):
-
-    return {}
+    ret = manage.start_app(app_name)
+    return JSONResponse(content=ret)
 
 @router.get("/stop")
 def stop_app(app_name: Optional[str] = None):
-
-    return {}
+    ret = manage.stop_app(app_name)
+    return JSONResponse(content=ret)
 
 @router.get("/restart")
 def restart_app(app_name: Optional[str] = None):
-
-    return {}
+    ret = manage.restart(app_name)
+    return JSONResponse(content=ret)
 
 @router.get("/delete")
 def delete_app(app_name: Optional[str] = None):
-
-    return {}
+    ret = manage.delete_app(app_name)
+    return JSONResponse(content=ret)

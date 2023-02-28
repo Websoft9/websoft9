@@ -81,3 +81,72 @@ def install_app(app_name):
     ret["message"] = "应用正在启动中，请过几分钟再查询"
     ret["data"] = ""
     return ret
+
+def if_app_exits(app_name):
+    cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
+    output = shell_execute.execute_command_output_all(cmd)
+    if int(output["code"]) == -1:
+        return False
+    else:
+        return True
+
+def start_app(app_name):
+    ret = {}
+    ret["code"] = -1
+    if if_app_exits(app_name):
+        cmd = "docker start "+app_name
+        output = shell_execute.execute_command_output_all(cmd)
+        if int(output["code"]) == 0:
+            ret["code"] = 0
+            ret["message"] = "应用启动成功"
+        else:
+            ret["message"] = "应用启动失败"
+    else:
+        ret["message"] = "应用不存在"
+    return ret
+
+def stop_app(app_name):
+    ret = {}
+    ret["code"] = -1
+    if if_app_exits(app_name):
+        cmd = "docker stop " + app_name
+        output = shell_execute.execute_command_output_all(cmd)
+        if int(output["code"]) == 0:
+            ret["code"] = 0
+            ret["message"] = "应用停止成功"
+        else:
+            ret["message"] = "应用停止失败"
+    else:
+        ret["message"] = "应用不存在"
+    return ret
+
+def restart_app(app_name):
+    ret = {}
+    ret["code"] = -1
+    if if_app_exits(app_name):
+        cmd = "docker restart " + app_name
+        output = shell_execute.execute_command_output_all(cmd)
+        if int(output["code"]) == 0:
+            ret["code"] = 0
+            ret["message"] = "应用重启成功"
+        else:
+            ret["message"] = "应用重启失败"
+    else:
+        ret["message"] = "应用不存在"
+    return ret
+
+def delete_app(app_name):
+    ret = {}
+    ret["code"] = -1
+    if_stopped = stop_app(app_name)
+    if if_stopped["code"] == 0:
+        cmd = "docker rm "+app_name
+        output = shell_execute.execute_command_output_all(cmd)
+        if int(output["code"]) == 0:
+            ret["code"] = 0
+            ret["message"] = "应用删除成功"
+        else:
+            ret["message"] = "应用删除失败"
+    else:
+        ret["message"] = if_stopped["message"]
+    return ret
