@@ -40,11 +40,6 @@
     rm -f mingdaoyun_private_deployment_captain_linux_amd64.tar.gz
   args:
     chdir: /data/apps/mingdao/installer
-
-- name: Copy mingdao  
-  template:
-    src: init_without_docker.sh
-    dest: /etc/profile.d/init_without_docker.sh
     
 - name: Copy mingdao service 
   copy:
@@ -62,11 +57,6 @@
   copy:
     src: after_up.sh
     dest: /data/apps/mingdao/src
-
-- name: Start mingdao
-  shell: |
-     source /etc/profile.d/init_without_docker.sh
-     cd  /data/apps/mingdao/installer && bash ./service.sh start
      
 # display version 
 - name: Check mingdao version
