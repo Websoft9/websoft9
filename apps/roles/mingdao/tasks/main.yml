@@ -17,6 +17,7 @@
     
 - name: Create a file as the identity file and set env
   shell: |
+    mkdir /data/apps/mingdao/src
     touch  /data/apps/mingdao/installer/first
     ln -sf /data/apps/mingdao/installer /usr/local/MDPrivateDeployment
     echo "vm.max_map_count = 262144" >> /etc/sysctl.conf
@@ -44,6 +45,23 @@
   template:
     src: init_without_docker.sh
     dest: /etc/profile.d/init_without_docker.sh
+    
+- name: Copy mingdao service 
+  copy:
+    src: mingdao.service
+    dest: /lib/systemd/system/mingdao.service
+
+- name: Restart and Enable mingdao service
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: mingdao
+    enabled: yes
+
+- name: Copy after_up.sh to src  
+  copy:
+    src: after_up.sh
+    dest: /data/apps/mingdao/src
 
 - name: Start mingdao
   shell: |
