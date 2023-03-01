@@ -1,9 +1,0 @@
-[Unit]
-Description=mingdao service
-After=network.target
-[Service]
-Type=simple
-ExecStart=/bin/bash /data/apps/mingdao/installer/service.sh start
-ExecStop=-/usr/bin/pkill mingdaoyun
-[Install]
-WantedBy=multi-user.target
