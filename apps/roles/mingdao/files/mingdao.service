@@ -3,8 +3,8 @@ Description=mingdao service
 After=network.target
 [Service]
 Type=simple
-ExecStart=/bin/bash /usr/local/MDPrivateDeployment/service.sh start
-ExecStop=-/bin/bash /usr/local/MDPrivateDeployment/service.sh stopall
+ExecStart=/bin/bash /data/apps/mingdao/installer/service.sh start
+ExecStop=-/bin/bash /data/apps/mingdao/installer/service.sh stopall
 ExecStopPost=-/usr/bin/pkill mingdaoyun 
 PIDFile=/data/apps/mingdao/installer/service.pid
 [Install]
