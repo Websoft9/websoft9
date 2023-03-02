@@ -14,10 +14,6 @@ def create_app_directory(app_name):
     isexsits = os.path.exists(path)
     if isexsits:
         return
-    # 将apps复制到/data目录
-    if not os.path.exists("/data"):
-        os.makedirs("/data")
-        os.makedirs("/data/apps")
 
     if not os.path.exists("/tmp/docker-library"):
         shell_execute.execute_command_output_all("git clone https://ghproxy.com/https://github.com/Websoft9/docker-library.git /tmp/docker-library")
