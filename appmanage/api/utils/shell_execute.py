@@ -71,6 +71,6 @@ def convert_command(cmd_str):
     if cmd_str == "":
        convert_cmd=cmd_str
     else:
-       convert_cmd='echo "'+cmd_str+'" > /hostpipe/appmanage'
+       convert_cmd='echo "'+cmd_str+'" > /data/pipe/appmanage'
 
     return convert_cmd
