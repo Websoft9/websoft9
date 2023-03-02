@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "mingdao special " >> /tmp/init_debug.txt
+echo "mingdao execute delete mingdao and first" >> /tmp/init_debug.txt
 sudo systemctl stop mingdao
 sudo docker stop $(docker ps -aq)
 sudo docker rm $(docker ps -aq)
