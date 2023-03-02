@@ -9,11 +9,7 @@
     src: init-apps.service.jinja2
     dest: /lib/systemd/system/init-apps.service
 
-- name: check init-apps.service exist
+- name: check init-apps.service 
   shell: |
     cat /lib/systemd/system/init-apps.service > /tmp/service
-    
-- name: Enable service
-  service:
-    name: init-apps
-    enabled: yes
+    systemctl enable init-apps.service
