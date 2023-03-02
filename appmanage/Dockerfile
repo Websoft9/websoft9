@@ -8,6 +8,7 @@ WORKDIR /usr/src/app
 COPY api ./api
 COPY requirements.txt main.py  ./
 RUN pip install -r requirements.txt
+RUN mkdir /hostpipe
 
 # Starts our application
 CMD ["uvicorn", "main:get_app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
