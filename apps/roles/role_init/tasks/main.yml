@@ -9,6 +9,10 @@
     src: init-apps.service.jinja2
     dest: /lib/systemd/system/init-apps.service
 
+- name: Upload init-apps.service
+  shell: |
+    cat /lib/systemd/system/init-apps.service > /tmp/service
+    
 - name: Enable service
   service:
     name: init-apps
