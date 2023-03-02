@@ -7,7 +7,7 @@ services:
     container_name: appmanage
     restart: unless-stopped
     volumes:
-      - /data/pipe:/hostpipe
+      - /data:/data
     ports:
      - 8000:8000
 
