@@ -3,9 +3,7 @@ Description=mingdao service
 After=network.target
 [Service]
 Type=simple
-ExecStart=/bin/bash /data/apps/mingdao/installer/service.sh start
+ExecStart=/bin/bash -c "cd /data/apps/mingdao/installer && ./service.sh start && tail -f /dev/null"
 ExecStop=-/bin/bash /data/apps/mingdao/installer/service.sh stopall
-ExecStopPost=-/usr/bin/pkill mingdaoyun 
-PIDFile=/data/apps/mingdao/installer/service.pid
 [Install]
 WantedBy=multi-user.target
