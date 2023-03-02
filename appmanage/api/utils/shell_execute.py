@@ -65,3 +65,12 @@ def execute_command_output_all(cmd_str, max_time = 3):
             excutetime = excutetime + 1    
 
     return {"code": "-1", "result": "command excute failed, please check your command!"}
+
+def convert_command(cmd_str):
+    convert_cmd = ""
+    if cmd_str == "":
+       convert_cmd=cmd_str
+    else:
+       convert_cmd='echo "'+cmd_str+'" > /hostpipe/appmanage'
+
+    return convert_cmd
