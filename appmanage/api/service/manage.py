@@ -7,7 +7,8 @@ from api.model.app import App
 # 获取所有app的信息
 def get_my_app(app_name=None):
     #{"name":"id",...}
-    ip = socket.gethostbyname(socket.gethostname())
+    ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
+    ip = ip_result["result"]
     ret = {}
     ret["code"] = -1
     ret["message"] = "app查询失败"
