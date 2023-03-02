@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+
+  appmanage:
+    image: appmanage:0.3
+    container_name: appmanage
+    restart: unless-stopped
+    volumes:
+      - /data/pipe:/hostpipe
+    ports:
+     - 8000:8000
+
+networks:
+  default:
+    name: websoft9
+    external: true
