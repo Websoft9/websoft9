@@ -14,7 +14,7 @@ RETURN_RUNNING = 1
 # 应用已经停止
 RETURN_STOP = 2
 # 应用错误或不存在
-RETURN_STOP = -1
+RETURN_ERROR = -1
 
 
 
