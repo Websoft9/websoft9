@@ -58,7 +58,7 @@ def execute_command_output_all(cmd_str, max_time = 3):
     print("start to excute cmd: " + cmd_str)
     excutetime = 0
     while excutetime < max_time:
-        process = subprocess.run(convert_command(cmd_str), shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+        process = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
         if process.returncode == 0:
             return {"code": "0", "result": process.stdout,}
         else:
