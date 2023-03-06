@@ -12,6 +12,9 @@
     msg: "Cloud platform is {{ cloud.stdout}}"
     
 - block:
+  - name: Close swap Space
+    command: swapoff -a
+
   - name: Create swap Space
     command: dd if=/dev/zero of=/mnt/swap bs=256M count=8
 
