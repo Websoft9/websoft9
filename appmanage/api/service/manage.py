@@ -95,7 +95,7 @@ def start_app(app_name):
     ret = {}
     ret["code"] = -1
     if if_app_exits(app_name):
-        cmd = "docker start "+app_name
+        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml start"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret["code"] = 0
@@ -110,7 +110,7 @@ def stop_app(app_name):
     ret = {}
     ret["code"] = -1
     if if_app_exits(app_name):
-        cmd = "docker stop " + app_name
+        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml stop"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret["code"] = 0
@@ -125,7 +125,7 @@ def restart_app(app_name):
     ret = {}
     ret["code"] = -1
     if if_app_exits(app_name):
-        cmd = "docker restart " + app_name
+        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml restart"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret["code"] = 0
@@ -141,7 +141,7 @@ def delete_app(app_name):
     ret["code"] = -1
     if_stopped = stop_app(app_name)
     if if_stopped["code"] == 0:
-        cmd = "docker rm "+app_name
+        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret["code"] = 0
