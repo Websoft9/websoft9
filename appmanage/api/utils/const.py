@@ -8,8 +8,6 @@ RETURN_FAIL = -1
 
 # 应用状态定义
 # 应用正在启动
-RETURN_RUNNING = 0
-# 应用正在运行中
 RETURN_RUNNING = 1
 # 应用已经停止
 RETURN_STOP = 2

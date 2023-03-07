@@ -5,7 +5,6 @@ from api.utils import shell_execute
 def get_start_port(port):
     use_port = port
     while True:
-        print("check port: "+use_port)
         cmd = "netstat -ntlp | grep -v only"
         output = shell_execute.execute_command_output_all(cmd)
         if output["result"].find(use_port)==-1:

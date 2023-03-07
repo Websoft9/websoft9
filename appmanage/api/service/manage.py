@@ -1,21 +1,19 @@
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
 import socket
 from threading import Thread
-from api.utils import shell_execute, network, docker
+from api.utils import shell_execute, network, docker, const
 from api.model.app import App
+from api.model.response import Response
 
 # 获取所有app的信息
 def get_my_app(app_name=None):
     #{"name":"id",...}
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
-    ret = {}
-    ret["code"] = -1
-    ret["message"] = "app查询失败"
-    ret["data"] = None
+    ret = Response(code=const.RETURN_FAIL, message="app查询失败")
 
     # get all info
-    cmd = "sudo docker compose ls"
+    cmd = "sudo docker compose ls -a"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
         output_list = output["result"].split()
@@ -26,13 +24,19 @@ def get_my_app(app_name=None):
             name = output_list[3 * i]   #name
             id = 0  #id
             status = output_list[3 * i + 1].split("(")[0]   #status
-            status_code = 0     #status_code
+            if(status.startswith("r")):
+                status_code = const.RETURN_RUNNING     #status_code
+            else:
+                status_code = const.RETURN_STOP
             volume = output_list[3 * i+2]     #volume
+            j = 2
+            while not volume.startswith("/"):
+                volume = output_list[3*i+j]
+                j = j+1
             # get env info
             path = "/data/apps/" + name + "/.env"
             http_port_env, http_port = docker.read_env(path, "APP_HTTP_PORT")
             db_port_env, db_port = docker.read_env(path, "APP_DB.*_PORT")
-            print(name+": "+ db_port)
             # get port and url
             port = 0
             url = "-"
@@ -63,10 +67,8 @@ def get_my_app(app_name=None):
                     flag = 1
                     break
         if app_name == None or flag == 1:
-            ret["code"] = 0
-            ret["message"] = "app查询成功"
-            ret["data"] = list
-
+            ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
+    ret = ret.dict()
     return ret
 
 def install_app(app_name):
@@ -77,10 +79,8 @@ def install_app(app_name):
     cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
     t1 = Thread(target=shell_execute.execute_command_output_all, args=(cmd,))
     t1.start()
-    ret = {}
-    ret["code"] = 0
-    ret["message"] = "应用正在启动中，请过几分钟再查询"
-    ret["data"] = ""
+    ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
+    ret = ret.dict()
     return ret
 
 def if_app_exits(app_name):
@@ -92,62 +92,62 @@ def if_app_exits(app_name):
         return True
 
 def start_app(app_name):
-    ret = {}
-    ret["code"] = -1
+    ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml start"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
-            ret["code"] = 0
-            ret["message"] = "应用启动成功"
+            ret.code = const.RETURN_SUCCESS
+            ret.message = "应用启动成功"
         else:
-            ret["message"] = "应用启动失败"
+            ret.message = "应用启动失败"
     else:
-        ret["message"] = "应用不存在"
+        ret.message = "应用不存在"
+    ret = ret.dict()
     return ret
 
 def stop_app(app_name):
-    ret = {}
-    ret["code"] = -1
+    ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml stop"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
-            ret["code"] = 0
-            ret["message"] = "应用停止成功"
+            ret.code = const.RETURN_SUCCESS
+            ret.message = "应用停止成功"
         else:
-            ret["message"] = "应用停止失败"
+            ret.message = "应用停止失败"
     else:
-        ret["message"] = "应用不存在"
+        ret.message = "应用不存在"
+    ret = ret.dict()
     return ret
 
 def restart_app(app_name):
-    ret = {}
-    ret["code"] = -1
+    ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml restart"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
-            ret["code"] = 0
-            ret["message"] = "应用重启成功"
+            ret.code = const.RETURN_SUCCESS
+            ret.message = "应用重启成功"
         else:
-            ret["message"] = "应用重启失败"
+            ret.message = "应用重启失败"
     else:
-        ret["message"] = "应用不存在"
+        ret.message = "应用不存在"
+    ret = ret.dict()
     return ret
 
 def delete_app(app_name):
-    ret = {}
-    ret["code"] = -1
+    ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_name)
     if if_stopped["code"] == 0:
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
-            ret["code"] = 0
-            ret["message"] = "应用删除成功"
+            ret.code = 0
+            ret.message = "应用删除成功"
         else:
-            ret["message"] = "应用删除失败"
+            ret.message = "应用删除失败"
     else:
-        ret["message"] = if_stopped["message"]
+        ret.message = if_stopped["message"]
+    ret = ret.dict()
     return ret
