@@ -45,7 +45,6 @@ def get_my_app(app_name=None):
                 url = "http://"+ip+":"+str(port)
             elif db_port != "":
                 port = int(db_port)
-                url = ""
 
             # get user_name
             username_env, user_name = docker.read_env(path, "APP_USER")
