@@ -3,6 +3,7 @@ from pydantic import BaseModel
 class App(BaseModel):
     id: int
     name: str
+    trade_mark: str
     status_code: int
     status: str
     port: int
