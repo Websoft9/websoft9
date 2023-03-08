@@ -7,7 +7,7 @@ from dotenv import load_dotenv, find_dotenv
 import dotenv
 from pathlib import Path
 
-def create_app_directory(app_name):
+def check_app_directory(app_name):
     # 判断/data/apps/app_name是否已经存在，如果已经存在，方法结束
     print("checking dir...")
     path = "/data/apps/"+app_name
