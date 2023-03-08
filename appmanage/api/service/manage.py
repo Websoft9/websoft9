@@ -56,7 +56,7 @@ def get_my_app(app_name=None):
             if password == "":
                 password = "-"
 
-            app = App(id=id, name=name, status_code=status_code, status=status, port=port, volume=volume, url=url, user_name=user_name, password=password)
+            app = App(id=id, name=name, status_code=status_code, status=status, port=port, volume=volume, url=url, image_url=image_url, user_name=user_name, password=password)
             list.append(app.dict())
         flag = 0
         if app_name != None:
