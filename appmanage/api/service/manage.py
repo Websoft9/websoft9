@@ -74,7 +74,7 @@ def get_my_app(app_name=None):
 
 def install_app(app_name):
     # check directory
-    if docker.create_app_directory(app_name):
+    if docker.check_app_directory(app_name):
         # check port
         docker.check_app_compose(app_name)
         cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
