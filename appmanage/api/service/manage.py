@@ -94,6 +94,7 @@ def if_app_exits(app_name):
 def start_app(app_name):
     ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
+        docker.check_app_compose(app_name)
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml start"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:

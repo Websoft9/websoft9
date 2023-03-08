@@ -29,11 +29,11 @@ def check_app_compose(app_name):
     if http_port != "":
         print("check http port...")
         http_port = network.get_start_port(http_port)
-        dotenv.set_key(path, "APP_HTTP_PORT", http_port)
+        modify_port(path, http_port_env, http_port)
     if db_port != "":
         print("check db port...")
         db_port = network.get_start_port(db_port)
-        dotenv.set_key(path, db_port_env, db_port)
+        modify_port(path, db_port_env, db_port)
     print("port check complete")
     return
 
@@ -50,7 +50,12 @@ def read_env(path, key):
         ret = re.sub("\n","",ret)
     return env, ret
 
-
-
-
-
+def modify_port(path, env_name, port):
+    file_data = ""
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if env_name in line:
+                line = line.replace(line, env_name + "=" + port+"\n")
+            file_data += line
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(file_data)
