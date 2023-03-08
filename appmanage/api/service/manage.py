@@ -22,6 +22,7 @@ def get_my_app(app_name=None):
         num = int(len(output_list) / 3)
         for i in range(0, num):
             name = output_list[3 * i]   #name
+            image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + name + "-websoft9.png"
             id = 0  #id
             status = output_list[3 * i + 1].split("(")[0]   #status
             if(status.startswith("r")):
