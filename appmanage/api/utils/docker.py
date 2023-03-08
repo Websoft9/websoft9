@@ -12,13 +12,7 @@ def create_app_directory(app_name):
     print("checking dir...")
     path = "/data/apps/"+app_name
     isexsits = os.path.exists(path)
-    if isexsits:
-        return
-
-    if not os.path.exists("/tmp/docker-library"):
-        shell_execute.execute_command_output_all("git clone https://ghproxy.com/https://github.com/Websoft9/docker-library.git /tmp/docker-library")
-
-    shell_execute.execute_command_output_all("cp -r /tmp/docker-library/apps/"+app_name+" /data/apps")
+    return isexsits
 
 def check_app_compose(app_name):
     print("checking port...")
