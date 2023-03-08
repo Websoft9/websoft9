@@ -74,14 +74,16 @@ def get_my_app(app_name=None):
 
 def install_app(app_name):
     # check directory
-    docker.create_app_directory(app_name)
-    # check port
-    docker.check_app_compose(app_name)
-    cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
-    t1 = Thread(target=shell_execute.execute_command_output_all, args=(cmd,))
-    t1.start()
-    ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
-    ret = ret.dict()
+    if docker.create_app_directory(app_name):
+        # check port
+        docker.check_app_compose(app_name)
+        cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
+        t1 = Thread(target=shell_execute.execute_command_output_all, args=(cmd,))
+        t1.start()
+        ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
+        ret = ret.dict()
+    else:
+        ret = Response(code=const.RETURN_FAIL , message="目前不支持安装此App")
     return ret
 
 def if_app_exits(app_name):
