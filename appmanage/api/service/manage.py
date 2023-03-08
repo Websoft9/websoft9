@@ -23,6 +23,7 @@ def get_my_app(app_name=None):
         for i in range(0, num):
             name = output_list[3 * i]   #name
             image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + name + "-websoft9.png"
+            trade_mark = ""
             id = 0  #id
             status = output_list[3 * i + 1].split("(")[0]   #status
             if(status.startswith("r")):
@@ -56,7 +57,7 @@ def get_my_app(app_name=None):
             if password == "":
                 password = "-"
 
-            app = App(id=id, name=name, status_code=status_code, status=status, port=port, volume=volume, url=url, image_url=image_url, user_name=user_name, password=password)
+            app = App(id=id, name=name, status_code=status_code, status=status, port=port, volume=volume, url=url, image_url=image_url, trade_mark=trade_mark, user_name=user_name, password=password)
             list.append(app.dict())
         flag = 0
         if app_name != None:
