@@ -18,7 +18,7 @@ def list_my_apps():
 
 @router.get("/install")
 def install_app(app_name: Optional[str] = None, app_version: Optional[str] = None):
-    ret = manage.install_app(app_name)
+    ret = manage.install_app(app_name, app_version)
     return JSONResponse(content=ret)
 
 @router.get("/process")

@@ -53,11 +53,15 @@ def set_app_info(output_list, num):
             pass
         id = 0  # id
         case = output_list[3 * i + 1].split("(")[0]  # case
-        if (case.startswith("r")):
+        if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
-        else:
+        elif case == "exited":
             case = "stop"
             case_code = const.RETURN_STOP
+        elif case == "ready":
+            case_code = const.RETURN_READY
+        else:
+            case_code = const.RETURN_ERROR
         volume = output_list[3 * i + 2]  # volume
         j = 2
         while not volume.startswith("/"):
@@ -101,11 +105,14 @@ def install_app_process(app_name):
         ret = ret.dict()
     return ret
 
-def install_app(app_name,app_version):
+def install_app(app_name, app_version):
     # check directory
     if docker.check_app_directory(app_name):
         # check port
         docker.check_app_compose(app_name)
+        if app_version != None:
+            path = "/data/apps/"+app_name+"/.env"
+            docker.modify_env(path, "APP_VERSION", app_version)
         cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
         t1 = Thread(target=shell_execute.execute_command_output_all, args=(cmd,))
         t1.start()
