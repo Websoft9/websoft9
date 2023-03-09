@@ -93,8 +93,8 @@ def set_app_info(output_list, num):
 def install_app_process(app_name):
 
     if docker.check_app_directory(app_name):
-        
-        ret = Response(code=const.RETURN_SUCCESS, message="20%")
+        percentage = docker.get_process_perc(app_name):
+        ret = Response(code=const.RETURN_SUCCESS, message=percentage)
         ret = ret.dict()
     else:
         ret = Response(code=const.RETURN_FAIL , message="目前没有安装此App")
