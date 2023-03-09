@@ -102,6 +102,7 @@ def install_app(app_name):
         ret = ret.dict()
     else:
         ret = Response(code=const.RETURN_FAIL , message="目前不支持安装此App")
+        ret = ret.dict()
     return ret
 
 def if_app_exits(app_name):
