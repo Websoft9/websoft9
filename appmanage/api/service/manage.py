@@ -90,7 +90,7 @@ def set_app_info(output_list, num):
         list.append(app.dict())
     return list
 
-def install_app(app_name):
+def install_app(app_name,app_version):
     # check directory
     if docker.check_app_directory(app_name):
         # check port
