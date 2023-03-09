@@ -90,6 +90,17 @@ def set_app_info(output_list, num):
         list.append(app.dict())
     return list
 
+def install_app_process(app_name):
+
+    if docker.check_app_directory(app_name):
+        
+        ret = Response(code=const.RETURN_SUCCESS, message="20%")
+        ret = ret.dict()
+    else:
+        ret = Response(code=const.RETURN_FAIL , message="目前没有安装此App")
+        ret = ret.dict()
+    return ret
+
 def install_app(app_name,app_version):
     # check directory
     if docker.check_app_directory(app_name):
