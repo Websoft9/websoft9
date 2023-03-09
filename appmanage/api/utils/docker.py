@@ -7,6 +7,11 @@ from dotenv import load_dotenv, find_dotenv
 import dotenv
 from pathlib import Path
 
+def get_process_perc(app_name):
+    process_now = "0%"
+
+    return true
+
 def check_vm_resource():
     # 服务器剩余资源是否足够安装，如cpu，内存，硬盘
 
