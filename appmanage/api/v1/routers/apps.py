@@ -17,7 +17,7 @@ def list_my_apps():
     return JSONResponse(content=list)
 
 @router.get("/install")
-def install_app(app_name: Optional[str] = None):
+def install_app(app_name: Optional[str] = None, app_version: Optional[str] = None):
     ret = manage.install_app(app_name)
     return JSONResponse(content=ret)
 
