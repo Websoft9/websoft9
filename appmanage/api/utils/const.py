@@ -7,7 +7,9 @@ RETURN_SUCCESS = 0
 RETURN_FAIL = -1
 
 # 应用状态定义
-# 应用正在启动
+# 应用启动准备
+RETURN_READY = 0
+# 应用正在运行
 RETURN_RUNNING = 1
 # 应用已经停止
 RETURN_STOP = 2
