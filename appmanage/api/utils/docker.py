@@ -15,7 +15,7 @@ def get_process_perc(app_name):
     client = docker.from_env()
     image_name = app_name + ":" + app_version
     print(resp)
-    resp = client.api.pull(image_name, stream=True, decode=True)
+    resp = client.api.pull(app_name, tags=app_version, stream=True, decode=True)
     print(resp)
     #for line in resp:
     #  print(json.dumps(line, indent=4))
