@@ -12,6 +12,7 @@ def get_process_perc(app_name):
     process_now = "0%"
     path = "/data/apps/" + app_name + "/.env"
     app_version = read_env(path, "APP_VERSION")
+    print(app_version)
     client = docker.from_env()
     image_name = app_name + ":" + app_version
     print(resp)
