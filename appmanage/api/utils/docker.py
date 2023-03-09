@@ -10,10 +10,14 @@ from pathlib import Path
 def get_process_perc(app_name):
     
     process_now = "0%"
+    path = "/data/apps/" + app_name + "/.env"
+    app_version = read_env(path, "APP_VERSION")
     client = docker.from_env()
-    resp = client.api.pull(app_name, stream=True, decode=True)
-    for line in resp:
-      print(json.dumps(line, indent=4))
+    image_name = app_name + ":" + app_version
+    resp = client.api.pull(image_name:, stream=True, decode=True)
+    print(resp)
+    #for line in resp:
+    #  print(json.dumps(line, indent=4))
 
     return process_now
 
