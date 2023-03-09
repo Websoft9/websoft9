@@ -1,5 +1,5 @@
 import os, io, sys, platform, shutil, time, json, datetime
-import re
+import re,docker
 from api.utils import shell_execute
 from api.utils import network
 
@@ -10,6 +10,10 @@ from pathlib import Path
 def get_process_perc(app_name):
     
     process_now = "0%"
+    client = docker.from_env()
+    resp = client.api.pull(app_name, stream=True, decode=True)
+    for line in resp:
+      print(json.dumps(line, indent=4))
 
     return process_now
 
