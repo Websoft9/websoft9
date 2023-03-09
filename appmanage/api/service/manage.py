@@ -69,8 +69,8 @@ def set_app_info(output_list, num):
             j = j + 1
         # get env info
         path = "/data/apps/" + name + "/.env"
-        http_port_env, http_port = docker.read_env(path, "APP_HTTP_PORT")
-        db_port_env, db_port = docker.read_env(path, "APP_DB.*_PORT")
+        http_port = docker.read_env(path, "APP_HTTP_PORT")
+        db_port = docker.read_env(path, "APP_DB.*_PORT")
         # get port and url
         port = 0
         url = "-"
@@ -81,11 +81,11 @@ def set_app_info(output_list, num):
             port = int(db_port)
 
         # get user_name
-        username_env, user_name = docker.read_env(path, "APP_USER")
+        user_name = docker.read_env(path, "APP_USER")
         if user_name == "":
             user_name = "-"
         # get password
-        password_env, password = docker.read_env(path, "POWER_PASSWORD")
+        password = docker.read_env(path, "POWER_PASSWORD")
         if password == "":
             password = "-"
 
