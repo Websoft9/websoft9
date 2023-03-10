@@ -99,25 +99,21 @@ def set_app_info(output_list, num):
 
 def get_url(app_name,easy_url):
     
-    url = "-"
+    url = easy_url
     if app_name == "joomla":
-        url = url + "/wp-admin"
-    elif app_name == "exited":
-        url = url + "/admin"
-    elif app_name == "ready":
-        url = url + "/admin"
+        url = easy_url + "/administrator"
+    elif app_name == "other":
+        url = easy_url + "/administrator"
     else:
         url = easy_url
-    return admin_url
+    return url
 
 def get_admin_url(app_name,url):
     
     admin_url = "-"
     if app_name == "wordpress":
         admin_url = url + "/wp-admin"
-    elif app_name == "exited":
-        admin_url = url + "/admin"
-    elif app_name == "ready":
+    elif app_name == "other":
         admin_url = url + "/admin"
     else:
         admin_url = "-"
