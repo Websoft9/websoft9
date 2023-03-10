@@ -37,30 +37,24 @@ def check_app_directory(app_name):
 def check_app_compose(app_name):
     print("checking port...")
     path = "/data/apps/" + app_name + "/.env"
-    http_port = read_env(path, "APP_HTTP_PORT")
-    db_port = read_env(path, "APP_DB.*_PORT")
+    port_dic = read_env(path, "APP_.*_PORT")
     #1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（network.py的get_start_port方法）
-    if http_port != "":
-        print("check http port...")
-        http_port = network.get_start_port(http_port)
-        modify_env(path, "APP_HTTP_PORT", http_port)
-    if db_port != "":
-        print("check db port...")
-        db_port = network.get_start_port(db_port)
-        modify_env(path, "APP_DB.*_PORT", db_port)
+    for port_name in port_dic:
+        port_value = network.get_start_port(port_dic[port_name])
+        modify_env(path, port_name, port_value)
     print("port check complete")
     return
 
 def read_env(path, key):
-    output = shell_execute.execute_command_output_all("cat " + path + "|grep "+ key+ "|head -1")
+    output = shell_execute.execute_command_output_all("cat " + path + "|grep "+ key)
     code = output["code"]
-    ret = ""    #the value of environment var
+    env_dic = {}
     if int(code) == 0 and output["result"] != "":
         ret = output["result"]
-        ret = ret.split("=")[1]
-        ret = re.sub("'","",ret)
-        ret = re.sub("\n","",ret)
-    return ret
+        env_list = ret.split()
+        for env in env_list:
+            env_dic[env.split("=")[0]] = env.split("=")[1]
+    return env_dic
 
 def modify_env(path, env_name, value):
     file_data = ""

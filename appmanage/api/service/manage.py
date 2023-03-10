@@ -35,13 +35,13 @@ def get_my_app(app_name=None):
 def set_app_info(output_list, num):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
-    list = []
+    app_list = []
     for i in range(0, num):
-        name = output_list[3 * i]  # name
-        image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + name + "-websoft9.png"
+        app_name = output_list[3 * i]  # app_name
+        image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + app_name + "-websoft9.png"
         # get trade_mark
         trade_mark = ""
-        var_path = "/data/apps/" + name + "/variables.json"
+        var_path = "/data/apps/" + app_name + "/variables.json"
         try:
             f = open(var_path, 'r', encoding='utf-8')
             var = json.load(f)
@@ -68,34 +68,48 @@ def set_app_info(output_list, num):
             volume = output_list[3 * i + j]
             j = j + 1
         # get env info
-        path = "/data/apps/" + name + "/.env"
-        http_port = docker.read_env(path, "APP_HTTP_PORT")
-        db_port = docker.read_env(path, "APP_DB.*_PORT")
-        # get port and url
+        path = "/data/apps/" + app_name + "/.env"
         port = 0
         url = "-"
         admin_url = "-"
-        if http_port != "":
+        # get port and url
+        try:
+            http_port = list(docker.read_env(path, "APP_HTTP_PORT").values())[0]
             port = int(http_port)
             easy_url = "http://" + ip + ":" + str(port)
             url = get_url(app_name, easy_url)
             admin_url = get_admin_url(app_name, url)
-        elif db_port != "":
-            port = int(db_port)
-
+        except IndexError:
+            try:
+                db_port = list(docker.read_env(path, "APP_DB.*_PORT").values())[0]
+                port = int(db_port)
+            except IndexError:
+                pass
         # get user_name
-        user_name = docker.read_env(path, "APP_USER")
-        if user_name == "":
-            user_name = "-"
+        user_name = "-"
+        try:
+            user_name = list(docker.read_env(path, "APP_USER").values())[0]
+        except IndexError:
+            pass
         # get password
-        password = docker.read_env(path, "POWER_PASSWORD")
-        if password == "":
-            password = "-"
+        password = "-"
+        try:
+            password = list(docker.read_env(path, "POWER_PASSWORD").values())[0]
+        except IndexError:
+            pass
 
-        app = App(id=id, name=name, status_code=case_code, status=case, port=port, volume=volume, url=url,
+        app = App(id=id, name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
-        list.append(app.dict())
-    return list
+        app_list.append(app.dict())
+
+    file_path = "/data/apps/running_apps.txt"
+    if os.path.exists(file_path) and os.path.getsize(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            for running_app_name in f:
+                app = App(id=0, name=running_app_name, status_code=const.RETURN_READY, status="ready", port=0, volume="-",
+                          url="-",image_url="-", admin_url="-", trade_mark="-", user_name="-",password="-")
+                app_list.append(app.dict())
+    return app_list
 
 def get_url(app_name,easy_url):
     
@@ -131,15 +145,18 @@ def install_app_process(app_name):
     return ret
 
 def install_app(app_name, app_version):
+    file_path = "/data/apps/running_apps.txt"
+    if os.path.exists(file_path) and os.path.getsize(file_path):
+        ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
+        ret = ret.dict()
     # check directory
-    if docker.check_app_directory(app_name):
+    elif docker.check_app_directory(app_name):
         # check port
         docker.check_app_compose(app_name)
         if app_version != None:
             path = "/data/apps/"+app_name+"/.env"
             docker.modify_env(path, "APP_VERSION", app_version)
-        cmd = "cd /data/apps/"+app_name+" && sudo docker compose up -d"
-        t1 = Thread(target=shell_execute.execute_command_output_all, args=(cmd,))
+        t1 = Thread(target=record_and_install_app, args=(app_name,))
         t1.start()
         ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
         ret = ret.dict()
@@ -147,6 +164,16 @@ def install_app(app_name, app_version):
         ret = Response(code=const.RETURN_FAIL , message="目前不支持安装此App")
         ret = ret.dict()
     return ret
+
+def record_and_install_app(app_name):
+    # modify running_apps.txt
+    file_path = "/data/apps/running_apps.txt"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(app_name)
+    cmd = "cd /data/apps/" + app_name + " && sudo docker compose up -d"
+    shell_execute.execute_command_output_all(cmd)
+    with open(file_path, "a+", encoding="utf-8") as f:
+        f.truncate(0)
 
 def if_app_exits(app_name):
     cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
