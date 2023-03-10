@@ -1,5 +1,5 @@
 import os, io, sys, platform, shutil, time, json, datetime
-import re,docker
+import re,docker,requests
 from api.utils import shell_execute
 from api.utils import network
 
@@ -19,11 +19,16 @@ def get_process_perc(app_name):
     port = read_env(path, "APP_HTTP_PORT")
     if port == "":
         port =  read_env(path, "APP_DB_PORT")
-    output = shell_execute.execute_command_output_all("curl localhost:" + port)
-    code = output["code"]
-    print(output["result"])
-    if int(code) == 0 and output["result"].find("Failed") != -1:
+    else:
+        port = "9001"
+    url = "http://localhost:" + port
+    r = requests.get(url, timeout=5)
+    code = r.status_code
+
+    if code == 200: 
         process_now = "running"
+    else:
+        print "网站初始化未完成，不能访问！"
 
     return process_now
 
