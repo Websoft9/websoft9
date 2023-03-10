@@ -15,11 +15,11 @@ def get_process_perc(app_name):
     if int(code) == 0 and output["result"] != "":
         process_now = "starting"
     
-    output = shell_execute.execute_command_output_all("sudo docker compose ls |grep  " + app_name)
+    output = shell_execute.execute_command_output_all("docker inspect " +  app_name + "|grep error")
     code = output["code"]
-    if int(code) == 0 and output["result"] != "":
-        process_now = "running"
-
+    if int(code) == 0 and output["result"] == "":
+        process_now = "Initializing"
+    
     return process_now
 
 def check_vm_resource():
