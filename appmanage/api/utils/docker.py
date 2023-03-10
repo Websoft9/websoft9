@@ -14,6 +14,7 @@ def get_process_perc(app_name):
     code = output["code"]
     if int(code) == 0 and output["result"] != "":
         process_now = "starting"
+    path = "/data/apps/" + app_name + "/.env"
     http_port = read_env(path, "APP_HTTP_PORT")
     output = shell_execute.execute_command_output_all("curl localhost:" + http_port)
     code = output["code"]
