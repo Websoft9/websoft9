@@ -28,7 +28,7 @@ def get_process_perc(app_name):
     if code == 200: 
         process_now = "running"
     else:
-        print "网站初始化未完成，不能访问！"
+        process_now = "starting"
 
     return process_now
 
