@@ -74,9 +74,12 @@ def set_app_info(output_list, num):
         # get port and url
         port = 0
         url = "-"
+        admin_url = "-"
         if http_port != "":
             port = int(http_port)
-            url = "http://" + ip + ":" + str(port)
+            easy_url = "http://" + ip + ":" + str(port)
+            url = get_url(app_name, easy_url)
+            admin_url = get_admin_url(app_name, url)
         elif db_port != "":
             port = int(db_port)
 
@@ -90,9 +93,35 @@ def set_app_info(output_list, num):
             password = "-"
 
         app = App(id=id, name=name, status_code=case_code, status=case, port=port, volume=volume, url=url,
-                  image_url=image_url, trade_mark=trade_mark, user_name=user_name, password=password)
+                  image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
         list.append(app.dict())
     return list
+
+def get_url(app_name,easy_url):
+    
+    url = "-"
+    if app_name == "joomla":
+        url = url + "/wp-admin"
+    elif app_name == "exited":
+        url = url + "/admin"
+    elif app_name == "ready":
+        url = url + "/admin"
+    else:
+        url = easy_url
+    return admin_url
+
+def get_admin_url(app_name,url):
+    
+    admin_url = "-"
+    if app_name == "wordpress":
+        admin_url = url + "/wp-admin"
+    elif app_name == "exited":
+        admin_url = url + "/admin"
+    elif app_name == "ready":
+        admin_url = url + "/admin"
+    else:
+        admin_url = "-"
+    return admin_url
 
 def install_app_process(app_name):
 
