@@ -9,17 +9,16 @@ from pathlib import Path
 
 def get_process_perc(app_name):
     
-    process_now = "0%"
-    path = "/data/apps/" + app_name + "/.env"
-    app_version_env, app_version = read_env(path, "APP_VERSION")
-    print(app_version)
-    client = docker.from_env()
-    image_name = app_name + ":" + app_version
-    print(resp)
-    resp = client.api.pull(app_name, tags=app_version, stream=True, decode=True)
+    process_now = "pulling"
+    output = "sudo docker image list |grep  " + app_name
+    code = output["code"]
+    if int(code) == 0 and output["result"] != "":
+        process_now = "starting"
+    output = "sudo docker compose ls |grep " + app_name
+    code = output["code"]
+    if int(code) == 0 and output["result"] != "":
+        process_now = "initializing"
 
-    for line in resp:
-      print(json.dumps(line, indent=4))
 
     return process_now
 
