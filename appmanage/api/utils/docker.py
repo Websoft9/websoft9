@@ -16,8 +16,10 @@ def get_process_perc(app_name):
         process_now = "starting"
     path = "/data/apps/" + app_name + "/.env"
     http_port = read_env(path, "APP_HTTP_PORT")
+    print("curl localhost:" + http_port)
     output = shell_execute.execute_command_output_all("curl localhost:" + http_port)
     code = output["code"]
+    print(output["result"])
     if int(code) == 0 and output["result"].find("Failed") != -1:
         process_now = "running"
 
