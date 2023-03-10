@@ -10,5 +10,6 @@ class App(BaseModel):
     volume: str
     url: str
     image_url: str
+    admin_url: str
     user_name: str
     password: str
