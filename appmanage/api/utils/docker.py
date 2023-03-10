@@ -15,20 +15,10 @@ def get_process_perc(app_name):
     if int(code) == 0 and output["result"] != "":
         process_now = "starting"
     
-    path = "/data/apps/" + app_name + "/.env"
-    port = read_env(path, "APP_HTTP_PORT")
-    if port == "":
-        port =  read_env(path, "APP_DB_PORT")
-    else:
-        port = "9001"
-    url = "http://localhost:" + port
-    r = requests.get(url, timeout=5)
-    code = r.status_code
-
-    if code == 200: 
+    output = shell_execute.execute_command_output_all("sudo docker compose ls |grep  " + app_name)
+    code = output["code"]
+    if int(code) == 0 and output["result"] != "":
         process_now = "running"
-    else:
-        process_now = "starting"
 
     return process_now
 
