@@ -236,11 +236,16 @@ def restart_app(app_name):
     ret = ret.dict()
     return ret
 
-def delete_app(app_name):
+def delete_app(app_name, delete_flag):
     ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_name)
     if if_stopped["code"] == 0:
-        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"
+        if delete_flag == 0
+            cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"
+        else if delete_flag == 1
+            cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down -v"
+        else:
+            cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = 0
