@@ -14,11 +14,10 @@ def get_my_app(app_name=None):
     cmd = "sudo docker compose ls -a"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
-        output_list = output["result"].split()
+        output_list = output["result"].split("\n")
         list = []
-        output_list = output_list[4:]
-        num = int(len(output_list) / 3)
-        list = set_app_info(output_list, num)
+        output_list = output_list[1:-1]
+        list = set_app_info(output_list)
         flag = 0
         if app_name != None:
             for app in list:
@@ -32,19 +31,25 @@ def get_my_app(app_name=None):
     ret = ret.dict()
     return ret
 
-def set_app_info(output_list, num):
+def set_app_info(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
     app_list = []
-    for i in range(0, num):
-        app_name = output_list[3 * i]  # app_name
+    id_dic = get_id_dic()
+    for app_info in output_list:
+        app_name = app_info.split()[0]  # app_name
         image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + app_name + "-websoft9.png"
         # get trade_mark
         trade_mark = get_trade_mark(app_name)
         id = 0  # id
-        case = output_list[3 * i + 1].split("(")[0]  # case
+        id = "0"  # id
+        case = app_info.split()[1].split("(")[0]  # case
         if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
+            try:
+                id = id_dic[app_name]
+            except KeyError:
+                pass
         elif case == "exited":
             case = "stop"
             case_code = const.RETURN_STOP
@@ -52,11 +57,7 @@ def set_app_info(output_list, num):
             case_code = const.RETURN_READY
         else:
             case_code = const.RETURN_ERROR
-        volume = output_list[3 * i + 2]  # volume
-        j = 2
-        while not volume.startswith("/"):
-            volume = output_list[3 * i + j]
-            j = j + 1
+        volume = app_info.split()[-1]  # volume
         # get env info
         path = "/data/apps/" + app_name + "/.env"
         port = 0
@@ -98,13 +99,25 @@ def set_app_info(output_list, num):
             for running_app_name in f:
                 image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + running_app_name + "-websoft9.png"
                 trade_mark = get_trade_mark(app_name)
-                app = App(id=0, name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                app = App(id="0", name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-",image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",password="-")
                 app_list.append(app.dict())
     return app_list
 
+def get_id_dic():
+    output = shell_execute.execute_command_output_all("docker ps")
+    id_dic = {}
+    if int(output["code"]) == 0:
+        id_op = output["result"].split("\n")
+        id_op = id_op[1:-1]
+        for i in id_op:
+            id_name = i.split()[-1]
+            id = i.split()[0]
+            id_dic[id_name] = id
+    return id_dic
+
 def get_trade_mark(app_name):
-    
+
     trade_mark = ""
     var_path = "/data/apps/" + app_name + "/variables.json"
     try:
@@ -240,9 +253,9 @@ def delete_app(app_name, delete_flag):
     ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_name)
     if if_stopped["code"] == 0:
-        if delete_flag == 0
+        if delete_flag == 0:
             cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"
-        else if delete_flag == 1
+        elif delete_flag == 1:
             cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down -v"
         else:
             cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down"

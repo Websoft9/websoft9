@@ -2,7 +2,7 @@ import os, io, sys, platform, shutil, time, json, datetime
 import re,docker,requests
 from api.utils import shell_execute
 from api.utils import network
-
+import psutil as p
 from dotenv import load_dotenv, find_dotenv
 import dotenv
 from pathlib import Path
@@ -22,9 +22,32 @@ def get_process_perc(app_name):
     
     return process_now
 
-def check_vm_resource():
+def check_vm_resource(app_name):
     # 服务器剩余资源是否足够安装，如cpu，内存，硬盘
-
+    p.cpu_percent(None)  # 第一次返回的结果是0
+    time.sleep(0.5)
+    cpu_percent = p.cpu_percent(None)
+    mem = p.virtual_memory()
+    mem_total = float(mem.total) / 1024 / 1024 / 1024
+    mem_free = float(mem.available) / 1024 / 1024 / 1024
+    disk = p.disk_usage('/')
+    disk_free = float(disk.free) / 1024 / 1024 / 1024
+    if cpu_percent>70 or mem_free<1 or disk_free<5:
+        return False
+    # read variables.json
+    memory = ""
+    var_path = "/data/apps/" + app_name + "/variables.json"
+    try:
+        f = open(var_path, 'r', encoding='utf-8')
+        var = json.load(f)
+        try:
+            trade_mark = var["memory"]
+        except KeyError:
+            return False
+    except FileNotFoundError:
+        return False
+    if memory == "8" and mem_total<8 and mem_free<4:
+        return False
     return true
 
 def check_app_directory(app_name):
