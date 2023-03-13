@@ -164,19 +164,35 @@ def install_app_process(app_name):
         ret = ret.dict()
     return ret
 
-def install_app(app_name, app_version):
+def install_app(app_name, customer_app_name, app_version):
     file_path = "/data/apps/running_apps.txt"
+    
+    # 防止app名重复
+    if if os.path.exists("/data/apps/"+customer_app_name)
+           ret = Response(code=const.RETURN_FAIL , message="APP名称已经使用，请指定其他名称重新安装。")
+           ret = ret.dict()
+           return ret
+    
     if os.path.exists(file_path) and os.path.getsize(file_path):
         ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
         ret = ret.dict()
-    # check directory
+
     elif docker.check_app_directory(app_name):
+        
+        if app_name != customer_app_name:
+            output = shell_execute.execute_command_output_all("cp -r /data/apps/" + app_name + " /data/apps/" + customer_app_name)
+            if int(output["code"]) != 0:
+                ret.code = const.RETURN_FAIL
+                ret.message = "创建" + customer_app_name + "目录失败."
+                ret = ret.dict()
+                return ret
+  
         # check port
-        docker.check_app_compose(app_name)
+        docker.check_app_compose(customer_app_name)
         if app_version != None:
-            path = "/data/apps/"+app_name+"/.env"
+            path = "/data/apps/"+customer_app_name+"/.env"
             docker.modify_env(path, "APP_VERSION", app_version)
-        t1 = Thread(target=record_and_install_app, args=(app_name,))
+        t1 = Thread(target=record_and_install_app, args=(customer_app_name,))
         t1.start()
         ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
         ret = ret.dict()
