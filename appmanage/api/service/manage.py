@@ -40,17 +40,7 @@ def set_app_info(output_list, num):
         app_name = output_list[3 * i]  # app_name
         image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + app_name + "-websoft9.png"
         # get trade_mark
-        trade_mark = ""
-        var_path = "/data/apps/" + app_name + "/variables.json"
-        try:
-            f = open(var_path, 'r', encoding='utf-8')
-            var = json.load(f)
-            try:
-                trade_mark = var["trademark"]
-            except KeyError:
-                pass
-        except FileNotFoundError:
-            pass
+        trade_mark = get_trade_mark(app_name)
         id = 0  # id
         case = output_list[3 * i + 1].split("(")[0]  # case
         if case == "running":
@@ -106,10 +96,27 @@ def set_app_info(output_list, num):
     if os.path.exists(file_path) and os.path.getsize(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
-                app = App(id=0, name=running_app_name, status_code=const.RETURN_READY, status="ready", port=0, volume="-",
-                          url="-",image_url="-", admin_url="-", trade_mark="-", user_name="-",password="-")
+                image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + running_app_name + "-websoft9.png"
+                trade_mark = get_trade_mark(app_name)
+                app = App(id=0, name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                          url="-",image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",password="-")
                 app_list.append(app.dict())
     return app_list
+
+def get_trade_mark(app_name):
+    
+    trade_mark = ""
+    var_path = "/data/apps/" + app_name + "/variables.json"
+    try:
+        f = open(var_path, 'r', encoding='utf-8')
+        var = json.load(f)
+        try:
+            trade_mark = var["trademark"]
+        except KeyError:
+            pass
+    except FileNotFoundError:
+        pass
+    return trade_mark
 
 def get_url(app_name,easy_url):
     
