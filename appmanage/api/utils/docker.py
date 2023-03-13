@@ -51,7 +51,7 @@ def check_vm_resource(app_name):
     return true
 
 def check_app_directory(app_name):
-    # 判断/data/apps/app_name是否已经存在，如果已经存在，方法结束
+    # websoft9's support applist
     print("checking dir...")
     path = "/data/apps/"+app_name
     isexsits = os.path.exists(path)
