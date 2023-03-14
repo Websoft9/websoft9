@@ -32,7 +32,7 @@ def check_vm_resource(app_name):
     mem_free = float(mem.available) / 1024 / 1024 / 1024
     disk = p.disk_usage('/')
     disk_free = float(disk.free) / 1024 / 1024 / 1024
-    if cpu_percent>70 or mem_free<1 or disk_free<5:
+    if cpu_percent>90 or mem_free<0.5 or disk_free<3:
         return False
     # read variables.json
     memory = ""
@@ -41,7 +41,7 @@ def check_vm_resource(app_name):
         f = open(var_path, 'r', encoding='utf-8')
         var = json.load(f)
         try:
-            trade_mark = var["memory"]
+            memory = var["memory"]
         except KeyError:
             return False
     except FileNotFoundError:
