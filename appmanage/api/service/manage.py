@@ -165,15 +165,17 @@ def install_app_process(app_name):
     return ret
 
 def install_app(app_name, customer_app_name, app_version):
-    file_path = "/data/apps/running_apps.txt"
+    
+    runnging_file_path = "/data/apps/running_apps.txt"
+    unique_app_path = "/data/apps/" + customer_app_name
     
     # 防止app名重复
-    if os.path.exists("/data/apps/"+customer_app_name)
+    if os.path.exists(unique_app_path)
            ret = Response(code=const.RETURN_FAIL , message="APP名称已经使用，请指定其他名称重新安装。")
            ret = ret.dict()
            return ret
     
-    if os.path.exists(file_path) and os.path.getsize(file_path):
+    if os.path.exists(runnging_file_path) and os.path.getsize(runnging_file_path):
         ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
         ret = ret.dict()
 
