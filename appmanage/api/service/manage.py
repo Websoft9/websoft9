@@ -167,7 +167,7 @@ def install_app_process(app_name):
 def install_app(app_name, customer_app_name, app_version):
     
     runnging_file_path = "/data/apps/running_apps.txt"
-    unique_app_path = "/data/apps/" + customer_app_name
+    unique_app_path = "/data/apps/" + str(customer_app_name)
     
     # 防止app名重复
     if os.path.exists(unique_app_path)
