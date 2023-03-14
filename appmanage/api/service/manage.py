@@ -35,21 +35,15 @@ def set_app_info(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
     app_list = []
-    id_dic = get_id_dic()
     for app_info in output_list:
         app_name = app_info.split()[0]  # app_name
         image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + app_name + "-websoft9.png"
         # get trade_mark
         trade_mark = docker.read_var(app_name, 'trademark')
-        id = 0  # id
-        id = "0"  # id
+        id = app_name  # id
         case = app_info.split()[1].split("(")[0]  # case
         if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
-            try:
-                id = id_dic[app_name]
-            except KeyError:
-                pass
         elif case == "exited":
             case = "stop"
             case_code = const.RETURN_STOP
@@ -101,22 +95,10 @@ def set_app_info(output_list):
                 image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + running_app_name + "-websoft9.png"
                 trade_mark = docker.read_var(app_name, 'trademark')
                 true_name = docker.read_var(app_name, 'name')
-                app = App(id="0", name=true_name, customer_name = running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                app = App(id=running_app_name, name=true_name, customer_name = running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-",image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",password="-")
                 app_list.append(app.dict())
     return app_list
-
-def get_id_dic():
-    output = shell_execute.execute_command_output_all("docker ps")
-    id_dic = {}
-    if int(output["code"]) == 0:
-        id_op = output["result"].split("\n")
-        id_op = id_op[1:-1]
-        for i in id_op:
-            id_name = i.split()[-1]
-            id = i.split()[0]
-            id_dic[id_name] = id
-    return id_dic
 
 def get_url(app_name,easy_url):
     
@@ -155,16 +137,16 @@ def install_app(app_name, customer_app_name , app_version):
     app_file_path = '/data/apps/'+app_name
     running_file_path = "/data/apps/running_apps.txt"
     unique_app_path = "/data/apps/"+customer_app_name
-    
-    # 防止app名重复
-    if os.path.exists(app_file_path) and app_name == customer_app_name:
-        ret = Response(code=const.RETURN_FAIL , message="APP名称已经使用，请指定其他名称重新安装。")
-        ret = ret.dict()
-        return ret
-    
+
     if os.path.exists(running_file_path) and os.path.getsize(running_file_path):
         ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
         ret = ret.dict()
+
+    # 防止app名重复
+    if if_app_exits(customer_app_name):
+        ret = Response(code=const.RETURN_FAIL , message="APP名称已经使用，请指定其他名称重新安装。")
+        ret = ret.dict()
+        return ret
 
     elif docker.check_app_directory(app_name):
         
