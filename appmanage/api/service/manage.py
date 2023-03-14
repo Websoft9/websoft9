@@ -168,7 +168,7 @@ def install_app(app_name, customer_app_name, app_version):
     file_path = "/data/apps/running_apps.txt"
     
     # 防止app名重复
-    if if os.path.exists("/data/apps/"+customer_app_name)
+    if os.path.exists("/data/apps/"+customer_app_name)
            ret = Response(code=const.RETURN_FAIL , message="APP名称已经使用，请指定其他名称重新安装。")
            ret = ret.dict()
            return ret
