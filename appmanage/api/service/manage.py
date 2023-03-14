@@ -40,7 +40,7 @@ def set_app_info(output_list):
         app_name = app_info.split()[0]  # app_name
         image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + app_name + "-websoft9.png"
         # get trade_mark
-        trade_mark = get_trade_mark(app_name)
+        trade_mark = docker.read_var(app_name, 'trademark')
         id = 0  # id
         id = "0"  # id
         case = app_info.split()[1].split("(")[0]  # case
@@ -89,7 +89,8 @@ def set_app_info(output_list):
         except IndexError:
             pass
 
-        app = App(id=id, name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
+        true_name = docker.read_var(app_name, 'name')
+        app = App(id=id, name=true_name, customer_name = app_name ,status_code=case_code, status=case, port=port, volume=volume, url=url,
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
         app_list.append(app.dict())
 
@@ -98,8 +99,9 @@ def set_app_info(output_list):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
                 image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + running_app_name + "-websoft9.png"
-                trade_mark = get_trade_mark(app_name)
-                app = App(id="0", name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                trade_mark = docker.read_var(app_name, 'trademark')
+                true_name = docker.read_var(app_name, 'name')
+                app = App(id="0", name=true_name, customer_name = running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-",image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",password="-")
                 app_list.append(app.dict())
     return app_list
@@ -115,21 +117,6 @@ def get_id_dic():
             id = i.split()[0]
             id_dic[id_name] = id
     return id_dic
-
-def get_trade_mark(app_name):
-
-    trade_mark = ""
-    var_path = "/data/apps/" + app_name + "/variables.json"
-    try:
-        f = open(var_path, 'r', encoding='utf-8')
-        var = json.load(f)
-        try:
-            trade_mark = var["trademark"]
-        except KeyError:
-            pass
-    except FileNotFoundError:
-        pass
-    return trade_mark
 
 def get_url(app_name,easy_url):
     
@@ -164,18 +151,18 @@ def install_app_process(app_name):
         ret = ret.dict()
     return ret
 
-def install_app(app_name, customer_app_name, app_version):
-    
-    runnging_file_path = "/data/apps/running_apps.txt"
+def install_app(app_name, customer_app_name , app_version):
+    app_file_path = '/data/apps/'+app_name
+    running_file_path = "/data/apps/running_apps.txt"
     unique_app_path = "/data/apps/"+customer_app_name
     
     # 防止app名重复
-    if os.path.exists(runnging_file_path):
+    if os.path.exists(app_file_path) and app_name == customer_app_name:
         ret = Response(code=const.RETURN_FAIL , message="APP名称已经使用，请指定其他名称重新安装。")
         ret = ret.dict()
         return ret
     
-    if os.path.exists(runnging_file_path) and os.path.getsize(runnging_file_path):
+    if os.path.exists(running_file_path) and os.path.getsize(running_file_path):
         ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
         ret = ret.dict()
 
@@ -188,6 +175,8 @@ def install_app(app_name, customer_app_name, app_version):
                 ret.message = "创建" + customer_app_name + "目录失败."
                 ret = ret.dict()
                 return ret
+            var_file = unique_app_path + '/variables.json'
+            docker.modify_env(var_file, 'APP_NAME', customer_app_name)
   
         # check port
         docker.check_app_compose(customer_app_name)

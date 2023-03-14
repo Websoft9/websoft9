@@ -89,3 +89,17 @@ def modify_env(path, env_name, value):
             file_data += line
     with open(path, "w", encoding="utf-8") as f:
         f.write(file_data)
+
+def read_var(app_name, var_name):
+    value = "-"
+    var_path = "/data/apps/" + app_name + "/variables.json"
+    try:
+        f = open(var_path, 'r', encoding='utf-8')
+        var = json.load(f)
+        try:
+            value = var[var_name]
+        except KeyError:
+            pass
+    except FileNotFoundError:
+        pass
+    return value
