@@ -47,7 +47,7 @@ def check_vm_resource(app_name):
     if disk_total<need_disk or disk_free<2:
         return False
 
-    return true
+    return True
 
 def check_app_directory(app_name):
     # websoft9's support applist
