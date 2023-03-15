@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
+from api.utils.common_log import myLogger
 
 # 执行Shell命令，处理报错和超时，并有返回值
 def execute_Command(cmd_str, timeout=60, timeinner=3, retry=True):
@@ -55,16 +56,17 @@ def execute_command_output(cmd_str):
 # cmd_str: 执行的command命令 times：如果不成功的重复次数
 def execute_command_output_all(cmd_str, max_time = 3):
     
-    print("start to excute cmd: " + cmd_str)
-    excutetime = 0
-    while excutetime < max_time:
+    myLogger.info_logger("Start to execute cmd: " + cmd_str)
+    execute_time = 0
+    while execute_time < max_time:
         process = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
         if process.returncode == 0:
             return {"code": "0", "result": process.stdout,}
         else:
-            excutetime = excutetime + 1    
+            execute_time = execute_time + 1
 
-    return {"code": "-1", "result": "command excute failed, please check your command!"}
+    myLogger.warning_logger("Command execute failed   Commend: " + cmd_str)
+    return {"code": "-1", "result": "command execute failed, please check your command!"}
 
 def convert_command(cmd_str):
     convert_cmd = ""

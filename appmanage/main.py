@@ -1,15 +1,11 @@
-import logging
+from api.utils.common_log import myLogger
 
 import api.v1.api as api_router_v1
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-logging_format = '[%(asctime)s][%(levelname)s] %(message)s'
-logging.basicConfig(format=logging_format, level=logging.DEBUG)
-logging.getLogger().setLevel(level=logging.DEBUG)
-logging.info("Starting server")
-
+myLogger.info_logger("Starting server")
 
 def get_app():
     app = FastAPI()

@@ -6,6 +6,7 @@ import psutil as p
 from dotenv import load_dotenv, find_dotenv
 import dotenv
 from pathlib import Path
+from api.utils.common_log import myLogger
 
 def get_process_perc(app_name, real_name):
     
@@ -28,6 +29,7 @@ def get_process_perc(app_name, real_name):
     return process_now
 
 def check_vm_resource(app_name):
+    myLogger.info_logger("Checking virtual memory resource ...")
     cpu_count = p.cpu_count()
     mem = p.virtual_memory()
     mem_total = float(mem.total) / 1024 / 1024 / 1024
@@ -52,23 +54,24 @@ def check_vm_resource(app_name):
 
 def check_app_directory(app_name):
     # websoft9's support applist
-    print("checking dir...")
+    myLogger.info_logger("Checking dir...")
     path = "/data/apps/"+app_name
     isexsits = os.path.exists(path)
     return isexsits
 
 def check_app_compose(app_name):
-    print("checking port...")
+    myLogger.info_logger("Checking port...")
     path = "/data/apps/" + app_name + "/.env"
     port_dic = read_env(path, "APP_.*_PORT")
     #1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（network.py的get_start_port方法）
     for port_name in port_dic:
         port_value = network.get_start_port(port_dic[port_name])
         modify_env(path, port_name, port_value)
-    print("port check complete")
+    myLogger.info_logger("Port check complete")
     return
 
 def read_env(path, key):
+    myLogger.info_logger("Read " + path)
     output = shell_execute.execute_command_output_all("cat " + path + "|grep "+ key)
     code = output["code"]
     env_dic = {}
@@ -80,6 +83,7 @@ def read_env(path, key):
     return env_dic
 
 def modify_env(path, env_name, value):
+    myLogger.info_logger("Modify " + path + "...")
     file_data = ""
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -88,18 +92,20 @@ def modify_env(path, env_name, value):
                 line = line.replace(line, env_name + "=" + value+"\n")
             file_data += line
     with open(path, "w", encoding="utf-8") as f:
+        myLogger.info_logger("Modify " + path + ": Change " + env_name + " to " + value)
         f.write(file_data)
 
 def read_var(app_name, var_name):
     value = "-"
     var_path = "/data/apps/" + app_name + "/variables.json"
+    myLogger.info_logger("Read " + var_path)
     try:
         f = open(var_path, 'r', encoding='utf-8')
         var = json.load(f)
         try:
             value = var[var_name]
         except KeyError:
-            pass
+            myLogger.warning_logger("Read " + var_path + ": No key " + var_name)
     except FileNotFoundError:
-        pass
+        myLogger.warning_logger(var_path + " not found")
     return value
