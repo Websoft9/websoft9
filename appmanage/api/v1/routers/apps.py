@@ -41,7 +41,7 @@ def restart_app(app_name: Optional[str] = None):
     ret = manage.restart(app_name)
     return JSONResponse(content=ret)
 
-@router.get("/delete")
-def delete_app(app_name: Optional[str] = None):
-    ret = manage.delete_app(app_name)
+@router.get("/uninstall")
+def uninstall_app(app_name: Optional[str] = None):
+    ret = manage.uninstall_app(app_name)
     return JSONResponse(content=ret)
