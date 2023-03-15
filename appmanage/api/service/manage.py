@@ -247,7 +247,7 @@ def restart_app(app_name):
     ret = ret.dict()
     return ret
 
-def delete_app(app_name, delete_flag):
+def uninstall_app(app_name, delete_flag):
     ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_name)
     if if_stopped["code"] == 0:
