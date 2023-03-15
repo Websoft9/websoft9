@@ -16,32 +16,32 @@ def list_my_apps():
     list = manage.get_my_app()
     return JSONResponse(content=list)
 
-@router.get("/install")
+@router.api_route("/install", methods=["GET", "POST"])
 def install_app(app_name: Optional[str] = None, customer_app_name: Optional[str] = None, app_version: Optional[str] = None, app_force: Optional[bool] = False):
     ret = manage.install_app(app_name, customer_app_name, app_version, app_force)
     return JSONResponse(content=ret)
 
-@router.get("/process")
+@router.api_route("/process", methods=["GET", "POST"])
 def install_app_process(app_id: Optional[str] = None):
     ret = manage.install_app_process(app_id)
     return JSONResponse(content=ret)
 
-@router.get("/start")
+@router.api_route("/start", methods=["GET", "POST"])
 def start_app(app_id: Optional[str] = None):
     ret = manage.start_app(app_id)
     return JSONResponse(content=ret)
 
-@router.get("/stop")
+@router.api_route("/stop", methods=["GET", "POST"])
 def stop_app(app_id: Optional[str] = None):
     ret = manage.stop_app(app_id)
     return JSONResponse(content=ret)
 
-@router.get("/restart")
+@router.api_route("/restart", methods=["GET", "POST"])
 def restart_app(app_id: Optional[str] = None):
     ret = manage.restart(app_id)
     return JSONResponse(content=ret)
 
-@router.get("/uninstall")
+@router.api_route("/uninstall", methods=["GET", "POST"])
 def uninstall_app(app_id: Optional[str] = None, delete_flag: Optional[bool] = True):
     ret = manage.uninstall_app(app_id, delete_flag)
     return JSONResponse(content=ret)
