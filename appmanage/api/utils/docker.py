@@ -31,8 +31,8 @@ def check_vm_resource(app_name):
     cpu_count = p.cpu_count()
     mem = p.virtual_memory()
     mem_total = float(mem.total) / 1024 / 1024 / 1024
-    need_cpu_count = read_var(app_name, 'cpu')
-    need_mem = read_var(app_name, 'memory')
+    need_cpu_count = int(read_var(app_name, 'cpu'))
+    need_mem = int(read_var(app_name, 'memory'))
     if cpu_count<need_cpu_count or mem_total<need_mem:
         return False
 
@@ -40,11 +40,11 @@ def check_vm_resource(app_name):
     if mem_total>=8 and mem_free<=4:
         return False
 
-    need_disk = read_var(app_name, 'disk')
+    need_disk = int(read_var(app_name, 'disk'))
     disk = p.disk_usage('/')
     disk_total = float(disk.total) / 1024 / 1024 / 1024
     disk_free = float(disk.free) / 1024 / 1024 / 1024
-    if disk<need_disk or disk_free<2:
+    if disk_total<need_disk or disk_free<2:
         return False
 
     return true
