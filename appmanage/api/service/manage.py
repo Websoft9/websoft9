@@ -109,9 +109,9 @@ def set_app_info(output_list):
             for running_app_name in f:
                 image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
                     running_app_name + "-websoft9.png"
-                trade_mark = docker.read_var(app_name, 'trademark')
-                real_name = docker.read_var(app_name, 'name')
-                app = App(id=running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                trade_mark = docker.read_var(running_app_name, 'trademark')
+                true_name = docker.read_var(running_app_name, 'name')
+                app = App(id=running_app_name, name=true_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
                 app_list.append(app.dict())
     return app_list
