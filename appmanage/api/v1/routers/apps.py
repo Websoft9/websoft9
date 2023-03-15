@@ -22,23 +22,23 @@ def install_app(app_name: Optional[str] = None, customer_app_name: Optional[str]
     return JSONResponse(content=ret)
 
 @router.get("/process")
-def install_app_process(app_name: Optional[str] = None):
-    ret = manage.install_app_process(app_name)
+def install_app_process(app_id: Optional[str] = None):
+    ret = manage.install_app_process(app_id)
     return JSONResponse(content=ret)
 
 @router.get("/start")
-def start_app(app_name: Optional[str] = None):
-    ret = manage.start_app(app_name)
+def start_app(app_id: Optional[str] = None):
+    ret = manage.start_app(app_id)
     return JSONResponse(content=ret)
 
 @router.get("/stop")
-def stop_app(app_name: Optional[str] = None):
-    ret = manage.stop_app(app_name)
+def stop_app(app_id: Optional[str] = None):
+    ret = manage.stop_app(app_id)
     return JSONResponse(content=ret)
 
 @router.get("/restart")
-def restart_app(app_name: Optional[str] = None):
-    ret = manage.restart(app_name)
+def restart_app(app_id: Optional[str] = None):
+    ret = manage.restart(app_id)
     return JSONResponse(content=ret)
 
 @router.get("/uninstall")
