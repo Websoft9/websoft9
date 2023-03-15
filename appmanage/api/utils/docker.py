@@ -10,7 +10,12 @@ from pathlib import Path
 def get_process_perc(app_name, real_name):
     
     process_now = "pulling"
-    output = shell_execute.execute_command_output_all("sudo docker image list |grep  " + real_name)
+    image_name = real_name
+    if real_name == "codeserver":
+       image_name = "code-server"
+    elif real_name == "codeserver2":
+       image_name = "code-server2"
+    output = shell_execute.execute_command_output_all("sudo docker image list |grep  " + image_name)
     code = output["code"]
     if int(code) == 0 and output["result"] != "":
         process_now = "starting"
