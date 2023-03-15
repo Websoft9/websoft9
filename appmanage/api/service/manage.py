@@ -46,8 +46,8 @@ def set_app_info(output_list):
     ip = ip_result["result"]
     app_list = []
     for app_info in output_list:
-        app_name = app_info.split()[0]  # app_name
-
+        volume = app_info.split()[-1]  # volume
+        app_name = volume.split('/')[3]
         real_name = docker.read_var(app_name, 'name')
         image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + real_name + "-websoft9.png"
         # get trade_mark
@@ -63,7 +63,6 @@ def set_app_info(output_list):
             case_code = const.RETURN_READY
         else:
             case_code = const.RETURN_ERROR
-        volume = app_info.split()[-1]  # volume
         # get env info
         path = "/data/apps/" + app_name + "/.env"
         port = 0
