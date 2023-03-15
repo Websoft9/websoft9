@@ -48,9 +48,8 @@ def set_app_info(output_list):
     for app_info in output_list:
         app_name = app_info.split()[0]  # app_name
 
-        true_name = docker.read_var(app_name, 'name')
-        image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
-            true_name + "-websoft9.png"
+        real_name = docker.read_var(app_name, 'name')
+        image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + real_name + "-websoft9.png"
         # get trade_mark
         trade_mark = docker.read_var(app_name, 'trademark')
         id = app_name  # id
@@ -76,8 +75,8 @@ def set_app_info(output_list):
                 path, "APP_HTTP_PORT").values())[0]
             port = int(http_port)
             easy_url = "http://" + ip + ":" + str(port)
-            url = get_url(app_name, easy_url)
-            admin_url = get_admin_url(app_name, url)
+            url = get_url(real_name, easy_url)
+            admin_url = get_admin_url(real_name, url)
         except IndexError:
             try:
                 db_port = list(docker.read_env(
@@ -99,8 +98,8 @@ def set_app_info(output_list):
         except IndexError:
             pass
 
-        true_name = docker.read_var(app_name, 'name')
-        app = App(id=id, name=true_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
+        real_name = docker.read_var(app_name, 'name')
+        app = App(id=id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
         app_list.append(app.dict())
 
@@ -111,8 +110,8 @@ def set_app_info(output_list):
                 image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
                     running_app_name + "-websoft9.png"
                 trade_mark = docker.read_var(app_name, 'trademark')
-                true_name = docker.read_var(app_name, 'name')
-                app = App(id=running_app_name, name=true_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                real_name = docker.read_var(app_name, 'name')
+                app = App(id=running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
                 app_list.append(app.dict())
     return app_list
