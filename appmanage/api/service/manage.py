@@ -140,8 +140,8 @@ def get_admin_url(app_name, url):
     return admin_url
 
 
-def install_app_process(app_name):
-
+def install_app_process(app_id):
+    app_name = split_app_id(app_id)
     real_name = docker.read_var(app_name, 'name')
     if docker.check_app_directory(app_name):
         percentage = docker.get_process_perc(app_name, real_name)
@@ -223,8 +223,9 @@ def if_app_exits(app_name):
         return True
 
 
-def start_app(app_name):
+def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
+    app_name = split_app_id(app_id)
     if if_app_exits(app_name):
         docker.check_app_compose(app_name)
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml start"
@@ -240,8 +241,9 @@ def start_app(app_name):
     return ret
 
 
-def stop_app(app_name):
+def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
+    app_name = split_app_id(app_id)
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml stop"
         output = shell_execute.execute_command_output_all(cmd)
@@ -256,8 +258,9 @@ def stop_app(app_name):
     return ret
 
 
-def restart_app(app_name):
+def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
+    app_name = split_app_id(app_id)
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml restart"
         output = shell_execute.execute_command_output_all(cmd)
@@ -275,9 +278,10 @@ def restart_app(app_name):
 def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_id)
+    app_name = split_app_id(app_id)
     if if_stopped["code"] == 0:
-        cmd = "docker compose -f /data/apps/"+app_id+"/docker-compose.yml down -v"
-        cmd = cmd + " && sudo rm -rf /data/apps/" + app_id
+        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down -v"
+        cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = 0
@@ -288,3 +292,7 @@ def uninstall_app(app_id):
         ret.message = if_stopped["message"]
     ret = ret.dict()
     return ret
+
+
+def split_app_id(app_id):
+    return app_id.split("_")[1]
