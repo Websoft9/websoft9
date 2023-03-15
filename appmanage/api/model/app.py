@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class App(BaseModel):
-    id: str
+    app_id: str
     name: str
     customer_name: str
     trade_mark: str

@@ -52,7 +52,7 @@ def set_app_info(output_list):
         image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + real_name + "-websoft9.png"
         # get trade_mark
         trade_mark = docker.read_var(app_name, 'trademark')
-        id = app_name  # id
+        app_id = real_name + "_" + app_name  # app_id
         case = app_info.split()[1].split("(")[0]  # case
         if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
@@ -98,8 +98,7 @@ def set_app_info(output_list):
         except IndexError:
             pass
 
-        real_name = docker.read_var(app_name, 'name')
-        app = App(id=id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
+        app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
         app_list.append(app.dict())
 
@@ -110,8 +109,8 @@ def set_app_info(output_list):
                 image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
                     running_app_name + "-websoft9.png"
                 trade_mark = docker.read_var(running_app_name, 'trademark')
-                true_name = docker.read_var(running_app_name, 'name')
-                app = App(id=running_app_name, name=true_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                real_name = docker.read_var(running_app_name, 'name')
+                app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
                 app_list.append(app.dict())
     return app_list
