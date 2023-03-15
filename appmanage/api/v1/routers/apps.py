@@ -42,6 +42,6 @@ def restart_app(app_id: Optional[str] = None):
     return JSONResponse(content=ret)
 
 @router.api_route("/uninstall", methods=["GET", "POST"])
-def uninstall_app(app_id: Optional[str] = None, delete_flag: Optional[bool] = True):
-    ret = manage.uninstall_app(app_id, delete_flag)
+def uninstall_app(app_id: Optional[str] = None):
+    ret = manage.uninstall_app(app_id)
     return JSONResponse(content=ret)
