@@ -187,9 +187,9 @@ def install_app(app_name, customer_app_name, app_version, app_force):
                 ret.message = "创建" + customer_app_name + "目录失败."
                 ret = ret.dict()
                 return ret
-            var_file = unique_app_path + '/variables.json'
-            docker.modify_env(var_file, 'APP_NAME', customer_app_name)
-
+            env_file = unique_app_path + '/.env'
+            docker.modify_env(env_file, 'APP_NAME', customer_app_name)
+  
         # check port
         docker.check_app_compose(customer_app_name)
         if app_version != None:
