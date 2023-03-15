@@ -17,8 +17,8 @@ def list_my_apps():
     return JSONResponse(content=list)
 
 @router.api_route("/install", methods=["GET", "POST"])
-def install_app(app_name: Optional[str] = None, customer_app_name: Optional[str] = None, app_version: Optional[str] = None, app_force: Optional[bool] = False):
-    ret = manage.install_app(app_name, customer_app_name, app_version, app_force)
+def install_app(app_name: Optional[str] = None, customer_app_name: Optional[str] = None, app_version: Optional[str] = None):
+    ret = manage.install_app(app_name, customer_app_name, app_version)
     return JSONResponse(content=ret)
 
 @router.api_route("/process", methods=["GET", "POST"])
