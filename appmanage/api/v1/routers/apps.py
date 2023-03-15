@@ -11,7 +11,7 @@ from api.utils import shell_execute
 
 router = APIRouter()
 
-@router.get("")
+@router.api_route("", methods=["GET", "POST"])
 def list_my_apps():
     list = manage.get_my_app()
     return JSONResponse(content=list)
