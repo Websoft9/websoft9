@@ -143,8 +143,9 @@ def get_admin_url(app_name, url):
 
 def install_app_process(app_name):
 
+    real_name = docker.read_var(app_name, 'name')
     if docker.check_app_directory(app_name):
-        percentage = docker.get_process_perc(app_name)
+        percentage = docker.get_process_perc(app_name, real_name)
         ret = Response(code=const.RETURN_SUCCESS, message=percentage)
         ret = ret.dict()
     else:
