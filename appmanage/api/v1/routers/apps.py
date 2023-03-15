@@ -42,6 +42,6 @@ def restart_app(app_name: Optional[str] = None):
     return JSONResponse(content=ret)
 
 @router.get("/uninstall")
-def uninstall_app(app_name: Optional[str] = None):
-    ret = manage.uninstall_app(app_name)
+def uninstall_app(app_name: Optional[str] = None, delete_flag: Optional[bool] = False):
+    ret = manage.uninstall_app(app_name, delete_flag)
     return JSONResponse(content=ret)
