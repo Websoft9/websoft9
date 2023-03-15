@@ -225,7 +225,7 @@ def if_app_exits(app_name):
         return True
 
 
-def start_app(app_id):
+def start_app(app_name):
     ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
         docker.check_app_compose(app_name)
@@ -242,7 +242,7 @@ def start_app(app_id):
     return ret
 
 
-def stop_app(app_id):
+def stop_app(app_name):
     ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml stop"
@@ -258,7 +258,7 @@ def stop_app(app_id):
     return ret
 
 
-def restart_app(app_id):
+def restart_app(app_name):
     ret = Response(code=const.RETURN_FAIL, message="")
     if if_app_exits(app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml restart"
