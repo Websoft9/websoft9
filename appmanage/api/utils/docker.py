@@ -23,31 +23,25 @@ def get_process_perc(app_name, real_name):
     return process_now
 
 def check_vm_resource(app_name):
-    # 服务器剩余资源是否足够安装，如cpu，内存，硬盘
-    p.cpu_percent(None)  # 第一次返回的结果是0
-    time.sleep(0.5)
-    cpu_percent = p.cpu_percent(None)
+    cpu_count = p.cpu_count()
     mem = p.virtual_memory()
     mem_total = float(mem.total) / 1024 / 1024 / 1024
+    need_cpu_count = read_var(app_name, 'cpu')
+    need_mem = read_var(app_name, 'memory')
+    if cpu_count<need_cpu_count or mem_total<need_mem:
+        return False
+
     mem_free = float(mem.available) / 1024 / 1024 / 1024
+    if mem_total>=8 and mem_free<=4:
+        return False
+
+    need_disk = read_var(app_name, 'disk')
     disk = p.disk_usage('/')
+    disk_total = float(disk.total) / 1024 / 1024 / 1024
     disk_free = float(disk.free) / 1024 / 1024 / 1024
-    if cpu_percent>90 or mem_free<0.5 or disk_free<3:
+    if disk<need_disk or disk_free<2:
         return False
-    # read variables.json
-    memory = ""
-    var_path = "/data/apps/" + app_name + "/variables.json"
-    try:
-        f = open(var_path, 'r', encoding='utf-8')
-        var = json.load(f)
-        try:
-            memory = var["memory"]
-        except KeyError:
-            return False
-    except FileNotFoundError:
-        return False
-    if memory == "8" and mem_total<8 and mem_free<4:
-        return False
+
     return true
 
 def check_app_directory(app_name):
