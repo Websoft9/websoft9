@@ -272,17 +272,12 @@ def restart_app(app_name):
     return ret
 
 
-def uninstall_app(app_id, delete_flag):
+def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_id)
     if if_stopped["code"] == 0:
-        if delete_flag == 0:
-            cmd = "docker compose -f /data/apps/"+app_id+"/docker-compose.yml down"
-        elif delete_flag == 1:
-            cmd = "docker compose -f /data/apps/"+app_id+"/docker-compose.yml down -v"
-            cmd = cmd + " && sudo rm -rf /data/apps/" + app_id
-        else:
-            cmd = "docker compose -f /data/apps/"+app_id+"/docker-compose.yml down"
+        cmd = "docker compose -f /data/apps/"+app_id+"/docker-compose.yml down -v"
+        cmd = cmd + " && sudo rm -rf /data/apps/" + app_id
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = 0
