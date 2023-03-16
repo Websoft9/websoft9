@@ -4,6 +4,7 @@ import api.v1.api as api_router_v1
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 myLogger.info_logger("Starting server")
 
