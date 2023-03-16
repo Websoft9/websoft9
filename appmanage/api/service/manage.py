@@ -155,7 +155,7 @@ def install_app_process(app_id):
 
 def install_app(app_name, customer_app_name, app_version):
 
-    if docker.check_vm_resource(customer_app_name) == False:
+    if docker.check_vm_resource(app_name) == False:
        ret = Response(code=const.RETURN_FAIL , message="系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！")
        ret = ret.dict()
        return ret
