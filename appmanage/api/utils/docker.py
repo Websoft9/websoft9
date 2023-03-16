@@ -10,24 +10,22 @@ from api.utils.common_log import myLogger
 
 def get_process_perc(app_name, real_name):
     
-    process_now = "pulling"
-    image_name = real_name
-    if real_name == "codeserver":
-       image_name = "code-server"
-    elif real_name == "codeserver2":
-       image_name = "code-server2"
-    output = shell_execute.execute_command_output_all("sudo docker image list |grep  " + image_name)
-    code = output["code"]
-    if int(code) == 0 and output["result"] != "":
-        process_now = "starting"
-    
-    output = shell_execute.execute_command_output_all("docker inspect " +  app_name + "|grep error")
-    code = output["code"]
-    if int(code) == 0 and output["result"] == "":
-        process_now = "Initializing"
-    
+    process_now = "step1"
+
+    if if_app_exits(app_name):
+        process_now = "step2"
+        process_now = "step3"
+
     return process_now
 
+def if_app_exits(app_name):
+    cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
+    output = shell_execute.execute_command_output_all(cmd)
+    if int(output["code"]) == -1:
+        return False
+    else:
+        return True
+    
 def check_vm_resource(app_name):
     myLogger.info_logger("Checking virtual memory resource ...")
     cpu_count = p.cpu_count()
