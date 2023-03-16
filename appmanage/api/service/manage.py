@@ -74,7 +74,7 @@ def set_app_info(output_list):
         volume = app_info.split()[-1]  # volume
         app_name = volume.split('/')[3]
         real_name = docker.read_var(app_name, 'name')
-        image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + real_name + "-websoft9.png"
+        image_url = get_Image_url(real_name)
         # get trade_mark
         trade_mark = docker.read_var(app_name, 'trademark')
         app_id = real_name + "_" + app_name  # app_id
@@ -133,8 +133,7 @@ def set_app_info(output_list):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
                 if running_app_name not in has_add:
-                    image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
-                        running_app_name + "-websoft9.png"
+                    image_url = get_Image_url(running_app_name)
                     trade_mark = docker.read_var(running_app_name, 'trademark')
                     real_name = docker.read_var(running_app_name, 'name')
                     app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
@@ -142,6 +141,11 @@ def set_app_info(output_list):
                     app_list.append(app.dict())
     return app_list
 
+def get_Image_url(app_name):
+
+    image_url = "http://localhost:5000/static/" + app_name + "-websoft9.png"
+
+    return image_url
 
 def get_url(app_name, easy_url):
 
