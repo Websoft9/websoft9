@@ -45,7 +45,7 @@ def stop_app(app_id: Optional[str] = None):
 @router.api_route("/restart", methods=["GET", "POST"])
 def restart_app(app_id: Optional[str] = None):
     myLogger.info_logger("Receive request: /api/v1/apps/restart")
-    ret = manage.restart(app_id)
+    ret = manage.restart_app(app_id)
     return JSONResponse(content=ret)
 
 @router.api_route("/uninstall", methods=["GET", "POST"])
