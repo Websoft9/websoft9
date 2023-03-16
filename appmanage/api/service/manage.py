@@ -45,6 +45,7 @@ def set_app_info(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
     app_list = []
+    has_add = []
     for app_info in output_list:
         volume = app_info.split()[-1]  # volume
         app_name = volume.split('/')[3]
@@ -98,6 +99,7 @@ def set_app_info(output_list):
         except IndexError:
             pass
 
+        has_add.append(app_name)
         app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
         app_list.append(app.dict())
@@ -106,13 +108,14 @@ def set_app_info(output_list):
     if os.path.exists(file_path) and os.path.getsize(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
-                image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
-                    running_app_name + "-websoft9.png"
-                trade_mark = docker.read_var(running_app_name, 'trademark')
-                real_name = docker.read_var(running_app_name, 'name')
-                app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
-                          url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
-                app_list.append(app.dict())
+                if running_app_name not in has_add:
+                    image_url = "https://libs.websoft9.com/Websoft9/logo/product/" + \
+                        running_app_name + "-websoft9.png"
+                    trade_mark = docker.read_var(running_app_name, 'trademark')
+                    real_name = docker.read_var(running_app_name, 'name')
+                    app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                              url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
+                    app_list.append(app.dict())
     return app_list
 
 
@@ -154,12 +157,6 @@ def install_app_process(app_id):
 
 
 def install_app(app_name, customer_app_name, app_version):
-
-    if docker.check_vm_resource(app_name) == False:
-       ret = Response(code=const.RETURN_FAIL , message="系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！")
-       ret = ret.dict()
-       return ret
-
     app_file_path = '/data/apps/'+app_name
     running_file_path = "/data/apps/running_apps.txt"
     unique_app_path = "/data/apps/"+customer_app_name
@@ -176,6 +173,10 @@ def install_app(app_name, customer_app_name, app_version):
         return ret
 
     elif docker.check_app_directory(app_name):
+        if docker.check_vm_resource(app_name) == False:
+            ret = Response(code=const.RETURN_FAIL, message="系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！")
+            ret = ret.dict()
+            return ret
 
         if app_name != customer_app_name:
             output = shell_execute.execute_command_output_all(
