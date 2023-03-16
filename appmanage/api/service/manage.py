@@ -13,7 +13,7 @@ from api.utils import shell_execute, network, docker, const
 from api.model.app import App
 from api.model.response import Response
 
-def app_detail(app_id):
+def get_app_detail(app_id):
 
     ret = Response(code=const.RETURN_FAIL, message="app查询失败")
 
