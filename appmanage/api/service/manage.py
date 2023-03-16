@@ -194,7 +194,8 @@ def install_app(app_name, customer_app_name, app_version):
         ret = ret.dict()
 
     # 防止app名重复
-    if if_app_exits(customer_app_name):
+    app_id = app_name + "_" + customer_app_name
+    if if_app_exits(app_id, customer_app_name):
         ret = Response(code=const.RETURN_FAIL,
                        message="APP名称已经使用，请指定其他名称重新安装。")
         ret = ret.dict()
