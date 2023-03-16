@@ -72,6 +72,13 @@ def check_app_url(customer_app_name):
     myLogger.info_logger("Checking app url...")
     
     # 如果app的.env文件中含有HTTP_URL项目,需要如此设置 HTTP_URL=ip:port
+    env_path = "/data/apps/" + customer_app_name + "/.env"
+    if read_env(env_path, "HTTP_URL") != {}:
+        ip = shell_execute.execute_command_output_all("curl ifconfig.me")["result"]
+        http_port = list(read_env(path, "APP_HTTP_PORT").values())[0]
+        url = ip + ":" + http_port
+        modify_env(path, "HTTP_URL", url)
+
     myLogger.info_logger("App url check complete")
     return
 
