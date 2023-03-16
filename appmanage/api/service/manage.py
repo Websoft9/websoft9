@@ -132,10 +132,10 @@ def set_app_info(output_list):
     if os.path.exists(file_path) and os.path.getsize(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
-                if running_app_name not in has_add:
-                    image_url = get_Image_url(running_app_name)
+                if running_app_name not in has_add:               
                     trade_mark = docker.read_var(running_app_name, 'trademark')
                     real_name = docker.read_var(running_app_name, 'name')
+                    image_url = get_Image_url(real_name)
                     app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                               url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
                     app_list.append(app.dict())
