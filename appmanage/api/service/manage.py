@@ -237,7 +237,7 @@ def start_app(app_id):
         else:
             ret.message = "应用启动失败"
     else:
-        ret.message = "应用不存在"
+        ret.message = "app应用没有安装"
     ret = ret.dict()
     return ret
 
@@ -254,7 +254,7 @@ def stop_app(app_id):
         else:
             ret.message = "应用停止失败"
     else:
-        ret.message = "应用不存在"
+        ret.message = "app应用没有安装"
     ret = ret.dict()
     return ret
 
@@ -271,7 +271,7 @@ def restart_app(app_id):
         else:
             ret.message = "应用重启失败"
     else:
-        ret.message = "应用不存在"
+        ret.message = "app应用没有安装"
     ret = ret.dict()
     return ret
 
