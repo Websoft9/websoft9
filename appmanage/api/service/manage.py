@@ -61,6 +61,7 @@ def set_app_info(output_list):
             case_code = const.RETURN_STOP
         elif case == "created":
             case_code = const.RETURN_READY
+            case = "installing"
         else:
             case_code = const.RETURN_ERROR
         # get env info
