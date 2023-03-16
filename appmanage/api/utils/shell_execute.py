@@ -20,7 +20,7 @@ def execute_command_output_all(cmd_str, max_time = 3):
         else:
             execute_time = execute_time + 1
 
-    myLogger.warning_logger("Command execute failed   Commend: " + cmd_str)
+    myLogger.error_logger("Command execute failed   Commend: " + cmd_str)
     return {"code": "-1", "result": "command execute failed, please check your command!"}
 
 def convert_command(cmd_str):

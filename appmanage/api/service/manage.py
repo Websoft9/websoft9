@@ -278,9 +278,11 @@ def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if_stopped = stop_app(app_id)
     app_name = split_app_id(app_id)
+    real_name = app_id.split("_")[0]
     if if_stopped["code"] == 0:
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down -v"
-        cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
+        if real_name != app_name:
+            cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = 0

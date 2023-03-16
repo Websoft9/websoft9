@@ -6,7 +6,7 @@ class MyLogging():
     # init logging
     def __init__(self):
         # the file of log
-        logPath = '/data/apps/appmanage/logs/'
+        logPath = 'logs/'
         if not os.path.exists(logPath):
             os.makedirs(logPath)
         logName = 'app_manage_log.log'
