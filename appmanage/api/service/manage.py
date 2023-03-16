@@ -239,19 +239,24 @@ def record_and_install_app(app_name):
         f.truncate(0)
 
 
-def if_app_exits(app_name):
+def if_app_exits(app_id, app_name):
     cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == -1:
         return False
     else:
-        return True
+        real_name = docker.read_var(app_name, "name")
+        real_id = real_name + "_" + app_name
+        if app_id == real_id:
+            return True
+        else:
+            return False
 
 
 def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     app_name = split_app_id(app_id)
-    if if_app_exits(app_name):
+    if if_app_exits(app_id, app_name):
         docker.check_app_compose(app_name)
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml start"
         output = shell_execute.execute_command_output_all(cmd)
@@ -269,7 +274,7 @@ def start_app(app_id):
 def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     app_name = split_app_id(app_id)
-    if if_app_exits(app_name):
+    if if_app_exits(app_id, app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml stop"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
@@ -286,7 +291,7 @@ def stop_app(app_id):
 def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     app_name = split_app_id(app_id)
-    if if_app_exits(app_name):
+    if if_app_exits(app_id, app_name):
         cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml restart"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
@@ -302,7 +307,7 @@ def restart_app(app_id):
 
 def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
-    if_stopped = stop_app(app_id)
+    if_stopped = stop_app(app_id)   # stop_app
     app_name = split_app_id(app_id)
     real_name = app_id.split("_")[0]
     if if_stopped["code"] == 0:
