@@ -9,20 +9,6 @@ myLogger.info_logger("Starting server")
 
 def get_app():
     app = FastAPI()
-    origins = [
-        "http://localhost",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-    ]
-
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
 
     app.include_router(api_router_v1.get_api(), prefix="/api/v1")
     return app
