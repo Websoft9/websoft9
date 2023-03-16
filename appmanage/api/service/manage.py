@@ -59,7 +59,7 @@ def set_app_info(output_list):
         elif case == "exited":
             case = "stop"
             case_code = const.RETURN_STOP
-        elif case == "installing":
+        elif case == "created":
             case_code = const.RETURN_READY
         else:
             case_code = const.RETURN_ERROR
