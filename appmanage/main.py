@@ -23,6 +23,7 @@ def get_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(api_router_v1.get_api(), prefix="/api/v1")
     return app
 
