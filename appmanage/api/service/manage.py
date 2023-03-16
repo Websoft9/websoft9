@@ -13,6 +13,30 @@ from api.utils import shell_execute, network, docker, const
 from api.model.app import App
 from api.model.response import Response
 
+def app_detail(app_id):
+
+    ret = Response(code=const.RETURN_FAIL, message="app查询失败")
+
+    # get all info
+    cmd = "sudo docker compose ls -a"
+    output = shell_execute.execute_command_output_all(cmd)
+    if int(output["code"]) == 0:
+        output_list = output["result"].split("\n")
+        list = []
+        output_list = output_list[1:-1]
+        list = set_app_info(output_list)
+        flag = 0
+        for app in list:
+            if app["app_id"] == app_id:
+                list.clear()
+                list.append(app)
+                flag = 1
+                break
+        if flag == 1:
+            ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
+    ret = ret.dict()
+    return ret
+
 # 获取所有app的信息
 def get_my_app(app_name=None):
 
