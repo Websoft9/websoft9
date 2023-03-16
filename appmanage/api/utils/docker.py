@@ -68,6 +68,13 @@ def check_app_compose(app_name):
     myLogger.info_logger("Port check complete")
     return
 
+def check_app_url(customer_app_name):
+    myLogger.info_logger("Checking app url...")
+    
+    # 如果app的.env文件中含有HTTP_URL项目,需要如此设置 HTTP_URL=ip:port
+    myLogger.info_logger("App url check complete")
+    return
+
 def read_env(path, key):
     myLogger.info_logger("Read " + path)
     output = shell_execute.execute_command_output_all("cat " + path + "|grep "+ key)
