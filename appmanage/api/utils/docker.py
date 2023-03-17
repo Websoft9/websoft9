@@ -104,6 +104,7 @@ def read_env(path, key):
         env_list = ret.split()
         for env in env_list:
             env_dic[env.split("=")[0]] = env.split("=")[1]
+    myLogger.info_logger("Read " + path + ": " + str(env_dic))
     return env_dic
 
 def modify_env(path, env_name, value):
