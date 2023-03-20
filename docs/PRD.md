@@ -1,40 +1,82 @@
-# 概述
+# 需求
 
-## 需求草稿
+从两个主线理解 StackHub 的需求：
 
-|                | Cloudron | [casaos](https://www.casaos.io/)                         | umbrel       | runtipi |
-| -------------- | -------- | -------------------------------------------------------- | ------------ | ------- |
-| 应用编排       |          | 单一镜像                                                 |              |   多镜像，compose 编排      |
-| 市场应用来源   |          | 官方+社区                                                | 官方+社区    |         |
-| 一键安装程度   |          | 不需任何配置                                             | 不需任何配置 |         |
-| 应用访问方式   |          | 端口                                                     | 端口         |         |
-| 自定义安装应用 |          | Y                                                        | N            | N       |
-| Web 管理容器   |          | Y                                                        | N            |         |
-| 默认镜像仓库   |          | DockerHub                                                |              |         |
-| 自适应         |          | Y                                                        | Y            |         |
-| 多语言         |          | Y                                                        | N            |         |
-| 用户管理       |          | 单一用户                                                 | 单一用户     |         |
-| 自带应用       |          | 文件，服务器终端，容器终端，监控，日志                   | 监控，日志   |         |
-| 应用管理       |          | 完整容器参数设置，克隆，绑定域名？备份？证书？           | 无           |         |
-| 应用更新       |          | N                                                        |              |         |
-| 后端语言       |          | Go                                                       |              |         |
-| API            |          | HTTP API                                                 |              |         |
-| 前端           |          | vue.js                                                   |              |         |
-| CLI            |          | Y                                                        |              |         |
-| HTTP 服务器      |          | 无，端口访问应用                                         |              |    traefik    |
-| 公共数据库     |          | 无                                                       |              |         |
-| 开发文档       |          | [wiki](https://wiki.casaos.io/en/contribute/development) |              |         |
-| 2FA            |          | N                                                        | Y            |         |
-| 安装方式       |          | 服务器安装                                               | 容器安装     |         |
-| 商店更新       |          | N                                                        | Y            |     Y    |
-| 商店绑定域名   | Y        | N                                                        | N            |         |
-| DNS服务        | Y        | N                                                        |              |         |
+* 应用生命周期管理：寻找、安装、发布、停止、卸载、升级等软件全生命周期。
+* 基础设施运维管理：安全、存储、文件、容器、监控等系统管理
 
-* 应用自动分配4级域名后，如何再 CNAME 二级域名？
 
-### casaos 架构分析
+## 应用生命周期
 
-#### 安装脚本
+### 业务需求
+
+#### 寻找
+
+一级分类+筛选+搜索的方式寻找已经模板化的应用
+
+#### 安装
+
+* 按顺序依次启动目标应用
+* 启动应用之前先进行资源约束判断，不符合条件的目标应用
+* 应用的状态有：待安装、安装中、安装失败、运行中/安装成功
+
+#### 发布
+
+以域名或端口的方式，将运行中的应用发布出去，供外部用户访问：
+
+* 发布
+* 停止发布
+* 删除发布
+
+#### 停止
+
+将应用的服务停止
+
+#### 卸载
+
+卸载应用并删除数据
+
+#### 升级
+
+升级应用，如果升级失败会自动回滚到升级之前的状态
+
+#### 恢复
+
+在已有的完整备份的基础，恢复应用
+
+#### 克隆
+
+克隆一个已经存在的应用
+
+
+### 技术需求
+
+#### 模板编排
+
+100% 以 Docker Compose 语法作为编排语言
+
+#### 多语言
+#### 用户管理
+#### UI自适应
+#### 2FA 
+#### 商店基础设置
+#### 商店更新
+#### API
+#### CLI
+#### 监控
+#### 转发
+#### 镜像仓库
+
+默认以 DockerHub 作为镜像仓库，支持自建仓库并同步 DockerHub 镜像
+
+#### 安装程序
+
+一键自动化安装程序，类似：
+```
+curl https://websoft9.github.io/install.sh | bash
+```
+
+主要步骤包括：
 
 1. Check硬件、操作系统、cpu架构
 2. 安装依赖包
@@ -42,19 +84,21 @@
 4. 下载各源码包
 5. 启动个源码对应服务
 
-#### 源码解析
 
-|     运行时项目         | 对应项目源码 | 说明                         |
-| -------------- | -------- | -------------------------------------------------------- |
-| casaos       |    CasaOS      | 每隔5秒通过websocekt推送内存/CPU/网络等系统信息;提供ssh登录操作的http接口;提供"sys", "port", "file", "folder", "batch", "image", "samba", "notify"这些http接口的访问|
-| casaos-message-bus   |  CasaOS-MessageBus        | 类似一个MQ提供消息的发布/订阅                                                | 
-| casaos-local-storage   |  CasaOS-LocalStorage      | 每隔5S统计磁盘/USB信息,提供监控信息;提供http接口访问disk/usb/storage信息                                           |
-| casaos-user-service   | CasaOS-UserService         | 通过http server提供用户管理的接口                                                   |
-| casaos-app-management | CasaOS-AppManagement         | 使用CasaOS-AppStore中App的元数据;提供所有appList的分类/列表/详细信息;通过docker来管理app,提供安装/启动/关闭/重启/日志查看等相关接口;docker-compose管理（V2）;|
-| casaos-gateway   | CasaOS-Gateway         | 提供Gateway自身管理接口,比如切换Gateway的port的接口,查看所有路由的接口;提供CasaOS-UI的静态资源访问服务;根据请求的PATH将请求代理转发至其它模块                                                      |
-| casaos-cli   |  CasaOS-CLI        | 通过命令行的方式来调用CasaOS-Gateway的接口,该模块未完全实现,实现了部分命令                                                |
-| linux-all-casaos      |  CasaOS-UI        | VUE2,CasaOS的Web源码,编译后的html/js/image/css等由CasaOS-Gateway提供访问入口,所有API接口指向CasaOS-Gateway                                                        |
-| -        |  CasaOS-Common        | Common structs and functions for CasaOS                                                       |
+## 基础设施运维
+
+### SSH 终端
+### 文件管理器
+### 存储管理
+### 容器管理
+
+可视化的容器管理，包括：拉镜像、创建/删除/停止容器、SSH进入容器、向容器上传文件等
+
+### DNS
+
+### 系统监控
+
+                                               |
 
 
 ## 架构
