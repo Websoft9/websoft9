@@ -230,7 +230,7 @@ def install_app(app_name, customer_app_name, app_version):
                 docker.modify_env(path, "APP_VERSION", app_version)
             file_path = "/data/apps/running_apps.txt"
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(app_name)
+                f.write(customer_app_name)
             t1 = Thread(target=record_and_install_app, args=(customer_app_name,))
             t1.start()
             ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
