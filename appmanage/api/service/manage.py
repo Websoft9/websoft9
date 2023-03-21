@@ -144,7 +144,7 @@ def set_app_info(output_list):
 
 def get_Image_url(app_name):
 
-    image_url = "http://localhost:5000/static/" + app_name + "-websoft9.png"
+    image_url = "/static/" + app_name + "-websoft9.png"
 
     return image_url
 
