@@ -65,9 +65,9 @@ def check_vm_resource(app_name):
 def check_app_directory(app_name):
     # websoft9's support applist
     myLogger.info_logger("Checking dir...")
-    path = "/data/apps/"+app_name
-    isexsits = os.path.exists(path)
-    return isexsits
+    path = "/data/library/"+app_name
+    is_exists = os.path.exists(path)
+    return is_exists
 
 def check_app_compose(app_name):
     myLogger.info_logger("Checking port...")
