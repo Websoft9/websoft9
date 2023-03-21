@@ -212,67 +212,6 @@ def install_app(app_name, customer_app_name, app_version):
     return ret
 
 
-# def install_app(app_name, customer_app_name, app_version):
-#     app_file_path = '/data/apps/' + app_name
-#     running_file_path = "/data/apps/running_apps.txt"
-#     unique_app_path = "/data/apps/" + customer_app_name
-#     is_lock = lock.install_mutex.acquire(False)
-#     if is_lock and not (os.path.exists(running_file_path) and os.path.getsize(running_file_path)):
-#         # if os.path.exists(running_file_path) and os.path.getsize(running_file_path):
-#         #     ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
-#         #     ret = ret.dict()
-#
-#         # 防止app名重复
-#         app_id = app_name + "_" + customer_app_name
-#         if if_app_exits(app_id, customer_app_name):
-#             ret = Response(code=const.RETURN_FAIL,
-#                            message="APP名称已经使用，请指定其他名称重新安装。")
-#             ret = ret.dict()
-#             lock.install_mutex.release()
-#             return ret
-#
-#         elif docker.check_app_directory(app_name):
-#             if docker.check_vm_resource(app_name) == False:
-#                 ret = Response(code=const.RETURN_FAIL, message="系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！")
-#                 ret = ret.dict()
-#                 lock.install_mutex.release()
-#                 return ret
-#
-#             if app_name != customer_app_name:
-#                 output = shell_execute.execute_command_output_all(
-#                     "cp -r /data/apps/" + app_name + " /data/apps/" + customer_app_name)
-#                 if int(output["code"]) != 0:
-#                     ret.code = const.RETURN_FAIL
-#                     ret.message = "创建" + customer_app_name + "目录失败."
-#                     ret = ret.dict()
-#                     lock.install_mutex.release()
-#                     return ret
-#                 env_file = unique_app_path + '/.env'
-#                 docker.modify_env(env_file, 'APP_NAME', customer_app_name)
-#
-#             # check port
-#             docker.check_app_compose(customer_app_name)
-#             if app_version != None:
-#                 path = "/data/apps/"+customer_app_name+"/.env"
-#                 docker.modify_env(path, "APP_VERSION", app_version)
-#             file_path = "/data/apps/running_apps.txt"
-#             with open(file_path, "w", encoding="utf-8") as f:
-#                 f.write(customer_app_name)
-#             t1 = Thread(target=record_and_install_app, args=(customer_app_name,))
-#             t1.start()
-#             ret = Response(code=const.RETURN_SUCCESS, message="应用正在启动中，请过几分钟再查询")
-#             ret = ret.dict()
-#         else:
-#             ret = Response(code=const.RETURN_FAIL, message="目前不支持安装此App")
-#             ret = ret.dict()
-#         lock.install_mutex.release()
-#         return ret
-#     else:
-#         ret = Response(code=const.RETURN_SUCCESS, message="已有应用正在启动，请稍后再试")
-#         ret = ret.dict()
-#         return ret
-
-
 def record_and_install_app(customer_app_name, app_version):
     file_path = "/data/apps/running_apps.txt"
     with open(file_path, "a", encoding="utf-8") as f:
