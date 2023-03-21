@@ -9,7 +9,7 @@ class MyLogging():
         logPath = 'logs/'
         if not os.path.exists(logPath):
             os.makedirs(logPath)
-        logName = 'app_manage_log.log'
+        logName = 'app_manage.log'
         logFile = logPath + logName
         formatter = logging.Formatter('%(asctime)s %(levelname)s:  %(message)s')
         # handler
