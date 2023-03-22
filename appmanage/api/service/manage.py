@@ -187,6 +187,7 @@ def install_app_process(app_id):
 
 def check_app(app_name, customer_app_name, app_version):
     message = " "
+    code = const.RETURN_FAIL
     install_path = "/data/apps/" + customer_app_name
     if app_name==None or customer_app_name==None or app_version==None:
         message = "请将APP信息填写完整"
@@ -198,28 +199,31 @@ def check_app(app_name, customer_app_name, app_version):
         message = "APP名称已经使用，请指定其他名称重新安装。"
     elif not docker.check_vm_resource(app_name):
         message = "系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！"
-    return message
+    else:
+        code = const.RETURN_SUCCESS
+    return code, message
 
 
 def prepare_app(app_name, customer_app_name):
     library_path = "/data/library/" + app_name
     install_path = "/data/apps/" + customer_app_name
     message = " "
+    code = const.RETURN_SUCCESS
     output = shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
     if int(output["code"]) != 0:
         message = "创建" + customer_app_name + "目录失败"
-    return message
+        code = const.RETURN_FAIL
+    return code, message
 
 
 def install_app(app_name, customer_app_name, app_version):
     ret = Response(code=const.RETURN_FAIL, message=" ")
-    ret.message = check_app(app_name, customer_app_name, app_version)
-    if ret.message != " ":
-        ret.message = prepare_app(app_name, customer_app_name)
-        if ret.message != " ":
-            t1 = Thread(target=record_and_install_app, args=(customer_app_name, app_version,))
+    ret.code, ret.message = check_app(app_name, customer_app_name, app_version)
+    if ret.code == const.RETURN_SUCCESS:
+        ret.code, ret.message = prepare_app(app_name, customer_app_name)
+        if ret.code == const.RETURN_SUCCESS:
+            t1 = Thread(target=install_app_job, args=(customer_app_name, app_version,))
             t1.start()
-            ret.code = const.RETURN_SUCCESS
             ret.message="应用正在启动中，请过几分钟再查询"
     ret = ret.dict()
     return ret
