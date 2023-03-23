@@ -7,7 +7,8 @@ services:
     container_name: appmanage
     restart: unless-stopped
     volumes:
-      - /data:/data
+      - /:/host
+      - logs:/usr/src/app/logs
     ports:
      - 5000:5000
 
@@ -15,3 +16,6 @@ networks:
   default:
     name: websoft9
     external: true
+
+volumes:
+  logs:
