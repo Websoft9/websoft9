@@ -9,7 +9,7 @@ services:
     volumes:
       - /data:/data
     ports:
-     - 8000:8000
+     - 5000:5000
 
 networks:
   default:
