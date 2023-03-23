@@ -3,7 +3,7 @@ version: '3.8'
 services:
 
   appmanage:
-    image: appmanage:0.3
+    image: appmanage:0.8
     container_name: appmanage
     restart: unless-stopped
     volumes:
