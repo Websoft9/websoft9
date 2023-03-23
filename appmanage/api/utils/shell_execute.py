@@ -14,7 +14,7 @@ def execute_command_output_all(cmd_str, max_time = 3):
     myLogger.info_logger("Start to execute cmd: " + cmd_str)
     execute_time = 0
     while execute_time < max_time:
-        process = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+        process = subprocess.run(convert_command(cmd_str), shell=True, stdout=subprocess.PIPE, universal_newlines=True)
         if process.returncode == 0:
             return {"code": "0", "result": process.stdout,}
         else:
@@ -28,6 +28,6 @@ def convert_command(cmd_str):
     if cmd_str == "":
        convert_cmd=cmd_str
     else:
-       convert_cmd='echo "'+cmd_str+'" > /data/pipe/appmanage'
+       convert_cmd='chroot /host ' + cmd_str
 
     return convert_cmd
