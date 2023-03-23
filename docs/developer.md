@@ -30,3 +30,7 @@
 * 后端：Python, Docker, Docker-compose, FastAPI, Typer  
 * API生成与测试：apipost/apifox
 * 身份验证：supertokens
+
+### 产品文件目录
+
+便于升级、便于用户使用的产品文件目录组织结构
