@@ -15,4 +15,4 @@ RUN mkdir /data
 CMD ["uvicorn", "main:get_app", "--host", "0.0.0.0", "--port", "5000", "--log-level", "info"]
 
 # Expose the port in which the application will be deployed
-EXPOSE 8000
+EXPOSE 5000
