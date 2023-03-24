@@ -20,12 +20,11 @@ def get_app_detail(app_id):
     ret = Response(code=const.RETURN_FAIL, message="app查询失败")
 
     # get all info
-    cmd = "sudo docker compose ls -a"
+    cmd = "docker compose ls -a --format json"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
-        output_list = output["result"].split("\n")
+        output_list = json.loads(output["result"])
         list = []
-        output_list = output_list[1:-1]
         list = set_app_info(output_list)
         flag = 0
         for app in list:
@@ -40,29 +39,18 @@ def get_app_detail(app_id):
     return ret
 
 # 获取所有app的信息
-def get_my_app(app_name=None):
+def get_my_app():
 
     ret = Response(code=const.RETURN_FAIL, message="app查询失败")
 
     # get all info
-    cmd = "sudo docker compose ls -a"
+    cmd = "docker compose ls -a --format json"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
-        output_list = output["result"].split("\n")
+        output_list = json.loads(output["result"])
         list = []
-        output_list = output_list[1:-1]
         list = set_app_info(output_list)
-        flag = 0
-        if app_name != None:
-            for app in list:
-                if app["name"] == app_name:
-                    list.clear()
-                    list.append(app)
-                    flag = 1
-                    break
-        if app_name == None or flag == 1:
-            ret = Response(code=const.RETURN_SUCCESS,
-                           message="app查询成功", data=list)
+        ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
     ret = ret.dict()
     return ret
 
@@ -73,14 +61,14 @@ def set_app_info(output_list):
     app_list = []
     has_add = []
     for app_info in output_list:
-        volume = app_info.split()[-1]  # volume
+        volume = app_info["ConfigFiles"]  # volume
         app_name = volume.split('/')[3]
         real_name = docker.read_var(app_name, 'name')
         image_url = get_Image_url(real_name)
         # get trade_mark
         trade_mark = docker.read_var(app_name, 'trademark')
         app_id = real_name + "_" + app_name  # app_id
-        case = app_info.split()[1].split("(")[0]  # case
+        case = app_info["Status"].split("(")[0]  # case
         if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
         elif case == "exited":
