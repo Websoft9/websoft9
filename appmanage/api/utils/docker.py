@@ -73,9 +73,9 @@ def check_app_compose(app_name):
     myLogger.info_logger("Checking port...")
     path = "/data/apps/" + app_name + "/.env"
     port_dic = read_env(path, "APP_.*_PORT")
-    #1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（network.py的get_start_port方法）
+    #1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（get_start_port方法）
     for port_name in port_dic:
-        port_value = network.get_start_port(port_dic[port_name])
+        port_value = get_start_port(port_dic[port_name])
         modify_env(path, port_name, port_value)
     myLogger.info_logger("Port check complete")
     return
@@ -134,3 +134,15 @@ def read_var(app_name, var_name):
     except FileNotFoundError:
         myLogger.warning_logger(var_path + " not found")
     return value
+
+def get_start_port(port):
+    use_port = port
+    while True:
+        cmd = "netstat -ntlp | grep -v only"
+        output = shell_execute.execute_command_output_all(cmd)
+        if output["result"].find(use_port)==-1:
+            break
+        else:
+            use_port = str(int(use_port)+1)
+
+    return use_port
