@@ -115,29 +115,26 @@ def read_env(path, key):
 
 def modify_env(path, env_name, value):
     myLogger.info_logger("Modify " + path + "...")
-    file_data = ""
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            if re.match(env_name, line) != None:
-                env_name = line.split("=")[0]
-                line = line.replace(line, env_name + "=" + value+"\n")
-            file_data += line
-    with open(path, "w", encoding="utf-8") as f:
-        myLogger.info_logger("Modify " + path + ": Change " + env_name + " to " + value)
-        f.write(file_data)
+    output = shell_execute.execute_command_output_all("sed -n \'/^" + env_name + "/=\' " + path)
+    if int(output["code"]) == 0 and output["result"] != "":
+        line_num = output["result"].split("\n")[0]
+        s = env_name + "=" + value
+        output = shell_execute.execute_command_output_all("sed -i \'" + line_num + "c " + s + "\' " + path)
+        if int(output["code"]) == 0:
+            myLogger.info_logger("Modify " + path + ": Change " + env_name + " to " + value)
 
 def read_var(app_name, var_name):
     value = "-"
     var_path = "/data/apps/" + app_name + "/variables.json"
     myLogger.info_logger("Read " + var_path)
-    try:
-        f = open(var_path, 'r', encoding='utf-8')
-        var = json.load(f)
+    output = shell_execute.execute_command_output_all("cat " + var_path)
+    if int(output["code"]) == 0:
+        var = json.loads(output["result"])
         try:
             value = var[var_name]
         except KeyError:
             myLogger.warning_logger("Read " + var_path + ": No key " + var_name)
-    except FileNotFoundError:
+    else:
         myLogger.warning_logger(var_path + " not found")
     return value
 
