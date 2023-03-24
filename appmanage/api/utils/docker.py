@@ -64,7 +64,7 @@ def check_vm_resource(app_name):
 def check_app_directory(app_name):
     # websoft9's support applist
     myLogger.info_logger("Checking dir...")
-    path = "/data/library/"+app_name
+    path = "/data/library/apps/"+app_name
     is_exists = os.path.exists(path)
     return is_exists
 
