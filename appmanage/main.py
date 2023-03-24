@@ -1,7 +1,6 @@
-from api.utils.common_log import myLogger
-
 import api.v1.api as api_router_v1
 import uvicorn
+from api.utils.common_log import myLogger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
