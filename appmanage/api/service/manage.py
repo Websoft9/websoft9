@@ -192,7 +192,7 @@ def install_app_job(customer_app_name, app_version):
     # check port
     docker.check_app_compose(customer_app_name)
     # modify running_apps.txt
-    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up -d"
+    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up --pull always -d"
     shell_execute.execute_command_output_all(cmd)
     file_data = ""
     with open(file_path, "r", encoding="utf-8") as f:
