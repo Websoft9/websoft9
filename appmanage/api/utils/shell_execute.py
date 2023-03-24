@@ -28,6 +28,6 @@ def convert_command(cmd_str):
     if cmd_str == "":
        convert_cmd=cmd_str
     else:
-       convert_cmd="f'nsenter -m -u -i -n -p -t 1 sh -c " +cmd_str
+       convert_cmd="f nsenter -m -u -i -n -p -t 1 sh -c " +cmd_str
 
     return convert_cmd
