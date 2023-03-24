@@ -30,7 +30,6 @@ def get_app():
     app.include_router(api_router_v1.get_api(), prefix="/api/v1")
     return app
 
-
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
@@ -40,7 +39,6 @@ async def custom_swagger_ui_html():
         swagger_js_url="/static/swagger-ui/swagger-ui-bundle.js",
         swagger_css_url="/static/swagger-ui/swagger-ui.css",
     )
-
 
 @app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
 async def swagger_ui_redirect():
