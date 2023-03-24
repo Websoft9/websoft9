@@ -172,7 +172,7 @@ def check_app(app_name, customer_app_name, app_version):
 
 
 def prepare_app(app_name, customer_app_name):
-    library_path = "/data/library/" + app_name
+    library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_app_name
     message = " "
     code = const.RETURN_SUCCESS
