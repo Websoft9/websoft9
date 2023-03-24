@@ -5,8 +5,8 @@ LABEL maintainer="Websoft9<help@websoft9.com>"
 WORKDIR /usr/src/app
 
 # Copy sw and install pip dependencies
-COPY api ./api
-COPY static ./static
+COPY api ./api/
+COPY static ./static/
 COPY requirements.txt main.py  ./
 RUN pip install -r requirements.txt
 RUN mkdir /data
