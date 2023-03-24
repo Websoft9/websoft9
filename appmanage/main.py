@@ -56,6 +56,5 @@ async def redoc_html():
         redoc_js_url="/static/redoc/redoc.standalone.js",
     )
 
-
 if __name__ == "__main__":
     uvicorn.run("main:get_app", host='0.0.0.0', port=5000, reload=True)
