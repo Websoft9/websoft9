@@ -18,7 +18,7 @@ from api.utils import lock
 # 获取所有app的信息
 def get_my_app():
 
-    ret = Response(code=const.RETURN_FAIL, message="app查询失败")
+    ret = Response(code=const.RETURN_FAIL, message="App query failed!")
 
     # get all info
     cmd = "docker compose ls -a --format json"
@@ -27,14 +27,14 @@ def get_my_app():
         output_list = json.loads(output["result"])
         list = []
         list = set_app_info(output_list)
-        ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
+        ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=list)
     ret = ret.dict()
     return ret
 
 # 获取具体某个app的信息
 def get_app_detail(app_id):
 
-    ret = Response(code=const.RETURN_FAIL, message="app查询失败")
+    ret = Response(code=const.RETURN_FAIL, message="App query failed!")
 
     # get all info
     cmd = "docker compose ls -a --format json"
@@ -51,7 +51,7 @@ def get_app_detail(app_id):
                 flag = 1
                 break
         if flag == 1:
-            ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
+            ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=list)
     ret = ret.dict()
     return ret
 
@@ -64,7 +64,7 @@ def install_app_process(app_id):
         ret = Response(code=const.RETURN_SUCCESS, message=percentage)
         ret = ret.dict()
     else:
-        ret = Response(code=const.RETURN_FAIL, message="目前没有安装此App")
+        ret = Response(code=const.RETURN_FAIL, message="This app is not currently installed.")
         ret = ret.dict()
     return ret
 
@@ -76,7 +76,7 @@ def install_app(app_name, customer_app_name, app_version):
         if ret.code == const.RETURN_SUCCESS:
             t1 = Thread(target=install_app_job, args=(customer_app_name, app_version,))
             t1.start()
-            ret.message="应用正在启动中，请过几分钟再查询"
+            ret.message="The app is starting, please check again in a few minutes."
     ret = ret.dict()
     return ret
 
@@ -89,11 +89,11 @@ def start_app(app_id):
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = const.RETURN_SUCCESS
-            ret.message = "应用启动成功"
+            ret.message = "The app starts successfully."
         else:
-            ret.message = "应用启动失败"
+            ret.message = "The app failed to start!"
     else:
-        ret.message = "app应用没有安装"
+        ret.message = "The app is not installed!"
     ret = ret.dict()
     return ret
 
@@ -106,11 +106,11 @@ def stop_app(app_id):
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = const.RETURN_SUCCESS
-            ret.message = "应用停止成功"
+            ret.message = "The app stopped successfully."
         else:
-            ret.message = "应用停止失败"
+            ret.message = "App stop failed!"
     else:
-        ret.message = "app应用没有安装"
+        ret.message = "The app is not installed!"
     ret = ret.dict()
     return ret
 
@@ -123,11 +123,11 @@ def restart_app(app_id):
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = const.RETURN_SUCCESS
-            ret.message = "应用重启成功"
+            ret.message = "The app restarts successfully."
         else:
-            ret.message = "应用重启失败"
+            ret.message = "App restart failed!"
     else:
-        ret.message = "app应用没有安装"
+        ret.message = "The app is not installed!"
     ret = ret.dict()
     return ret
 
@@ -144,9 +144,9 @@ def uninstall_app(app_id):
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = 0
-            ret.message = "应用删除成功"
+            ret.message = "The app is deleted successfully"
         else:
-            ret.message = "应用删除失败"
+            ret.message = "App deletion failed!"
     else:
         ret.message = if_stopped["message"]
     ret = ret.dict()
@@ -157,15 +157,15 @@ def check_app(app_name, customer_app_name, app_version):
     code = const.RETURN_FAIL
     install_path = "/data/apps/" + customer_app_name
     if app_name==None or customer_app_name==None or app_version==None:
-        message = "请将APP信息填写完整"
+        message = "Please fill in the APP information completely!"
     elif not docker.check_app_directory(app_name):
-        message = "不支持安装该APP"
+        message = "Installing the app is not supported!"
     elif re.match('^[a-z0-9]+$', customer_app_name)==None:
-        message = "应用名称必须为小写字母和数字"
+        message = "App names must be lowercase letters and numbers!"
     elif docker.check_app_directory(install_path):
-        message = "APP名称已经使用，请指定其他名称重新安装。"
+        message = "The APP name is already in use, please specify a different name to reinstall."
     elif not docker.check_vm_resource(app_name):
-        message = "系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！"
+        message = "System resources (memory, CPU, disk) are insufficient, and continuing to install may cause the app to not run or the server to be abnormal!"
     else:
         code = const.RETURN_SUCCESS
     return code, message
@@ -178,7 +178,7 @@ def prepare_app(app_name, customer_app_name):
     code = const.RETURN_SUCCESS
     output = shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
     if int(output["code"]) != 0:
-        message = "创建" + customer_app_name + "目录失败"
+        message = "creating" + customer_app_name + "directory failed!"
         code = const.RETURN_FAIL
     return code, message
 
@@ -229,6 +229,9 @@ def set_app_info(output_list):
     for app_info in output_list:
         volume = app_info["ConfigFiles"]  # volume
         app_name = volume.split('/')[3]
+        app_path = "/data/apps/" + app_name
+        if not os.path.exists(app_path):
+            continue
         real_name = docker.read_var(app_name, 'name')
         image_url = get_Image_url(real_name)
         # get trade_mark
