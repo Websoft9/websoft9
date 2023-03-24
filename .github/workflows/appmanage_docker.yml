@@ -34,8 +34,8 @@ jobs:
           touch myread.md
           echo "This repository is the easiest appmanage deployment on GitHub and DockerHub  "' 
           ```  
-             git clone https://github.com/Websoft9/docker-library.git  
-             sudo docker network create websoft9 &&  sudo docker compose up -d  
+             git clone https://github.com/Websoft9/Stackhub.git  
+             sudo docker network create websoft9 && cd Stackhub/appmanage &&  sudo docker compose up -d  
           ```' > myread.md
           
       - name: Docker Hub Description
