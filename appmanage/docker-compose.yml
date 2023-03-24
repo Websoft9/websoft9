@@ -3,7 +3,7 @@ version: '3.8'
 services:
 
   appmanage:
-    image: appmanage:dev
+    image: websoft9dev/appmanage:dev
     container_name: appmanage
     pid: host
     privileged: true
