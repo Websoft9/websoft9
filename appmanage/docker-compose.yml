@@ -3,11 +3,12 @@ version: '3.8'
 services:
 
   appmanage:
-    image: appmanage:0.8
+    image: appmanage:dev
     container_name: appmanage
+    pid: host
+    privileged: true
     restart: unless-stopped
     volumes:
-      - /:/host
       - logs:/usr/src/app/logs
     ports:
      - 5000:5000
