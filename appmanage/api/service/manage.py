@@ -68,37 +68,6 @@ def install_app_process(app_id):
         ret = ret.dict()
     return ret
 
-def check_app(app_name, customer_app_name, app_version):
-    message = " "
-    code = const.RETURN_FAIL
-    install_path = "/data/apps/" + customer_app_name
-    if app_name==None or customer_app_name==None or app_version==None:
-        message = "请将APP信息填写完整"
-    elif not docker.check_app_directory(app_name):
-        message = "不支持安装该APP"
-    elif re.match('^[a-z0-9]+$', customer_app_name)==None:
-        message = "应用名称必须为小写字母和数字"
-    elif docker.check_app_directory(install_path):
-        message = "APP名称已经使用，请指定其他名称重新安装。"
-    elif not docker.check_vm_resource(app_name):
-        message = "系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！"
-    else:
-        code = const.RETURN_SUCCESS
-    return code, message
-
-
-def prepare_app(app_name, customer_app_name):
-    library_path = "/data/apps/docker-library/" + app_name
-    install_path = "/data/apps/" + customer_app_name
-    message = " "
-    code = const.RETURN_SUCCESS
-    output = shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
-    if int(output["code"]) != 0:
-        message = "创建" + customer_app_name + "目录失败"
-        code = const.RETURN_FAIL
-    return code, message
-
-
 def install_app(app_name, customer_app_name, app_version):
     ret = Response(code=const.RETURN_FAIL, message=" ")
     ret.code, ret.message = check_app(app_name, customer_app_name, app_version)
@@ -110,44 +79,6 @@ def install_app(app_name, customer_app_name, app_version):
             ret.message="应用正在启动中，请过几分钟再查询"
     ret = ret.dict()
     return ret
-
-
-def install_app_job(customer_app_name, app_version):
-    file_path = "/data/apps/running_apps.txt"
-    with open(file_path, "a", encoding="utf-8") as f:
-        f.write(customer_app_name + "\n")
-    # modify env
-    env_path = "/data/apps/" + customer_app_name + "/.env"
-    docker.modify_env(env_path, 'APP_NAME', customer_app_name)
-    docker.modify_env(env_path, "APP_VERSION", app_version)
-    # check port
-    docker.check_app_compose(customer_app_name)
-    # modify running_apps.txt
-    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up -d"
-    shell_execute.execute_command_output_all(cmd)
-    file_data = ""
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if re.match("^" + customer_app_name + "$", line):
-                line = line.replace(line, "")
-            file_data += line
-    with open("test.txt", "w", encoding="utf-8") as f:
-        f.write(file_data)
-
-
-def if_app_exits(app_id, app_name):
-    cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
-    output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == -1:
-        return False
-    else:
-        real_name = docker.read_var(app_name, "name")
-        real_id = real_name + "_" + app_name
-        if app_id == real_id:
-            return True
-        else:
-            return False
-
 
 def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
@@ -220,11 +151,74 @@ def uninstall_app(app_id):
         ret.message = if_stopped["message"]
     ret = ret.dict()
     return ret
+def check_app(app_name, customer_app_name, app_version):
+    message = " "
+    code = const.RETURN_FAIL
+    install_path = "/data/apps/" + customer_app_name
+    if app_name==None or customer_app_name==None or app_version==None:
+        message = "请将APP信息填写完整"
+    elif not docker.check_app_directory(app_name):
+        message = "不支持安装该APP"
+    elif re.match('^[a-z0-9]+$', customer_app_name)==None:
+        message = "应用名称必须为小写字母和数字"
+    elif docker.check_app_directory(install_path):
+        message = "APP名称已经使用，请指定其他名称重新安装。"
+    elif not docker.check_vm_resource(app_name):
+        message = "系统资源(内存、CPU、磁盘)不足，继续安装可能导致应用无法运行或服务器异常！"
+    else:
+        code = const.RETURN_SUCCESS
+    return code, message
 
+
+def prepare_app(app_name, customer_app_name):
+    library_path = "/data/apps/docker-library/" + app_name
+    install_path = "/data/apps/" + customer_app_name
+    message = " "
+    code = const.RETURN_SUCCESS
+    output = shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
+    if int(output["code"]) != 0:
+        message = "创建" + customer_app_name + "目录失败"
+        code = const.RETURN_FAIL
+    return code, message
+
+def install_app_job(customer_app_name, app_version):
+    file_path = "/data/apps/running_apps.txt"
+    with open(file_path, "a", encoding="utf-8") as f:
+        f.write(customer_app_name + "\n")
+    # modify env
+    env_path = "/data/apps/" + customer_app_name + "/.env"
+    docker.modify_env(env_path, 'APP_NAME', customer_app_name)
+    docker.modify_env(env_path, "APP_VERSION", app_version)
+    # check port
+    docker.check_app_compose(customer_app_name)
+    # modify running_apps.txt
+    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up -d"
+    shell_execute.execute_command_output_all(cmd)
+    file_data = ""
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if re.match("^" + customer_app_name + "$", line):
+                line = line.replace(line, "")
+            file_data += line
+    with open("test.txt", "w", encoding="utf-8") as f:
+        f.write(file_data)
+
+
+def if_app_exits(app_id, app_name):
+    cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
+    output = shell_execute.execute_command_output_all(cmd)
+    if int(output["code"]) == -1:
+        return False
+    else:
+        real_name = docker.read_var(app_name, "name")
+        real_id = real_name + "_" + app_name
+        if app_id == real_id:
+            return True
+        else:
+            return False
 
 def split_app_id(app_id):
     return app_id.split("_")[1]
-
 
 def set_app_info(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
