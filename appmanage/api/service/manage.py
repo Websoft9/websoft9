@@ -15,6 +15,23 @@ from api.model.app import App
 from api.model.response import Response
 from api.utils import lock
 
+# 获取所有app的信息
+def get_my_app():
+
+    ret = Response(code=const.RETURN_FAIL, message="app查询失败")
+
+    # get all info
+    cmd = "docker compose ls -a --format json"
+    output = shell_execute.execute_command_output_all(cmd)
+    if int(output["code"]) == 0:
+        output_list = json.loads(output["result"])
+        list = []
+        list = set_app_info(output_list)
+        ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
+    ret = ret.dict()
+    return ret
+
+# 获取具体某个app的信息
 def get_app_detail(app_id):
 
     ret = Response(code=const.RETURN_FAIL, message="app查询失败")
@@ -38,130 +55,7 @@ def get_app_detail(app_id):
     ret = ret.dict()
     return ret
 
-# 获取所有app的信息
-def get_my_app():
-
-    ret = Response(code=const.RETURN_FAIL, message="app查询失败")
-
-    # get all info
-    cmd = "docker compose ls -a --format json"
-    output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == 0:
-        output_list = json.loads(output["result"])
-        list = []
-        list = set_app_info(output_list)
-        ret = Response(code=const.RETURN_SUCCESS, message="app查询成功", data=list)
-    ret = ret.dict()
-    return ret
-
-
-def set_app_info(output_list):
-    ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
-    ip = ip_result["result"]
-    app_list = []
-    has_add = []
-    for app_info in output_list:
-        volume = app_info["ConfigFiles"]  # volume
-        app_name = volume.split('/')[3]
-        real_name = docker.read_var(app_name, 'name')
-        image_url = get_Image_url(real_name)
-        # get trade_mark
-        trade_mark = docker.read_var(app_name, 'trademark')
-        app_id = real_name + "_" + app_name  # app_id
-        case = app_info["Status"].split("(")[0]  # case
-        if case == "running":
-            case_code = const.RETURN_RUNNING  # case_code
-        elif case == "exited":
-            case = "stop"
-            case_code = const.RETURN_STOP
-        elif case == "created":
-            case_code = const.RETURN_READY
-            case = "installing"
-        else:
-            case_code = const.RETURN_ERROR
-        # get env info
-        path = "/data/apps/" + app_name + "/.env"
-        port = 0
-        url = "-"
-        admin_url = "-"
-        # get port and url
-        try:
-            http_port = list(docker.read_env(
-                path, "APP_HTTP_PORT").values())[0]
-            port = int(http_port)
-            easy_url = "http://" + ip + ":" + str(port)
-            url = get_url(real_name, easy_url)
-            admin_url = get_admin_url(real_name, url)
-        except IndexError:
-            try:
-                db_port = list(docker.read_env(
-                    path, "APP_DB.*_PORT").values())[0]
-                port = int(db_port)
-            except IndexError:
-                pass
-        # get user_name
-        user_name = "-"
-        try:
-            user_name = list(docker.read_env(path, "APP_USER").values())[0]
-        except IndexError:
-            pass
-        # get password
-        password = "-"
-        try:
-            password = list(docker.read_env(
-                path, "POWER_PASSWORD").values())[0]
-        except IndexError:
-            pass
-
-        has_add.append(app_name)
-        app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
-                  image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
-        app_list.append(app.dict())
-
-    file_path = "/data/apps/running_apps.txt"
-    if os.path.exists(file_path) and os.path.getsize(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            for running_app_name in f:
-                running_app_name = re.sub("\n", "", running_app_name)
-                if running_app_name not in has_add and running_app_name != "":
-                    trade_mark = docker.read_var(running_app_name, 'trademark')
-                    real_name = docker.read_var(running_app_name, 'name')
-                    image_url = get_Image_url(real_name)
-                    app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
-                              url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
-                    app_list.append(app.dict())
-    return app_list
-
-def get_Image_url(app_name):
-
-    image_url = "/static/" + app_name + "-websoft9.png"
-
-    return image_url
-
-def get_url(app_name, easy_url):
-
-    url = easy_url
-    if app_name == "joomla":
-        url = easy_url + "/administrator"
-    elif app_name == "other":
-        url = easy_url + "/administrator"
-    else:
-        url = easy_url
-    return url
-
-
-def get_admin_url(app_name, url):
-
-    admin_url = "-"
-    if app_name == "wordpress":
-        admin_url = url + "/wp-admin"
-    elif app_name == "other":
-        admin_url = url + "/admin"
-    else:
-        admin_url = "-"
-    return admin_url
-
-
+# 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initing（初始化）running（正常运行）
 def install_app_process(app_id):
     app_name = split_app_id(app_id)
     real_name = docker.read_var(app_name, 'name')
@@ -330,3 +224,110 @@ def uninstall_app(app_id):
 
 def split_app_id(app_id):
     return app_id.split("_")[1]
+
+
+def set_app_info(output_list):
+    ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
+    ip = ip_result["result"]
+    app_list = []
+    has_add = []
+    for app_info in output_list:
+        volume = app_info["ConfigFiles"]  # volume
+        app_name = volume.split('/')[3]
+        real_name = docker.read_var(app_name, 'name')
+        image_url = get_Image_url(real_name)
+        # get trade_mark
+        trade_mark = docker.read_var(app_name, 'trademark')
+        app_id = real_name + "_" + app_name  # app_id
+        case = app_info["Status"].split("(")[0]  # case
+        if case == "running":
+            case_code = const.RETURN_RUNNING  # case_code
+        elif case == "exited":
+            case = "stop"
+            case_code = const.RETURN_STOP
+        elif case == "created":
+            case_code = const.RETURN_READY
+            case = "installing"
+        else:
+            case_code = const.RETURN_ERROR
+        # get env info
+        path = "/data/apps/" + app_name + "/.env"
+        port = 0
+        url = "-"
+        admin_url = "-"
+        # get port and url
+        try:
+            http_port = list(docker.read_env(
+                path, "APP_HTTP_PORT").values())[0]
+            port = int(http_port)
+            easy_url = "http://" + ip + ":" + str(port)
+            url = get_url(real_name, easy_url)
+            admin_url = get_admin_url(real_name, url)
+        except IndexError:
+            try:
+                db_port = list(docker.read_env(
+                    path, "APP_DB.*_PORT").values())[0]
+                port = int(db_port)
+            except IndexError:
+                pass
+        # get user_name
+        user_name = "-"
+        try:
+            user_name = list(docker.read_env(path, "APP_USER").values())[0]
+        except IndexError:
+            pass
+        # get password
+        password = "-"
+        try:
+            password = list(docker.read_env(
+                path, "POWER_PASSWORD").values())[0]
+        except IndexError:
+            pass
+
+        has_add.append(app_name)
+        app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
+                  image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
+        app_list.append(app.dict())
+
+    file_path = "/data/apps/running_apps.txt"
+    if os.path.exists(file_path) and os.path.getsize(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            for running_app_name in f:
+                running_app_name = re.sub("\n", "", running_app_name)
+                if running_app_name not in has_add and running_app_name != "":
+                    trade_mark = docker.read_var(running_app_name, 'trademark')
+                    real_name = docker.read_var(running_app_name, 'name')
+                    image_url = get_Image_url(real_name)
+                    app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                              url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
+                    app_list.append(app.dict())
+    return app_list
+
+def get_Image_url(app_name):
+
+    image_url = "/static/" + app_name + "-websoft9.png"
+
+    return image_url
+
+def get_url(app_name, easy_url):
+
+    url = easy_url
+    if app_name == "joomla":
+        url = easy_url + "/administrator"
+    elif app_name == "other":
+        url = easy_url + "/administrator"
+    else:
+        url = easy_url
+    return url
+
+
+def get_admin_url(app_name, url):
+
+    admin_url = "-"
+    if app_name == "wordpress":
+        admin_url = url + "/wp-admin"
+    elif app_name == "other":
+        admin_url = url + "/admin"
+    else:
+        admin_url = "-"
+    return admin_url
