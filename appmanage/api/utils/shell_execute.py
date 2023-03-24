@@ -14,7 +14,7 @@ def execute_command_output_all(cmd_str, max_time = 3):
     myLogger.info_logger("Start to execute cmd: " + cmd_str)
     execute_time = 0
     while execute_time < max_time:
-        process = subprocess.run(f'nsenter -m -u -i -n -p -t 1 sh -c "{cmd_str}"', capture_output=True, check=True, text=True, shell=True)
+        process = subprocess.run(f'nsenter -m -u -i -n -p -t 1 sh -c "{cmd_str}"', capture_output=True, check=False, text=True, shell=True)
         
         myLogger.info_logger("execute success: " + cmd_str)
         if process.returncode == 0:
