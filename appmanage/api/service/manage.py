@@ -10,7 +10,7 @@ import datetime
 import socket
 import re
 from threading import Thread
-from api.utils import shell_execute, network, docker, const
+from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.model.response import Response
 from api.utils import lock
