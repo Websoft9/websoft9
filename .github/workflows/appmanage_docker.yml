@@ -20,7 +20,7 @@ jobs:
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
-          image: websoft9dev/appmanage:dev
+          image: websoft9dev/appmanage
           tags: dev
           registry: docker.io
           dockerfile: appmanage/Dockerfile
