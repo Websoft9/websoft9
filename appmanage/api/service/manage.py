@@ -134,7 +134,8 @@ def set_app_info(output_list):
     if os.path.exists(file_path) and os.path.getsize(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
-                if running_app_name not in has_add:               
+                running_app_name = re.sub("\n", "", running_app_name)
+                if running_app_name not in has_add and running_app_name != "":
                     trade_mark = docker.read_var(running_app_name, 'trademark')
                     real_name = docker.read_var(running_app_name, 'name')
                     image_url = get_Image_url(real_name)
