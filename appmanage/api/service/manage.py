@@ -230,7 +230,7 @@ def set_app_info(output_list):
         volume = app_info["ConfigFiles"]  # volume
         app_name = volume.split('/')[3]
         app_path = "/data/apps/" + app_name
-        if not os.path.exists(app_path):
+        if not docker.check_directory(app_path):
             continue
         real_name = docker.read_var(app_name, 'name')
         image_url = get_Image_url(real_name)
@@ -288,7 +288,7 @@ def set_app_info(output_list):
         app_list.append(app.dict())
 
     file_path = "/data/apps/running_apps.txt"
-    if os.path.exists(file_path) and os.path.getsize(file_path):
+    if docker.check_directory(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             for running_app_name in f:
                 running_app_name = re.sub("\n", "", running_app_name)

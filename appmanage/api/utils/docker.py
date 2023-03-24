@@ -65,8 +65,15 @@ def check_app_directory(app_name):
     # websoft9's support applist
     myLogger.info_logger("Checking dir...")
     path = "/data/library/apps/"+app_name
-    is_exists = os.path.exists(path)
+    is_exists = check_directory(path)
     return is_exists
+
+def check_directory(path):
+    output = shell_execute.execute_command_output_all("ls " + path)
+    if int(output["code"]) == 0:
+        return True
+    else:
+        return False
 
 def check_app_compose(app_name):
     myLogger.info_logger("Checking port...")
