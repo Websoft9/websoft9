@@ -15,9 +15,9 @@ from api.model.app import App
 from api.model.response import Response
 from api.utils import lock
 
+
 # 获取所有app的信息
 def get_my_app():
-
     ret = Response(code=const.RETURN_FAIL, message="App query failed!")
 
     # get all info
@@ -31,9 +31,9 @@ def get_my_app():
     ret = ret.dict()
     return ret
 
+
 # 获取具体某个app的信息
 def get_app_detail(app_id):
-
     ret = Response(code=const.RETURN_FAIL, message="App query failed!")
 
     # get all info
@@ -55,6 +55,7 @@ def get_app_detail(app_id):
     ret = ret.dict()
     return ret
 
+
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initing（初始化）running（正常运行）
 def install_app_process(app_id):
     app_name = split_app_id(app_id)
@@ -69,6 +70,7 @@ def install_app_process(app_id):
         ret = ret.dict()
     return ret
 
+
 def install_app(app_name, customer_app_name, app_version):
     ret = Response(code=const.RETURN_FAIL, message=" ")
     ret.code, ret.message = check_app(app_name, customer_app_name, app_version)
@@ -77,16 +79,17 @@ def install_app(app_name, customer_app_name, app_version):
         if ret.code == const.RETURN_SUCCESS:
             t1 = Thread(target=install_app_job, args=(customer_app_name, app_version,))
             t1.start()
-            ret.message="The app is starting, please check again in a few minutes."
+            ret.message = "The app is starting, please check again in a few minutes."
     ret = ret.dict()
     return ret
+
 
 def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     app_name = split_app_id(app_id)
     if if_app_exits(app_id, app_name):
         docker.check_app_compose(app_name)
-        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml start"
+        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml start"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = const.RETURN_SUCCESS
@@ -103,7 +106,7 @@ def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     app_name = split_app_id(app_id)
     if if_app_exits(app_id, app_name):
-        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml stop"
+        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml stop"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = const.RETURN_SUCCESS
@@ -120,7 +123,7 @@ def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     app_name = split_app_id(app_id)
     if if_app_exits(app_id, app_name):
-        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml restart"
+        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml restart"
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
             ret.code = const.RETURN_SUCCESS
@@ -135,11 +138,11 @@ def restart_app(app_id):
 
 def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
-    if_stopped = stop_app(app_id)   # stop_app
+    if_stopped = stop_app(app_id)  # stop_app
     app_name = split_app_id(app_id)
     real_name = app_id.split("_")[0]
     if if_stopped["code"] == 0:
-        cmd = "docker compose -f /data/apps/"+app_name+"/docker-compose.yml down -v"
+        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml down -v"
         if real_name != app_name:
             cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
         output = shell_execute.execute_command_output_all(cmd)
@@ -153,14 +156,15 @@ def uninstall_app(app_id):
     ret = ret.dict()
     return ret
 
+
 def check_app(app_name, customer_app_name, app_version):
     message = " "
     code = const.RETURN_FAIL
-    if app_name==None or customer_app_name==None or app_version==None:
+    if app_name == None or customer_app_name == None or app_version == None:
         message = "Please fill in the APP information completely!"
     elif not docker.check_app_directory(app_name):
         message = "Installing the app is not supported!"
-    elif re.match('^[a-z0-9]+$', customer_app_name)==None:
+    elif re.match('^[a-z0-9]+$', customer_app_name) == None:
         message = "App names must be lowercase letters and numbers!"
     elif docker.check_app_directory(customer_app_name):
         message = "The APP name is already in use, please specify a different name to reinstall."
@@ -182,10 +186,11 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
+
 def install_app_job(customer_app_name, app_version):
+    # write running_apps.txt
     file_path = "/data/apps/running_apps.txt"
-    with open(file_path, "a", encoding="utf-8") as f:
-        f.write(customer_app_name + "\n")
+    shell_execute.execute_command_output_all("echo " + customer_app_name + " >> " + file_path)
     # modify env
     env_path = "/data/apps/" + customer_app_name + "/.env"
     docker.modify_env(env_path, 'APP_NAME', customer_app_name)
@@ -195,18 +200,15 @@ def install_app_job(customer_app_name, app_version):
     # modify running_apps.txt
     cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up --pull always -d"
     shell_execute.execute_command_output_all(cmd)
-    file_data = ""
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if re.match("^" + customer_app_name + "$", line):
-                line = line.replace(line, "")
-            file_data += line
-    with open("test.txt", "w", encoding="utf-8") as f:
-        f.write(file_data)
+    # delete
+    output = shell_execute.execute_command_output_all("sed -n \'/^" + customer_app_name + "/=\' " + file_path)
+    if int(output["code"]) == 0 and output["result"] != "":
+        line_num = output["result"].split("\n")[0]
+        shell_execute.execute_command_output_all("sed -i \'" + line_num + "d\' " + file_path)
 
 
 def if_app_exits(app_id, app_name):
-    cmd = "docker compose ls -a | grep \'"+app_name+"\\b\'"
+    cmd = "docker compose ls -a | grep \'" + app_name + "\\b\'"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == -1:
         return False
@@ -219,8 +221,10 @@ def if_app_exits(app_id, app_name):
         else:
             return False
 
+
 def split_app_id(app_id):
     return app_id.split("_")[1]
+
 
 def set_app_info(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
@@ -285,8 +289,10 @@ def set_app_info(output_list):
             pass
 
         has_add.append(app_name)
-        app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port, volume=volume, url=url,
-                  image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name, password=password)
+        app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port,
+                  volume=volume, url=url,
+                  image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name,
+                  password=password)
         app_list.append(app.dict())
 
     file_path = "/data/apps/running_apps.txt"
@@ -299,19 +305,21 @@ def set_app_info(output_list):
                     trade_mark = docker.read_var(var_path, 'trademark')
                     real_name = docker.read_var(var_path, 'name')
                     image_url = get_Image_url(real_name)
-                    app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
-                              url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
+                    app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
+                              status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                              url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",
+                              password="-")
                     app_list.append(app.dict())
     return app_list
 
-def get_Image_url(app_name):
 
+def get_Image_url(app_name):
     image_url = "/static/" + app_name + "-websoft9.png"
 
     return image_url
 
-def get_url(app_name, easy_url):
 
+def get_url(app_name, easy_url):
     url = easy_url
     if app_name == "joomla":
         url = easy_url + "/administrator"
@@ -323,7 +331,6 @@ def get_url(app_name, easy_url):
 
 
 def get_admin_url(app_name, url):
-
     admin_url = "-"
     if app_name == "wordpress":
         admin_url = url + "/wp-admin"
