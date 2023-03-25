@@ -53,12 +53,13 @@ def check_vm_resource(app_name):
     if mem_total < need_mem_total:
         myLogger.info_logger("Check complete: The total amount of memory is insufficient!")
         return False
-    mem_free = float(mem[3]) /1024
+    mem_free = float(mem[3]) / 1024
     if need_mem_total > 4 and mem_free < 4:
         myLogger.info_logger("Check complete: There is not enough memory left!")
         return False
     need_disk = int(requirements_var['disk'])
-    disk_free = float(shell_execute.execute_command_output_all("df -m | awk \'$NF==\"/\"{print $4}\'")["result"]) / 1024
+    disk_free = float(
+        shell_execute.execute_command_output_all("df -m --output=avail /")["result"].split("\n")[1]) / 1024
     if disk_free < need_disk:
         myLogger.info_logger("Check complete: There are not enough disks left!")
         return False
