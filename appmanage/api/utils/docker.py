@@ -40,7 +40,7 @@ def if_app_exits(app_name):
 
 def check_vm_resource(app_name):
     myLogger.info_logger("Checking virtual memory resource ...")
-    var_path = "/data/library/apps" + app_name + "/variables.json"
+    var_path = "/data/library/apps/" + app_name + "/variables.json"
     requirements_var = read_var(var_path, 'requirements')
     need_cpu_count = int(requirements_var['cpu'])
     cpu_count = int(shell_execute.execute_command_output_all("cat /proc/cpuinfo | grep \'core id\'| wc -l")["result"])

@@ -156,14 +156,13 @@ def uninstall_app(app_id):
 def check_app(app_name, customer_app_name, app_version):
     message = " "
     code = const.RETURN_FAIL
-    install_path = "/data/apps/" + customer_app_name
     if app_name==None or customer_app_name==None or app_version==None:
         message = "Please fill in the APP information completely!"
     elif not docker.check_app_directory(app_name):
         message = "Installing the app is not supported!"
     elif re.match('^[a-z0-9]+$', customer_app_name)==None:
         message = "App names must be lowercase letters and numbers!"
-    elif docker.check_app_directory(install_path):
+    elif docker.check_app_directory(customer_app_name):
         message = "The APP name is already in use, please specify a different name to reinstall."
     elif not docker.check_vm_resource(app_name):
         message = "System resources (memory, CPU, disk) are insufficient, and continuing to install may cause the app to not run or the server to be abnormal!"
