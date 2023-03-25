@@ -166,7 +166,7 @@ def check_app(app_name, customer_app_name, app_version):
         message = "Installing the app is not supported!"
     elif re.match('^[a-z0-9]+$', customer_app_name) == None:
         message = "App names must be lowercase letters and numbers!"
-    elif docker.check_app_directory(customer_app_name):
+    elif docker.check_directory("/data/apps/" + customer_app_name):
         message = "The APP name is already in use, please specify a different name to reinstall."
     elif not docker.check_vm_resource(app_name):
         message = "System resources (memory, CPU, disk) are insufficient, and continuing to install may cause the app to not run or the server to be abnormal!"
@@ -297,19 +297,20 @@ def set_app_info(output_list):
 
     file_path = "/data/apps/running_apps.txt"
     if docker.check_directory(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            for running_app_name in f:
-                running_app_name = re.sub("\n", "", running_app_name)
-                if running_app_name not in has_add and running_app_name != "":
-                    var_path = "/data/apps/" + running_app_name + "/variables.json"
-                    trade_mark = docker.read_var(var_path, 'trademark')
-                    real_name = docker.read_var(var_path, 'name')
-                    image_url = get_Image_url(real_name)
-                    app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
-                              status_code=const.RETURN_READY, status="installing", port=0, volume="-",
-                              url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",
-                              password="-")
-                    app_list.append(app.dict())
+        output = shell_execute.execute_command_output_all("cat " + file_path)
+        apps = output["result"].split("\n")
+        for running_app_name in apps:
+            running_app_name = re.sub("\n", "", running_app_name)
+            if running_app_name not in has_add and running_app_name != "":
+                var_path = "/data/apps/" + running_app_name + "/variables.json"
+                trade_mark = docker.read_var(var_path, 'trademark')
+                real_name = docker.read_var(var_path, 'name')
+                image_url = get_Image_url(real_name)
+                app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
+                          status_code=const.RETURN_READY, status="installing", port=0, volume="-",
+                          url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",
+                          password="-")
+                app_list.append(app.dict())
     return app_list
 
 
