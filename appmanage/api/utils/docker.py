@@ -40,7 +40,8 @@ def if_app_exits(app_name):
 
 def check_vm_resource(app_name):
     myLogger.info_logger("Checking virtual memory resource ...")
-    requirements_var = read_var(app_name, 'requirements')
+    var_path = "/data/library/apps" + app_name + "/variables.json"
+    requirements_var = read_var(var_path, 'requirements')
     need_cpu_count = int(requirements_var['cpu'])
     cpu_count = int(shell_execute.execute_command_output_all("cat /proc/cpuinfo | grep \'core id\'| wc -l")["result"])
     if cpu_count < need_cpu_count:
@@ -134,9 +135,8 @@ def modify_env(path, env_name, value):
             myLogger.info_logger("Modify " + path + ": Change " + env_name + " to " + value)
 
 
-def read_var(app_name, var_name):
+def read_var(var_path, var_name):
     value = "-"
-    var_path = "/data/apps/" + app_name + "/variables.json"
     myLogger.info_logger("Read " + var_path)
     output = shell_execute.execute_command_output_all("cat " + var_path)
     if int(output["code"]) == 0:

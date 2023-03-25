@@ -58,7 +58,8 @@ def get_app_detail(app_id):
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initing（初始化）running（正常运行）
 def install_app_process(app_id):
     app_name = split_app_id(app_id)
-    real_name = docker.read_var(app_name, 'name')
+    var_path = "/data/apps/" + app_name + "/variables.json"
+    real_name = docker.read_var(var_path, 'name')
     if docker.check_app_directory(app_name):
         percentage = docker.get_process_perc(app_name, real_name)
         ret = Response(code=const.RETURN_SUCCESS, message=percentage)
@@ -211,7 +212,8 @@ def if_app_exits(app_id, app_name):
     if int(output["code"]) == -1:
         return False
     else:
-        real_name = docker.read_var(app_name, "name")
+        var_path = "/data/apps/" + app_name + "/variables.json"
+        real_name = docker.read_var(var_path, "name")
         real_id = real_name + "_" + app_name
         if app_id == real_id:
             return True
@@ -230,12 +232,13 @@ def set_app_info(output_list):
         volume = app_info["ConfigFiles"]  # volume
         app_name = volume.split('/')[3]
         app_path = "/data/apps/" + app_name
+        var_path = app_path + "/variables.json"
         if not docker.check_directory(app_path):
             continue
-        real_name = docker.read_var(app_name, 'name')
+        real_name = docker.read_var(var_path, 'name')
         image_url = get_Image_url(real_name)
         # get trade_mark
-        trade_mark = docker.read_var(app_name, 'trademark')
+        trade_mark = docker.read_var(var_path, 'trademark')
         app_id = real_name + "_" + app_name  # app_id
         case = app_info["Status"].split("(")[0]  # case
         if case == "running":
@@ -293,8 +296,9 @@ def set_app_info(output_list):
             for running_app_name in f:
                 running_app_name = re.sub("\n", "", running_app_name)
                 if running_app_name not in has_add and running_app_name != "":
-                    trade_mark = docker.read_var(running_app_name, 'trademark')
-                    real_name = docker.read_var(running_app_name, 'name')
+                    var_path = "/data/apps/" + running_app_name + "/variables.json"
+                    trade_mark = docker.read_var(var_path, 'trademark')
+                    real_name = docker.read_var(var_path, 'name')
                     image_url = get_Image_url(real_name)
                     app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name, status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                               url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-", password="-")
