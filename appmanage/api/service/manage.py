@@ -44,16 +44,18 @@ def get_app_detail(app_id):
         app_list, has_add = get_apps_from_compose(output_list)
         list = get_apps_from_queue(app_list, has_add)
         flag = 0
+        app_info = {}
         for app in list:
             if app["app_id"] == app_id:
                 list.clear()
                 list.append(app)
+                app_info = app
                 flag = 1
                 break
         if flag == 1:
             ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=list)
     ret = ret.dict()
-    return ret
+    return app_info
 
 
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
