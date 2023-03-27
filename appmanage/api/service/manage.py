@@ -61,7 +61,7 @@ def install_app_process(app_id):
     app_name = split_app_id(app_id)
     var_path = "/data/apps/" + app_name + "/variables.json"
     real_name = docker.read_var(var_path, 'name')
-    if docker.check_app_directory(app_name):
+    if docker.check_app_directory(real_name):
         percentage = docker.get_process_perc(app_name, real_name)
         ret = Response(code=const.RETURN_SUCCESS, message=percentage)
         ret = ret.dict()
