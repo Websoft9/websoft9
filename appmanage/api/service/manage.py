@@ -34,7 +34,10 @@ def get_my_app():
 
 # 获取具体某个app的信息
 def get_app_detail(app_id):
-    ret = Response(code=const.RETURN_FAIL, message="App query failed!")
+    ret = {}
+    ret['code'] = const.RETURN_FAIL
+    ret['message'] = 'App query failed!'
+    ret['data'] = None
 
     # get all info
     cmd = "docker compose ls -a --format json"
@@ -44,18 +47,22 @@ def get_app_detail(app_id):
         app_list, has_add = get_apps_from_compose(output_list)
         list = get_apps_from_queue(app_list, has_add)
         flag = 0
-        app_info = {}
+        app_info = None
         for app in list:
             if app["app_id"] == app_id:
                 list.clear()
                 list.append(app)
-                app_info = app
+                app_info = App(app_id=app['app_id'], name=app['name'], customer_name=app['customer_name'], status_code=app['status_code'], status=app['status'], port=app['port'],
+                  volume=app['volume'], url=app['url'],
+                  image_url=app['image_url'], admin_url=app['admin_url'], trade_mark=app['trade_mark'], user_name=app['user_name'],
+                  password=app['password'])
                 flag = 1
                 break
         if flag == 1:
-            ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=list)
-    ret = ret.dict()
-    return app_info
+            ret['code'] = const.RETURN_SUCCESS
+            ret['message'] = "The app query is successful."
+            ret['data'] = app_info
+    return ret
 
 
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
