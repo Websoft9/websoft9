@@ -7,12 +7,14 @@ RETURN_SUCCESS = 0
 RETURN_FAIL = -1
 
 # 应用状态定义
-# 应用启动准备
+# 应用启动准备 installing
 RETURN_READY = 0
 # 应用正在运行
 RETURN_RUNNING = 1
 # 应用已经停止
 RETURN_STOP = 2
+# 应用等待安装 waiting
+RETURN_STOP = 3
 # 应用错误或不存在
 RETURN_ERROR = -1
 
