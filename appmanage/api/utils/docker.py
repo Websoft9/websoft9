@@ -60,7 +60,7 @@ def check_vm_resource(app_name):
     need_disk = int(requirements_var['disk'])
     disk_free = float(
         shell_execute.execute_command_output_all("df -m --output=avail /")["result"].split("\n")[1]) / 1024
-    if disk_free < need_disk:
+    if disk_free < need_disk - 17:
         myLogger.info_logger("Check complete: There are not enough disks left!")
         return False
     myLogger.info_logger("Check complete.")
