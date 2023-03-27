@@ -14,7 +14,7 @@ RETURN_RUNNING = 1
 # 应用已经停止
 RETURN_STOP = 2
 # 应用等待安装 waiting
-RETURN_STOP = 3
+RETURN_WAIT = 3
 # 应用错误或不存在
 RETURN_ERROR = -1
 
