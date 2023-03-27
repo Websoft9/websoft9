@@ -25,8 +25,8 @@ def get_my_app():
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
         output_list = json.loads(output["result"])
-        list = []
-        list = set_app_info(output_list)
+        app_list, has_add = get_apps_from_compose(output_list)
+        list = get_apps_from_queue(app_list, has_add)
         ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=list)
     ret = ret.dict()
     return ret
@@ -41,8 +41,8 @@ def get_app_detail(app_id):
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
         output_list = json.loads(output["result"])
-        list = []
-        list = set_app_info(output_list)
+        app_list, has_add = get_apps_from_compose(output_list)
+        list = get_apps_from_queue(app_list, has_add)
         flag = 0
         for app in list:
             if app["app_id"] == app_id:
@@ -56,7 +56,7 @@ def get_app_detail(app_id):
     return ret
 
 
-# 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initing（初始化）running（正常运行）
+# 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
 def install_app_process(app_id):
     app_name = split_app_id(app_id)
     var_path = "/data/apps/" + app_name + "/variables.json"
@@ -226,7 +226,7 @@ def split_app_id(app_id):
     return app_id.split("_")[1]
 
 
-def set_app_info(output_list):
+def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
     app_list = []
@@ -294,7 +294,10 @@ def set_app_info(output_list):
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name,
                   password=password)
         app_list.append(app.dict())
+    return app_list, has_add
 
+
+def get_apps_from_queue(app_list, has_add):
     file_path = "/data/apps/running_apps.txt"
     if docker.check_directory(file_path):
         output = shell_execute.execute_command_output_all("cat " + file_path)
