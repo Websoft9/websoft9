@@ -39,29 +39,32 @@ def get_app_detail(app_id):
     ret['message'] = 'App query failed!'
     ret['data'] = None
 
-    # get all info
-    cmd = "docker compose ls -a --format json"
-    output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == 0:
-        output_list = json.loads(output["result"])
-        app_list, has_add = get_apps_from_compose(output_list)
-        list = get_apps_from_queue(app_list, has_add)
-        flag = 0
-        app_info = None
-        for app in list:
-            if app["app_id"] == app_id:
-                list.clear()
-                list.append(app)
-                app_info = App(app_id=app['app_id'], name=app['name'], customer_name=app['customer_name'], status_code=app['status_code'], status=app['status'], port=app['port'],
-                  volume=app['volume'], url=app['url'],
-                  image_url=app['image_url'], admin_url=app['admin_url'], trade_mark=app['trade_mark'], user_name=app['user_name'],
-                  password=app['password'])
-                flag = 1
-                break
-        if flag == 1:
-            ret['code'] = const.RETURN_SUCCESS
-            ret['message'] = "The app query is successful."
-            ret['data'] = app_info
+    if docker.check_app_id(app_id):
+        # get all info
+        cmd = "docker compose ls -a --format json"
+        output = shell_execute.execute_command_output_all(cmd)
+        if int(output["code"]) == 0:
+            output_list = json.loads(output["result"])
+            app_list, has_add = get_apps_from_compose(output_list)
+            list = get_apps_from_queue(app_list, has_add)
+            flag = 0
+            app_info = None
+            for app in list:
+                if app["app_id"] == app_id:
+                    list.clear()
+                    list.append(app)
+                    app_info = App(app_id=app['app_id'], name=app['name'], customer_name=app['customer_name'], status_code=app['status_code'], status=app['status'], port=app['port'],
+                      volume=app['volume'], url=app['url'],
+                      image_url=app['image_url'], admin_url=app['admin_url'], trade_mark=app['trade_mark'], user_name=app['user_name'],
+                      password=app['password'])
+                    flag = 1
+                    break
+            if flag == 1:
+                ret['code'] = const.RETURN_SUCCESS
+                ret['message'] = "The app query is successful."
+                ret['data'] = app_info
+    else:
+        ret['message'] = "AppID is not legal!"
     return ret
 
 
@@ -95,73 +98,85 @@ def install_app(app_name, customer_app_name, app_version):
 
 def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
-    app_name = split_app_id(app_id)
-    if if_app_exits(app_id, app_name):
-        docker.check_app_compose(app_name)
-        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml start"
-        output = shell_execute.execute_command_output_all(cmd)
-        if int(output["code"]) == 0:
-            ret.code = const.RETURN_SUCCESS
-            ret.message = "The app starts successfully."
+    if docker.check_app_id(app_id):
+        app_name = split_app_id(app_id)
+        if if_app_exits(app_id, app_name):
+            docker.check_app_compose(app_name)
+            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml start"
+            output = shell_execute.execute_command_output_all(cmd)
+            if int(output["code"]) == 0:
+                ret.code = const.RETURN_SUCCESS
+                ret.message = "The app starts successfully."
+            else:
+                ret.message = "The app failed to start!"
         else:
-            ret.message = "The app failed to start!"
+            ret.message = "The app is not installed!"
     else:
-        ret.message = "The app is not installed!"
+        ret.message = "AppID is not legal!"
     ret = ret.dict()
     return ret
 
 
 def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
-    app_name = split_app_id(app_id)
-    if if_app_exits(app_id, app_name):
-        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml stop"
-        output = shell_execute.execute_command_output_all(cmd)
-        if int(output["code"]) == 0:
-            ret.code = const.RETURN_SUCCESS
-            ret.message = "The app stopped successfully."
+    if docker.check_app_id(app_id):
+        app_name = split_app_id(app_id)
+        if if_app_exits(app_id, app_name):
+            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml stop"
+            output = shell_execute.execute_command_output_all(cmd)
+            if int(output["code"]) == 0:
+                ret.code = const.RETURN_SUCCESS
+                ret.message = "The app stopped successfully."
+            else:
+                ret.message = "App stop failed!"
         else:
-            ret.message = "App stop failed!"
+            ret.message = "The app is not installed!"
     else:
-        ret.message = "The app is not installed!"
+        ret.message = 'AppID is not legal!'
     ret = ret.dict()
     return ret
 
 
 def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
-    app_name = split_app_id(app_id)
-    if if_app_exits(app_id, app_name):
-        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml restart"
-        output = shell_execute.execute_command_output_all(cmd)
-        if int(output["code"]) == 0:
-            ret.code = const.RETURN_SUCCESS
-            ret.message = "The app restarts successfully."
+    if docker.check_app_id(app_id):
+        app_name = split_app_id(app_id)
+        if if_app_exits(app_id, app_name):
+            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml restart"
+            output = shell_execute.execute_command_output_all(cmd)
+            if int(output["code"]) == 0:
+                ret.code = const.RETURN_SUCCESS
+                ret.message = "The app restarts successfully."
+            else:
+                ret.message = "App restart failed!"
         else:
-            ret.message = "App restart failed!"
+            ret.message = "The app is not installed!"
     else:
-        ret.message = "The app is not installed!"
+        ret.message = 'AppID is not legal!'
     ret = ret.dict()
     return ret
 
 
 def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
-    if_stopped = stop_app(app_id)  # stop_app
-    app_name = split_app_id(app_id)
-    real_name = app_id.split("_")[0]
-    if if_stopped["code"] == 0:
-        cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml down -v"
-        if real_name != app_name:
-            cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
-        output = shell_execute.execute_command_output_all(cmd)
-        if int(output["code"]) == 0:
-            ret.code = 0
-            ret.message = "The app is deleted successfully"
+    if docker.check_app_id(app_id):
+        if_stopped = stop_app(app_id)  # stop_app
+        app_name = split_app_id(app_id)
+        real_name = app_id.split("_")[0]
+        if if_stopped["code"] == 0:
+            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml down -v"
+            if real_name != app_name:
+                cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
+            output = shell_execute.execute_command_output_all(cmd)
+            if int(output["code"]) == 0:
+                ret.code = 0
+                ret.message = "The app is deleted successfully"
+            else:
+                ret.message = "App deletion failed!"
         else:
-            ret.message = "App deletion failed!"
+            ret.message = if_stopped["message"]
     else:
-        ret.message = if_stopped["message"]
+        ret.message = 'AppID is not legal!'
     ret = ret.dict()
     return ret
 

@@ -38,6 +38,25 @@ def if_app_exits(app_name):
         return True
 
 
+def check_app_id(app_id):
+    myLogger.info_logger("Checking app id ...")
+    if app_id == None:
+        myLogger.info_logger("Check complete: AppID is none!")
+        return False
+    if re.match('^[a-zA-Z0-9]+_[a-z0-9]+$', app_id) == None:
+        myLogger.info_logger("Check complete: AppID is not compliant")
+        return False
+    app_name = app_id.split('_')[0]
+    customer_name = app_id.split('_')[1]
+    path1 = '/data/apps/' + customer_name
+    path2 = '/data/library/apps/' + app_name
+    if not check_directory(path1) or not check_directory(path2):
+        myLogger.info_logger("Check complete: AppID does not exist!")
+        return False
+    myLogger.info_logger("Check complete.")
+    return True
+
+
 def check_vm_resource(app_name):
     myLogger.info_logger("Checking virtual memory resource ...")
     var_path = "/data/library/apps/" + app_name + "/variables.json"
