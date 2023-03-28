@@ -14,7 +14,7 @@ from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.model.response import Response
 from api.utils import lock
-from api.utils.common_log import myLogge
+from api.utils.common_log import myLogger
 
 
 # 获取所有app的信息
