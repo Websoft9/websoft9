@@ -243,10 +243,10 @@ def if_app_exits(app_name):
     cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == -1:
-        info = output["result"]
-        myLogger.info_logger("APP info: " + info)
         return info, False
     else:
+        info = output["result"]
+        myLogger.info_logger("APP info: " + info)
         return info, True
 
 
