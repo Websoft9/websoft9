@@ -14,3 +14,4 @@ class App(BaseModel):
     admin_url: str
     user_name: str
     password: str
+    official_app: bool
