@@ -243,6 +243,7 @@ def if_app_exits(app_name):
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == -1:
         info = output["result"]
+        print(info)
         return info, False
     else:
         return info, True
