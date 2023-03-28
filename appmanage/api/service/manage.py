@@ -261,7 +261,9 @@ def get_apps_from_compose(output_list):
     for app_info in output_list:
         volume = app_info["ConfigFiles"]  # volume
         app_path = volume.rsplit('/', 1)[0]
+        print(app_path)
         app_name = volume.split('/')[-2]
+        print(app_name)
         official_app_path = "/data/apps/" + app_name
         var_path = app_path + "/variables.json"
         if app_path == official_app_path:
