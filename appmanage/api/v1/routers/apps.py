@@ -16,7 +16,7 @@ router = APIRouter()
 def app_detail(app_id: Optional[str] = None):
     myLogger.info_logger("Receive request: /api/v1/apps/details")
     list = manage.get_app_detail(app_id)
-    return list
+    return JSONResponse(list)
 
 @router.api_route("", methods=["GET", "POST"])
 def list_my_apps():

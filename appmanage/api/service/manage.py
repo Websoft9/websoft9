@@ -53,10 +53,7 @@ def get_app_detail(app_id):
                 if app["app_id"] == app_id:
                     list.clear()
                     list.append(app)
-                    app_info = App(app_id=app['app_id'], name=app['name'], customer_name=app['customer_name'], status_code=app['status_code'], status=app['status'], port=app['port'],
-                      volume=app['volume'], url=app['url'],
-                      image_url=app['image_url'], admin_url=app['admin_url'], trade_mark=app['trade_mark'], user_name=app['user_name'],
-                      password=app['password'])
+                    app_info = app
                     flag = 1
                     break
             if flag == 1:
@@ -100,9 +97,11 @@ def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        if if_app_exits(app_id, app_name):
-            docker.check_app_compose(app_name)
-            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml start"
+        info, code = if_app_exits(app_name)
+        if code:
+            app_path = info.split()[-1].rsplit('/', 1)[0]
+            docker.check_app_compose(app_path + '/.env')
+            cmd = "docker compose -f " + app_path + "/docker-compose.yml start"
             output = shell_execute.execute_command_output_all(cmd)
             if int(output["code"]) == 0:
                 ret.code = const.RETURN_SUCCESS
@@ -121,8 +120,10 @@ def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        if if_app_exits(app_id, app_name):
-            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml stop"
+        info, code = if_app_exits(app_name)
+        if code:
+            app_path = info.split()[-1].rsplit('/', 1)[0]
+            cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
             output = shell_execute.execute_command_output_all(cmd)
             if int(output["code"]) == 0:
                 ret.code = const.RETURN_SUCCESS
@@ -141,8 +142,10 @@ def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        if if_app_exits(app_id, app_name):
-            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml restart"
+        info, code = if_app_exits(app_name)
+        if code:
+            app_path = info.split()[-1].rsplit('/', 1)[0]
+            cmd = "docker compose -f " + app_path + "/docker-compose.yml restart"
             output = shell_execute.execute_command_output_all(cmd)
             if int(output["code"]) == 0:
                 ret.code = const.RETURN_SUCCESS
@@ -160,23 +163,26 @@ def restart_app(app_id):
 def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
-        if_stopped = stop_app(app_id)  # stop_app
-        app_name = split_app_id(app_id)
-        real_name = app_id.split("_")[0]
-        if if_stopped["code"] == 0:
-            cmd = "docker compose -f /data/apps/" + app_name + "/docker-compose.yml down -v"
-            if real_name != app_name:
-                cmd = cmd + " && sudo rm -rf /data/apps/" + app_name
-            output = shell_execute.execute_command_output_all(cmd)
-            if int(output["code"]) == 0:
-                ret.code = 0
-                ret.message = "The app is deleted successfully"
+        info, code = if_app_exits(app_name)
+        if code:
+            app_path = info.split()[-1].rsplit('/', 1)[0]
+            if_stopped = stop_app(app_id)  # stop_app
+            app_name = split_app_id(app_id)
+            if if_stopped["code"] == 0:
+                cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
+                lib_path = '/data/library/apps/' + app_name
+                if app_path != lib_path:
+                    cmd = cmd + " && sudo rm -rf " + app_path
+                output = shell_execute.execute_command_output_all(cmd)
+                if int(output["code"]) == 0:
+                    ret.code = 0
+                    ret.message = "The app is deleted successfully"
+                else:
+                    ret.message = "App deletion failed!"
             else:
-                ret.message = "App deletion failed!"
+                ret.message = if_stopped["message"]
         else:
-            ret.message = if_stopped["message"]
-    else:
-        ret.message = 'AppID is not legal!'
+            ret.message = 'AppID is not legal!'
     ret = ret.dict()
     return ret
 
@@ -220,7 +226,7 @@ def install_app_job(customer_app_name, app_version):
     docker.modify_env(env_path, 'APP_NAME', customer_app_name)
     docker.modify_env(env_path, "APP_VERSION", app_version)
     # check port
-    docker.check_app_compose(customer_app_name)
+    docker.check_app_compose('/data/apps/' + customer_app_name)
     # modify running_apps.txt
     cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up --pull always -d"
     shell_execute.execute_command_output_all(cmd)
@@ -231,19 +237,15 @@ def install_app_job(customer_app_name, app_version):
         shell_execute.execute_command_output_all("sed -i \'" + line_num + "d\' " + file_path)
 
 
-def if_app_exits(app_id, app_name):
-    cmd = "docker compose ls -a | grep \'" + app_name + "\\b\'"
+def if_app_exits(app_name):
+    info = ""
+    cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == -1:
-        return False
+        info = output["result"]
+        return info, False
     else:
-        var_path = "/data/apps/" + app_name + "/variables.json"
-        real_name = docker.read_var(var_path, "name")
-        real_id = real_name + "_" + app_name
-        if app_id == real_id:
-            return True
-        else:
-            return False
+        return info, True
 
 
 def split_app_id(app_id):
@@ -253,20 +255,25 @@ def split_app_id(app_id):
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
+    official_app = False
     app_list = []
     has_add = []
     for app_info in output_list:
         volume = app_info["ConfigFiles"]  # volume
-        app_name = volume.split('/')[3]
-        app_path = "/data/apps/" + app_name
+        app_path = volume.rsplit('/', 1)[0]
+        app_name = volume.split('/')[-2]
+        official_app_path = "/data/apps/" + app_name
         var_path = app_path + "/variables.json"
-        if not docker.check_directory(app_path):
-            continue
+        if app_path == official_app_path:
+            official_app = True
         real_name = docker.read_var(var_path, 'name')
         image_url = get_Image_url(real_name)
         # get trade_mark
         trade_mark = docker.read_var(var_path, 'trademark')
-        app_id = real_name + "_" + app_name  # app_id
+        if official_app:
+            app_id = real_name + "_" + app_name  # app_id
+        else:
+            app_id = app_name + "_" + app_name  # app_id
         case = app_info["Status"].split("(")[0]  # case
         if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
@@ -316,7 +323,7 @@ def get_apps_from_compose(output_list):
         app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port,
                   volume=volume, url=url,
                   image_url=image_url, admin_url=admin_url, trade_mark=trade_mark, user_name=user_name,
-                  password=password)
+                  password=password, official_app=official_app)
         app_list.append(app.dict())
     return app_list, has_add
 
@@ -336,7 +343,7 @@ def get_apps_from_queue(app_list, has_add):
                 app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
                           status_code=const.RETURN_READY, status="installing", port=0, volume="-",
                           url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",
-                          password="-")
+                          password="-", official_app=True)
                 app_list.append(app.dict())
     return app_list
 
