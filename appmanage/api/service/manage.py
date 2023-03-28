@@ -14,6 +14,7 @@ from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.model.response import Response
 from api.utils import lock
+from api.utils.common_log import myLogge
 
 
 # 获取所有app的信息
@@ -243,7 +244,7 @@ def if_app_exits(app_name):
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == -1:
         info = output["result"]
-        print(info)
+        myLogger.info_logger("APP info: " + info)
         return info, False
     else:
         return info, True
