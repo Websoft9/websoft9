@@ -286,7 +286,7 @@ def get_apps_from_compose(output_list):
         else:
             case_code = const.RETURN_ERROR
         # get env info
-        path = "/data/apps/" + app_name + "/.env"
+        path = app_path + "/.env"
         port = 0
         url = "-"
         admin_url = "-"
