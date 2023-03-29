@@ -34,3 +34,8 @@
 ### 产品文件目录
 
 便于升级、便于用户使用的产品文件目录组织结构
+
+### Contributor
+
+* 类型标签：Bug, enhancement, Documetation
+* 过程标签：PRD, Dev, QA(include deployment), Documetation
