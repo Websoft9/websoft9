@@ -292,8 +292,8 @@ def get_apps_from_compose(output_list):
         var_path = app_path + "/variables.json"
         official_app = check_if_official_app(var_path)
         if official_app:
-            app_id = real_name + "_" + app_name  # app_id
             real_name = docker.read_var(var_path, 'name')
+            app_id = real_name + "_" + app_name  # app_id
             # get trade_mark
             trade_mark = docker.read_var(var_path, 'trademark')
             image_url = get_Image_url(real_name)
