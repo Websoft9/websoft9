@@ -148,7 +148,7 @@ def modify_env(path, env_name, value):
 
 
 def read_var(var_path, var_name):
-    value = "-"
+    value = ""
     myLogger.info_logger("Read " + var_path)
     output = shell_execute.execute_command_output_all("cat " + var_path)
     if int(output["code"]) == 0:

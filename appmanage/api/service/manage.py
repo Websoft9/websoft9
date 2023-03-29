@@ -260,22 +260,23 @@ def get_apps_from_compose(output_list):
     app_list = []
     has_add = []
     for app_info in output_list:
-        official_app = False
         volume = app_info["ConfigFiles"]  # volume
         app_path = volume.rsplit('/', 1)[0]
         app_name = volume.split('/')[-2]
-        official_app_path = "/data/apps/" + app_name
-        var_path = app_path + "/variables.json"
-        if app_path == official_app_path:
-            official_app = True
-        real_name = docker.read_var(var_path, 'name')
-        image_url = get_Image_url(real_name)
-        # get trade_mark
-        trade_mark = docker.read_var(var_path, 'trademark')
-        if official_app:
-            app_id = real_name + "_" + app_name  # app_id
-        else:
-            app_id = app_name + "_" + app_name  # app_id
+        app_id = app_name + "_" + app_name  # app_id
+        real_name = ""
+        trade_mark = ""
+        port = 0
+        url = ""
+        admin_url = ""
+        image_url = ""
+        user_name = ""
+        password = ""
+        official_app = False
+
+        if app_name in ['appmanage', 'nginxproxymanager']:
+            continue
+        # get code
         case = app_info["Status"].split("(")[0]  # case
         if case == "running":
             case_code = const.RETURN_RUNNING  # case_code
@@ -287,39 +288,43 @@ def get_apps_from_compose(output_list):
             case = "installing"
         else:
             case_code = const.RETURN_ERROR
-        # get env info
-        path = app_path + "/.env"
-        port = 0
-        url = "-"
-        admin_url = "-"
-        # get port and url
-        try:
-            http_port = list(docker.read_env(
-                path, "APP_HTTP_PORT").values())[0]
-            port = int(http_port)
-            easy_url = "http://" + ip + ":" + str(port)
-            url = get_url(real_name, easy_url)
-            admin_url = get_admin_url(real_name, url)
-        except IndexError:
+
+        var_path = app_path + "/variables.json"
+        official_app = check_if_official_app(var_path)
+        if official_app:
+            app_id = real_name + "_" + app_name  # app_id
+            real_name = docker.read_var(var_path, 'name')
+            # get trade_mark
+            trade_mark = docker.read_var(var_path, 'trademark')
+            image_url = get_Image_url(real_name)
+            # get env info
+            path = app_path + "/.env"
+            # get port and url
             try:
-                db_port = list(docker.read_env(
-                    path, "APP_DB.*_PORT").values())[0]
-                port = int(db_port)
+                http_port = list(docker.read_env(
+                    path, "APP_HTTP_PORT").values())[0]
+                port = int(http_port)
+                easy_url = "http://" + ip + ":" + str(port)
+                url = get_url(real_name, easy_url)
+                admin_url = get_admin_url(real_name, url)
+            except IndexError:
+                try:
+                    db_port = list(docker.read_env(
+                        path, "APP_DB.*_PORT").values())[0]
+                    port = int(db_port)
+                except IndexError:
+                    pass
+            # get user_name
+            try:
+                user_name = list(docker.read_env(path, "APP_USER").values())[0]
             except IndexError:
                 pass
-        # get user_name
-        user_name = "-"
-        try:
-            user_name = list(docker.read_env(path, "APP_USER").values())[0]
-        except IndexError:
-            pass
-        # get password
-        password = "-"
-        try:
-            password = list(docker.read_env(
-                path, "POWER_PASSWORD").values())[0]
-        except IndexError:
-            pass
+            # get password
+            try:
+                password = list(docker.read_env(
+                    path, "POWER_PASSWORD").values())[0]
+            except IndexError:
+                pass
 
         has_add.append(app_name)
         app = App(app_id=app_id, name=real_name, customer_name=app_name, status_code=case_code, status=case, port=port,
@@ -328,6 +333,15 @@ def get_apps_from_compose(output_list):
                   password=password, official_app=official_app)
         app_list.append(app.dict())
     return app_list, has_add
+
+
+def check_if_official_app(var_path):
+    if docker.check_directory(var_path):
+        if docker.read_var(var_path, 'name') != "" and docker.read_var(var_path, 'trademark') != "" and docker.read_var(
+                var_path, 'requirements') != "":
+            return True
+    else:
+        return False
 
 
 def get_apps_from_queue(app_list, has_add):
@@ -368,11 +382,11 @@ def get_url(app_name, easy_url):
 
 
 def get_admin_url(app_name, url):
-    admin_url = "-"
+    admin_url = ""
     if app_name == "wordpress":
         admin_url = url + "/wp-admin"
     elif app_name == "other":
         admin_url = url + "/admin"
     else:
-        admin_url = "-"
+        admin_url = ""
     return admin_url
