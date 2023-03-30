@@ -164,6 +164,7 @@ def restart_app(app_id):
 def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
+        app_name = split_app_id(app_id)
         info, code = if_app_exits(app_name)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
