@@ -97,7 +97,6 @@ def check_directory(path):
 
 def check_app_compose(path):
     myLogger.info_logger("Checking port...")
-    path = "/data/apps/" + app_name + "/.env"
     port_dic = read_env(path, "APP_.*_PORT")
     # 1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（get_start_port方法）
     for port_name in port_dic:
