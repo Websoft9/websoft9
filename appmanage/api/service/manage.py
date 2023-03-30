@@ -280,15 +280,15 @@ def get_apps_from_compose(output_list):
         # get code
         case = app_info["Status"].split("(")[0]  # case
         if case == "running":
-            case_code = const.RETURN_RUNNING  # case_code
+            case_code = const.APP_RUNNING  # case_code
         elif case == "exited":
             case = "stop"
-            case_code = const.RETURN_STOP
+            case_code = const.APP_STOP
         elif case == "created":
-            case_code = const.RETURN_READY
+            case_code = const.APP_READY
             case = "installing"
         else:
-            case_code = const.RETURN_ERROR
+            case_code = const.APP_ERROR
 
         var_path = app_path + "/variables.json"
         official_app = check_if_official_app(var_path)
@@ -364,7 +364,7 @@ def get_apps_from_queue(app_list, has_add):
                 real_name = docker.read_var(var_path, 'name')
                 image_url = get_Image_url(real_name)
                 app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
-                          status_code=const.RETURN_READY, status="installing", port=0, volume="",
+                          status_code=const.APP_READY, status="installing", port=0, volume="",
                           url="", image_url=image_url, admin_url="", trade_mark=trade_mark, user_name="",
                           password="", official_app=True)
                 app_list.append(app.dict())
