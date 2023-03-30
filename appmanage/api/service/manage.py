@@ -363,17 +363,15 @@ def get_apps_from_queue(app_list, has_add):
                 real_name = docker.read_var(var_path, 'name')
                 image_url = get_Image_url(real_name)
                 app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
-                          status_code=const.RETURN_READY, status="installing", port=0, volume="-",
-                          url="-", image_url=image_url, admin_url="-", trade_mark=trade_mark, user_name="-",
-                          password="-", official_app=True)
+                          status_code=const.RETURN_READY, status="installing", port=0, volume="",
+                          url="", image_url=image_url, admin_url="", trade_mark=trade_mark, user_name="",
+                          password="", official_app=True)
                 app_list.append(app.dict())
     return app_list
 
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"
-    if not os.path.exists(image_url):
-        return ""
     return image_url
 
 
