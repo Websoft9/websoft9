@@ -29,7 +29,7 @@ def get_process_perc(app_name, real_name):
     if if_app_running(app_name):
         process_now = "initing"
         if if_app_access(app_name):
-          process_now = "initing"
+          process_now = "running"
         
     return process_now
 
