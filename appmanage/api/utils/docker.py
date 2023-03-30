@@ -20,15 +20,23 @@ def delete_images(app_id):
 
 
 def get_process_perc(app_name, real_name):
-    process_now = "step1"
+    
+    process_now = "pulling"
 
     if if_app_exits(app_name):
-        process_now = "step2"
-        process_now = "step3"
+        process_now = "creating"
 
+    if if_app_running(app_name):
+        process_now = "initing"
+        if if_app_access(app_name):
+          process_now = "initing"
+        
     return process_now
 
-
+# 已经是running的app怎么知道它已经能够访问，如页面能进入，如mysql能被客户端连接
+def if_app_access(app_name):
+    return True
+    
 def if_app_exits(app_name):
     cmd = "docker compose ls -a | grep \'" + app_name + "\\b\'"
     output = shell_execute.execute_command_output_all(cmd)
@@ -37,7 +45,14 @@ def if_app_exits(app_name):
     else:
         return True
 
-
+def if_app_running(app_name):
+    cmd = "docker compose ls -a |grep running | grep \'" + app_name + "\\b\'"
+    output = shell_execute.execute_command_output_all(cmd)
+    if int(output["code"]) == -1:
+        return False
+    else:
+        return True
+    
 def check_app_id(app_id):
     myLogger.info_logger("Checking app id ...")
     if app_id == None:
