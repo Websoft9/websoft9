@@ -371,7 +371,7 @@ def get_apps_from_queue(app_list, has_add):
 
 
 def get_Image_url(app_name):
-    image_url = "static/" + app_name + "-websoft9.png"
+    image_url = "static/images/" + app_name + "-websoft9.png"
     if not os.path.exists(image_url):
         return ""
     return image_url
