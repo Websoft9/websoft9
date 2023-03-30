@@ -339,7 +339,13 @@ def check_if_official_app(var_path):
     if docker.check_directory(var_path):
         if docker.read_var(var_path, 'name') != "" and docker.read_var(var_path, 'trademark') != "" and docker.read_var(
                 var_path, 'requirements') != "":
-            return True
+            requirements = docker.read_var(var_path, 'requirements')
+            try:
+                cpu = requirements['cpu']
+                mem = requirements['memory']
+                return True
+            except:
+                return False
     else:
         return False
 
@@ -366,7 +372,8 @@ def get_apps_from_queue(app_list, has_add):
 
 def get_Image_url(app_name):
     image_url = "/static/" + app_name + "-websoft9.png"
-
+    if not os.path.exists(image_url):
+        return ""
     return image_url
 
 
