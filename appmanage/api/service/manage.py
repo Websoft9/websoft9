@@ -42,25 +42,30 @@ def get_app_detail(app_id):
 
     if docker.check_app_id(app_id):
         # get all info
-        cmd = "docker compose ls -a --format json"
-        output = shell_execute.execute_command_output_all(cmd)
-        if int(output["code"]) == 0:
-            output_list = json.loads(output["result"])
-            app_list, has_add = get_apps_from_compose(output_list)
-            list = get_apps_from_queue(app_list, has_add)
-            flag = 0
-            app_info = None
-            for app in list:
-                if app["app_id"] == app_id:
-                    list.clear()
-                    list.append(app)
-                    app_info = app
-                    flag = 1
-                    break
-            if flag == 1:
-                ret['code'] = const.RETURN_SUCCESS
-                ret['message'] = "The app query is successful."
-                ret['data'] = app_info
+        app_name = split_app_id(app_id)
+        info, code = if_app_exits(app_id)
+        if code:
+            cmd = "docker compose ls -a --format json"
+            output = shell_execute.execute_command_output_all(cmd)
+            if int(output["code"]) == 0:
+                output_list = json.loads(output["result"])
+                app_list, has_add = get_apps_from_compose(output_list)
+                list = get_apps_from_queue(app_list, has_add)
+                flag = 0
+                app_info = None
+                for app in list:
+                    if app["app_id"] == app_id:
+                        list.clear()
+                        list.append(app)
+                        app_info = app
+                        flag = 1
+                        break
+                if flag == 1:
+                    ret['code'] = const.RETURN_SUCCESS
+                    ret['message'] = "The app query is successful."
+                    ret['data'] = app_info
+        else:
+            ret['message'] = 'This app is not currently installed.'
     else:
         ret['message'] = "AppID is not legal!"
     return ret
@@ -68,16 +73,22 @@ def get_app_detail(app_id):
 
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
 def install_app_process(app_id):
+    ret = Response(code=const.RETURN_FAIL, message=" ")
     app_name = split_app_id(app_id)
-    var_path = "/data/apps/" + app_name + "/variables.json"
-    real_name = docker.read_var(var_path, 'name')
-    if docker.check_app_directory(real_name):
-        percentage = docker.get_process_perc(app_name, real_name)
-        ret = Response(code=const.RETURN_SUCCESS, message=percentage)
-        ret = ret.dict()
+    if docker.check_app_id(app_id):
+        var_path = "/data/apps/" + app_name + "/variables.json"
+        real_name = docker.read_var(var_path, 'name')
+        info, code = if_app_exits(app_id)
+        if code:
+            percentage = docker.get_process_perc(app_name, real_name)
+            ret.code = const.RETURN_SUCCESS
+            ret.message = percentage
+        else:
+            ret.message = "This app is not currently installed."
     else:
-        ret = Response(code=const.RETURN_FAIL, message="This app is not currently installed.")
-        ret = ret.dict()
+        ret.message = "AppID is not legal!"
+
+    ret = ret.dict()
     return ret
 
 
@@ -98,7 +109,7 @@ def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_name)
+        info, code = if_app_exits(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             docker.check_app_compose(app_path + '/.env')
@@ -110,7 +121,7 @@ def start_app(app_id):
             else:
                 ret.message = "The app failed to start!"
         else:
-            ret.message = "The app is not installed!"
+            ret.message = "This app is not currently installed."
     else:
         ret.message = "AppID is not legal!"
     ret = ret.dict()
@@ -121,7 +132,7 @@ def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_name)
+        info, code = if_app_exits(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
@@ -132,7 +143,7 @@ def stop_app(app_id):
             else:
                 ret.message = "App stop failed!"
         else:
-            ret.message = "The app is not installed!"
+            ret.message = "This app is not currently installed."
     else:
         ret.message = 'AppID is not legal!'
     ret = ret.dict()
@@ -143,7 +154,7 @@ def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_name)
+        info, code = if_app_exits(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml restart"
@@ -154,7 +165,7 @@ def restart_app(app_id):
             else:
                 ret.message = "App restart failed!"
         else:
-            ret.message = "The app is not installed!"
+            ret.message = "This app is not currently installed."
     else:
         ret.message = 'AppID is not legal!'
     ret = ret.dict()
@@ -165,7 +176,7 @@ def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_name)
+        info, code = if_app_exits(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             if_stopped = stop_app(app_id)  # stop_app
@@ -239,16 +250,25 @@ def install_app_job(customer_app_name, app_version):
         shell_execute.execute_command_output_all("sed -i \'" + line_num + "d\' " + file_path)
 
 
-def if_app_exits(app_name):
+def if_app_exits(app_id):
+    app_name = app_id.split('_')[1]
+    real_name = app_id.split('_')[2]
+    flag = False
     info = ""
     cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
     output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == -1:
-        return info, False
-    else:
+    if int(output["code"]) == 0:
         info = output["result"]
-        myLogger.info_logger("APP info: " + info)
-        return info, True
+        app_path = info.split()[-1].rsplit('/', 1)[0]
+        is_official = check_if_official_app(app_path + '/variables.json')
+        if is_official:
+            name = docker.read_var(app_path + '/variables.json', 'name')
+            if name == real_name:
+                flag = True
+        elif real_name == app_name:
+             flag = True
+    myLogger.info_logger("APP info: " + info)
+    return info, flag
 
 
 def split_app_id(app_id):
