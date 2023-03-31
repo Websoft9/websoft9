@@ -176,10 +176,10 @@ def uninstall_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        app_path = info.split()[-1].rsplit('/', 1)[0]
         if_stopped = stop_app(app_id)  # stop_app
-        app_name = split_app_id(app_id)
         if if_stopped["code"] == 0:
+            info, code = if_app_exits(app_id)
+            app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
             lib_path = '/data/library/apps/' + app_name
             if app_path != lib_path:
