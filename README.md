@@ -26,7 +26,7 @@ gh repo list Websoft9 -L 500 | awk '{print $1}'  | grep docker > test
 ```
 ## All-in-one Installer
 
-### ansible 
+### only one app 
 ```
 # for example, app is mongodb
 wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh;bash install.sh -r mongodb
