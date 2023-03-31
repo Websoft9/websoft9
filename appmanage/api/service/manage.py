@@ -252,7 +252,7 @@ def install_app_job(customer_app_name, app_version):
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
-    real_name = app_id.split('_')[2]
+    real_name = app_id.split('_')[0]
     flag = False
     info = ""
     cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
