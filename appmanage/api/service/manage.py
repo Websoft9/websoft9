@@ -228,7 +228,7 @@ def install_app_job(customer_app_name, app_version):
     docker.modify_env(env_path, 'APP_NAME', customer_app_name)
     docker.modify_env(env_path, "APP_VERSION", app_version)
     # check port
-    docker.check_app_compose('/data/apps/' + customer_app_name)
+    docker.check_app_compose(env_path)
     # modify running_apps.txt
     cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up --pull always -d"
     shell_execute.execute_command_output_all(cmd)
