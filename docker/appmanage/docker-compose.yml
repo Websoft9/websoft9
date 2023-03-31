@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  appmanage:
+    image: websoft9dev/appmanage:${APP_VERSION}
+    container_name: ${APP_NAME}
+    pid: host
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - logs:/usr/src/app/logs
+    ports:
+      - ${APP_HTTP_PORT}:5000
+
+networks:
+  default:
+    name: ${APP_NETWORK}
+    external: true
+
+volumes:
+  logs:

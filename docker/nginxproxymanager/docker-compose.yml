@@ -1,0 +1,26 @@
+# image: https://hub.docker.com/r/jc21/nginx-proxy-manager
+# docs: https://nginxproxymanager.com/guide/#quick-setup
+
+version: "3.8"
+
+services:
+  app:
+    image: jc21/nginx-proxy-manager:${APP_VERSION}
+    restart: unless-stopped
+    container_name: ${APP_NAME}
+    ports:
+      - "80:80"
+      - "${APP_HTTP_PORT}:81"
+      - "443:443"
+    volumes:
+      - nginx_data:/data
+      - nginx_letsencrypt:/etc/letsencrypt
+
+networks:
+  default:
+    name: ${APP_NETWORK}
+    external: true
+
+volumes:
+  nginx_data:
+  nginx_letsencrypt:
