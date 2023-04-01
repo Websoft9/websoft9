@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+rq
 docker
 psutil
 gunicorn
