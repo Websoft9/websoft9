@@ -293,7 +293,7 @@ def get_apps_from_compose(output_list):
         password = ""
         official_app = False
 
-        if app_name in ['appmanage', 'nginxproxymanager']:
+        if app_name in ['appmanage', 'nginxproxymanager', 'redis']:
             continue
         # get code
         case = app_info["Status"].split("(")[0]  # case
