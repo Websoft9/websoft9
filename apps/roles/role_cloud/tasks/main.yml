@@ -11,27 +11,7 @@
 - debug:
     msg: "Cloud platform is {{ cloud.stdout}}"
     
-- block:
-  - name: Close swap Space
-    command: swapoff -a
 
-  - name: Create swap Space
-    command: dd if=/dev/zero of=/mnt/swap bs=256M count=8
-
-  - name: Make swap
-    command: mkswap /mnt/swap
-
-  - name: Action swap
-    command: swapon /mnt/swap
-  
-  - name: Add to fstab
-    lineinfile:
-        dest: /etc/fstab
-        regexp: '/mnt/swap'
-        line: "/mnt/swap swap swap defaults 0 0"
-        state: present
-
-  when: (ansible_swaptotal_mb == 0) and (cloud.stdout != 'azure')
 
 - block:
   - name: Change ubuntu service name
