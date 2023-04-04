@@ -25,16 +25,6 @@ redis_conn = Redis(host='redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
-# 获取 StartedJobRegistry 实例
-registry = StartedJobRegistry(queue=q)
-finish = FinishedJobRegistry(queue=q)
-deferred = DeferredJobRegistry(queue=q)
-
-# 获取正在执行的作业 ID 列表
-run_job_ids = registry.get_job_ids()
-finish_job_ids = finish.get_job_ids()
-wait_job_ids = deferred.get_job_ids()
-
 
 # 获取所有app的信息
 def get_my_app():
@@ -46,8 +36,8 @@ def get_my_app():
     if int(output["code"]) == 0:
         output_list = json.loads(output["result"])
         app_list, has_add = get_apps_from_compose(output_list)
-        list = get_apps_from_queue(app_list, has_add)
-        ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=list)
+        list = get_apps_from_queue()
+        ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=app_list)
     ret = ret.dict()
     return ret
 
@@ -123,9 +113,6 @@ def install_app(app_name, customer_app_name, app_version):
             myLogger.info_logger("create job="+app_id)
             # 根据请求创建新作业
             new_job = q.enqueue(install_app_delay,customer_app_name,app_version,job_id=app_id)
-            myLogger.info_logger(wait_job_ids)
-            myLogger.info_logger(run_job_ids)
-            myLogger.info_logger(new_job.id)
             ret.message = "The app is prepape to install, please check again in a few minutes."
     ret = ret.dict()
     return ret
@@ -261,9 +248,8 @@ def install_app_delay(customer_app_name, app_version):
     docker.modify_env(env_path, "APP_VERSION", app_version)
     # check port
     docker.check_app_compose(env_path)
-    # modify running_apps.txt
+
     cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
-    myLogger.info_logger(cmd)
     shell_execute.execute_command_output_all(cmd)
 
 def if_app_exits(app_id):
@@ -385,8 +371,20 @@ def check_if_official_app(var_path):
         return False
 
 
-def get_apps_from_queue(app_list, has_add):
+def get_apps_from_queue():
     
+    # 获取 StartedJobRegistry 实例
+    registry = StartedJobRegistry(queue=q)
+    finish = FinishedJobRegistry(queue=q)
+    deferred = DeferredJobRegistry(queue=q)
+    # 获取正在执行的作业 ID 列表
+    run_job_ids = registry.get_job_ids()
+    finish_job_ids = finish.get_job_ids()
+    wait_job_ids = deferred.get_job_ids()
+    myLogger.info_logger(wait_job_ids)
+    myLogger.info_logger(run_job_ids)
+    myLogger.info_logger(finish_job_ids)
+
     return app_list
 
 
