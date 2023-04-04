@@ -17,10 +17,7 @@ RUN pip install -r requirements.txt
 RUN mkdir /data
 
 # Start our application
-CMD ["uvicorn", "main:get_app", "--host", "0.0.0.0", "--port", "5000", "--log-level", "info"]
+# CMD ["uvicorn", "main:get_app", "--host", "0.0.0.0", "--port", "5000", "--log-level", "info"]
 
 # Expose the port in which the application will be deployed
 EXPOSE 5000
-
-
-
