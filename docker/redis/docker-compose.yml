@@ -5,8 +5,6 @@ services:
     image: redis:${APP_VERSION}
     container_name: ${APP_NAME}
     restart: unless-stopped
-    ports: 
-      - ${APP_DB_PORT}:6379
     env_file: .env
     volumes:
       - ./src/redis.conf:/etc/redis.conf:ro
