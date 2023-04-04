@@ -92,10 +92,10 @@ def install_app_process(app_id):
         real_name = docker.read_var(var_path, 'name')
         info, code = if_app_exits(app_id)
         if code:
-            status = docker.get_process_perc(app_name, real_name)
+            app_status = docker.get_process_perc(app_name, real_name)
             ret["code"] = const.RETURN_SUCCESS
             ret['message'] = "This app is installing."
-            ret['status'] = percentage
+            ret['status'] = app_status
         else:
             ret['message'] = "This app is not currently installed."
     else:
