@@ -13,7 +13,6 @@ from threading import Thread
 from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.model.response import Response
-from api.utils import lock
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue,Worker,Connection
