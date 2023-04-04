@@ -11,8 +11,9 @@ COPY requirements.txt main.py  ./
 RUN apt update
 # install supervisord
 RUN apt install -y supervisor
-COPY conf/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-RUN chmod +x /etc/supervisor/conf.d/supervisord.conf
+COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY config/cmd.sh /cmd.sh
+RUN chmod +x /etc/supervisor/conf.d/supervisord.conf /cmd.sh
 RUN pip install -r requirements.txt
 RUN mkdir /data
 
