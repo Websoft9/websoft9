@@ -8,6 +8,7 @@ WORKDIR /usr/src/app
 COPY api ./api
 COPY static ./static
 COPY requirements.txt main.py  ./
+RUN apt update
 RUN pip install -r requirements.txt
 RUN mkdir /data
 
@@ -16,4 +17,7 @@ CMD ["uvicorn", "main:get_app", "--host", "0.0.0.0", "--port", "5000", "--log-le
 
 # Expose the port in which the application will be deployed
 EXPOSE 5000
+
+# install supervisord
+RUN apt install -y supervisor
 
