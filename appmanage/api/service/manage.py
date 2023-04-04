@@ -385,7 +385,7 @@ def get_apps_from_queue():
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(finish_job_ids)
 
-    return app_list
+    return wait_job_ids
 
 
 def get_Image_url(app_name):
