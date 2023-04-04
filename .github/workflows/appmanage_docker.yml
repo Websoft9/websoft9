@@ -6,6 +6,7 @@ on:
     paths: 
       - 'appmanage/Dockerfile'
       - 'appmanage/main.py'
+      - 'appmanage/config/*'
 
 jobs:
   build:
