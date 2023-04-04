@@ -15,6 +15,25 @@ from api.model.app import App
 from api.model.response import Response
 from api.utils import lock
 from api.utils.common_log import myLogger
+from redis import Redis
+from rq import Queue,Worker,Connection
+from rq.registry import StartedJobRegistry,FinishedJobRegistry,DeferredJobRegistry
+
+# 指定 Redis 容器的主机名和端口
+redis_conn = Redis(host='redis', port=6379)
+
+# 使用指定的 Redis 连接创建 RQ 队列
+q = Queue(connection=redis_conn)
+
+# 获取 StartedJobRegistry 实例
+registry = StartedJobRegistry(queue=q)
+finish = FinishedJobRegistry(queue=q)
+deferred = DeferredJobRegistry(queue=q)
+
+# 获取正在执行的作业 ID 列表
+run_job_ids = registry.get_job_ids()
+finish_job_ids = finish.get_job_ids()
+wait_job_ids = deferred.get_job_ids()
 
 
 # 获取所有app的信息
@@ -93,14 +112,21 @@ def install_app_process(app_id):
 
 
 def install_app(app_name, customer_app_name, app_version):
+    myLogger.info_logger("Install app ...")
     ret = Response(code=const.RETURN_FAIL, message=" ")
+    app_id = app_name + "_" + customer_app_name
     ret.code, ret.message = check_app(app_name, customer_app_name, app_version)
     if ret.code == const.RETURN_SUCCESS:
         ret.code, ret.message = prepare_app(app_name, customer_app_name)
         if ret.code == const.RETURN_SUCCESS:
-            t1 = Thread(target=install_app_job, args=(customer_app_name, app_version,))
-            t1.start()
-            ret.message = "The app is starting, please check again in a few minutes."
+
+            myLogger.info_logger("create job="+app_id)
+            # 根据请求创建新作业
+            new_job = q.enqueue(install_app_delay,customer_app_name,app_version,job_id=app_id)
+            myLogger.info_logger(wait_job_ids)
+            myLogger.info_logger(run_job_ids)
+            myLogger.info_logger(new_job.id)
+            ret.message = "The app is prepape to install, please check again in a few minutes."
     ret = ret.dict()
     return ret
 
@@ -227,7 +253,24 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
+def add(x, y):
+    myLogger.info_logger("start job。。。。")
+    return x + y
 
+def install_app_delay(customer_app_name, app_version):
+    myLogger.info_logger("start job="+customer_app_name)
+    # modify env
+    env_path = "/data/apps/" + customer_app_name + "/.env"
+    docker.modify_env(env_path, 'APP_NAME', customer_app_name)
+    docker.modify_env(env_path, "APP_VERSION", app_version)
+    # check port
+    docker.check_app_compose(env_path)
+    # modify running_apps.txt
+    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
+    myLogger.info_logger(cmd)
+    shell_execute.execute_command_output_all(cmd)
+
+		
 def install_app_job(customer_app_name, app_version):
     # write running_apps.txt
     file_path = "/data/apps/running_apps.txt"
@@ -403,7 +446,6 @@ def get_url(app_name, easy_url):
     else:
         url = easy_url
     return url
-
 
 def get_admin_url(app_name, url):
     admin_url = ""
