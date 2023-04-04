@@ -253,10 +253,6 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
-def add(x, y):
-    myLogger.info_logger("start job。。。。")
-    return x + y
-
 def install_app_delay(customer_app_name, app_version):
     myLogger.info_logger("start job="+customer_app_name)
     # modify env
