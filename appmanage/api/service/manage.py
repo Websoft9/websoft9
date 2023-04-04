@@ -81,16 +81,17 @@ def get_app_detail(app_id):
 
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
 def install_app_process(app_id):
-    ret = Response(code=const.RETURN_FAIL, message=" ")
+    ret = Response(code=const.RETURN_FAIL, message=" ",status="")
     app_name = split_app_id(app_id)
     if docker.check_app_id(app_id):
         var_path = "/data/apps/" + app_name + "/variables.json"
         real_name = docker.read_var(var_path, 'name')
         info, code = if_app_exits(app_id)
         if code:
-            percentage = docker.get_process_perc(app_name, real_name)
+            status = docker.get_process_perc(app_name, real_name)
             ret.code = const.RETURN_SUCCESS
-            ret.message = percentage
+            ret.message = "This app is installing."
+            ret.status = status
         else:
             ret.message = "This app is not currently installed."
     else:
