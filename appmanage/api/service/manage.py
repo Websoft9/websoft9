@@ -15,8 +15,8 @@ from api.model.app import App
 from api.model.response import Response
 from api.utils.common_log import myLogger
 from redis import Redis
-from rq import Queue,Worker,Connection
-from rq.registry import StartedJobRegistry,FinishedJobRegistry,DeferredJobRegistry
+from rq import Queue, Worker, Connection
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
@@ -34,8 +34,9 @@ def get_my_app():
     output = shell_execute.execute_command_output_all(cmd)
     if int(output["code"]) == 0:
         output_list = json.loads(output["result"])
-        app_list, has_add = get_apps_from_compose(output_list)
-        list = get_apps_from_queue()
+        installed_list, has_add = get_apps_from_compose(output_list)
+        installing_list = get_apps_from_queue()
+        app_list = installed_list + installing_list
         ret = Response(code=const.RETURN_SUCCESS, message="The app query is successful.", data=app_list)
     ret = ret.dict()
     return ret
@@ -81,7 +82,10 @@ def get_app_detail(app_id):
 
 # 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
 def install_app_process(app_id):
-    ret = Response(code=const.RETURN_FAIL, message=" ",status="")
+    ret = {}
+    ret['code'] = const.RETURN_FAIL
+    ret['message'] = ""
+    ret['status'] = ""
     app_name = split_app_id(app_id)
     if docker.check_app_id(app_id):
         var_path = "/data/apps/" + app_name + "/variables.json"
@@ -89,13 +93,13 @@ def install_app_process(app_id):
         info, code = if_app_exits(app_id)
         if code:
             status = docker.get_process_perc(app_name, real_name)
-            ret.code = const.RETURN_SUCCESS
-            ret.message = "This app is installing."
-            ret.status = status
+            ret["code"] = const.RETURN_SUCCESS
+            ret['message'] = "This app is installing."
+            ret['status'] = percentage
         else:
-            ret.message = "This app is not currently installed."
+            ret['message'] = "This app is not currently installed."
     else:
-        ret.message = "AppID is not legal!"
+        ret['message'] = "AppID is not legal!"
 
     ret = ret.dict()
     return ret
@@ -109,11 +113,10 @@ def install_app(app_name, customer_app_name, app_version):
     if ret.code == const.RETURN_SUCCESS:
         ret.code, ret.message = prepare_app(app_name, customer_app_name)
         if ret.code == const.RETURN_SUCCESS:
-
-            myLogger.info_logger("create job="+app_id)
+            myLogger.info_logger("create job=" + app_id)
             # 根据请求创建新作业
-            new_job = q.enqueue(install_app_delay,customer_app_name,app_version,job_id=app_id)
-            ret.message = "The app is prepape to install, please check again in a few minutes."
+            new_job = q.enqueue(install_app_delay, customer_app_name, app_version, job_id=app_id)
+            ret.message = "The app is prepare to install, please check again in a few minutes."
     ret = ret.dict()
     return ret
 
@@ -240,8 +243,9 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
+
 def install_app_delay(customer_app_name, app_version):
-    myLogger.info_logger("start job="+customer_app_name)
+    myLogger.info_logger("start job=" + customer_app_name)
     # modify env
     env_path = "/data/apps/" + customer_app_name + "/.env"
     docker.modify_env(env_path, 'APP_NAME', customer_app_name)
@@ -251,6 +255,7 @@ def install_app_delay(customer_app_name, app_version):
 
     cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
     shell_execute.execute_command_output_all(cmd)
+
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
@@ -268,12 +273,14 @@ def if_app_exits(app_id):
             if name == real_name:
                 flag = True
         elif real_name == app_name:
-             flag = True
+            flag = True
     myLogger.info_logger("APP info: " + info)
     return info, flag
 
+
 def split_app_id(app_id):
     return app_id.split("_")[1]
+
 
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
@@ -372,7 +379,6 @@ def check_if_official_app(var_path):
 
 
 def get_apps_from_queue():
-    
     # 获取 StartedJobRegistry 实例
     registry = StartedJobRegistry(queue=q)
     finish = FinishedJobRegistry(queue=q)
@@ -381,11 +387,32 @@ def get_apps_from_queue():
     run_job_ids = registry.get_job_ids()
     finish_job_ids = finish.get_job_ids()
     wait_job_ids = deferred.get_job_ids()
-    myLogger.info_logger(wait_job_ids)
-    myLogger.info_logger(run_job_ids)
-    myLogger.info_logger(finish_job_ids)
+    myLogger.info_logger("waiting jobs' ID: " + wait_job_ids)
+    myLogger.info_logger("Running jobs' ID: " + run_job_ids)
+    myLogger.info_logger("Finished jobs' ID: " + finish_job_ids)
+    installing_list = []
+    for id in run_job_ids:
+        app = get_installing_app(id, const.APP_READY, 'installing')
+        installing_list.append(app)
+    for id in wait_job_ids:
+        app = get_installing_app(id, const.APP_WAIT, 'waiting')
+        installing_list.append(app)
 
-    return wait_job_ids
+    return installing_list
+
+
+def get_installing_app(id, status_code, status):
+    real_name = id.split('_')[0]
+    app_name = id.split('_')[1]
+    var_path = "/data/apps/" + app_name + "/variables.json"
+    trade_mark = docker.read_var(var_path, 'trademark')
+    real_name = docker.read_var(var_path, 'name')
+    image_url = get_Image_url(real_name)
+    app = App(app_id=real_name + "_" + app_name, name=real_name, customer_name=app_name,
+              status_code=status_code, status=status, port=0, volume="",
+              url="", image_url=image_url, admin_url="", trade_mark=trade_mark, user_name="",
+              password="", official_app=True)
+    return app
 
 
 def get_Image_url(app_name):
@@ -402,6 +429,7 @@ def get_url(app_name, easy_url):
     else:
         url = easy_url
     return url
+
 
 def get_admin_url(app_name, url):
     admin_url = ""
