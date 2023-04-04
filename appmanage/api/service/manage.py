@@ -266,27 +266,6 @@ def install_app_delay(customer_app_name, app_version):
     myLogger.info_logger(cmd)
     shell_execute.execute_command_output_all(cmd)
 
-		
-def install_app_job(customer_app_name, app_version):
-    # write running_apps.txt
-    file_path = "/data/apps/running_apps.txt"
-    shell_execute.execute_command_output_all("echo " + customer_app_name + " >> " + file_path)
-    # modify env
-    env_path = "/data/apps/" + customer_app_name + "/.env"
-    docker.modify_env(env_path, 'APP_NAME', customer_app_name)
-    docker.modify_env(env_path, "APP_VERSION", app_version)
-    # check port
-    docker.check_app_compose(env_path)
-    # modify running_apps.txt
-    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose up --pull always -d"
-    shell_execute.execute_command_output_all(cmd)
-    # delete
-    output = shell_execute.execute_command_output_all("sed -n \'/^" + customer_app_name + "/=\' " + file_path)
-    if int(output["code"]) == 0 and output["result"] != "":
-        line_num = output["result"].split("\n")[0]
-        shell_execute.execute_command_output_all("sed -i \'" + line_num + "d\' " + file_path)
-
-
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
     real_name = app_id.split('_')[0]
@@ -307,10 +286,8 @@ def if_app_exits(app_id):
     myLogger.info_logger("APP info: " + info)
     return info, flag
 
-
 def split_app_id(app_id):
     return app_id.split("_")[1]
-
 
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
@@ -409,22 +386,7 @@ def check_if_official_app(var_path):
 
 
 def get_apps_from_queue(app_list, has_add):
-    file_path = "/data/apps/running_apps.txt"
-    if docker.check_directory(file_path):
-        output = shell_execute.execute_command_output_all("cat " + file_path)
-        apps = output["result"].split("\n")
-        for running_app_name in apps:
-            running_app_name = re.sub("\n", "", running_app_name)
-            if running_app_name not in has_add and running_app_name != "":
-                var_path = "/data/apps/" + running_app_name + "/variables.json"
-                trade_mark = docker.read_var(var_path, 'trademark')
-                real_name = docker.read_var(var_path, 'name')
-                image_url = get_Image_url(real_name)
-                app = App(app_id=real_name + "_" + running_app_name, name=real_name, customer_name=running_app_name,
-                          status_code=const.APP_READY, status="installing", port=0, volume="",
-                          url="", image_url=image_url, admin_url="", trade_mark=trade_mark, user_name="",
-                          password="", official_app=True)
-                app_list.append(app.dict())
+    
     return app_list
 
 
