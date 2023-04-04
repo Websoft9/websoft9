@@ -13,7 +13,23 @@ from api.utils.common_log import myLogger
 
 router = APIRouter()
 
-rd = "code: 请求操作内部响应码\n\nmessage: 请求操作结果描述\n\ndata: 返回请求结果内容"
+rd = "code：请求操作内部响应码\n\nmessage：请求操作结果描述\n\ndata：返回请求结果内容\n\n" \
+     "[\n\n" \
+     "&emsp;&emsp;app_id：应用ID,\n\n" \
+     "&emsp;&emsp;name：应用名,\n\n" \
+     "&emsp;&emsp;customer_name：自定义应用名,\n\n" \
+     "&emsp;&emsp;trade_mark：应用商标,\n\n" \
+     "&emsp;&emsp;status_code：应用运行状态码,\n\n" \
+     "&emsp;&emsp;status：应用运行状态,\n\n" \
+     "&emsp;&emsp;port：应用端口,\n\n" \
+     "&emsp;&emsp;volume：yml文件路径,\n\n" \
+     "&emsp;&emsp;url：应用网址,\n\n" \
+     "&emsp;&emsp;image_url：图片路径,\n\n" \
+     "&emsp;&emsp;admin_url：管理员网址,\n\n" \
+     "&emsp;&emsp;user_name：用户名,\n\n" \
+     "&emsp;&emsp;password：密码,\n\n" \
+     "&emsp;&emsp;official_app：是否为官方应用\n\n" \
+     "]"
 
 
 @router.api_route("/details", methods=["GET", "POST"], summary="获取指定APP的信息", response_description=rd,
