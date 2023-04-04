@@ -20,7 +20,7 @@ from rq import Queue,Worker,Connection
 from rq.registry import StartedJobRegistry,FinishedJobRegistry,DeferredJobRegistry
 
 # 指定 Redis 容器的主机名和端口
-redis_conn = Redis(host='redis', port=6379)
+redis_conn = Redis(host='websoft9-redis', port=6379)
 
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
