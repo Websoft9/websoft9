@@ -1,6 +1,10 @@
 - set_fact:
     ansible_python_interpreter: "/usr/bin/python3"
-  
+
+- name: Update apt repository list cache
+  apt:
+    update_cache: yes
+
 - name: Upgrade all packages to the latest version for production
   apt:
     name: "*"
