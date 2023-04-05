@@ -23,10 +23,8 @@ echo "Pre-installation is starting, please wait for 1-3 minutes..."
 # OracleLinux need install oaclelinux-developer-release-e* oracle-nodejs-release-e* oracle-epel-release-e* in Image before this script
 
 if command -v yum > /dev/null; then
-  sudo yum clean all 1>/dev/null 2>&1
-  sudo yum makecache 1>/dev/null 2>&1
+
   sudo yum install -y epel-release 1>/dev/null 2>&1
-  
   sudo yum install yum-utils git libselinux-python python python3 -y 1>/dev/null 2>&1
   sudo python3 -m pip install -U --force-reinstall requests docker 1>/dev/null 2>&1
   if command -v amazon-linux-extras > /dev/null; then
@@ -39,9 +37,7 @@ if command -v yum > /dev/null; then
 fi
 
 if command -v apt > /dev/null; then
-  sudo apt-get update 1>/dev/null 2>&1
   sudo apt-get install git python python3 git -y 1>/dev/null 2>&1
-  sudo apt-get update 1>/dev/null 2>&1
   sudo apt install software-properties-common -y 1>/dev/null 2>&1
   if [[ $(cat /etc/os-release |grep VERSION_CODENAME |cut -d= -f2) == focal ]];then
         echo "have ansible pkg"
