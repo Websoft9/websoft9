@@ -96,8 +96,10 @@
 - block:
   - name: Disable SELinux temporarily(have not  SELinux on Debian )
     shell: sudo setenforce 0
+    failed_when: False
     
   - name: Disable SELinux ermanently
     selinux:
       state: disabled
+    failed_when: False
   when: ansible_selinux.status != "disabled"
