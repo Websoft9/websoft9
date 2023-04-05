@@ -4,7 +4,7 @@
     when: ansible_distribution == "OracleLinux" or ansible_distribution == 'Amazon'
   
 - name: System Upgrade
-  yum: name=* state=latest
+  shell: yum update
   when: common_system_upgrade and (init == '1' or init == 1) 
 
 - name: OracleLinux8 create pip softlink
