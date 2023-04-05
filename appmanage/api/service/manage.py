@@ -379,6 +379,8 @@ def check_if_official_app(var_path):
 
 
 def get_apps_from_queue():
+    
+    myLogger.info_logger("get queque apps...")
     # 获取 StartedJobRegistry 实例
     registry = StartedJobRegistry(queue=q)
     finish = FinishedJobRegistry(queue=q)
@@ -387,9 +389,9 @@ def get_apps_from_queue():
     run_job_ids = registry.get_job_ids()
     finish_job_ids = finish.get_job_ids()
     wait_job_ids = deferred.get_job_ids()
-    myLogger.info_logger("waiting jobs' ID: " + wait_job_ids)
-    myLogger.info_logger("Running jobs' ID: " + run_job_ids)
-    myLogger.info_logger("Finished jobs' ID: " + finish_job_ids)
+    myLogger.info_logger(wait_job_ids)
+    myLogger.info_logger(run_job_ids)
+    myLogger.info_logger(finish_job_ids)
     installing_list = []
     for id in run_job_ids:
         app = get_installing_app(id, const.APP_READY, 'installing')
