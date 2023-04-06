@@ -13,26 +13,35 @@ from api.utils.common_log import myLogger
 
 router = APIRouter()
 
-rd = "code：请求操作内部响应码\n\nmessage：请求操作结果描述\n\ndata：返回请求结果内容\n\n" \
-     "[\n\n" \
-     "&emsp;&emsp;app_id：应用ID,\n\n" \
-     "&emsp;&emsp;name：应用名,\n\n" \
-     "&emsp;&emsp;customer_name：自定义应用名,\n\n" \
-     "&emsp;&emsp;trade_mark：应用商标,\n\n" \
-     "&emsp;&emsp;status_code：应用运行状态码,\n\n" \
-     "&emsp;&emsp;status：应用运行状态,\n\n" \
-     "&emsp;&emsp;port：应用端口,\n\n" \
-     "&emsp;&emsp;volume：yml文件路径,\n\n" \
-     "&emsp;&emsp;url：应用网址,\n\n" \
-     "&emsp;&emsp;image_url：图片路径,\n\n" \
-     "&emsp;&emsp;admin_url：管理员网址,\n\n" \
-     "&emsp;&emsp;user_name：用户名,\n\n" \
-     "&emsp;&emsp;password：密码,\n\n" \
-     "&emsp;&emsp;official_app：是否为官方应用\n\n" \
-     "]"
+rd1 = "code：请求操作内部响应码\n\nmessage：请求操作结果描述\n\ndata：返回请求结果内容\n\n" \
+      "[\n\n" \
+      "&emsp;&emsp;app_id：应用ID,\n\n" \
+      "&emsp;&emsp;name：应用名,\n\n" \
+      "&emsp;&emsp;customer_name：自定义应用名,\n\n" \
+      "&emsp;&emsp;trade_mark：应用商标,\n\n" \
+      "&emsp;&emsp;status_code：应用运行状态码,\n\n"
 
+status = '&emsp;&emsp;status：应用运行状态,\n\n'
+status_detail = "&emsp;&emsp;status：应用运行状态,（running:正常运行，stop：停止，error：错误）\n\n"
+status_list = "&emsp;&emsp;status：应用运行状态,（waiting：等待安装，installing：安装中，running:正常运行，stop：停止，error：错误）\n\n"
+status_process = "&emsp;&emsp;status：应用运行状态,（pulling：拉取镜像，creating：容器启动，inting：容器初始化，running:正常运行）\n\n"
 
-@router.api_route("/details", methods=["GET", "POST"], summary="获取指定APP的信息", response_description=rd,
+rd2 = "&emsp;&emsp;port：应用端口,\n\n" \
+      "&emsp;&emsp;volume：yml文件路径,\n\n" \
+      "&emsp;&emsp;url：应用网址,\n\n" \
+      "&emsp;&emsp;image_url：图片路径,\n\n" \
+      "&emsp;&emsp;admin_url：管理员网址,\n\n" \
+      "&emsp;&emsp;user_name：用户名,\n\n" \
+      "&emsp;&emsp;password：密码,\n\n" \
+      "&emsp;&emsp;official_app：是否为官方应用\n\n" \
+      "]"
+rd = rd1 + status + rd2
+rd_detail = rd1 + status_detail + rd2
+rd_list = rd1 + status_list + rd2
+rd_process = rd1 + status_process + rd2
+
+@router.api_route("/details", methods=["GET", "POST"], summary="获取指定APP的信息",
+                  response_description=rd_detail,
                   response_model=Response)
 def app_detail(app_id: Optional[str] = Query(default=None, description="应用ID")):
     myLogger.info_logger("Receive request: /api/v1/apps/details")
@@ -40,7 +49,8 @@ def app_detail(app_id: Optional[str] = Query(default=None, description="应用ID
     return JSONResponse(list)
 
 
-@router.api_route("", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd, response_model=Response)
+@router.api_route("", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
+                  response_model=Response)
 def list_my_apps():
     myLogger.info_logger("Receive request: /api/v1/apps")
     list = manage.get_my_app()
@@ -57,7 +67,8 @@ def install_app(app_name: Optional[str] = Query(default=None, description="应�
     return JSONResponse(content=ret)
 
 
-@router.api_route("/process", methods=["GET", "POST"], summary="获取指定APP的安装进度", response_description=rd,
+@router.api_route("/process", methods=["GET", "POST"], summary="获取指定APP的安装进度",
+                  response_description=rd_process,
                   response_model=Response)
 def install_app_process(app_id: Optional[str] = Query(default=None, description="应用ID")):
     myLogger.info_logger("Receive request: /api/v1/apps/process")

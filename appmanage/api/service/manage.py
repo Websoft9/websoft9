@@ -59,13 +59,10 @@ def get_app_detail(app_id):
             if int(output["code"]) == 0:
                 output_list = json.loads(output["result"])
                 app_list, has_add = get_apps_from_compose(output_list)
-                list = get_apps_from_queue(app_list, has_add)
                 flag = 0
                 app_info = None
-                for app in list:
+                for app in app_list:
                     if app["app_id"] == app_id:
-                        list.clear()
-                        list.append(app)
                         app_info = app
                         flag = 1
                         break
@@ -73,6 +70,8 @@ def get_app_detail(app_id):
                     ret['code'] = const.RETURN_SUCCESS
                     ret['message'] = "The app query is successful."
                     ret['data'] = app_info
+                else:
+                    ret['message'] = 'This app is not currently installed.'
         else:
             ret['message'] = 'This app is not currently installed.'
     else:
