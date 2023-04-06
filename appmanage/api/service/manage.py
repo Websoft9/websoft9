@@ -237,37 +237,35 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
-
 def install_app_delay(app_name, customer_app_name, app_version):
 
-	try:
-		code, message = check_app(app_name, customer_app_name, app_version)
-		if code == const.RETURN_SUCCESS:
-			code, message = prepare_app(app_name, customer_app_name)
-			if code == const.RETURN_SUCCESS:
-				myLogger.info_logger("start job=" + customer_app_name)
-				# modify env
-				env_path = "/data/apps/" + customer_app_name + "/.env"
-				docker.modify_env(env_path, 'APP_NAME', customer_app_name)
-				docker.modify_env(env_path, "APP_VERSION", app_version)
-				# check port
-				docker.check_app_compose(env_path)
+    try:
+        code, message = check_app(app_name, customer_app_name, app_version)
+        if code == const.RETURN_SUCCESS:
+            code, message = prepare_app(app_name, customer_app_name)
+            if code == const.RETURN_SUCCESS:
+                myLogger.info_logger("start job=" + customer_app_name)
+                # modify env
+                env_path = "/data/apps/" + customer_app_name + "/.env"
+                docker.modify_env(env_path, 'APP_NAME', customer_app_name)
+                docker.modify_env(env_path, "APP_VERSION", app_version)
+                # check port
+                docker.check_app_compose(env_path)
 
-				cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
-				output = shell_execute.execute_command_output_all(cmd)
-				if int(output["code"]) != 0:
-                   raise Exception("install" + customer_app_name + " failed!")
-			else:
-			    raise Exception("prepare_app failed")
-		else:
+                cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
+                output = shell_execute.execute_command_output_all(cmd)
+                if int(output["code"]) != 0:
+                   raise Exception("installfailed!")
+            else:
+                raise Exception("prepare_app failed")
+        else:
             raise Exception("resource check failed")
-	except Exception as e:
-	    myLogger.info_logger(customer_app_name+"install failed!")
-	    myLogger.error_logger(e)
-	    job_id = app_name + "_" + customer_app_name
-	    fail_job = q.fetch_job(job_id)
-	    fail_job.set_status('failed')
-
+    except Exception as e:
+        myLogger.info_logger(customer_app_name+"install failed!")
+        myLogger.error_logger(e)
+        job_id = app_name + "_" + customer_app_name
+        fail_job = q.fetch_job(job_id)
+        fail_job.set_status('failed')
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
