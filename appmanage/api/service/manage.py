@@ -254,8 +254,13 @@ def install_app_delay(app_name, customer_app_name, app_version):
 
                 cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
                 output = shell_execute.execute_command_output_all(cmd)
-                if int(output["code"]) != 0:
+                myLogger.info_logger("install output")
+                myLogger.info_logger(output["code"])
+                myLogger.info_logger(output["result"])
+                if int(output["code"]) != 0 or "error" in output["result"] or "fail" in output["result"]:
                    raise Exception("installfailed!")
+                else:
+                   return "success"
             else:
                 raise Exception("prepare_app failed")
         else:
@@ -264,8 +269,11 @@ def install_app_delay(app_name, customer_app_name, app_version):
         myLogger.info_logger(customer_app_name+"install failed!")
         myLogger.error_logger(e)
         job_id = app_name + "_" + customer_app_name
-        fail_job = q.fetch_job(job_id)
-        fail_job.set_status('failed')
+        try:
+            uninstall_app(job_id)
+        except Exception as e:
+            myLogger.error_logger(e)
+        return "fail"
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
@@ -411,27 +419,21 @@ def get_apps_from_queue():
     myLogger.info_logger(finish_job_ids)
     myLogger.info_logger(failed_jobs )
     myLogger.info_logger(scheduled_jobs)
-    myLogger.info_logger("other get jobids")
-    queued_jobs = q.fetch_jobs_by_status(status='queued')
-    started_jobs = q.fetch_jobs_by_status(status='started')
-    failed_jobs = q.fetch_jobs_by_status(status='failed')
-    finished_jobs = q.fetch_jobs_by_status(status='finished')
+ 
     myLogger.info_logger("----------------------------------------")
-    myLogger.info_logger(queued_jobs)
-    myLogger.info_logger(started_jobs)
-    myLogger.info_logger(failed_jobs)
-    myLogger.info_logger(finished_jobs)
-	
+
     installing_list = []
-    for job in started_jobs:
-        app = get_installing_app(job.id, const.APP_READY, 'installing')
+    for job in run_job_ids:
+        app = get_installing_app(job, const.APP_READY, 'installing')
         installing_list.append(app)
-    for job in queued_jobs:
+    for job in q.jobs: 
         app = get_installing_app(job.id, const.APP_WAIT, 'waiting')
         installing_list.append(app)
-    for job in failed_jobs:
-        app = get_installing_app(job.id, const.APP_ERROR, 'error')
-        installing_list.append(app)
+    for job_id in finish_job_ids:
+        job = q.fetch_job(job_id)
+        if job.result == "fail":
+           app = get_installing_app(job_id, const.APP_ERROR, 'error')
+           installing_list.append(app)
 	
     return installing_list
 
