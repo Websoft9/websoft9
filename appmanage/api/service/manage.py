@@ -16,7 +16,7 @@ from api.model.response import Response
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry,FailedJobRegistry,ScheduledJobRegistry
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
@@ -386,13 +386,23 @@ def get_apps_from_queue():
     registry = StartedJobRegistry(queue=q)
     finish = FinishedJobRegistry(queue=q)
     deferred = DeferredJobRegistry(queue=q)
+    failed = FailedJobRegistry(queue=q)
+    scheduled = ScheduledJobRegistry(queue=q)
+
     # 获取正在执行的作业 ID 列表
     run_job_ids = registry.get_job_ids()
     finish_job_ids = finish.get_job_ids()
     wait_job_ids = deferred.get_job_ids()
+    failed_jobs = failed.get_job_ids()
+    scheduled_jobs = scheduled.get_job_ids()
+
+    myLogger.info_logger(q.jobs)
     myLogger.info_logger(wait_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(finish_job_ids)
+    myLogger.info_logger(failed_jobs )
+    myLogger.info_logger(scheduled_jobs)
+    
     installing_list = []
     for id in run_job_ids:
         app = get_installing_app(id, const.APP_READY, 'installing')
