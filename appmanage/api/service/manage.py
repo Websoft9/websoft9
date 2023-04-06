@@ -411,7 +411,7 @@ def get_apps_from_queue():
     myLogger.info_logger(finish_job_ids)
     myLogger.info_logger(failed_jobs )
     myLogger.info_logger(scheduled_jobs)
-    
+    myLogger.info_logger("other get jobids")
     queued_jobs = q.fetch_jobs_by_status(status='queued')
     started_jobs = q.fetch_jobs_by_status(status='started')
     failed_jobs = q.fetch_jobs_by_status(status='failed')
