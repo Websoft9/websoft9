@@ -24,7 +24,6 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
-
 # 获取所有app的信息
 def get_my_app():
     ret = Response(code=const.RETURN_FAIL, message="App query failed!")
@@ -140,7 +139,6 @@ def start_app(app_id):
     ret = ret.dict()
     return ret
 
-
 def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
@@ -161,7 +159,6 @@ def stop_app(app_id):
         ret.message = 'AppID is not legal!'
     ret = ret.dict()
     return ret
-
 
 def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
@@ -267,9 +264,9 @@ def install_app_delay(app_name, customer_app_name, app_version):
 	except Exception as e:
 	    myLogger.info_logger(customer_app_name+"install failed!")
 	    myLogger.error_logger(e)
-		job_id = app_name + "_" + customer_app_name
-        fail_job = q.fetch_job(job_id)
-		fail_job.set_status('failed')
+	    job_id = app_name + "_" + customer_app_name
+	    fail_job = q.fetch_job(job_id)
+	    fail_job.set_status('failed')
 
 
 def if_app_exits(app_id):
@@ -417,14 +414,27 @@ def get_apps_from_queue():
     myLogger.info_logger(failed_jobs )
     myLogger.info_logger(scheduled_jobs)
     
+    queued_jobs = queue.fetch_jobs_by_status(status='queued')
+    started_jobs = queue.fetch_jobs_by_status(status='started')
+    failed_jobs = queue.fetch_jobs_by_status(status='failed')
+    finished_jobs = queue.fetch_jobs_by_status(status='finished')
+    myLogger.info_logger("----------------------------------------")
+    myLogger.info_logger(queued_jobs)
+    myLogger.info_logger(started_jobs)
+    myLogger.info_logger(failed_jobs)
+    myLogger.info_logger(finished_jobs)
+	
     installing_list = []
-    for id in run_job_ids:
-        app = get_installing_app(id, const.APP_READY, 'installing')
+    for job in started_jobs:
+        app = get_installing_app(job.id, const.APP_READY, 'installing')
         installing_list.append(app)
-    for id in wait_job_ids:
-        app = get_installing_app(id, const.APP_WAIT, 'waiting')
+    for job in queued_jobs:
+        app = get_installing_app(job.id, const.APP_WAIT, 'waiting')
         installing_list.append(app)
-
+    for job in failed_jobs:
+        app = get_installing_app(job.id, const.APP_ERROR, 'error')
+        installing_list.append(app)
+	
     return installing_list
 
 
