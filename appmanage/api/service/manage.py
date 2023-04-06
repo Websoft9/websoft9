@@ -110,12 +110,10 @@ def install_app(app_name, customer_app_name, app_version):
     app_id = app_name + "_" + customer_app_name
     ret.code, ret.message = check_app(app_name, customer_app_name, app_version)
     if ret.code == const.RETURN_SUCCESS:
-        ret.code, ret.message = prepare_app(app_name, customer_app_name)
-        if ret.code == const.RETURN_SUCCESS:
-            myLogger.info_logger("create job=" + app_id)
-            # 根据请求创建新作业
-            new_job = q.enqueue(install_app_delay, customer_app_name, app_version, job_id=app_id)
-            ret.message = "The app is prepare to install, please check again in a few minutes."
+        myLogger.info_logger("create job=" + app_id)
+        # 根据请求创建新作业
+        new_job = q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id)
+        ret.message = "The app is prepare to install, please check again in a few minutes."
     ret = ret.dict()
     return ret
 
@@ -243,17 +241,21 @@ def prepare_app(app_name, customer_app_name):
     return code, message
 
 
-def install_app_delay(customer_app_name, app_version):
-    myLogger.info_logger("start job=" + customer_app_name)
-    # modify env
-    env_path = "/data/apps/" + customer_app_name + "/.env"
-    docker.modify_env(env_path, 'APP_NAME', customer_app_name)
-    docker.modify_env(env_path, "APP_VERSION", app_version)
-    # check port
-    docker.check_app_compose(env_path)
+def install_app_delay(app_name, customer_app_name, app_version):
+    code, message = check_app(app_name, customer_app_name, app_version)
+    if code == const.RETURN_SUCCESS:
+        code, message = prepare_app(app_name, customer_app_name)
+        if code == const.RETURN_SUCCESS:
+            myLogger.info_logger("start job=" + customer_app_name)
+            # modify env
+            env_path = "/data/apps/" + customer_app_name + "/.env"
+            docker.modify_env(env_path, 'APP_NAME', customer_app_name)
+            docker.modify_env(env_path, "APP_VERSION", app_version)
+            # check port
+            docker.check_app_compose(env_path)
 
-    cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
-    shell_execute.execute_command_output_all(cmd)
+            cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
+            shell_execute.execute_command_output_all(cmd)
 
 
 def if_app_exits(app_id):
