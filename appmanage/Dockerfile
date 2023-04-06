@@ -19,3 +19,4 @@ RUN mkdir /data
 
 # Expose the port in which the application will be deployed
 EXPOSE 5000
+
