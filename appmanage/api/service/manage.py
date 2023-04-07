@@ -88,10 +88,10 @@ def install_app_process(app_id):
     ret['status'] = ""
     app_name = split_app_id(app_id)
     if docker.check_app_id(app_id):
-        var_path = "/data/apps/" + app_name + "/variables.json"
-        real_name = docker.read_var(var_path, 'name')
         info, code = if_app_exits(app_id)
         if code:
+            var_path = "/data/apps/" + app_name + "/variables.json"
+            real_name = docker.read_var(var_path, 'name')
             app_status = docker.get_process_perc(app_name, real_name)
             ret["code"] = const.RETURN_SUCCESS
             ret['message'] = "This app is installing."
