@@ -16,13 +16,15 @@ from api.model.response import Response
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry,FailedJobRegistry,ScheduledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
+    ScheduledJobRegistry
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
 
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
+
 
 # 获取所有app的信息
 def get_my_app():
@@ -139,6 +141,7 @@ def start_app(app_id):
     ret = ret.dict()
     return ret
 
+
 def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
@@ -159,6 +162,7 @@ def stop_app(app_id):
         ret.message = 'AppID is not legal!'
     ret = ret.dict()
     return ret
+
 
 def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
@@ -237,8 +241,8 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
-def install_app_delay(app_name, customer_app_name, app_version):
 
+def install_app_delay(app_name, customer_app_name, app_version):
     try:
         code, message = check_app(app_name, customer_app_name, app_version)
         if code == const.RETURN_SUCCESS:
@@ -258,15 +262,15 @@ def install_app_delay(app_name, customer_app_name, app_version):
                 myLogger.info_logger(output["code"])
                 myLogger.info_logger(output["result"])
                 if int(output["code"]) != 0 or "error" in output["result"] or "fail" in output["result"]:
-                   raise Exception("installfailed!")
+                    raise Exception("installfailed!")
                 else:
-                   return "success"
+                    return "success"
             else:
                 raise Exception("prepare_app failed")
         else:
             raise Exception("resource check failed")
     except Exception as e:
-        myLogger.info_logger(customer_app_name+"install failed!")
+        myLogger.info_logger(customer_app_name + "install failed!")
         myLogger.error_logger(e)
         job_id = app_name + "_" + customer_app_name
         try:
@@ -274,6 +278,7 @@ def install_app_delay(app_name, customer_app_name, app_version):
         except Exception as e:
             myLogger.error_logger(e)
         return "fail"
+
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
@@ -320,7 +325,8 @@ def get_apps_from_compose(output_list):
         password = ""
         official_app = False
 
-        if app_name in ['appmanage', 'nginxproxymanager', 'redis']:
+        if app_name in ['appmanage', 'nginxproxymanager',
+                        'redis'] and app_path == '/data/apps/stackhub/docker/' + app_name:
             continue
         # get code
         case = app_info["Status"].split("(")[0]  # case
@@ -397,7 +403,6 @@ def check_if_official_app(var_path):
 
 
 def get_apps_from_queue():
-    
     myLogger.info_logger("get queque apps...")
     # 获取 StartedJobRegistry 实例
     registry = StartedJobRegistry(queue=q)
@@ -417,24 +422,24 @@ def get_apps_from_queue():
     myLogger.info_logger(wait_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(finish_job_ids)
-    myLogger.info_logger(failed_jobs )
+    myLogger.info_logger(failed_jobs)
     myLogger.info_logger(scheduled_jobs)
- 
+
     myLogger.info_logger("----------------------------------------")
 
     installing_list = []
     for job in run_job_ids:
         app = get_installing_app(job, const.APP_READY, 'installing')
         installing_list.append(app)
-    for job in q.jobs: 
+    for job in q.jobs:
         app = get_installing_app(job.id, const.APP_WAIT, 'waiting')
         installing_list.append(app)
     for job_id in finish_job_ids:
         job = q.fetch_job(job_id)
         if job.result == "fail":
-           app = get_installing_app(job_id, const.APP_ERROR, 'error')
-           installing_list.append(app)
-	
+            app = get_installing_app(job_id, const.APP_ERROR, 'error')
+            installing_list.append(app)
+
     return installing_list
 
 
