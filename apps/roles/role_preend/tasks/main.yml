@@ -21,5 +21,6 @@
 - name: Output all containers version
   shell: |
     wget -O /tmp/containers_version.sh https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/containers_version.sh
+    chmod +x /tmp/containers_version.sh
     bash /tmp/containers_version.sh
     rm -f /tmp/containers_version.sh
