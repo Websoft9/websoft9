@@ -26,6 +26,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
       echo "$containername容器名匹配成功app:$appname"
       targetlist="$targetlist $appname"
       wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/$appname/src/get_version.sh
+      chmod +x /tmp/"$appname"_get_version.sh
       bash /tmp/"$appname"_get_version.sh $containername
       break
     fi
@@ -48,6 +49,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
          echo "$imagename=镜像名匹配成功app:$appname, and容器名是：$containername"
          targetlist="$targetlist $appname"
          wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/$appname/src/get_version.sh
+         chmod +x /tmp/"$appname"_get_version.sh
          bash /tmp/"$appname"_get_version.sh $containername
          break
       fi
@@ -59,6 +61,7 @@ for appinfo in $(docker ps --format '{{.Names}}%{{.Image}}'); do
           echo "$service服务名匹配成功app:$appname, and容器名是：$containername"
           targetlist="$targetlist $appname"
           wget -O /tmp/"$appname"_get_version.sh https://raw.githubusercontent.com/Websoft9/docker-library/main/apps/$appname/src/get_version.sh
+          chmod +x /tmp/"$appname"_get_version.sh
           bash /tmp/"$appname"_get_version.sh $containername
           break
         fi
