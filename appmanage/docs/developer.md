@@ -64,14 +64,6 @@
 | ResponseData   | String(AppID)   |必须   |
 | error   | ErrorInfo   |非必须   |
 
-AppID 说明:
-```
-{
-
-  app_id：应用ID
-  
-}
-```
 
 ErrorInfo 说明:
 | code                                          |message  |
@@ -86,6 +78,37 @@ ErrorInfo 说明:
 | Container.Command.Error   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
+
+### app 卸载接口
+
+#### 请求URL
+
+请求URL=FastAPI通用URL/AppUninstall
+
+#### 请求参数
+| 参数名称 | 用途                                          |类型  |必要性 |
+| ------ | --------------------------------------------- | ------ |------ |
+| app_id   | 卸载该app | string   |必须   |
+| delete_image   | 是否删除镜像 | boolean   |非必须，默认为False   |
+| delete_data   | 是否删除所有数据 | boolean   |非必须，默认为True   |
+
+#### 返回结果
+| 返回值  |类型  |必要性 |
+| ------  | ------ |------ |
+| ResponseData   | String(AppID)   |必须   |
+| error   | ErrorInfo   |非必须   |
+
+
+ErrorInfo 说明:
+| code                                          |message  |
+| --------------------------------------------- | ------ |
+| Param.APPID.Blank   | APP_ID为空   |
+| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.NotExist   | 卸载App不存在   |
+| Param.CustomerAppName.FormatError   | 查询的APP_ID只能是数字和小写字母组成    |
+
+| Container.Command.Error   | 操作容器指令发生错误   |
+| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
 ### app 状态查询接口
 
@@ -132,7 +155,7 @@ ErrorInfo 说明:
 | --------------------------------------------- | ------ |
 | Param.APPID.Blank   | 查询的APP_ID为空   |
 | Param.APPID.FormatError   | 查询的APP_ID只能是数字和小写字母组成   |
-| APP.NotExis   | 查询的APP没有安装   |
+| APP.NotExist   | 查询的APP没有安装   |
 | Container.CommandError   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
