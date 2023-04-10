@@ -74,17 +74,17 @@ AppDetailInfo 说明:
 
   trade_mark：应用商标,
 
-  status_code：应用运行状态码,
+  status_code：应用运行状态码,（queuing:'00',pulling:'10'，creating:'11'，initing:'12'，running:'30'，stop：'40'，error：'50'）
 
-  status：应用运行状态,（running:正常运行，stop：停止，error：错误）
+  status：应用运行状态,（queuing:排队等待,pulling:镜像拉取中，creating:容器启动中，initing:初始化中，running:正常运行，stop：停止，error：错误）
   
   official_app：是否为官方应用,
   
-  running_info: {
+  running_info: { // 只有status=running才有值，其他时候为空
   
       port：应用端口,
 
-      volume：yml文件路径,
+      compose_file：docker compose文件路径,
 
       url：应用网址,
       
@@ -104,4 +104,4 @@ ErrorInfo 说明:
 | 接口名称 | code                                          |message  |
 | ------ | --------------------------------------------- | ------ |
 | AppsList   | AppNotExist   | 查询的APP不存在   |
-| AppsList   |  SystemError  |系统异常，请联系管理员   |
+| AppsList   | SystemError  |系统异常，请联系管理员   |
