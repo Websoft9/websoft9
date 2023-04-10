@@ -83,7 +83,7 @@ ErrorInfo 说明:
 | Param.CustomerAppName.Repeat   | 已经安装了此应用，请重新指定APP名称   |
 | Param.CustomerAppName.Wait   | 同名应用已经在安装等待中，请重新指定APP名称   |
 | Requirement.NotEnough| 系统资源（cpu，内存，磁盘空间）不足   |
-| ContainerCommandError   | 操作容器指令发生错误   |
+| Container.Command.Error   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
 
@@ -99,10 +99,10 @@ ErrorInfo 说明:
 | app_id   | 查询该app的信息 | string   |必须   |
 
 #### 返回结果
-| 返回值 | 用途                                          |类型  |必要性 |
-| ------ | --------------------------------------------- | ------ |------ |
-| ResponseData   || AppStatusInfo   |必须   |
-| error   || ErrorInfo   |非必须   |
+| 返回值 |类型  |必要性 |
+| ------  | ------ |------ |
+| ResponseData   | AppStatusInfo   |必须   |
+| error   | ErrorInfo   |非必须   |
 
 AppStatusInfo 说明:
 ```
@@ -149,10 +149,10 @@ ErrorInfo 说明:
 | app_name   | 查询app列表信息，当app_name不为空时，查询该app的信息 | string   |非必须   |
 
 #### 返回结果
-| 返回值 | 用途                                          |类型  |必要性 |
-| ------ | --------------------------------------------- | ------ |------ |
-| ResponseData   || AppDetailInfo list   |必须   |
-| error   || ErrorInfo   |非必须   |
+| 返回值  |类型  |必要性 |
+| ------  | ------ |------ |
+| ResponseData   | AppDetailInfo list   |必须   |
+| error   | ErrorInfo   |非必须   |
 
 AppDetailInfo 说明:
 ```
