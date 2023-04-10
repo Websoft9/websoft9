@@ -28,7 +28,7 @@
 ### 响应主体
 |返回参数 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
-| error   | 错误code和错误信息 | object   | 非必须 ,无错误时不返回  |
+| error   | 错误code和错误信息 | ErrorInfo   | 非必须 ,无错误时不返回  |
 | responseData   | 各个接口的业务数据 | object   |必须   |
 
 ```
@@ -254,7 +254,7 @@ ErrorInfo 说明:
 #### 返回结果
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
-| ResponseData   | AppDetailInfo list   |必须   |
+| ResponseData   | Array of AppDetailInfo   |必须   |
 | error   | ErrorInfo   |非必须   |
 
 AppDetailInfo 说明:
