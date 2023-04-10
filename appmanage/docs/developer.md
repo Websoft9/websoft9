@@ -53,5 +53,5 @@
 #### 返回结果
 | 返回值 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
-| ResponseData   || List（APPInfo）   |必须   |
+| ResponseData   || AppInfo list   |必须   |
 | error   || ErrorInfo   |非必须   |
