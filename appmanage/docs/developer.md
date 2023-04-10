@@ -33,10 +33,10 @@
 
 ```
 {
-  "ResponseData": {
+  "ResponseData": {app_id: "xxxx"},
   "Error": {
-            "Code": "AuthFailure.SignatureFailure",
-            "Message": "The provided credentials could not be validated. Please check your signature is correct."
+            "Code": "Requirement.NotEnough",
+            "Message": "Insufficient system resources (cpu, memory, disk space)."
            }
 }
 ```
