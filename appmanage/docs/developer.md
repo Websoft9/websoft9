@@ -106,7 +106,6 @@ ErrorInfo 说明:
 | Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | 卸载App不存在   |
 | Param.CustomerAppName.FormatError   | 查询的APP_ID只能是数字和小写字母组成    |
-
 | Container.Command.Error   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
