@@ -91,7 +91,8 @@ ErrorInfo 说明:
 | Param.APP_ID.Blank   | 查询的APP_ID为空   |
 | Param.APP_ID.FormatError   | 查询的APP_ID只能是数字和小写字母组成   |
 | APP.NotExis   | 查询的APP没有安装   |
-| SystemError  |系统异常，请联系管理员   |
+| ContainerCommandError   | 操作容器指令发生错误   |
+| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
 
 ### app 列表查询接口
@@ -152,5 +153,5 @@ AppDetailInfo 说明:
 ErrorInfo 说明:
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| AppNotExist   | 查询的APP不存在   |
-| SystemError  |系统异常，请联系管理员   |
+| ContainerCommandError   | 操作容器指令发生错误   |
+| SystemError  |系统异常，请联系管理员（系统报错返回）   |
