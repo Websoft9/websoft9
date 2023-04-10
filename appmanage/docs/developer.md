@@ -76,9 +76,9 @@ AppID 说明:
 ErrorInfo 说明:
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Param.App_name.Blank   | APP名称为空   |
+| Param.AppName.Blank   | APP名称为空   |
+| Param.AppName.NotExis  | 不支持安装指定的App   |
 | Param.CustomerAppName.Blank   | 用户自定义APP名称为空   |
-| Param.CustomerAppName.NotExis  | 不支持安装指定的App   |
 | Param.CustomerAppName.FormatError   | 查询的APP_ID只能是数字和小写字母组成    |
 | Param.CustomerAppName.Repeat   | 已经安装了此应用，请重新指定APP名称   |
 | Param.CustomerAppName.Wait   | 同名应用已经在安装等待中，请重新指定APP名称   |
@@ -130,10 +130,10 @@ AppStatusInfo 说明:
 ErrorInfo 说明:
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Param.APP_ID.Blank   | 查询的APP_ID为空   |
-| Param.APP_ID.FormatError   | 查询的APP_ID只能是数字和小写字母组成   |
+| Param.APPID.Blank   | 查询的APP_ID为空   |
+| Param.APPID.FormatError   | 查询的APP_ID只能是数字和小写字母组成   |
 | APP.NotExis   | 查询的APP没有安装   |
-| ContainerCommandError   | 操作容器指令发生错误   |
+| Container.CommandError   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
 
@@ -195,5 +195,5 @@ AppDetailInfo 说明:
 ErrorInfo 说明:
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| ContainerCommandError   | 操作容器指令发生错误   |
+| Container.CommandError   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
