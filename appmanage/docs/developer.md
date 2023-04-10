@@ -289,6 +289,10 @@ AppDetailInfo 说明:
       user_name：用户名,
 
       password：密码,
+      
+      default_domain: 默认域名,
+      
+      set_domain: 用户自定义域名,
   }
   
 }
