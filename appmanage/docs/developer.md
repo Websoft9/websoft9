@@ -26,18 +26,15 @@
 ### 响应主体
 |返回参数 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
-| HTTP状态码   | 判断接口调用是否成功（200或404） | Integer   |必须   |
-
-HTTP状态码：接口调用成功统一返回 200，通过错误码区分
-	{
-        		"Response": {
-            		"Error": {
-               	 		"Code": "AuthFailure.SignatureFailure",
-                		"Message": "The provided credentials could not be validated. Please check your signature is correct."
-           			 },
-           		 "RequestId": "ed93f3cb-f35e-473f-b9f3-0d451b8b79c6"
-       	 	}
-   	 }
+| error   | 错误code和错误信息 | object   | 非必须   |
+| responseData   | 各个接口的业务数据 | object   |必须   |
+{
+  "ResponseData": {
+  "Error": {
+            "Code": "AuthFailure.SignatureFailure",
+            "Message": "The provided credentials could not be validated. Please check your signature is correct."
+           }
+}
 	响应主体：
                 api/v1/apps/list
                 api/v1/user/list
