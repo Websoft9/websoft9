@@ -71,7 +71,7 @@ ErrorInfo 说明:
 | Param.AppName.Blank   | APP名称为空   |
 | Param.AppName.NotExis  | 不支持安装指定的App   |
 | Param.CustomerAppName.Blank   | 用户自定义APP名称为空   |
-| Param.CustomerAppName.FormatError   | 查询的APP_ID只能是数字和小写字母组成    |
+| Param.CustomerAppName.FormatError   | 用户自定义APP名称只能是数字和小写字母组成    |
 | Param.CustomerAppName.Repeat   | 已经安装了此应用，请重新指定APP名称   |
 | Param.CustomerAppName.Wait   | 同名应用已经在安装等待中，请重新指定APP名称   |
 | Requirement.NotEnough| 系统资源（cpu，内存，磁盘空间）不足   |
@@ -102,10 +102,90 @@ ErrorInfo 说明:
 ErrorInfo 说明:
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID为空   |
+| Param.APPID.Blank   | APP_ID不能为空   |
 | Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
-| Param.APPID.NotExist   | 卸载App不存在   |
-| Param.CustomerAppName.FormatError   | 查询的APP_ID只能是数字和小写字母组成    |
+| Param.APPID.NotExist   | APP不存在   |
+| Container.Command.Error   | 操作容器指令发生错误   |
+| SystemError  |系统异常，请联系管理员（系统报错返回）   |
+
+### App 重启接口
+
+#### 请求URL
+
+请求URL=FastAPI通用URL/AppRestart
+
+#### 请求参数
+| 参数名称 | 用途                                          |类型  |必要性 |
+| ------ | --------------------------------------------- | ------ |------ |
+| app_id   | 重启该app | string   |必须   |
+
+#### 返回结果
+| 返回值  |类型  |必要性 |
+| ------  | ------ |------ |
+| ResponseData   | String(AppID)   |必须   |
+| error   | ErrorInfo   |非必须   |
+
+
+ErrorInfo 说明:
+| code                                          |message  |
+| --------------------------------------------- | ------ |
+| Param.APPID.Blank   | APP_ID不能为空   |
+| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.NotExist   | APP不存在   |
+| Container.Command.Error   | 操作容器指令发生错误   |
+| SystemError  |系统异常，请联系管理员（系统报错返回）   |
+
+### App 启动接口
+
+#### 请求URL
+
+请求URL=FastAPI通用URL/AppStart
+
+#### 请求参数
+| 参数名称 | 用途                                          |类型  |必要性 |
+| ------ | --------------------------------------------- | ------ |------ |
+| app_id   | 启动该app | string   |必须   |
+
+#### 返回结果
+| 返回值  |类型  |必要性 |
+| ------  | ------ |------ |
+| ResponseData   | String(AppID)   |必须   |
+| error   | ErrorInfo   |非必须   |
+
+
+ErrorInfo 说明:
+| code                                          |message  |
+| --------------------------------------------- | ------ |
+| Param.APPID.Blank   | APP_ID不能为空   |
+| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.NotExist   | APP不存在   |
+| Container.Command.Error   | 操作容器指令发生错误   |
+| SystemError  |系统异常，请联系管理员（系统报错返回）   |
+
+### App 停止接口
+
+#### 请求URL
+
+请求URL=FastAPI通用URL/AppStop
+
+#### 请求参数
+| 参数名称 | 用途                                          |类型  |必要性 |
+| ------ | --------------------------------------------- | ------ |------ |
+| app_id   | 停止该app | string   |必须   |
+
+#### 返回结果
+| 返回值  |类型  |必要性 |
+| ------  | ------ |------ |
+| ResponseData   | String(AppID)   |必须   |
+| error   | ErrorInfo   |非必须   |
+
+
+ErrorInfo 说明:
+| code                                          |message  |
+| --------------------------------------------- | ------ |
+| Param.APPID.Blank   | APP_ID不能为空   |
+| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.NotExist   | APP不存在   |
 | Container.Command.Error   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
@@ -152,9 +232,9 @@ AppStatusInfo 说明:
 ErrorInfo 说明:
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Param.APPID.Blank   | 查询的APP_ID为空   |
-| Param.APPID.FormatError   | 查询的APP_ID只能是数字和小写字母组成   |
-| APP.NotExist   | 查询的APP没有安装   |
+| Param.APPID.Blank   | APP_ID不能为空   |
+| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.NotExist   | APP不存在   |
 | Container.CommandError   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
