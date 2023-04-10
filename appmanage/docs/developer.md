@@ -74,6 +74,7 @@ ErrorInfo 说明:
 | Param.CustomerAppName.FormatError   | 用户自定义APP名称只能是数字和小写字母组成    |
 | Param.CustomerAppName.Repeat   | 已经安装了此应用，请重新指定APP名称   |
 | Param.CustomerAppName.Wait   | 同名应用已经在安装等待中，请重新指定APP名称   |
+| Param.AppVersion.Blank  | 安装App的版本不能为空   |
 | Requirement.NotEnough| 系统资源（cpu，内存，磁盘空间）不足   |
 | Container.Command.Error   | 操作容器指令发生错误   |
 | SystemError  |系统异常，请联系管理员（系统报错返回）   |
