@@ -45,6 +45,10 @@
 
 ### app 列表查询接口
 
+#### 请求URL
+
+请求URL=FastAPI通用URL/AppsList
+
 #### 请求参数
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
@@ -53,5 +57,13 @@
 #### 返回结果
 | 返回值 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
-| ResponseData   || AppInfo list   |必须   |
+| ResponseData   || AppDetailInfo list   |必须   |
 | error   || ErrorInfo   |非必须   |
+
+AppDetailInfo 说明:
+
+ErrorInfo 说明:
+| 接口名称 | code                                          |message  |
+| ------ | --------------------------------------------- | ------ |
+| AppsList   | AppNotExist   | 查询的APP不存在   |
+| AppsList   |  SystemError  |系统异常，请联系管理员   |
