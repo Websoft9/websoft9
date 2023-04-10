@@ -61,7 +61,7 @@
 #### 返回结果
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
-| ResponseData   | AppID   |必须   |
+| ResponseData   | String(AppID)   |必须   |
 | error   | ErrorInfo   |非必须   |
 
 AppID 说明:
