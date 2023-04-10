@@ -29,7 +29,7 @@
 | error   | 错误code和错误信息 | object   | 非必须   |
 | responseData   | 各个接口的业务数据 | object   |必须   |
 
-  
+```
 {
   "ResponseData": {
   "Error": {
@@ -37,6 +37,7 @@
             "Message": "The provided credentials could not be validated. Please check your signature is correct."
            }
 }
+```
 	响应主体：
                 api/v1/apps/list
                 api/v1/user/list
