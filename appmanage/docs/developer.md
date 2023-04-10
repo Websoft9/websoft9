@@ -45,11 +45,60 @@
 
 各个业务接口的详细说明，公共参数不在这里继续说明。
 
+### app 状态查询接口
+
+#### 请求URL
+
+请求URL=FastAPI通用URL/AppStatus
+
+#### 请求参数
+| 参数名称 | 用途                                          |类型  |必要性 |
+| ------ | --------------------------------------------- | ------ |------ |
+| app_id   | 查询该app的信息 | string   |必须   |
+
+#### 返回结果
+| 返回值 | 用途                                          |类型  |必要性 |
+| ------ | --------------------------------------------- | ------ |------ |
+| ResponseData   || AppStatusInfo   |必须   |
+| error   || ErrorInfo   |非必须   |
+
+AppStatusInfo 说明:
+```
+{
+
+  app_id：应用ID,
+
+  name：应用名,
+
+  customer_name：自定义应用名,
+
+  trade_mark：应用商标,
+
+  status_code：应用运行状态码,（queuing:'00',pulling:'10'，creating:'11'，initing:'12'，running:'30'，stop：'40'，error：'50'）
+
+  status：应用运行状态,（queuing:排队等待,pulling:镜像拉取中，creating:容器启动中，initing:初始化中，running:正常运行，stop：停止，error：错误）
+  
+  official_app：是否为官方应用,
+  
+  image_url：图片路径
+  
+}
+```
+
+ErrorInfo 说明:
+| code                                          |message  |
+| --------------------------------------------- | ------ |
+| Param.APP_ID.Blank   | 查询的APP_ID为空   |
+| Param.APP_ID.FormatError   | 查询的APP_ID只能是数字和小写字母组成   |
+| APP.NotExis   | 查询的APP没有安装   |
+| SystemError  |系统异常，请联系管理员   |
+
+
 ### app 列表查询接口
 
 #### 请求URL
 
-请求URL=FastAPI通用URL/AppsList
+请求URL=FastAPI通用URL/AppList
 
 #### 请求参数
 | 参数名称 | 用途                                          |类型  |必要性 |
@@ -80,6 +129,8 @@ AppDetailInfo 说明:
   
   official_app：是否为官方应用,
   
+  image_url：图片路径,
+  
   running_info: { // 只有status=running才有值，其他时候为空
   
       port：应用端口,
@@ -90,8 +141,6 @@ AppDetailInfo 说明:
       
       admin_url：管理员网址,
 
-      image_url：图片路径,
-
       user_name：用户名,
 
       password：密码,
@@ -101,7 +150,7 @@ AppDetailInfo 说明:
 ```
 
 ErrorInfo 说明:
-| 接口名称 | code                                          |message  |
-| ------ | --------------------------------------------- | ------ |
-| AppsList   | AppNotExist   | 查询的APP不存在   |
-| AppsList   | SystemError  |系统异常，请联系管理员   |
+| code                                          |message  |
+| --------------------------------------------- | ------ |
+| AppNotExist   | 查询的APP不存在   |
+| SystemError  |系统异常，请联系管理员   |
