@@ -63,6 +63,42 @@
 | error   || ErrorInfo   |非必须   |
 
 AppDetailInfo 说明:
+```
+{
+
+  app_id：应用ID,
+
+  name：应用名,
+
+  customer_name：自定义应用名,
+
+  trade_mark：应用商标,
+
+  status_code：应用运行状态码,
+
+  status：应用运行状态,（running:正常运行，stop：停止，error：错误）
+  
+  official_app：是否为官方应用,
+  
+  running_info: {
+  
+      port：应用端口,
+
+      volume：yml文件路径,
+
+      url：应用网址,
+      
+      admin_url：管理员网址,
+
+      image_url：图片路径,
+
+      user_name：用户名,
+
+      password：密码,
+  }
+  
+}
+```
 
 ErrorInfo 说明:
 | 接口名称 | code                                          |message  |
