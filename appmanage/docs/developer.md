@@ -18,16 +18,15 @@
 [详细参照各个接口业务参数](#API接口说明)
 
 
-
 ### 响应结果
 
-### 响应头（公共参数）
+#### 响应头（公共参数）
 
 |返回参数 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | HTTP状态码   | 判断接口调用是否成功（200或404） | Integer   |必须   |
 
-### 响应主体
+#### 响应主体
 
 |返回参数 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
@@ -39,10 +38,19 @@
   "ResponseData": {app_id: "xxxx"},
   "Error": {
             "Code": "Requirement.NotEnough",
-            "Message": "Insufficient system resources (cpu, memory, disk space)."
+            "Message": "Insufficient system resources (cpu, memory, disk space).",
+            "Detail": "Error detail information"
            }
 }
 ```
+
+#### 公共错误代码
+
+| code                                          |message  |  detail |
+| --------------------------------------------- | ------ | ------ |
+| Container.Command.Error   | Docker 返回错误，联系支持：https://support.websoft9.com   |错误详细信息   |
+| SystemError   | 系统错误，联系支持：https://support.websoft9.com   | 错误详细信息   |
+
 
 ## API接口说明
 
@@ -81,17 +89,16 @@ ErrorInfo 说明:
 | Param.CustomerAppName.Wait   | 同名应用已经在安装等待中，请重新指定APP名称   |
 | Param.AppVersion.Blank  | 安装App的版本不能为空   |
 | Requirement.NotEnough| 系统资源（cpu，内存，磁盘空间）不足   |
-| Container.Command.Error   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
 
-### app 卸载接口
+### app 卸载
 
-#### 请求URL
+#### Action
 
-请求URL=FastAPI通用URL/AppUninstall
+AppUninstall
 
 #### 请求参数
+
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | app_id   | 卸载该app | string   |必须   |
@@ -99,6 +106,7 @@ ErrorInfo 说明:
 | delete_data   | 是否删除所有数据 | boolean   |非必须，默认为True   |
 
 #### 返回结果
+
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
 | ResponseData   | String(AppID)   |必须   |
@@ -112,21 +120,22 @@ ErrorInfo 说明:
 | Param.APPID.Blank   | APP_ID 不能为空   |
 | Param.APPID.FormatError   | APP_ID 只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
-| Container.Command.Error   | Docker 返回错误  |
-| SystemError  | 系统异常，请联系管理员   |
 
-### App 重启接口
 
-#### 请求URL
+### App 重启
 
-请求URL=FastAPI通用URL/AppRestart
+#### Action
+
+AppRestart
 
 #### 请求参数
+
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | app_id   | 重启该app | string   |必须   |
 
 #### 返回结果
+
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
 | ResponseData   | String(AppID)   |必须   |
@@ -134,26 +143,28 @@ ErrorInfo 说明:
 
 
 ErrorInfo 说明:
+
 | code                                          |message  |
 | --------------------------------------------- | ------ |
 | Param.APPID.Blank   | APP_ID不能为空   |
 | Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
-| Container.Command.Error   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
-### App 启动接口
 
-#### 请求URL
+### App 启动
 
-请求URL=FastAPI通用URL/AppStart
+#### Action
+
+AppStart
 
 #### 请求参数
+
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | app_id   | 启动该app | string   |必须   |
 
 #### 返回结果
+
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
 | ResponseData   | String(AppID)   |必须   |
@@ -166,21 +177,22 @@ ErrorInfo 说明:
 | Param.APPID.Blank   | APP_ID不能为空   |
 | Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
-| Container.Command.Error   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
-### App 停止接口
 
-#### 请求URL
+### App 停止
 
-请求URL=FastAPI通用URL/AppStop
+#### Action
+
+AppStop
 
 #### 请求参数
+
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | app_id   | 停止该app | string   |必须   |
 
 #### 返回结果
+
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
 | ResponseData   | String(AppID)   |必须   |
@@ -193,21 +205,21 @@ ErrorInfo 说明:
 | Param.APPID.Blank   | APP_ID不能为空   |
 | Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
-| Container.Command.Error   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
-### app 状态查询接口
+### app 状态查询
 
-#### 请求URL
+#### Action
 
-请求URL=FastAPI通用URL/AppStatus
+AppStatus
 
 #### 请求参数
+
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | app_id   | 查询该app的信息 | string   |必须   |
 
 #### 返回结果
+
 | 返回值 |类型  |必要性 |
 | ------  | ------ |------ |
 | ResponseData   | AppStatusInfo   |必须   |
@@ -237,27 +249,28 @@ AppStatusInfo 说明:
 ```
 
 ErrorInfo 说明:
+
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID不能为空   |
-| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.Blank   | APP_ID 不能为空   |
+| Param.APPID.FormatError   | APP_ID 只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
-| Container.CommandError   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
 
 
-### app 列表查询接口
+### app 列表查询
 
-#### 请求URL
+#### Action
 
-请求URL=FastAPI通用URL/AppList
+AppList
 
 #### 请求参数
+
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
-| app_name   | 查询app列表信息，当app_name不为空时，查询该app的信息 | string   |非必须   |
+| customer_app_name   | 查询指定的 customer_app_name | string   | 非必须   |
 
 #### 返回结果
+
 | 返回值  |类型  |必要性 |
 | ------  | ------ |------ |
 | ResponseData   | Array of AppDetailInfo   |必须   |
@@ -306,7 +319,8 @@ AppDetailInfo 说明:
 ```
 
 ErrorInfo 说明:
+
+
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Container.CommandError   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
+| Param.CustomerAppName.FormatError   | 用户自定义APP名称只能是数字和小写字母组成    |
