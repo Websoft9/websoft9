@@ -106,13 +106,14 @@ ErrorInfo 说明:
 
 
 ErrorInfo 说明:
+
 | code                                          |message  |
 | --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID不能为空   |
-| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
+| Param.APPID.Blank   | APP_ID 不能为空   |
+| Param.APPID.FormatError   | APP_ID 只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
-| Container.Command.Error   | 操作容器指令发生错误   |
-| SystemError  |系统异常，请联系管理员（系统报错返回）   |
+| Container.Command.Error   | Docker 返回错误  |
+| SystemError  | 系统异常，请联系管理员   |
 
 ### App 重启接口
 
