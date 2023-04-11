@@ -27,3 +27,11 @@ RQ 主要解决创建应用的状态
 - exited: 停止
 - restarting: 重启
 - created: 创建失败
+
+## API status
+
+- installing: 创建中
+- running: 运行中
+- exited: 停止
+- restarting: 异常
+- failed: 创建失败（docker compose 中的 created || RQ 返回失败）
