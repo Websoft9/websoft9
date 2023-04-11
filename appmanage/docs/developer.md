@@ -65,7 +65,7 @@
 
 各个业务接口的详细说明，公共参数不在这里继续说明。
 
-### app 安装
+### App 安装
 
 #### Action
 
@@ -100,7 +100,7 @@ ErrorInfo 说明:
 | Requirement.NotEnough| 系统资源（cpu，内存，磁盘空间）不足   |
 
 
-### app 卸载
+### App 卸载
 
 #### Action
 
@@ -215,7 +215,7 @@ ErrorInfo 说明:
 | Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
 | Param.APPID.NotExist   | APP不存在   |
 
-### app 状态查询
+### App 状态查询
 
 #### Action
 
@@ -266,7 +266,7 @@ ErrorInfo 说明:
 | Param.APPID.NotExist   | APP不存在   |
 
 
-### app 列表查询
+### App 列表查询
 
 #### Action
 
