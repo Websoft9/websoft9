@@ -248,7 +248,7 @@ AppStatusInfo 说明:
 
   status_code：应用运行状态码,（queuing:'00',pulling:'10'，creating:'11'，initing:'12'，running:'30'，stop：'40'，error：'50'）
 
-  status：应用运行状态,（pulling:拉取中，creating:启动中，initing:初始化中，running:运行，stopping：停止中，stoped：停止，uninstalling：卸载中）
+  status：应用运行状态,（pulling:拉取中，creating:启动中，initing:初始化中，running:运行，stopping：停止中，stopped：停止，uninstalling：卸载中）
   
   official_app：是否为官方应用,
   
