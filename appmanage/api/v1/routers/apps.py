@@ -61,7 +61,7 @@ def list_my_apps():
 
 @router.api_route("/install", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
                   response_model=Response)
-def appInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
+def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
                customer_app_name: Optional[str] = Query(default=None, description="应用自定义名字"),
                app_version: Optional[str] = Query(default=None, description="应用版本")):
     myLogger.info_logger("Receive request: /api/v1/apps/install")
@@ -105,7 +105,7 @@ def restart_app(app_id: Optional[str] = Query(default=None, description="应用I
 
 @router.api_route("/uninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
                   response_model=Response)
-def appUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
+def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
                  delete_image: bool = Query(default=False, description="是否删除镜像"),
                  delete_data: bool = Query(default=True, description='是否删除所有数据')):
     myLogger.info_logger("Receive request: /api/v1/apps/uninstall")
