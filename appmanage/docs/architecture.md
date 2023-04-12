@@ -30,8 +30,8 @@ RQ 主要解决创建应用的状态
 
 ## API status
 
-- installing: 创建中 可进行操作[AppStatus]
-- running: 运行中 可进行操作[AppStatus,AppStop,AppUninstall,AppRestart,容器日志查看，进入容器terminal]
-- exited: 停止 可进行操作[AppStatus,AppStart,AppUninstall,日志查看]
-- restarting: 可进行操作[AppStatus,AppUninstall,日志查看]
-- failed: 创建失败（docker compose 中的 created || RQ 返回失败） 可进行操作[AppStatus,AppUninstall]
+- installing: 创建中 可进行操作[无法进行任何操作]
+- running: 运行中 可进行操作[所有操作]
+- exited: 停止 可进行操作[Start,Restart,Uninstall,日志查看]
+- restarting: 可进行操作[Stop,Restart,Uninstall,日志查看]
+- failed: 创建失败（docker compose 中的 created || RQ 返回失败） 可进行操作[Uninstall]
