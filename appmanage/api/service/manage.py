@@ -16,8 +16,7 @@ from api.model.response import Response
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
-    ScheduledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
