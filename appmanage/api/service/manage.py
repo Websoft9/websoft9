@@ -113,7 +113,7 @@ def install_app(app_name, customer_app_name, app_version):
     if ret.code == const.RETURN_SUCCESS:
         myLogger.info_logger("create job=" + app_id)
         # 根据请求创建新作业
-        new_job = q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id)
+        new_job = q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id,timeout=3600)
         ret.message = "The app is prepare to install, please check again in a few minutes."
     ret = ret.dict()
     return ret
