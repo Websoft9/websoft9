@@ -106,14 +106,32 @@ def install_app_process(app_id):
 
 def install_app(app_name, customer_app_name, app_version):
     myLogger.info_logger("Install app ...")
-    ret = Response(code=const.RETURN_FAIL, message=" ")
-    app_id = app_name + "_" + customer_app_name
-    ret.code, ret.message = check_app(app_name, customer_app_name, app_version)
-    if ret.code == const.RETURN_SUCCESS:
-        myLogger.info_logger("create job=" + app_id)
-        # 根据请求创建新作业
-        new_job = q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id,timeout=3600)
-        ret.message = "The app is prepare to install, please check again in a few minutes."
+    ret = {}
+    ret['ResponseData'] = {}
+    if app_name == None:
+        ret['Error'] = {}
+        ret['Error']['Code'] = 'Param.AppName.Blank'
+        ret['Error']['Message'] = 'APP名称为空'
+    elif customer_app_name == None:
+        ret['Error'] = {}
+        ret['Error']['Code'] = 'Param.CustomerAppName.Blank'
+        ret['Error']['Message'] = '用户自定义APP名称为空'
+    elif app_version == None:
+        ret['Error'] = {}
+        ret['Error']['Code'] = 'Param.AppVersion.Blank'
+        ret['Error']['Message'] = '安装App的版本不能为空'
+    else:
+        app_id = app_name + "_" + customer_app_name
+        ret['ResponseData']['app_id'] = app_id
+        code, message = check_app(app_name, customer_app_name, app_version)
+        if code != None:
+            ret['Error'] = {}
+            ret['Error']['Code'] = code
+            ret['Error']['Message'] = message
+        else:
+            myLogger.info_logger("create job=" + app_id)
+            # 根据请求创建新作业
+            new_job = q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id, timeout=3600)
     ret = ret.dict()
     return ret
 
@@ -185,7 +203,7 @@ def restart_app(app_id):
     return ret
 
 
-def uninstall_app(app_id):
+def uninstall_app(app_id, delete_image, delete_data):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
@@ -213,22 +231,23 @@ def uninstall_app(app_id):
 
 def check_app(app_name, customer_app_name, app_version):
     message = " "
-    code = const.RETURN_FAIL
+    code = None
     app_id = app_name + "-" + customer_app_name
-    if app_name == None or customer_app_name == None or app_version == None:
-        message = "Please fill in the APP information completely!"
-    elif not docker.check_app_websoft9(app_name):
-        message = "Installing the app is not supported!"
+    if not docker.check_app_websoft9(app_name):
+        code = 'Param.AppName.NotExis'
+        message = "不支持安装指定的App"
     elif re.match('^[a-z0-9]+$', customer_app_name) == None:
-        message = "App names must be lowercase letters and numbers!"
+        code = 'Param.CustomerAppName.FormatError'
+        message = "用户自定义APP名称只能是数字和小写字母组成"
     elif docker.check_directory("/data/apps/" + customer_app_name):
-        message = "The APP name is already in use, please specify a different name to reinstall."
+        code = 'Param.CustomerAppName.Repeat'
+        message = "已经安装了此应用，请重新指定APP名称"
     elif not docker.check_vm_resource(app_name):
-        message = "System resources (memory, CPU, disk) are insufficient, and continuing to install may cause the app to not run or the server to be abnormal!"
+        code = 'Requirement.NotEnough'
+        message = "系统资源（cpu，内存，磁盘空间）不足"
     elif check_app_wait(app_id):
-        message = "The APP name is waiting for install, please rename app to install."
-    else:
-        code = const.RETURN_SUCCESS
+        code = 'Param.CustomerAppName.Wait'
+        message = "同名应用已经在安装等待中，请重新指定APP名称"
     return code, message
 
 

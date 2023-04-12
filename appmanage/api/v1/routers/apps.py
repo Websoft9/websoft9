@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
@@ -61,10 +61,11 @@ def list_my_apps():
 
 @router.api_route("/install", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
                   response_model=Response)
-def install_app(app_name: Optional[str] = Query(default=None, description="应用名"),
-                customer_app_name: Optional[str] = Query(default=None, description="应用自定义名字"),
-                app_version: Optional[str] = Query(default=None, description="应用版本")):
+def appInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
+               customer_app_name: Optional[str] = Query(default=None, description="应用自定义名字"),
+               app_version: Optional[str] = Query(default=None, description="应用版本")):
     myLogger.info_logger("Receive request: /api/v1/apps/install")
+    getHeaders(request)
     ret = manage.install_app(app_name, customer_app_name, app_version)
     return JSONResponse(content=ret)
 
@@ -78,14 +79,16 @@ def install_app_process(app_id: Optional[str] = Query(default=None, description=
     return JSONResponse(content=ret)
 
 
-@router.api_route("/start", methods=["GET", "POST"], summary="启动APP", response_description=rd_two, response_model=Response)
+@router.api_route("/start", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
+                  response_model=Response)
 def start_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
     myLogger.info_logger("Receive request: /api/v1/apps/start")
     ret = manage.start_app(app_id)
     return JSONResponse(content=ret)
 
 
-@router.api_route("/stop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two, response_model=Response)
+@router.api_route("/stop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
+                  response_model=Response)
 def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
     myLogger.info_logger("Receive request: /api/v1/apps/stop")
     ret = manage.stop_app(app_id)
@@ -102,7 +105,24 @@ def restart_app(app_id: Optional[str] = Query(default=None, description="应用I
 
 @router.api_route("/uninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
                   response_model=Response)
-def uninstall_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def appUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
+                 delete_image: bool = Query(default=False, description="是否删除镜像"),
+                 delete_data: bool = Query(default=True, description='是否删除所有数据')):
     myLogger.info_logger("Receive request: /api/v1/apps/uninstall")
-    ret = manage.uninstall_app(app_id)
+    getHeaders(request)
+    ret = manage.uninstall_app(app_id, delete_image, delete_data)
     return JSONResponse(content=ret)
+
+
+def getHeaders(request):
+    headers = request.headers
+    try:
+        version = headers.get('Version')
+        myLogger.info_logger("Version: " + version)
+    except:
+        pass
+    try:
+        language = headers.get('Language')
+        myLogger.info_logger("Language: " + language)
+    except:
+        pass
