@@ -243,7 +243,6 @@ def prepare_app(app_name, customer_app_name):
         code = const.RETURN_FAIL
     return code, message
 
-
 def install_app_delay(app_name, customer_app_name, app_version):
     try:
         code, message = check_app(app_name, customer_app_name, app_version)
@@ -279,7 +278,7 @@ def install_app_delay(app_name, customer_app_name, app_version):
             uninstall_app(job_id)
         except Exception as e:
             myLogger.error_logger(e)
-        return "fail"
+        raise Exception(e)
 
 
 def if_app_exits(app_id):
@@ -302,10 +301,8 @@ def if_app_exits(app_id):
     myLogger.info_logger("APP info: " + info)
     return info, flag
 
-
 def split_app_id(app_id):
     return app_id.split("_")[1]
-
 
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
@@ -453,7 +450,6 @@ def get_apps_from_queue():
 
     return installing_list
 
-
 def get_installing_app(id, status_code, status):
     real_name = id.split('_')[0]
     app_name = id.split('_')[1]
@@ -466,7 +462,6 @@ def get_installing_app(id, status_code, status):
               url="", image_url=image_url, admin_url="", trade_mark=trade_mark, user_name="",
               password="", official_app=True)
     return app
-
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"
