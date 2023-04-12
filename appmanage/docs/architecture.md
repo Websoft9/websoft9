@@ -34,4 +34,4 @@ RQ 主要解决创建应用的状态
 - running: 运行中 可进行操作[所有操作]
 - exited: 停止 可进行操作[Start,Restart,Uninstall,日志查看]
 - restarting: 可进行操作[Stop,Restart,Uninstall,日志查看]
-- failed: 创建失败（docker compose 中的 created || RQ 返回失败） 可进行操作[Uninstall]
+- failed: 失败（docker compose 中的 created || RQ 返回失败） 可进行操作[Uninstall]
