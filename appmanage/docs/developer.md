@@ -44,11 +44,18 @@
 
 ```
 {
-  "ResponseData": {app_id: "xxxx"},
+  "ResponseData": {
+           app_id: "xxxx",
+           StatusReason: {
+              Code: "Requirement.NotEnough",
+              Message: "Insufficient system resources (cpu, memory, disk space).",
+              Detail: "Error detail information"
+           }
+          },     
   "Error": {
-            "Code": "Requirement.NotEnough",
-            "Message": "Insufficient system resources (cpu, memory, disk space).",
-            "Detail": "Error detail information"
+            Code: "Requirement.NotEnough",
+            Message: "Insufficient system resources (cpu, memory, disk space).",
+            Detail: "Error detail information"
            }
 }
 ```
