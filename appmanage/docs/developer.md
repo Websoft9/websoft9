@@ -65,10 +65,10 @@
 
 | code                                          |message  |  detail |
 | --------------------------------------------- | ------ | ------ |
-| Client.$p.Blank.Error   | 必填参数为空   |错误详细信息   |
-| Client.$p.Format.Error   | 参数语法不符   |错误详细信息   |
-| Client.$p.Value.NotExist.Error   | 参数值错误   |错误详细信息   |
-| Client.$p.Value.Repeat.Error   | 参数值重复   |错误详细信息   |
+| Client.$p.Blank.Error   | 必填参数为空   |null   |
+| Client.$p.Format.Error   | 参数语法不符   |null   |
+| Client.$p.Value.NotExist.Error   | 参数值错误   |null   |
+| Client.$p.Value.Repeat.Error   | 参数值重复   |null   |
 
 
 ##### Server errors  
