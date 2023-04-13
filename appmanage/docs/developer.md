@@ -104,19 +104,6 @@ AppInstall
 | ResponseData   | String(AppID)   |必须   |
 | Error   | ErrorInfo   |非必须   |
 
-ErrorInfo 说明:
-
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.AppName.Blank   | APP名称为空   |
-| Param.AppName.NotExis  | 不支持安装指定的App   |
-| Param.CustomerAppName.Blank   | 用户自定义APP名称为空   |
-| Param.CustomerAppName.FormatError   | 用户自定义APP名称只能是数字和小写字母组成    |
-| Param.CustomerAppName.Repeat   | 已经安装了此应用，请重新指定APP名称   |
-| Param.CustomerAppName.Wait   | 同名应用已经在安装等待中，请重新指定APP名称   |
-| Param.AppVersion.Blank  | 安装App的版本不能为空   |
-| Requirement.NotEnough| 系统资源（cpu，内存，磁盘空间）不足   |
-
 
 ### App 卸载
 
@@ -140,15 +127,6 @@ AppUninstall
 | error   | ErrorInfo   |非必须   |
 
 
-ErrorInfo 说明:
-
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID 不能为空   |
-| Param.APPID.FormatError   | APP_ID 只能是数字和小写字母组成   |
-| Param.APPID.NotExist   | APP不存在   |
-
-
 ### App 重启
 
 #### Action
@@ -167,15 +145,6 @@ AppRestart
 | ------  | ------ |------ |
 | ResponseData   | String(AppID)   |必须   |
 | error   | ErrorInfo   |非必须   |
-
-
-ErrorInfo 说明:
-
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID不能为空   |
-| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
-| Param.APPID.NotExist   | APP不存在   |
 
 
 ### App 启动
@@ -197,15 +166,6 @@ AppStart
 | ResponseData   | String(AppID)   |必须   |
 | error   | ErrorInfo   |非必须   |
 
-
-ErrorInfo 说明:
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID不能为空   |
-| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
-| Param.APPID.NotExist   | APP不存在   |
-
-
 ### App 停止
 
 #### Action
@@ -224,14 +184,6 @@ AppStop
 | ------  | ------ |------ |
 | ResponseData   | String(AppID)   |必须   |
 | error   | ErrorInfo   |非必须   |
-
-
-ErrorInfo 说明:
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID不能为空   |
-| Param.APPID.FormatError   | APP_ID只能是数字和小写字母组成   |
-| Param.APPID.NotExist   | APP不存在   |
 
 ### App 状态查询
 
@@ -274,15 +226,6 @@ AppStatusInfo 说明:
   
 }
 ```
-
-ErrorInfo 说明:
-
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.APPID.Blank   | APP_ID 不能为空   |
-| Param.APPID.FormatError   | APP_ID 只能是数字和小写字母组成   |
-| Param.APPID.NotExist   | APP不存在   |
-
 
 ### App 列表查询
 
@@ -344,10 +287,3 @@ AppDetailInfo 说明:
   
 }
 ```
-
-ErrorInfo 说明:
-
-
-| code                                          |message  |
-| --------------------------------------------- | ------ |
-| Param.CustomerAppName.FormatError   | 用户自定义APP名称只能是数字和小写字母组成    |
