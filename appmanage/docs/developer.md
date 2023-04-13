@@ -76,7 +76,7 @@
 | code                                          |message  |  detail |
 | --------------------------------------------- | ------ | ------ |
 | Server.Container.Error   | Docker 返回原始错误  |错误详细信息   |
-| Server.SystemError   | 系统错误  | 错误详细信息   |
+| Server.SystemError   | 系统原始错误  | 错误详细信息   |
 | Server.***   |  其他可以友好提示的错误  |    |
 
 
