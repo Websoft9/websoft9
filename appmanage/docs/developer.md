@@ -57,8 +57,10 @@
 
 | code                                          |message  |  detail |
 | --------------------------------------------- | ------ | ------ |
-| Container.Command.Error   | Docker 返回错误，联系支持：https://support.websoft9.com   |错误详细信息   |
-| SystemError   | 系统错误，联系支持：https://support.websoft9.com   | 错误详细信息   |
+| Parameter.Format.Error   | 参数语法错误   |错误详细信息   |
+| Parameter.Value.Error   | 参数值错误   |错误详细信息   |
+| Container.Command.Error   | Docker 返回错误  |错误详细信息   |
+| SystemError   | 系统错误  | 错误详细信息   |
 
 
 ## 业务接口详情
