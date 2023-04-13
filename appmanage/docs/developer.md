@@ -55,23 +55,23 @@
 
 #### 错误代码设计
 
-规范化错误代码分类与命名：  
+错误代码参考 [AWS API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html) 的分类方式：  
 
-**业务弱相关**     
+* Client errors: These errors are usually caused by something the client did, such as specifying an incorrect or invalid parameter in the request, or using an action or resource on behalf of a user that doesn't have permission to use the action or resource. These errors are accompanied by a 400-series HTTP response code.   
 
-所有 API 均需要考虑的错误代码：   
+* Server errors: These errors are usually caused by an AWS server-side issue. These errors are accompanied by a 500-series HTTP response code.    
+
+##### Client errors  
 
 | code                                          |message  |  detail |
 | --------------------------------------------- | ------ | ------ |
-| Parameter.$p.Blank.Error   | 必填参数为空   |错误详细信息   |
-| Parameter.$p.Format.Error   | 参数语法不符   |错误详细信息   |
-| Parameter.$p.Value.NotExist.Error   | 参数值错误   |错误详细信息   |
-| Parameter.$p.Value.Repeat.Error   | 参数值重复   |错误详细信息   |
+| Client.$p.Blank.Error   | 必填参数为空   |错误详细信息   |
+| Client.$p.Format.Error   | 参数语法不符   |错误详细信息   |
+| Client.$p.Value.NotExist.Error   | 参数值错误   |错误详细信息   |
+| Client.$p.Value.Repeat.Error   | 参数值重复   |错误详细信息   |
 
 
-**业务强相关**     
-
-列出业务相关并有共性的错误代码：  
+##### Server errors  
 
 | code                                          |message  |  detail |
 | --------------------------------------------- | ------ | ------ |
