@@ -53,13 +53,29 @@
 }
 ```
 
-#### 公共错误代码
+#### 错误代码设计
+
+规范化错误代码分类与命名：  
+
+**业务弱相关**     
+
+所有 API 均需要考虑的错误代码：   
 
 | code                                          |message  |  detail |
 | --------------------------------------------- | ------ | ------ |
-| Parameter.Format.Error   | 参数语法错误   |错误详细信息   |
-| Parameter.Value.Error   | 参数值错误   |错误详细信息   |
-| Container.Command.Error   | Docker 返回错误  |错误详细信息   |
+| Parameter.$p.Blank.Error   | 必填参数为空   |错误详细信息   |
+| Parameter.$p.Format.Error   | 参数语法不符   |错误详细信息   |
+| Parameter.$p.Value.NotExist.Error   | 参数值错误   |错误详细信息   |
+| Parameter.$p.Value.Repeat.Error   | 参数值重复   |错误详细信息   |
+
+
+**业务强相关**     
+
+列出业务相关并有共性的错误代码：  
+
+| code                                          |message  |  detail |
+| --------------------------------------------- | ------ | ------ |
+| System.Container.Error   | Docker 返回错误  |错误详细信息   |
 | SystemError   | 系统错误  | 错误详细信息   |
 
 
