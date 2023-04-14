@@ -1,17 +1,13 @@
 from pydantic import BaseModel
+from running_info import RunningInfo
+from status_reason import StatusReason
 
 class App(BaseModel):
     app_id: str
-    name: str
+    app_name: str
     customer_name: str
     trade_mark: str
-    status_code: int
     status: str
-    port: int
-    volume: str
-    url: str
-    image_url: str
-    admin_url: str
-    user_name: str
-    password: str
     official_app: bool
+    running_info: RunningInfo
+    status_reason: StatusReason
