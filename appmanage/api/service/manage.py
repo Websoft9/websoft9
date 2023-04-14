@@ -104,26 +104,17 @@ def install_app_process(app_id):
     return ret
 
 
-def install_app(app_name, customer_app_name, app_version):
+def install_app(app_name, customer_name, app_version):
     myLogger.info_logger("Install app ...")
     ret = {}
     ret['ResponseData'] = {}
-    if app_name == None:
-        ret['Error'] = setErrorInfo('Param.AppName.Blank', 'APP名称为空')
-    elif customer_app_name == None:
-        ret['Error'] = setErrorInfo('Param.CustomerAppName.Blank', '用户自定义APP名称为空')
-    elif app_version == None:
-        ret['Error'] = setErrorInfo('Param.AppVersion.Blank', '安装App的版本不能为空')
-    else:
-        app_id = app_name + "_" + customer_app_name
-        ret['ResponseData']['app_id'] = app_id
-        code, message = check_app(app_name, customer_app_name, app_version)
-        if code != None:
-            ret['Error'] = setErrorInfo(code, message)
-        else:
-            myLogger.info_logger("create job=" + app_id)
-            # 根据请求创建新作业
-            new_job = q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id, timeout=3600)
+    app_id = app_name + "_" + customer_name
+    ret['ResponseData']['app_id'] = app_id
+
+    code, message, detail = check_app(app_name, customer_name, app_version)
+    
+    q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id, timeout=3600)
+
     ret = ret.dict()
     return ret
 
