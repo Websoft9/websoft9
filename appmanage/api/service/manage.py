@@ -90,7 +90,7 @@ def install_app(app_name, customer_name, app_version):
        q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id, timeout=3600)
     else:
        ret['Error'] = get_error_info(code, message,"")
-    ret = ret.dict()
+
     return ret
 
 def start_app(app_id):
