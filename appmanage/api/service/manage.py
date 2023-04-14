@@ -109,25 +109,17 @@ def install_app(app_name, customer_app_name, app_version):
     ret = {}
     ret['ResponseData'] = {}
     if app_name == None:
-        ret['Error'] = {}
-        ret['Error']['Code'] = 'Param.AppName.Blank'
-        ret['Error']['Message'] = 'APP名称为空'
+        ret['Error'] = setErrorInfo('Param.AppName.Blank', 'APP名称为空')
     elif customer_app_name == None:
-        ret['Error'] = {}
-        ret['Error']['Code'] = 'Param.CustomerAppName.Blank'
-        ret['Error']['Message'] = '用户自定义APP名称为空'
+        ret['Error'] = setErrorInfo('Param.CustomerAppName.Blank', '用户自定义APP名称为空')
     elif app_version == None:
-        ret['Error'] = {}
-        ret['Error']['Code'] = 'Param.AppVersion.Blank'
-        ret['Error']['Message'] = '安装App的版本不能为空'
+        ret['Error'] = setErrorInfo('Param.AppVersion.Blank', '安装App的版本不能为空')
     else:
         app_id = app_name + "_" + customer_app_name
         ret['ResponseData']['app_id'] = app_id
         code, message = check_app(app_name, customer_app_name, app_version)
         if code != None:
-            ret['Error'] = {}
-            ret['Error']['Code'] = code
-            ret['Error']['Message'] = message
+            ret['Error'] = setErrorInfo(code, message)
         else:
             myLogger.info_logger("create job=" + app_id)
             # 根据请求创建新作业
@@ -507,3 +499,10 @@ def get_admin_url(app_name, url):
     else:
         admin_url = ""
     return admin_url
+
+
+def setErrorInfo(code, message):
+    error = {}
+    error['code'] = code
+    error['message'] = message
+    return error

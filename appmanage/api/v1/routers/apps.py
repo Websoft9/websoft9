@@ -42,29 +42,29 @@ rd_process = "code：请求操作内部响应码（0：成功 -1：失败）\n\n
 rd_two = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmessage：请求操作结果描述\n\ndata：None"
 
 
-@router.api_route("/details", methods=["GET", "POST"], summary="获取指定APP的信息",
+@router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_detail,
                   response_model=Response)
 def app_detail(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /api/v1/apps/details")
+    myLogger.info_logger("Receive request: /AppStatus")
     list = manage.get_app_detail(app_id)
     return JSONResponse(list)
 
 
-@router.api_route("", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
+@router.api_route("/AppList", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
                   response_model=Response)
 def list_my_apps():
-    myLogger.info_logger("Receive request: /api/v1/apps")
+    myLogger.info_logger("Receive request: /AppList")
     list = manage.get_my_app()
     return JSONResponse(content=list)
 
 
-@router.api_route("/install", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
+@router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
                   response_model=Response)
-def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
+def install_app(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
                customer_app_name: Optional[str] = Query(default=None, description="应用自定义名字"),
                app_version: Optional[str] = Query(default=None, description="应用版本")):
-    myLogger.info_logger("Receive request: /api/v1/apps/install")
+    myLogger.info_logger("Receive request: /AppInstall")
     getHeaders(request)
     ret = manage.install_app(app_name, customer_app_name, app_version)
     return JSONResponse(content=ret)
@@ -74,41 +74,41 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
                   response_description=rd_process,
                   response_model=Response)
 def install_app_process(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /api/v1/apps/process")
+    myLogger.info_logger("Receive request: /process")
     ret = manage.install_app_process(app_id)
     return JSONResponse(content=ret)
 
 
-@router.api_route("/start", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
+@router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
                   response_model=Response)
 def start_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /api/v1/apps/start")
+    myLogger.info_logger("Receive request: /AppStart")
     ret = manage.start_app(app_id)
     return JSONResponse(content=ret)
 
 
-@router.api_route("/stop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
+@router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
                   response_model=Response)
 def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /api/v1/apps/stop")
+    myLogger.info_logger("Receive request: /AppStop")
     ret = manage.stop_app(app_id)
     return JSONResponse(content=ret)
 
 
-@router.api_route("/restart", methods=["GET", "POST"], summary="重启APP", response_description=rd_two,
+@router.api_route("/AppRestart", methods=["GET", "POST"], summary="重启APP", response_description=rd_two,
                   response_model=Response)
 def restart_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /api/v1/apps/restart")
+    myLogger.info_logger("Receive request: /AppRestart")
     ret = manage.restart_app(app_id)
     return JSONResponse(content=ret)
 
 
-@router.api_route("/uninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
+@router.api_route("/AppUninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
                   response_model=Response)
-def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
+def uninstall_app(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
                  delete_image: bool = Query(default=False, description="是否删除镜像"),
                  delete_data: bool = Query(default=True, description='是否删除所有数据')):
-    myLogger.info_logger("Receive request: /api/v1/apps/uninstall")
+    myLogger.info_logger("Receive request: /AppUninstall")
     getHeaders(request)
     ret = manage.uninstall_app(app_id, delete_image, delete_data)
     return JSONResponse(content=ret)
