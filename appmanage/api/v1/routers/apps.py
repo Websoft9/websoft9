@@ -68,7 +68,7 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
     
     try:
         myLogger.info_logger("Receive request: /AppInstall")
-        getHeaders(request)
+        get_headers(request)
         ret = manage.install_app(app_name, customer_app_name, app_version)
     except CommandException as ce:
         ret = {}
@@ -120,12 +120,12 @@ def uninstall_app(request: Request, app_id: Optional[str] = Query(default=None, 
                  delete_image: bool = Query(default=False, description="是否删除镜像"),
                  delete_data: bool = Query(default=True, description='是否删除所有数据')):
     myLogger.info_logger("Receive request: /AppUninstall")
-    getHeaders(request)
+    get_headers(request)
     ret = manage.uninstall_app(app_id, delete_image, delete_data)
     return JSONResponse(content=ret)
 
 
-def getHeaders(request):
+def get_headers(request):
     headers = request.headers
     try:
         version = headers.get('Version')
