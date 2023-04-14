@@ -219,7 +219,11 @@ AppStatusInfo 说明:
 
   status：应用运行状态,[installing(创建中)，running(运行中)，exited(停止)，restarting(反复重启)，failed(失败)]
   
-  status_reason：只有failed时才有内容
+  status_reason：{ // 只有failed时才有内容
+    Code：错误代码
+    Message：错误提示信息
+    Detail：错误真实信息
+  }
   
 }
 ```
@@ -261,7 +265,7 @@ AppDetailInfo 说明:
     Code：错误代码
     Message：错误提示信息
     Detail：错误真实信息
-  }
+  },
   
   official_app：是否为官方应用,
   
