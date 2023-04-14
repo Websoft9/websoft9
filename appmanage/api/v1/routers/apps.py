@@ -54,10 +54,21 @@ def app_detail(app_id: Optional[str] = Query(default=None, description="应用ID
 
 @router.api_route("/AppList", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
                   response_model=Response)
-def list_my_apps():
-    myLogger.info_logger("Receive request: /AppList")
-    list = manage.get_my_app()
-    return JSONResponse(content=list)
+def list_my_apps(request: Request):
+    try:
+        myLogger.info_logger("Receive request: /AppList")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = manage.get_my_app()
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = None
+        ret['Error']=manage.get_error_info(const.ERROR_SERVER_COMMAND,"Docker returns the original error",str(ce))
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = None
+        ret['Error']=manage.get_error_info(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
+    return JSONResponse(content=ret)
 
 
 @router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
