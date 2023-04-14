@@ -74,20 +74,20 @@ def list_my_apps(request: Request):
 @router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
                   response_model=Response)
 def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
-               customer_app_name: Optional[str] = Query(default=None, description="应用自定义名字"),
+               customer_name: Optional[str] = Query(default=None, description="应用自定义名字"),
                app_version: Optional[str] = Query(default=None, description="应用版本")):
     
     try:
         myLogger.info_logger("Receive request: /AppInstall")
         get_headers(request)
-        ret = manage.install_app(app_name, customer_app_name, app_version)
+        ret = manage.install_app(app_name, customer_name, app_version)
     except CommandException as ce:
         ret = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
-        ret['Error']=manage.get_error_info(const.ERROR_SERVER_COMMAND,"Docker returns the original error",str(ce))
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error']=manage.get_error_info(ce.code,ce.message,ce.detail)
     except Exception as e:
         ret = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error']=manage.get_error_info(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
 
     return JSONResponse(content=ret)
@@ -98,7 +98,6 @@ def start_app(app_id: Optional[str] = Query(default=None, description="应用ID"
     myLogger.info_logger("Receive request: /AppStart")
     ret = manage.start_app(app_id)
     return JSONResponse(content=ret)
-
 
 @router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
                   response_model=Response)

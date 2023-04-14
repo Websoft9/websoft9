@@ -2,6 +2,7 @@
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
 from api.utils.common_log import myLogger
 from api.exception.command_exception import CommandException
+from api.utils import const
 
 def execute_command_output(cmd_str):
     print(cmd_str)
@@ -10,7 +11,7 @@ def execute_command_output(cmd_str):
     return out_str
 
 # cmd_str: 执行的command命令 times：如果不成功的重复次数
-def execute_command_output_all(cmd_str, max_time = 3):
+def execute_command_output_all(cmd_str, max_time = 2):
     
     myLogger.info_logger("Start to execute cmd: " + cmd_str)
     execute_time = 0
@@ -22,8 +23,8 @@ def execute_command_output_all(cmd_str, max_time = 3):
             return {"code": "0", "result": process.stdout,}
         else:
             execute_time = execute_time + 1
-            if execute_time > 3:
-                raise CommandException(process.stdout)
+            if execute_time > 2:
+               raise CommandException(const.ERROR_SERVER_COMMAND,"Docker returns the original error",process.stdout)
 
 def convert_command(cmd_str):
     convert_cmd = ""

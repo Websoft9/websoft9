@@ -18,15 +18,14 @@ from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
-    ScheduledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry
+from api.exception.command_exception import CommandException
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
 
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
-
 
 # 获取所有app的信息
 def get_my_app():
@@ -186,7 +185,7 @@ def uninstall_app(app_id, delete_image, delete_data):
 
 
 def check_app(app_name, customer_name, app_version):
-    message = " "
+    message = ""
     code = None
     app_id = app_name + "-" + customer_name
     if app_name == None:
@@ -215,55 +214,46 @@ def check_app(app_name, customer_name, app_version):
         message = "Repeat installation: " + customer_name
     return code, message
 
-def prepare_app(app_name, customer_app_name):
+def prepare_app(app_name, customer_name):
+
     library_path = "/data/library/apps/" + app_name
-    install_path = "/data/apps/" + customer_app_name
-    message = " "
-    code = const.RETURN_SUCCESS
-    output = shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
-    if int(output["code"]) != 0:
-        message = "creating" + customer_app_name + "directory failed!"
-        code = const.RETURN_FAIL
-    return code, message
+    install_path = "/data/apps/" + customer_name
+    shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
 
+def install_app_delay(app_name, customer_name, app_version):
 
-def install_app_delay(app_name, customer_app_name, app_version):
+    job_id = app_name + "_" + customer_name
+
     try:
-        code, message = check_app(app_name, customer_app_name, app_version)
-        if code == const.RETURN_SUCCESS:
-            code, message = prepare_app(app_name, customer_app_name)
-            if code == const.RETURN_SUCCESS:
-                myLogger.info_logger("start job=" + customer_app_name)
-                # modify env
-                env_path = "/data/apps/" + customer_app_name + "/.env"
-                docker.modify_env(env_path, 'APP_NAME', customer_app_name)
-                docker.modify_env(env_path, "APP_VERSION", app_version)
-                # check port
-                docker.check_app_compose(env_path)
 
-                cmd = "cd /data/apps/" + customer_app_name + " && sudo docker compose pull && sudo docker compose up -d"
-                output = shell_execute.execute_command_output_all(cmd)
-                myLogger.info_logger("install output")
-                myLogger.info_logger(output["code"])
-                myLogger.info_logger(output["result"])
-                if int(output["code"]) != 0 or "error" in output["result"] or "fail" in output["result"]:
-                    raise Exception("installfailed!")
-                else:
-                    return "success"
-            else:
-                raise Exception("prepare_app failed")
+        code, message = check_app(app_name, customer_name, app_version)
+        if code == None:
+
+            prepare_app(app_name, customer_name)
+
+            myLogger.info_logger("start JobID=" + job_id)
+            # modify env
+            env_path = "/data/apps/" + customer_name + "/.env"
+            docker.modify_env(env_path, 'APP_NAME', customer_name)
+            docker.modify_env(env_path, "APP_VERSION", app_version)
+            # check port
+            docker.check_app_compose(env_path)
+
+            cmd = "cd /data/apps/" + customer_name + " && sudo docker compose pull && sudo docker compose up -d"
+            output = shell_execute.execute_command_output_all(cmd)
+            myLogger.info_logger("-------Install result--------")
+            myLogger.info_logger(output["code"])
+            myLogger.info_logger(output["result"])
         else:
-            raise Exception("resource check failed")
+            raise CommandException(code,message,"")
+    except CommandException as ce:
+        uninstall_app(job_id)
+        raise CommandException(ce.code,ce.message,ce.detail)
     except Exception as e:
-        myLogger.info_logger(customer_app_name + "install failed!")
+        myLogger.info_logger(customer_name + "install failed!")
         myLogger.error_logger(e)
-        job_id = app_name + "_" + customer_app_name
-        try:
-            uninstall_app(job_id)
-        except Exception as e:
-            myLogger.error_logger(e)
-        raise Exception(e)
-
+        uninstall_app(job_id)
+        raise CommandException(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
