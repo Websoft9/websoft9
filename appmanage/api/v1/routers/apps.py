@@ -8,7 +8,7 @@ import os, io, sys, platform, shutil, time, subprocess, json, datetime
 from api.model.app import App
 from api.model.response import Response
 from api.service import manage
-from api.utils import shell_execute
+from api.utils import shell_execute, const
 from api.utils.common_log import myLogger
 from api.exception.command_exception import CommandException
 
@@ -73,11 +73,11 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
     except CommandException as ce:
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
-        ret['Error']=manage.get_error_info("Server.Container.Error","Docker returns the original error",str(ce))
+        ret['Error']=manage.get_error_info(const.ERROR_SERVER_COMMAND,"Docker returns the original error",str(ce))
     except Exception as e:
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
-        ret['Error']=manage.get_error_info("Server.SystemError","system original error",str(e))
+        ret['Error']=manage.get_error_info(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
 
     return JSONResponse(content=ret)
 

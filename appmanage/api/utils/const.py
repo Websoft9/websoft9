@@ -1,5 +1,15 @@
 # 所有常量统一定义区
 
+# 错误代码定义
+ERROR_CLIENT_PARAM_BLANK="Client.Parameter.Blank.Error"
+ERROR_CLIENT_PARAM_BLANK="Client.Parameter.Format.Error"
+ERROR_CLIENT_PARAM_NOTEXIST="Client.Parameter.Value.NotExist.Error"
+ERROR_CLIENT_PARAM_REPEAT="Client.Parameter.Value.Repeat.Error"
+
+ERROR_SERVER_COMMAND="Server.Container.Error"
+ERROR_SERVER_SYSTEM="Server.SystemError"
+ERROR_SERVER_RESOURCE="Server.ResourceError"
+
 # 应用状态定义
 # 应用启动中 installing
 APP_STATUS_INSTALLING = "installing"
