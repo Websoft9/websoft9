@@ -31,47 +31,23 @@ q = Queue(connection=redis_conn)
 
 # 获取所有app的信息
 def get_my_app():
-    try:
-        # get all info
-        cmd = "docker compose ls -a --format json"
-        output = shell_execute.execute_command_output_all(cmd)
-        output_list = json.loads(output["result"])
-        installed_list, has_add = get_apps_from_compose(output_list)
-        installing_list = get_apps_from_queue()
-        app_list = installed_list + installing_list
-        return app_list
-    except CommandException as ce:
-        raise ce
 
+    # get all info
+    cmd = "docker compose ls -a --format json"
+    output = shell_execute.execute_command_output_all(cmd)
+    output_list = json.loads(output["result"])
+    installed_list, has_add = get_apps_from_compose(output_list)
+    installing_list = get_apps_from_queue()
+    app_list = installed_list + installing_list
+    
+    return app_list
 
 # 获取具体某个app的信息
-def get_app_detail(app_id):
+def get_app_status(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
-        # get all info
-        info, code = if_app_exits(app_id)
-        if code:
-            cmd = "docker compose ls -a --format json"
-            try:
-                shell_execute.execute_command_output_all(cmd)
-                if int(output["code"]) == 0:
-                    output_list = json.loads(output["result"])
-                    app_list, has_add = get_apps_from_compose(output_list)
-                    flag = 0
-                    app_info = None
-                    for app in app_list:
-                        if app["app_id"] == app_id:
-                            app_info = app
-                            flag = 1
-                            break
-                    if flag == 1:
-                        return app_info
-                    else:
-                        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, 'This app is not currently installed.', "")
-            except CommandException as ce:
-                raise ce
-        else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, 'AppID is not exist', "")
+        app_list = get_my_app()
+        # 将app_list 过滤出app_id的app，并缩减信息，使其符合文档的要求
     else:
         raise CommandException(code, message, "")
 
