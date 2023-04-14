@@ -123,8 +123,6 @@ AppUninstall
 | 参数名称 | 用途                                          |类型  |必要性 |
 | ------ | --------------------------------------------- | ------ |------ |
 | app_id   | 卸载该app | string   |必须   |
-| delete_image   | 是否删除镜像 | boolean   |非必须，默认为False   |
-| delete_data   | 是否删除所有数据 | boolean   |非必须，默认为True   |
 
 #### 返回结果
 
