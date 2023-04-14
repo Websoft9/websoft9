@@ -131,11 +131,21 @@ def AppRestart(app_id: Optional[str] = Query(default=None, description="应用ID
 def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
                  delete_image: bool = Query(default=False, description="是否删除镜像"),
                  delete_data: bool = Query(default=True, description='是否删除所有数据')):
-    myLogger.info_logger("Receive request: /AppUninstall")
-    get_headers(request)
-    ret = manage.uninstall_app(app_id, delete_image, delete_data)
-    return JSONResponse(content=ret)
 
+    try:
+        myLogger.info_logger("Receive request: /AppUninstall")
+        get_headers(request)
+        ret = manage.uninstall_app(app_name, customer_name, app_version)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
+    return JSONResponse(content=ret)
 
 def get_headers(request):
     headers = request.headers
