@@ -27,7 +27,7 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
-# 获取所有app的信息
+# 获取所有app的信息(app_id不为空时，查询该APP的信息)
 def get_my_app(app_id):
     # get all info
     cmd = "docker compose ls -a --format json"
