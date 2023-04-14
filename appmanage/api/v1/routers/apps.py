@@ -50,7 +50,7 @@ def AppStatus(app_id: Optional[str] = Query(default=None, description="应用ID"
     try:
         myLogger.info_logger("Receive request: /AppStatus")
         ret = {}
-        ret['ResponseData'] = manage.get_app_detail(app_id)
+        ret['ResponseData'] = manage.get_app_status(app_id)
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
