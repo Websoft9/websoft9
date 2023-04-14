@@ -2,7 +2,7 @@
 
 # 错误代码定义
 ERROR_CLIENT_PARAM_BLANK="Client.Parameter.Blank.Error"
-ERROR_CLIENT_PARAM_BLANK="Client.Parameter.Format.Error"
+ERROR_CLIENT_PARAM_Format="Client.Parameter.Format.Error"
 ERROR_CLIENT_PARAM_NOTEXIST="Client.Parameter.Value.NotExist.Error"
 ERROR_CLIENT_PARAM_REPEAT="Client.Parameter.Value.Repeat.Error"
 

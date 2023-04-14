@@ -77,32 +77,6 @@ def get_app_detail(app_id):
         ret['message'] = "AppID is not legal!"
     return ret
 
-
-# 查询某个正在安装的app的 具体状态：waiting（等待安装）pulling（拉取镜像）initializing（初始化）running（正常运行）
-def install_app_process(app_id):
-    ret = {}
-    ret['code'] = const.RETURN_FAIL
-    ret['message'] = ""
-    ret['status'] = ""
-    app_name = split_app_id(app_id)
-    if docker.check_app_id(app_id):
-        info, code = if_app_exits(app_id)
-        if code:
-            var_path = "/data/apps/" + app_name + "/variables.json"
-            real_name = docker.read_var(var_path, 'name')
-            app_status = docker.get_process_perc(app_name, real_name)
-            ret["code"] = const.RETURN_SUCCESS
-            ret['message'] = "This app is installing."
-            ret['status'] = app_status
-        else:
-            ret['message'] = "This app is not currently installed."
-    else:
-        ret['message'] = "AppID is not legal!"
-
-    ret = ret.dict()
-    return ret
-
-
 def install_app(app_name, customer_name, app_version):
     myLogger.info_logger("Install app ...")
     ret = {}
@@ -110,13 +84,13 @@ def install_app(app_name, customer_name, app_version):
     app_id = app_name + "_" + customer_name
     ret['ResponseData']['app_id'] = app_id
 
-    code, message, detail = check_app(app_name, customer_name, app_version)
+    code, message = check_app(app_name, customer_name, app_version)
+    if code == None:
+       q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id, timeout=3600)
+    else:
+       ret['Error'] = get_error_info(code, message,"")
 
-    q.enqueue(install_app_delay, app_name, customer_app_name, app_version, job_id=app_id, timeout=3600)
-
-    ret = ret.dict()
     return ret
-
 
 def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
@@ -211,27 +185,35 @@ def uninstall_app(app_id, delete_image, delete_data):
     return ret
 
 
-def check_app(app_name, customer_app_name, app_version):
+def check_app(app_name, customer_name, app_version):
     message = " "
     code = None
-    app_id = app_name + "-" + customer_app_name
-    if not docker.check_app_websoft9(app_name):
-        code = 'Param.AppName.NotExis'
-        message = "不支持安装指定的App"
-    elif re.match('^[a-z0-9]+$', customer_app_name) == None:
-        code = 'Param.CustomerAppName.FormatError'
-        message = "用户自定义APP名称只能是数字和小写字母组成"
-    elif docker.check_directory("/data/apps/" + customer_app_name):
-        code = 'Param.CustomerAppName.Repeat'
-        message = "已经安装了此应用，请重新指定APP名称"
+    app_id = app_name + "-" + customer_name
+    if app_name == None:
+        code = const.ERROR_CLIENT_PARAM_BLANK
+        message = "app_name is null"
+    elif customer_name == None:
+        code = const.ERROR_CLIENT_PARAM_BLANK
+        message = "customer_name is null"
+    elif app_version == None:
+        code = const.ERROR_CLIENT_PARAM_BLANK
+        message = "app_version is null"
+    elif not docker.check_app_websoft9(app_name):
+        code = const.ERROR_CLIENT_PARAM_NOTEXIST
+        message = "It is not support to install " + app_name
+    elif re.match('^[a-z0-9]+$', customer_name) == None:
+        code = const.ERROR_CLIENT_PARAM_Format
+        message = "APP name can only be composed of numbers and lowercase letters"
+    elif docker.check_directory("/data/apps/" + customer_name):
+        code = const.ERROR_CLIENT_PARAM_REPEAT
+        message = "Repeat installation: " + customer_name
     elif not docker.check_vm_resource(app_name):
-        code = 'Requirement.NotEnough'
-        message = "系统资源（cpu，内存，磁盘空间）不足"
-    elif check_app_wait(app_id):
-        code = 'Param.CustomerAppName.Wait'
-        message = "同名应用已经在安装等待中，请重新指定APP名称"
+        code = const.ERROR_SERVER_RESOURCE
+        message = "Insufficient system resources (cpu, memory, disk space)"
+    elif check_app_rq(app_id):
+        code = const.ERROR_CLIENT_PARAM_REPEAT
+        message = "Repeat installation: " + customer_name
     return code, message
-
 
 def prepare_app(app_name, customer_app_name):
     library_path = "/data/library/apps/" + app_name
@@ -408,7 +390,7 @@ def check_if_official_app(var_path):
         return False
 
 
-def check_app_wait(app_id):
+def check_app_rq(app_id):
     myLogger.info_logger("check_app_wait")
     deferred = DeferredJobRegistry(queue=q)
     wait_job_ids = deferred.get_job_ids()
