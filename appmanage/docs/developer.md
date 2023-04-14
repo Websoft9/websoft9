@@ -217,19 +217,9 @@ AppStatusInfo 说明:
 
   app_id：应用ID,
 
-  name：应用名,
-
-  customer_name：自定义应用名,
-
-  trade_mark：应用商标,
-
-  status_code：应用运行状态码,（queuing:'00',pulling:'10'，creating:'11'，initing:'12'，running:'30'，stop：'40'，error：'50'）
-
-  status：应用运行状态,（pulling:拉取中，creating:启动中，initing:初始化中，running:运行，stopping：停止中，stopped：停止，uninstalling：卸载中）
+  status：应用运行状态,[installing(创建中)，running(运行中)，exited(停止)，restarting(反复重启)，failed(失败)]
   
-  official_app：是否为官方应用,
-  
-  image_url：图片路径
+  status_reason：只有failed时才有内容
   
 }
 ```
@@ -265,9 +255,13 @@ AppDetailInfo 说明:
 
   trade_mark：应用商标,
 
-  status_code：应用运行状态码,（queuing:'00',pulling:'10'，creating:'11'，initing:'12'，running:'30'，stop：'40'，error：'50'）
-
-  status：应用运行状态,（queuing:排队等待,pulling:镜像拉取中，creating:容器启动中，initing:初始化中，running:正常运行，stop：停止，error：错误）
+  status：应用运行状态,[installing(创建中)，running(运行中)，exited(停止)，restarting(反复重启)，failed(失败)]
+  
+  status_reason：{ // 只有failed时才有内容
+    Code：错误代码
+    Message：错误提示信息
+    Detail：错误真实信息
+  }
   
   official_app：是否为官方应用,
   
