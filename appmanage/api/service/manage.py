@@ -18,7 +18,7 @@ from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry,CanceledJobRegistry
 from api.exception.command_exception import CommandException
 
 # 指定 Redis 容器的主机名和端口
@@ -28,17 +28,16 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 q = Queue(connection=redis_conn)
 
 # 获取所有app的信息
-def get_my_app():
+def get_my_app(app_id):
     # get all info
     cmd = "docker compose ls -a --format json"
     output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == 0:
-        output_list = json.loads(output["result"])
-        installed_list, has_add = get_apps_from_compose(output_list)
-        installing_list = get_apps_from_queue()         # ------------待改------------
-        app_list = installed_list + installing_list
-    return app_list
+    output_list = json.loads(output["result"])
+    installed_list, has_add = get_apps_from_compose(output_list)
+    installing_list = get_apps_from_queue()         # ------------待改------------
+    app_list = installed_list + installing_list
 
+    return app_list
 
 # 获取具体某个app的信息
 def get_app_detail(app_id):
@@ -288,8 +287,8 @@ def get_apps_from_compose(output_list):
     for app_info in output_list:
         volume = app_info["ConfigFiles"]  # volume
         app_path = volume.rsplit('/', 1)[0]
-        customer_app_name = volume.split('/')[-2]
-        app_id = customer_app_name + "_" + customer_app_name  # app_id
+        customer_name = volume.split('/')[-2]
+        app_id = ""  # app_id
         app_name = ""
         trade_mark = ""
         port = 0
@@ -300,8 +299,7 @@ def get_apps_from_compose(output_list):
         password = ""
         official_app = False
 
-        if customer_app_name in ['appmanage', 'nginxproxymanager',
-                                 'redis'] and app_path == '/data/apps/stackhub/docker/' + customer_app_name:
+        if customer_name in ['appmanage', 'nginxproxymanager','redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         # get code
         case = app_info["Status"].split("(")[0]  # case
@@ -320,7 +318,7 @@ def get_apps_from_compose(output_list):
         official_app = check_if_official_app(var_path)
         if official_app:
             app_name = docker.read_var(var_path, 'name')
-            app_id = app_name + "_" + customer_app_name  # app_id
+            app_id = app_name + "_" + customer_name  # app_id
             # get trade_mark
             trade_mark = docker.read_var(var_path, 'trademark')
             image_url = get_Image_url(app_name)
@@ -336,8 +334,7 @@ def get_apps_from_compose(output_list):
                 admin_url = get_admin_url(app_name, url)
             except IndexError:
                 try:
-                    db_port = list(docker.read_env(
-                        path, "APP_DB.*_PORT").values())[0]
+                    db_port = list(docker.read_env(path, "APP_DB.*_PORT").values())[0]
                     port = int(db_port)
                 except IndexError:
                     pass
@@ -348,22 +345,20 @@ def get_apps_from_compose(output_list):
                 pass
             # get password
             try:
-                password = list(docker.read_env(
-                    path, "POWER_PASSWORD").values())[0]
+                password = list(docker.read_env(path, "POWER_PASSWORD").values())[0]
             except IndexError:
                 pass
 
-        has_add.append(customer_app_name)
+        has_add.append(customer_name)
 
         running_info = RunningInfo(port=port, compose_file=volume, url=url, image_url=image_url, admin_url=admin_url,
                                    user_name=user_name, password=password, default_domain="", set_domain="")
         status_reason = StatusReason(Code="", Message="", Detail="")
 
-        app = App(app_id=app_id, name=app_name, customer_name=customer_app_name, trade_mark=trade_mark, status=case,
+        app = App(app_id=app_id, name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=case,
                   official_app=official_app, running_info=running_info, status_reason=status_reason)
         app_list.append(app.dict())
     return app_list, has_add
-
 
 def check_if_official_app(var_path):
     if docker.check_directory(var_path):
@@ -379,72 +374,79 @@ def check_if_official_app(var_path):
     else:
         return False
 
-
 def check_app_rq(app_id):
-    myLogger.info_logger("check_app_wait")
-    deferred = DeferredJobRegistry(queue=q)
-    wait_job_ids = deferred.get_job_ids()
-    if app_id in wait_job_ids:
-        return True
-    else:
-        return False
 
+    myLogger.info_logger("check_app_rq")
+    
+    for job in q.jobs:
+        if app_id == job.id:
+            return True
+    started = StartedJobRegistry(queue=q)
+    failed = FailedJobRegistry(queue=q)
+    run_job_ids = started.get_job_ids()
+    failed_jobs = failed.get_job_ids()
+
+    if app_id in run_job_ids:
+        return True
+    if app_id in failed_jobs:
+        return True
+    
+    return False
 
 def get_apps_from_queue():
     myLogger.info_logger("get queque apps...")
     # 获取 StartedJobRegistry 实例
-    registry = StartedJobRegistry(queue=q)
+    started = StartedJobRegistry(queue=q)
     finish = FinishedJobRegistry(queue=q)
     deferred = DeferredJobRegistry(queue=q)
     failed = FailedJobRegistry(queue=q)
     scheduled = ScheduledJobRegistry(queue=q)
+    cancel= CanceledJobRegistry(queue=q)
 
     # 获取正在执行的作业 ID 列表
-    run_job_ids = registry.get_job_ids()
+    run_job_ids = started.get_job_ids()
     finish_job_ids = finish.get_job_ids()
     wait_job_ids = deferred.get_job_ids()
     failed_jobs = failed.get_job_ids()
     scheduled_jobs = scheduled.get_job_ids()
+    cancel_jobs = cancel.get_job_ids()
 
     myLogger.info_logger(q.jobs)
-    myLogger.info_logger(wait_job_ids)
     myLogger.info_logger(run_job_ids)
-    myLogger.info_logger(finish_job_ids)
     myLogger.info_logger(failed_jobs)
+    myLogger.info_logger(cancel_jobs)
+    myLogger.info_logger(wait_job_ids)
+    myLogger.info_logger(finish_job_ids)
     myLogger.info_logger(scheduled_jobs)
 
-    myLogger.info_logger("----------------------------------------")
-
     installing_list = []
-    for job in run_job_ids:
-        app = get_installing_app(job, const.APP_READY, 'installing')
+    for job_id in run_job_ids:
+        app = get_installing_app(job_id, 'installing','""',"","")
         installing_list.append(app)
     for job in q.jobs:
-        app = get_installing_app(job.id, const.APP_WAIT, 'waiting')
+        app = get_installing_app(job.id, 'installing',"","","")
         installing_list.append(app)
-    for job_id in finish_job_ids:
+    for job_id in failed_jobs:
         job = q.fetch_job(job_id)
-        if job.result == "fail":
-            app = get_installing_app(job_id, const.APP_ERROR, 'error')
-            installing_list.append(app)
+        
+        app = get_installing_app(job_id, 'failed',"","","")
 
     return installing_list
 
 
-def get_installing_app(id, status_code, status):
+def get_installing_app(id, status,code,message,detail):
     app_name = id.split('_')[0]
-    customer_app_name = id.split('_')[1]
-    var_path = "/data/apps/" + customer_app_name + "/variables.json"
+    customer_name = id.split('_')[1]
+    var_path = "/data/apps/" + customer_name + "/variables.json"
     trade_mark = docker.read_var(var_path, 'trademark')
     app_name = docker.read_var(var_path, 'name')
     image_url = get_Image_url(app_name)
     running_info = RunningInfo(port=0, compose_file="", url="", image_url=image_url, admin_url="",
                                user_name="", password="", default_domain="", set_domain="")
-    status_reason = StatusReason(Code="", Message="", Detail="")
-    app = App(app_id=app_name + "_" + customer_app_name, name=app_name, customer_name=customer_app_name,
+    status_reason = StatusReason(Code=code, Message=message, Detail=detail)
+    app = App(app_id=app_name + "_" + customer_name, name=app_name, customer_name=customer_name,
               trade_mark=trade_mark, status=status, official_app=True, running_info=running_info, status_reason=status_reason)
     return app
-
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"

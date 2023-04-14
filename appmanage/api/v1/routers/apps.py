@@ -46,7 +46,7 @@ rd_two = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmess
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_detail,
                   response_model=Response)
-def app_detail(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppStatus(app_id: Optional[str] = Query(default=None, description="应用ID")):
     myLogger.info_logger("Receive request: /AppStatus")
     list = manage.get_app_detail(app_id)
     return JSONResponse(list)
@@ -54,7 +54,7 @@ def app_detail(app_id: Optional[str] = Query(default=None, description="应用ID
 
 @router.api_route("/AppList", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
                   response_model=Response)
-def list_my_apps(request: Request):
+def AppList(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppList")
         get_headers(request)
@@ -109,7 +109,7 @@ def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")
 
 @router.api_route("/AppRestart", methods=["GET", "POST"], summary="重启APP", response_description=rd_two,
                   response_model=Response)
-def restart_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppRestart(app_id: Optional[str] = Query(default=None, description="应用ID")):
     myLogger.info_logger("Receive request: /AppRestart")
     ret = manage.restart_app(app_id)
     return JSONResponse(content=ret)
@@ -117,7 +117,7 @@ def restart_app(app_id: Optional[str] = Query(default=None, description="应用I
 
 @router.api_route("/AppUninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
                   response_model=Response)
-def uninstall_app(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
+def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
                  delete_image: bool = Query(default=False, description="是否删除镜像"),
                  delete_data: bool = Query(default=True, description='是否删除所有数据')):
     myLogger.info_logger("Receive request: /AppUninstall")
