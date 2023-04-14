@@ -234,9 +234,9 @@ def install_app_delay(app_name, customer_name, app_version):
         raise CommandException(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
 
 
-def if_app_exits(app_id):
-    app_name = app_id.split('_')[1]
-    real_name = app_id.split('_')[0]
+def app_exits_in_docker(app_id):
+    customer_name = app_id.split('_')[1]
+    app_name = app_id.split('_')[0]
     flag = False
     info = ""
     cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
@@ -247,9 +247,9 @@ def if_app_exits(app_id):
         is_official = check_if_official_app(app_path + '/variables.json')
         if is_official:
             name = docker.read_var(app_path + '/variables.json', 'name')
-            if name == real_name:
+            if name == app_name:
                 flag = True
-        elif real_name == app_name:
+        elif app_name == customer_name:
             flag = True
     myLogger.info_logger("APP info: " + info)
     return info, flag
