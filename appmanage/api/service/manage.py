@@ -157,31 +157,30 @@ def restart_app(app_id):
     return ret
 
 
-def uninstall_app(app_id, delete_image, delete_data):
-    ret = Response(code=const.RETURN_FAIL, message="")
-    if docker.check_app_id(app_id):
+def delete_app_failedjob(app_id):
+     myLogger.info_logger("delete_app_failedjob")
+
+def uninstall_app(app_id):
+    ret = {}
+    ret['ResponseData'] = {}
+    ret['ResponseData']['app_id'] = app_id
+
+    code, message = docker.check_app_id(app_id)
+    if code == None:
         app_name = split_app_id(app_id)
-        if_stopped = stop_app(app_id)  # stop_app
-        if if_stopped["code"] == 0:
-            info, code = if_app_exits(app_id)
+        info, code_exist = if_app_exits(app_id)
+        if code_exist:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
             lib_path = '/data/library/apps/' + app_name
             if app_path != lib_path:
                 cmd = cmd + " && sudo rm -rf " + app_path
-            output = shell_execute.execute_command_output_all(cmd)
-            if int(output["code"]) == 0:
-                ret.code = 0
-                ret.message = "The app is deleted successfully"
-            else:
-                ret.message = "App deletion failed!"
+            shell_execute.execute_command_output_all(cmd)
         else:
-            ret.message = if_stopped["message"]
+            delete_app_failedjob(app_id)
     else:
-        ret.message = 'AppID is not legal!'
-    ret = ret.dict()
+       ret['Error'] = get_error_info(code, message,"")
     return ret
-
 
 def check_app(app_name, customer_name, app_version):
     message = ""
