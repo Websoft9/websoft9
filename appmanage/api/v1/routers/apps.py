@@ -77,7 +77,7 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
     except Exception as e:
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
-        ret['Error']=manage.get_error_info("Server.SystemError","system original error",str(ce))
+        ret['Error']=manage.get_error_info("Server.SystemError","system original error",str(e))
 
     return JSONResponse(content=ret)
 
