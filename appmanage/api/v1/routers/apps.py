@@ -81,15 +81,6 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
 
     return JSONResponse(content=ret)
 
-@router.api_route("/process", methods=["GET", "POST"], summary="获取指定APP的安装进度",
-                  response_description=rd_process,
-                  response_model=Response)
-def install_app_process(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /process")
-    ret = manage.install_app_process(app_id)
-    return JSONResponse(content=ret)
-
-
 @router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
                   response_model=Response)
 def start_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
