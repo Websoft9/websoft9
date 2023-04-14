@@ -5,7 +5,7 @@ from dotenv import load_dotenv, find_dotenv
 import dotenv
 from pathlib import Path
 from api.utils.common_log import myLogger
-
+from api.utils import shell_execute, const
 
 def pull_images(app_name):
     # 备用方法
@@ -53,16 +53,27 @@ def if_app_running(app_name):
     else:
         return True
     
-def check_app_id(app_id):
-    myLogger.info_logger("Checking app id ...")
-    if app_id == None:
-        myLogger.info_logger("Check complete: AppID is none!")
-        return False
-    if re.match('^[a-zA-Z0-9]+_[a-z0-9]+$', app_id) == None:
-        myLogger.info_logger("Check complete: AppID is not compliant")
-        return False
+def check_appid_exist(app_id):
+    myLogger.info_logger("Checking check_appid_exist ...")
+    appList=shell_execute.get_my_app(app_id)
+    if len(appList) == 0:
+       return False
     myLogger.info_logger("Check complete.")
     return True
+
+def check_app_id(app_id):
+    message = ""
+    code = None
+    if app_id == None:
+        code = const.ERROR_CLIENT_PARAM_BLANK
+        message = "AppID is null"
+    elif re.match('^[a-zA-Z0-9]+_[a-z0-9]+$', app_id):
+        code = const.ERROR_CLIENT_PARAM_Format
+        message = "APP name can only be composed of numbers and lowercase letters"
+    elif not docker.check_appid_exist(app_id):
+        code = const.ERROR_CLIENT_PARAM_NOTEXIST
+        message = "AppID is not exist"
+    return code, message
 
 
 def check_vm_resource(app_name):
