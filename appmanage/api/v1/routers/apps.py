@@ -10,6 +10,7 @@ from api.model.response import Response
 from api.service import manage
 from api.utils import shell_execute
 from api.utils.common_log import myLogger
+from api.exception.command_exception import CommandException
 
 router = APIRouter()
 
@@ -61,14 +62,24 @@ def list_my_apps():
 
 @router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
                   response_model=Response)
-def install_app(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
+def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
                customer_app_name: Optional[str] = Query(default=None, description="应用自定义名字"),
                app_version: Optional[str] = Query(default=None, description="应用版本")):
-    myLogger.info_logger("Receive request: /AppInstall")
-    getHeaders(request)
-    ret = manage.install_app(app_name, customer_app_name, app_version)
-    return JSONResponse(content=ret)
+    
+    try:
+        myLogger.info_logger("Receive request: /AppInstall")
+        getHeaders(request)
+        ret = manage.install_app(app_name, customer_app_name, app_version)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
+        ret['Error']=manage.get_error_info("Server.Container.Error","Docker returns the original error",str(ce))
+    except Exception as e:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
+        ret['Error']=manage.get_error_info("Server.SystemError","system original error",str(ce))
 
+    return JSONResponse(content=ret)
 
 @router.api_route("/process", methods=["GET", "POST"], summary="获取指定APP的安装进度",
                   response_description=rd_process,
@@ -118,11 +129,7 @@ def getHeaders(request):
     headers = request.headers
     try:
         version = headers.get('Version')
-        myLogger.info_logger("Version: " + version)
-    except:
-        pass
-    try:
         language = headers.get('Language')
-        myLogger.info_logger("Language: " + language)
+        myLogger.info_logger("Version: " + version + ", Language: " + language)
     except:
         pass

@@ -501,8 +501,9 @@ def get_admin_url(app_name, url):
     return admin_url
 
 
-def setErrorInfo(code, message):
+def get_error_info(code, message, detail):
     error = {}
-    error['code'] = code
-    error['message'] = message
+    error['Code'] = code
+    error['Message'] = message
+    error['Detail'] = detail
     return error
