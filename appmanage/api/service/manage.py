@@ -302,17 +302,13 @@ def get_apps_from_compose(output_list):
         if customer_name in ['appmanage', 'nginxproxymanager','redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         # get code
-        case = app_info["Status"].split("(")[0]  # case
-        if case == "running":
-            case_code = const.APP_RUNNING  # case_code
-        elif case == "exited":
-            case = "stop"
-            case_code = const.APP_STOP
-        elif case == "created":
-            case_code = const.APP_READY
-            case = "installing"
+        status = app_info["Status"].split("(")[0]  
+        if status == "running" or status == "exited" or status == "restarting":
+            myLogger.info_logger("ok")
+        elif status == "created":
+            status = "failed"
         else:
-            case_code = const.APP_ERROR
+            continue
 
         var_path = app_path + "/variables.json"
         official_app = check_if_official_app(var_path)
@@ -355,7 +351,7 @@ def get_apps_from_compose(output_list):
                                    user_name=user_name, password=password, default_domain="", set_domain="")
         status_reason = StatusReason(Code="", Message="", Detail="")
 
-        app = App(app_id=app_id, name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=case,
+        app = App(app_id=app_id, name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
                   official_app=official_app, running_info=running_info, status_reason=status_reason)
         app_list.append(app.dict())
     return app_list, has_add
@@ -427,12 +423,11 @@ def get_apps_from_queue():
         app = get_installing_app(job.id, 'installing',"","","")
         installing_list.append(app)
     for job_id in failed_jobs:
-        job = q.fetch_job(job_id)
-        
+        job = q.fetch_job(job_id)   
         app = get_installing_app(job_id, 'failed',"","","")
+        installing_list.append(app)
 
     return installing_list
-
 
 def get_installing_app(id, status,code,message,detail):
     app_name = id.split('_')[0]
