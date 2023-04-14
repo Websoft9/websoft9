@@ -47,14 +47,24 @@ rd_two = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmess
                   response_description=rd_detail,
                   response_model=Response)
 def AppStatus(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /AppStatus")
-    list = manage.get_app_detail(app_id)
-    return JSONResponse(list)
+    try:
+        myLogger.info_logger("Receive request: /AppStatus")
+        ret = {}
+        ret['ResponseData'] = manage.get_app_detail(app_id)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = None
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, str(ce))
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = None
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+    return JSONResponse(ret)
 
 
 @router.api_route("/AppList", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
                   response_model=Response)
-def AppList(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppList(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppList")
         get_headers(request)
@@ -63,11 +73,11 @@ def AppList(request: Request,app_id: Optional[str] = Query(default=None, descrip
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
-        ret['Error']=manage.get_error_info(const.ERROR_SERVER_COMMAND,"Docker returns the original error",str(ce))
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, str(ce))
     except Exception as e:
         ret = {}
         ret['ResponseData'] = None
-        ret['Error']=manage.get_error_info(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
 
@@ -76,7 +86,6 @@ def AppList(request: Request,app_id: Optional[str] = Query(default=None, descrip
 def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
                customer_name: Optional[str] = Query(default=None, description="应用自定义名字"),
                app_version: Optional[str] = Query(default=None, description="应用版本")):
-    
     try:
         myLogger.info_logger("Receive request: /AppInstall")
         get_headers(request)
@@ -84,13 +93,14 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
     except CommandException as ce:
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
-        ret['Error']=manage.get_error_info(ce.code,ce.message,ce.detail)
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
-        ret['Error']=manage.get_error_info(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
 
     return JSONResponse(content=ret)
+
 
 @router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
                   response_model=Response)
@@ -98,6 +108,7 @@ def start_app(app_id: Optional[str] = Query(default=None, description="应用ID"
     myLogger.info_logger("Receive request: /AppStart")
     ret = manage.start_app(app_id)
     return JSONResponse(content=ret)
+
 
 @router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
                   response_model=Response)

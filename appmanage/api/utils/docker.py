@@ -7,6 +7,7 @@ from pathlib import Path
 from api.utils.common_log import myLogger
 from api.utils import shell_execute, const
 
+
 def pull_images(app_name):
     # 备用方法
     # 为了防止安装前，用户服务器已经有了镜像。导致安装时镜像不重新拉取，镜像是老的（根据docker-compose.yml 和 .env 获取）
@@ -20,7 +21,6 @@ def delete_images(app_id):
 
 
 def get_process_perc(app_name, real_name):
-    
     process_now = "pulling"
 
     if if_app_exits(app_name):
@@ -29,14 +29,16 @@ def get_process_perc(app_name, real_name):
     if if_app_running(app_name):
         process_now = "initing"
         if if_app_access(app_name):
-          process_now = "running"
-        
+            process_now = "running"
+
     return process_now
+
 
 # 已经是running的app怎么知道它已经能够访问，如页面能进入，如mysql能被客户端连接
 def if_app_access(app_name):
     return True
-    
+
+
 def if_app_exits(app_name):
     cmd = "docker compose ls -a | grep \'" + app_name + "\\b\'"
     output = shell_execute.execute_command_output_all(cmd)
@@ -45,6 +47,7 @@ def if_app_exits(app_name):
     else:
         return True
 
+
 def if_app_running(app_name):
     cmd = "docker compose ls -a |grep running | grep \'" + app_name + "\\b\'"
     output = shell_execute.execute_command_output_all(cmd)
@@ -52,14 +55,16 @@ def if_app_running(app_name):
         return False
     else:
         return True
-    
+
+
 def check_appid_exist(app_id):
     myLogger.info_logger("Checking check_appid_exist ...")
-    appList=shell_execute.get_my_app(app_id)
+    appList=shell_execute.get_my_app(app_id)        # ----------
     if len(appList) == 0:
-       return False
+        return False
     myLogger.info_logger("Check complete.")
     return True
+
 
 def check_app_id(app_id):
     message = ""
@@ -70,9 +75,9 @@ def check_app_id(app_id):
     elif re.match('^[a-zA-Z0-9]+_[a-z0-9]+$', app_id):
         code = const.ERROR_CLIENT_PARAM_Format
         message = "APP name can only be composed of numbers and lowercase letters"
-    elif not docker.check_appid_exist(app_id):
-        code = const.ERROR_CLIENT_PARAM_NOTEXIST
-        message = "AppID is not exist"
+    # elif not docker.check_appid_exist(app_id):
+    #     code = const.ERROR_CLIENT_PARAM_NOTEXIST
+    #     message = "AppID is not exist"
     return code, message
 
 

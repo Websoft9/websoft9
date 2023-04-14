@@ -18,7 +18,8 @@ from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry,CanceledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
+    ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
 
 # 指定 Redis 容器的主机名和端口
@@ -27,53 +28,53 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
-# 获取所有app的信息(app_id不为空时，查询该APP的信息)
-def get_my_app(app_id):
-    # get all info
-    cmd = "docker compose ls -a --format json"
-    output = shell_execute.execute_command_output_all(cmd)
-    output_list = json.loads(output["result"])
-    installed_list, has_add = get_apps_from_compose(output_list)
-    installing_list = get_apps_from_queue()         # ------------待改------------
-    app_list = installed_list + installing_list
 
-    return app_list
+# 获取所有app的信息
+def get_my_app():
+    try:
+        # get all info
+        cmd = "docker compose ls -a --format json"
+        output = shell_execute.execute_command_output_all(cmd)
+        output_list = json.loads(output["result"])
+        installed_list, has_add = get_apps_from_compose(output_list)
+        installing_list = get_apps_from_queue()
+        app_list = installed_list + installing_list
+        return app_list
+    except CommandException as ce:
+        raise ce
+
 
 # 获取具体某个app的信息
 def get_app_detail(app_id):
-    ret = {}
-    ret['code'] = const.RETURN_FAIL
-    ret['message'] = 'App query failed!'
-    ret['data'] = None
-
-    if docker.check_app_id(app_id):
+    code, message = docker.check_app_id(app_id)
+    if code == None:
         # get all info
-        app_name = split_app_id(app_id)
         info, code = if_app_exits(app_id)
         if code:
             cmd = "docker compose ls -a --format json"
-            output = shell_execute.execute_command_output_all(cmd)
-            if int(output["code"]) == 0:
-                output_list = json.loads(output["result"])
-                app_list, has_add = get_apps_from_compose(output_list)
-                flag = 0
-                app_info = None
-                for app in app_list:
-                    if app["app_id"] == app_id:
-                        app_info = app
-                        flag = 1
-                        break
-                if flag == 1:
-                    ret['code'] = const.RETURN_SUCCESS
-                    ret['message'] = "The app query is successful."
-                    ret['data'] = app_info
-                else:
-                    ret['message'] = 'This app is not currently installed.'
+            try:
+                shell_execute.execute_command_output_all(cmd)
+                if int(output["code"]) == 0:
+                    output_list = json.loads(output["result"])
+                    app_list, has_add = get_apps_from_compose(output_list)
+                    flag = 0
+                    app_info = None
+                    for app in app_list:
+                        if app["app_id"] == app_id:
+                            app_info = app
+                            flag = 1
+                            break
+                    if flag == 1:
+                        return app_info
+                    else:
+                        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, 'This app is not currently installed.', "")
+            except CommandException as ce:
+                raise ce
         else:
-            ret['message'] = 'This app is not currently installed.'
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, 'AppID is not exist', "")
     else:
-        ret['message'] = "AppID is not legal!"
-    return ret
+        raise CommandException(code, message, "")
+
 
 def install_app(app_name, customer_name, app_version):
     myLogger.info_logger("Install app ...")
@@ -84,11 +85,12 @@ def install_app(app_name, customer_name, app_version):
 
     code, message = check_app(app_name, customer_name, app_version)
     if code == None:
-       q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id, timeout=3600)
+        q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id, timeout=3600)
     else:
-       ret['Error'] = get_error_info(code, message,"")
+        ret['Error'] = get_error_info(code, message, "")
 
     return ret
+
 
 def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
@@ -158,7 +160,8 @@ def restart_app(app_id):
 
 
 def delete_app_failedjob(app_id):
-     myLogger.info_logger("delete_app_failedjob")
+    myLogger.info_logger("delete_app_failedjob")
+
 
 def uninstall_app(app_id):
     ret = {}
@@ -179,8 +182,9 @@ def uninstall_app(app_id):
         else:
             delete_app_failedjob(app_id)
     else:
-       ret['Error'] = get_error_info(code, message,"")
+        ret['Error'] = get_error_info(code, message, "")
     return ret
+
 
 def check_app(app_name, customer_name, app_version):
     message = ""
@@ -212,14 +216,14 @@ def check_app(app_name, customer_name, app_version):
         message = "Repeat installation: " + customer_name
     return code, message
 
-def prepare_app(app_name, customer_name):
 
+def prepare_app(app_name, customer_name):
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
 
-def install_app_delay(app_name, customer_name, app_version):
 
+def install_app_delay(app_name, customer_name, app_version):
     job_id = app_name + "_" + customer_name
 
     try:
@@ -243,15 +247,16 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger(output["code"])
             myLogger.info_logger(output["result"])
         else:
-            raise CommandException(code,message,"")
+            raise CommandException(code, message, "")
     except CommandException as ce:
         uninstall_app(job_id)
-        raise CommandException(ce.code,ce.message,ce.detail)
+        raise CommandException(ce.code, ce.message, ce.detail)
     except Exception as e:
         myLogger.info_logger(customer_name + "install failed!")
         myLogger.error_logger(e)
         uninstall_app(job_id)
-        raise CommandException(const.ERROR_SERVER_SYSTEM,"system original error",str(e))
+        raise CommandException(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
 
 def if_app_exits(app_id):
     app_name = app_id.split('_')[1]
@@ -298,10 +303,11 @@ def get_apps_from_compose(output_list):
         password = ""
         official_app = False
 
-        if customer_name in ['appmanage', 'nginxproxymanager','redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
+        if customer_name in ['appmanage', 'nginxproxymanager',
+                             'redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         # get code
-        status = app_info["Status"].split("(")[0]  
+        status = app_info["Status"].split("(")[0]
         if status == "running" or status == "exited" or status == "restarting":
             myLogger.info_logger("ok")
         elif status == "created":
@@ -355,6 +361,7 @@ def get_apps_from_compose(output_list):
         app_list.append(app.dict())
     return app_list, has_add
 
+
 def check_if_official_app(var_path):
     if docker.check_directory(var_path):
         if docker.read_var(var_path, 'name') != "" and docker.read_var(var_path, 'trademark') != "" and docker.read_var(
@@ -369,10 +376,10 @@ def check_if_official_app(var_path):
     else:
         return False
 
-def check_app_rq(app_id):
 
+def check_app_rq(app_id):
     myLogger.info_logger("check_app_rq")
-    
+
     for job in q.jobs:
         if app_id == job.id:
             return True
@@ -385,8 +392,9 @@ def check_app_rq(app_id):
         return True
     if app_id in failed_jobs:
         return True
-    
+
     return False
+
 
 def get_apps_from_queue():
     myLogger.info_logger("get queque apps...")
@@ -396,7 +404,7 @@ def get_apps_from_queue():
     deferred = DeferredJobRegistry(queue=q)
     failed = FailedJobRegistry(queue=q)
     scheduled = ScheduledJobRegistry(queue=q)
-    cancel= CanceledJobRegistry(queue=q)
+    cancel = CanceledJobRegistry(queue=q)
 
     # 获取正在执行的作业 ID 列表
     run_job_ids = started.get_job_ids()
@@ -416,19 +424,20 @@ def get_apps_from_queue():
 
     installing_list = []
     for job_id in run_job_ids:
-        app = get_installing_app(job_id, 'installing','""',"","")
+        app = get_installing_app(job_id, 'installing', '""', "", "")
         installing_list.append(app)
     for job in q.jobs:
-        app = get_installing_app(job.id, 'installing',"","","")
+        app = get_installing_app(job.id, 'installing', "", "", "")
         installing_list.append(app)
     for job_id in failed_jobs:
-        job = q.fetch_job(job_id)   
-        app = get_installing_app(job_id, 'failed',"","","")
+        job = q.fetch_job(job_id)
+        app = get_installing_app(job_id, 'failed', "", "", "")
         installing_list.append(app)
 
     return installing_list
 
-def get_installing_app(id, status,code,message,detail):
+
+def get_installing_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
     customer_name = id.split('_')[1]
     var_path = "/data/apps/" + customer_name + "/variables.json"
@@ -439,8 +448,10 @@ def get_installing_app(id, status,code,message,detail):
                                user_name="", password="", default_domain="", set_domain="")
     status_reason = StatusReason(Code=code, Message=message, Detail=detail)
     app = App(app_id=app_name + "_" + customer_name, name=app_name, customer_name=customer_name,
-              trade_mark=trade_mark, status=status, official_app=True, running_info=running_info, status_reason=status_reason)
+              trade_mark=trade_mark, status=status, official_app=True, running_info=running_info,
+              status_reason=status_reason)
     return app
+
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"
