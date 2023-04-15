@@ -28,7 +28,6 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
-
 # 获取所有app的信息
 def get_my_app():
 
@@ -51,7 +50,6 @@ def get_app_status(app_id):
     else:
         raise CommandException(code, message, "")
 
-
 def install_app(app_name, customer_name, app_version):
     myLogger.info_logger("Install app ...")
     ret = {}
@@ -67,84 +65,73 @@ def install_app(app_name, customer_name, app_version):
 
     return ret
 
-
 def start_app(app_id):
-    ret = Response(code=const.RETURN_FAIL, message="")
-    if docker.check_app_id(app_id):
+    ret = {}
+    ret['ResponseData'] = {}
+    ret['ResponseData']['app_id'] = app_id
+    code, message = docker.check_app_id(app_id)
+    if code == None:
         app_name = split_app_id(app_id)
-        info, code = app_exits_in_docker(app_id)
-        if code:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
             app_path = info.split()[-1].rsplit('/', 1)[0]
-            docker.check_app_compose(app_path + '/.env')
             cmd = "docker compose -f " + app_path + "/docker-compose.yml start"
-            output = shell_execute.execute_command_output_all(cmd)
-            if int(output["code"]) == 0:
-                ret.code = const.RETURN_SUCCESS
-                ret.message = "The app starts successfully."
-            else:
-                ret.message = "The app failed to start!"
+            shell_execute.execute_command_output_all(cmd)
         else:
-            ret.message = "This app is not currently installed."
+            ret['Error'] = get_error_info(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
-        ret.message = "AppID is not legal!"
-    ret = ret.dict()
-    return ret
+        ret['Error'] = get_error_info(code, message, "")
 
+    return ret
 
 def stop_app(app_id):
-    ret = Response(code=const.RETURN_FAIL, message="")
-    if docker.check_app_id(app_id):
+    ret = {}
+    ret['ResponseData'] = {}
+    ret['ResponseData']['app_id'] = app_id
+    code, message = docker.check_app_id(app_id)
+    if code == None:
         app_name = split_app_id(app_id)
-        info, code = app_exits_in_docker(app_id)
-        if code:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
-            output = shell_execute.execute_command_output_all(cmd)
-            if int(output["code"]) == 0:
-                ret.code = const.RETURN_SUCCESS
-                ret.message = "The app stopped successfully."
-            else:
-                ret.message = "App stop failed!"
+            shell_execute.execute_command_output_all(cmd)
         else:
-            ret.message = "This app is not currently installed."
+            ret['Error'] = get_error_info(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
-        ret.message = 'AppID is not legal!'
-    ret = ret.dict()
-    return ret
+        ret['Error'] = get_error_info(code, message, "")
 
+    return ret
 
 def restart_app(app_id):
-    ret = Response(code=const.RETURN_FAIL, message="")
-    if docker.check_app_id(app_id):
+    
+    ret = {}
+    ret['ResponseData'] = {}
+    ret['ResponseData']['app_id'] = app_id
+    code, message = docker.check_app_id(app_id)
+    if code == None:
         app_name = split_app_id(app_id)
-        info, code = app_exits_in_docker(app_id)
-        if code:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml restart"
-            output = shell_execute.execute_command_output_all(cmd)
-            if int(output["code"]) == 0:
-                ret.code = const.RETURN_SUCCESS
-                ret.message = "The app restarts successfully."
-            else:
-                ret.message = "App restart failed!"
+            shell_execute.execute_command_output_all(cmd)
         else:
-            ret.message = "This app is not currently installed."
+            ret['Error'] = get_error_info(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
-        ret.message = 'AppID is not legal!'
-    ret = ret.dict()
-    return ret
+        ret['Error'] = get_error_info(code, message, "")
 
+    return ret
 
 def delete_app_failedjob(app_id):
     myLogger.info_logger("delete_app_failedjob")
-
 
 def uninstall_app(app_id):
     ret = {}
     ret['ResponseData'] = {}
     ret['ResponseData']['app_id'] = app_id
 
-    code, message = docker.check_app_id(app_id)
+    code, message = docker.check_appid_include_rq(app_id)
     if code == None:
         app_name = split_app_id(app_id)
         info, code_exist = app_exits_in_docker(app_id)
@@ -160,7 +147,6 @@ def uninstall_app(app_id):
     else:
         ret['Error'] = get_error_info(code, message, "")
     return ret
-
 
 def check_app(app_name, customer_name, app_version):
     message = ""
@@ -192,12 +178,10 @@ def check_app(app_name, customer_name, app_version):
         message = "Repeat installation: " + customer_name
     return code, message
 
-
 def prepare_app(app_name, customer_name):
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
-
 
 def install_app_delay(app_name, customer_name, app_version):
     job_id = app_name + "_" + customer_name
@@ -233,7 +217,6 @@ def install_app_delay(app_name, customer_name, app_version):
         uninstall_app(job_id)
         raise CommandException(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
 
-
 def app_exits_in_docker(app_id):
     customer_name = app_id.split('_')[1]
     app_name = app_id.split('_')[0]
@@ -254,10 +237,8 @@ def app_exits_in_docker(app_id):
     myLogger.info_logger("APP info: " + info)
     return info, flag
 
-
 def split_app_id(app_id):
     return app_id.split("_")[1]
-
 
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
