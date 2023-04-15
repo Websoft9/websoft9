@@ -72,7 +72,7 @@ def start_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_id)
+        info, code = app_exits_in_docker(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             docker.check_app_compose(app_path + '/.env')
@@ -95,7 +95,7 @@ def stop_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_id)
+        info, code = app_exits_in_docker(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
@@ -117,7 +117,7 @@ def restart_app(app_id):
     ret = Response(code=const.RETURN_FAIL, message="")
     if docker.check_app_id(app_id):
         app_name = split_app_id(app_id)
-        info, code = if_app_exits(app_id)
+        info, code = app_exits_in_docker(app_id)
         if code:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml restart"
@@ -147,7 +147,7 @@ def uninstall_app(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
         app_name = split_app_id(app_id)
-        info, code_exist = if_app_exits(app_id)
+        info, code_exist = app_exits_in_docker(app_id)
         if code_exist:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
