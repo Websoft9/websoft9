@@ -61,7 +61,6 @@ def get_app_status(app_id):
         app_list = get_my_app()
         # 将app_list 过滤出app_id的app，并缩减信息，使其符合文档的要求
     else:
-        ret['ResponseData']['app_id'] = app_id
         ret['Error'] = get_error_info(code, message, "")
 
 def install_app(app_name, customer_name, app_version):
