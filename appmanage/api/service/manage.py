@@ -28,6 +28,13 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
+def AppList():
+    myLogger.info_logger("Install app ...")
+    ret = {}
+    ret['ResponseData'] = {}
+    app_id = app_name + "_" + customer_name
+    ret['ResponseData']= get_my_app()
+    
 # 获取所有app的信息
 def get_my_app():
 
@@ -43,12 +50,19 @@ def get_my_app():
 
 # 获取具体某个app的信息
 def get_app_status(app_id):
+    
+    myLogger.info_logger("Install app ...")
+    ret = {}
+    ret['ResponseData'] = {}
+    
     code, message = docker.check_app_id(app_id)
+    
     if code == None:
         app_list = get_my_app()
         # 将app_list 过滤出app_id的app，并缩减信息，使其符合文档的要求
     else:
-        raise CommandException(code, message, "")
+        ret['ResponseData']['app_id'] = app_id
+        ret['Error'] = get_error_info(code, message, "")
 
 def install_app(app_name, customer_name, app_version):
     myLogger.info_logger("Install app ...")
