@@ -59,11 +59,15 @@ def if_app_running(app_name):
 
 def check_appid_exist(app_id):
     myLogger.info_logger("Checking check_appid_exist ...")
-    appList=shell_execute.get_my_app(app_id)        # ----------
-    if len(appList) == 0:
-        return False
+    appList = manage.get_my_app()
+    find = False
+    for app in appList:
+        if app_id == app.app_id:
+            find = True
+            break
     myLogger.info_logger("Check complete.")
-    return True
+    return find
+
 
 def check_appid_include_rq(app_id):
     message = ""
@@ -79,6 +83,7 @@ def check_appid_include_rq(app_id):
         message = "AppID is not exist"
     return code, message
 
+
 def check_app_id(app_id):
     message = ""
     code = None
@@ -92,6 +97,7 @@ def check_app_id(app_id):
     #     code = const.ERROR_CLIENT_PARAM_NOTEXIST
     #     message = "AppID is not exist"
     return code, message
+
 
 def check_app_id(app_id):
     message = ""

@@ -69,7 +69,7 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
         myLogger.info_logger("Receive request: /AppList")
         get_headers(request)
         ret = {}
-        ret['ResponseData'] = manage.AppList()
+        ret['ResponseData'] = manage.get_my_app
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
@@ -105,24 +105,58 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
 @router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
                   response_model=Response)
 def start_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /AppStart")
-    ret = manage.start_app(app_id)
+    try:
+        myLogger.info_logger("Receive request: /AppStart")
+        get_headers(request)
+        manage.start_app(app_id)
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
 
 @router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
                   response_model=Response)
 def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /AppStop")
-    ret = manage.stop_app(app_id)
+    try:
+        myLogger.info_logger("Receive request: /AppStop")
+        manage.stop_app(app_id)
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
 
 @router.api_route("/AppRestart", methods=["GET", "POST"], summary="重启APP", response_description=rd_two,
                   response_model=Response)
 def AppRestart(app_id: Optional[str] = Query(default=None, description="应用ID")):
-    myLogger.info_logger("Receive request: /AppRestart")
-    ret = manage.restart_app(app_id)
+    try:
+        myLogger.info_logger("Receive request: /AppRestart")
+        ret = manage.restart_app(app_id)
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
 
@@ -135,7 +169,9 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
     try:
         myLogger.info_logger("Receive request: /AppUninstall")
         get_headers(request)
-        ret = manage.uninstall_app(app_name, customer_name, app_version)
+        manage.uninstall_app(app_name, customer_name, app_version)
+        ret = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
     except CommandException as ce:
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name

@@ -4,7 +4,6 @@ class RunningInfo(BaseModel):
     port: int
     compose_file: str
     url: str
-    image_url: str
     admin_url: str
     user_name: str
     password: str

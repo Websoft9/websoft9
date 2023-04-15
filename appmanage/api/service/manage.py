@@ -28,16 +28,17 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn)
 
+
 def AppList():
     myLogger.info_logger("Install app ...")
     ret = {}
     ret['ResponseData'] = {}
     app_id = app_name + "_" + customer_name
-    ret['ResponseData']= get_my_app()
-    
-# 获取所有app的信息
-def get_my_app():
+    ret['ResponseData'] = get_my_app()
 
+
+# 获取所有app的信息
+def get_my_app(customer_app_name):
     # get all info
     cmd = "docker compose ls -a --format json"
     output = shell_execute.execute_command_output_all(cmd)
@@ -45,23 +46,37 @@ def get_my_app():
     installed_list, has_add = get_apps_from_compose(output_list)
     installing_list = get_apps_from_queue()
     app_list = installed_list + installing_list
-    
-    return app_list
+    find = False
+    if customer_app_name != None:
+        for app in app_list:
+            if customer_app_name == app.customer_name:
+                ret = app
+                find = True
+                break
+        if not find:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This App doesn't exist!", "")
+    else:
+        ret = app_list
+
+    return ret
+
 
 # 获取具体某个app的信息
 def get_app_status(app_id):
-    
-    myLogger.info_logger("Install app ...")
-    ret = {}
-    ret['ResponseData'] = {}
-    
     code, message = docker.check_app_id(app_id)
-    
+    customer_app_name = app_id.split('_')[1]
     if code == None:
-        app_list = get_my_app()
+        app = get_my_app(customer_app_name)
         # 将app_list 过滤出app_id的app，并缩减信息，使其符合文档的要求
+        ret = {}
+        ret['app_id'] = app.app_id
+        app['status'] = app.status
+        app['status_reason'] = app.status_reason
     else:
-        ret['Error'] = get_error_info(code, message, "")
+        raise CommandException(code, message, '')
+
+    return ret
+
 
 def install_app(app_name, customer_name, app_version):
     myLogger.info_logger("Install app ...")
@@ -78,10 +93,8 @@ def install_app(app_name, customer_name, app_version):
 
     return ret
 
+
 def start_app(app_id):
-    ret = {}
-    ret['ResponseData'] = {}
-    ret['ResponseData']['app_id'] = app_id
     code, message = docker.check_app_id(app_id)
     if code == None:
         app_name = split_app_id(app_id)
@@ -91,16 +104,12 @@ def start_app(app_id):
             cmd = "docker compose -f " + app_path + "/docker-compose.yml start"
             shell_execute.execute_command_output_all(cmd)
         else:
-            ret['Error'] = get_error_info(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
-        ret['Error'] = get_error_info(code, message, "")
+        raise CommandException(code, message, '')
 
-    return ret
 
 def stop_app(app_id):
-    ret = {}
-    ret['ResponseData'] = {}
-    ret['ResponseData']['app_id'] = app_id
     code, message = docker.check_app_id(app_id)
     if code == None:
         app_name = split_app_id(app_id)
@@ -110,17 +119,12 @@ def stop_app(app_id):
             cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
             shell_execute.execute_command_output_all(cmd)
         else:
-            ret['Error'] = get_error_info(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
-        ret['Error'] = get_error_info(code, message, "")
+        raise CommandException(code, message, "")
 
-    return ret
 
 def restart_app(app_id):
-    
-    ret = {}
-    ret['ResponseData'] = {}
-    ret['ResponseData']['app_id'] = app_id
     code, message = docker.check_app_id(app_id)
     if code == None:
         app_name = split_app_id(app_id)
@@ -130,20 +134,16 @@ def restart_app(app_id):
             cmd = "docker compose -f " + app_path + "/docker-compose.yml restart"
             shell_execute.execute_command_output_all(cmd)
         else:
-            ret['Error'] = get_error_info(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
-        ret['Error'] = get_error_info(code, message, "")
+        raise CommandException(code, message, "")
 
-    return ret
 
 def delete_app_failedjob(app_id):
     myLogger.info_logger("delete_app_failedjob")
 
-def uninstall_app(app_id):
-    ret = {}
-    ret['ResponseData'] = {}
-    ret['ResponseData']['app_id'] = app_id
 
+def uninstall_app(app_id):
     code, message = docker.check_appid_include_rq(app_id)
     if code == None:
         app_name = split_app_id(app_id)
@@ -158,8 +158,9 @@ def uninstall_app(app_id):
         else:
             delete_app_failedjob(app_id)
     else:
-        ret['Error'] = get_error_info(code, message, "")
+        raise CommandException(code, message, "")
     return ret
+
 
 def check_app(app_name, customer_name, app_version):
     message = ""
@@ -191,10 +192,12 @@ def check_app(app_name, customer_name, app_version):
         message = "Repeat installation: " + customer_name
     return code, message
 
+
 def prepare_app(app_name, customer_name):
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
+
 
 def install_app_delay(app_name, customer_name, app_version):
     job_id = app_name + "_" + customer_name
@@ -230,6 +233,7 @@ def install_app_delay(app_name, customer_name, app_version):
         uninstall_app(job_id)
         raise CommandException(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
 
+
 def app_exits_in_docker(app_id):
     customer_name = app_id.split('_')[1]
     app_name = app_id.split('_')[0]
@@ -250,8 +254,10 @@ def app_exits_in_docker(app_id):
     myLogger.info_logger("APP info: " + info)
     return info, flag
 
+
 def split_app_id(app_id):
     return app_id.split("_")[1]
+
 
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
@@ -322,12 +328,13 @@ def get_apps_from_compose(output_list):
 
         has_add.append(customer_name)
 
-        running_info = RunningInfo(port=port, compose_file=volume, url=url, image_url=image_url, admin_url=admin_url,
+        running_info = RunningInfo(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    user_name=user_name, password=password, default_domain="", set_domain="")
         status_reason = StatusReason(Code="", Message="", Detail="")
 
         app = App(app_id=app_id, name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
-                  official_app=official_app, running_info=running_info, status_reason=status_reason)
+                  status_reason=status_reason, official_app=official_app, image_url=image_url,
+                  running_info=running_info)
         app_list.append(app.dict())
     return app_list, has_add
 
@@ -414,12 +421,12 @@ def get_installing_app(id, status, code, message, detail):
     trade_mark = docker.read_var(var_path, 'trademark')
     app_name = docker.read_var(var_path, 'name')
     image_url = get_Image_url(app_name)
-    running_info = RunningInfo(port=0, compose_file="", url="", image_url=image_url, admin_url="",
+    running_info = RunningInfo(port=0, compose_file="", url="", admin_url="",
                                user_name="", password="", default_domain="", set_domain="")
     status_reason = StatusReason(Code=code, Message=message, Detail=detail)
-    app = App(app_id=app_name + "_" + customer_name, name=app_name, customer_name=customer_name,
-              trade_mark=trade_mark, status=status, official_app=True, running_info=running_info,
-              status_reason=status_reason)
+    app = App(app_id=app_name + "_" + customer_name, name=app_name, customer_name=customer_name, trade_mark=trade_mark,
+              status=status, status_reason=status_reason, official_app=True, image_url=image_url,
+              running_info=running_info)
     return app
 
 

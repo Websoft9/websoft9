@@ -8,6 +8,7 @@ class App(BaseModel):
     customer_name: str
     trade_mark: str
     status: str
-    official_app: bool
-    running_info: RunningInfo
     status_reason: StatusReason
+    official_app: bool
+    image_url: str
+    running_info: RunningInfo
