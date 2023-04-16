@@ -91,10 +91,9 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         get_headers(request)
         ret = manage.install_app(app_name, customer_name, app_version)
     except CommandException as ce:
-        myLogger.error_logger(ce.code)
-        myLogger.error_logger(ce.message)
-        myLogger.error_logger(ce.detail)
+
         manage.get_error_info(ce.code, ce.message, ce.detail)
+        myLogger.error_logger("hahahh")
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
