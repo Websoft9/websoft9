@@ -190,6 +190,7 @@ def check_app(app_name, customer_name, app_version):
     elif check_app_rq(app_id):
         code = const.ERROR_CLIENT_PARAM_REPEAT
         message = "Repeat installation: " + customer_name
+    myLogger.info_logger("code="+code)
     return code, message
 
 
