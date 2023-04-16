@@ -46,9 +46,10 @@ rd_two = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmess
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_detail,
                   response_model=Response)
-def AppStatus(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppStatus(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStatus")
+        get_headers(request)
         ret = {}
         ret['ResponseData'] = manage.get_app_status(app_id)
     except CommandException as ce:
@@ -109,7 +110,7 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
 
 @router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
                   response_model=Response)
-def start_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppStart(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStart")
         get_headers(request)    
@@ -132,9 +133,10 @@ def start_app(app_id: Optional[str] = Query(default=None, description="应用ID"
 
 @router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
                   response_model=Response)
-def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppStop(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStop")
+        get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
         manage.stop_app(app_id)
@@ -154,9 +156,10 @@ def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")
 
 @router.api_route("/AppRestart", methods=["GET", "POST"], summary="重启APP", response_description=rd_two,
                   response_model=Response)
-def AppRestart(app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppRestart(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppRestart")
+        get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
         manage.restart_app(app_id)
