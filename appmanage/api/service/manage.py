@@ -366,12 +366,15 @@ def check_app_rq(app_id):
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(failed_job_ids)
     if queue_job_ids and app_id  in queue_job_ids:
+        myLogger.info_logger("App in RQ")
         return True 
     if failed_job_ids and app_id in failed_job_ids:
+        myLogger.info_logger("App in RQ")
         return True  
     if run_job_ids and app_id in run_job_ids:
-        return True 
-
+        myLogger.info_logger("App in RQ")
+        return True
+    myLogger.info_logger("App not in RQ")
     return False
 
 def get_apps_from_queue():
