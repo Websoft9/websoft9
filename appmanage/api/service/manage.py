@@ -405,7 +405,7 @@ def get_apps_from_queue():
 
     installing_list = []
     for job_id in run_job_ids:
-        app = get_installing_app(job_id, 'installing', '""', "", "")
+        app = get_installing_app(job_id, 'installing', "", "", "")
         installing_list.append(app)
     for job in q.jobs:
         app = get_installing_app(job.id, 'installing', "", "", "")
@@ -420,9 +420,11 @@ def get_apps_from_queue():
 def get_installing_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
     customer_name = id.split('_')[1]
-    var_path = "/data/apps/" + customer_name + "/variables.json"
-    trade_mark = docker.read_var(var_path, 'trademark')
-    app_name = docker.read_var(var_path, 'name')
+    
+    if status == "installing":
+        var_path = "/data/apps/" + customer_name + "/variables.json"
+        trade_mark = docker.read_var(var_path, 'trademark')
+    
     image_url = get_Image_url(app_name)
     running_info = RunningInfo(port=0, compose_file="", url="", admin_url="",
                                user_name="", password="", default_domain="", set_domain="")
@@ -431,7 +433,6 @@ def get_installing_app(id, status, code, message, detail):
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
               running_info=running_info)
     return app
-
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"
