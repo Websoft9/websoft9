@@ -92,9 +92,8 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         ret = manage.install_app(app_name, customer_name, app_version)
     except CommandException as ce:
 
-        manage.get_error_info(ce.code, ce.message, ce.detail)
-        myLogger.error_logger("hahahh")
         ret = {}
+        ret['ResponseData'] = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
         myLogger.error_logger("Ready for return fail message")
