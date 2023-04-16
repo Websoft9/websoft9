@@ -152,12 +152,11 @@ def check_app_websoft9(app_name):
 
 
 def check_directory(path):
-    output = shell_execute.execute_command_output_all("ls " + path)
-    if int(output["code"]) == 0:
+    try:
+        shell_execute.execute_command_output_all("ls " + path)
         return True
-    else:
+    except CommandException as ce:
         return False
-
 
 def check_app_compose(path):
     myLogger.info_logger("Checking port...")
