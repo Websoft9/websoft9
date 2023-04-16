@@ -261,6 +261,7 @@ def split_app_id(app_id):
     return app_id.split("_")[1]
 
 def get_apps_from_compose(output_list):
+    myLogger.info_logger(len(output_list))
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
     app_list = []
