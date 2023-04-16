@@ -116,16 +116,16 @@ def start_app(app_id: Optional[str] = Query(default=None, description="应用ID"
         ret = {}
         ret['ResponseData'] = {}
         manage.start_app(app_id)
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
@@ -138,15 +138,16 @@ def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")
         ret = {}
         ret['ResponseData'] = {}
         manage.stop_app(app_id)
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
@@ -159,16 +160,16 @@ def AppRestart(app_id: Optional[str] = Query(default=None, description="应用ID
         ret = {}
         ret['ResponseData'] = {}
         manage.restart_app(app_id)
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
     return JSONResponse(content=ret)
 
@@ -185,16 +186,16 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
         ret = {}
         ret['ResponseData'] = {}
         manage.uninstall_app(app_name, customer_name, app_version)
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
 
     return JSONResponse(content=ret)
