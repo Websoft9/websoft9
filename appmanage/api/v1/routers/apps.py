@@ -100,7 +100,8 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
-
+    
+    myLogger.info_logger(ret)
     return JSONResponse(content=ret)
 
 
