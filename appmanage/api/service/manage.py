@@ -140,12 +140,10 @@ def delete_app_failedjob(app_id):
 
 
 def uninstall_app(app_id):
-    code, message = docker.check_appid_include_rq(app_id)
+    code, message = docker.check_app_id(app_id)
     if code == None:
         app_name = app_id.split('_')[0]
         info, code_exist = app_exits_in_docker(app_id)
-        myLogger.info_logger("code_exist")
-        myLogger.info_logger(code_exist)
         if code_exist:  
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
@@ -154,7 +152,11 @@ def uninstall_app(app_id):
                 cmd = cmd + " && sudo rm -rf " + app_path
             shell_execute.execute_command_output_all(cmd)
         else:
-            delete_app_failedjob(app_id)
+            if check_app_rq(app_id):
+                delete_app_failedjob(app_id)
+            else:
+               raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
+            
     else:
         raise CommandException(code, message, "")
 
