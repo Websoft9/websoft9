@@ -358,6 +358,8 @@ def check_app_rq(app_id):
     myLogger.info_logger(queue_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(failed_job_ids)
+    if queue_job_ids is not None:
+        myLogger.info_logger("kaonima")
     if queue_job_ids and app_id  in queue_job_ids:
         return True 
     if failed_job_ids and app_id in failed_job_ids:
