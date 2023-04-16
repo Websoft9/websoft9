@@ -6,7 +6,7 @@ import dotenv
 from pathlib import Path
 from api.utils.common_log import myLogger
 from api.utils import shell_execute, const
-
+from api.exception.command_exception import CommandException
 
 def pull_images(app_name):
     # 备用方法
