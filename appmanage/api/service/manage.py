@@ -202,7 +202,8 @@ def install_app_delay(app_name, customer_name, app_version):
 
         code, message = check_app(app_name, customer_name, app_version)
         if code == None:
-
+            
+            myLogger.info_logger("job check ok, continue to install app")
             prepare_app(app_name, customer_name)
 
             myLogger.info_logger("start JobID=" + job_id)
@@ -219,6 +220,7 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger(output["code"])
             myLogger.info_logger(output["result"])
         else:
+            myLogger.info_logger("job check failed, stop to install app")
             raise CommandException(code, message, "")
     except CommandException as ce:
         uninstall_app(job_id)
