@@ -19,7 +19,6 @@ def delete_images(app_id):
     # 卸载APP时同时删除dockercompose里面对应的镜像（根据docker-compose.yml 和 .env 获取）
     myLogger.info_logger("Delete images complete ...")
 
-
 def get_process_perc(app_name, real_name):
     process_now = "pulling"
 
@@ -75,7 +74,7 @@ def check_appid_include_rq(app_id):
     if app_id == None:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "AppID is null"
-    elif re.match('^[a-zA-Z0-9]+_[a-z0-9]+$', app_id):
+    elif re.match('^[a-z0-9]+_[a-z0-9]+$', app_id):
         code = const.ERROR_CLIENT_PARAM_Format
         message = "APP name can only be composed of numbers and lowercase letters"
     elif not docker.check_appid_exist(app_id):
