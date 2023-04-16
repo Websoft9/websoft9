@@ -10,7 +10,7 @@ COPY static ./static
 COPY requirements.txt main.py  ./
 RUN apt update
 
-# Install supervisord
+# Install supervisord 
 RUN apt install -y supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY config/cmd.sh /cmd.sh
