@@ -188,7 +188,7 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.uninstall_app(app_name, customer_name, app_version)
+        manage.uninstall_app(app_id)
         ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
