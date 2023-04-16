@@ -239,18 +239,22 @@ def app_exits_in_docker(app_id):
     flag = False
     info = ""
     cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
-    output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == 0:
-        info = output["result"]
-        app_path = info.split()[-1].rsplit('/', 1)[0]
-        is_official = check_if_official_app(app_path + '/variables.json')
-        if is_official:
-            name = docker.read_var(app_path + '/variables.json', 'name')
-            if name == app_name:
+    try:
+        output = shell_execute.execute_command_output_all(cmd)
+        if int(output["code"]) == 0:
+            info = output["result"]
+            app_path = info.split()[-1].rsplit('/', 1)[0]
+            is_official = check_if_official_app(app_path + '/variables.json')
+            if is_official:
+                name = docker.read_var(app_path + '/variables.json', 'name')
+                if name == app_name:
+                    flag = True
+            elif app_name == customer_name:
                 flag = True
-        elif app_name == customer_name:
-            flag = True
-    myLogger.info_logger("APP info: " + info)
+            myLogger.info_logger("APP in docker")
+    except CommandException as ce:
+        myLogger.info_logger("APP not in docker")
+
     return info, flag
 
 def split_app_id(app_id):
