@@ -44,6 +44,7 @@ def get_my_app(app_id):
     installing_list = get_apps_from_queue()
     app_list = installed_list + installing_list
     find = False
+    ret = {}
     if app_id != None:
         for app in app_list:
             if app_id == app.app_id:
