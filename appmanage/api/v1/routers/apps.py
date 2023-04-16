@@ -179,9 +179,7 @@ def AppRestart(request: Request,app_id: Optional[str] = Query(default=None, desc
 
 @router.api_route("/AppUninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
                   response_model=Response)
-def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"),
-                 delete_image: bool = Query(default=False, description="是否删除镜像"),
-                 delete_data: bool = Query(default=True, description='是否删除所有数据')):
+def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
 
     try:
         myLogger.info_logger("Receive request: /AppUninstall")
