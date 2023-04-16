@@ -7,6 +7,7 @@ from pathlib import Path
 from api.utils.common_log import myLogger
 from api.utils import shell_execute, const
 from api.exception.command_exception import CommandException
+from api.service import manage
 
 def pull_images(app_name):
     # 备用方法
