@@ -190,12 +190,10 @@ def check_app(app_name, customer_name, app_version):
     myLogger.info_logger("code="+code)
     return code, message
 
-
 def prepare_app(app_name, customer_name):
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
-
 
 def install_app_delay(app_name, customer_name, app_version):
     job_id = app_name + "_" + customer_name
@@ -252,10 +250,8 @@ def app_exits_in_docker(app_id):
     myLogger.info_logger("APP info: " + info)
     return info, flag
 
-
 def split_app_id(app_id):
     return app_id.split("_")[1]
-
 
 def get_apps_from_compose(output_list):
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
@@ -362,12 +358,12 @@ def check_app_rq(app_id):
     myLogger.info_logger(queue_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(failed_job_ids)
-    if app_id in queue_job_ids:
-        return True    
-    if app_id in run_job_ids:
-        return True
-    if app_id in failed_job_ids:
-        return True
+    if not any(queue_job_ids) or not any(app_id in i for i in queue_job_ids):
+        return True 
+    if not any(failed_job_ids) or not any(app_id in i for i in failed_job_ids):
+        return True  
+    if not any(run_job_ids) or not any(app_id in i for i in run_job_ids):
+        return True 
 
     return False
 
