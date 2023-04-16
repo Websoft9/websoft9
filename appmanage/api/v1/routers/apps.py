@@ -91,10 +91,12 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         get_headers(request)
         ret = manage.install_app(app_name, customer_name, app_version)
     except CommandException as ce:
+        myLogger.error_logger(ce.code)
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
+        myLogger.error_logger(str(e))
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
