@@ -43,18 +43,18 @@ def get_my_app(app_id):
     installed_list, has_add = get_apps_from_compose(output_list)
     installing_list = get_apps_from_queue()
     app_list = installed_list + installing_list
-    find = False
-    ret = {}
-    if app_id != None:
-        for app in app_list:
-            if app_id == app.app_id:
-                ret = app
-                find = True
-                break
-        if not find:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This App doesn't exist!", "")
-    else:
-        ret = app_list
+#     find = False
+#     ret = {}
+#     if app_id != None:
+#         for app in app_list:
+#             if app_id == app.app_id:
+#                 ret = app
+#                 find = True
+#                 break
+#         if not find:
+#             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This App doesn't exist!", "")
+#     else:
+#         ret = app_list
 
     return app_list
 
