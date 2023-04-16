@@ -1,5 +1,5 @@
 fastapi
-uvicorn[standard]
+uvicorn
 rq
 docker
 psutil
