@@ -359,6 +359,9 @@ def check_app_rq(app_id):
     run_job_ids = started.get_job_ids()
     failed_job_ids = failed.get_job_ids()
     queue_job_ids = q.job_ids
+    myLogger.info_logger(queue_job_ids)
+    myLogger.info_logger(run_job_ids)
+    myLogger.info_logger(failed_job_ids)
     if app_id in queue_job_ids:
         return True    
     if app_id in run_job_ids:
