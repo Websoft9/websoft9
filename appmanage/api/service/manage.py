@@ -358,11 +358,11 @@ def check_app_rq(app_id):
     myLogger.info_logger(queue_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(failed_job_ids)
-    if not any(queue_job_ids) or not any(app_id in i for i in queue_job_ids):
+    if any(queue_job_ids) and any(app_id in i for i in queue_job_ids):
         return True 
-    if not any(failed_job_ids) or not any(app_id in i for i in failed_job_ids):
+    if any(failed_job_ids) and  any(app_id in i for i in failed_job_ids):
         return True  
-    if not any(run_job_ids) or not any(app_id in i for i in run_job_ids):
+    if any(run_job_ids) and any(app_id in i for i in run_job_ids):
         return True 
 
     return False
