@@ -71,18 +71,18 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
         get_headers(request)
         app_list = manage.get_my_app(app_id)
         myLogger.info_logger(len(app_list))
-        ret = {}
-        ret['ResponseData'] =  {}
-        ret['ResponseData'] = app_list
+        response = JsonResponse({'ResponseData': app_list})
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
         ret['Error'] = manage.get_error_info(ce.code, ce.message, str(ce))
+        response = JSONResponse(content=ret)
     except Exception as e:
         ret = {}
         ret['ResponseData'] = None
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
-    return JSONResponse(content=ret)
+        response = JSONResponse(content=ret)
+    return response
 
 
 @router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
