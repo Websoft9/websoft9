@@ -4,3 +4,4 @@ rq
 docker
 psutil
 gunicorn
+python-dotenv
