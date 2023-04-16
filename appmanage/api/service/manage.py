@@ -25,8 +25,7 @@ from api.exception.command_exception import CommandException
 redis_conn = Redis(host='websoft9-redis', port=6379)
 
 # 使用指定的 Redis 连接创建 RQ 队列
-q = Queue(connection=redis_conn)
-
+q = Queue(connection=redis_conn,default_timeout=3600)
 
 def AppList():
     myLogger.info_logger("Install app ...")
@@ -85,12 +84,11 @@ def install_app(app_name, customer_name, app_version):
 
     code, message = check_app(app_name, customer_name, app_version)
     if code == None:
-        q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id, timeout=3600)
+        q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id)
     else:
         ret['Error'] = get_error_info(code, message, "")
 
     return ret
-
 
 def start_app(app_id):
     code, message = docker.check_app_id(app_id)
@@ -105,7 +103,6 @@ def start_app(app_id):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, '')
-
 
 def stop_app(app_id):
     code, message = docker.check_app_id(app_id)
