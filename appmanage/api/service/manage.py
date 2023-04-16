@@ -353,18 +353,17 @@ def check_if_official_app(var_path):
 def check_app_rq(app_id):
     
     myLogger.info_logger("check_app_rq")
-    myLogger.info_logger(q.job_ids)
-    for jobid in q.job_ids:
-        if app_id == jobid:
-            return True
+
     started = StartedJobRegistry(queue=q)
     failed = FailedJobRegistry(queue=q)
     run_job_ids = started.get_job_ids()
-    failed_jobs = failed.get_job_ids()
-
+    failed_job_ids = failed.get_job_ids()
+    queue_job_ids = q.job_ids
+    if app_id in queue_job_ids:
+        return True    
     if app_id in run_job_ids:
         return True
-    if app_id in failed_jobs:
+    if app_id in failed_job_ids:
         return True
 
     return False
