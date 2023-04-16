@@ -40,21 +40,35 @@ def if_app_access(app_name):
 
 
 def if_app_exits(app_name):
-    cmd = "docker compose ls -a | grep \'" + app_name + "\\b\'"
+    cmd = "docker compose ls -a"
     output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == -1:
-        return False
+    if int(output["code"]) == 0:
+        pattern = app_name + '$'
+        info_list = output['result'].split()
+        is_exist = False
+        for info in info_list:
+            if re.match(pattern, info) != None:
+                is_exist = True
+                break
+        return is_exist
     else:
         return True
 
 
 def if_app_running(app_name):
-    cmd = "docker compose ls -a |grep running | grep \'" + app_name + "\\b\'"
+    cmd = "docker compose ls -a"
     output = shell_execute.execute_command_output_all(cmd)
-    if int(output["code"]) == -1:
-        return False
+    if int(output["code"]) == 0:
+        app_list = output['result'].split("\n")
+        pattern = app_name + '\s*'
+        if_running = False
+        for app in app_list:
+            if re.match(pattern, app) != None and re.match('running', app) != None:
+                if_running = True
+                break
+        return if_running
     else:
-        return True
+        return False
 
 
 def check_appid_exist(app_id):
@@ -169,14 +183,15 @@ def check_app_url(customer_app_name):
 
 def read_env(path, key):
     myLogger.info_logger("Read " + path)
-    output = shell_execute.execute_command_output_all("cat " + path + "|grep " + key)
+    output = shell_execute.execute_command_output_all("cat " + path)
     code = output["code"]
     env_dic = {}
-    if int(code) == 0 and output["result"] != "":
+    if int(code) == 0:
         ret = output["result"]
-        env_list = ret.split()
+        env_list = ret.split("\n")
         for env in env_list:
-            env_dic[env.split("=")[0]] = env.split("=")[1]
+            if re.match(key, env) != None:
+                env_dic[env.split("=")[0]] = env.split("=")[1]
     myLogger.info_logger("Read " + path + ": " + str(env_dic))
     return env_dic
 
