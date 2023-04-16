@@ -420,7 +420,7 @@ def get_apps_from_queue():
 def get_installing_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
     customer_name = id.split('_')[1]
-    
+    trade_mark = "" 
     if status == "installing":
         var_path = "/data/apps/" + customer_name + "/variables.json"
         trade_mark = docker.read_var(var_path, 'trademark')
