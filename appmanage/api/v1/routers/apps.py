@@ -71,7 +71,7 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
         get_headers(request)
         app_list = manage.get_my_app(app_id)
         myLogger.info_logger(len(app_list))
-        response = JsonResponse({'ResponseData': app_list})
+        response = JSONResponse({'ResponseData': app_list})
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
