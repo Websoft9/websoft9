@@ -351,10 +351,11 @@ def check_if_official_app(var_path):
         return False
 
 def check_app_rq(app_id):
+    
     myLogger.info_logger("check_app_rq")
-
-    for job in q.jobs:
-        if app_id == job.id:
+    myLogger.info_logger(q.job_ids)
+    for jobid in q.job_ids:
+        if app_id == jobid:
             return True
     started = StartedJobRegistry(queue=q)
     failed = FailedJobRegistry(queue=q)
