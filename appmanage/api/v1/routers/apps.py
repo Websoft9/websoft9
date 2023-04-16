@@ -112,9 +112,10 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
 def start_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStart")
-        get_headers(request)
-        manage.start_app(app_id)
+        get_headers(request)    
         ret = {}
+        ret['ResponseData'] = {}
+        manage.start_app(app_id)
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
     except CommandException as ce:
         ret = {}
@@ -132,8 +133,9 @@ def start_app(app_id: Optional[str] = Query(default=None, description="应用ID"
 def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStop")
-        manage.stop_app(app_id)
         ret = {}
+        ret['ResponseData'] = {}
+        manage.stop_app(app_id)
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
     except CommandException as ce:
         ret = {}
@@ -151,8 +153,9 @@ def stop_app(app_id: Optional[str] = Query(default=None, description="应用ID")
 def AppRestart(app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppRestart")
-        ret = manage.restart_app(app_id)
         ret = {}
+        ret['ResponseData'] = {}
+        manage.restart_app(app_id)
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
     except CommandException as ce:
         ret = {}
@@ -174,8 +177,9 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
     try:
         myLogger.info_logger("Receive request: /AppUninstall")
         get_headers(request)
-        manage.uninstall_app(app_name, customer_name, app_version)
         ret = {}
+        ret['ResponseData'] = {}
+        manage.uninstall_app(app_name, customer_name, app_version)
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
     except CommandException as ce:
         ret = {}
