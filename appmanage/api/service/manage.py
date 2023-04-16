@@ -56,7 +56,7 @@ def get_my_app(app_id):
     else:
         ret = app_list
 
-    return ret
+    return app_list
 
 # 获取具体某个app的信息
 def get_app_status(app_id):
