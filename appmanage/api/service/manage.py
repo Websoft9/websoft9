@@ -105,6 +105,7 @@ def start_app(app_id):
 
 def stop_app(app_id):
     code, message = docker.check_app_id(app_id)
+    myLogger.info_logger(message)
     if code == None:
         app_name = split_app_id(app_id)
         info, flag = app_exits_in_docker(app_id)
@@ -115,6 +116,7 @@ def stop_app(app_id):
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
+        myLogger.info_logger("check app failed")
         raise CommandException(code, message, "")
 
 
