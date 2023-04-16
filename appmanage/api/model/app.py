@@ -1,6 +1,6 @@
 from pydantic import BaseModel
-from running_info import RunningInfo
-from status_reason import StatusReason
+from api.model.running_info import RunningInfo
+from api.model.status_reason import StatusReason
 
 class App(BaseModel):
     app_id: str
