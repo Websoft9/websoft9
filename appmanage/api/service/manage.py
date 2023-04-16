@@ -18,8 +18,7 @@ from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
-    ScheduledJobRegistry, CanceledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
 
 # 指定 Redis 容器的主机名和端口
@@ -35,7 +34,6 @@ def AppList():
     ret['ResponseData'] = {}
     app_id = app_name + "_" + customer_name
     ret['ResponseData'] = get_my_app()
-
 
 # 获取所有app的信息
 def get_my_app(customer_app_name):
@@ -160,7 +158,6 @@ def uninstall_app(app_id):
     else:
         raise CommandException(code, message, "")
     return ret
-
 
 def check_app(app_name, customer_name, app_version):
     message = ""
@@ -339,7 +336,6 @@ def get_apps_from_compose(output_list):
         app_list.append(app.dict())
     return app_list, has_add
 
-
 def check_if_official_app(var_path):
     if docker.check_directory(var_path):
         if docker.read_var(var_path, 'name') != "" and docker.read_var(var_path, 'trademark') != "" and docker.read_var(
@@ -353,7 +349,6 @@ def check_if_official_app(var_path):
                 return False
     else:
         return False
-
 
 def check_app_rq(app_id):
     myLogger.info_logger("check_app_rq")
@@ -372,7 +367,6 @@ def check_app_rq(app_id):
         return True
 
     return False
-
 
 def get_apps_from_queue():
     myLogger.info_logger("get queque apps...")
@@ -413,7 +407,6 @@ def get_apps_from_queue():
         installing_list.append(app)
 
     return installing_list
-
 
 def get_installing_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
