@@ -95,6 +95,7 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        myLogger.error_logger("Ready for return fail message")
     except Exception as e:
         myLogger.error_logger(str(e))
         ret = {}
