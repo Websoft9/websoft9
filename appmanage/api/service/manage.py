@@ -187,7 +187,7 @@ def check_app(app_name, customer_name, app_version):
     elif check_app_rq(app_id):
         code = const.ERROR_CLIENT_PARAM_REPEAT
         message = "Repeat installation: " + customer_name
-    myLogger.info_logger("code="+code)
+
     return code, message
 
 def prepare_app(app_name, customer_name):
@@ -358,8 +358,6 @@ def check_app_rq(app_id):
     myLogger.info_logger(queue_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(failed_job_ids)
-    if queue_job_ids is not None:
-        myLogger.info_logger("kaonima")
     if queue_job_ids and app_id  in queue_job_ids:
         return True 
     if failed_job_ids and app_id in failed_job_ids:
