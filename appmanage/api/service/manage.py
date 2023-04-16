@@ -142,9 +142,11 @@ def delete_app_failedjob(app_id):
 def uninstall_app(app_id):
     code, message = docker.check_appid_include_rq(app_id)
     if code == None:
-        app_name = split_app_id(app_id)
+        app_name = app_id.split('_')[0]
         info, code_exist = app_exits_in_docker(app_id)
-        if code_exist:
+        myLogger.info_logger("code_exist")
+        myLogger.info_logger(code_exist)
+        if code_exist:  
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
             lib_path = '/data/library/apps/' + app_name
@@ -155,7 +157,6 @@ def uninstall_app(app_id):
             delete_app_failedjob(app_id)
     else:
         raise CommandException(code, message, "")
-    return ret
 
 def check_app(app_name, customer_name, app_version):
     message = ""
