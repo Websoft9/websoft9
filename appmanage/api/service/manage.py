@@ -429,7 +429,7 @@ def get_installing_app(id, status, code, message, detail):
     running_info = RunningInfo(port=0, compose_file="", url="", admin_url="",
                                user_name="", password="", default_domain="", set_domain="")
     status_reason = StatusReason(Code=code, Message=message, Detail=detail)
-    app = App(app_id=app_name + "_" + customer_name, name=app_name, customer_name=customer_name, trade_mark=trade_mark,
+    app = App(app_id=id, name=app_name, customer_name=customer_name, trade_mark=trade_mark,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
               running_info=running_info)
     return app
