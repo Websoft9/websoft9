@@ -70,7 +70,6 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
         myLogger.info_logger("Receive request: /AppList")
         get_headers(request)
         ret = {}
-        ret['ResponseData'] = {}
         ret['ResponseData'] = manage.get_my_app(app_id)
     except CommandException as ce:
         ret = {}
