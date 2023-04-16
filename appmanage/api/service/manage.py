@@ -55,7 +55,7 @@ def get_my_app(app_id):
 #             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This App doesn't exist!", "")
 #     else:
 #         ret = app_list
-
+    myLogger.info_logger("app list result ok")
     return app_list
 
 # 获取具体某个app的信息
