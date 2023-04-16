@@ -35,8 +35,8 @@ def AppList():
     ret['ResponseData'] = get_my_app()
 
 # 获取所有app的信息
-def get_my_app(customer_app_name):
-    # get all info
+def get_my_app(app_id):
+    myLogger.info_logger("Search all of apps ...")
     cmd = "docker compose ls -a --format json"
     output = shell_execute.execute_command_output_all(cmd)
     output_list = json.loads(output["result"])
@@ -44,9 +44,9 @@ def get_my_app(customer_app_name):
     installing_list = get_apps_from_queue()
     app_list = installed_list + installing_list
     find = False
-    if customer_app_name != None:
+    if app_id != None:
         for app in app_list:
-            if customer_app_name == app.customer_name:
+            if app_id == app.app_id:
                 ret = app
                 find = True
                 break
@@ -56,7 +56,6 @@ def get_my_app(customer_app_name):
         ret = app_list
 
     return ret
-
 
 # 获取具体某个app的信息
 def get_app_status(app_id):
