@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  redis:
+  appredis:
     image: redis:${APP_VERSION}
     container_name: ${APP_NAME}
     restart: unless-stopped
