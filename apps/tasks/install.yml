@@ -8,12 +8,12 @@
       shell: rm -rf {{installpath}}/{{app}} {{installpath}}/library
       
     - name: Clone docker-library in Websoft9
-      git:
-        repo: "https://ghproxy.com/https://github.com/Websoft9/docker-library.git"
-        dest: "{{installpath}}/library"
-        
-    - name: Clone app from libray
-      shell: cp -r  "{{installpath}}/library/apps/{{app}}"  "{{installpath}}" 
+      shell: |
+        wget -N https://websoft9.github.io/StackHub/scripts/githubclone.sh
+        bash githubclone.sh websoft9 docker-library
+        mv docker-library library
+        cp -r  library  "{{installpath}}"
+        cp -r  "{{installpath}}/library/apps/{{app}}"  "{{installpath}}" 
       
     - name: Check port file exists
       stat:
