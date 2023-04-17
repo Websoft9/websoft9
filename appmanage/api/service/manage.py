@@ -335,7 +335,7 @@ def get_apps_from_compose(output_list):
                                    user_name=user_name, password=password, default_domain="", set_domain="")
         status_reason = StatusReason(Code="", Message="", Detail="")
 
-        app = App(app_id=app_id, name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
+        app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
                   status_reason=status_reason, official_app=official_app, image_url=image_url,
                   running_info=running_info)
         app_list.append(app.dict())
