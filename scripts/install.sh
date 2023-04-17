@@ -67,7 +67,7 @@ echo $repo_name
 echo $repo_init
 
 cd /tmp 
-rm -rf stackhub
+rm -rf StackHub
 wget -N https://websoft9.github.io/StackHub/scripts/githubclone.sh && bash githubclone.sh websoft9 StackHub
 cd StackHub/apps
 sudo echo "localhost" > hosts
