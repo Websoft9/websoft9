@@ -24,7 +24,7 @@ for mirror in "${MIRRORS[@]}"; do
     # 尝试克隆仓库
     for i in {1..3}; do
         echo "Trying to clone from $mirror_url (attempt $i)"
-        if git clone "$mirror_url"; then
+        if git clone --depth=1 "$mirror_url"; then
             echo "Successfully cloned from $mirror_url"
             exit 0
         fi
