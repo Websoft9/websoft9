@@ -342,8 +342,9 @@ def check_if_official_app(var_path):
             try:
                 cpu = requirements['cpu']
                 mem = requirements['memory']
+                disk = requirements['disk']
                 return True
-            except:
+            except KeyError:
                 return False
     else:
         return False
