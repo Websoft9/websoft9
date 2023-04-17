@@ -55,7 +55,7 @@ def AppStatus(request: Request,app_id: Optional[str] = Query(default=None, descr
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
-        ret['Error'] = manage.get_error_info(ce.code, ce.message, str(ce))
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
         ret['ResponseData'] = None
