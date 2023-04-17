@@ -14,37 +14,42 @@ from api.exception.command_exception import CommandException
 
 router = APIRouter()
 
-rd1 = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmessage：请求操作结果描述\n\ndata：返回请求结果内容\n\n" \
-      "[\n\n" \
-      "&emsp;&emsp;app_id：应用ID,\n\n" \
-      "&emsp;&emsp;name：应用名,\n\n" \
-      "&emsp;&emsp;customer_name：自定义应用名,\n\n" \
-      "&emsp;&emsp;trade_mark：应用商标,\n\n" \
-      "&emsp;&emsp;status_code：应用运行状态码,\n\n"
+rd_s = "ResponseData: 各个接口的业务数据\n\n{\n\n"
+rd_m = "&emsp;&emsp;app_id：应用ID\n\n}\n\n"
+rd_e = "Error：错误code和错误信息\n\n{\n\n" \
+       "&emsp;&emsp;Code：错误码,\n\n" \
+       "&emsp;&emsp;Message：错误信息,\n\n" \
+       "&emsp;&emsp;Detail：错误详情\n\n}"
 
-status = '&emsp;&emsp;status：应用运行状态,\n\n'
-status_detail = "&emsp;&emsp;status：应用运行状态,（running:正常运行，stop：停止，error：错误）\n\n"
-status_list = "&emsp;&emsp;status：应用运行状态,（waiting：等待安装，installing：安装中，running:正常运行，stop：停止，error：错误）\n\n"
+rd_status = "&emsp;&emsp;app_id：应用ID\n\n" \
+            "&emsp;&emsp;status：应用运行状态,[installing(创建中)，running(运行中)，exited(停止)，restarting(反复重启)，failed(失败)]\n\n" \
+         "&emsp;&emsp;StatusReason：{\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Code：错误代码,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Message：错误提示信息,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n}\n\n"
+info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;name：应用名,\n\n" \
+         "&emsp;&emsp;customer_name：自定义应用名,\n\n&emsp;&emsp;trade_mark：应用商标,\n\n" \
+         "&emsp;&emsp;status：应用运行状态,[installing(创建中)，running(运行中)，exited(停止)，restarting(反复重启)，failed(失败)]\n\n" \
+         "&emsp;&emsp;StatusReason：{\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Code：错误代码,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Message：错误提示信息,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n}\n\n" \
+         "&emsp;&emsp;official_app：是否为官方应用,\n\n" \
+         "&emsp;&emsp;image_url：图片路径,\n\n" \
+         "&emsp;&emsp;running_info：{\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;port：应用端口,\n\n&emsp;&emsp;&emsp;&emsp;compose_file：docker compose 文件路径,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;url：应用网址,\n\n&emsp;&emsp;&emsp;&emsp;admin_url：管理员网址,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;user_name：用户名,\n\n&emsp;&emsp;&emsp;&emsp;password：密码,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名,\n\n&emsp;&emsp;&emsp;&emsp;set_domain：用户自定义域名\n\n&emsp;&emsp;}\n\n"
 
-rd2 = "&emsp;&emsp;port：应用端口,\n\n" \
-      "&emsp;&emsp;volume：yml文件路径,\n\n" \
-      "&emsp;&emsp;url：应用网址,\n\n" \
-      "&emsp;&emsp;image_url：图片路径,\n\n" \
-      "&emsp;&emsp;admin_url：管理员网址,\n\n" \
-      "&emsp;&emsp;user_name：用户名,\n\n" \
-      "&emsp;&emsp;password：密码,\n\n" \
-      "&emsp;&emsp;official_app：是否为官方应用\n\n" \
-      "]"
-rd = rd1 + status + rd2
-rd_detail = rd1 + status_detail + rd2
-rd_list = rd1 + status_list + rd2
-rd_process = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmessage：请求操作结果描述\n\nstatus：应用运行状态," \
-             "（pulling：拉取镜像，creating：容器启动，inting：容器初始化，running:正常运行）"
-rd_two = "code：请求操作内部响应码（0：成功 -1：失败）\n\nmessage：请求操作结果描述\n\ndata：None"
+rd = rd_s + rd_m + rd_e
+rd_info = rd_s + info + rd_e
+rd_status = rd_s + rd_status + rd_e
+
 
 
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
-                  response_description=rd_detail,
+                  response_description=rd_status,
                   response_model=Response)
 def AppStatus(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
@@ -63,7 +68,7 @@ def AppStatus(request: Request,app_id: Optional[str] = Query(default=None, descr
     return JSONResponse(ret)
 
 
-@router.api_route("/AppList", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_list,
+@router.api_route("/AppList", methods=["GET", "POST"], summary="获取所有APP的信息", response_description=rd_info,
                   response_model=Response)
 def AppList(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
@@ -85,15 +90,15 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
     return response
 
 
-@router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd_two,
+@router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd,
                   response_model=Response)
-def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名"),
-               customer_name: Optional[str] = Query(default=None, description="应用自定义名字"),
+def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名称"),
+               customer_app_name: Optional[str] = Query(default=None, description="用户自定义应用名称"),
                app_version: Optional[str] = Query(default=None, description="应用版本")):
     try:
         myLogger.info_logger("Receive request: /AppInstall")
         get_headers(request)
-        ret = manage.install_app(app_name, customer_name, app_version)
+        ret = manage.install_app(app_name, customer_app_name, app_version)
     except CommandException as ce:
 
         ret = {}
@@ -106,17 +111,17 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         ret = {}
         ret['ResponseData']['AppID'] = app_name + "_" + customer_name
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
-    
+
     myLogger.info_logger(ret)
     return JSONResponse(content=ret)
 
 
-@router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd_two,
+@router.api_route("/AppStart", methods=["GET", "POST"], summary="启动APP", response_description=rd,
                   response_model=Response)
 def AppStart(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStart")
-        get_headers(request)    
+        get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
         manage.start_app(app_id)
@@ -134,7 +139,7 @@ def AppStart(request: Request,app_id: Optional[str] = Query(default=None, descri
     return JSONResponse(content=ret)
 
 
-@router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd_two,
+@router.api_route("/AppStop", methods=["GET", "POST"], summary="停止APP", response_description=rd,
                   response_model=Response)
 def AppStop(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
@@ -157,7 +162,7 @@ def AppStop(request: Request,app_id: Optional[str] = Query(default=None, descrip
     return JSONResponse(content=ret)
 
 
-@router.api_route("/AppRestart", methods=["GET", "POST"], summary="重启APP", response_description=rd_two,
+@router.api_route("/AppRestart", methods=["GET", "POST"], summary="重启APP", response_description=rd,
                   response_model=Response)
 def AppRestart(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
@@ -180,7 +185,7 @@ def AppRestart(request: Request,app_id: Optional[str] = Query(default=None, desc
     return JSONResponse(content=ret)
 
 
-@router.api_route("/AppUninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd_two,
+@router.api_route("/AppUninstall", methods=["GET", "POST"], summary="卸载APP", response_description=rd,
                   response_model=Response)
 def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
 
