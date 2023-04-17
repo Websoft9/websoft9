@@ -27,13 +27,6 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn,default_timeout=3600)
 
-def AppList():
-    myLogger.info_logger("Install app ...")
-    ret = {}
-    ret['ResponseData'] = {}
-    app_id = app_name + "_" + customer_name
-    ret['ResponseData'] = get_my_app()
-
 # 获取所有app的信息
 def get_my_app(app_id):
     installed_list = get_apps_from_compose()
@@ -278,7 +271,7 @@ def get_apps_from_compose():
         password = ""
         official_app = False
 
-        if customer_name in ['appmanage', 'nginxproxymanager','redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
+        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         # get code
         status = app_info["Status"].split("(")[0]
