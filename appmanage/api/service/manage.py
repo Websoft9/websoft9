@@ -212,16 +212,18 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger(output["result"])
         else:
             myLogger.info_logger("job check failed, stop to install app")
-            raise CommandException(code, message, "")
+            error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
+            raise Exception(error_info)
     except CommandException as ce:
         uninstall_app(job_id)
-        raise CommandException(ce.code, ce.message, ce.detail)
+        error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
+        raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + "install failed!")
         myLogger.error_logger(e)
         uninstall_app(job_id)
-        raise CommandException(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
-
+        error_info = json.dumps({'code': const.ERROR_SERVER_SYSTEM, 'message': 'system original error', 'detail': str(e)})
+        raise Exception(error_info)
 
 def app_exits_in_docker(app_id):
     customer_name = app_id.split('_')[1]
