@@ -323,8 +323,11 @@ def get_apps_from_compose():
 
         running_info = RunningInfo(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    user_name=user_name, password=password, default_domain="", set_domain="")
-        status_reason = StatusReason(Code="", Message="", Detail="")
-
+        if status == "failed":
+            status_reason = StatusReason(Code=const.ERROR_SERVER_SYSTEM, Message="system original error", Detail="unknown error")
+        else:
+            status_reason = StatusReason(Code="", Message="", Detail="") 
+        
         app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
                   status_reason=status_reason, official_app=official_app, image_url=image_url,
                   running_info=running_info)
