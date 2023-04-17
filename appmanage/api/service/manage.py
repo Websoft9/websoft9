@@ -208,19 +208,19 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger(output["code"])
             myLogger.info_logger(output["result"])
         else:
-            error_info= const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" 
+            error_info= "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" 
             myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
         myLogger.info_logger(customer_name + "install failed!")
         uninstall_app(job_id)
-        error_info= ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.message 
+        error_info= "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.message 
         myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + "install failed!")
         uninstall_app(job_id)
-        error_info= const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e) 
+        error_info= "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e) 
         myLogger.info_logger(error_info)
         raise Exception(error_info)
 
