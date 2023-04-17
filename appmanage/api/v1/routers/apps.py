@@ -75,7 +75,7 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = None
-        ret['Error'] = manage.get_error_info(ce.code, ce.message, str(ce))
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
         response = JSONResponse(content=ret)
     except Exception as e:
         ret = {}
