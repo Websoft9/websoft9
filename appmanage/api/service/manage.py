@@ -172,6 +172,9 @@ def check_app(app_name, customer_name, app_version):
     elif not docker.check_vm_resource(app_name):
         code = const.ERROR_SERVER_RESOURCE
         message = "Insufficient system resources (cpu, memory, disk space)"
+    elif check_app_docker(app_id):
+       code = const.ERROR_CLIENT_PARAM_REPEAT
+       message = "Repeat installation: " + customer_name
     elif check_app_rq(app_id):
         code = const.ERROR_CLIENT_PARAM_REPEAT
         message = "Repeat installation: " + customer_name
@@ -341,6 +344,21 @@ def check_if_official_app(var_path):
                 return False
     else:
         return False
+
+def check_app_docker(app_id):
+    
+    customer_name = app_id.split('_')[1]
+    app_name = app_id.split('_')[0]
+    flag = False
+    cmd = "docker compose ls -a | grep \'/" + customer_name + "/\'"
+    try:
+        shell_execute.execute_command_output_all(cmd)
+        flag = True
+        myLogger.info_logger("APP in docker")
+    except CommandException as ce:
+        myLogger.info_logger("APP not in docker")
+
+    return flag
 
 def check_app_rq(app_id):
     
