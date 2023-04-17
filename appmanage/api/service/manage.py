@@ -187,24 +187,21 @@ def prepare_app(app_name, customer_name):
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
 
 def install_app_delay(app_name, customer_name, app_version):
+    myLogger.info_logger("-------RQ install start --------")
     job_id = app_name + "_" + customer_name
 
     try:
 
-        code, message = check_app(app_name, customer_name, app_version)
-        if code == None:
+        resource_flag = docker.check_vm_resource(customer_name)
+        if resource_flag == True:
             
             myLogger.info_logger("job check ok, continue to install app")
             prepare_app(app_name, customer_name)
-
             myLogger.info_logger("start JobID=" + job_id)
-            # modify env
             env_path = "/data/apps/" + customer_name + "/.env"
             docker.modify_env(env_path, 'APP_NAME', customer_name)
             docker.modify_env(env_path, "APP_VERSION", app_version)
-            # check port
             docker.check_app_compose(env_path)
-
             cmd = "cd /data/apps/" + customer_name + " && sudo docker compose pull && sudo docker compose up -d"
             output = shell_execute.execute_command_output_all(cmd)
             myLogger.info_logger("-------Install result--------")
@@ -213,6 +210,7 @@ def install_app_delay(app_name, customer_name, app_version):
         else:
             myLogger.info_logger("job check failed, stop to install app")
             error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
+            myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
         myLogger.info_logger(customer_name + "install failed!")
