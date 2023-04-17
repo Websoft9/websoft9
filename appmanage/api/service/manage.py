@@ -36,39 +36,34 @@ def AppList():
 
 # 获取所有app的信息
 def get_my_app(app_id):
-    myLogger.info_logger("Search all of apps ...")
-    cmd = "docker compose ls -a --format json"
-    output = shell_execute.execute_command_output_all(cmd)
-    output_list = json.loads(output["result"])
-    installed_list, has_add = get_apps_from_compose(output_list)
+    installed_list = get_apps_from_compose()
     installing_list = get_apps_from_queue()
     app_list = installed_list + installing_list
-#     find = False
-#     ret = {}
-#     if app_id != None:
-#         for app in app_list:
-#             if app_id == app.app_id:
-#                 ret = app
-#                 find = True
-#                 break
-#         if not find:
-#             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This App doesn't exist!", "")
-#     else:
-#         ret = app_list
+    find = False
+    ret = {}
+    if app_id != None:
+        for app in app_list:
+            if app_id == app['app_id']:
+                ret = app
+                find = True
+                break
+        if not find:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This App doesn't exist!", "")
+    else:
+        ret = app_list
     myLogger.info_logger("app list result ok")
-    return app_list
+    return ret
 
 # 获取具体某个app的信息
 def get_app_status(app_id):
     code, message = docker.check_app_id(app_id)
-    customer_app_name = app_id.split('_')[1]
     if code == None:
-        app = get_my_app(customer_app_name)
+        app = get_my_app(app_id)
         # 将app_list 过滤出app_id的app，并缩减信息，使其符合文档的要求
         ret = {}
-        ret['app_id'] = app.app_id
-        app['status'] = app.status
-        app['status_reason'] = app.status_reason
+        ret['app_id'] = app['app_id']
+        ret['status'] = app['status']
+        ret['status_reason'] = app['status_reason']
     else:
         raise CommandException(code, message, '')
 
@@ -262,12 +257,15 @@ def app_exits_in_docker(app_id):
 def split_app_id(app_id):
     return app_id.split("_")[1]
 
-def get_apps_from_compose(output_list):
+def get_apps_from_compose():
+    myLogger.info_logger("Search all of apps ...")
+    cmd = "docker compose ls -a --format json"
+    output = shell_execute.execute_command_output_all(cmd)
+    output_list = json.loads(output["result"])
     myLogger.info_logger(len(output_list))
     ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
     ip = ip_result["result"]
     app_list = []
-    has_add = []
     for app_info in output_list:
         volume = app_info["ConfigFiles"]  # volume
         app_path = volume.rsplit('/', 1)[0]
@@ -329,8 +327,6 @@ def get_apps_from_compose(output_list):
             except IndexError:
                 pass
 
-        has_add.append(customer_name)
-
         running_info = RunningInfo(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    user_name=user_name, password=password, default_domain="", set_domain="")
         status_reason = StatusReason(Code="", Message="", Detail="")
@@ -339,7 +335,7 @@ def get_apps_from_compose(output_list):
                   status_reason=status_reason, official_app=official_app, image_url=image_url,
                   running_info=running_info)
         app_list.append(app.dict())
-    return app_list, has_add
+    return app_list
 
 def check_if_official_app(var_path):
     if docker.check_directory(var_path):
@@ -432,7 +428,7 @@ def get_rq_app(id, status, code, message, detail):
     app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
               running_info=running_info)
-    return app
+    return app.dict()
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"
