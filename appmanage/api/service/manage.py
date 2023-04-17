@@ -150,7 +150,7 @@ def uninstall_app(app_id):
 def check_app(app_name, customer_name, app_version):
     message = ""
     code = None
-    app_id = app_name + "-" + customer_name
+    app_id = app_name + "_" + customer_name
     if app_name == None:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "app_name is null"
