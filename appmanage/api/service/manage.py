@@ -136,9 +136,10 @@ def restart_app(app_id):
         raise CommandException(code, message, "")
 
 
-def delete_app_failedjob(app_id):
+def delete_app_failedjob(job_id):
     myLogger.info_logger("delete_app_failedjob")
-
+    fail_job = q.fetch_job(job_id)
+    fail_job.delete()
 
 def uninstall_app(app_id):
     code, message = docker.check_app_id(app_id)
