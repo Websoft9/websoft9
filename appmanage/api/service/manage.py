@@ -208,21 +208,19 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger(output["code"])
             myLogger.info_logger(output["result"])
         else:
-            myLogger.info_logger("job check failed, stop to install app")
-            error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
+            error_info= const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" 
             myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
         myLogger.info_logger(customer_name + "install failed!")
         uninstall_app(job_id)
-        error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
+        error_info= ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.message 
         myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + "install failed!")
-        myLogger.error_logger(e)
         uninstall_app(job_id)
-        error_info = json.dumps({'code': const.ERROR_SERVER_SYSTEM, 'message': 'system original error', 'detail': str(e)})
+        error_info= const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e) 
         myLogger.info_logger(error_info)
         raise Exception(error_info)
 
