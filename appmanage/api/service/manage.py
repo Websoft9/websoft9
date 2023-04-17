@@ -215,14 +215,17 @@ def install_app_delay(app_name, customer_name, app_version):
             error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
             raise Exception(error_info)
     except CommandException as ce:
+        myLogger.info_logger(customer_name + "install failed!")
         uninstall_app(job_id)
         error_info = json.dumps({'code': code, 'message': message, 'detail': ''})
+        myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + "install failed!")
         myLogger.error_logger(e)
         uninstall_app(job_id)
         error_info = json.dumps({'code': const.ERROR_SERVER_SYSTEM, 'message': 'system original error', 'detail': str(e)})
+        myLogger.info_logger(error_info)
         raise Exception(error_info)
 
 def app_exits_in_docker(app_id):
