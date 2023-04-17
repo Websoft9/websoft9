@@ -88,7 +88,6 @@ def install_app(app_name, customer_name, app_version):
 def start_app(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
-        app_name = split_app_id(app_id)
         info, flag = app_exits_in_docker(app_id)
         if flag:
             app_path = info.split()[-1].rsplit('/', 1)[0]
@@ -103,7 +102,6 @@ def stop_app(app_id):
     code, message = docker.check_app_id(app_id)
     myLogger.info_logger(message)
     if code == None:
-        app_name = split_app_id(app_id)
         info, flag = app_exits_in_docker(app_id)
         if flag:
             app_path = info.split()[-1].rsplit('/', 1)[0]
@@ -119,7 +117,6 @@ def stop_app(app_id):
 def restart_app(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
-        app_name = split_app_id(app_id)
         info, flag = app_exits_in_docker(app_id)
         if flag:
             app_path = info.split()[-1].rsplit('/', 1)[0]
@@ -235,7 +232,7 @@ def app_exits_in_docker(app_id):
     app_name = app_id.split('_')[0]
     flag = False
     info = ""
-    cmd = "docker compose ls -a | grep \'/" + app_name + "/\'"
+    cmd = "docker compose ls -a | grep \'/" + customer_name + "/\'"
     try:
         output = shell_execute.execute_command_output_all(cmd)
         if int(output["code"]) == 0:
