@@ -423,8 +423,11 @@ def get_apps_from_queue():
         installing_list.append(app)
     for job_id in failed_jobs:
         job = q.fetch_job(job_id)
-        detail = job.exc_info
-        app = get_rq_app(job_id, 'failed', "", "", detail)
+        exc_info = job.exc_info
+        code = exc_info.split('##websoft9##')[1]
+        message = exc_info.split('##websoft9##')[2]
+        detail = exc_info.split('##websoft9##')[3]
+        app = get_rq_app(job_id, 'failed', code, message, detail)
         installing_list.append(app)
 
     return installing_list
