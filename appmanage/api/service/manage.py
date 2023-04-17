@@ -138,8 +138,8 @@ def restart_app(app_id):
 
 def delete_app_failedjob(job_id):
     myLogger.info_logger("delete_app_failedjob")
-    fail_job = q.fetch_job(job_id)
-    fail_job.delete()
+    failed = FailedJobRegistry(queue=q)
+    failed.remove(job_id, delete_job=True)
 
 def uninstall_app(app_id):
     code, message = docker.check_app_id(app_id)
@@ -407,25 +407,23 @@ def get_apps_from_queue():
 
     installing_list = []
     for job_id in run_job_ids:
-        app = get_installing_app(job_id, 'installing', "", "", "")
+        app = get_rq_app(job_id, 'installing', "", "", "")
         installing_list.append(app)
     for job in q.jobs:
-        app = get_installing_app(job.id, 'installing', "", "", "")
+        app = get_rq_app(job.id, 'installing', "", "", "")
         installing_list.append(app)
     for job_id in failed_jobs:
         job = q.fetch_job(job_id)
-        app = get_installing_app(job_id, 'failed', "", "", "")
+        app = get_rq_app(job_id, 'failed', "", "", "")
         installing_list.append(app)
 
     return installing_list
 
-def get_installing_app(id, status, code, message, detail):
+def get_rq_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
     customer_name = id.split('_')[1]
+    # 当app还在RQ时，可能文件夹还没创建，无法获取trade_mark
     trade_mark = "" 
-    if status == "installing":
-        var_path = "/data/apps/" + customer_name + "/variables.json"
-        trade_mark = docker.read_var(var_path, 'trademark')
     
     image_url = get_Image_url(app_name)
     running_info = RunningInfo(port=0, compose_file="", url="", admin_url="",
