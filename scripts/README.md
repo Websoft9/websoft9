@@ -15,7 +15,7 @@ install.sh 安装 Stackhub 的自动化脚本，支持两个参数：
 # 该场景下，脚本会删除服务器上的密钥对或运行云平台的某些恢复服务器出厂设置命令。
 
 # 安装应用
-wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh; bash install.sh -r magento -i 1
+wget -N https://websoft9.github.io/StackHub/scripts/install.sh; bash install.sh -r magento -i 1
 
 # 中断后命令
 cd /tmp/stackhub/apps && ansible-playbook -i hosts application.yml -c local -e init=1 -e appname=magento
@@ -26,7 +26,7 @@ cd /tmp/stackhub/apps && ansible-playbook -i hosts application.yml -c local -e i
 # 此场景下，安装完成后，系统会强制重启
 
 # 安装应用
-wget -N https://raw.githubusercontent.com/Websoft9/StackHub/main/scripts/install.sh; bash install.sh -r magento -i 0
+wget -N https://websoft9.github.io/StackHub/scripts/install.sh; bash install.sh -r magento -i 0
 
 # 中断后命令
 cd /tmp/stackhub/apps && ansible-playbook -i hosts application.yml -c local -e init=0 -e appname=magento
