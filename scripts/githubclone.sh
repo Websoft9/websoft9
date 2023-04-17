@@ -12,9 +12,9 @@ REPO_URL="https://github.com/$USERNAME/$REPO.git"
 
 # 加速地址列表
 MIRRORS=(
-    "https://github.com"
     "https://ghproxy.com/https://github.com"
     "https://github.com.cnpmjs.org"
+    "https://github.com"
     "https://hub.fastgit.org"
     "https://gitclone.com"
     "https://gh.api.99988866.xyz"
