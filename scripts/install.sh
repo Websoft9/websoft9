@@ -68,7 +68,7 @@ echo $repo_init
 
 cd /tmp 
 rm -rf stackhub
-sudo git clone --depth=1 https://github.com/Websoft9/stackhub.git
+sudo git clone --depth=1 https://ghproxy.com/https://github.com/Websoft9/stackhub.git
 cd stackhub/apps
 sudo echo "localhost" > hosts
 ansible-playbook -i hosts application.yml -c local -e init=$repo_init -e appname=$repo_name
