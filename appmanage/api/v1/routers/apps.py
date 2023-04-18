@@ -33,7 +33,7 @@ info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;name：应用名,\n\n" \
          "&emsp;&emsp;StatusReason：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Code：错误代码,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Message：错误提示信息,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n}\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n" \
          "&emsp;&emsp;official_app：是否为官方应用,\n\n" \
          "&emsp;&emsp;image_url：图片路径,\n\n" \
          "&emsp;&emsp;running_info：{\n\n" \
