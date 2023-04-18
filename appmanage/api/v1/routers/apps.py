@@ -130,6 +130,8 @@ def AppStart(request: Request,app_id: Optional[str] = Query(default=None, descri
         ret = {}
         ret['ResponseData'] = {}
         ret['ResponseData']['AppID'] = app_id
+        myLogger.info_logger("AppStart commond error")
+        myLogger.info_logger(ce.detail)
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
         ret = {}
