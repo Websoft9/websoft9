@@ -18,13 +18,12 @@ def execute_command_output_all(cmd_str):
     process = subprocess.run(f'nsenter -m -u -i -n -p -t 1 sh -c "{cmd_str}"', capture_output=True, check=False, text=True, shell=True)
         
     if process.returncode == 0 and 'Fail' not in process.stdout and 'fail' not in process.stdout and 'Error' not in process.stdout and 'error' not in process.stdout:
-       myLogger.info_logger("success to execute cmd ")
+
        return {"code": "0", "result": process.stdout,}
     else:
        myLogger.info_logger("failed to execute cmd, output failed result")
        myLogger.info_logger(process)
-       myLogger.info_logger(process.stdout)
-       raise CommandException(const.ERROR_SERVER_COMMAND,"Docker returns the original error",process.stdout)
+       raise CommandException(const.ERROR_SERVER_COMMAND,"Docker returns the original error",process.stderr)
 
 def convert_command(cmd_str):
     convert_cmd = ""
