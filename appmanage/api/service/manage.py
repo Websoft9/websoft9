@@ -212,13 +212,13 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
-        myLogger.info_logger(customer_name + "install failed!")
+        myLogger.info_logger(customer_name + " install failed(docker)!")
         uninstall_app(job_id)
-        error_info= "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.message 
+        error_info= "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.detail 
         myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
-        myLogger.info_logger(customer_name + "install failed!")
+        myLogger.info_logger(customer_name + " install failed(system)!")
         uninstall_app(job_id)
         error_info= "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e) 
         myLogger.info_logger(error_info)
