@@ -9,30 +9,6 @@ from api.utils import shell_execute, const
 from api.exception.command_exception import CommandException
 from api.service import manage
 
-def pull_images(app_name):
-    # 备用方法
-    # 为了防止安装前，用户服务器已经有了镜像。导致安装时镜像不重新拉取，镜像是老的（根据docker-compose.yml 和 .env 获取）
-    myLogger.info_logger("Pull images complete ...")
-
-
-def delete_images(app_id):
-    # 备用方法
-    # 卸载APP时同时删除dockercompose里面对应的镜像（根据docker-compose.yml 和 .env 获取）
-    myLogger.info_logger("Delete images complete ...")
-
-def get_process_perc(app_name, real_name):
-    process_now = "pulling"
-
-    if if_app_exits(app_name):
-        process_now = "creating"
-
-    if if_app_running(app_name):
-        process_now = "initing"
-        if if_app_access(app_name):
-            process_now = "running"
-
-    return process_now
-
 
 # 已经是running的app怎么知道它已经能够访问，如页面能进入，如mysql能被客户端连接
 def if_app_access(app_name):
