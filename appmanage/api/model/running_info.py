@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-class RunningInfo(BaseModel):
+class Config(BaseModel):
     port: int
     compose_file: str
     url: str
