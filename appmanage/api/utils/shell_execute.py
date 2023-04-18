@@ -21,7 +21,9 @@ def execute_command_output_all(cmd_str):
        myLogger.info_logger("success to execute cmd ")
        return {"code": "0", "result": process.stdout,}
     else:
-       myLogger.info_logger("failed to execute cmd ")
+       myLogger.info_logger("failed to execute cmd, output failed result")
+       myLogger.info_logger(process)
+       myLogger.info_logger(process.stdout)
        raise CommandException(const.ERROR_SERVER_COMMAND,"Docker returns the original error",process.stdout)
 
 def convert_command(cmd_str):
