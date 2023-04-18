@@ -191,8 +191,9 @@ def install_app_delay(app_name, customer_name, app_version):
     job_id = app_name + "_" + customer_name
 
     try:
-
-        resource_flag = docker.check_vm_resource(customer_name)
+        # 因为这个时候还没有复制文件夹，是从/data/library里面文件读取json来检查的，应该是app_name,而不是customer_name
+        resource_flag = docker.check_vm_resource(app_name)
+        
         if resource_flag == True:
             
             myLogger.info_logger("job check ok, continue to install app")
