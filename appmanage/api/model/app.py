@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from api.model.running_info import RunningInfo
+from api.model.config import Config
 from api.model.status_reason import StatusReason
 
 class App(BaseModel):
@@ -8,7 +8,7 @@ class App(BaseModel):
     customer_name: str
     trade_mark: str
     status: str
-    status_reason: StatusReason
+    status_reason: StatusReason = None
     official_app: bool
     image_url: str
-    running_info: RunningInfo
+    config: Config = None

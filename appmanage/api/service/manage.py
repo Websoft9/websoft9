@@ -13,7 +13,7 @@ from threading import Thread
 from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.model.response import Response
-from api.model.running_info import RunningInfo
+from api.model.config import Config
 from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
@@ -321,16 +321,19 @@ def get_apps_from_compose():
             except IndexError:
                 pass
 
-        running_info = RunningInfo(port=port, compose_file=volume, url=url, admin_url=admin_url,
+        if status in ['running', 'exited']:
+            config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    user_name=user_name, password=password, default_domain="", set_domain="")
+        else:
+            config = None
         if status == "failed":
             status_reason = StatusReason(Code=const.ERROR_SERVER_SYSTEM, Message="system original error", Detail="unknown error")
         else:
-            status_reason = StatusReason(Code="", Message="", Detail="") 
+            status_reason = None
         
         app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
                   status_reason=status_reason, official_app=official_app, image_url=image_url,
-                  running_info=running_info)
+                  config=config)
         app_list.append(app.dict())
     return app_list
 
@@ -439,12 +442,11 @@ def get_rq_app(id, status, code, message, detail):
     trade_mark = "" 
     
     image_url = get_Image_url(app_name)
-    running_info = RunningInfo(port=0, compose_file="", url="", admin_url="",
-                               user_name="", password="", default_domain="", set_domain="")
+    config = None
     status_reason = StatusReason(Code=code, Message=message, Detail=detail)
     app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
-              running_info=running_info)
+              config=config)
     return app.dict()
 
 def get_Image_url(app_name):
