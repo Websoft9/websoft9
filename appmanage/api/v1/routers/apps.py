@@ -36,11 +36,11 @@ info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;name：应用名,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n" \
          "&emsp;&emsp;official_app：是否为官方应用,\n\n" \
          "&emsp;&emsp;image_url：图片路径,\n\n" \
-         "&emsp;&emsp;running_info：{\n\n" \
+         "&emsp;&emsp;config：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;port：应用端口,\n\n&emsp;&emsp;&emsp;&emsp;compose_file：docker compose 文件路径,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;url：应用网址,\n\n&emsp;&emsp;&emsp;&emsp;admin_url：管理员网址,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;user_name：用户名,\n\n&emsp;&emsp;&emsp;&emsp;password：密码,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名,\n\n&emsp;&emsp;&emsp;&emsp;set_domain：用户自定义域名\n\n&emsp;&emsp;}\n\n"
+         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名,\n\n&emsp;&emsp;&emsp;&emsp;set_domain：用户自定义域名\n\n&emsp;&emsp;}\n\n}\n\n"
 
 rd = rd_s + rd_m + rd_e
 rd_info = rd_s + info + rd_e
