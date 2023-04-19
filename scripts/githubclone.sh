@@ -14,12 +14,6 @@ REPO_URL="https://github.com/$USERNAME/$REPO.git"
 MIRRORS=(
     "https://github.com"
     "https://ghproxy.com/https://github.com"
-    "https://github.com.cnpmjs.org"
-    "https://hub.fastgit.org"
-    "https://gitclone.com"
-    "https://gh.api.99988866.xyz"
-    "https://github.zhlh6.cn"
-    "https://toolwa.com/github"
 )
 
 for mirror in "${MIRRORS[@]}"; do
