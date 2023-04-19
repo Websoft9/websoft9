@@ -444,7 +444,11 @@ def get_rq_app(id, status, code, message, detail):
     
     image_url = get_Image_url(app_name)
     config = None
-    status_reason = StatusReason(Code=code, Message=message, Detail=detail)
+    if status == installing :
+        status_reason = None
+    else:
+        status_reason = StatusReason(Code=code, Message=message, Detail=detail)
+    
     app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
               config=config)
