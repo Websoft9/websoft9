@@ -100,16 +100,16 @@ def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, d
         get_headers(request)
         ret = manage.install_app(app_name, customer_app_name, app_version)
     except CommandException as ce:
-
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
         myLogger.error_logger("Ready for return fail message")
     except Exception as e:
         myLogger.error_logger(str(e))
         ret = {}
-        ret['ResponseData']['AppID'] = app_name + "_" + customer_name
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_name + "_" + customer_app_name
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
 
     myLogger.info_logger(ret)

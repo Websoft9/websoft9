@@ -1,4 +1,4 @@
-import os, io, sys, platform, shutil, time, json, datetime
+import os, io, sys, platform, shutil, time, json, datetime, psutil
 import re, docker, requests
 from api.utils import shell_execute
 from dotenv import load_dotenv, find_dotenv
@@ -97,13 +97,12 @@ def check_vm_resource(app_name):
         myLogger.info_logger("Check complete: The number of CPU cores is insufficient!")
         return False
     need_mem_total = int(requirements_var['memory'])
-    mem_free = float(shell_execute.execute_command_output_all("free -m | awk '/Mem/{printf \"%.2f\n\", ($2-$3)/1024}'")["result"])
+    mem_free = float(psutil.virtual_memory().available) / 1024 / 1024 / 1024
     if mem_free < need_mem_total * 1.2:
         myLogger.info_logger("Check complete: The total amount of memory is insufficient!")
         return False
     need_disk = int(requirements_var['disk'])
-    disk_free = float(
-        shell_execute.execute_command_output_all("df -h | awk '/\/$/{print $4}' | sed 's/G//'")["result"]) / 1024
+    disk_free = float(psutil.disk_usage('/').free) / 1024 / 1024 / 1024
     if round(disk_free) < need_disk + 2:
         myLogger.info_logger("Check complete: There are not enough disks left!")
         return False
