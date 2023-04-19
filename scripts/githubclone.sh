@@ -12,9 +12,9 @@ REPO_URL="https://github.com/$USERNAME/$REPO.git"
 
 # 加速地址列表
 MIRRORS=(
+    "https://github.com"
     "https://ghproxy.com/https://github.com"
     "https://github.com.cnpmjs.org"
-    "https://github.com"
     "https://hub.fastgit.org"
     "https://gitclone.com"
     "https://gh.api.99988866.xyz"
@@ -28,7 +28,7 @@ for mirror in "${MIRRORS[@]}"; do
     # 尝试克隆仓库
     for i in {1..3}; do
         echo "Trying to clone from $mirror_url (attempt $i)"
-        if git clone "$mirror_url"; then
+        if git clone  --depth=1 "$mirror_url"; then
             echo "Successfully cloned from $mirror_url"
             exit 0
         else
