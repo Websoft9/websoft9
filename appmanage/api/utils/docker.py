@@ -131,13 +131,28 @@ def check_directory(path):
     except CommandException as ce:
         return False
 
-def check_app_compose(path):
+def check_app_compose(app_name, customer_name):
     myLogger.info_logger("Checking port...")
-    port_dic = read_env(path, "APP_.*_PORT")
+    library_path = "/data/library/apps/" + app_name
+    install_path = "/data/apps/" + customer_name
+    port_dic = read_env(library_path + '/.env', "APP_.*_PORT")
     # 1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（get_start_port方法）
+    cmd1 = "docker container inspect $(docker ps -aq) | grep HostPort | awk \'{print $2}\' | sort -u"
+    cmd2 = "netstat -tunlp | grep \"LISTEN\" | awk '{print $4}' | awk -F \":\" '{print $NF}' | sort -u"
+    cmd3 = "grep -r \"APP_.*_PORT=\" /data/apps/*/.env | awk -F \"=\" '{print $2}' | sort -u"
+    s1 = shell_execute.execute_command_output_all(cmd1)['result'].replace('\"', '')
+    s2 = shell_execute.execute_command_output_all(cmd2)['result']
+    try:
+        s3 = ''
+        s3 = shell_execute.execute_command_output_all(cmd3)['result']
+    except:
+        pass
+    s = s1 + '\n' + s2 + '\n' + s3
+
+    shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
     for port_name in port_dic:
-        port_value = get_start_port(port_dic[port_name])
-        modify_env(path, port_name, port_value)
+        port_value = get_start_port(s, port_dic[port_name])
+        modify_env(install_path + '/.env', port_name, port_value)
     myLogger.info_logger("Port check complete")
     return
 
@@ -198,12 +213,10 @@ def read_var(var_path, var_name):
     return value
 
 
-def get_start_port(port):
+def get_start_port(s, port):
     use_port = port
     while True:
-        cmd = "netstat -ntlp | grep -v only"
-        output = shell_execute.execute_command_output_all(cmd)
-        if output["result"].find(use_port) == -1:
+        if s.find(use_port) == -1:
             break
         else:
             use_port = str(int(use_port) + 1)

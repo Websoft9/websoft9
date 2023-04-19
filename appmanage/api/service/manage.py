@@ -197,12 +197,12 @@ def install_app_delay(app_name, customer_name, app_version):
         if resource_flag == True:
             
             myLogger.info_logger("job check ok, continue to install app")
-            prepare_app(app_name, customer_name)
-            myLogger.info_logger("start JobID=" + job_id)
             env_path = "/data/apps/" + customer_name + "/.env"
+            # prepare_app(app_name, customer_name)
+            docker.check_app_compose(app_name, customer_name)
+            myLogger.info_logger("start JobID=" + job_id)
             docker.modify_env(env_path, 'APP_NAME', customer_name)
             docker.modify_env(env_path, "APP_VERSION", app_version)
-            docker.check_app_compose(env_path)
             cmd = "cd /data/apps/" + customer_name + " && sudo docker compose pull && sudo docker compose up -d"
             output = shell_execute.execute_command_output_all(cmd)
             myLogger.info_logger("-------Install result--------")
