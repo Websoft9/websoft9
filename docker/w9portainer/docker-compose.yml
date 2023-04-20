@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  portainer:
+    image: portainer/portainer-ce:${APP_VERSION}
+    container_name: ${APP_NAME}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - ${APP_HTTP_PORT}:9000
+    volumes:
+      - portainer:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  default:
+    name: ${APP_NETWORK}
+    external: true
+
+volumes:
+  portainer:
