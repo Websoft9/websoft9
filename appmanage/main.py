@@ -11,7 +11,7 @@ from fastapi.openapi.docs import (
 )
 
 myLogger.info_logger("Start server...")
-app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url="/")
 
 def get_app():   
     origins = [
