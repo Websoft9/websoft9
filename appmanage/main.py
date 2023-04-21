@@ -27,7 +27,7 @@ def get_app():
         allow_headers=["*"],
     )
     app.mount("/static", StaticFiles(directory="static"), name="static")
-    app.include_router(api_router_v1.get_api(), prefix="/AppManage")
+    app.include_router(api_router_v1.get_api())
     return app
 
 @app.get("/docs", include_in_schema=False)
