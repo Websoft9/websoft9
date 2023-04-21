@@ -10,8 +10,8 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 
-myLogger.info_logger("Starting server")
-app = FastAPI()
+myLogger.info_logger("Start appmanage server...")
+app = FastAPI(docs_url=None, redoc_url=None)
 
 def get_app():   
     origins = [
