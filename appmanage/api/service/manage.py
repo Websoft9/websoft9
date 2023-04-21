@@ -276,7 +276,7 @@ def get_apps_from_compose():
         password = ""
         official_app = False
 
-        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
+        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         # get code
         status = app_info["Status"].split("(")[0]
