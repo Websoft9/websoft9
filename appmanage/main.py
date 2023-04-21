@@ -10,8 +10,8 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 
-myLogger.info_logger("Start appmanage server...")
-app = FastAPI(docs_url=None, redoc_url=None)
+myLogger.info_logger("Starting server")
+app = FastAPI(docs_url="/docs", redoc_url="/redoc",openapi_url="/openapi.json")
 
 def get_app():   
     origins = [
@@ -30,7 +30,7 @@ def get_app():
     app.include_router(api_router_v1.get_api())
     return app
 
-@app.get("/docs", include_in_schema=False)
+@app.get("/docs", include_in_schema=True)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
         openapi_url=app.openapi_url,
@@ -40,11 +40,11 @@ async def custom_swagger_ui_html():
         swagger_css_url="/static/swagger-ui/swagger-ui.css",
     )
 
-@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
+@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=True)
 async def swagger_ui_redirect():
     return get_swagger_ui_oauth2_redirect_html()
 
-@app.get("/redoc", include_in_schema=False)
+@app.get("/redoc", include_in_schema=True)
 async def redoc_html():
     return get_redoc_html(
         openapi_url=app.openapi_url,
