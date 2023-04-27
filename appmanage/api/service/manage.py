@@ -258,8 +258,13 @@ def get_apps_from_compose():
     output = shell_execute.execute_command_output_all(cmd)
     output_list = json.loads(output["result"])
     myLogger.info_logger(len(output_list))
-    ip_result = shell_execute.execute_command_output_all("curl ifconfig.me")
-    ip = ip_result["result"]
+    ip = "localhost"
+    try:
+        ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+        ip = ip_result["result"]
+    except Exception:
+        ip = "127.0.0.1"
+
     app_list = []
     for app_info in output_list:
         volume = app_info["ConfigFiles"]  # volume
