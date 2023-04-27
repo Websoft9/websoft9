@@ -261,7 +261,7 @@ def get_apps_from_compose():
     ip = "localhost"
     try:
         ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
-        ip = ip_result["result"]
+        ip = ip_result["result"].rstrip('\n')
     except Exception:
         ip = "127.0.0.1"
 
