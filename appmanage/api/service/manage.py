@@ -31,7 +31,7 @@ q = Queue(connection=redis_conn,default_timeout=3600)
 def get_my_app(app_id):
     installed_list = get_apps_from_compose()
     installing_list = get_apps_from_queue()
-    app_list = list(set(installing_list + installed_list), key=lambda x: x["app_id"])
+    app_list = sorted(list(set(installing_list + installed_list)), key=lambda x: x["app_id"])
     find = False
     ret = {}
     if app_id != None:
