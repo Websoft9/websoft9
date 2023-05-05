@@ -35,7 +35,7 @@ def check_list_status(applist):
         if status == "created":
             installing = True
             break
-     return installing
+    return installing
 
 # 获取所有app的信息
 def get_my_app(app_id):
