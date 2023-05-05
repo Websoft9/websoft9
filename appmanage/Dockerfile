@@ -4,7 +4,7 @@ LABEL maintainer="Websoft9<help@websoft9.com>"
 # Create API directory
 WORKDIR /usr/src/app
 
-# Copy source and install pip dependencies
+# Copy source and Install pip dependencies
 COPY api ./api
 COPY static ./static
 COPY requirements.txt main.py  ./
