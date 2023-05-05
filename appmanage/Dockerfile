@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 LABEL maintainer="Websoft9<help@websoft9.com>"
 
-# Create api directory
+# Create API directory
 WORKDIR /usr/src/app
 
 # Copy source and install pip dependencies
