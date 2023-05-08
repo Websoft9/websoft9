@@ -16,7 +16,7 @@
 - name: Check system architecture
   shell: uname -m
   register: system_architecture
-
+  
 - name: Print system architecture
   debug:
     var: system_architecture.stdout
