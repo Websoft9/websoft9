@@ -7,11 +7,6 @@
     snap install --classic certbot
     ln -sf /snap/bin/certbot /usr/bin/certbot
   when: nginx_certbot
-  
-- name: Configure Nginx
-  copy:
-    src: nginx.conf
-    dest: /etc/nginx/
 
 - name: Create a Nginx Log symbolic link
   file:
