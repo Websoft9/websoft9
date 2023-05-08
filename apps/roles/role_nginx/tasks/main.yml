@@ -20,7 +20,7 @@
 - name: Print system architecture
   debug:
     var: system_architecture.stdout
-	
+
 - name: Change user on ubuntu arm 
   lineinfile:
       dest: /etc/nginx/nginx.conf
