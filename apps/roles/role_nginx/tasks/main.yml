@@ -24,7 +24,7 @@
 - name: Change user on ubuntu arm 
   lineinfile:
       path: /etc/nginx/nginx.conf
-      regexp: "user nginx;"
+      regexp: "user  nginx;"
       line: "user www-data;"
   when: system_architecture.stdout == "aarch64" and ansible_os_family == "Debian"
   
