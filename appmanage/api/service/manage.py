@@ -341,7 +341,10 @@ def get_apps_from_compose():
                 password = list(docker.read_env(path, "POWER_PASSWORD").values())[0]
             except IndexError:
                 pass
-
+        else:
+            app_name = customer_name
+            app_id = customer_name + "_" + customer_name
+            
         if status in ['running', 'exited']:
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    user_name=user_name, password=password, default_domain="", set_domain="")
