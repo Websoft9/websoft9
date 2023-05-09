@@ -145,6 +145,8 @@ def uninstall_app(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
         app_name = app_id.split('_')[0]
+        customer_name = app_id.split('_')[1]
+        app_path = ""
         info, code_exist = app_exits_in_docker(app_id)
         if code_exist:  
             app_path = info.split()[-1].rsplit('/', 1)[0]
@@ -158,7 +160,12 @@ def uninstall_app(app_id):
                 delete_app_failedjob(app_id)
             else:
                raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
-            
+        # Force to delete 
+        try:
+           cmd = " sudo rm -rf " + app_path
+           shell_execute.execute_command_output_all(cmd)
+        except CommandException as ce:
+           myLogger.info_logger("Delete app compose exception")
     else:
         raise CommandException(code, message, "")
 
