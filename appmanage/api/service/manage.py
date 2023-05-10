@@ -517,3 +517,67 @@ def get_error_info(code, message, detail):
     error['Message'] = message
     error['Detail'] = detail
     return error
+
+def app_domain_list(app_id):
+
+    code, message = docker.check_app_id(app_id)
+    if code == None:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
+            domains = List[str]
+            return domains
+        else:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+    else:
+        raise CommandException(code, message, "")
+
+
+def app_domain_delete(app_id):
+
+
+def app_domain_update(app_id, domains):
+
+    check_domains(domains)
+    
+    code, message = docker.check_app_id(app_id)
+    if code == None:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
+            return domains
+        else:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+    else:
+        raise CommandException(code, message, "")
+
+def app_domain_add(app_id, domains):
+
+    check_domains(domains)
+
+    code, message = docker.check_app_id(app_id)
+    if code == None:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
+            return domains
+        else:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+    else:
+        raise CommandException(code, message, "")
+
+def check_domains(domains):
+    if domains is None or len(domains) == 0:
+        raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
+    else:
+        for domain in domains:
+            if is_valid_domain(domain):
+            else:
+                raise CommandException(const.ERROR_CLIENT_PARAM_Format, "Domains format error", "")
+
+
+def is_valid_domain(domain):
+    pattern = r"^[a-zA-Z0-9][a-zA-Z0-9\-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$"
+    return bool(re.match(pattern, domain))
+
+def check_real_domain(domain):
+    domain_real = True
+
+    return domain_real

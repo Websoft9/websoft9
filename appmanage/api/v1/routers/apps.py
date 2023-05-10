@@ -280,7 +280,7 @@ def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None
 
     return JSONResponse(content=ret)
 
-@router.api_route("/AppDomainList", methods=["GET", "POST"], summary="绑定域名",  response_model=Response)
+@router.api_route("/AppDomainList", methods=["GET", "POST"], summary="查询App对应域名",  response_model=Response)
 def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
 
     try:
