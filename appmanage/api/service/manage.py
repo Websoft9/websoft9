@@ -533,12 +533,21 @@ def app_domain_list(app_id):
 
 
 def app_domain_delete(app_id):
-
+    code, message = docker.check_app_id(app_id)
+    if code == None:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
+            domains = List[str]
+            return domains
+        else:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+    else:
+        raise CommandException(code, message, "")
 
 def app_domain_update(app_id, domains):
 
     check_domains(domains)
-    
+
     code, message = docker.check_app_id(app_id)
     if code == None:
         info, flag = app_exits_in_docker(app_id)
@@ -569,6 +578,8 @@ def check_domains(domains):
     else:
         for domain in domains:
             if is_valid_domain(domain):
+               if  check_real_domain(domain) == False:
+                   raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain and server not match", "")
             else:
                 raise CommandException(const.ERROR_CLIENT_PARAM_Format, "Domains format error", "")
 
@@ -579,5 +590,18 @@ def is_valid_domain(domain):
 
 def check_real_domain(domain):
     domain_real = True
+    try:
+        cmd = "ping -c 1 " + domain + "  | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | uniq"
+        domain_ip = shell_execute.execute_command_output_all(cmd)["result"]
 
+        ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+        ip_save = ip_result["result"].rstrip('\n')
+
+        if domain_ip == ip_save:
+            myLogger.info_logger("Domain check ok!")
+        else:
+            domain_real = False
+    except CommandException as ce:
+        domain_real = False
+    
     return domain_real
