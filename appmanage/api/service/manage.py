@@ -585,7 +585,7 @@ def app_domain_update(app_id, domains):
             'Content-Type': 'application/json'
         }
         port = ""
-        host = ""
+        host = app_id.split('_')[1]
         data = {
             "domain_names": domains,
             "forward_scheme": "http",
@@ -609,10 +609,10 @@ def app_domain_update(app_id, domains):
         }
 
         requests.put(url, data=json.dumps(data), headers=headers)
+        set_domain(domain[0],app_id)
         return domains
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
-    
 
 def app_domain_add(app_id, domains):
 
@@ -627,6 +627,40 @@ def app_domain_add(app_id, domains):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
+    
+    token = get_token()
+    url = "http://127.0.0.1:9092/api/nginx/proxy-hosts"
+    headers = {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+    }
+    port = ""
+    host = app_id.split('_')[1]
+    data = {
+        "domain_names": domains,
+        "forward_scheme": "http",
+        "forward_host": host,
+        "forward_port": port,
+        "access_list_id": "0",
+        "certificate_id": 0,
+        "meta": {
+            "letsencrypt_agree": False,
+            "dns_challenge": False
+        },
+        "advanced_config": "",
+        "locations": [],
+        "block_exploits": False,
+        "caching_enabled": False,
+        "allow_websocket_upgrade": False,
+        "http2_support": False,
+        "hsts_enabled": False,
+        "hsts_subdomains": False,
+        "ssl_forced": False
+    }
+
+    requests.post(url, data=json.dumps(data), headers=headers)
+    set_domain(domain[0],app_id)
+    return domains
 
 def check_domains(domains):
     if domains is None or len(domains) == 0:
@@ -693,3 +727,8 @@ def get_proxy(app_id):
             break;
 
     return proxy_host
+
+def set_domain(domain,app_id):
+    customer_name = app_id.split('_')[1]
+    cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
+    shell_execute.execute_command_output_all(cmd)
