@@ -5,6 +5,7 @@ import platform
 import shutil
 import time
 import subprocess
+import request
 import json
 import datetime
 import socket
@@ -524,25 +525,42 @@ def app_domain_list(app_id):
     if code == None:
         info, flag = app_exits_in_docker(app_id)
         if flag:
-            domains = List[str]
-            return domains
+            myLogger.info_logger("Check app_id ok")
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
 
+    domains = []
+    proxy = get_proxy(app_id)
+    if proxy != None:
+        domains = proxy["domain_names"]
+
+    return domains
 
 def app_domain_delete(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
         info, flag = app_exits_in_docker(app_id)
         if flag:
-            domains = List[str]
-            return domains
+            myLogger.info_logger("Check app_id ok")
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
+
+    proxy = get_proxy(app_id)
+    if proxy != None:
+        proxy_id = proxy["id"]
+        token = get_token()
+        url = "http://127.0.0.1:9092/api/nginx/proxy-hosts/" + proxy_id
+        headers = {
+            'Authorization': token,
+            'Content-Type': 'application/json'
+        }
+        requests.get(url, headers=headers)
+    else:
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
 
 def app_domain_update(app_id, domains):
 
@@ -552,11 +570,49 @@ def app_domain_update(app_id, domains):
     if code == None:
         info, flag = app_exits_in_docker(app_id)
         if flag:
-            return domains
+            myLogger.info_logger("Check app_id ok")
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
+    proxy = get_proxy(app_id)
+    if proxy != None:
+        proxy_id = proxy["id"]
+        token = get_token()
+        url = "http://127.0.0.1:9092/api/nginx/proxy-hosts/" + proxy_id
+        headers = {
+            'Authorization': token,
+            'Content-Type': 'application/json'
+        }
+        port = ""
+        host = ""
+        data = {
+            "domain_names": domains,
+            "forward_scheme": "http",
+            "forward_host": host,
+            "forward_port": port,
+            "access_list_id": "0",
+            "certificate_id": 0,
+            "meta": {
+                "letsencrypt_agree": False,
+                "dns_challenge": False
+            },
+            "advanced_config": "",
+            "locations": [],
+            "block_exploits": False,
+            "caching_enabled": False,
+            "allow_websocket_upgrade": False,
+            "http2_support": False,
+            "hsts_enabled": False,
+            "hsts_subdomains": False,
+            "ssl_forced": False
+        }
+
+        requests.put(url, data=json.dumps(data), headers=headers)
+        return domains
+    else:
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
+    
 
 def app_domain_add(app_id, domains):
 
@@ -566,7 +622,7 @@ def app_domain_add(app_id, domains):
     if code == None:
         info, flag = app_exits_in_docker(app_id)
         if flag:
-            return domains
+            myLogger.info_logger("Check app_id ok")
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
@@ -605,3 +661,35 @@ def check_real_domain(domain):
         domain_real = False
     
     return domain_real
+
+def get_token():
+    url = 'http://127.0.0.1:9092/api/tokens'
+    headers = {'Content-type': 'application/json'}
+    cmd = "cat /usr/share/cockpit/nginx/config.json | jq -r '.NGINXPROXYMANAGER_PASSWORD'"
+    password = shell_execute.execute_command_output_all(cmd)["result"]
+    param = {
+        "identity": "help@websoft9.com",
+        "scope": "user",
+        "secret": password
+    }
+    response = requests.post(url, data=json.dumps(param), headers=headers)
+    token = "Bearer " + response.json()["token"]
+    return token
+
+def get_proxy(app_id):
+    customer_name = app_id.split('_')[1]
+    proxy_host = None
+    token = get_token()
+    url = "http://127.0.0.1:9092/api/nginx/proxy-hosts"
+    headers = {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+    }
+    response = requests.get(url, headers=headers)
+    for proxy in response.json():
+        portainer_name = proxy["forward_host"]
+        if customer_name == portainer_name:
+            proxy_host = proxy
+            break;
+
+    return proxy_host
