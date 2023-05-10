@@ -211,6 +211,98 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
 
     return JSONResponse(content=ret)
 
+@router.api_route("/AppDomainAdd", methods=["GET", "POST"], summary="绑定域名",  response_model=Response)
+def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: List[str]):
+
+    try:
+        myLogger.info_logger("Receive request: /AppDomainAdd")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        manage.app_domain_add(app_id,domains)
+        ret['ResponseData']['AppID'] = app_id
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
+    return JSONResponse(content=ret)
+
+@router.api_route("/AppDomainUpdate", methods=["GET", "POST"], summary="修改域名",  response_model=Response)
+def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: List[str]):
+
+    try:
+        myLogger.info_logger("Receive request: /AppDomainUpdate")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        manage.app_domain_update(app_id,domains)
+        ret['ResponseData']['AppID'] = app_id
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
+    return JSONResponse(content=ret)
+
+@router.api_route("/AppDomainDelete", methods=["GET", "POST"], summary="删除域名",  response_model=Response)
+def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppDomainDelete")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        manage.app_domain_delete(app_id)
+        ret['ResponseData']['AppID'] = app_id
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
+    return JSONResponse(content=ret)
+
+@router.api_route("/AppDomainList", methods=["GET", "POST"], summary="绑定域名",  response_model=Response)
+def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppDomainList")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        manage.app_domain_list(app_id)
+        ret['ResponseData']['AppID'] = app_id
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
+    return JSONResponse(content=ret)
+
 def get_headers(request):
     headers = request.headers
     try:
