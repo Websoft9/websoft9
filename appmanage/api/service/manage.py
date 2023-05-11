@@ -586,7 +586,7 @@ def app_domain_update(app_id, domains):
             'Authorization': token,
             'Content-Type': 'application/json'
         }
-        port = ""
+        port = get_container_port(app_id.split('_')[1])
         host = app_id.split('_')[1]
         data = {
             "domain_names": domains,
@@ -636,7 +636,7 @@ def app_domain_add(app_id, domains):
         'Authorization': token,
         'Content-Type': 'application/json'
     }
-    port = ""
+    port = get_container_port(app_id.split('_')[1])
     host = app_id.split('_')[1]
     data = {
         "domain_names": domains,
@@ -740,4 +740,14 @@ def set_domain(domain,app_id):
         shell_execute.execute_command_output_all(cmd)
     else:
         cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
-        shell_execute.execute_command_output_all(cmd)       
+        shell_execute.execute_command_output_all(cmd)
+
+def get_container_port(container_name):
+    port = "80"
+    cmd = "docker container inspect " + container_name\
+    result = shell_execute.execute_command_output_all(cmd)["result"]
+    myLogger.info_logger(result)
+    response = json.dumps(result)
+    myLogger.info_logger(response)
+
+    return port
