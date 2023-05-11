@@ -704,12 +704,12 @@ def get_token():
     headers = {'Content-type': 'application/json'}
     cmd = "cat /usr/share/cockpit/nginx/config.json | jq -r '.NGINXPROXYMANAGER_PASSWORD'"
     password = shell_execute.execute_command_output_all(cmd)["result"]
-
-    myLogger.info_logger("password: " + password)
+    if password == "uub8ohr3eiP4Chi!":
+        myLogger.info_logger("password: " + password)
     param = {
         "identity": "help@websoft9.com",
         "scope": "user",
-        "secret": password
+        "secret": "uub8ohr3eiP4Chi!"
     }
     response = requests.post(url, data=json.dumps(param), headers=headers)
     myLogger.info_logger(response.json())
