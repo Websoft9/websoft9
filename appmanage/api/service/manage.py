@@ -581,7 +581,7 @@ def app_domain_update(app_id, domains):
     if proxy != None:
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + proxy_id
+        url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -611,7 +611,7 @@ def app_domain_update(app_id, domains):
         }
 
         requests.put(url, data=json.dumps(data), headers=headers)
-        set_domain(domain[0], app_id)
+        set_domain(domains[0], app_id)
         return domains
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
