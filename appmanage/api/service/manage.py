@@ -744,7 +744,7 @@ def set_domain(domain,app_id):
 
 def get_container_port(container_name):
     port = "80"
-    cmd = "docker container inspect " + container_name\
+    cmd = "docker container inspect " + container_name
     result = shell_execute.execute_command_output_all(cmd)["result"]
     myLogger.info_logger(result)
     response = json.dumps(result)
