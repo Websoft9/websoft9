@@ -665,6 +665,7 @@ def app_domain_add(app_id, domains):
     return domains
 
 def check_domains(domains):
+    myLogger.info_logger(domains)
     if domains is None or len(domains) == 0:
         raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
     else:
