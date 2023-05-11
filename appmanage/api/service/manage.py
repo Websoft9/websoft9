@@ -661,7 +661,7 @@ def app_domain_add(app_id, domains):
     }
 
     requests.post(url, data=json.dumps(data), headers=headers)
-    set_domain(domain[0], app_id)
+    set_domain(domains[0], app_id)
     return domains
 
 def check_domains(domains):
