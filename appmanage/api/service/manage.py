@@ -525,7 +525,7 @@ def app_domain_list(app_id):
     if code == None:
         info, flag = app_exits_in_docker(app_id)
         if flag:
-            myLogger.info_logger("Check app_id ok")
+            myLogger.info_logger("Check app_id ok[app_domain_list]")
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
@@ -543,7 +543,7 @@ def app_domain_delete(app_id):
     if code == None:
         info, flag = app_exits_in_docker(app_id)
         if flag:
-            myLogger.info_logger("Check app_id ok")
+            myLogger.info_logger("Check app_id ok[app_domain_delete]")
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
@@ -561,6 +561,8 @@ def app_domain_delete(app_id):
         requests.get(url, headers=headers)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
+
+    set_domain("", app_id)
 
 def app_domain_update(app_id, domains):
 
@@ -609,7 +611,7 @@ def app_domain_update(app_id, domains):
         }
 
         requests.put(url, data=json.dumps(data), headers=headers)
-        set_domain(domain[0],app_id)
+        set_domain(domain[0], app_id)
         return domains
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
@@ -659,7 +661,7 @@ def app_domain_add(app_id, domains):
     }
 
     requests.post(url, data=json.dumps(data), headers=headers)
-    set_domain(domain[0],app_id)
+    set_domain(domain[0], app_id)
     return domains
 
 def check_domains(domains):
@@ -676,7 +678,8 @@ def check_domains(domains):
 
 def is_valid_domain(domain):
     pattern = r"^[a-zA-Z0-9][a-zA-Z0-9\-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$"
-    return bool(re.match(pattern, domain))
+    #return bool(re.match(pattern, domain))
+    return True
 
 def check_real_domain(domain):
     domain_real = True
@@ -730,5 +733,11 @@ def get_proxy(app_id):
 
 def set_domain(domain,app_id):
     customer_name = app_id.split('_')[1]
-    cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
-    shell_execute.execute_command_output_all(cmd)
+    if domain == "":
+        ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+        domain = ip_result["result"].rstrip('\n')
+        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
+        shell_execute.execute_command_output_all(cmd)
+    else:
+        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
+        shell_execute.execute_command_output_all(cmd)       
