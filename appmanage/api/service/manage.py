@@ -700,12 +700,11 @@ def check_real_domain(domain):
     return domain_real
 
 def get_token():
-    url = 'http://websoft9-appmanage:81/api/tokens'
+    url = 'http://172.17.0.1:9092/api/tokens'
     headers = {'Content-type': 'application/json'}
     cmd = "cat /usr/share/cockpit/nginx/config.json | jq -r '.NGINXPROXYMANAGER_PASSWORD'"
-    myLogger.info_logger("password----------------------------------------: ")
     password = shell_execute.execute_command_output_all(cmd)["result"]
-    myLogger.info_logger("xxxxxxxxxx----------------------------------------: ")
+
     myLogger.info_logger("password: " + password)
     param = {
         "identity": "help@websoft9.com",
