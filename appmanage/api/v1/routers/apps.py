@@ -216,7 +216,6 @@ def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, d
 
     try:
         myLogger.info_logger("Receive request: /AppDomainAdd")
-        myLogger.info_logger(domains)
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
