@@ -558,7 +558,7 @@ def app_domain_delete(app_id):
             'Authorization': token,
             'Content-Type': 'application/json'
         }
-        requests.get(url, headers=headers)
+        requests.delete(url, headers=headers)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
 
