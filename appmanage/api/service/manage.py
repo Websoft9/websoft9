@@ -744,10 +744,10 @@ def set_domain(domain,app_id):
 
 def get_container_port(container_name):
     port = "80"
-    cmd = "docker container inspect " + container_name
+    cmd = "docker port wordpress |grep ::"
     result = shell_execute.execute_command_output_all(cmd)["result"]
     myLogger.info_logger(result)
-    response = json.dumps(result)
-    myLogger.info_logger(response)
+    port = result.split('/')[0]
+    myLogger.info_logger(port)
 
     return port
