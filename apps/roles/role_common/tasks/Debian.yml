@@ -15,7 +15,7 @@
   retries: 50
   delay: 10
   failed_when: "'FAILED' in result.stdout"
-  when: common_system_upgrade and (init == '1' or init == 1)
+  when: common_system_upgrade and (init == '2' or init == 2)
 
 - block:    
   - name: Install Common Software
