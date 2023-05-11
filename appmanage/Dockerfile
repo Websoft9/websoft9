@@ -18,5 +18,5 @@ RUN chmod +x /etc/supervisor/conf.d/supervisord.conf /cmd.sh
 RUN pip install -r requirements.txt
 RUN mkdir /data
 
-# Expose the port in which the application will be deployed 
+# Expose the port in which the application will be deployed
 EXPOSE 5000
