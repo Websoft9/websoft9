@@ -562,7 +562,7 @@ def app_domain_delete(app_id):
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
 
-    set_domain("", app_id)
+    #set_domain("", app_id)
 
 def app_domain_update(app_id, domains):
 
@@ -611,7 +611,7 @@ def app_domain_update(app_id, domains):
         }
 
         requests.put(url, data=json.dumps(data), headers=headers)
-        set_domain(domains[0], app_id)
+        #set_domain(domains[0], app_id)
         return domains
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
@@ -661,7 +661,7 @@ def app_domain_add(app_id, domains):
     }
 
     requests.post(url, data=json.dumps(data), headers=headers)
-    set_domain(domains[0], app_id)
+    #set_domain(domains[0], app_id)
     return domains
 
 def check_domains(domains):
