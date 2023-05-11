@@ -220,7 +220,7 @@ def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, d
         ret = {}
         ret['ResponseData'] = {}
         manage.app_domain_add(app_id,domains)
-        ret['ResponseData']['AppID'] = app_id
+        ret['ResponseData'] = domains
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
@@ -243,7 +243,7 @@ def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None
         ret = {}
         ret['ResponseData'] = {}
         manage.app_domain_update(app_id,domains)
-        ret['ResponseData']['AppID'] = app_id
+        ret['ResponseData'] = domains
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
@@ -288,20 +288,22 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.app_domain_list(app_id)
-        ret['ResponseData']['AppID'] = app_id
+        domains = manage.app_domain_list(app_id)
+        response = JSONResponse({'ResponseData': domains})
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
         ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        response = JSONResponse(content=ret)
     except Exception as e:
         ret = {}
         ret['ResponseData'] = {}
         ret['ResponseData']['AppID'] = app_id
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+        response = JSONResponse(content=ret)
 
-    return JSONResponse(content=ret)
+    return response
 
 def get_headers(request):
     headers = request.headers
