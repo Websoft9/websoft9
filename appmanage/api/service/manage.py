@@ -685,7 +685,7 @@ def check_real_domain(domain):
     domain_real = True
     try:
         cmd = "ping -c 1 " + domain + "  | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | uniq"
-        domain_ip = shell_execute.execute_command_output_all(cmd)["result"]
+        domain_ip = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
 
         ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
         ip_save = ip_result["result"].rstrip('\n')
@@ -704,15 +704,12 @@ def get_token():
     headers = {'Content-type': 'application/json'}
     cmd = "cat /usr/share/cockpit/nginx/config.json | jq -r '.NGINXPROXYMANAGER_PASSWORD'"
     password = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
-    if password == "uub8ohr3eiP4Chi!":
-        myLogger.info_logger("password: " + password)
     param = {
         "identity": "help@websoft9.com",
         "scope": "user",
-        "secret": "uub8ohr3eiP4Chi!"
+        "secret": password
     }
     response = requests.post(url, data=json.dumps(param), headers=headers)
-    myLogger.info_logger(response.json())
     token = "Bearer " + response.json()["token"]
     return token
 
