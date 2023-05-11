@@ -710,6 +710,7 @@ def get_token():
         "secret": password
     }
     response = requests.post(url, data=json.dumps(param), headers=headers)
+    myLogger.info_logger(response.json())
     token = "Bearer " + response.json()["token"]
     return token
 
