@@ -553,7 +553,7 @@ def app_domain_delete(app_id):
     if proxy != None:
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + proxy_id
+        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
