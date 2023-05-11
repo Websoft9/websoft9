@@ -212,7 +212,7 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
     return JSONResponse(content=ret)
 
 @router.api_route("/AppDomainAdd", methods=["GET", "POST"], summary="绑定域名",  response_model=Response)
-def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str] = Query(default=None, description="域名列表")):
+def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str]] = Query(default=None, description="域名列表")):
 
     try:
         myLogger.info_logger("Receive request: /AppDomainAdd")
@@ -235,7 +235,7 @@ def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, d
     return JSONResponse(content=ret)
 
 @router.api_route("/AppDomainUpdate", methods=["GET", "POST"], summary="修改域名",  response_model=Response)
-def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str] = Query(default=None, description="域名列表")):
+def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str]] = Query(default=None, description="域名列表")):
 
     try:
         myLogger.info_logger("Receive request: /AppDomainUpdate")
