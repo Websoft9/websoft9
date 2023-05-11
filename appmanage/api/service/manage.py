@@ -553,7 +553,7 @@ def app_domain_delete(app_id):
     if proxy != None:
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http://127.0.0.1:9092/api/nginx/proxy-hosts/" + proxy_id
+        url = "http://websoft9-nginxproxymanager:81/api/nginx/proxy-hosts/" + proxy_id
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -581,7 +581,7 @@ def app_domain_update(app_id, domains):
     if proxy != None:
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http://127.0.0.1:9092/api/nginx/proxy-hosts/" + proxy_id
+        url = "http:/websoft9-nginxproxymanager:81/api/nginx/proxy-hosts/" + proxy_id
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -631,7 +631,7 @@ def app_domain_add(app_id, domains):
         raise CommandException(code, message, "")
     
     token = get_token()
-    url = "http://127.0.0.1:9092/api/nginx/proxy-hosts"
+    url = "http://websoft9-nginxproxymanager:81/api/nginx/proxy-hosts"
     headers = {
         'Authorization': token,
         'Content-Type': 'application/json'
@@ -700,7 +700,7 @@ def check_real_domain(domain):
     return domain_real
 
 def get_token():
-    url = 'http://127.0.0.1:9092/api/tokens'
+    url = 'http://websoft9-nginxproxymanager:81/api/tokens'
     headers = {'Content-type': 'application/json'}
     cmd = "cat /usr/share/cockpit/nginx/config.json | jq -r '.NGINXPROXYMANAGER_PASSWORD'"
     password = shell_execute.execute_command_output_all(cmd)["result"]
@@ -717,7 +717,7 @@ def get_proxy(app_id):
     customer_name = app_id.split('_')[1]
     proxy_host = None
     token = get_token()
-    url = "http://127.0.0.1:9092/api/nginx/proxy-hosts"
+    url = "http://websoft9-nginxproxymanager:81/api/nginx/proxy-hosts"
     headers = {
         'Authorization': token,
         'Content-Type': 'application/json'
