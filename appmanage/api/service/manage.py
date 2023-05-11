@@ -5,7 +5,7 @@ import platform
 import shutil
 import time
 import subprocess
-import request
+import requests
 import json
 import datetime
 import socket
