@@ -551,8 +551,8 @@ def app_domain_delete(app_id, domains):
 
     proxy = get_proxy(app_id)
     if proxy != None:
-        
-        domains_old = proxy["domains"]
+        myLogger.info_logger(proxy)
+        domains_old = proxy["domain_names"]
         for domain in domains:
             domains_old.remove(domain)
         if len(domains_old) == 0:
@@ -622,7 +622,7 @@ def app_domain_update(app_id, domain_old, domain_new):
         raise CommandException(code, message, "")
     proxy = get_proxy(app_id)
     if proxy != None:
-        domains_old = proxy["domains"]
+        domains_old = proxy["domain_names"]
         index = domains_old.index(domain_old)
         domains_old[index] = domain_new
         proxy_id = proxy["id"]
@@ -678,7 +678,7 @@ def app_domain_add(app_id, domains):
     
     proxy = get_proxy(app_id)
     if proxy != None:
-        domains_old = proxy["domains"]
+        domains_old = proxy["domain_names"]
         domain_list = domains_old
         for domain in domains:
             if domain in domain_list:
