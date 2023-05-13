@@ -658,6 +658,7 @@ def app_domain_update(app_id, domain_old, domain_new):
 
         requests.put(url, data=json.dumps(data), headers=headers)
         #set_domain(domains[0], app_id)
+        
         return domain_new
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
