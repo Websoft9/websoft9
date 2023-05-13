@@ -603,9 +603,13 @@ def app_domain_delete(app_id, domains):
 
     #set_domain("", app_id)
 
-def app_domain_update(app_id, domains):
-
-    check_domains(domains)
+def app_domain_update(app_id, domain_old, domain_new):
+    
+    domain_list = []
+    domain_list.append(domain_old)
+    domain_list.append(domain_new)
+    
+    check_domains(domain_list)
 
     code, message = docker.check_app_id(app_id)
     if code == None:
@@ -618,6 +622,9 @@ def app_domain_update(app_id, domains):
         raise CommandException(code, message, "")
     proxy = get_proxy(app_id)
     if proxy != None:
+        domains_old = proxy["domains"]
+        index = domains_old.index(domain_old)
+        domains_old[index] = domain_new
         proxy_id = proxy["id"]
         token = get_token()
         url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
@@ -628,7 +635,7 @@ def app_domain_update(app_id, domains):
         port = get_container_port(app_id.split('_')[1])
         host = app_id.split('_')[1]
         data = {
-            "domain_names": domains,
+            "domain_names": domains_old,
             "forward_scheme": "http",
             "forward_host": host,
             "forward_port": port,
