@@ -630,38 +630,82 @@ def app_domain_add(app_id, domains):
     else:
         raise CommandException(code, message, "")
     
-    token = get_token()
-    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
-    headers = {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-    }
-    port = get_container_port(app_id.split('_')[1])
-    host = app_id.split('_')[1]
-    data = {
-        "domain_names": domains,
-        "forward_scheme": "http",
-        "forward_host": host,
-        "forward_port": port,
-        "access_list_id": "0",
-        "certificate_id": 0,
-        "meta": {
-            "letsencrypt_agree": False,
-            "dns_challenge": False
-        },
-        "advanced_config": "",
-        "locations": [],
-        "block_exploits": False,
-        "caching_enabled": False,
-        "allow_websocket_upgrade": False,
-        "http2_support": False,
-        "hsts_enabled": False,
-        "hsts_subdomains": False,
-        "ssl_forced": False
-    }
+    proxy = get_proxy(app_id)
+    if proxy != None:
+        domains_old = proxy["domains"]
+        domain_list = domains_old
+        for domain in domains:
+            if domain in domain_list:
+                continue
+            else:
+                domain_list.append(domain)
+        proxy_id = proxy["id"]
+        token = get_token()
+        url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+        headers = {
+            'Authorization': token,
+            'Content-Type': 'application/json'
+        }
+        port = get_container_port(app_id.split('_')[1])
+        host = app_id.split('_')[1]
+        data = {
+            "domain_names": domain_list,
+            "forward_scheme": "http",
+            "forward_host": host,
+            "forward_port": port,
+            "access_list_id": "0",
+            "certificate_id": 0,
+            "meta": {
+                "letsencrypt_agree": False,
+                "dns_challenge": False
+            },
+            "advanced_config": "",
+            "locations": [],
+            "block_exploits": False,
+            "caching_enabled": False,
+            "allow_websocket_upgrade": False,
+            "http2_support": False,
+            "hsts_enabled": False,
+            "hsts_subdomains": False,
+            "ssl_forced": False
+        }
 
-    requests.post(url, data=json.dumps(data), headers=headers)
-    #set_domain(domains[0], app_id)
+        requests.put(url, data=json.dumps(data), headers=headers)
+    else:
+        # 追加
+        token = get_token()
+        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+        headers = {
+            'Authorization': token,
+            'Content-Type': 'application/json'
+        }
+        port = get_container_port(app_id.split('_')[1])
+        host = app_id.split('_')[1]
+        data = {
+            "domain_names": domains,
+            "forward_scheme": "http",
+            "forward_host": host,
+            "forward_port": port,
+            "access_list_id": "0",
+            "certificate_id": 0,
+            "meta": {
+                "letsencrypt_agree": False,
+                "dns_challenge": False
+            },
+            "advanced_config": "",
+            "locations": [],
+            "block_exploits": False,
+            "caching_enabled": False,
+            "allow_websocket_upgrade": False,
+            "http2_support": False,
+            "hsts_enabled": False,
+            "hsts_subdomains": False,
+            "ssl_forced": False
+        }
+
+        requests.post(url, data=json.dumps(data), headers=headers)
+        #set_domain(domains[0], app_id)
+        
     return domains
 
 def check_domains(domains):
