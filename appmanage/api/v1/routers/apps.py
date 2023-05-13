@@ -242,7 +242,7 @@ def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.app_domain_update(app_id,domain_old,domain_new)
+        domains = manage.app_domain_update(app_id,domain_old,domain_new)
         ret['ResponseData'] = domains
     except CommandException as ce:
         ret = {}
