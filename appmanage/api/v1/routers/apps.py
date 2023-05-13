@@ -235,14 +235,14 @@ def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, d
     return JSONResponse(content=ret)
 
 @router.api_route("/AppDomainUpdate", methods=["GET", "POST"], summary="修改域名",  response_model=Response)
-def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str]] = Query(default=None, description="域名列表")):
+def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domain_old: Optional[str] = Query(default=None, description="原域名"), domain_new: Optional[str] = Query(default=None, description="新域名")):
 
     try:
         myLogger.info_logger("Receive request: /AppDomainUpdate")
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.app_domain_update(app_id,domains)
+        manage.app_domain_update(app_id,domain_old,domain_new)
         ret['ResponseData'] = domains
     except CommandException as ce:
         ret = {}
@@ -258,14 +258,14 @@ def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None
     return JSONResponse(content=ret)
 
 @router.api_route("/AppDomainDelete", methods=["GET", "POST"], summary="删除域名",  response_model=Response)
-def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str]] = Query(default=None, description="域名列表")):
 
     try:
         myLogger.info_logger("Receive request: /AppDomainDelete")
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.app_domain_delete(app_id)
+        manage.app_domain_delete(app_id,domains)
         ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
