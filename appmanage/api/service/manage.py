@@ -567,7 +567,7 @@ def app_domain_delete(app_id, domains):
         else:
             proxy_id = proxy["id"]
             token = get_token()
-            url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
             headers = {
                 'Authorization': token,
                 'Content-Type': 'application/json'
@@ -627,7 +627,7 @@ def app_domain_update(app_id, domain_old, domain_new):
         domains_old[index] = domain_new
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -687,7 +687,7 @@ def app_domain_add(app_id, domains):
                 domain_list.append(domain)
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
