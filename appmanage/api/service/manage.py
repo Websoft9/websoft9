@@ -538,7 +538,7 @@ def app_domain_list(app_id):
 
     return domains
 
-def app_domain_delete(app_id):
+def app_domain_delete(app_id, domains):
     code, message = docker.check_app_id(app_id)
     if code == None:
         info, flag = app_exits_in_docker(app_id)
@@ -551,14 +551,53 @@ def app_domain_delete(app_id):
 
     proxy = get_proxy(app_id)
     if proxy != None:
-        proxy_id = proxy["id"]
-        token = get_token()
-        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
-        headers = {
-            'Authorization': token,
-            'Content-Type': 'application/json'
-        }
-        requests.delete(url, headers=headers)
+        
+        domains_old = proxy["domains"]
+        for domain in domains:
+            domains_old.remove(domain)
+        if len(domains_old) == 0:
+            proxy_id = proxy["id"]
+            token = get_token()
+            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            headers = {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+            }
+            requests.delete(url, headers=headers)
+        else:
+            proxy_id = proxy["id"]
+            token = get_token()
+            url = "http:/172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            headers = {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+            }
+            port = get_container_port(app_id.split('_')[1])
+            host = app_id.split('_')[1]
+            data = {
+                "domain_names": domains_old,
+                "forward_scheme": "http",
+                "forward_host": host,
+                "forward_port": port,
+                "access_list_id": "0",
+                "certificate_id": 0,
+                "meta": {
+                    "letsencrypt_agree": False,
+                    "dns_challenge": False
+                },
+                "advanced_config": "",
+                "locations": [],
+                "block_exploits": False,
+                "caching_enabled": False,
+                "allow_websocket_upgrade": False,
+                "http2_support": False,
+                "hsts_enabled": False,
+                "hsts_subdomains": False,
+                "ssl_forced": False
+            }
+
+            requests.put(url, data=json.dumps(data), headers=headers)
+            
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
 
