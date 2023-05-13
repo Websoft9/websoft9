@@ -715,7 +715,7 @@ def app_domain_add(app_id, domains):
             "hsts_subdomains": False,
             "ssl_forced": False
         }
-
+        myLogger.info_logger(data)
         requests.put(url, data=json.dumps(data), headers=headers)
     else:
         # 追加
