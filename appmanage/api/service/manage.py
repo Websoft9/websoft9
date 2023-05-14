@@ -834,11 +834,11 @@ def set_domain(domain,app_id):
             domain = ip_result["result"].rstrip('\n')
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
-            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose uo -d")
+            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
         else:
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
-            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose uo -d")
+            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
 
 def get_container_port(container_name):
     port = "80"
