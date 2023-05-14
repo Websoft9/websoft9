@@ -657,7 +657,7 @@ def app_domain_update(app_id, domain_old, domain_new):
             "ssl_forced": False
         }
 
-        requests.put(url, dta=json.dumps(data), headers=headers)
+        requests.put(url, data=json.dumps(data), headers=headers)
         set_domain(domain_new, app_id)
         
         return domain_new
