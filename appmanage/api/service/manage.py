@@ -564,6 +564,7 @@ def app_domain_delete(app_id, domains):
                 'Content-Type': 'application/json'
             }
             requests.delete(url, headers=headers)
+            set_domain("", app_id)
         else:
             proxy_id = proxy["id"]
             token = get_token()
@@ -597,11 +598,11 @@ def app_domain_delete(app_id, domains):
             }
 
             requests.put(url, data=json.dumps(data), headers=headers)
-            
+            #set_domain("", app_id)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
 
-    #set_domain("", app_id)
+    
 
 def app_domain_update(app_id, domain_old, domain_new):
     
@@ -656,8 +657,8 @@ def app_domain_update(app_id, domain_old, domain_new):
             "ssl_forced": False
         }
 
-        requests.put(url, data=json.dumps(data), headers=headers)
-        #set_domain(domains[0], app_id)
+        requests.put(url, dta=json.dumps(data), headers=headers)
+        set_domain(domain_new, app_id)
         
         return domain_new
     else:
@@ -751,7 +752,7 @@ def app_domain_add(app_id, domains):
         }
 
         requests.post(url, data=json.dumps(data), headers=headers)
-        #set_domain(domains[0], app_id)
+        set_domain(domains[0], app_id)
         
     return domains
 
@@ -826,14 +827,18 @@ def get_proxy(app_id):
 
 def set_domain(domain,app_id):
     customer_name = app_id.split('_')[1]
-    if domain == "":
-        ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
-        domain = ip_result["result"].rstrip('\n')
-        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
-        shell_execute.execute_command_output_all(cmd)
-    else:
-        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g /data/apps/" + customer_name +"/.env"
-        shell_execute.execute_command_output_all(cmd)
+    app_url: = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    if "APP_URL" in app_url:
+        if domain == "":
+            ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+            domain = ip_result["result"].rstrip('\n')
+            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
+            shell_execute.execute_command_output_all(cmd)
+            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose uo -d")
+        else:
+            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
+            shell_execute.execute_command_output_all(cmd)
+            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose uo -d")
 
 def get_container_port(container_name):
     port = "80"
