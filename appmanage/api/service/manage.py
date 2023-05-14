@@ -827,7 +827,7 @@ def get_proxy(app_id):
 
 def set_domain(domain,app_id):
     customer_name = app_id.split('_')[1]
-    app_url: = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
     if "APP_URL" in app_url:
         if domain == "":
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
