@@ -280,6 +280,29 @@ def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None
 
     return JSONResponse(content=ret)
 
+@router.api_route("/AppDomainSet", methods=["GET", "POST"], summary="设定域名",  response_model=Response)
+def AppDomainSet(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domain: Optional[str] = Query(default=None, description="域名")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppDomainSet")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        manage.app_domain_set(app_id,domain)
+        ret['ResponseData']['AppID'] = app_id
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['AppID'] = app_id
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+
+    return JSONResponse(content=ret)
+
 @router.api_route("/AppDomainList", methods=["GET", "POST"], summary="查询App对应域名",  response_model=Response)
 def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
 
