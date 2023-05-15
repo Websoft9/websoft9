@@ -532,6 +532,9 @@ def app_domain_list(app_id):
         raise CommandException(code, message, "")
 
     domains = get_all_domains(app_id)
+    
+    myLogger.info_logger(domains)
+    
     ret = {}
     ret['domains'] = domains
     
