@@ -556,8 +556,8 @@ def app_domain_delete(app_id, domains):
         if proxy != None:
             myLogger.info_logger(proxy)
             myLogger.info_logger("before update")
-            myLogger.info_logger(domains_old)
             domains_old = proxy["domain_names"]
+            myLogger.info_logger(domains_old)
             for domain in domains:
                 if domain in domains_old:
                     domains_old.remove(domain)
