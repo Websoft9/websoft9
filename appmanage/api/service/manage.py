@@ -844,7 +844,7 @@ def get_proxy_domain(app_id, domain):
     for proxy in response.json():
         portainer_name = proxy["forward_host"]
         if customer_name == portainer_name:
-            if domain in proxy["domain_names"]
+            if domain in proxy["domain_names"]:
                proxy_host = proxy
                break;
 
