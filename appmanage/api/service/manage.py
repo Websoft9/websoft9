@@ -555,7 +555,8 @@ def app_domain_delete(app_id, domains):
             myLogger.info_logger(proxy)
             domains_old = proxy["domain_names"]
             for domain in domains:
-                domains_old.remove(domain)
+                if domain in domains_old:
+                    domains_old.remove(domain)
             if len(domains_old) == 0:
                 proxy_id = proxy["id"]
                 token = get_token()
