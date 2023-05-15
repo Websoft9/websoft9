@@ -212,7 +212,7 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
     return JSONResponse(content=ret)
 
 @router.api_route("/AppDomainAdd", methods=["GET", "POST"], summary="绑定域名",  response_model=Response)
-def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str]] = Query(default=None, description="域名列表")):
+def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[str] = Query(default=None, description="域名")):
 
     try:
         myLogger.info_logger("Receive request: /AppDomainAdd")
@@ -220,7 +220,7 @@ def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, d
         ret = {}
         ret['ResponseData'] = {}
         manage.app_domain_add(app_id,domains)
-        ret['ResponseData'] = domains
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
@@ -243,7 +243,7 @@ def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None
         ret = {}
         ret['ResponseData'] = {}
         domains = manage.app_domain_update(app_id,domain_old,domain_new)
-        ret['ResponseData'] = domains
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
@@ -258,14 +258,14 @@ def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None
     return JSONResponse(content=ret)
 
 @router.api_route("/AppDomainDelete", methods=["GET", "POST"], summary="删除域名",  response_model=Response)
-def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[List[str]] = Query(default=None, description="域名列表")):
+def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domain: Optional[str] = Query(default=None, description="删除域名")):
 
     try:
         myLogger.info_logger("Receive request: /AppDomainDelete")
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.app_domain_delete(app_id,domains)
+        manage.app_domain_delete(app_id,domain)
         ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
@@ -289,7 +289,7 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
         ret = {}
         ret['ResponseData'] = {}
         domains = manage.app_domain_list(app_id)
-        response = JSONResponse({'ResponseData': domains})
+        ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
