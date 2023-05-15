@@ -311,8 +311,7 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        domains = manage.app_domain_list(app_id)
-        ret['ResponseData']['AppID'] = app_id
+        ret['ResponseData']['Domain_set'] = manage.app_domain_list(app_id)
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
