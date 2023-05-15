@@ -532,8 +532,16 @@ def app_domain_list(app_id):
         raise CommandException(code, message, "")
 
     domains = get_all_domains(app_id)
+    ret = {}
+    ret['domains'] = domains
+    
+    default_domain = ""
+    if len(domains) > 0:
+        default_domain = domains[0]
+    ret['default_domain'] = default_domain
+    
+    return ret
 
-    return domains
 
 def app_domain_delete(app_id, domain):
     code, message = docker.check_app_id(app_id)
