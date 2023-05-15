@@ -531,10 +531,7 @@ def app_domain_list(app_id):
     else:
         raise CommandException(code, message, "")
 
-    domains = []
-    proxy = get_proxy(app_id)
-    if proxy != None:
-        domains = proxy["domain_names"]
+    domains = get_all_domains(app_id)
 
     return domains
 
@@ -548,59 +545,63 @@ def app_domain_delete(app_id, domains):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
+    old_domains = get_all_domains(app_id)
+    for domain in domains:
+        if domain not in old_domains:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
+            
+        proxy = get_proxy(app_id, domain)
+        if proxy != None:
+            myLogger.info_logger(proxy)
+            domains_old = proxy["domain_names"]
+            for domain in domains:
+                domains_old.remove(domain)
+            if len(domains_old) == 0:
+                proxy_id = proxy["id"]
+                token = get_token()
+                url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+                headers = {
+                    'Authorization': token,
+                    'Content-Type': 'application/json'
+                }
+                requests.delete(url, headers=headers)
+                set_domain("", app_id)
+            else:
+                proxy_id = proxy["id"]
+                token = get_token()
+                url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+                headers = {
+                    'Authorization': token,
+                    'Content-Type': 'application/json'
+                }
+                port = get_container_port(app_id.split('_')[1])
+                host = app_id.split('_')[1]
+                data = {
+                    "domain_names": domains_old,
+                    "forward_scheme": "http",
+                    "forward_host": host,
+                    "forward_port": port,
+                    "access_list_id": "0",
+                    "certificate_id": 0,
+                    "meta": {
+                        "letsencrypt_agree": False,
+                        "dns_challenge": False
+                    },
+                    "advanced_config": "",
+                    "locations": [],
+                    "block_exploits": False,
+                    "caching_enabled": False,
+                    "allow_websocket_upgrade": False,
+                    "http2_support": False,
+                    "hsts_enabled": False,
+                    "hsts_subdomains": False,
+                    "ssl_forced": False
+                }
 
-    proxy = get_proxy(app_id)
-    if proxy != None:
-        myLogger.info_logger(proxy)
-        domains_old = proxy["domain_names"]
-        for domain in domains:
-            domains_old.remove(domain)
-        if len(domains_old) == 0:
-            proxy_id = proxy["id"]
-            token = get_token()
-            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
-            headers = {
-                'Authorization': token,
-                'Content-Type': 'application/json'
-            }
-            requests.delete(url, headers=headers)
-            set_domain("", app_id)
-        else:
-            proxy_id = proxy["id"]
-            token = get_token()
-            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
-            headers = {
-                'Authorization': token,
-                'Content-Type': 'application/json'
-            }
-            port = get_container_port(app_id.split('_')[1])
-            host = app_id.split('_')[1]
-            data = {
-                "domain_names": domains_old,
-                "forward_scheme": "http",
-                "forward_host": host,
-                "forward_port": port,
-                "access_list_id": "0",
-                "certificate_id": 0,
-                "meta": {
-                    "letsencrypt_agree": False,
-                    "dns_challenge": False
-                },
-                "advanced_config": "",
-                "locations": [],
-                "block_exploits": False,
-                "caching_enabled": False,
-                "allow_websocket_upgrade": False,
-                "http2_support": False,
-                "hsts_enabled": False,
-                "hsts_subdomains": False,
-                "ssl_forced": False
-            }
-
-            requests.put(url, data=json.dumps(data), headers=headers)
-            #set_domain("", app_id)
+                requests.put(url, data=json.dumps(data), headers=headers)
+                #set_domain("", app_id)
     else:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
 
     
 
@@ -770,9 +771,10 @@ def check_domains(domains):
 
 
 def is_valid_domain(domain):
+    if domain.startswith("http"):
+        return False
     pattern = r"^[a-zA-Z0-9][a-zA-Z0-9\-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$"
-    #return bool(re.match(pattern, domain))
-    return True
+    return bool(re.match(pattern, domain))
 
 def check_real_domain(domain):
     domain_real = True
@@ -824,6 +826,42 @@ def get_proxy(app_id):
             break;
 
     return proxy_host
+
+def get_proxy_domain(app_id, domain):
+    customer_name = app_id.split('_')[1]
+    proxy_host = None
+    token = get_token()
+    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    headers = {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+    }
+    response = requests.get(url, headers=headers)
+    for proxy in response.json():
+        portainer_name = proxy["forward_host"]
+        if customer_name == portainer_name:
+            if domain in proxy["domain_names"]
+               proxy_host = proxy
+               break;
+
+    return proxy_host
+
+def get_all_domains(app_id):
+    customer_name = app_id.split('_')[1]
+    domains = []
+    token = get_token()
+    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    headers = {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+    }
+    response = requests.get(url, headers=headers)
+    for proxy in response.json():
+        portainer_name = proxy["forward_host"]
+        if customer_name == portainer_name:
+            for domain in proxy["domain_names"]
+                domains.append(domain)
+    return domains
 
 def set_domain(domain,app_id):
     customer_name = app_id.split('_')[1]
