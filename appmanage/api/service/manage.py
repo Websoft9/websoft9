@@ -678,7 +678,11 @@ def app_domain_add(app_id, domains):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
-    
+        
+    old_domains = get_all_domains(app_id)
+    for domain in domains:
+        if domain in old_domains:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is binded", "")    
     proxy = get_proxy(app_id)
     if proxy != None:
         domains_old = proxy["domain_names"]
