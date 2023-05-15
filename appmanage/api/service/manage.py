@@ -860,8 +860,11 @@ def get_proxy_domain(app_id, domain):
     for proxy in response.json():
         portainer_name = proxy["forward_host"]
         myLogger.info_logger(portainer_name)
+        myLogger.info_logger(customer_name)
+        myLogger.info_logger(domain)
         myLogger.info_logger(proxy["domain_names"])
         if customer_name == portainer_name:
+            myLogger.info_logger("-------------------")
             if domain in proxy["domain_names"]:
                myLogger.info_logger("find the domain proxy")
                proxy_host = proxy
