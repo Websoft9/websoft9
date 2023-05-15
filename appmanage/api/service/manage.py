@@ -571,7 +571,7 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             requests.delete(url, headers=headers)
-            set_domain("", app_id)
+
         else:
             proxy_id = proxy["id"]
             token = get_token()
@@ -605,7 +605,6 @@ def app_domain_delete(app_id, domain):
             }
 
             requests.put(url, data=json.dumps(data), headers=headers)
-            #set_domain("", app_id)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
 
@@ -665,15 +664,16 @@ def app_domain_update(app_id, domain_old, domain_new):
         }
 
         requests.put(url, data=json.dumps(data), headers=headers)
-        set_domain(domain_new, app_id)
         
         return domain_new
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "domain is not binded", "")
 
-def app_domain_add(app_id, domains):
-
-    check_domains(domains)
+def app_domain_add(app_id, domain):
+    
+    temp_domains = []
+    temp_domains.append(domain)
+    check_domains(temp_domains)
 
     code, message = docker.check_app_id(app_id)
     if code == None:
@@ -686,18 +686,15 @@ def app_domain_add(app_id, domains):
         raise CommandException(code, message, "")
         
     old_domains = get_all_domains(app_id)
-    for domain in domains:
-        if domain in old_domains:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is binded", "")    
+    if domain in old_domains:
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is binded", "") 
+        
     proxy = get_proxy(app_id)
     if proxy != None:
         domains_old = proxy["domain_names"]
         domain_list = domains_old
-        for domain in domains:
-            if domain in domain_list:
-                continue
-            else:
-                domain_list.append(domain)
+        domain_list.append(domain)
+        
         proxy_id = proxy["id"]
         token = get_token()
         url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
@@ -740,8 +737,9 @@ def app_domain_add(app_id, domains):
         }
         port = get_container_port(app_id.split('_')[1])
         host = app_id.split('_')[1]
+
         data = {
-            "domain_names": domains,
+            "domain_names": temp_domains,
             "forward_scheme": "http",
             "forward_host": host,
             "forward_port": port,
@@ -763,7 +761,7 @@ def app_domain_add(app_id, domains):
         }
 
         requests.post(url, data=json.dumps(data), headers=headers)
-        set_domain(domains[0], app_id)
+        #set_domain(domain, app_id)
         
     return domains
 
