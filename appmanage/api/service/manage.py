@@ -551,13 +551,18 @@ def app_domain_delete(app_id, domains):
             myLogger.info_logger("delete domain is not binded")
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind.", "")
             
+        myLogger.info_logger("Start to delete " + domain)  
         proxy = get_proxy_domain(app_id, domain)
         if proxy != None:
             myLogger.info_logger(proxy)
+            myLogger.info_logger("before update")
+            myLogger.info_logger(domains_old)
             domains_old = proxy["domain_names"]
             for domain in domains:
                 if domain in domains_old:
                     domains_old.remove(domain)
+            myLogger.info_logger("after update")
+            myLogger.info_logger(domains_old)
             if len(domains_old) == 0:
                 proxy_id = proxy["id"]
                 token = get_token()
