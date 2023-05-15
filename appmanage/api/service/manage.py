@@ -579,7 +579,7 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             requests.delete(url, headers=headers)
-
+            set_domain("", app_id)
         else:
             proxy_id = proxy["id"]
             token = get_token()
@@ -769,7 +769,7 @@ def app_domain_add(app_id, domain):
         }
 
         requests.post(url, data=json.dumps(data), headers=headers)
-        #set_domain(domain, app_id)
+        set_domain(domain, app_id)
         
     return domains
 
@@ -880,6 +880,11 @@ def get_all_domains(app_id):
     return domains
 
 def set_domain(domain, app_id):
+    
+    old_domains = get_all_domains(app_id)
+    if domain not in old_domains:
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not binded", "") 
+        
     customer_name = app_id.split('_')[1]
     app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
     
