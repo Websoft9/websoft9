@@ -311,7 +311,10 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['Domain_set'] = manage.app_domain_list(app_id)
+        domain_set = manage.app_domain_list(app_id)
+        ret['ResponseData']['Domain_set'] = domain_set
+        myLogger.info_logger(ret)
+        response = JSONResponse(content=ret)
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
