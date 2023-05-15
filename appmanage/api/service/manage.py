@@ -863,7 +863,7 @@ def get_all_domains(app_id):
     for proxy in response.json():
         portainer_name = proxy["forward_host"]
         if customer_name == portainer_name:
-            for domain in proxy["domain_names"]
+            for domain in proxy["domain_names"]:
                 domains.append(domain)
     return domains
 
