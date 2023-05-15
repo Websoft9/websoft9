@@ -879,6 +879,23 @@ def get_all_domains(app_id):
                 domains.append(domain)
     return domains
 
+def app_domain_set(domain, app_id):
+    temp_domains = []
+    temp_domains.append(domain)
+    check_domains(temp_domains)
+
+    code, message = docker.check_app_id(app_id)
+    if code == None:
+        info, flag = app_exits_in_docker(app_id)
+        if flag:
+            myLogger.info_logger("Check app_id ok")
+        else:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+    else:
+        raise CommandException(code, message, "")
+    
+    set_domain(domain, app_id)
+
 def set_domain(domain, app_id):
     
     old_domains = get_all_domains(app_id)
