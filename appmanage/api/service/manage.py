@@ -777,8 +777,8 @@ def check_domains(domains):
 def is_valid_domain(domain):
     if domain.startswith("http"):
         return False
-    pattern = r"^[a-zA-Z0-9][a-zA-Z0-9\-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$"
-    return bool(re.match(pattern, domain))
+
+    return True
 
 def check_real_domain(domain):
     domain_real = True
