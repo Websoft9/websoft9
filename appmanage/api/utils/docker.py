@@ -67,7 +67,7 @@ def check_appid_include_rq(app_id):
         message = "AppID is null"
     elif re.match('^[a-z0-9]+_[a-z0-9]+$', app_id) == None:
         code = const.ERROR_CLIENT_PARAM_Format
-        message = "APP name can only be composed of numbers and lowercase letters"
+        message = "App_id format error"
     elif not check_appid_exist(app_id):
         code = const.ERROR_CLIENT_PARAM_NOTEXIST
         message = "AppID is not exist"
