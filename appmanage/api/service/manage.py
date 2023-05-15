@@ -550,7 +550,7 @@ def app_domain_delete(app_id, domains):
         if domain not in old_domains:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
             
-        proxy = get_proxy(app_id, domain)
+        proxy = get_proxy_domain(app_id, domain)
         if proxy != None:
             myLogger.info_logger(proxy)
             domains_old = proxy["domain_names"]
