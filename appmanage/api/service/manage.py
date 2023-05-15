@@ -874,10 +874,12 @@ def get_all_domains(app_id):
                 domains.append(domain)
     return domains
 
-def set_domain(domain,app_id):
+def set_domain(domain, app_id):
     customer_name = app_id.split('_')[1]
     app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    
     if "APP_URL" in app_url:
+        myLogger.info_logger("APP_URL is exist")
         if domain == "":
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')
@@ -888,7 +890,8 @@ def set_domain(domain,app_id):
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
             shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
-
+    myLogger.info_logger("set_domain success")
+    
 def get_container_port(container_name):
     port = "80"
     cmd = "docker port "+ container_name + " |grep ::"
