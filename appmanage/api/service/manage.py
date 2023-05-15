@@ -774,7 +774,7 @@ def app_domain_add(app_id, domain):
         requests.post(url, data=json.dumps(data), headers=headers)
         set_domain(domain, app_id)
         
-    return domains
+    return domain
 
 def check_domains(domains):
     myLogger.info_logger(domains)
