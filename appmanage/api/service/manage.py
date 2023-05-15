@@ -542,7 +542,7 @@ def app_domain_list(app_id):
     if len(domains) > 0:
         default_domain = domains[0]
     ret['default_domain'] = default_domain
-    
+    myLogger.info_logger(ret)
     return ret
 
 
