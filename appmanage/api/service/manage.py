@@ -622,7 +622,7 @@ def app_domain_update(app_id, domain_old, domain_new):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
-    proxy = get_proxy(app_id)
+    proxy = get_proxy_domain(app_id, domain_old)
     if proxy != None:
         domains_old = proxy["domain_names"]
         index = domains_old.index(domain_old)
@@ -663,7 +663,7 @@ def app_domain_update(app_id, domain_old, domain_new):
         
         return domain_new
     else:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "App has no proxy", "")
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "domain is not binded", "")
 
 def app_domain_add(app_id, domains):
 
