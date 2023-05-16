@@ -543,8 +543,11 @@ def app_domain_list(app_id):
     ret['domains'] = domains
     
     default_domain = ""
-    if len(domains) > 0:
-        default_domain = domains[0]
+    customer_name = app_id.split('_')[1]
+    app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    if "APP_URL" in app_url:
+        url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env |grep APP_URL")["result"]
+        default_domain = url.split('=')[1]
     ret['default_domain'] = default_domain
     myLogger.info_logger(ret)
     return ret
@@ -623,6 +626,13 @@ def app_domain_delete(app_id, domain):
             }
 
             requests.put(url, data=json.dumps(data), headers=headers)
+            
+            domain_set = app_domain_list(app_id)
+            default_domain = domain_set['default_domain']
+            # 如果被删除的域名是默认域名，删除后去剩下域名的第一个
+            if default_domain == domain:
+                set_domain(domains_old[0], app_id)              
+
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
 
@@ -682,8 +692,11 @@ def app_domain_update(app_id, domain_old, domain_new):
         }
 
         requests.put(url, data=json.dumps(data), headers=headers)
-        
-        return domain_new
+        domain_set = app_domain_list(app_id)
+        default_domain = domain_set['default_domain']
+        # 如果被修改的域名是默认域名，修改后也设置为默认域名
+        if default_domain == domain_old:
+            set_domain(domain_new, app_id)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "domain is not binded", "")
 
