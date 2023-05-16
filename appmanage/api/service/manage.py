@@ -229,6 +229,7 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger("start JobID=" + job_id)
             docker.modify_env(env_path, 'APP_NAME', customer_name)
             docker.modify_env(env_path, "APP_VERSION", app_version)
+            docker.check_app_url(customer_name)
             cmd = "cd /data/apps/" + customer_name + " && sudo docker compose pull && sudo docker compose up -d"
             output = shell_execute.execute_command_output_all(cmd)
             myLogger.info_logger("-------Install result--------")
