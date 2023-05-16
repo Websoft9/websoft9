@@ -593,10 +593,8 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             response = requests.delete(url, headers=headers)
-            myLogger.info_logger(response.json())
-            myLogger.info_logger(response.json().get("error"))
-            if response.json().get("error") != None:
-                raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+            if response.json().get("error"):
+                raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
             set_domain("", app_id)
         else:
             proxy_id = proxy["id"]
@@ -631,9 +629,8 @@ def app_domain_delete(app_id, domain):
             }
 
             response = requests.put(url, data=json.dumps(data), headers=headers)
-            myLogger.info_logger(response)
-            #if response.json()["error"] != None:
-            #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+            if response.json().get("error"):
+                raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
             domain_set = app_domain_list(app_id)
             default_domain = domain_set['default_domain']
             # 如果被删除的域名是默认域名，删除后去剩下域名的第一个
@@ -643,7 +640,6 @@ def app_domain_delete(app_id, domain):
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
 
-    
 
 def app_domain_update(app_id, domain_old, domain_new):
     
@@ -699,7 +695,8 @@ def app_domain_update(app_id, domain_old, domain_new):
         }
 
         response = requests.put(url, data=json.dumps(data), headers=headers)
-        myLogger.info_logger(response)
+        if response.json().get("error"):
+            raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         domain_set = app_domain_list(app_id)
         default_domain = domain_set['default_domain']
         # 如果被修改的域名是默认域名，修改后也设置为默认域名
@@ -765,9 +762,8 @@ def app_domain_add(app_id, domain):
             "ssl_forced": False
         }
         response = requests.put(url, data=json.dumps(data), headers=headers)
-        myLogger.info_logger(response)
-        #if response.json()["error"] != None:
-        #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+        if response.json().get("error"):
+            raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
     else:
         # 追加
         token = get_token()
@@ -802,11 +798,9 @@ def app_domain_add(app_id, domain):
         }
         
         response = requests.post(url, data=json.dumps(data), headers=headers)
-        myLogger.info_logger(response.json())
-        myLogger.info_logger(response.json().get("error"))
-        #if response.json()["error"]:
-        #    myLogger.info_logger(response.json())
-        #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+
+        if response.json().get("error"):
+            raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         set_domain(domain, app_id)
         
     return domain
