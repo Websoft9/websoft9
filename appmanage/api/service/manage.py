@@ -183,6 +183,9 @@ def check_app(app_name, customer_name, app_version):
     elif app_version == None:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "app_version is null"
+    elif app_version == "undefined" or app_version == "":
+       code = const.ERROR_CLIENT_PARAM_BLANK
+       message = "app_version is null"
     elif not docker.check_app_websoft9(app_name):
         code = const.ERROR_CLIENT_PARAM_NOTEXIST
         message = "It is not support to install " + app_name
