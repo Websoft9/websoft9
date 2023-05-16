@@ -543,11 +543,12 @@ def app_domain_list(app_id):
     ret['domains'] = domains
     
     default_domain = ""
-    customer_name = app_id.split('_')[1]
-    app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
-    if "APP_URL" in app_url:
-        url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env |grep APP_URL")["result"]
-        default_domain = url.split('=')[1]
+    if domains != None and len(domains) > 0:
+        customer_name = app_id.split('_')[1]
+        app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+        if "APP_URL" in app_url:
+            url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env |grep APP_URL=")["result"]
+            default_domain = url.split('=')[1]
     ret['default_domain'] = default_domain
     myLogger.info_logger(ret)
     return ret
@@ -790,7 +791,8 @@ def app_domain_add(app_id, domain):
             "hsts_subdomains": False,
             "ssl_forced": False
         }
-
+        myLogger.info_logger("Create a new proxy")
+        myLogger.info_logger(json.dumps(data))
         requests.post(url, data=json.dumps(data), headers=headers)
         set_domain(domain, app_id)
         
