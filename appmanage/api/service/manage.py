@@ -593,8 +593,9 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             response = requests.delete(url, headers=headers)
-            if response.json()["error"] != None:
-                raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+            myLogger.info_logger(response)
+            #if response.json()["error"] != None:
+            #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
             set_domain("", app_id)
         else:
             proxy_id = proxy["id"]
@@ -629,8 +630,9 @@ def app_domain_delete(app_id, domain):
             }
 
             response = requests.put(url, data=json.dumps(data), headers=headers)
-            if response.json()["error"] != None:
-                raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+            myLogger.info_logger(response)
+            #if response.json()["error"] != None:
+            #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
             domain_set = app_domain_list(app_id)
             default_domain = domain_set['default_domain']
             # 如果被删除的域名是默认域名，删除后去剩下域名的第一个
@@ -696,8 +698,7 @@ def app_domain_update(app_id, domain_old, domain_new):
         }
 
         response = requests.put(url, data=json.dumps(data), headers=headers)
-        if response.json()["error"] != None:
-            raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+        myLogger.info_logger(response)
         domain_set = app_domain_list(app_id)
         default_domain = domain_set['default_domain']
         # 如果被修改的域名是默认域名，修改后也设置为默认域名
@@ -762,10 +763,10 @@ def app_domain_add(app_id, domain):
             "hsts_subdomains": False,
             "ssl_forced": False
         }
-        myLogger.info_logger(data)
         response = requests.put(url, data=json.dumps(data), headers=headers)
-        if response.json()["error"] != None:
-            raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+        myLogger.info_logger(response)
+        #if response.json()["error"] != None:
+        #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
     else:
         # 追加
         token = get_token()
@@ -801,9 +802,9 @@ def app_domain_add(app_id, domain):
         
         response = requests.post(url, data=json.dumps(data), headers=headers)
         myLogger.info_logger(response)
-        if response.json()["error"]:
-            myLogger.info_logger(response.json())
-            raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+        #if response.json()["error"]:
+        #    myLogger.info_logger(response.json())
+        #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
         set_domain(domain, app_id)
         
     return domain
@@ -857,8 +858,7 @@ def get_token():
         "secret": password
     }
     response = requests.post(url, data=json.dumps(param), headers=headers)
-    if response["error"] != None:
-        raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+
     token = "Bearer " + response.json()["token"]
     return token
 
@@ -872,8 +872,7 @@ def get_proxy(app_id):
         'Content-Type': 'application/json'
     }
     response = requests.get(url, headers=headers)
-    if response.json()["error"] != None:
-        raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+
     for proxy in response.json():
         portainer_name = proxy["forward_host"]
         if customer_name == portainer_name:
@@ -892,8 +891,7 @@ def get_proxy_domain(app_id, domain):
         'Content-Type': 'application/json'
     }
     response = requests.get(url, headers=headers)
-    if response.json()["error"] != None:
-        raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+
     myLogger.info_logger(response.json())
     for proxy in response.json():
         portainer_name = proxy["forward_host"]
@@ -917,8 +915,7 @@ def get_all_domains(app_id):
         'Content-Type': 'application/json'
     }
     response = requests.get(url, headers=headers)
-    if response.json()["error"] != None:
-        raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+
     for proxy in response.json():
         portainer_name = proxy["forward_host"]
         if customer_name == portainer_name:
