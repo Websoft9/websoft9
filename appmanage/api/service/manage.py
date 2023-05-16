@@ -915,7 +915,7 @@ def set_domain(domain, app_id):
     old_domains = get_all_domains(app_id)
     if domain != "":
         if domain not in old_domains:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not binded", "") 
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Binded Domains has no this domain", "") 
         
     customer_name = app_id.split('_')[1]
     app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
@@ -927,11 +927,13 @@ def set_domain(domain, app_id):
             domain = ip_result["result"].rstrip('\n')
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
-            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
+            if "APP_URL_REPLACE=true" in app_url:
+                shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
         else:
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
-            shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
+            if "APP_URL_REPLACE=true" in app_url:
+                shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
     myLogger.info_logger("set_domain success")
     
 def get_container_port(container_name):
