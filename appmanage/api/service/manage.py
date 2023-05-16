@@ -802,7 +802,8 @@ def app_domain_add(app_id, domain):
         }
         
         response = requests.post(url, data=json.dumps(data), headers=headers)
-        myLogger.info_logger(response)
+        myLogger.info_logger(response.json())
+        myLogger.info_logger(response.json().get("error"))
         #if response.json()["error"]:
         #    myLogger.info_logger(response.json())
         #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
