@@ -593,9 +593,10 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             response = requests.delete(url, headers=headers)
-            myLogger.info_logger(response)
-            #if response.json()["error"] != None:
-            #    raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
+            myLogger.info_logger(response.json())
+            myLogger.info_logger(response.json().get("error"))
+            if response.json().get("error") != None:
+                raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
             set_domain("", app_id)
         else:
             proxy_id = proxy["id"]
