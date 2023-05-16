@@ -163,7 +163,7 @@ def uninstall_app(app_id):
                raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
         # Force to delete 
         try:
-           cmd = " sudo rm -rf " + app_path
+           cmd = " sudo rm -rf /data/apps/" + customer_name
            shell_execute.execute_command_output_all(cmd)
         except CommandException as ce:
            myLogger.info_logger("Delete app compose exception")
