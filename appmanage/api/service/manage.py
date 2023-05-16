@@ -547,7 +547,7 @@ def app_domain_list(app_id):
         customer_name = app_id.split('_')[1]
         app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
         if "APP_URL" in app_url:
-            url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env |grep APP_URL=")["result"]
+            url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env |grep APP_URL=")["result"].rstrip('\n')
             default_domain = url.split('=')[1]
     ret['default_domain'] = default_domain
     myLogger.info_logger(ret)
@@ -642,7 +642,7 @@ def app_domain_delete(app_id, domain):
 
 
 def app_domain_update(app_id, domain_old, domain_new):
-    
+    myLogger.info_logger("app_domain_update")
     domain_list = []
     domain_list.append(domain_old)
     domain_list.append(domain_new)
@@ -699,11 +699,12 @@ def app_domain_update(app_id, domain_old, domain_new):
             raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         domain_set = app_domain_list(app_id)
         default_domain = domain_set['default_domain']
+        myLogger.info_logger("default_domain=" + default_domain + ",domain_old="+domain_old)
         # 如果被修改的域名是默认域名，修改后也设置为默认域名
         if default_domain == domain_old:
             set_domain(domain_new, app_id)
     else:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "domain is not binded", "")
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "edit domain is not exist", "")
 
 def app_domain_add(app_id, domain):
     
@@ -937,7 +938,7 @@ def app_domain_set(domain, app_id):
     set_domain(domain, app_id)
 
 def set_domain(domain, app_id):
-    
+    myLogger.info_logger("set_domain start")
     old_domains = get_all_domains(app_id)
     if domain != "":
         if domain not in old_domains:
