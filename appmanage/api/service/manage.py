@@ -800,7 +800,7 @@ def app_domain_add(app_id, domain):
         }
         
         response = requests.post(url, data=json.dumps(data), headers=headers)
-        myLogger.info_logger(response.json())
+        myLogger.info_logger(response)
         if response.json()["error"]:
             myLogger.info_logger(response.json())
             raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
@@ -857,7 +857,7 @@ def get_token():
         "secret": password
     }
     response = requests.post(url, data=json.dumps(param), headers=headers)
-    if response.json()["error"] != None:
+    if response["error"] != None:
         raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
     token = "Bearer " + response.json()["token"]
     return token
