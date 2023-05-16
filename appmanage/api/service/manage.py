@@ -560,12 +560,15 @@ def app_domain_delete(app_id, domain):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
-    old_all_domains = get_all_domains(app_id)
     
+    if domain is None or domain == "undefined":
+        raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
+        
+    old_all_domains = get_all_domains(app_id)
     if domain not in old_all_domains:
         myLogger.info_logger("delete domain is not binded")
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind.", "")
-
+    
     myLogger.info_logger("Start to delete " + domain)  
     proxy = get_proxy_domain(app_id, domain)
     if proxy != None:
