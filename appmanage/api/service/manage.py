@@ -593,6 +593,7 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             response = requests.delete(url, headers=headers)
+            myLogger.info_logger(response.json())
             if response.json().get("error"):
                 raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
             set_domain("", app_id)
@@ -638,7 +639,7 @@ def app_domain_delete(app_id, domain):
                 set_domain(domains_old[0], app_id)              
 
     else:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind", "")
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Delete domain is not bind", "")
 
 
 def app_domain_update(app_id, domain_old, domain_new):
@@ -956,11 +957,13 @@ def set_domain(domain, app_id):
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
             if "APP_URL_REPLACE=true" in app_url:
+                myLogger.info_logger("need up")
                 shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
         else:
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
             if "APP_URL_REPLACE=true" in app_url:
+                myLogger.info_logger("need up")
                 shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
     myLogger.info_logger("set_domain success")
     
