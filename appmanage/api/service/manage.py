@@ -791,9 +791,9 @@ def app_domain_add(app_id, domain):
             "hsts_subdomains": False,
             "ssl_forced": False
         }
-        myLogger.info_logger("Create a new proxy")
-        myLogger.info_logger(json.dumps(data))
-        requests.post(url, data=json.dumps(data), headers=headers)
+        
+        response = requests.post(url, data=json.dumps(data), headers=headers)
+        myLogger.info_logger(response.json())
         set_domain(domain, app_id)
         
     return domain
@@ -887,7 +887,7 @@ def get_proxy_domain(app_id, domain):
             if domain in domain_list:
                myLogger.info_logger("find the domain proxy")
                proxy_host = proxy
-               break;
+               break
 
     return proxy_host
 
