@@ -724,7 +724,7 @@ def app_domain_add(app_id, domain):
         
     old_domains = get_all_domains(app_id)
     if domain in old_domains:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is binded", "") 
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is in use", "") 
         
     proxy = get_proxy(app_id)
     if proxy != None:
@@ -800,7 +800,9 @@ def app_domain_add(app_id, domain):
         }
         
         response = requests.post(url, data=json.dumps(data), headers=headers)
-        if response.json()["error"] != None:
+        myLogger.info_logger(response.json())
+        if response.json()["error"]:
+            myLogger.info_logger(response.json())
             raise CommandException(const.ERROR_API_NGINX, response.json()["error"]["message"], "")
         set_domain(domain, app_id)
         
