@@ -288,7 +288,7 @@ def AppDomainSet(request: Request, app_id: Optional[str] = Query(default=None, d
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        manage.app_domain_set(app_id,domain)
+        manage.app_domain_set(domain,app_id)
         ret['ResponseData']['AppID'] = app_id
     except CommandException as ce:
         ret = {}
