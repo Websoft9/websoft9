@@ -28,26 +28,25 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn,default_timeout=3600)
 
-# APP列表是否有正在安装的应用
-def check_list_status(applist):
-    installing = False
-    for app in applist:
-        status = app['status']
-        if status == "created":
-            installing = True
-            break
-    return installing
-
+def conbine_list(installing_list, installed_list):
+    app_list = installing_list + installed_list
+    result_list = []
+    appid_list = []
+    for app in app_list:
+        app_id = app['app_id']
+        if app_id in appid_list:
+            continue
+        else:
+            appid_list.append(app_id)
+            result_list.append(app)
+    return result_list
+    
 # 获取所有app的信息
 def get_my_app(app_id):
     installed_list = get_apps_from_compose()
     installing_list = get_apps_from_queue()
     
-    if check_list_status(installed_list):   
-       time.sleep(3)
-       installed_list = get_apps_from_compose()
-    
-    app_list = installing_list + installed_list
+    app_list = conbine_list(installing_list, installed_list)
     find = False
     ret = {}
     if app_id != None:
