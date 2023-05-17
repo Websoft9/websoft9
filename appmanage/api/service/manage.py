@@ -152,13 +152,14 @@ def uninstall_app(app_id):
             delete_app_failedjob(app_id)
         else:
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
-    # Force to delete 
+    # Force to delete docker compose
     try:
         cmd = " sudo rm -rf /data/apps/" + customer_name
         shell_execute.execute_command_output_all(cmd)
     except CommandException as ce:
         myLogger.info_logger("Delete app compose exception")
-
+    # Delete proxy config when uninstall app
+    app_proxy_delete(app_id)
 
 def check_app(app_name, customer_name, app_version):
     message = ""
@@ -543,6 +544,29 @@ def app_domain_list(app_id):
     myLogger.info_logger(ret)
     return ret
 
+def app_proxy_delete(app_id):
+
+    customer_name = app_id.split('_')[1]
+    proxy_host = None
+    token = get_token()
+    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    headers = {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+    }
+    response = requests.get(url, headers=headers)
+
+    for proxy in response.json():
+        portainer_name = proxy["forward_host"]
+        if customer_name == portainer_name:
+            proxy_id = proxy["id"]
+            token = get_token()
+            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            headers = {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+            }
+            response = requests.delete(url, headers=headers)
 
 def app_domain_delete(app_id, domain):
     code, message = docker.check_app_id(app_id)
