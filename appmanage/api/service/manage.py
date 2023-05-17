@@ -95,33 +95,25 @@ def install_app(app_name, customer_name, app_version):
     return ret
 
 def start_app(app_id):
-    code, message = docker.check_app_id(app_id)
-    if code == None:
-        info, flag = app_exits_in_docker(app_id)
-        if flag:
-            app_path = info.split()[-1].rsplit('/', 1)[0]
-            cmd = "docker compose -f " + app_path + "/docker-compose.yml start"
-            shell_execute.execute_command_output_all(cmd)
-        else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+
+    info, flag = app_exits_in_docker(app_id)
+    if flag:
+        app_path = info.split()[-1].rsplit('/', 1)[0]
+        cmd = "docker compose -f " + app_path + "/docker-compose.yml start"
+        shell_execute.execute_command_output_all(cmd)
     else:
-        raise CommandException(code, message, '')
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+
 
 def stop_app(app_id):
-    code, message = docker.check_app_id(app_id)
-    myLogger.info_logger(message)
-    if code == None:
-        info, flag = app_exits_in_docker(app_id)
-        if flag:
-            app_path = info.split()[-1].rsplit('/', 1)[0]
-            cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
-            shell_execute.execute_command_output_all(cmd)
-        else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
-    else:
-        myLogger.info_logger("check app failed")
-        raise CommandException(code, message, "")
 
+    info, flag = app_exits_in_docker(app_id)
+    if flag:
+        app_path = info.split()[-1].rsplit('/', 1)[0]
+        cmd = "docker compose -f " + app_path + "/docker-compose.yml stop"
+        shell_execute.execute_command_output_all(cmd)
+    else:
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
 
 def restart_app(app_id):
     code, message = docker.check_app_id(app_id)
@@ -143,32 +135,30 @@ def delete_app_failedjob(job_id):
     failed.remove(job_id, delete_job=True)
 
 def uninstall_app(app_id):
-    code, message = docker.check_app_id(app_id)
-    if code == None:
-        app_name = app_id.split('_')[0]
-        customer_name = app_id.split('_')[1]
-        app_path = ""
-        info, code_exist = app_exits_in_docker(app_id)
-        if code_exist:  
-            app_path = info.split()[-1].rsplit('/', 1)[0]
-            cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
-            lib_path = '/data/library/apps/' + app_name
-            if app_path != lib_path:
-                cmd = cmd + " && sudo rm -rf " + app_path
-            shell_execute.execute_command_output_all(cmd)
-        else:
-            if check_app_rq(app_id):
-                delete_app_failedjob(app_id)
-            else:
-               raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
-        # Force to delete 
-        try:
-           cmd = " sudo rm -rf /data/apps/" + customer_name
-           shell_execute.execute_command_output_all(cmd)
-        except CommandException as ce:
-           myLogger.info_logger("Delete app compose exception")
+
+    app_name = app_id.split('_')[0]
+    customer_name = app_id.split('_')[1]
+    app_path = ""
+    info, code_exist = app_exits_in_docker(app_id)
+    if code_exist:  
+        app_path = info.split()[-1].rsplit('/', 1)[0]
+        cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
+        lib_path = '/data/library/apps/' + app_name
+        if app_path != lib_path:
+            cmd = cmd + " && sudo rm -rf " + app_path
+        shell_execute.execute_command_output_all(cmd)
     else:
-        raise CommandException(code, message, "")
+        if check_app_rq(app_id):
+            delete_app_failedjob(app_id)
+        else:
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
+    # Force to delete 
+    try:
+        cmd = " sudo rm -rf /data/apps/" + customer_name
+        shell_execute.execute_command_output_all(cmd)
+    except CommandException as ce:
+        myLogger.info_logger("Delete app compose exception")
+
 
 def check_app(app_name, customer_name, app_version):
     message = ""
@@ -593,9 +583,11 @@ def app_domain_delete(app_id, domain):
                 'Content-Type': 'application/json'
             }
             response = requests.delete(url, headers=headers)
-            myLogger.info_logger(response.json())
-            if response.json().get("error"):
-                raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+            try:
+                if response.json().get("error"):
+                    raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+            except Exception:
+                myLogger.info_logger(response.json())
             set_domain("", app_id)
         else:
             proxy_id = proxy["id"]
