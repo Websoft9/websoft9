@@ -521,7 +521,7 @@ def get_url(app_name, easy_url):
 
 def get_admin_url(customer_name, url):
     admin_url = ""
-    path = "/data/apps/" + customer_name
+    path = "/data/apps/" + customer_name + "/.env"
     try:
         admin_path = list(docker.read_env(path, "APP_ADMIN_PATH").values())[0]
         admin_url = url + admin_path
