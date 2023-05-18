@@ -297,7 +297,13 @@ def get_apps_from_compose():
         user_name = ""
         password = ""
         official_app = False
-
+        app_version = ""
+        create_time = ""
+        volume_data = []
+        config_path = app_path
+        app_https = False
+        app_replace_url = False
+        default_domain = ""
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         # get code
@@ -319,47 +325,67 @@ def get_apps_from_compose():
             image_url = get_Image_url(app_name)
             # get env info
             path = app_path + "/.env"
-            # get port and url
             try:
-                http_port = list(docker.read_env(
-                    path, "APP_HTTP_PORT").values())[0]
-                port = int(http_port)
-                easy_url = "http://" + ip + ":" + str(port)
-                url = get_url(app_name, easy_url)
-                admin_url = get_admin_url(app_name, url)
+                domain = list(docker.read_env(path, "APP_URL").values())[0]
+                if "appname.example.com" in domain or ip in domain:
+                    default_domain = ""
+                else:
+                    default_domain = domain
             except IndexError:
+                pass            
+            try:
+                app_version = list(docker.read_env(path, "APP_VERSION").values())[0]
+                volume_data = ["/var/lib/docker/volumes"]
+                user_name = list(docker.read_env(path, "APP_USER").values())[0]
+                password = list(docker.read_env(path, "POWER_PASSWORD").values())[0]
+
+            except IndexError:
+                pass
+            try:
+                replace = list(docker.read_env(path, "APP_URL_REPLACE").values())[0]
+                if replace == "true":
+                    app_replace_url = True
+                https = list(docker.read_env(path, "APP_HTTPS_ACCESS").values())[0]
+                if https == "true":
+                    app_https = True
+            except IndexError:
+                pass
+            if user_name != "":
+                try:
+                    http_port = list(docker.read_env(path, "APP_HTTP_PORT").values())[0]
+                    port = int(http_port)
+                    if app_https:
+                        easy_url = "https://" + ip + ":" + str(port)
+                    else:
+                        easy_url = "http://" + ip + ":" + str(port)
+                    url = easy_url
+                    admin_url = get_admin_url(customer_name, url)
+                except IndexError:
+                    pass
+            else:
                 try:
                     db_port = list(docker.read_env(path, "APP_DB.*_PORT").values())[0]
                     port = int(db_port)
                 except IndexError:
                     pass
-            # get user_name
-            try:
-                user_name = list(docker.read_env(path, "APP_USER").values())[0]
-            except IndexError:
-                pass
-            # get password
-            try:
-                password = list(docker.read_env(path, "POWER_PASSWORD").values())[0]
-            except IndexError:
-                pass
         else:
             app_name = customer_name
             app_id = customer_name + "_" + customer_name
             
         if status in ['running', 'exited']:
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
-                                   user_name=user_name, password=password, default_domain="", set_domain="")
+                                   app_username=user_name, app_password=password, default_domain=default_domain)
         else:
             config = None
         if status == "failed":
             status_reason = StatusReason(Code=const.ERROR_SERVER_SYSTEM, Message="system original error", Detail="unknown error")
         else:
             status_reason = None
-        
-        app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark, status=status,
-                  status_reason=status_reason, official_app=official_app, image_url=image_url,
-                  config=config)
+        app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
+                app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
+                status=status, status_reason=status_reason, official_app=official_app, image_url=image_url,
+                app_https=app_https,app_replace_url=app_https,config=config)
+
         app_list.append(app.dict())
     return app_list
 
@@ -466,7 +492,10 @@ def get_rq_app(id, status, code, message, detail):
     customer_name = id.split('_')[1]
     # 当app还在RQ时，可能文件夹还没创建，无法获取trade_mark
     trade_mark = "" 
-    
+    app_version = ""
+    create_time = ""
+    volume_data = []
+    config_path = ""
     image_url = get_Image_url(app_name)
     config = None
     if status == "installing" :
@@ -475,8 +504,9 @@ def get_rq_app(id, status, code, message, detail):
         status_reason = StatusReason(Code=code, Message=message, Detail=detail)
     
     app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
+              app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
-              config=config)
+              app_https=False,app_replace_url=False,config=config)
     return app.dict()
 
 def get_Image_url(app_name):
@@ -486,23 +516,16 @@ def get_Image_url(app_name):
 
 def get_url(app_name, easy_url):
     url = easy_url
-    if app_name == "joomla":
-        url = easy_url + "/administrator"
-    elif app_name == "other":
-        url = easy_url + "/administrator"
-    else:
-        url = easy_url
     return url
 
-
-def get_admin_url(app_name, url):
+def get_admin_url(customer_name, url):
     admin_url = ""
-    if app_name == "wordpress":
-        admin_url = url + "/wp-admin"
-    elif app_name == "other":
-        admin_url = url + "/admin"
-    else:
-        admin_url = ""
+    path = "/data/apps/" + customer_name
+    try:
+        admin_path = list(docker.read_env(path, "APP_ADMIN_PATH").values())[0]
+        admin_url = url + admin_path
+    except IndexError:
+        pass
     return admin_url
 
 

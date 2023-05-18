@@ -5,7 +5,6 @@ class Config(BaseModel):
     compose_file: str
     url: str
     admin_url: str
-    user_name: str
-    password: str
+    admin_username: str
+    admin_password: str
     default_domain: str
-    set_domain: str
