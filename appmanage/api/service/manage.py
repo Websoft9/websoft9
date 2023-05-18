@@ -269,6 +269,25 @@ def app_exits_in_docker(app_id):
 def split_app_id(app_id):
     return app_id.split("_")[1]
 
+def get_createtime(official_app, app_path, customer_name):
+    data_time = ""
+    try:
+        if official_app:
+            cmd = "docker inspect " + customer_name + " |grep Created"
+            result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
+            data_time = result.split("\"")[3].split(".")[0].replace("T"," ")
+        else:
+            cmd_all = "cd " + app_path + " && docker compose ps -a --format json"
+            output = shell_execute.execute_command_output_all(cmd_all)
+            container_name = json.loads(output["result"])[0]["Name"]
+            cmd = "docker inspect " + container_name + " |grep Created"
+            result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
+            data_time = result.split("\"")[3].split(".")[0].replace("T"," ")
+    except Exception:
+        pass
+
+    return data_time
+
 def get_apps_from_compose():
     myLogger.info_logger("Search all of apps ...")
     cmd = "docker compose ls -a --format json"
@@ -350,11 +369,14 @@ def get_apps_from_compose():
                     app_https = True
             except IndexError:
                 pass
-            if user_name != "":
+
+            try:
+                http_port = list(docker.read_env(path, "APP_HTTP_PORT").values())[0]
+                port = int(http_port)
+            except IndexError:
+                pass            
+            if port != 0:
                 try:
-                    myLogger.info_logger("user_name="+user_name+" password="+ " ---start to set url")
-                    http_port = list(docker.read_env(path, "APP_HTTP_PORT").values())[0]
-                    port = int(http_port)
                     if app_https:
                         easy_url = "https://" + ip + ":" + str(port)
                     else:
@@ -372,7 +394,7 @@ def get_apps_from_compose():
         else:
             app_name = customer_name
             app_id = customer_name + "_" + customer_name
-            
+        create_time = get_createtime(official_app, app_path, customer_name)  
         if status in ['running', 'exited']:
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    admin_username=user_name, admin_password=password, default_domain=default_domain)
