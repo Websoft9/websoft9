@@ -352,6 +352,7 @@ def get_apps_from_compose():
                 pass
             if user_name != "":
                 try:
+                    myLogger.info_logger("user_name="+user_name+" password="+ " ---start to set url")
                     http_port = list(docker.read_env(path, "APP_HTTP_PORT").values())[0]
                     port = int(http_port)
                     if app_https:
@@ -374,7 +375,7 @@ def get_apps_from_compose():
             
         if status in ['running', 'exited']:
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
-                                   app_username=user_name, app_password=password, default_domain=default_domain)
+                                   admin_username=user_name, admin_password=password, default_domain=default_domain)
         else:
             config = None
         if status == "failed":
