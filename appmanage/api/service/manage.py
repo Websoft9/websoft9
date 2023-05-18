@@ -283,6 +283,7 @@ def get_createtime(official_app, app_path, customer_name):
             cmd = "docker inspect " + container_name + " |grep Created"
             result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
             data_time = result.split("\"")[3].split(".")[0].replace("T"," ")
+
     except Exception:
         pass
 

@@ -8,6 +8,11 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/issues"' ERR
 
+urls=(
+    https://ghproxy.com/https://github.com
+    #https://github.com
+)
+
 function get_os_type() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -122,7 +127,7 @@ echo "Parpare to install Tools ..."
 
 if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
   sudo yum update -y 1>/dev/null 2>&1
-  sudo yum install  git curl wget yum-utils -y  1>/dev/null 2>&1
+  sudo yum install  git curl wget yum-utils jq -y  1>/dev/null 2>&1
 
 fi
 
@@ -132,7 +137,7 @@ if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
       sleep 5
   done
   sudo apt update -y 1>/dev/null 2>&1
-  sudo apt install git curl wget -y  1>/dev/null 2>&1
+  sudo apt install git curl wget jq -y  1>/dev/null 2>&1
 fi
 
 }
@@ -242,28 +247,38 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 
 # install plugins
 mkdir -p /usr/share/cockpit/appstore
+mkdir -p /usr/share/cockpit/container
+mkdir -p /usr/share/cockpit/nginx
+
 # install web
 cp -r /data/apps/stackhub/appmanage/static/images /data/stackhubweb/src/apps/build/static
 cp -r /data/stackhubweb/src/apps/build/* /usr/share/cockpit/appstore
+## install container
+cp -r /data/stackhubweb/plugins/portainer/build/* /usr/share/cockpit/container
+cp -r /data/stackhubweb/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
 
 # install navigator
-curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-sudo bash setup-repo.sh
-
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
-  sudo apt install cockpit-navigator -y 1>/dev/null 2>&1
+  wget -qO - https://repo.45drives.com/key/gpg.asc | sudo gpg --dearmor -o /usr/share/keyrings/45drives-archive-keyring.gpg
+  cd /etc/apt/sources.list.d
+  sudo curl -sSL https://repo.45drives.com/lists/45drives.sources -o /etc/apt/sources.list.d/45drives.sources
+  sudo apt update
+  sudo apt install cockpit-navigator -y 
 fi
 
 if [ "$os_type" == 'Redhat' ] || [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Fedora' ] ;then
+  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
+  sudo bash setup-repo.sh
   sudo dnf install cockpit-navigator -y 1>/dev/null 2>&1
 fi
 
 if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ] ;then
+  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
+  sudo bash setup-repo.sh
   sudo yum install cockpit-navigator -y 1>/dev/null 2>&1
 fi
 
-# install docker
-cp -r /data/apps/stackhub/cockpit/docker /usr/share/cockpit
+
 
 # uninstall plugins
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump
@@ -277,6 +292,22 @@ sudo systemctl enable --now cockpit.socket
 sudo systemctl restart cockpit.socket
 sudo systemctl restart cockpit
 
+}
+
+function fastest_url() {
+  urls=("$@")
+  fastest_url=""
+  fastest_time=0
+
+  for url in "${urls[@]}"; do
+    time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
+    if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
+      fastest_time=$time
+      fastest_url=$url
+    fi
+  done
+
+  echo "$fastest_url"
 }
 
 clone_repo() {
@@ -298,35 +329,67 @@ clone_repo() {
 ParpareStaticFiles(){
 
 echo "Parpare to install ..." 
+fasturl=$(fastest_url "${urls[@]}")
+echo "Fast url is: "$fasturl
 
 # download apps
 mkdir -p /data/apps
-clone_repo https://ghproxy.com/https://github.com/Websoft9/docker-library /data/library
-clone_repo https://ghproxy.com/https://github.com/Websoft9/Stackhub /data/apps/stackhub
-clone_repo https://ghproxy.com/https://github.com/Websoft9/stackhub-web /data/stackhubweb
+clone_repo $fasturl/Websoft9/docker-library /data/library
+clone_repo $fasturl/Websoft9/Stackhub /data/apps/stackhub
+clone_repo $fasturl/Websoft9/stackhub-web /data/stackhubweb
 
 }
-
 
 StartAppMng(){
 
 echo "Start appmanage API ..." 
-cd /data/apps/stackhub/docker/redis  && sudo docker compose up -d
-cd /data/apps/stackhub/docker/appmanage  && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9redis  && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose up -d
 
+public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
+echo $public_ip > /data/apps/stackhub/docker/w9appmanage/public_ip
+
+}
+
+StartPortainer(){
+
+echo "Start Portainer ..." 
+cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose up -d
+docker pull backplane/pwgen
+new_password=$(docker run --name pwgen backplane/pwgen 15)!
+docker rm -f pwgen
+sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/container/config.json
+sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/container/config.json
+curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://127.0.0.1:9091/api/users/admin/init
 }
 
 InstallNginx(){
 
 echo "Install nginxproxymanager ..." 
-cd /data/apps/stackhub/docker/nginxproxymanager && sudo docker compose up -d
-while [ ! -d "/var/lib/docker/volumes/nginxproxymanager_nginx_data/_data/nginx/proxy_host" ]; do
+cd /data/apps/stackhub/docker/w9nginxproxymanager && sudo docker compose up -d
+sleep 25
+echo "edit nginxproxymanager password..." 
+login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://127.0.0.1:9092/api/tokens)
+sleep 3
+token=$(echo $login_data | jq -r '.token')
+new_password=$(docker run --name pwgen backplane/pwgen 15)!
+docker rm -f pwgen
+curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://127.0.0.1:9092/api/users/1
+curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://127.0.0.1:9092/api/users/1/auth
+sleep 3
+sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/nginx/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/nginx/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/nginx/config.json
+echo "edit password success ..." 
+while [ ! -d "/var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host" ]; do
     sleep 1
 done
-cp /data/apps/stackhub/docker/nginxproxymanager/initproxy.conf /var/lib/docker/volumes/nginxproxymanager_nginx_data/_data/nginx/proxy_host
+cp /data/apps/stackhub/docker/w9nginxproxymanager/initproxy.conf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host
 public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
-sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
+sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 sudo docker restart websoft9-nginxproxymanager
+
+echo "---------------------------------- Install completed, let use appstore -------------------------------------------------------" 
 }
 
 CheckEnvironment
@@ -335,4 +398,5 @@ InstallDocker
 ParpareStaticFiles
 InstallCockpit
 StartAppMng
+StartPortainer
 InstallNginx
