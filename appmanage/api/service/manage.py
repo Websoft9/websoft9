@@ -284,10 +284,10 @@ def get_apps_from_compose():
 
     app_list = []
     for app_info in output_list:
-        volume = app_info["ConfigFiles"]  # volume
+        volume = app_info["ConfigFiles"]
         app_path = volume.rsplit('/', 1)[0]
         customer_name = volume.split('/')[-2]
-        app_id = ""  # app_id
+        app_id = ""
         app_name = ""
         trade_mark = ""
         port = 0
@@ -382,7 +382,7 @@ def get_apps_from_compose():
             status_reason = StatusReason(Code=const.ERROR_SERVER_SYSTEM, Message="system original error", Detail="unknown error")
         else:
             status_reason = None
-        app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
+        app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
                 app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
                 status=status, status_reason=status_reason, official_app=official_app, image_url=image_url,
                 app_https=app_https,app_replace_url=app_https,config=config)
