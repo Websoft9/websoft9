@@ -546,6 +546,7 @@ def get_admin_url(customer_name, url):
     path = "/data/apps/" + customer_name + "/.env"
     try:
         admin_path = list(docker.read_env(path, "APP_ADMIN_PATH").values())[0]
+        admin_path = admin_path.replace("\"","")
         admin_url = url + admin_path
     except IndexError:
         pass
