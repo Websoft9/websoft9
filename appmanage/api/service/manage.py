@@ -362,6 +362,7 @@ def get_apps_from_compose():
                 pass
             try:
                 replace = list(docker.read_env(path, "APP_URL_REPLACE").values())[0]
+                myLogger.info_logger("replace="+replace)
                 if replace == "true":
                     app_replace_url = True
                 https = list(docker.read_env(path, "APP_HTTPS_ACCESS").values())[0]
