@@ -364,24 +364,24 @@ def get_apps_from_compose():
             try:
                 app_version = env_map.get("APP_VERSION")
                 volume_data = ["/var/lib/docker/volumes"]
-                user_name = env_map.get("APP_USER")
-                password = env_map.get("POWER_PASSWORD")
+                user_name = env_map.get("APP_USER","")
+                password = env_map.get("POWER_PASSWORD","")
 
             except IndexError:
                 pass
             try:
-                replace = env_map.get("APP_URL_REPLACE")
+                replace = env_map.get("APP_URL_REPLACE","false")
                 myLogger.info_logger("replace="+replace)
                 if replace == "true":
                     app_replace_url = True
-                https = env_map.get("APP_HTTPS_ACCESS")
+                https = env_map.get("APP_HTTPS_ACCESS","")
                 if https == "true":
                     app_https = True
             except IndexError:
                 pass
 
             try:
-                http_port = env_map.get("APP_HTTP_PORT")
+                http_port = env_map.get("APP_HTTP_PORT","0")
                 if http_port:
                     port = int(http_port)
             except IndexError:
