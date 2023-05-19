@@ -2,9 +2,9 @@ from pydantic import BaseModel
 
 class Config(BaseModel):
     port: int
-    compose_file: None
-    url: None
-    admin_url: None
-    admin_username: None
-    admin_password: None
-    default_domain: None
+    compose_file: str
+    url: str
+    admin_url: str
+    admin_username: str
+    admin_password: str
+    default_domain: str

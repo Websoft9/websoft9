@@ -3,18 +3,18 @@ from api.model.config import Config
 from api.model.status_reason import StatusReason
 
 class App(BaseModel):
-    app_id: None
-    app_name: None
-    customer_name: None
-    trade_mark: None
-    status: None
+    app_id: str
+    app_name: str
+    customer_name: str
+    trade_mark: str
+    status: str
     status_reason: StatusReason = None
     official_app: bool
-    app_version: None
-    create_time: None
+    app_version: str
+    create_time: str
     volume_data = []
-    config_path = None
-    image_url: None
+    config_path = str
+    image_url: str
     app_https: bool
     app_replace_url: bool
     config: Config = None

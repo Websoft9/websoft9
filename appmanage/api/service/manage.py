@@ -307,23 +307,23 @@ def get_apps_from_compose():
         volume = app_info["ConfigFiles"]
         app_path = volume.rsplit('/', 1)[0]
         customer_name = volume.split('/')[-2]
-        app_id = None
-        app_name = None
-        trade_mark = None
+        app_id = ""
+        app_name = ""
+        trade_mark = ""
         port = 0
-        url = None
-        admin_url = None
-        image_url = None
-        user_name = None
-        password = None
+        url = ""
+        admin_url = ""
+        image_url = ""
+        user_name = ""
+        password = ""
         official_app = False
-        app_version = None
-        create_time = None
+        app_version = ""
+        create_time = ""
         volume_data = []
         config_path = app_path
         app_https = False
         app_replace_url = False
-        default_domain = None
+        default_domain = ""
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
     
@@ -331,6 +331,7 @@ def get_apps_from_compose():
         if status == "running" or status == "exited" or status == "restarting":
             myLogger.info_logger("ok")
             if status == "exited":
+
                 cmd = "docker ps -a  -f name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
                 result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
                 container = result.split("#Exited")[0]
@@ -355,7 +356,7 @@ def get_apps_from_compose():
             try:
                 domain = env_map.get("APP_URL")
                 if "appname.example.com" in domain or ip in domain:
-                    default_domain = None
+                    default_domain = ""
                 else:
                     default_domain = domain
             except IndexError:
@@ -363,17 +364,17 @@ def get_apps_from_compose():
             try:
                 app_version = env_map.get("APP_VERSION")
                 volume_data = ["/var/lib/docker/volumes"]
-                user_name = env_map.get("APP_USER")
+                user_name = env_map.get("APP_USER","")
                 password = env_map.get("POWER_PASSWORD","")
 
             except IndexError:
                 pass
             try:
-                replace = env_map.get("APP_URL_REPLACE")
+                replace = env_map.get("APP_URL_REPLACE","false")
                 myLogger.info_logger("replace="+replace)
                 if replace == "true":
                     app_replace_url = True
-                https = env_map.get("APP_HTTPS_ACCESS")
+                https = env_map.get("APP_HTTPS_ACCESS","false")
                 if https == "true":
                     app_https = True
             except IndexError:
@@ -406,9 +407,6 @@ def get_apps_from_compose():
             app_id = customer_name + "_" + customer_name
         create_time = get_createtime(official_app, app_path, customer_name)  
         if status in ['running', 'exited']:
-            myLogger.info_logger("config set ok")
-            myLogger.info_logger(default_domain)
-
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    admin_username=user_name, admin_password=password, default_domain=default_domain)
         else:
@@ -555,15 +553,13 @@ def get_url(app_name, easy_url):
     return url
 
 def get_admin_url(customer_name, url):
-    myLogger.info_logger("get_admin_url")
-    myLogger.info_logger(url)
     admin_url = ""
     path = "/data/apps/" + customer_name + "/.env"
     try:
         admin_path = list(docker.read_env(path, "APP_ADMIN_PATH").values())[0]
         admin_path = admin_path.replace("\"","")
         admin_url = url + admin_path
-    except Exception:
+    except IndexError:
         pass
     return admin_url
 
