@@ -273,16 +273,16 @@ def get_createtime(official_app, app_path, customer_name):
     data_time = ""
     try:
         if official_app:
-            cmd = "docker inspect " + customer_name + " |grep Created"
+            cmd = "docker ps -f name=" + customer_name + " --format {{.RunningFor}}  | head -n 1"
             result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
-            data_time = result.split("\"")[3].split(".")[0].replace("T"," ")
+            data_time = result
         else:
             cmd_all = "cd " + app_path + " && docker compose ps -a --format json"
             output = shell_execute.execute_command_output_all(cmd_all)
             container_name = json.loads(output["result"])[0]["Name"]
-            cmd = "docker inspect " + container_name + " |grep Created"
+            cmd = "docker ps -f name=" + customer_name + " --format {{.RunningFor}}  | head -n 1"
             result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
-            data_time = result.split("\"")[3].split(".")[0].replace("T"," ")
+            data_time = result
 
     except Exception:
         pass
@@ -330,6 +330,13 @@ def get_apps_from_compose():
         status = app_info["Status"].split("(")[0]
         if status == "running" or status == "exited" or status == "restarting":
             myLogger.info_logger("ok")
+            if status == "exited":
+
+                cmd = "docker ps -f name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
+                result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
+                container = result.split("#Exited")[0]
+                if container != customer_name:
+                    status = "running"
         elif status == "created":
             status = "failed"
         else:
