@@ -157,15 +157,19 @@ def check_app_url(customer_app_name):
     # 如果app的.env文件中含有HTTP_URL项目,需要如此设置 HTTP_URL=ip:port
     env_path = "/data/apps/" + customer_app_name + "/.env"
     if read_env(env_path, "HTTP_URL") != {}:
+        app_url = list(read_env(env_path, "HTTP_URL").values())[0]
         ip = "localhost"
         try:
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
             ip = ip_result["result"].rstrip('\n')
         except Exception:
             ip = "127.0.0.1"
-        http_port = list(read_env(path, "APP_HTTP_PORT").values())[0]
-        url = ip + ":" + http_port
-        modify_env(path, "HTTP_URL", url)
+        http_port = list(read_env(env_path, "APP_HTTP_PORT").values())[0]
+        if ":" in app_url:
+            url = ip + ":" + http_port
+        else:
+            url = ip
+        modify_env(env_path, "HTTP_URL", url)
 
     myLogger.info_logger("App url check complete")
     return
