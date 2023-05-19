@@ -177,6 +177,17 @@ def check_app_url(customer_app_name):
     myLogger.info_logger("App url check complete")
     return
 
+def get_map(path):
+    myLogger.info_logger("Read env_dic" + path)
+    output = shell_execute.execute_command_output_all("cat " + path)
+    code = output["code"]
+    env_dic = {}
+    if int(code) == 0:
+        ret = output["result"]
+        env_list = ret.split("\n")
+        for env in env_list:
+            env_dic[env.split("=")[0]] = env.split("=")[1]
+    return env_dic
 
 def read_env(path, key):
     myLogger.info_logger("Read " + path)

@@ -326,7 +326,7 @@ def get_apps_from_compose():
         default_domain = ""
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
-        # get code
+    
         status = app_info["Status"].split("(")[0]
         if status == "running" or status == "exited" or status == "restarting":
             myLogger.info_logger("ok")
@@ -352,8 +352,9 @@ def get_apps_from_compose():
             image_url = get_Image_url(app_name)
             # get env info
             path = app_path + "/.env"
+            env_map = docker.get_map(path)
             try:
-                domain = list(docker.read_env(path, "APP_URL").values())[0]
+                domain = env_map.get("APP_URL")
                 if "appname.example.com" in domain or ip in domain:
                     default_domain = ""
                 else:

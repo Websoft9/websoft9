@@ -10,7 +10,7 @@ COPY static ./static
 COPY requirements.txt main.py  ./
 RUN apt update
 
-# Install supervisordss
+# Install supervisord
 RUN apt install -y supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY config/cmd.sh /cmd.sh
@@ -18,5 +18,5 @@ RUN chmod +x /etc/supervisor/conf.d/supervisord.conf /cmd.sh
 RUN pip install -r requirements.txt
 RUN mkdir /data
 
-# Expose the port in which the application will be deployed
+# Expose the port in which the application will be deployeds
 EXPOSE 5000
