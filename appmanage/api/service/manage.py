@@ -374,7 +374,7 @@ def get_apps_from_compose():
                 myLogger.info_logger("replace="+replace)
                 if replace == "true":
                     app_replace_url = True
-                https = env_map.get("APP_HTTPS_ACCESS","")
+                https = env_map.get("APP_HTTPS_ACCESS","false")
                 if https == "true":
                     app_https = True
             except IndexError:
@@ -418,7 +418,7 @@ def get_apps_from_compose():
         app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
                 app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
                 status=status, status_reason=status_reason, official_app=official_app, image_url=image_url,
-                app_https=app_https,app_replace_url=app_https,config=config)
+                app_https=app_https,app_replace_url=app_replace_url,config=config)
 
         app_list.append(app.dict())
     return app_list
