@@ -362,27 +362,28 @@ def get_apps_from_compose():
             except IndexError:
                 pass            
             try:
-                app_version = list(docker.read_env(path, "APP_VERSION").values())[0]
+                app_version = env_map.get("APP_VERSION")
                 volume_data = ["/var/lib/docker/volumes"]
-                user_name = list(docker.read_env(path, "APP_USER").values())[0]
-                password = list(docker.read_env(path, "POWER_PASSWORD").values())[0]
+                user_name = env_map.get("APP_USER")
+                password = env_map.get("POWER_PASSWORD")
 
             except IndexError:
                 pass
             try:
-                replace = list(docker.read_env(path, "APP_URL_REPLACE").values())[0]
+                replace = env_map.get("APP_URL_REPLACE")
                 myLogger.info_logger("replace="+replace)
                 if replace == "true":
                     app_replace_url = True
-                https = list(docker.read_env(path, "APP_HTTPS_ACCESS").values())[0]
+                https = env_map.get("APP_HTTPS_ACCESS")
                 if https == "true":
                     app_https = True
             except IndexError:
                 pass
 
             try:
-                http_port = list(docker.read_env(path, "APP_HTTP_PORT").values())[0]
-                port = int(http_port)
+                http_port = env_map.get("APP_HTTP_PORT")
+                if http_port:
+                    port = int(http_port)
             except IndexError:
                 pass            
             if port != 0:
