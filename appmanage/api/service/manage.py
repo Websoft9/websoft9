@@ -408,6 +408,7 @@ def get_apps_from_compose():
         if status in ['running', 'exited']:
             myLogger.info_logger("config set ok")
             myLogger.info_logger(default_domain)
+
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
                                    admin_username=user_name, admin_password=password, default_domain=default_domain)
         else:
