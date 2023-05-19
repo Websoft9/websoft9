@@ -185,8 +185,11 @@ def get_map(path):
     if int(code) == 0:
         ret = output["result"]
         env_list = ret.split("\n")
+        myLogger.info_logger(env_list)
         for env in env_list:
-            env_dic[env.split("=")[0]] = env.split("=")[1]
+            myLogger.info_logger(env)
+            if "=" in env:
+                env_dic[env.split("=")[0]] = env.split("=")[1]
     return env_dic
 
 def read_env(path, key):
