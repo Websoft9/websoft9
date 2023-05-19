@@ -307,23 +307,23 @@ def get_apps_from_compose():
         volume = app_info["ConfigFiles"]
         app_path = volume.rsplit('/', 1)[0]
         customer_name = volume.split('/')[-2]
-        app_id = ""
-        app_name = ""
-        trade_mark = ""
+        app_id = None
+        app_name = None
+        trade_mark = None
         port = 0
-        url = ""
-        admin_url = ""
-        image_url = ""
-        user_name = ""
-        password = ""
+        url = None
+        admin_url = None
+        image_url = None
+        user_name = None
+        password = None
         official_app = False
-        app_version = ""
-        create_time = ""
+        app_version = None
+        create_time = None
         volume_data = []
         config_path = app_path
         app_https = False
         app_replace_url = False
-        default_domain = ""
+        default_domain = None
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
     
@@ -364,17 +364,17 @@ def get_apps_from_compose():
             try:
                 app_version = env_map.get("APP_VERSION")
                 volume_data = ["/var/lib/docker/volumes"]
-                user_name = env_map.get("APP_USER","")
+                user_name = env_map.get("APP_USER")
                 password = env_map.get("POWER_PASSWORD","")
 
             except IndexError:
                 pass
             try:
-                replace = env_map.get("APP_URL_REPLACE","false")
+                replace = env_map.get("APP_URL_REPLACE")
                 myLogger.info_logger("replace="+replace)
                 if replace == "true":
                     app_replace_url = True
-                https = env_map.get("APP_HTTPS_ACCESS","false")
+                https = env_map.get("APP_HTTPS_ACCESS")
                 if https == "true":
                     app_https = True
             except IndexError:
