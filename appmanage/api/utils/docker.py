@@ -171,7 +171,8 @@ def check_app_url(customer_app_name):
             url = ip + ":" + http_port
         else:
             url = ip
-        modify_env(env_path, "APP_URL", url)
+        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + url + "/g' /data/apps/" + customer_app_name +"/.env"
+        shell_execute.execute_command_output_all(cmd)
 
     myLogger.info_logger("App url check complete")
     return
