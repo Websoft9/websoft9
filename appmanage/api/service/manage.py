@@ -331,7 +331,6 @@ def get_apps_from_compose():
         if status == "running" or status == "exited" or status == "restarting":
             myLogger.info_logger("ok")
             if status == "exited":
-
                 cmd = "docker ps -a  -f name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
                 result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
                 container = result.split("#Exited")[0]
@@ -356,7 +355,7 @@ def get_apps_from_compose():
             try:
                 domain = env_map.get("APP_URL")
                 if "appname.example.com" in domain or ip in domain:
-                    default_domain = ""
+                    default_domain = None
                 else:
                     default_domain = domain
             except IndexError:
@@ -553,6 +552,8 @@ def get_url(app_name, easy_url):
     return url
 
 def get_admin_url(customer_name, url):
+    myLogger.info_logger("get_admin_url")
+    myLogger.info_logger(url)
     admin_url = ""
     path = "/data/apps/" + customer_name + "/.env"
     try:
