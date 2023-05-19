@@ -332,7 +332,7 @@ def get_apps_from_compose():
             myLogger.info_logger("ok")
             if status == "exited":
 
-                cmd = "docker ps -f -a name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
+                cmd = "docker ps -a  -f name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
                 result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
                 container = result.split("#Exited")[0]
                 if container != customer_name:
