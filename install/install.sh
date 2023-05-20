@@ -72,6 +72,8 @@ os_version=$(get_os_version)
 
 CheckEnvironment(){
 
+echo "---------------------------------- Start to install websoft9's appstore, it will take 3-5 minutes -------------------------------------------------------" 
+
 echo "Check  environment ..."
 echo  os_type: $os_type
 echo  os_version: $os_version
@@ -389,7 +391,7 @@ public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 sudo docker restart websoft9-nginxproxymanager
 
-echo "---------------------------------- Install completed, let use appstore -------------------------------------------------------" 
+echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
 
 CheckEnvironment
