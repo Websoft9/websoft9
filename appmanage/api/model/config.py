@@ -8,3 +8,5 @@ class Config(BaseModel):
     admin_username: str
     admin_password: str
     default_domain: str
+    admin_path: str
+    admin_domain_url: str

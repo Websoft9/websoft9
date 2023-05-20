@@ -324,6 +324,8 @@ def get_apps_from_compose():
         app_https = False
         app_replace_url = False
         default_domain = ""
+        admin_path = ""
+        admin_domain_url = ""
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         
@@ -366,7 +368,9 @@ def get_apps_from_compose():
                 volume_data = "/data/apps/" + customer_name + "/data"
                 user_name = env_map.get("APP_USER","")
                 password = env_map.get("POWER_PASSWORD","")
-
+                admin_path = env_map.get("APP_ADMIN_PATH")
+                if default_domain != "" and admin_path:
+                    admin_domain_url = default_domain + admin_path
             except IndexError:
                 pass
             try:
@@ -407,8 +411,8 @@ def get_apps_from_compose():
             app_id = customer_name + "_" + customer_name
         create_time = get_createtime(official_app, app_path, customer_name)  
         if status in ['running', 'exited']:
-            config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
-                                   admin_username=user_name, admin_password=password, default_domain=default_domain)
+            config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,admin_domain_url=admin_domain_url,
+                            admin_path=admin_path,admin_username=user_name, admin_password=password, default_domain=default_domain)
         else:
             config = None
         if status == "failed":
