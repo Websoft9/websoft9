@@ -326,17 +326,17 @@ def get_apps_from_compose():
         default_domain = ""
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
-    
+        
+        status_show = app_info["Status"]
         status = app_info["Status"].split("(")[0]
         if status == "running" or status == "exited" or status == "restarting":
-            myLogger.info_logger("ok")
-            if status == "exited":
-
-                cmd = "docker ps -a  -f name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
-                result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
-                container = result.split("#Exited")[0]
-                if container != customer_name:
-                    status = "running"
+            if "exited" in status_show and "running" in status_show:
+                if status == "exited":
+                    cmd = "docker ps -a  -f name=" + customer_name + " --format {{.Names}}#{{.Status}}|grep Exited"
+                    result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
+                    container = result.split("#Exited")[0]
+                    if container != customer_name:
+                        status = "running"
         elif status == "created":
             status = "failed"
         else:
