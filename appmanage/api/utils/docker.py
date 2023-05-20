@@ -126,7 +126,7 @@ def check_directory(path):
         return False
 
 def check_app_compose(app_name, customer_name):
-    myLogger.info_logger("Checking port...")
+    myLogger.info_logger("Set port and random password ...")
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
     port_dic = read_env(library_path + '/.env', "APP_.*_PORT")
@@ -152,12 +152,11 @@ def check_app_compose(app_name, customer_name):
     power_password = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
     if "POWER_PASSWORD" in power_password:
         new_password = shell_execute.execute_command_output_all("docker run --name pwgen backplane/pwgen 15")["result"].rstrip('\n') + "!"
-        docker.modify_env(install_path + '/.env', 'POWER_PASSWORD', new_password)
+        modify_env(install_path + '/.env', 'POWER_PASSWORD', new_password)
         shell_execute.execute_command_output_all("docker rm -f pwgen")
 
     myLogger.info_logger("Port check complete")
     return
-
 
 def check_app_url(customer_app_name):
     myLogger.info_logger("Checking app url...")
