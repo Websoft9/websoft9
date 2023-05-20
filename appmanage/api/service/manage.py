@@ -371,6 +371,7 @@ def get_apps_from_compose():
                 admin_path = env_map.get("APP_ADMIN_PATH")
                 if admin_path:
                     myLogger.info_logger(admin_path)
+                    admin_path = admin_path.replace("\"","")
                 else:
                     admin_path =""
                 
