@@ -15,7 +15,7 @@ from api.exception.command_exception import CommandException
 router = APIRouter()
 
 rd_s = "ResponseData: 各个接口的业务数据\n\n{\n\n"
-rd_m = "&emsp;&emsp;app_id：应用ID\n\n}\n\n"
+rd_m = "&emsp;&emsp;AppID：应用ID\n\n}\n\n"
 rd_e = "Error：错误code和错误信息\n\n{\n\n" \
        "&emsp;&emsp;Code：错误码,\n\n" \
        "&emsp;&emsp;Message：错误信息,\n\n" \
@@ -27,7 +27,7 @@ rd_status = "&emsp;&emsp;app_id：应用ID\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Code：错误代码,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Message：错误提示信息,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n}\n\n"
-info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;name：应用名,\n\n" \
+info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;app_name：应用名,\n\n" \
          "&emsp;&emsp;customer_name：自定义应用名,\n\n&emsp;&emsp;trade_mark：应用商标,\n\n" \
          "&emsp;&emsp;status：应用运行状态,[installing(创建中)，running(运行中)，exited(停止)，restarting(反复重启)，failed(失败)]\n\n" \
          "&emsp;&emsp;StatusReason：{\n\n" \
@@ -35,16 +35,27 @@ info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;name：应用名,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Message：错误提示信息,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;Detail：错误真实信息\n\n&emsp;&emsp;}\n\n" \
          "&emsp;&emsp;official_app：是否为官方应用,\n\n" \
+         "&emsp;&emsp;app_version：应用版本,\n\n" \
+         "&emsp;&emsp;create_time：应用创建时间,\n\n" \
+         "&emsp;&emsp;volume_data：数据卷路径,\n\n" \
+         "&emsp;&emsp;config_path：配置文件路径,\n\n" \
          "&emsp;&emsp;image_url：图片路径,\n\n" \
+         "&emsp;&emsp;app_https：是否为https,\n\n" \
+         "&emsp;&emsp;app_replace_url：是否有替代网址,\n\n" \
          "&emsp;&emsp;config：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;port：应用端口,\n\n&emsp;&emsp;&emsp;&emsp;compose_file：docker compose 文件路径,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;url：应用网址,\n\n&emsp;&emsp;&emsp;&emsp;admin_url：管理员网址,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;user_name：用户名,\n\n&emsp;&emsp;&emsp;&emsp;password：密码,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名,\n\n&emsp;&emsp;&emsp;&emsp;set_domain：用户自定义域名\n\n&emsp;&emsp;}\n\n}\n\n"
+         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名}\n\n}\n\n"
+
+domain = "&emsp;&emsp;Domain_set：{\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;domains：域名列表\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名\n\n&emsp;&emsp;}\n\n}"
 
 rd = rd_s + rd_m + rd_e
 rd_info = rd_s + info + rd_e
 rd_status = rd_s + rd_status + rd_e
+rd_domain = rd_s + domain + rd_e
 
 
 
@@ -211,7 +222,7 @@ def AppUninstall(request: Request, app_id: Optional[str] = Query(default=None, d
 
     return JSONResponse(content=ret)
 
-@router.api_route("/AppDomainAdd", methods=["GET", "POST"], summary="绑定域名",  response_model=Response)
+@router.api_route("/AppDomainAdd", methods=["GET", "POST"], summary="绑定域名",  response_model=Response, response_description=rd)
 def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domains: Optional[str] = Query(default=None, description="域名")):
 
     try:
@@ -234,7 +245,7 @@ def AppDomainAdd(request: Request, app_id: Optional[str] = Query(default=None, d
 
     return JSONResponse(content=ret)
 
-@router.api_route("/AppDomainUpdate", methods=["GET", "POST"], summary="修改域名",  response_model=Response)
+@router.api_route("/AppDomainUpdate", methods=["GET", "POST"], summary="修改域名",  response_model=Response, response_description=rd)
 def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domain_old: Optional[str] = Query(default=None, description="原域名"), domain_new: Optional[str] = Query(default=None, description="新域名")):
 
     try:
@@ -257,7 +268,7 @@ def AppDomainUpdate(request: Request, app_id: Optional[str] = Query(default=None
 
     return JSONResponse(content=ret)
 
-@router.api_route("/AppDomainDelete", methods=["GET", "POST"], summary="删除域名",  response_model=Response)
+@router.api_route("/AppDomainDelete", methods=["GET", "POST"], summary="删除域名",  response_model=Response, response_description=rd)
 def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domain: Optional[str] = Query(default=None, description="删除域名")):
 
     try:
@@ -280,7 +291,7 @@ def AppDomainDelete(request: Request, app_id: Optional[str] = Query(default=None
 
     return JSONResponse(content=ret)
 
-@router.api_route("/AppDomainSet", methods=["GET", "POST"], summary="设定域名",  response_model=Response)
+@router.api_route("/AppDomainSet", methods=["GET", "POST"], summary="设定域名",  response_model=Response, response_description=rd)
 def AppDomainSet(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID"), domain: Optional[str] = Query(default=None, description="域名")):
 
     try:
@@ -303,7 +314,7 @@ def AppDomainSet(request: Request, app_id: Optional[str] = Query(default=None, d
 
     return JSONResponse(content=ret)
 
-@router.api_route("/AppDomainList", methods=["GET", "POST"], summary="查询App对应域名",  response_model=Response)
+@router.api_route("/AppDomainList", methods=["GET", "POST"], summary="查询App对应域名",  response_model=Response, response_description=rd_domain)
 def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
 
     try:
