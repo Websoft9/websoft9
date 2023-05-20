@@ -147,6 +147,14 @@ def check_app_compose(app_name, customer_name):
     for port_name in port_dic:
         port_value = get_start_port(s, port_dic[port_name])
         modify_env(install_path + '/.env', port_name, port_value)
+    
+    # set random password
+    power_password = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    if "POWER_PASSWORD" in power_password:
+        new_password = shell_execute.execute_command_output_all("docker run --name pwgen backplane/pwgen 15")["result"].rstrip('\n') + "!"
+        docker.modify_env(install_path + '/.env', 'POWER_PASSWORD', new_password)
+        shell_execute.execute_command_output_all("docker rm -f pwgen")
+
     myLogger.info_logger("Port check complete")
     return
 
