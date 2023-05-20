@@ -369,6 +369,7 @@ def get_apps_from_compose():
                 user_name = env_map.get("APP_USER","")
                 password = env_map.get("POWER_PASSWORD","")
                 admin_path = env_map.get("APP_ADMIN_PATH")
+                myLogger.info_logger(admin_path)
                 if default_domain != "" and admin_path:
                     admin_domain_url = default_domain + admin_path
             except IndexError:
