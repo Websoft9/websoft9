@@ -528,7 +528,7 @@ def get_rq_app(id, status, code, message, detail):
     trade_mark = "" 
     app_version = ""
     create_time = ""
-    volume_data = []
+    volume_data = ""
     config_path = ""
     image_url = get_Image_url(app_name)
     config = None
