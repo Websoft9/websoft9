@@ -319,7 +319,7 @@ def get_apps_from_compose():
         official_app = False
         app_version = ""
         create_time = ""
-        volume_data = []
+        volume_data = ""
         config_path = app_path
         app_https = False
         app_replace_url = False
@@ -360,10 +360,10 @@ def get_apps_from_compose():
                 else:
                     default_domain = domain
             except IndexError:
-                pass            
+                pass
             try:
                 app_version = env_map.get("APP_VERSION")
-                volume_data = ["/var/lib/docker/volumes"]
+                volume_data = "/data/apps/" + customer_name + "/data"
                 user_name = env_map.get("APP_USER","")
                 password = env_map.get("POWER_PASSWORD","")
 

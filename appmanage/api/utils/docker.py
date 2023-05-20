@@ -151,6 +151,10 @@ def check_app_compose(app_name, customer_name):
     # set random password
     power_password = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
     if "POWER_PASSWORD" in power_password:
+        try:
+            shell_execute.execute_command_output_all("docker rm -f pwgen")
+        except Exception:
+            pass
         new_password = shell_execute.execute_command_output_all("docker run --name pwgen backplane/pwgen 15")["result"].rstrip('\n') + "!"
         modify_env(install_path + '/.env', 'POWER_PASSWORD', new_password)
         shell_execute.execute_command_output_all("docker rm -f pwgen")

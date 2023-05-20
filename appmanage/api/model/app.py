@@ -12,7 +12,7 @@ class App(BaseModel):
     official_app: bool
     app_version: str
     create_time: str
-    volume_data = []
+    volume_data = str
     config_path = str
     image_url: str
     app_https: bool
