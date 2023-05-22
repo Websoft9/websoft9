@@ -208,6 +208,7 @@ fi
 
 if [ "${os_type}" == 'Ubuntu' ]; then
   if grep -q "^#.*deb http://mirrors.cloud.aliyuncs.com/ubuntu.*backports" /etc/apt/sources.list; then
+      echo "Add backports deb ..." 
       sudo sed -i 's/^#\(.*deb http:\/\/mirrors.cloud.aliyuncs.com\/ubuntu.*backports.*\)/\1/' /etc/apt/sources.list
       apt update
   fi
