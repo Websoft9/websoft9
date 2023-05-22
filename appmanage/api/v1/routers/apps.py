@@ -45,8 +45,8 @@ info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;app_name：应用名,\n\n"
          "&emsp;&emsp;config：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;port：应用端口,\n\n&emsp;&emsp;&emsp;&emsp;compose_file：docker compose 文件路径,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;url：应用网址,\n\n&emsp;&emsp;&emsp;&emsp;admin_url：管理员网址,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;admin_path：后台后缀,\n\n&emsp;&emsp;&emsp;&emsp;admin_username：用户名,\n\n&emsp;&emsp;&emsp;&emsp;admin_password：密码,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;&emsp;admin_domain_url：后台域名访问地址,\n\n&emsp;&emsp;&emsp;default_domain：默认域名}\n\n}\n\n"
+         "&emsp;&emsp;&emsp;&emsp;admin_path：后台后缀,\n\n&emsp;&emsp;&emsp;&emsp;admin_username：管理员用户名,\n\n&emsp;&emsp;&emsp;&emsp;admin_password：管理员密码,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;admin_domain_url：后台域名访问地址,\n\n&emsp;&emsp;&emsp;&emsp;default_domain：默认域名}\n\n}\n\n"
 
 domain = "&emsp;&emsp;Domain_set：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;domains：域名列表\n\n" \
