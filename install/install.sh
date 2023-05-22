@@ -72,11 +72,15 @@ os_version=$(get_os_version)
 
 CheckEnvironment(){
 
-echo "---------------------------------- Start to install websoft9's appstore, it will take 3-5 minutes -------------------------------------------------------" 
+echo "---------------------------------- Welcome to install websoft9's appstore, it will take 3-5 minutes -------------------------------------------------------" 
 
 echo "Check  environment ..."
 echo  os_type: $os_type
 echo  os_version: $os_version
+if [ $(id -u) != "0" ]; then
+    echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
+    exit 1
+fi
 
 if [ $(getconf WORD_BIT) = '32' ] && [ $(getconf LONG_BIT) = '64' ] ; then
     echo "64-bit operating system detected."

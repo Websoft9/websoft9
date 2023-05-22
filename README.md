@@ -38,5 +38,6 @@ wget -N https://websoft9.github.io/StackHub/scripts/install.sh; bash install.sh 
 ### stackhub include appstore
 
 ```
+sudo su # when your have no root password
 curl https://websoft9.github.io/StackHub/install/install.sh | bash
 ```
