@@ -1,0 +1,40 @@
+# image: https://hub.docker.com/r/kopia
+
+version: "3.8"
+services:
+  kopia:
+    image: kopia/kopia:$APP_VERSION
+    hostname: Hostname
+    container_name: $APP_NAME
+    restart: unless-stopped
+    ports:
+      - $APP_HTTP_PORT:51515
+    # Setup the server that provides the web gui
+    command:
+      - server
+      - start
+      - --disable-csrf-token-checks
+      - --insecure
+      - --address=0.0.0.0:$APP_HTTP_PORT
+      - --server-username=$APP_USER
+      - --server-password=$APP_PASSWORD
+    volumes:
+      - kopia_config:/app/config
+      - kopia_cache:/app/cache
+      - kopia_logs:/app/logs
+      - kopia_data:/data:ro
+      - kopia_repository:/repository
+      - kopia_tmp:/tmp:shared
+
+volumes:
+  kopia_config:
+  kopia_cache:
+  kopia_logs:
+  kopia_data:
+  kopia_repository:
+  kopia_tmp:
+
+networks:
+  default:
+    name: ${APP_NETWORK}
+    external: true
