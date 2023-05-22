@@ -37,16 +37,16 @@ info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;app_name：应用名,\n\n"
          "&emsp;&emsp;official_app：是否为官方应用,\n\n" \
          "&emsp;&emsp;app_version：应用版本,\n\n" \
          "&emsp;&emsp;create_time：应用创建时间,\n\n" \
-         "&emsp;&emsp;volume_data：数据卷路径,\n\n" \
-         "&emsp;&emsp;config_path：配置文件路径,\n\n" \
+         "&emsp;&emsp;volume_data：数据目录,\n\n" \
+         "&emsp;&emsp;config_path：配置目录,\n\n" \
          "&emsp;&emsp;image_url：图片路径,\n\n" \
          "&emsp;&emsp;app_https：是否为https,\n\n" \
          "&emsp;&emsp;app_replace_url：是否有替代网址,\n\n" \
          "&emsp;&emsp;config：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;port：应用端口,\n\n&emsp;&emsp;&emsp;&emsp;compose_file：docker compose 文件路径,\n\n" \
          "&emsp;&emsp;&emsp;&emsp;url：应用网址,\n\n&emsp;&emsp;&emsp;&emsp;admin_url：管理员网址,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;user_name：用户名,\n\n&emsp;&emsp;&emsp;&emsp;password：密码,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名}\n\n}\n\n"
+         "&emsp;&emsp;&emsp;&emsp;admin_path：后台后缀,\n\n&emsp;&emsp;&emsp;&emsp;admin_username：用户名,\n\n&emsp;&emsp;&emsp;&emsp;admin_password：密码,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;admin_domain_url：后台域名访问地址,\n\n&emsp;&emsp;&emsp;default_domain：默认域名}\n\n}\n\n"
 
 domain = "&emsp;&emsp;Domain_set：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;domains：域名列表\n\n" \
