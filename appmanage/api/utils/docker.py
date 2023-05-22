@@ -166,7 +166,8 @@ def check_app_url(customer_app_name):
     myLogger.info_logger("Checking app url...")
     # 如果app的.env文件中含有HTTP_URL项目,需要如此设置 HTTP_URL=ip:port
     env_path = "/data/apps/" + customer_app_name + "/.env"
-    if list(read_env(env_path, "APP_URL_REPLACE").values())[0] == "true":
+    env_map = get_map(env_path)
+    if env_map.get("APP_URL_REPLACE") == "true":
         myLogger.info_logger(customer_app_name + "need to change app url...")
         app_url = list(read_env(env_path, "APP_URL").values())[0]
         ip = "localhost"
