@@ -207,9 +207,9 @@ if [ "${os_type}" == 'Debian' ]; then
 fi
 
 if [ "${os_type}" == 'Ubuntu' ]; then
-  if grep -q "^#.*deb http://mirrors.cloud.aliyuncs.com/ubuntu.*backports" /etc/apt/sources.list; then
+  if grep -q "^#.*deb http://mirrors.tencentyun.com/ubuntu.*backports" /etc/apt/sources.list; then
       echo "Add backports deb ..." 
-      sudo sed -i 's/^#\(.*deb http:\/\/mirrors.cloud.aliyuncs.com\/ubuntu.*backports.*\)/\1/' /etc/apt/sources.list
+      sudo sed -i 's/^#\(.*deb http:\/\/mirrors.tencentyun.com\/ubuntu.*backports.*\)/\1/' /etc/apt/sources.list
       apt update
   fi
   VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
