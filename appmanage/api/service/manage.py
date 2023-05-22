@@ -376,7 +376,7 @@ def get_apps_from_compose():
                     admin_path =""
                 
                 if default_domain != "" and admin_path != "":
-                    admin_domain_url = default_domain + admin_path
+                    admin_domain_url = "http://" + default_domain + admin_path
             except IndexError:
                 pass
             try:
