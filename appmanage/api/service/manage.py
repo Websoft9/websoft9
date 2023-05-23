@@ -355,7 +355,9 @@ def get_apps_from_compose():
             # get env info
             path = app_path + "/.env"
             env_map = docker.get_map(path)
+            
             try:
+                myLogger.info_logger("get domain for APP_URL")
                 domain = env_map.get("APP_URL")
                 if "appname.example.com" in domain or ip in domain:
                     default_domain = ""
