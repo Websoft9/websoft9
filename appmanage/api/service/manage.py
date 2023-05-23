@@ -1055,7 +1055,7 @@ def set_domain(domain, app_id):
         if domain == "":
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')           
-        cmd = "echo -e \"\\nAPP_URL=" + domain + "\" >> /data/apps/" + customer_name +"/.env"
+        cmd = "echo -e \"\nAPP_URL=" + domain + "\" >> /data/apps/" + customer_name +"/.env"
         shell_execute.execute_command_output_all(cmd)
     myLogger.info_logger("set_domain success")
     
