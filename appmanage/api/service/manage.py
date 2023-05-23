@@ -284,9 +284,9 @@ def get_createtime(official_app, app_path, customer_name):
             result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
             data_time = result
 
-    except Exception:
-        pass
-
+    except Exception as e:
+        myLogger.info_logger(str(e))
+    myLogger.info_logger("get_createtime get success"+data_time)
     return data_time
 
 def get_apps_from_compose():
