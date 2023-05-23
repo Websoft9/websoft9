@@ -362,7 +362,7 @@ def get_apps_from_compose():
                 else:
                     default_domain = domain
             except IndexError:
-                pass
+                myLogger.info_logger("domain exception")
             try:
                 app_version = env_map.get("APP_VERSION")
                 volume_data = "/data/apps/" + customer_name + "/data"
@@ -378,7 +378,7 @@ def get_apps_from_compose():
                 if default_domain != "" and admin_path != "":
                     admin_domain_url = "http://" + default_domain + admin_path
             except IndexError:
-                pass
+                myLogger.info_logger("APP_USER POWER_PASSWORD exception")
             try:
                 replace = env_map.get("APP_URL_REPLACE","false")
                 myLogger.info_logger("replace="+replace)
@@ -388,7 +388,7 @@ def get_apps_from_compose():
                 if https == "true":
                     app_https = True
             except IndexError:
-                pass
+                myLogger.info_logger("APP_HTTPS_ACCESS exception")
 
             try:
                 http_port = env_map.get("APP_HTTP_PORT","0")

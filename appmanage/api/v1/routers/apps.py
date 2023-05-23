@@ -69,10 +69,12 @@ def AppStatus(request: Request,app_id: Optional[str] = Query(default=None, descr
         ret = {}
         ret['ResponseData'] = manage.get_app_status(app_id)
     except CommandException as ce:
+        myLogger.info_logger(ce.message)
         ret = {}
         ret['ResponseData'] = None
         ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
     except Exception as e:
+        myLogger.info_logger(e)
         ret = {}
         ret['ResponseData'] = None
         ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
