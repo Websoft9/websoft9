@@ -363,7 +363,7 @@ def get_apps_from_compose():
                     default_domain = ""
                 else:
                     default_domain = domain
-            except IndexError:
+            except Exception:
                 myLogger.info_logger("domain exception")
             try:
                 app_version = env_map.get("APP_VERSION")
@@ -379,7 +379,7 @@ def get_apps_from_compose():
                 
                 if default_domain != "" and admin_path != "":
                     admin_domain_url = "http://" + default_domain + admin_path
-            except IndexError:
+            except Exception:
                 myLogger.info_logger("APP_USER POWER_PASSWORD exception")
             try:
                 replace = env_map.get("APP_URL_REPLACE","false")
@@ -389,14 +389,14 @@ def get_apps_from_compose():
                 https = env_map.get("APP_HTTPS_ACCESS","false")
                 if https == "true":
                     app_https = True
-            except IndexError:
+            except Exception:
                 myLogger.info_logger("APP_HTTPS_ACCESS exception")
 
             try:
                 http_port = env_map.get("APP_HTTP_PORT","0")
                 if http_port:
                     port = int(http_port)
-            except IndexError:
+            except Exception:
                 pass            
             if port != 0:
                 try:
@@ -406,13 +406,13 @@ def get_apps_from_compose():
                         easy_url = "http://" + ip + ":" + str(port)
                     url = easy_url
                     admin_url = get_admin_url(customer_name, url)
-                except IndexError:
+                except Exception:
                     pass
             else:
                 try:
                     db_port = list(docker.read_env(path, "APP_DB.*_PORT").values())[0]
                     port = int(db_port)
-                except IndexError:
+                except Exception:
                     pass
         else:
             app_name = customer_name
