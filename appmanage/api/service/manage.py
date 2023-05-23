@@ -1050,6 +1050,13 @@ def set_domain(domain, app_id):
             if "APP_URL_REPLACE=true" in app_url:
                 myLogger.info_logger("need up")
                 shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
+    else:
+        myLogger.info_logger("APP_URL is not exist")
+        if domain == "":
+            ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+            domain = ip_result["result"].rstrip('\n')           
+        cmd = "echo APP_URL=" + domain + " >> /data/apps/" + customer_name +"/.env"
+        shell_execute.execute_command_output_all(cmd)
     myLogger.info_logger("set_domain success")
     
 def get_container_port(container_name):
