@@ -292,7 +292,7 @@ fi
 
 
 # uninstall plugins
-rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump
+rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport
 
 # configure cockpit
 cp /data/apps/stackhub/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
