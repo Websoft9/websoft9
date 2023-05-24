@@ -225,6 +225,10 @@ def install_app_delay(app_name, customer_name, app_version):
             myLogger.info_logger("-------Install result--------")
             myLogger.info_logger(output["code"])
             myLogger.info_logger(output["result"])
+            try:
+                shell_execute.execute_command_output_all("bash /data/apps/" + customer_name + "/src/after_up.sh")
+            except Exception as e:
+                myLogger.info_logger(str(e))  
         else:
             error_info= "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" 
             myLogger.info_logger(error_info)
