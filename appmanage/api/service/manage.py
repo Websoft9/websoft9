@@ -330,7 +330,7 @@ def get_apps_from_compose():
         default_domain = ""
         admin_path = ""
         admin_domain_url = ""
-        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9portainer'] and app_path == '/data/apps/stackhub/docker/' + customer_name:
+        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9kopia','w9portainer'] or app_path == '/data/apps/stackhub/docker/' + customer_name:
             continue
         
         status_show = app_info["Status"]
