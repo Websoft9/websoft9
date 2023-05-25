@@ -306,22 +306,29 @@ sudo systemctl restart cockpit
 }
 
 function fastest_url() {
-  urls=("$@")
-  fastest_url=""
-  fastest_time=0
+ urls=("$@")
+ fastest_url=""
+ fastest_time=0
 
-  for url in "${urls[@]}"; do
-    time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
-    if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
-      fastest_time=$time
-      fastest_url=$url
-    fi
-  done
+ for url in "${urls[@]}"; do
+   total_time=0
+   for i in {1..5}; do
+     time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
+     total_time=$(echo "$total_time + $time" | bc -l)
+   done
 
-  echo "$fastest_url"
+   avg_time=$(echo "$total_time / 5" | bc -l)
+
+   if (( $(echo "$avg_time < $fastest_time || $fastest_time == 0" | bc -l) )); then
+     fastest_time=$avg_time
+     fastest_url=$url
+   fi
+ done
+
+ echo "$fastest_url"
 }
 
-clone_repo() {
+function clone_repo() {
     url=$1
     path=$2
     for i in {1..5}
@@ -345,7 +352,7 @@ ParpareStaticFiles(){
 
 echo "Parpare to install ..." 
 fasturl=$(fastest_url "${urls[@]}")
-echo "Fast url is: "$fasturl
+echo "curl 5 times, avera fast url is: "$fasturl
 
 # download apps
 mkdir -p /data/apps
