@@ -10,7 +10,7 @@ trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/iss
 
 urls=(
     https://ghproxy.com/https://github.com
-    https://github.com
+    #https://github.com
 )
 
 function get_os_type() {
@@ -117,40 +117,13 @@ else
     echo "Your server os is supported to install this software."
 fi
 
-# Check port used
-if netstat -tuln | grep -qE ':(80|9000|5000)\s'; then
-    echo "Port 80 or 9000 or 5000 is already in use."
-    exit 1
-else
-    echo "Port 80, 9000 and 5000 are free."
-fi
           
 }
 
-InstallTools(){
 
-echo "Parpare to install Tools ..."
+UpdateDocker(){
 
-if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
-  sudo yum update -y 1>/dev/null 2>&1
-  sudo yum install  git curl wget yum-utils jq -y  1>/dev/null 2>&1
-
-fi
-
-if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
-  while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
-      echo "Waiting for other software managers to finish..."
-      sleep 5
-  done
-  sudo apt update -y 1>/dev/null 2>&1
-  sudo apt install git curl wget jq -y  1>/dev/null 2>&1
-fi
-
-}
-
-InstallDocker(){
-
-echo "Parpare to install Docker ..."
+echo "Parpare to update Docker ..."
 
 if [ "$os_type" == 'CentOS' ];then
   curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
@@ -196,13 +169,23 @@ fi
 
 }
 
-InstallCockpit(){
-echo "Parpare to install Cockpit ..." 
+UpdateCockpit(){
+
+echo "Parpare to update Cockpit ..." 
+echo "update linux package to latest ..." 
+if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
+  sudo yum update -y 1>/dev/null 2>&1
+fi
+
+if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
+  while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
+      echo "Waiting for other software managers to finish..."
+      sleep 5
+  done
+  sudo apt update -y 1>/dev/null 2>&1
+fi
 
 if [ "${os_type}" == 'Debian' ]; then
-  VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
-  sudo echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" >/etc/apt/sources.list.d/backports.list
-  sudo apt update
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
 fi
 
@@ -253,47 +236,6 @@ if [ "$os_type" == 'CentOS Stream' ]; then
   
 fi
 
-echo "Set cockpit port to 9000 ..." 
-sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
-
-# install plugins
-mkdir -p /usr/share/cockpit/appstore
-mkdir -p /usr/share/cockpit/container
-mkdir -p /usr/share/cockpit/nginx
-mkdir -p /usr/share/cockpit/backup
-
-# install web
-cp -r /data/apps/stackhub/appmanage/static/images /data/stackhubweb/src/apps/build/static
-cp -r /data/stackhubweb/src/apps/build/* /usr/share/cockpit/appstore
-## install container
-cp -r /data/stackhubweb/plugins/portainer/build/* /usr/share/cockpit/container
-cp -r /data/stackhubweb/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
-cp -r /data/stackhubweb/plugins/kopia/build/* /usr/share/cockpit/backup
-
-# install navigator
-if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
-  wget -qO - https://repo.45drives.com/key/gpg.asc | sudo gpg --dearmor -o /usr/share/keyrings/45drives-archive-keyring.gpg
-  cd /etc/apt/sources.list.d
-  sudo curl -sSL https://repo.45drives.com/lists/45drives.sources -o /etc/apt/sources.list.d/45drives.sources
-  sudo apt update
-  sudo apt install cockpit-navigator -y 
-fi
-
-if [ "$os_type" == 'Redhat' ] || [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Fedora' ] ;then
-  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-  sudo bash setup-repo.sh
-  sudo dnf install cockpit-navigator -y 1>/dev/null 2>&1
-fi
-
-if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ] ;then
-  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-  sudo bash setup-repo.sh
-  sudo yum install cockpit-navigator -y 1>/dev/null 2>&1
-fi
-
-# uninstall plugins
-rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
-
 # configure cockpit
 cp /data/apps/stackhub/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
 
@@ -335,31 +277,36 @@ clone_repo() {
             echo "Clone failed, retrying $i/5"
         fi
     done
-    if [ ! -d "$path" ]; then
-      echo "$path clone failed."
-      exit 1
-    fi
 }
 
 ParpareStaticFiles(){
 
-echo "Parpare to install ..." 
+echo "Parpare to update cockpit plugin ..." 
 fasturl=$(fastest_url "${urls[@]}")
 echo "Fast url is: "$fasturl
 
 # download apps
-mkdir -p /data/apps
+rm -rf /data/library /data/apps/stackhub /data/stackhubweb
 clone_repo $fasturl/Websoft9/docker-library /data/library
 clone_repo $fasturl/Websoft9/Stackhub /data/apps/stackhub
 clone_repo $fasturl/Websoft9/stackhub-web /data/stackhubweb
 
 }
 
+StopAllapp(){
+cd /data/apps/stackhub/docker/w9redis  && sudo docker compose down
+cd /data/apps/stackhub/docker/w9appmanage && sudo docker compose down
+cd /data/apps/stackhub/docker/w9portainer && sudo docker compose down
+cd /data/apps/stackhub/docker/w9nginxproxymanager && sudo docker compose down
+cd /data/apps/stackhub/docker/w9kopia && sudo docker compose down
+
+}
+
 StartAppMng(){
 
 echo "Start appmanage API ..." 
-cd /data/apps/stackhub/docker/w9redis  && sudo docker compose up -d
-cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9redis && sudo docker compose pull  && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9appmanage && sudo docker compose pull  && sudo docker compose up -d
 
 public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
 echo $public_ip > /data/apps/stackhub/docker/w9appmanage/public_ip
@@ -369,7 +316,7 @@ echo $public_ip > /data/apps/stackhub/docker/w9appmanage/public_ip
 StartPortainer(){
 
 echo "Start Portainer ..." 
-cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9portainer && sudo docker compose pull  && sudo docker compose up -d
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
@@ -385,7 +332,7 @@ docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
 sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$new_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
-cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9kopia && sudo docker compose pull   && sudo docker compose up -d
 
 sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/appstore/config.json
 sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
@@ -394,7 +341,7 @@ sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /us
 InstallNginx(){
 
 echo "Install nginxproxymanager ..." 
-cd /data/apps/stackhub/docker/w9nginxproxymanager && sudo docker compose up -d
+cd /data/apps/stackhub/docker/w9nginxproxymanager && sudo docker compose pull  && sudo docker compose up -d
 sleep 25
 echo "edit nginxproxymanager password..." 
 login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://127.0.0.1:9092/api/tokens)
@@ -421,11 +368,7 @@ echo "---------------------------------- Install success!  you can  install a ap
 }
 
 CheckEnvironment
-InstallTools
-InstallDocker
-ParpareStaticFiles
-InstallCockpit
-StartAppMng
-StartPortainer
-StartKopia
-InstallNginx
+UpdateDocker
+updateCockpit
+updatePlugin
+updateW9app
