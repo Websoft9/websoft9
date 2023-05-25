@@ -133,7 +133,7 @@ def delete_app_failedjob(job_id):
     failed = FailedJobRegistry(queue=q)
     failed.remove(job_id, delete_job=True)
 
-def delete_app(job_id):
+def delete_app(app_id):
 
     try:
         app_name = app_id.split('_')[0]
