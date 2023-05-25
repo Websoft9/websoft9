@@ -1,0 +1,20 @@
+{
+  "PORTAINER": {
+    "AUTH_URL": "/portainer/api/auth",
+    "HOME_PAGE": "/portainer",
+    "USERNAME": "admin",
+    "PASSWORD": "websoft9@2023"
+  },
+  "NGINXPROXYMANAGER": {
+    "AUTH_URL": "/nginxproxymanager/api/tokens",
+    "HOME_PAGE": "/nginxproxymanager",
+    "USERNAME": "help@websoft9.com",
+    "PASSWORD": "changeme123",
+    "NICKNAME": "Admin"
+  },
+  "KOPIA": {
+    "HOME_PAGE": "/kopia",
+    "USERNAME": "admin",
+    "PASSWORD": "admin"
+  }
+}

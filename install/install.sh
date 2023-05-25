@@ -260,6 +260,7 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 mkdir -p /usr/share/cockpit/appstore
 mkdir -p /usr/share/cockpit/container
 mkdir -p /usr/share/cockpit/nginx
+mkdir -p /usr/share/cockpit/backup
 
 # install web
 cp -r /data/apps/stackhub/appmanage/static/images /data/stackhubweb/src/apps/build/static
@@ -267,6 +268,7 @@ cp -r /data/stackhubweb/src/apps/build/* /usr/share/cockpit/appstore
 ## install container
 cp -r /data/stackhubweb/plugins/portainer/build/* /usr/share/cockpit/container
 cp -r /data/stackhubweb/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
+cp -r /data/stackhubweb/plugins/kopia/build/* /usr/share/cockpit/backup
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -288,7 +290,6 @@ if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ] ;then
   sudo bash setup-repo.sh
   sudo yum install cockpit-navigator -y 1>/dev/null 2>&1
 fi
-
 
 # uninstall plugins
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
@@ -368,9 +369,22 @@ cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose up -d
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/container/config.json
-sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/container/config.json
+sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://127.0.0.1:9091/api/users/admin/init
+}
+
+StartKopia(){
+
+echo "Start Kopia ..."
+docker pull backplane/pwgen
+new_password=$(docker run --name pwgen backplane/pwgen 15)!
+docker rm -f pwgen
+sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$new_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
+cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose up -d
+
+sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
 }
 
 InstallNginx(){
@@ -387,9 +401,9 @@ docker rm -f pwgen
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://127.0.0.1:9092/api/users/1
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://127.0.0.1:9092/api/users/1/auth
 sleep 3
-sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/nginx/config.json
-sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/nginx/config.json
-sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/nginx/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/nginx/appstore.json
 echo "edit password success ..." 
 while [ ! -d "/var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host" ]; do
     sleep 1
@@ -409,4 +423,5 @@ ParpareStaticFiles
 InstallCockpit
 StartAppMng
 StartPortainer
+StartKopia
 InstallNginx
