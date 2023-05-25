@@ -133,6 +133,30 @@ def delete_app_failedjob(job_id):
     failed = FailedJobRegistry(queue=q)
     failed.remove(job_id, delete_job=True)
 
+def delete_app(job_id):
+
+    try:
+        app_name = app_id.split('_')[0]
+        customer_name = app_id.split('_')[1]
+        app_path = ""
+        info, code_exist = app_exits_in_docker(app_id)
+        if code_exist:  
+            app_path = info.split()[-1].rsplit('/', 1)[0]
+            cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
+            lib_path = '/data/library/apps/' + app_name
+            if app_path != lib_path:
+                cmd = cmd + " && sudo rm -rf " + app_path
+            shell_execute.execute_command_output_all(cmd)
+        else:
+            if check_app_rq(app_id):
+                delete_app_failedjob(app_id)
+            else:
+                raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "AppID is not exist", "")
+        cmd = " sudo rm -rf /data/apps/" + customer_name
+        shell_execute.execute_command_output_all(cmd)
+    except CommandException as ce:
+        myLogger.info_logger("Delete app compose exception")
+
 def uninstall_app(app_id):
 
     app_name = app_id.split('_')[0]
