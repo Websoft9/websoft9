@@ -306,26 +306,19 @@ sudo systemctl restart cockpit
 }
 
 function fastest_url() {
- urls=("$@")
- fastest_url=""
- fastest_time=0
+  urls=("$@")
+  fastest_url=""
+  fastest_time=0
 
- for url in "${urls[@]}"; do
-   total_time=0
-   for i in {1..5}; do
-     time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
-     total_time=$(echo "$total_time + $time" | bc -l)
-   done
+  for url in "${urls[@]}"; do
+    time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
+    if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
+      fastest_time=$time
+      fastest_url=$url
+    fi
+  done
 
-   avg_time=$(echo "$total_time / 5" | bc -l)
-
-   if (( $(echo "$avg_time < $fastest_time || $fastest_time == 0" | bc -l) )); then
-     fastest_time=$avg_time
-     fastest_url=$url
-   fi
- done
-
- echo "$fastest_url"
+  echo "$fastest_url"
 }
 
 function clone_repo() {
