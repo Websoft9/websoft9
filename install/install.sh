@@ -415,6 +415,13 @@ done
 cp /data/apps/stackhub/docker/w9nginxproxymanager/initproxy.conf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host
 public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
+
+echo "Add htpasswd for appmanage ..."
+sudo sed -i 's/"APPMANAGE_USERNAME": ".*"/"APPMANAGE_USERNAME": "websoft9"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"APPMANAGE_PASSWORD": ".*"/"APPMANAGE_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
+rm -rf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd /tmp/.htpasswd
+docker run --rm --volume /tmp:/work backplane/htpasswd -c -b .htpasswd websoft9 $new_password
+cp /tmp/.htpasswd /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd
 sudo docker restart websoft9-nginxproxymanager
 
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
