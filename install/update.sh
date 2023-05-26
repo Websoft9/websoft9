@@ -80,7 +80,7 @@ then
     echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------"
 else
     echo "Your appstore is latest, it not need to update..."
-    exit(1)
+    exit 1
 fi
 
 if [ $(id -u) != "0" ]; then
