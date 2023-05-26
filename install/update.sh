@@ -334,11 +334,12 @@ cp -r /data/stackhubweb/plugins/kopia/build/* /usr/share/cockpit/backup
 
 UpdateServices(){
 echo "Check services if have update ..."
-echo "Redis need update ..."
 cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 cd /data/apps/stackhub/docker/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 cd /data/apps/stackhub/docker/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+old_password=$(cat /usr/share/cockpit/appstore/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
+sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
 cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 }
 
