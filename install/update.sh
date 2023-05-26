@@ -70,12 +70,19 @@ function get_os_version() {
 os_type=$(get_os_type)
 os_version=$(get_os_version)
 
-CheckEnvironment(){
+CheckUpdate(){
 
-echo "---------------------------------- Update websoft9's appstore, it will take 1-3 minutes -------------------------------------------------------" 
+cd /tmp && rm -rf install.sh && wget https://websoft9.github.io/StackHub/install/version.json
+old_version=$(cat /data/apps/stackhub/install/version.json)
+latest_version=$(cat /tmp/version.json)
+if [ "$old_version" = "$latest_version" ]
+then
+    echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------"
+else
+    echo "Your appstore is latest, it not need to update..."
+    exit(1)
+fi
 
-echo  os_type: $os_type
-echo  os_version: $os_version
 if [ $(id -u) != "0" ]; then
     echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
     exit 1
@@ -335,7 +342,7 @@ cd /data/apps/stackhub/docker/w9nginxproxymanager  && sudo docker compose down &
 cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 }
 
-CheckEnvironment
+CheckUpdate
 UpdateDocker
 UpdateCockpit
 UpdatePlugins
