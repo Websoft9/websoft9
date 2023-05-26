@@ -77,10 +77,10 @@ old_version=$(cat /data/apps/stackhub/install/version.json)
 latest_version=$(cat /tmp/version.json)
 if [ "$old_version" = "$latest_version" ]
 then
-    echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------"
-else
     echo "Your appstore is latest, it not need to update..."
     exit 1
+else
+    echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------"
 fi
 
 if [ $(id -u) != "0" ]; then
