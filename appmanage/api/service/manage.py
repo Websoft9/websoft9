@@ -960,7 +960,7 @@ def check_real_domain(domain):
 def get_token():
     url = 'http://172.17.0.1:9092/api/tokens'
     headers = {'Content-type': 'application/json'}
-    cmd = "cat /usr/share/cockpit/appstore/config.json | jq -r '.NGINXPROXYMANAGER_PASSWORD'"
+    cmd = "cat /usr/share/cockpit/appstore/config.json | jq -r '.NGINXPROXYMANAGER.NGINXPROXYMANAGER_PASSWORD'"
     password = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
     myLogger.info_logger(password)
     param = {
