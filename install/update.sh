@@ -72,12 +72,14 @@ os_version=$(get_os_version)
 
 CheckUpdate(){
 
+echo "Update appstore library ..."
+cd /data/library && git pull
 cd /tmp && rm -rf install.sh && wget https://websoft9.github.io/StackHub/install/version.json
 old_version=$(cat /data/apps/stackhub/install/version.json)
 latest_version=$(cat /tmp/version.json)
 if [ "$old_version" = "$latest_version" ]
 then
-    echo "Your appstore is latest, it not need to update..."
+    echo "Your plugins and service is latest, it not need to update..."
     exit 1
 else
     echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------"
