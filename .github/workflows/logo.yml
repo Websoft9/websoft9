@@ -15,33 +15,30 @@ jobs:
     
     - name: update logo
       run: |
+        git config --global user.name "${{ github.actor }}"
+        git config --global user.email "xxx@websoft9.com"
+        
         files=$(ls appmanage/static/images)
         for file in $files;do
           app=$(echo ${file%%-*})
-          echo $app
           entry=$(curl --include \
                        --request GET \
                        --header 'Authorization: Bearer ${{secrets.CONTENTFUL_TOKEN}}' \
                        https://api.contentful.com/spaces/ffrhttfighww/environments/master/entries?content_type=media\&fields.slug=${app} | tail -n 1)
-          echo $entry
           data=$(echo $entry | jq -r '.items[0].fields.imageurl')
           if [[ "$data" == null ]];then
               continue
           fi
           url=$(echo $data | sed 's/en-US/en/' | jq -r '.en')
-          echo $url
 
           logoFile=appmanage/static/images/${app}-websoft9.png
-          rm -f $logoFile
-          git rm --cached $logoFile
-          
-          wget -P appmanage/static/images $url 
+          git rm $logoFile
+          git commit -m "delete former logo"
+          wget -P appmanage/static/images $url  
           break
-          
         done
         
     - name: push logo
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: update logo
-
