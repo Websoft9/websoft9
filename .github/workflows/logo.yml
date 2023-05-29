@@ -43,4 +43,5 @@ jobs:
     - name: push logo
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
+        branch: origin/main
         commit_message: update logo
