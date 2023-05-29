@@ -34,8 +34,10 @@ jobs:
           logoFile=appmanage/static/images/${app}-websoft9.png
           rm -f $logoFile
           git rm --cached $logoFile
+          
           wget -P appmanage/static/images $url 
           break
+          
         done
         
     - name: push logo
