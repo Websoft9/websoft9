@@ -21,8 +21,8 @@ jobs:
           echo $app
           entry=$(curl --include \
                        --request GET \
-                       --header 'Authorization: Bearer ${{secrets.CONTENTFUL}}' \
-                       https://api.contentful.com/spaces/wbgvl9e8pqe2/environments/master/entries?content_type=media\&fields.slug=${app} | tail -n 1)
+                       --header 'Authorization: Bearer ${{secrets.CONTENTFUL_TOKEN}}' \
+                       https://api.contentful.com/spaces/ffrhttfighww/environments/master/entries?content_type=media\&fields.slug=${app} | tail -n 1)
           echo $entry
           data=$(echo $entry | jq -r '.items[0].fields.imageurl')
           if [[ "$data" == null ]];then
@@ -30,7 +30,12 @@ jobs:
           fi
           url=$(echo $data | sed 's/en-US/en/' | jq -r '.en')
           echo $url
+
+          logoFile=appmanage/static/images/${app}-websoft9.png
+          rm -f $logoFile
+          git rm --cached $logoFile
           wget -P appmanage/static/images $url 
+          break
         done
         
     - name: push logo
