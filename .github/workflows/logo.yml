@@ -1,6 +1,8 @@
 name: logo timely update
 
 on: 
+#   schedule:
+#   - cron: "0 4 * * *"
   workflow_dispatch:
   
 jobs:
@@ -35,7 +37,6 @@ jobs:
           git rm $logoFile
           git commit -m "delete former logo"
           wget -P appmanage/static/images $url  
-          break
         done
         
     - name: push logo
