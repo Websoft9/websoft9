@@ -312,7 +312,8 @@ function fastest_url() {
   fastest_time=0
 
   for url in "${urls[@]}"; do
-    time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
+    time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
+    echo $url is $time
     if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
       fastest_time=$time
       fastest_url=$url
