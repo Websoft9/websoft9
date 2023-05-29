@@ -33,24 +33,3 @@ jobs:
 
           git remote set-url --push origin "$DESTINATION_REPO"
           git push origin main --force
-
-          git checkout dev
-          if [ -f "requirements.yml" ];then
-            sed -i 's/github/gitee/g' requirements.yml
-            git add requirements.yml
-            git commit -m "Make requirements.yml compatible with gitee"
-          fi
-          git push origin dev --force
-
-          git checkout main
-
-          git fetch -p origin
-          git for-each-ref --format 'delete %(refname)' refs/pull | git update-ref --stdin
-          git push origin main --force
-
-          if [ -f "requirements.yml" ];then
-            sed -i 's/github/gitee/g' requirements.yml
-            git add requirements.yml
-            git commit -m "Make requirements.yml compatible with gitee"
-          fi
-          git push origin main --force
