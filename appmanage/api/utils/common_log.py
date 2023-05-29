@@ -13,7 +13,7 @@ class MyLogging():
         logFile = logPath + logName
         formatter = logging.Formatter('%(asctime)s %(levelname)s:  %(message)s')
         # handler
-        time_rotating_file_handler = handlers.TimedRotatingFileHandler(filename=logFile, when='D', encoding='utf-8')
+        time_rotating_file_handler = handlers.TimedRotatingFileHandler(filename=logFile, when="MIDNIGHT", interval=1, encoding='utf-8')
         time_rotating_file_handler.setLevel(logging.DEBUG)
         time_rotating_file_handler.setFormatter(formatter)
         # config
