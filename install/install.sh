@@ -11,6 +11,7 @@ trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/iss
 urls=(
     https://ghproxy.com/https://github.com
     https://github.com
+    https://gitee.com
 )
 
 function get_os_type() {
