@@ -130,7 +130,7 @@ fi
 
 InstallTools(){
 
-echo "Parpare to install Tools ..."
+echo "Prepare to install Tools ..."
 
 if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
   sudo yum update -y 1>/dev/null 2>&1
@@ -151,7 +151,7 @@ fi
 
 InstallDocker(){
 
-echo "Parpare to install Docker ..."
+echo "Prepare to install Docker ..."
 
 if [ "$os_type" == 'CentOS' ];then
   curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
@@ -198,7 +198,7 @@ fi
 }
 
 InstallCockpit(){
-echo "Parpare to install Cockpit ..." 
+echo "Prepare to install Cockpit ..." 
 
 if [ "${os_type}" == 'Debian' ]; then
   VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
@@ -342,9 +342,9 @@ function clone_repo() {
     fi
 }
 
-ParpareStaticFiles(){
+PrepareStaticFiles(){
 
-echo "Parpare to install ..." 
+echo "Prepare to install ..." 
 fasturl=$(fastest_url "${urls[@]}")
 echo "fast url is: "$fasturl
 
@@ -431,7 +431,7 @@ echo "---------------------------------- Install success!  you can  install a ap
 CheckEnvironment
 InstallTools
 InstallDocker
-ParpareStaticFiles
+PrepareStaticFiles
 InstallCockpit
 StartAppMng
 StartPortainer
