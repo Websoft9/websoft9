@@ -313,7 +313,6 @@ function fastest_url() {
 
   for url in "${urls[@]}"; do
     time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
-    echo $url is $time
     if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
       fastest_time=$time
       fastest_url=$url
@@ -347,13 +346,12 @@ ParpareStaticFiles(){
 
 echo "Parpare to install ..." 
 fasturl=$(fastest_url "${urls[@]}")
-sleep 20s
-echo "curl 5 times, avera fast url is: "$fasturl
+echo "fast url is: "$fasturl
 
 # download apps
 mkdir -p /data/apps
 clone_repo $fasturl/Websoft9/docker-library /data/library
-clone_repo $fasturl/Websoft9/Stackhub /data/apps/stackhub
+clone_repo $fasturl/Websoft9/StackHub /data/apps/stackhub
 clone_repo $fasturl/Websoft9/stackhub-web /data/stackhubweb
 
 }
