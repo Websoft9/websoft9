@@ -22,6 +22,11 @@ StackHub 的 release 的版本号由项目主版本号和各微服务和插件�
 2. CHANGELOG 文件，来记录每次变更的具体内容
    Release 目前手动进行，将合并 appmanage 和 cockpit 插件的 CHANGELOG
 
+## 日志
+
+Appmanage 日志采用 logging 生成，按自然日分割日志文件。日志路径：/var/lib/docker/volumes/w9appmanage_logs/\_data
+其他微服务采用 Dockhub 公开镜像，用 docker 容器的日志访问命令即可查看。
+
 ## 更新与升级
 
 执行升级脚本(/install/update.sh)来实现自动升级。
