@@ -2,7 +2,6 @@
 
 ![image](https://github.com/Websoft9/StackHub/assets/43192516/3b52f27a-8dff-477b-acea-cf971096540c)
 
-
 ## 详细
 
 ### 微服务
@@ -17,8 +16,6 @@
 - appstore(appmanager container)
 - API gateway: Kong（待定）
 - CLI（待定）
-
-![image](https://user-images.githubusercontent.com/16741975/216497356-3913abd2-0b75-4619-8c40-512079e35f5b.png)
 
 ### 基础组件
 

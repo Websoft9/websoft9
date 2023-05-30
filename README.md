@@ -41,3 +41,10 @@ wget -N https://websoft9.github.io/StackHub/scripts/install.sh; bash install.sh 
 sudo su # when you have no root privileges
 curl https://websoft9.github.io/StackHub/install/install.sh | bash
 ```
+
+## Upgrade
+
+```
+sudo su # when you have no root privileges
+curl https://websoft9.github.io/StackHub/install/update.sh | bash
+```

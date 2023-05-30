@@ -71,6 +71,6 @@ cancel_jobs = cancel.get_job_ids()
 
 [FastAPI 文档](https://github.com/Websoft9/StackHub/blob/main/appmanage/docs/developer.md) 使用 swagger 自动生成，访问地址：http://IP:PORT/docs。
 
-### Cockpit 插件
+## Cockpit 插件
 
 待补充。。。
