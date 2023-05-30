@@ -347,6 +347,7 @@ ParpareStaticFiles(){
 
 echo "Parpare to install ..." 
 fasturl=$(fastest_url "${urls[@]}")
+sleep 20s
 echo "curl 5 times, avera fast url is: "$fasturl
 
 # download apps
