@@ -11,7 +11,7 @@
         "KOPIA_PLUGIN_VERSION": "0.1.0",
         "KOPIA_IMAGE_VERSION": "0.13"
     },
-    "APPSTORE": {
+    "APPMANAGE": {
         "APPMANAGE_PLUGIN_VERSION": "0.1.0",
         "APPMANAGE_IMAGE_VERSION": "0.1.0",
         "REDIS_IMAGE_VERSION": "7.0.11"
