@@ -437,7 +437,6 @@ if [ -e /usr/share/cockpit/systemd ]; then
   rm -rf /usr/share/cockpit/systemd/manifest.json
   mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
 fi
-}
 if [ -e /usr/share/cockpit/networkmanager ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
 fi
