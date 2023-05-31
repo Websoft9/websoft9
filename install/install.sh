@@ -385,7 +385,7 @@ echo "Start Kopia ..."
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$new_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
+sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/stackhub/docker/w9kopia/.env
 cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose up -d
 
 sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/appstore/config.json
