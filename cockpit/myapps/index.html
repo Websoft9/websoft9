@@ -1,0 +1,45 @@
+<html>
+
+<head>
+    <title>My Apps</title>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Back Up" />
+
+    <script src="../base1/cockpit.js"></script>
+    <script src="../manifests.js"></script>
+    <script src="../*/po.js"></script>
+    <style type="text/css">
+        .myApps {
+            overflow: hidden;
+            /* 16:9 aspect ratio */
+            padding-top: 56.25%;
+            position: relative;
+        }
+
+        .myApps iframe {
+            border: 0;
+            height: 100%;
+            left: 0;
+            position: absolute;
+            top: 0;
+            width: 100%;
+        }
+    </style>
+    <script>
+        // var nav = parent.document.querySelector('nav[aria-label="Global"]');
+        // var sections = nav.getElementsByTagName("section");
+        // sections[0].parentNode.insertBefore(sections[1], sections[0]);
+
+        var myapps = window;
+        myapps.location.href = "../appstore/index.html#/myapps";
+    </script>
+</head>
+
+<body>
+
+</body>
+
+</html>

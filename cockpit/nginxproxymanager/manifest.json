@@ -1,27 +1,11 @@
 {
-    "version": "215",
-    "requires": {
-	"cockpit": "122"
-    },
-
-    "tools": {
-        "index": {
-            "order": "10",
-            "label": "Nginx 代理",
-            "path": "index.html",
-            "keywords": [
-                {
-                    "matches": ["plugin", "apps", "addon", "add-on", "install", "extension"]
-                }
-            ]
-        }
-    },
-
-     "content-security-policy": "default-src 'self' 'unsafe-inline' 'unsafe-eval' *;style-src 'self' 'unsafe-inline' 'unsafe-eval' *;",
-
-    "config": {
-        "appstream_config_packages": [ "appstream" ],
-        "appstream_data_packages": []
+  "version": "1.0.0",
+  "menu": {
+    "nginx": {
+      "label": "Nginx",
+      "path": "index.html",
+      "order": 3
     }
-
+  },
+  "content-security-policy": "default-src 'unsafe-inline' 'unsafe-eval' *;font-src * data:;style-src 'unsafe-inline' 'unsafe-eval' *;img-src * data:;"
 }
