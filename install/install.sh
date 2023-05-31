@@ -270,6 +270,7 @@ cp -r /data/stackhubweb/src/apps/build/* /usr/share/cockpit/appstore
 cp -r /data/stackhubweb/plugins/portainer/build/* /usr/share/cockpit/container
 cp -r /data/stackhubweb/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
 cp -r /data/stackhubweb/plugins/kopia/build/* /usr/share/cockpit/backup
+cp -r /data/stackhubweb/plugins/myapps /usr/share/cockpit
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -428,6 +429,26 @@ sudo docker restart websoft9-nginxproxymanager
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
 
+EditMenu(){
+
+echo "Start to  Edit Cockpit Menu ..."
+if [ -e /usr/share/cockpit/systemd ]; then
+  jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+  rm -rf /usr/share/cockpit/systemd/manifest.json
+  mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+fi
+}
+if [ -e /usr/share/cockpit/networkmanager ]; then
+  sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
+fi
+if [ -e /usr/share/cockpit/storaged ]; then
+  sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
+fi
+if [ -e /usr/share/cockpit/users ]; then
+  sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
+fi
+}
+
 CheckEnvironment
 InstallTools
 InstallDocker
@@ -437,3 +458,4 @@ StartAppMng
 StartPortainer
 StartKopia
 InstallNginx
+EditMenu
