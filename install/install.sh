@@ -134,7 +134,7 @@ echo "Prepare to install Tools ..."
 
 if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
   sudo yum update -y 1>/dev/null 2>&1
-  sudo yum install  git curl wget yum-utils jq -y  1>/dev/null 2>&1
+  sudo yum install  git curl wget yum-utils jq firewalld -y  1>/dev/null 2>&1
 
 fi
 
@@ -144,7 +144,7 @@ if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
       sleep 5
   done
   sudo apt update -y 1>/dev/null 2>&1
-  sudo apt install git curl wget jq -y  1>/dev/null 2>&1
+  sudo apt install git curl wget jq firewalld -y  1>/dev/null 2>&1
 fi
 
 }
@@ -205,6 +205,7 @@ if [ "${os_type}" == 'Debian' ]; then
   sudo echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" >/etc/apt/sources.list.d/backports.list
   sudo apt update
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
+  sudo apt install cockpit-pcp -y 1>/dev/null 2>&1
 fi
 
 if [ "${os_type}" == 'Ubuntu' ]; then
@@ -215,12 +216,14 @@ if [ "${os_type}" == 'Ubuntu' ]; then
   fi
   VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
+  sudo apt install cockpit-pcp -y 1>/dev/null 2>&1
   echo "Cockpit allow root user" 
   echo "" >/etc/cockpit/disallowed-users 1>/dev/null 2>&1
 fi
 
 if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ]; then
   sudo yum install cockpit -y 
+  sudo yum install cockpit-pcp -y 1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
   sudo firewall-cmd --permanent --zone=public --add-service=cockpit
   sudo firewall-cmd --reload
@@ -228,6 +231,7 @@ fi
 
 if [ "$os_type" == 'Fedora' ]; then
   sudo dnf install cockpit -y 
+  sudo dnf install cockpit-pcp -y 1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
   sudo firewall-cmd --add-service=cockpit
   sudo firewall-cmd --add-service=cockpit --permanent
@@ -236,6 +240,7 @@ fi
 if [ "$os_type" == 'Redhat' ] ; then
   sudo subscription-manager repos --enable rhel-7-server-extras-rpms 1>/dev/null 2>&1
   sudo yum install cockpit -y
+  sudo yum install cockpit-pcp -y 1>/dev/null 2>&1
   sudo setenforce 0  1>/dev/null 2>&1
   sudo sed -i 's/SELINUX=.*/SELINUX=disabled/' /etc/selinux/config  1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
@@ -246,6 +251,7 @@ fi
 if [ "$os_type" == 'CentOS Stream' ]; then
   sudo subscription-manager repos --enable rhel-7-server-extras-rpms 1>/dev/null 2>&1
   sudo yum install cockpit -y
+  sudo yum install cockpit-pcp -y 1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
   sudo firewall-cmd --add-service=cockpit
   sudo firewall-cmd --add-service=cockpit --permanent
