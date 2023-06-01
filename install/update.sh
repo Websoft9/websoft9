@@ -10,7 +10,8 @@ trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/iss
 
 urls=(
     https://ghproxy.com/https://github.com
-    #https://github.com
+    https://github.com
+    https://gitee.com
 )
 
 function get_os_type() {
@@ -70,11 +71,27 @@ function get_os_version() {
 os_type=$(get_os_type)
 os_version=$(get_os_version)
 
+function fastest_url() {
+  urls=("$@")
+  fastest_url=""
+  fastest_time=0
+
+  for url in "${urls[@]}"; do
+    time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
+    if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
+      fastest_time=$time
+      fastest_url=$url
+    fi
+  done
+
+  echo "$fastest_url"
+}
+
 CheckUpdate(){
 
 echo "Update appstore library ..."
 cd /data/library && git pull
-cd /tmp && rm -rf install.sh && wget https://websoft9.github.io/StackHub/install/version.json
+cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
 old_version=$(cat /data/apps/stackhub/install/version.json)
 latest_version=$(cat /tmp/version.json)
 if [ "$old_version" = "$latest_version" ]
@@ -83,6 +100,19 @@ then
     exit 1
 else
     echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
+    cd /tmp && rm -rf /tmp/stackhub
+    if [ "$fasturl" == *gitee.com* ]
+       wget $fasturl/websoft9/StackHub/repository/archive/$release_version
+       unzip $release_version
+       mv StackHub* stackhub
+       rm -f $release_version
+    else
+       wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
+       unzip $release_version.zip
+       mv StackHub* stackhub
+       rm -f $release_version.zip
+    fi
+    
 fi
 
 if [ $(id -u) != "0" ]; then
@@ -147,6 +177,9 @@ echo "Parpare to update Docker to latest  ..."
 
 if command -v apt > /dev/null;then  
   sudo apt -y install --only-upgrade  docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
+elif  command -v dnf > /dev/null;then 
+  sudo dnf update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
+fi
 elif  command -v yum > /dev/null;then 
   sudo yum update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
 fi
@@ -156,145 +189,83 @@ fi
 UpdateCockpit(){
 
 echo "Parpare to update Cockpit to latest  ..."
-if [ "${os_type}" == 'Debian' ]; then
-  VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
-  sudo echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" >/etc/apt/sources.list.d/backports.list
-  sudo apt update
-  sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
-fi
+pkcon refresh /dev/null 2>&1
+pkcon get-updates >/dev/null 2>&1
+pkcon update -y >/dev/null 2>&1
 
-if [ "${os_type}" == 'Ubuntu' ]; then
-  if grep -q "^#.*deb http://mirrors.tencentyun.com/ubuntu.*backports" /etc/apt/sources.list; then
-      echo "Add backports deb ..." 
-      sudo sed -i 's/^#\(.*deb http:\/\/mirrors.tencentyun.com\/ubuntu.*backports.*\)/\1/' /etc/apt/sources.list
-      apt update
-  fi
-  VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
-  sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
-  echo "Cockpit allow root user" 
-  echo "" >/etc/cockpit/disallowed-users 1>/dev/null 2>&1
+# update navigator
+if command -v apt > /dev/null;then  
+  sudo apt -y install --only-upgrade  cockpit-navigator
+elif  command -v dnf > /dev/null;then 
+  sudo dnf update -y cockpit-navigator
 fi
-
-if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ]; then
-  sudo yum install cockpit -y 
-  sudo systemctl enable --now cockpit.socket
-  sudo firewall-cmd --permanent --zone=public --add-service=cockpit
-  sudo firewall-cmd --reload
-fi
-
-if [ "$os_type" == 'Fedora' ]; then
-  sudo dnf install cockpit -y 
-  sudo systemctl enable --now cockpit.socket
-  sudo firewall-cmd --add-service=cockpit
-  sudo firewall-cmd --add-service=cockpit --permanent
-fi
-
-if [ "$os_type" == 'Redhat' ] ; then
-  sudo subscription-manager repos --enable rhel-7-server-extras-rpms 1>/dev/null 2>&1
-  sudo yum install cockpit -y
-  sudo setenforce 0  1>/dev/null 2>&1
-  sudo sed -i 's/SELINUX=.*/SELINUX=disabled/' /etc/selinux/config  1>/dev/null 2>&1
-  sudo systemctl enable --now cockpit.socket
-  sudo firewall-cmd --add-service=cockpit
-  sudo firewall-cmd --add-service=cockpit --permanent
-fi
-
-if [ "$os_type" == 'CentOS Stream' ]; then
-  sudo subscription-manager repos --enable rhel-7-server-extras-rpms 1>/dev/null 2>&1
-  sudo yum install cockpit -y
-  sudo systemctl enable --now cockpit.socket
-  sudo firewall-cmd --add-service=cockpit
-  sudo firewall-cmd --add-service=cockpit --permanent
-  sudo setenforce 0  1>/dev/null 2>&1
-  sudo sed -i 's/SELINUX=.*/SELINUX=disabled/' /etc/selinux/config  1>/dev/null 2>&1
-  
-fi
-
-# install navigator
-if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
-  wget -qO - https://repo.45drives.com/key/gpg.asc | sudo gpg --dearmor -o /usr/share/keyrings/45drives-archive-keyring.gpg
-  cd /etc/apt/sources.list.d
-  sudo curl -sSL https://repo.45drives.com/lists/45drives.sources -o /etc/apt/sources.list.d/45drives.sources
-  sudo apt update
-  sudo apt install cockpit-navigator -y 
-fi
-
-if [ "$os_type" == 'Redhat' ] || [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Fedora' ] ;then
-  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-  sudo bash setup-repo.sh
-  sudo dnf install cockpit-navigator -y 1>/dev/null 2>&1
-fi
-
-if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ] ;then
-  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-  sudo bash setup-repo.sh
-  sudo yum install cockpit-navigator -y 1>/dev/null 2>&1
+elif  command -v yum > /dev/null;then 
+  sudo yum update -y cockpit-navigator
 fi
 }
-
-function fastest_url() {
-  urls=("$@")
-  fastest_url=""
-  fastest_time=0
-
-  for url in "${urls[@]}"; do
-    time=$(curl -s -w '%{time_total}\n' -o /dev/null $url)
-    if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
-      fastest_time=$time
-      fastest_url=$url
-    fi
-  done
-
-  echo "$fastest_url"
-}
-
-clone_repo() {
-    url=$1
-    path=$2
-    for i in {1..5}
-    do
-        git clone $url $path
-        if [ $? -eq 0 ]
-        then
-            echo "Clone successful"
-            break
-        else
-            echo "Clone failed, retrying $i/5"
-        fi
-    done
-}
-
-ParpareStaticFiles(){
-
-echo "Parpare to update cockpit plugin ..." 
-fasturl=$(fastest_url "${urls[@]}")
-echo "Fast url is: "$fasturl
-
-clone_repo $fasturl/Websoft9/docker-library /data/library
-clone_repo $fasturl/Websoft9/Stackhub /data/apps/stackhub
-clone_repo $fasturl/Websoft9/stackhub-web /data/stackhubweb
-
-}
-
 
 UpdatePlugins(){
+
 echo "Check plugins if have update ..."
 rm -rf /tmp/config.json
 cp /usr/share/cockpit/appstore/config.json /tmp/config.json
-rm -rf /data/library /data/apps/stackhub /data/stackhubweb 
-rm -rf /usr/share/cockpit/appstore/* /usr/share/cockpit/container/* /usr/share/cockpit/nginx/* /usr/share/cockpit/backup/*
+rm -rf /data/apps/stackhub
+cp -r /tmp/stackhub /data/apps
 
-ParpareStaticFiles
+# update appstore
+old_appstore_version=$(cat /usr/share/cockpit/appstore/manifest.json | jq .version)
+new_appstore_version=$(cat /data/apps/stackhub/install/version.json|jq .APPSTORE.APPMANAGE_PLUGIN_VERSION)
 
-# install web
-cp -r /data/apps/stackhub/appmanage/static/images /data/stackhubweb/src/apps/build/static
-cp -r /data/stackhubweb/src/apps/build/* /usr/share/cockpit/appstore
-rm -f /usr/share/cockpit/appstore/config.json
-cp /tmp/config.json /usr/share/cockpit/appstore/config.json
-## install container
-cp -r /data/stackhubweb/plugins/portainer/build/* /usr/share/cockpit/container
-cp -r /data/stackhubweb/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
-cp -r /data/stackhubweb/plugins/kopia/build/* /usr/share/cockpit/backup
+if [ "$old_appstore_version" \< "$new_appstore_version" ]; then
+    echo "appstore plugin need to update"
+    cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/appstore/static
+    rm -rf /usr/share/cockpit/appstore
+    cp -r /data/apps/stackhub/cockpit/appstore /usr/share/cockpit
+    rm -f /usr/share/cockpit/appstore/config.json
+    cp /tmp/config.json /usr/share/cockpit/appstore/config.json
+else
+    echo "appstore is not need to update"
+fi
+
+## update container
+old_container_version=$(cat /usr/share/cockpit/container/manifest.json | jq .version)
+new_container_version=$(cat /data/apps/stackhub/install/version.json|jq .PORTAINER.PORTAINER_PLUGIN_VERSION)
+
+if [ "$old_container_version" \< "$new_container_version" ]; then
+    echo "container plugin need to update"
+    rm -rf /usr/share/cockpit/container
+    cp -r /data/apps/stackhub/cockpit/portainer /usr/share/cockpit
+    mv /usr/share/cockpit/portainer /usr/share/cockpit/container
+else
+    echo "container is not need to update"
+fi
+
+## update nginx
+old_nginx_version=$(cat /usr/share/cockpit/nginx/manifest.json | jq .version)
+new_nginx_version=$(cat /data/apps/stackhub/install/version.json|jq .NGINXPROXYMANAGER.NGINXPROXYMANAGER_PLUGIN_VERSION)
+
+if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
+    echo "nginx plugin need to update"
+    rm -rf /usr/share/cockpit/nginx
+    cp -r /data/apps/stackhub/cockpit/nginxproxymanager /usr/share/cockpit
+    mv /usr/share/cockpit/nginxproxymanager /usr/share/cockpit/nginx
+else
+    echo "nginx is not need to update"
+fi
+
+## update kopia
+
+old_kopia_version=$(cat /usr/share/cockpit/backup/manifest.json | jq .version)
+new_kopia_version=$(cat /data/apps/stackhub/install/version.json|jq .KOPIA.KOPIA_PLUGIN_VERSION)
+
+if [ "$old_kopia_version" \< "$new_kopia_version" ]; then
+    echo "kopia plugin need to update"
+    rm -rf /usr/share/cockpit/backup
+    cp -r /data/apps/stackhub/cockpit/kopia /usr/share/cockpit
+    mv /usr/share/cockpit/kopia /usr/share/cockpit/backup
+else
+    echo "kopia is not need to update"
+fi
  
 }
 
@@ -302,7 +273,14 @@ UpdateServices(){
 echo "Check services if have update ..."
 cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 cd /data/apps/stackhub/docker/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
-cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+old_portainer=$(echo $old_version | jq .PORTAINER.PORTAINER_IMAGE_VERSION)
+new_portainer=$(cat /data/apps/stackhub/install/version.json | jq .PORTAINER.PORTAINER_IMAGE_VERSION)
+if [ "$old_portainer" \< "$new_portainer" ]; then
+    echo "w9portainer need to update"
+    cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+else
+    echo "w9portainer is not need to update"
+fi
 cd /data/apps/stackhub/docker/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 old_password=$(cat /usr/share/cockpit/appstore/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
 sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
