@@ -94,6 +94,8 @@ cd /data/library && git pull
 cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
 old_version=$(cat /data/apps/stackhub/install/version.json)
 latest_version=$(cat /tmp/version.json)
+release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
+
 if [ "$old_version" = "$latest_version" ]
 then
     echo "------------------ Your plugins and service is latest, it not need to update ------------------ "
@@ -271,8 +273,24 @@ fi
 
 UpdateServices(){
 echo "Check services if have update ..."
-cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
-cd /data/apps/stackhub/docker/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+old_appmanage=$(echo $old_version | jq .APPMANAGE.APPMANAGE_IMAGE_VERSION)
+new_appmanage=$(cat /data/apps/stackhub/install/version.json | jq .APPMANAGE.APPMANAGE_IMAGE_VERSION)
+if [ "$old_appmanage" \< "$new_appmanage" ]; then
+    echo "appmanage need to update"
+    cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+else
+    echo "appmanage is not need to update"
+fi
+
+old_redis=$(echo $old_version | jq .APPMANAGE.REDIS_IMAGE_VERSION)
+new_redis=$(cat /data/apps/stackhub/install/version.json | jq .APPMANAGE.REDIS_IMAGE_VERSION)
+if [ "$old_redis" \< "$new_redis" ]; then
+    echo "redis need to update"
+    cd /data/apps/stackhub/docker/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+else
+    echo "redis is not need to update"
+fi
+
 old_portainer=$(echo $old_version | jq .PORTAINER.PORTAINER_IMAGE_VERSION)
 new_portainer=$(cat /data/apps/stackhub/install/version.json | jq .PORTAINER.PORTAINER_IMAGE_VERSION)
 if [ "$old_portainer" \< "$new_portainer" ]; then
@@ -281,10 +299,27 @@ if [ "$old_portainer" \< "$new_portainer" ]; then
 else
     echo "w9portainer is not need to update"
 fi
-cd /data/apps/stackhub/docker/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
-old_password=$(cat /usr/share/cockpit/appstore/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
-sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
-cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+
+old_nginx=$(echo $old_version | jq .NGINXPROXYMANAGER.NGINXPROXYMANAGER_IMAGE_VERSION)
+new_nginx=$(cat /data/apps/stackhub/install/version.json | jq .NGINXPROXYMANAGER.NGINXPROXYMANAGER_IMAGE_VERSION)
+if [ "$old_nginx" \< "$new_nginx" ]; then
+    echo "w9nginx need to update"
+    cd /data/apps/stackhub/docker/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+else
+    echo "w9nginx is not need to update"
+fi
+
+old_kopia=$(echo $old_version | jq .KOPIA.KOPIA_IMAGE_VERSION)
+new_kopia=$(cat /data/apps/stackhub/install/version.json | jq .KOPIA.KOPIA_IMAGE_VERSION)
+if [ "$old_kopia" \< "$new_kopia" ]; then
+    echo "w9kopia need to update"
+    old_password=$(cat /usr/share/cockpit/appstore/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
+    sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
+    cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+else
+    echo "w9kopia is not need to update"
+fi
+
 }
 
 CheckUpdate
