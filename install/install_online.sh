@@ -431,7 +431,6 @@ docker run --rm --volume /tmp:/work backplane/htpasswd -c -b .htpasswd websoft9 
 cp /tmp/.htpasswd /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd
 sudo docker restart websoft9-nginxproxymanager
 
-echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
 
 EditMenu(){
@@ -451,6 +450,9 @@ fi
 if [ -e /usr/share/cockpit/users ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
 fi
+
+echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
+
 }
 
 CheckEnvironment
