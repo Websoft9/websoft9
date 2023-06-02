@@ -1,0 +1,130 @@
+// 
+// horizontal-steps.scss
+//
+
+// Horizontal steps
+.horizontal-steps {
+    display: flex;
+    position: relative;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+
+    &:before {
+        content: '';
+        display: block;
+        position: absolute;
+        width: 100%;
+        height: .2em;
+        background-color: #{map-get($grays, "200")};
+    }
+    .process-line {
+        display: block;
+        position: absolute;
+        width: 50%;
+        height: .2em;
+        background-color: $primary;
+    }
+    .horizontal-steps-content {
+        display: flex;
+        position: relative;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        .step-item {
+            display: block;
+            position: relative;
+            bottom: calc(100% + 1em);
+            height: 8px;
+            width: 8px;
+            margin: 0 2em;
+            box-sizing: content-box;
+            color: $primary;
+            background-color: currentColor;
+            border: .25em solid $body-bg;
+            border-radius: 50%;
+            z-index: 5;
+            &:first-child {
+                margin-left: 0;
+            }
+            &:last-child {
+                margin-right: 0;
+                color: $success;
+            }
+            span {
+                position: absolute;
+                top: calc(100% + 1em);
+                left: 50%;
+                transform: translateX(-50%);
+                white-space: nowrap;
+                color: #{map-get($grays, "500")};
+            }
+            &.current {
+                &:before {
+                    content: '';
+                    display: block;
+                    position: absolute;
+                    top: 47.5%;
+                    left: 51%;
+                    padding: 1em;
+                    background-color: currentColor;
+                    border-radius: 50%;
+                    opacity: 0;
+                    z-index: -1;
+                    animation-name: animation-steps-current;
+                    animation-duration: 2s;
+                    animation-iteration-count: infinite;
+                    animation-timing-function: ease-out;
+                }
+                span {
+                    color: $primary !important;
+                }
+            }
+        }
+    }
+}
+
+@keyframes animation-steps-current {
+    from {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 1;
+    }
+    to {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0;
+    }
+}
+
+@include media-breakpoint-down(md) {
+    .horizontal-steps {
+        
+        .horizontal-steps-content {
+            .step-item {
+                span {
+                    white-space: inherit;
+                }
+            }
+        }
+    }
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .horizontal-steps {
+        &:before {
+            background-color: #{map-get($dark-grays, "200")};
+        }
+        .horizontal-steps-content {
+            .step-item {
+                border: .25em solid var(--#{$variable-prefix}body-bg);
+                span {
+                    color: #{map-get($dark-grays, "500")};
+                }
+            }
+        }
+    }
+}

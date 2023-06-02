@@ -1,0 +1,72 @@
+// 
+// page-head.scss
+//
+
+.page-title-box {
+    .page-title {
+        font-size: 18px;
+        margin: 0;
+        line-height: 75px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        color: $page-title-color;
+    }
+    .page-title-right {
+        float: right;
+        margin-top: 20px;
+    }
+
+    .breadcrumb {
+        padding-top: 8px;
+    }
+}
+
+.page-title-box-sm {
+    .page-title {
+        line-height: 1 !important;
+        margin-bottom: 25px;
+    }
+    .page-title-right {
+        float: right;
+        margin-top: 0;
+    }
+
+    .breadcrumb {
+        padding-top: 0;
+        margin-top: -3px !important;
+    }
+}
+
+
+.text-title {
+    color: $text-title-color;
+
+    &:hover {
+        color: $text-title-color;
+    }
+}
+
+@include media-breakpoint-down(md) {
+    .page-title-box {
+        .page-title {
+            display: block;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            line-height: 70px;
+        }
+        .breadcrumb {
+            display: none;
+        }
+        .page-title-right {
+            display: none;
+        }
+    }
+}
+
+@media (max-width: 419px) {
+    .page-title-box .breadcrumb {
+        display: none;
+    }
+}

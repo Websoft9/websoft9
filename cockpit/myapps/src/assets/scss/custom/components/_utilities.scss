@@ -1,0 +1,19 @@
+// Utilities
+
+@import "utilities/background";
+@import "utilities/text";
+
+
+// border style
+.border-dashed {
+    border-style: dashed !important;
+}
+
+// Dark mode
+body[data-layout-color="dark"] {
+    @each $color, $value in $dark-theme-colors {
+        .border-#{$color} {
+            border-color: $value !important;
+        }
+    }
+}

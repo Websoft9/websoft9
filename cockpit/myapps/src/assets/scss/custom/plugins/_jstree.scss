@@ -1,0 +1,40 @@
+//
+// jstree.scss
+//
+
+
+.jstree-default {
+    padding: 2px 6px;
+    height: auto;
+    .jstree-clicked, .jstree-hovered {
+        background: #{map-get($grays, "200")};
+        box-shadow: none;
+    }
+    .jstree-anchor, .jstree-icon, .jstree-icon:empty {
+        line-height: 20px;
+    }
+}
+
+.jstree-wholerow {
+    &.jstree-wholerow-clicked, &.jstree-wholerow-hovered {
+        background: #{map-get($grays, "200")};
+    }
+}
+
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .jstree-default {
+        .jstree-clicked, .jstree-hovered {
+            background: #{map-get($dark-grays, "300")};
+        }
+    }
+    
+    .jstree-wholerow {
+        &.jstree-wholerow-clicked, &.jstree-wholerow-hovered {
+            background: #{map-get($dark-grays, "300")};
+        }
+    }
+}

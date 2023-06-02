@@ -1,0 +1,98 @@
+//
+// _badges.scss
+//
+
+// Lighten badge (soft)
+
+@each $color, $value in $theme-colors {
+  .badge-#{$color}-lighten {
+    @include badge-variant-light($value);
+    &[href] {
+      color: $value;
+      text-decoration: none;
+      background-color: rgba($value, 0.18);
+    }
+    &[href] {
+      &:hover,
+      &:focus {
+        color: $value;
+        text-decoration: none;
+        background-color: rgba($value, 0.4);
+      }
+    }
+  }
+}
+
+// Outline badge
+
+@each $color, $value in $theme-colors {
+  .badge-outline-#{$color} {
+    @include badge-variant-outline($value);
+    &[href] {
+      color: $value;
+      text-decoration: none;
+      background-color: rgba($value, 0.2);
+    }
+    &[href] {
+      &:hover,
+      &:focus {
+        color: $value;
+        text-decoration: none;
+        background-color: rgba($value, 0.2);
+      }
+    }
+  }
+}
+
+.badge {
+  vertical-align: middle;
+  &.badge-lg {
+    padding: $badge-padding-y * 2 $badge-padding-x * 2.5;
+    font-size: $badge-font-size + 0.1em;
+  }
+}
+
+// Lighten badge (soft)
+
+// Dark mode
+body[data-layout-color="dark"] {
+  // Lighten badge (soft)
+  @each $color, $value in $dark-theme-colors {
+    .badge-#{$color}-lighten {
+      @include badge-variant-light($value);
+      &[href] {
+        color: $value;
+        text-decoration: none;
+        background-color: rgba($value, 0.18);
+      }
+      &[href] {
+        &:hover,
+        &:focus {
+          color: $value;
+          text-decoration: none;
+          background-color: rgba($value, 0.4);
+        }
+      }
+    }
+  }
+
+  // Outline badge
+  @each $color, $value in $dark-theme-colors {
+    .badge-outline-#{$color} {
+      @include badge-variant-outline($value);
+      &[href] {
+        color: $value;
+        text-decoration: none;
+        background-color: rgba($value, 0.2);
+      }
+      &[href] {
+        &:hover,
+        &:focus {
+          color: $value;
+          text-decoration: none;
+          background-color: rgba($value, 0.2);
+        }
+      }
+    }
+  }
+}

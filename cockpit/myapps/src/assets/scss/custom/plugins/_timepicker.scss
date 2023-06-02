@@ -1,0 +1,28 @@
+
+
+/* Timepicker */
+
+.timepicker-orient-bottom{
+  top: auto !important;
+  bottom: $input-height !important;
+}
+
+.bootstrap-timepicker-widget{
+  left: 0 !important;
+  right: auto !important;
+}
+
+
+.bootstrap-timepicker-widget{
+  &.timepicker-orient-left{
+    &:before{
+      left: 6px;
+      right: auto;
+    }
+
+    &::after{
+      left: 7px;
+      right: auto;
+    }
+  }
+}

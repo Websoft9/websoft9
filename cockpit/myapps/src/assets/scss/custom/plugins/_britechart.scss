@@ -1,0 +1,49 @@
+//
+// britechart.scss
+//
+
+.britechart,
+.tick text {
+    font-family: $font-family-base;
+    font-size: 0.75rem;
+}
+
+.britechart {
+    .tick {
+        line {
+            stroke: transparent;
+        }
+    }
+}
+.horizontal-grid-line,
+.vertical-grid-line,
+.extended-x-line,
+.extended-y-line {
+    stroke: #{map-get($grays, "300")};
+}
+
+.tick text,
+.bar-chart .percentage-label,
+.donut-text,
+.legend-entry-name,
+.legend-entry-value {
+    fill: #{map-get($grays, "600")};
+}
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .horizontal-grid-line,
+    .vertical-grid-line,
+    .extended-x-line,
+    .extended-y-line {
+        stroke: #{map-get($dark-grays, "300")};
+    }
+
+    .tick text,
+    .bar-chart .percentage-label,
+    .donut-text,
+    .legend-entry-name,
+    .legend-entry-value {
+        fill: #{map-get($dark-grays, "600")};
+    }
+}

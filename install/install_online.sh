@@ -265,7 +265,6 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 
 # install plugins
 # install appstore
-cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/appstore/build/static
 mkdir /usr/share/cockpit/appstore
 cp -r /data/apps/stackhub/cockpit/appstore/build/* /usr/share/cockpit/appstore
 # install portainer
@@ -278,6 +277,7 @@ cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/n
 mkdir /usr/share/cockpit/backup
 cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
 ## install myapps
+cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/myapps/build/static
 cp -r /data/apps/stackhub/cockpit/myapps /usr/share/cockpit
 
 # install navigator
@@ -381,8 +381,8 @@ cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose up -d
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/appstore/config.json
-sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
+sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://127.0.0.1:9091/api/users/admin/init
 }
 
@@ -395,8 +395,8 @@ docker rm -f pwgen
 sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/stackhub/docker/w9kopia/.env
 cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose up -d
 
-sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/appstore/config.json
-sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
+sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
 }
 
 InstallNginx(){
@@ -413,9 +413,9 @@ docker rm -f pwgen
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://127.0.0.1:9092/api/users/1
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://127.0.0.1:9092/api/users/1/auth
 sleep 3
-sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/appstore/config.json
-sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
-sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/myapps/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
+sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/myapps/config.json
 echo "edit password success ..." 
 while [ ! -d "/var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host" ]; do
     sleep 1
@@ -425,8 +425,8 @@ public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 
 echo "Add htpasswd for appmanage ..."
-sudo sed -i 's/"APPMANAGE_USERNAME": ".*"/"APPMANAGE_USERNAME": "websoft9"/g' /usr/share/cockpit/appstore/config.json
-sudo sed -i 's/"APPMANAGE_PASSWORD": ".*"/"APPMANAGE_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/appstore/config.json
+sudo sed -i 's/"APPMANAGE_USERNAME": ".*"/"APPMANAGE_USERNAME": "websoft9"/g' /usr/share/cockpit/myapps/config.json
+sudo sed -i 's/"APPMANAGE_PASSWORD": ".*"/"APPMANAGE_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
 rm -rf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd /tmp/.htpasswd
 docker run --rm --volume /tmp:/work backplane/htpasswd -c -b .htpasswd websoft9 $new_password
 cp /tmp/.htpasswd /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd

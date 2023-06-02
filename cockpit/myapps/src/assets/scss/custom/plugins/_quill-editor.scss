@@ -1,0 +1,61 @@
+//
+// _quill-editor.scss
+//
+
+
+.ql-editor {
+    text-align: left;
+}
+
+.ql-container {
+    font-family: $font-family-base;
+
+    &.ql-snow {
+        border-color: $input-border-color;
+    }
+}
+
+.ql-bubble {
+    border: $input-border-width solid $input-border-color;
+    border-radius: $input-border-radius;
+}
+
+.ql-toolbar {
+    font-family: $font-family-base !important;
+    span {
+        outline: none !important;
+        color: $dropdown-link-color;
+
+        &:hover {
+            color: $primary !important;
+        }
+    }
+
+    &.ql-snow {
+        border-color: $input-border-color;
+
+        .ql-picker.ql-expanded {
+            .ql-picker-label {
+                border-color: transparent;
+            }
+        }
+    }
+}
+
+.ql-snow {
+    .ql-stroke,
+    .ql-script,
+    .ql-strike svg {
+        stroke: $dropdown-link-color;
+    }
+    .ql-fill {
+        fill: $dropdown-link-color;
+    }
+}
+
+.ql-snow {
+    .ql-picker-options {
+        background-color: $dropdown-bg;
+        border-color: $dropdown-border-color !important;
+    }
+}

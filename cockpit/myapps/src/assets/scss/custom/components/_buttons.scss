@@ -1,0 +1,78 @@
+// 
+// buttons.scss
+//
+
+.btn {
+    .mdi {
+        &:before {
+            line-height: initial;
+        }
+    }
+}
+
+// Button Shadows
+@each $color, $value in $theme-colors {
+    .btn-#{$color} {
+        @include button-shadow($value);
+    }
+}
+
+// Dark mode
+body[data-layout-color="dark"] {
+
+    @each $color, $value in $dark-theme-colors {
+        .btn-#{$color} {
+            @include button-shadow($value);
+        }
+    }
+
+     .btn-light {
+        background-color: #{map-get($dark-grays, "300")};
+        border-color: #{map-get($dark-grays, "300")};
+        color: #{map-get($dark-grays, "900")};
+    }
+    .btn-dark {
+        background-color: #{map-get($dark-grays, "900")};
+        border-color: #{map-get($dark-grays, "900")};
+        color: #{map-get($dark-grays, "100")};
+    }
+    .btn-secondary {
+        background-color: #{map-get($dark-grays, "600")};
+        border-color: #{map-get($dark-grays, "600")};
+        color: #{map-get($dark-grays, "300")};
+    }
+
+    .btn-outline-light {
+        border-color: #{map-get($dark-grays, "300")};
+        color: #{map-get($dark-grays, "300")};
+        &:hover,
+        &.active,
+        &:active,
+        &:focus {
+                color: #{map-get($dark-grays, "900")} !important;
+                background-color: #{map-get($dark-grays, "300")};
+        }
+    }
+    .btn-outline-dark {
+        border-color: #{map-get($dark-grays, "900")};
+        color: #{map-get($dark-grays, "900")};
+        &:hover,
+        &.active,
+        &:active,
+        &:focus {
+                color: #{map-get($dark-grays, "100")} !important;
+                background-color: #{map-get($dark-grays, "900")};
+        }
+    }
+    .btn-outline-secondary {
+        border-color: #{map-get($dark-grays, "600")};
+        color: #{map-get($dark-grays, "600")};
+        &:hover,
+        &.active,
+        &:active,
+        &:focus {
+                color: #{map-get($dark-grays, "300")} !important;
+                background-color: #{map-get($dark-grays, "600")};
+        }
+    }
+}

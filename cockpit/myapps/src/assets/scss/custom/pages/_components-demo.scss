@@ -1,0 +1,82 @@
+// 
+// _components-demo.scss
+//
+
+// Button
+.button-list {
+    margin-left: -8px;
+    margin-bottom: -12px;
+    
+    .btn {
+        margin-bottom: 12px;
+        margin-left: 8px;
+    }
+}
+
+// Scrollspy 
+.scrollspy-example {
+    position: relative;
+    height: 200px;
+    margin-top: .5rem;
+    overflow: auto;
+}
+
+// Grid
+.grid-structure {
+    .grid-container {
+        background-color: #{map-get($grays, "100")};
+        margin-bottom: 10px;
+        font-size: 0.8rem;
+        font-weight: $font-weight-semibold;
+        padding: 10px 20px;
+    }
+}
+
+// Icons
+.icons-list-demo {
+    div {
+        cursor: pointer;
+        line-height: 45px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        display: block;
+        overflow: hidden;
+        p {
+            margin-bottom: 0;
+            line-height: inherit;
+        }
+    }
+    i {
+        text-align: center;
+        vertical-align: middle;
+        font-size: 22px;
+        width: 50px;
+        height: 50px;
+        line-height: 50px;
+        margin-right: 12px;
+        border-radius: 3px;
+        display: inline-block;
+        transition: all 0.2s;
+    }
+    .col-md-4 {
+        -webkit-border-radius: 3px;
+        border-radius: 3px;
+        -moz-border-radius: 3px;
+        background-clip: padding-box;
+        margin-bottom: 10px;
+        &:hover,
+        &:hover i {
+            color: $primary;
+        }
+    }
+}
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .grid-structure {
+        .grid-container {
+            background-color: #{map-get($dark-grays, "100")};
+        }
+    }
+}

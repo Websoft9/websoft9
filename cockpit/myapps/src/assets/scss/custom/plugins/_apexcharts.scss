@@ -1,0 +1,172 @@
+//
+// apexcharts.scss
+//
+.apex-charts {
+    min-height: 10px !important;
+    text {
+        font-family: $font-family-base !important;
+        fill: #{map-get($grays, "500")};
+        tspan {
+            fill: #{map-get($grays, "500")};
+        }
+        &.apexcharts-title-text {
+            fill: #{map-get($grays, "500")} !important;
+        }
+    }
+    
+    .apexcharts-canvas {
+        margin: 0 auto;
+    }
+}
+
+.apexcharts-tooltip-title,
+.apexcharts-tooltip-text {
+    font-family: $font-family-base !important;
+    color: #{map-get($grays, "700")};
+}
+
+.apexcharts-legend-series {
+    font-weight: 600;
+}
+
+.apexcharts-gridline {
+    pointer-events: none;
+    stroke: $apex-grid-color;
+}
+
+.apexcharts-legend-text {
+    color: #{map-get($grays, "600")} !important;
+    font-family: $font-family-base !important;
+}
+
+
+
+.apexcharts-yaxis,
+.apexcharts-xaxis {
+    text {
+        font-family: $font-family-base !important;
+        fill: #{map-get($grays, "500")};
+    }
+}
+
+.apexcharts-point-annotations,
+.apexcharts-xaxis-annotations,
+.apexcharts-yaxis-annotations {
+    text {
+        fill: $white;
+    }
+}
+
+.apexcharts-radar-series {
+    polygon {
+        fill: transparent;
+        stroke: #{map-get($grays, "300")};
+    }
+    line {
+        stroke: #{map-get($grays, "300")};
+    }
+}
+
+
+.apex-charts text,
+.apexcharts-pie-label,
+.apexcharts-datalabel-label, 
+.apexcharts-datalabel-value {
+    fill: $white !important;
+}
+
+.apexcharts-xaxis .apexcharts-datalabel, 
+.apexcharts-yaxis text {
+        fill: #{map-get($grays, "600")} !important;
+    }
+
+
+
+.apexcharts-datalabels-group {
+    text {
+        fill: #{map-get($grays, "500")} !important;
+    }
+}
+
+// Scatter images chart
+.scatter-images-chart {
+    .apexcharts-legend {
+        overflow: hidden !important;
+        min-height: 17px;
+    }
+    .apexcharts-legend-marker {
+        background: none !important;
+        margin-right: 7px !important;
+    }
+    .apexcharts-legend-series {
+        align-items: flex-start !important;
+    }
+}
+
+.apexcharts-pie-series {
+    path {
+        stroke: transparent !important;
+    }
+}
+
+.apexcharts-track {
+    path {
+        stroke: #{lighten(map-get($grays, "300"),5%)};
+    }
+}
+
+
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .apex-charts {
+        text {
+            fill: #{map-get($dark-grays, "500")};
+            tspan {
+                fill: #{map-get($dark-grays, "500")};
+            }
+            &.apexcharts-title-text {
+                fill: #{map-get($dark-grays, "500")} !important;
+            }
+        }
+    }
+    .apexcharts-tooltip-title,
+    .apexcharts-tooltip-text {
+        font-family: $font-family-base !important;
+        color: #{map-get($dark-grays, "400")};
+    }
+    .apexcharts-legend-text {
+        color: #{map-get($dark-grays, "600")} !important;
+    }
+
+    .apexcharts-yaxis,
+    .apexcharts-xaxis {
+        text {
+            fill: #{map-get($dark-grays, "500")};
+        }
+    }
+    .apexcharts-radar-series {
+        polygon {
+            stroke: #{map-get($dark-grays, "300")};
+        }
+        line {
+            stroke: #{map-get($dark-grays, "300")};
+        }
+    }
+    .apexcharts-xaxis .apexcharts-datalabel, 
+    .apexcharts-yaxis text {
+        fill: #{map-get($dark-grays, "600")} !important;
+    }
+    .apexcharts-datalabels-group {
+        text {
+            fill: #{map-get($dark-grays, "500")} !important;
+        }
+    }
+    .apexcharts-track {
+        path {
+            stroke: #{lighten(map-get($dark-grays, "300"),5%)};
+        }
+    }
+}

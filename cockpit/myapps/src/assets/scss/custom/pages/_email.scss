@@ -1,0 +1,300 @@
+// 
+// email.scss
+//
+
+.page-aside-left {
+    width: 240px;
+    float: left;
+    padding: 0 20px 20px 10px;
+    position: relative;
+
+    &:before {
+        content: "";
+        background-color: $body-bg;
+        width: 5px;
+        position: absolute;
+        right: -15px;
+        height: 100%;
+        bottom: -1.5rem;
+    }
+}
+
+.page-aside-right {
+    margin: -1.5rem 0 -1.5rem 250px;
+    border-left: 5px solid $body-bg;
+    padding: 1.5rem 0 1.5rem 25px;
+}
+
+.email-list {
+    display: block;
+    padding-left: 0;
+    overflow: hidden;
+
+    > li {
+        position: relative;
+        display: block;
+        height: 51px;
+        line-height: 50px;
+        cursor: default;
+        transition-duration: .3s;
+
+        a {
+            color: #{map-get($grays, "700")};
+
+            &:hover {
+                color: #{map-get($grays, "800")};
+            }
+        }
+
+        .col-mail {
+            float: left;
+            position: relative;
+        }
+
+        .email-sender-info {
+            width: 320px;
+
+            .star-toggle,
+            .checkbox-wrapper-mail {
+                display: block;
+                float: left;
+            }
+            
+            .checkbox-wrapper-mail {
+                margin: 15px 10px 0 20px;
+                cursor: pointer;
+                height: 20px;
+                width: 20px;
+            }
+
+            .star-toggle {
+                color: #{map-get($grays, "500")};
+                margin-left: 10px;
+                font-size: 18px;
+            }
+
+            .email-title {
+                position: absolute;
+                top: 0;
+                left: 100px;
+                right: 0;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                white-space: nowrap;
+                margin-bottom: 0;
+                line-height: 50px;
+            }
+        }
+
+        .email-content {
+            position: absolute;
+            top: 0;
+            left: 320px;
+            right: 0;
+            bottom: 0;
+            .email-subject,
+            .email-date {
+                position: absolute;
+                top: 0;
+            }
+            .email-subject {
+                left: 0;
+                right: 110px;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            .email-date {
+                right: 0;
+                width: 100px;
+                text-align: right;
+                padding-left: 10px;
+            }
+        }
+
+        &.active,
+        &.mail-selected {
+            background: #{map-get($grays, "100")};
+            transition-duration: .05s;
+        }
+
+        &.unread {
+            a {
+                font-weight: $font-weight-semibold;
+                color: darken($dark, 5%);
+            }
+        }
+
+        .email-action-icons {
+            opacity: 0;
+
+            ul {
+                display: flex;
+                position: absolute;
+                transition: all 0.5s;
+                right: -180px;
+        
+                li {
+                    margin: 0 10px;
+                }
+        
+                .email-action-icons-item {
+                    font-size: 20px;
+                    transition: all 0.5s;
+        
+                    &:hover {
+                        color: $danger;
+                    }
+                }
+            }
+        }
+
+        &:hover {
+            background: #{map-get($grays, "100")};
+            transition-duration: .05s;
+
+            .email-action-icons {
+                opacity: 1;
+                
+                ul {
+                    transition: all 0.5s;
+                    right: 10px;
+                }
+            }
+
+            .email-content {
+                .email-date {
+                    opacity: 0;
+                }
+
+                .email-subject {
+                    right: 180px;
+                    transition: all 0.5s;
+                }
+            }
+        }   
+    }
+}
+
+.email-menu-list {
+    a {
+        color: #{map-get($grays, "700")};
+        padding: 12px 5px;
+        display: block;
+        font-size: 15px;
+
+        &:hover {
+            color: #{map-get($grays, "800")};
+        }
+
+        .badge {
+            margin-top: 3px;
+        }
+    }
+}
+
+.labels-list {
+    a {
+        padding: 7px 5px;
+    }
+}
+
+.write-mdg-box {
+    .CodeMirror {
+        height: 150px;
+    }
+}
+
+@media (max-width: 648px) {
+    .page-aside-left {
+        width: 100%;
+        float: none;
+        padding: 0 10px 20px 10px;
+
+        &:before {
+            width: 0;
+        }
+    }
+    .page-aside-right {
+        margin-left: 0;
+        border: 0;
+        padding-left: 0;
+    }
+    .email-list {
+        li {
+            .email-sender-info  {
+                .checkbox-wrapper-mail {
+                    margin-left: 0;
+                }
+            }
+        }
+    }
+}
+
+@media (max-width: 520px) {
+    .page-aside-right {
+        > .btn-group {
+            margin-bottom: 10px;
+        }
+    }
+    .email-list {
+        li {
+            .email-sender-info {
+                width: 150px;
+                .email-title {
+                    left: 80px;
+                }
+            }
+            .email-content {
+                display: none;
+            }
+        }
+    }
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+
+    .page-aside-left {
+        &::before {
+            background-color: var(--#{$variable-prefix}body-bg);
+        }
+    }
+
+    .page-aside-right {
+        border-left: 5px solid var(--#{$variable-prefix}body-bg);
+    }
+    .email-list {
+        > li {
+            a {
+                color: #{map-get($dark-grays, "700")};
+    
+                &:hover {
+                    color: #{map-get($dark-grays, "800")};
+                }
+            }
+            .email-sender-info {
+                .star-toggle {
+                    color: #{map-get($dark-grays, "500")};
+                }
+            }
+            &.active,
+            &.mail-selected {
+                background: #{map-get($dark-grays, "100")};
+            }
+            &:hover {
+                background: #{map-get($dark-grays, "100")};
+            }
+        }
+    }
+    .email-menu-list {
+        a {
+            color: #{map-get($dark-grays, "700")};
+            &:hover {
+                color: #{map-get($dark-grays, "800")};
+            }
+        }
+    }
+}

@@ -1,0 +1,63 @@
+//
+// frappe-gantt.scss
+//
+
+// @import 'frappe-gantt/src/gantt.scss';
+
+.gantt {
+    .bar-progress {
+        fill: $primary !important;
+    }
+    .bar-wrapper:hover {
+        .bar-progress {
+            fill: lighten($primary, 5%) !important;
+        }
+    }
+    .bar, .bar-wrapper:hover .bar {
+        fill: $progress-bg !important;
+    }
+    .bar-label, .bar-label.big {
+        fill: #{map-get($grays, "700")} !important;
+    }
+    .grid-header {
+        fill: $table-hover-bg !important;
+        stroke: $table-hover-bg !important;
+    }
+    .grid-row {
+        fill: transparent !important;
+        &:nth-child(even) {
+            fill: $table-hover-bg !important;
+        }
+    }
+    .lower-text, .upper-text {
+        fill:  $table-color !important;
+    }
+    .row-line {
+        stroke: $table-border-color !important;
+    }
+    .today-highlight {
+        fill: #{map-get($grays, "200")} !important;
+    }
+}
+
+.gantt-container {
+    .popup-wrapper {
+        .pointer {
+            display: none;
+        }
+    }
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .gantt {
+        .bar-label, .bar-label.big {
+            fill: #{map-get($dark-grays, "700")} !important;
+        }
+        .today-highlight {
+            fill: #{map-get($dark-grays, "300")} !important;
+        }
+    }
+}

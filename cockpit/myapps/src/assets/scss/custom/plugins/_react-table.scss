@@ -1,0 +1,48 @@
+//
+// react-table.scss
+//
+
+.react-table {
+    th, td {
+        white-space: nowrap;
+    }
+    th {
+        padding-left: $table-cell-padding-y;
+        padding-right: 30px;
+    }
+
+    .sortable {
+        position: relative;
+        cursor: pointer;
+        &:before {
+            position: absolute;
+            right: .5rem;
+            left: auto;
+            content: "\F0360";
+            font-family: "Material Design Icons";
+            font-size: 1rem;
+            top: 12px;
+            opacity: 0.5;
+        }
+        &:after {
+            position: absolute;
+            right: .5em;
+            left: auto;
+            content: "\F035D";
+            font-family: "Material Design Icons";
+            top: 18px;
+            opacity: 0.5;
+            font-size: 1rem;
+        }
+            &.sorting_asc{
+                &:before {
+                    opacity: 1;
+                }
+            }
+            &.sorting_desc{
+                &:after{
+                    opacity: 1;
+                }
+            }
+        }
+}

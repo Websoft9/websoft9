@@ -1,0 +1,68 @@
+// 
+// accordions.scss
+//
+
+.custom-accordion {
+
+    .card {
+        box-shadow: none;
+    }
+
+    .card-header {
+        background-color: #{map-get($grays, "100")};
+    }
+
+    .card-body {
+        border: #{($border-width) solid map-get($grays, "100")};
+    }
+
+    .accordion-arrow {
+        font-size: 1.2rem;
+        position: absolute;
+        right: 0;
+    }
+    a {
+        &.collapsed {
+            i.accordion-arrow {
+                &:before {
+                    content: "\F142";
+                }
+            }
+        }
+    }
+}
+
+.custom-accordion-title {
+    color: $custom-accordion-title-color;
+    position: relative;
+
+    &:hover {
+        color: #{lighten(map-get($grays, "900"),7.5%)};
+    }
+}
+
+.accordion {
+    >.card {
+        >.card-header {
+            border-radius: 0;
+            margin-bottom: -1px;
+        }
+    }
+}
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .custom-accordion {
+        .card-header {
+            background-color: #{map-get($dark-grays, "100")};
+        }
+        .card-body {
+            border: #{($border-width) solid map-get($dark-grays, "100")};
+        }
+    }
+    .custom-accordion-title {
+        &:hover {
+            color: #{lighten(map-get($dark-grays, "400"),7.5%)};
+        }
+    }
+}

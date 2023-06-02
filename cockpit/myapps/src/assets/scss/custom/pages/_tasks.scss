@@ -1,0 +1,80 @@
+// 
+// tasks.scss
+//
+
+.board {
+    display: block;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.tasks {
+    display: inline-block;
+    width: 22rem;
+    padding: 0 1rem 1rem 1rem;
+    border: 1px solid #{map-get($grays, "200")};
+    vertical-align: top;
+    margin-bottom: $grid-gutter-width;
+    @include border-radius($card-border-radius);
+
+    &.tasks:not(:last-child) {
+        margin-right: 1.25rem;
+    }
+
+    .card {
+        white-space: normal;
+        margin-top: 1rem;
+    }
+
+    .task-header {
+        background-color: #{map-get($grays, "100")};
+        padding: 1rem;
+        margin: 0 -1rem;
+    }
+}
+
+.task-list-items {
+    min-height: 100px;
+    position: relative;
+    
+    &:before {
+        content: "No Tasks";
+        position: absolute;
+        line-height: 110px;
+        width: 100%;
+        text-align: center;
+        font-weight: 600;
+    }
+}
+
+
+// Task add modal
+.task-modal-content {
+    .form-control-light {
+        background-color: #{lighten(map-get($grays, "200"), 2.5%)} !important;
+        border-color: #{lighten(map-get($grays, "200"), 2.5%)} !important;
+    }
+}
+
+// task - gantt
+.gantt-task-details {
+    min-width: 220px;
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .tasks {
+        border: 1px solid #{map-get($dark-grays, "200")};
+        .task-header {
+            background-color: #{map-get($dark-grays, "100")};
+        }
+    }
+    .task-modal-content {
+        .form-control-light {
+            background-color: #{lighten(map-get($dark-grays, "200"), 2.5%)} !important;
+            border-color: #{lighten(map-get($dark-grays, "200"), 2.5%)} !important;
+        }
+    }
+}

@@ -1,0 +1,92 @@
+// 
+// dropdown.scss
+//
+
+.dropdown-menu {
+    box-shadow: $box-shadow;
+}
+
+.dropdown-menu-animated {
+    &.dropdown-menu-end[style] {
+        left: auto;
+        right: 0;
+    }
+}
+
+// Dropdown Animated (Custom)
+.dropdown-menu-animated {
+    animation-name: DropDownSlide;
+    animation-duration: .3s;
+    animation-fill-mode: both;
+    position: absolute;
+    margin: 0;
+    z-index: 1000;
+    
+    &.show {
+        top: 100%!important;
+    }
+
+    i {
+        display: inline-block;
+    }
+    
+    &.dropdown-menu[data-popper-placement^=right],
+    &.dropdown-menu[data-popper-placement^=top],
+    &.dropdown-menu[data-popper-placement^=left]{
+        top: auto !important;
+        animation: none !important;
+    }
+}
+
+@keyframes DropDownSlide {
+    100% {
+        transform: translateY(0)
+    }
+    0% {
+        transform: translateY(10px)
+    }
+}
+
+
+// Dropdown Large (Custom)
+@media (min-width: 576px) {
+    .dropdown-lg {
+        width: $dropdown-lg-width;
+    }
+}
+
+// Dropdown with Icons
+.dropdown-icon-item {
+    display: block;
+    border-radius: 3px;
+    line-height: 34px;
+    text-align: center;
+    padding: 15px 0 9px;
+    display: block;
+    border: 1px solid transparent;
+    color: $dropdown-link-color;
+
+    img {
+        height: 24px;
+    }
+
+    span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &:hover {
+        background-color: $dropdown-link-hover-bg;
+        color: $dropdown-link-hover-color;
+    }
+}
+
+
+// Dropdown arrow hide
+.arrow-none {
+    &:after {
+        display: none;
+    }
+}

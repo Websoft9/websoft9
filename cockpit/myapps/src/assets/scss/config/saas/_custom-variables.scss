@@ -1,0 +1,106 @@
+//
+// custom-variables.scss
+//
+
+
+// Left Sidebar
+$leftbar-width:                     260px;
+$bg-leftbar:                        var(--#{$variable-prefix}bg-leftbar);
+
+// Menu
+$menu-item:                         var(--#{$variable-prefix}menu-item);
+$menu-item-hover:                   var(--#{$variable-prefix}menu-item-hover);
+$menu-item-active:                  var(--#{$variable-prefix}menu-item-active);
+
+// Dark sidenav Menu item color
+$sidebar-dark-menu-item:          var(--#{$variable-prefix}dark-menu-item);
+$sidebar-dark-menu-item-hover:    var(--#{$variable-prefix}dark-menu-item-hover);
+$sidebar-dark-menu-item-active:   var(--#{$variable-prefix}dark-menu-item-active);
+
+// Topbar
+$topbar-height:                     70px;
+$bg-topbar:                         var(--#{$variable-prefix}bg-topbar);
+$bg-topbar-search:                  var(--#{$variable-prefix}bg-topbar-search);
+$nav-user-bg-topbar:                var(--#{$variable-prefix}nav-user-bg-topbar);
+$nav-user-border-topbar:            var(--#{$variable-prefix}nav-user-border-topbar);
+
+
+// Dark Topbar
+$bg-dark-topbar:                  var(--#{$variable-prefix}bg-dark-topbar);
+$bg-dark-topbar-search:           var(--#{$variable-prefix}bg-dark-topbar-search);
+$nav-user-bg-dark-topbar:         var(--#{$variable-prefix}nav-user-bg-dark-topbar);
+$nav-user-border-dark-topbar:     var(--#{$variable-prefix}nav-user-border-dark-topbar);
+
+// Rightbar Width
+$rightbar-width:                  280px;
+$rightbar-bg:                     var(--#{$variable-prefix}rightbar-bg);
+$rightbar-title-bg:               var(--#{$variable-prefix}rightbar-title-bg);
+$rightbar-title-color:            var(--#{$variable-prefix}rightbar-title-color);
+$rightbar-title-btn-bg:           var(--#{$variable-prefix}rightbar-title-btn-bg);
+$rightbar-title-btn-color:        var(--#{$variable-prefix}rightbar-title-btn-color);
+$rightbar-overlay-bg:             var(--#{$variable-prefix}rightbar-overlay-bg);
+
+// Deatched left sidenav
+$bg-detached-leftbar:             var(--#{$variable-prefix}bg-detached-leftbar);
+
+// Background left-sidebar
+$bg-leftbar-gradient:             var(--#{$variable-prefix}bg-leftbar-gradient);
+$bg-topnav:                       var(--#{$variable-prefix}bg-topnav);
+
+// Boxed Layout
+$boxed-layout-width:              1300px;
+$boxed-layout-bg:                 var(--#{$variable-prefix}boxed-layout-bg);
+
+// Helpbox
+$help-box-light-bg:               var(--#{$variable-prefix}help-box-light-bg);
+$help-box-dark-bg:                var(--#{$variable-prefix}help-box-dark-bg);
+
+// Font weight
+$font-weight-semibold:            600;
+
+// Dropdown Large
+$dropdown-lg-width:               320px;
+
+// Page title color
+$page-title-color:                var(--#{$variable-prefix}page-title-color);
+
+// Nav-pill background
+$nav-pills-bg:                    var(--#{$variable-prefix}nav-pills-bg);
+
+// Custom-accordion
+$custom-accordion-title-color:    var(--#{$variable-prefix}custom-accordion-title-color);
+
+// Dragula demo background
+$dragula-bg:                      var(--#{$variable-prefix}dragula-bg);
+
+// Form wizard header background
+$form-wizard-header-bg:           var(--#{$variable-prefix}form-wizard-header-bg);
+
+// Text title color
+$text-title-color:                var(--#{$variable-prefix}text-title-color);
+
+// card Loader background
+$card-loader-bg:                  var(--#{$variable-prefix}card-loader-bg);
+
+// Chat widget
+$chat-primary-user-bg:            var(--#{$variable-prefix}chat-primary-user-bg);
+$chat-secondary-user-bg:          var(--#{$variable-prefix}chat-secondary-user-bg);
+
+// User authentication Background
+$auth-bg:                         var(--#{$variable-prefix}auth-bg);
+$auth-bg-pattern-img:             url("../../../images/bg-pattern-light.svg");
+
+// Apex chart
+$apex-grid-color:                 var(--#{$variable-prefix}apex-grid-color);
+
+// Hero
+$hero-bg:                         var(--#{$variable-prefix}hero-bg);
+
+// Logo Display
+$logo-light-display:                block;
+$logo-dark-display:                 none;
+
+// Logo auth display
+$logo-auth-light-display:                none;
+$logo-auth-dark-display:                 block;
+

@@ -8,11 +8,9 @@ import DetachedLayout from '../layouts/Detached';
 
 // pages
 const AppStore = React.lazy(() => import('../pages/appstore'));
-const MyApps = React.lazy(() => import('../pages/myapps'));
 const ErrorPageNotFound = React.lazy(() => import('../pages/error/PageNotFound'));
 const ServerError = React.lazy(() => import('../pages/error/ServerError'));
 const CustomError = React.lazy(() => import('../pages/error/CustomError'));
-const MyTerminal = React.lazy(() => import('../pages/myterminal'));
 
 const loading = () => <div className=""></div>;
 
@@ -29,7 +27,6 @@ const LoadComponent = ({ component: Component }: LoadComponentProps) => (
 const AllRoutes = () => {
     return useRoutes([
         { path: '/', element: <Root /> },
-        { path: "/terminal", element: <LoadComponent component={MyTerminal} /> },
         {
             path: '/',
             element: <DefaultLayout />,
@@ -56,10 +53,6 @@ const AllRoutes = () => {
                     path: 'appstore',
                     element: <LoadComponent component={AppStore} />,
                 },
-                {
-                    path: 'myapps',
-                    element: <LoadComponent component={MyApps} />,
-                }
             ],
         },
         {

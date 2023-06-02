@@ -1,0 +1,395 @@
+// 
+// widgets.scss
+//
+
+// Progressbar with percentage
+.progress-w-percent {
+    min-height: 20px;
+    margin-bottom: 20px;
+
+    .progress {
+        width: calc(100% - 50px);
+        float: left;
+        margin-top: 8px;
+    }
+
+    .progress-value {
+        width: 40px;
+        float: right;
+        text-align: right;
+        line-height: 20px;
+    }
+}
+
+
+// Simple tile box
+.widget-flat {
+    position: relative;
+    overflow: hidden;
+
+    @media (min-width: 1200px) and (max-width: 1500px){
+        i.widget-icon { 
+            display: none;
+        }
+    }
+}
+
+.widget-icon {
+    color: $primary;
+    font-size: 20px;
+    background-color: rgba($primary, 0.25);
+    height: 40px;
+    width: 40px;
+    text-align: center;
+    line-height: 40px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+
+// Dashboard widgets
+.dash-item-overlay {
+    position: absolute;
+    /*rtl:ignore*/
+    text-align: left;
+    /*rtl:ignore*/
+    left: 8%;
+    max-width: 350px;
+    padding: 20px;
+    z-index: 1;
+}
+
+.chart-content-bg {
+    background-color: #{lighten(map-get($grays, "100"), 2%)};
+}
+
+.chart-content-border {
+    border: 1px solid #{map-get($grays, "200")};
+}
+
+.chart-widget-list {
+    p {
+        border-bottom: 1px solid #{map-get($grays, "100")};
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+}
+
+
+// Recent Activity (Timeline)
+.timeline-alt {
+    padding: 20px 0;
+    position: relative;
+    
+    .timeline-item {
+        position: relative;
+
+        &:before {
+            background-color: #{map-get($grays, "100")};
+            bottom: 0;
+            content: "";
+            left: 9px;
+            position: absolute;
+            top: 20px;
+            width: 2px;
+            z-index: 0;
+        }
+
+        .timeline-icon {
+            float: left;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            font-size: 12px;
+            text-align: center;
+            line-height: 16px;
+            background-color: $white;
+        }
+        .timeline-item-info {
+            margin-left: 30px;
+        }
+    }
+}
+
+
+// Inbox-widget
+.inbox-widget {
+
+    .inbox-item {
+        border-bottom: 1px solid #{lighten(map-get($grays, "100"), 5%)};
+        overflow: hidden;
+        padding: 0.625rem 0;
+        position: relative;
+
+        &:last-of-type {
+            border-bottom: none;
+        }
+
+        .inbox-item-img {
+            display: block;
+            float: left;
+            margin-right: 15px;
+            width: 40px;
+
+            img {
+                width: 40px;
+            }
+        }
+        
+        .inbox-item-author {
+            color: #{map-get($grays, "800")};
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .inbox-item-text {
+            color: #{map-get($grays, "500")};
+            display: block;
+            font-size: 0.8125rem;
+            margin: 0;
+        }
+
+        .inbox-item-date {
+            color: #{map-get($grays, "600")};
+            font-size: 0.6875rem;
+            position: absolute;
+            right: 5px;
+            top: 10px;
+        }
+    }
+} 
+
+
+// tilebox-one (Used Profile)
+.tilebox-one {
+    i {
+        position: absolute;
+        right: 1.5rem;
+        font-size: 2rem;
+        opacity: 0.3;
+    }
+}
+
+
+// tollfree box (Used Profile)
+.toll-free-box {
+    i{
+        position: absolute;
+        left: 0;
+        bottom: -15px;
+        font-size: 4rem;
+        opacity: 0.4;
+        transform: rotate(30deg);
+    }
+}
+
+
+// CTA box
+.cta-box {
+    background-image: url(../../../images/bg-pattern.png);
+    background-size: cover;
+
+    .cta-box-title {
+        font-size: 20px;
+        line-height: 30px;
+    }
+}
+
+
+// Chat widget
+.conversation-list {
+    list-style: none;
+    padding: 0 15px;
+    li {
+        margin-bottom: 20px;
+
+        .conversation-actions {
+            float: right;
+            display: none;
+        }
+
+        &:hover {
+            .conversation-actions {
+                display: block;
+            }
+        }
+    }
+    .chat-avatar {
+        float: left;
+        text-align: center;
+        width: 42px;
+        img {
+            border-radius: 100%;
+            width: 100%;
+        }
+        i {
+            font-size: 12px;
+            font-style: normal;
+        }
+    }
+    .ctext-wrap {
+        background: $chat-secondary-user-bg;
+        border-radius: 3px;
+        display: inline-block;
+        padding: 12px;
+        position: relative;
+        i {
+            display: block;
+            font-size: 12px;
+            font-style: normal;
+            font-weight: bold;
+            position: relative;
+        }
+        p {
+            margin: 0;
+            padding-top: 3px;
+        }
+        &:after {
+            left: -11px;
+            top: 0;
+            border: solid transparent;
+            content: " ";
+            height: 0;
+            width: 0;
+            position: absolute;
+            pointer-events: none;
+            border-top-color: $chat-secondary-user-bg;
+            border-width: 6px;
+            margin-right: -1px;
+            border-right-color: $chat-secondary-user-bg;
+        }
+    }
+    .conversation-text {
+        float: left;
+        font-size: 13px;
+        margin-left: 12px;
+        width: 70%;
+    }
+    .odd {
+        .chat-avatar {
+            float: right !important;
+        }
+        .conversation-text {
+            float: right !important;
+            margin-right: 12px;
+            text-align: right;
+            width: 70% !important;
+        }
+        .ctext-wrap {
+            background-color: $chat-primary-user-bg;
+            &:after {
+                border-color: transparent;
+                border-left-color: $chat-primary-user-bg;
+                border-top-color: $chat-primary-user-bg;
+                right: -10px;
+                left: auto;
+            }
+        }
+
+        .conversation-actions {
+            float: left;
+        }
+    }
+}
+
+// Calendar Widget
+.calendar-widget {
+    .datepicker-inline,
+    table {
+        width: 100%;
+
+        tr {
+            td,th,td.active.day,td.today.day {
+                background-color: transparent !important;
+            }
+            td.active.day,
+            td.today.day {
+                color: $danger !important;
+                text-shadow: none;
+                font-weight: $font-weight-bold;
+
+                &:hover {
+                    background-color: transparent !important;
+                }
+            }
+        }
+
+        td,th {
+            height: 44.5px;
+        }
+
+        .datepicker-switch,
+        .prev,
+        .next {
+            font-size: 1.1rem;
+            background-color: rgba($primary, 0.1) !important;
+            border-radius: 0;
+            color: $primary;
+        }
+    }
+}
+
+// Multi-user
+.multi-user {
+    a {
+        margin-left: -15px;
+        border: 3px solid #{map-get($grays, "100")};
+        border-radius: 50px;
+        &:first-child {
+            margin-left: 0px;
+        }
+    }    
+}
+
+.card-bg-img {
+    background-size: cover;
+    background-position: right center;
+    background-repeat: no-repeat;
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .chart-content-bg {
+        background-color: #{lighten(map-get($dark-grays, "100"), 2%)};
+    }
+    .chart-content-border {
+        border: 1px solid #{map-get($dark-grays, "200")};
+    }
+    
+    .chart-widget-list {
+        p {
+            border-bottom: 1px solid #{map-get($dark-grays, "100")};
+        }
+    }
+    .timeline-alt {
+        .timeline-item {
+            &:before {
+                background-color: #{map-get($dark-grays, "100")};
+            }
+        }
+    }
+    .inbox-widget {
+        .inbox-item {
+            border-bottom: 1px solid #{lighten(map-get($dark-grays, "100"), 5%)};
+            .inbox-item-author {
+                color: #{map-get($dark-grays, "800")};
+            }
+    
+            .inbox-item-text {
+                color: #{map-get($dark-grays, "500")};
+            }
+    
+            .inbox-item-date {
+                color: #{map-get($dark-grays, "600")};
+            }
+        }
+    }
+    .multi-user {
+        a {
+            border: 3px solid #{map-get($dark-grays, "100")};
+        }
+    }
+}

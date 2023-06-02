@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkappstore=self.webpackChunkappstore||[]).push([[648],{2648:function(e,s,a){a(2791);s.Z=a.p+"static/media/startman.847f04cb1585cf57efb0b7e85ad5b8f8.svg"}}]);
+//# sourceMappingURL=648.249a4967.chunk.js.map

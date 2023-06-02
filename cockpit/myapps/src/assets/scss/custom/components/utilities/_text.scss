@@ -1,0 +1,28 @@
+//
+// text.scss
+// 
+
+// Weight
+
+.fw-semibold  { font-weight: $font-weight-semibold !important; }
+
+.text-body {
+    color: #{map-get($grays, "700")} !important;
+}
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    @each $color, $value in $dark-theme-colors {
+        .text-#{$color} {
+            color: $value !important;
+        }
+    }
+    .text-body {
+        color: #{map-get($dark-grays, "500")} !important;
+    }
+}
+
+
+
+
