@@ -1,0 +1,199 @@
+//
+// maps.scss
+//
+
+// Vector Map - react jsvectormap style
+
+// Class prefix
+$classPrefix: jvm-;
+$border-color: #e5e7eb;
+$box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+
+// Tooltip
+$tooltip-shadow: 1px 2px 12px rgba(0, 0, 0, 0.2);
+$tooltip-font-family: $font-family-base;
+$tooltip-bg-color: #{map-get($grays, "800")};
+$tooltip-color: #{map-get($grays, "100")};
+$tooltip-radius: 3px;
+$tooltip-font-size: $font-size-base;
+$tooltip-padding: 5px 8px;
+
+// Zoom buttons
+$zoom-btns-bg-color: #{map-get($grays, "800")};
+$zoom-btns-radius: 3px;
+$zoom-btns-height: 15px;
+$zoom-btns-padding: 3px;
+$zoom-btns-width: 15px;
+
+// Series
+$series-container-right: 15px;
+
+// Legends
+$legend-background-color: #fff;
+$legend-radius: 0.25rem;
+$legend-margin-left: 0.75rem;
+$legend-padding: 0.6rem;
+
+// Legend title
+$legend-title-padding-bottom: 0.5rem;
+$legend-title-margin-bottom: 0.575rem;
+
+// Legend ticks
+$legend-tick-margin-top: 0.575rem;
+$legend-tick-sample-radius: 4px;
+$legend-tick-sample-height: 16px;
+$legend-tick-sample-width: 16px;
+$legend-tick-text-font-size: 12px;
+$legend-tick-text-margin-top: 3px;
+
+// Global resets
+svg {
+  touch-action: none;
+}
+image,
+text,
+.#{$classPrefix}zoomin,
+.#{$classPrefix}zoomout {
+  user-select: none;
+}
+
+// jsVectorMap container
+.#{$classPrefix}container {
+  touch-action: none;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+// Tooltip
+.#{$classPrefix}tooltip {
+  border-radius: $tooltip-radius;
+  background-color: $tooltip-bg-color;
+  font-family: $tooltip-font-family;
+  font-size: $tooltip-font-size;
+  box-shadow: $tooltip-shadow;
+  padding: $tooltip-padding;
+  white-space: nowrap;
+  position: absolute;
+  display: none;
+  color: $tooltip-color;
+  border: none;
+}
+
+// Zoom buttons
+.#{$classPrefix}zoom-btn {
+  border-radius: $zoom-btns-radius;
+  background-color: $zoom-btns-bg-color;
+  padding: $zoom-btns-padding;
+  box-sizing: border-box;
+  position: absolute;
+  line-height: 10px;
+  cursor: pointer;
+  color: #fff;
+  height: 15px;
+  width: 15px;
+  left: 10px;
+
+  &.#{$classPrefix}zoomout {
+    top: 30px;
+  }
+
+  &.#{$classPrefix}zoomin {
+    top: 10px;
+  }
+}
+
+// Series
+.#{$classPrefix}series-container {
+  right: $series-container-right;
+  position: absolute;
+
+  // horizontal
+  &.#{$classPrefix}series-h {
+    bottom: 15px;
+  }
+
+  // Vertical
+  &.#{$classPrefix}series-v {
+    top: 15px;
+  }
+
+  // Legends
+  .#{$classPrefix}legend {
+    background-color: $legend-background-color;
+    border: 1px solid $border-color;
+    margin-left: $legend-margin-left;
+    border-radius: $legend-radius;
+    border-color: $border-color;
+    padding: $legend-padding;
+    box-shadow: $box-shadow;
+    float: left;
+
+    .#{$classPrefix}legend-title {
+      line-height: 1;
+      border-bottom: 1px solid $border-color;
+      padding-bottom: $legend-title-padding-bottom;
+      margin-bottom: $legend-title-margin-bottom;
+      text-align: left;
+    }
+
+    .#{$classPrefix}legend-inner {
+      overflow: hidden;
+
+      .#{$classPrefix}legend-tick {
+        overflow: hidden;
+        min-width: 40px;
+        &:not(:first-child) {
+          margin-top: $legend-tick-margin-top;
+        }
+
+        .#{$classPrefix}legend-tick-sample {
+          border-radius: $legend-tick-sample-radius;
+          margin-right: 0.65rem;
+          height: $legend-tick-sample-height;
+          width: $legend-tick-sample-width;
+          float: left;
+        }
+
+        .#{$classPrefix}legend-tick-text {
+          font-size: $legend-tick-text-font-size;
+          text-align: center;
+          float: left;
+        }
+      }
+    }
+  }
+}
+
+// Line animation
+.jvm-line[animation="true"] {
+  -webkit-animation: jvm-line-animation 10s linear forwards infinite;
+  animation: jvm-line-animation 10s linear forwards infinite;
+
+  @keyframes jvm-line-animation {
+    from {
+      stroke-dashoffset: 250;
+    }
+  }
+}
+
+//Google Maps
+
+.gmaps,
+.gmaps-panaroma {
+  height: 300px;
+  background: #{map-get($grays, "100")};
+  border-radius: 3px;
+}
+
+body[data-layout-color="dark"] {
+  $tooltip-bg-color: #{map-get($dark-grays, "800")};
+  $tooltip-color: #{map-get($dark-grays, "100")};
+  $zoom-btns-bg-color: #{map-get($dark-grays, "800")};
+
+  .gmaps,
+  .gmaps-panaroma {
+    background: #{map-get($dark-grays, "100")};
+  }
+}

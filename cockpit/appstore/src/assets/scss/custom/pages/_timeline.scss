@@ -1,0 +1,182 @@
+// 
+// timeline.scss
+//
+
+.timeline {
+    margin-bottom: 50px;
+    position: relative;
+
+    &:before {
+        background-color: #{map-get($grays, "300")};
+        bottom: 0;
+        content: "";
+        left: 50%;
+        position: absolute;
+        top: 30px;
+        width: 2px;
+        z-index: 0;
+    }
+}
+
+.timeline-show {
+    position: relative;
+
+    .time-show-name {
+        display: inline-block;
+        border-radius: 4px;
+        background-color: #{map-get($grays, "200")};
+        padding: 7px 15px;
+    }
+}
+
+.timeline-box {
+    background-color: $card-bg;
+    box-shadow: $box-shadow;
+    display: block;
+    margin: 15px 0;
+    position: relative;
+    padding: $card-spacer-x;
+    @include border-radius($card-border-radius);
+}
+
+.timeline-album {
+    margin-top: 12px;
+    a {
+        display: inline-block;
+        margin-right: 5px;
+    }
+    img {
+        height: 36px;
+        width: auto;
+        border-radius: 3px;
+    }
+}
+
+@include media-breakpoint-up(md) {
+    .timeline {
+        
+        .timeline-box {
+            margin-left: 45px;
+        }
+        .timeline-icon {
+            background: #{map-get($grays, "300")};
+            border-radius: 50%;
+            display: block;
+            height: 24px;
+            left: -56px;
+            margin-top: -12px;
+            position: absolute;
+            text-align: center;
+            top: 50%;
+            width: 24px;
+            i {
+                color: #{map-get($grays, "600")};
+                font-size: 1rem;
+                vertical-align: middle;
+            }
+        }
+        .timeline-desk {
+            display: table-cell;
+            vertical-align: top;
+            width: 50%;
+        }
+    }
+    .timeline-lg-item {
+        display: table-row;
+        &:before {
+            content: "";
+            display: block;
+            width: 50%;
+        }
+        .timeline-desk {
+            .arrow {
+                border-bottom: 12px solid transparent;
+                border-right: 12px solid $card-bg !important;
+                border-top: 12px solid transparent;
+                display: block;
+                height: 0;
+                left: -12px;
+                margin-top: -12px;
+                position: absolute;
+                top: 50%;
+                width: 0;
+            }
+        }
+        &.timeline-item-left {
+            &:after {
+                content: "";
+                display: block;
+                width: 50%;
+            }
+            .timeline-desk {
+                .arrow-alt {
+                    border-bottom: 12px solid transparent;
+                    border-left: 12px solid $card-bg !important;
+                    border-top: 12px solid transparent;
+                    display: block;
+                    height: 0;
+                    left: auto;
+                    margin-top: -12px;
+                    position: absolute;
+                    right: -12px;
+                    top: 50%;
+                    width: 0;
+                }
+                .album {
+                    float: right;
+                    margin-top: 20px;
+                    a {
+                        float: right;
+                        margin-left: 5px;
+                    }
+                }
+            }
+            .timeline-icon {
+                left: auto;
+                right: -58px;
+            }
+            &:before {
+                display: none;
+            }
+            .timeline-box {
+                margin-right: 45px;
+                margin-left: 0;
+            }
+        }
+    }
+}
+
+@include media-breakpoint-down(md) {
+    .timeline {
+        .timeline-icon {
+            display: none;
+        }
+    }
+}
+
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .timeline {
+        &:before {
+            background-color: #{map-get($dark-grays, "300")};
+        }
+    }
+    .timeline-show {
+        .time-show-name {
+            background-color: #{map-get($dark-grays, "200")};
+        }
+    }
+    @include media-breakpoint-up(md) {
+        .timeline {
+            .timeline-icon {
+                background: #{map-get($dark-grays, "300")};
+                i {
+                    color: #{map-get($dark-grays, "600")};
+                }
+            }
+        }
+    }
+}

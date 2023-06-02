@@ -1,0 +1,44 @@
+//
+// avatar.scss (avatar thumbnail sizes)
+//
+
+.avatar-xs {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.avatar-sm {
+  height: 3rem;
+  width: 3rem;
+}
+
+.avatar-md {
+  height: 4.5rem;
+  width: 4.5rem;
+}
+
+.avatar-lg {
+  height: 6rem;
+  width: 6rem;
+}
+
+.avatar-xl {
+  height: 7.5rem;
+  width: 7.5rem;
+}
+
+.avatar-title {
+  align-items: center;
+  background-color: $primary;
+  color: $white;
+  display: flex;
+  font-weight: $font-weight-semibold;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.dis_mid {
+  display: block;
+  margin: 0 auto;
+}

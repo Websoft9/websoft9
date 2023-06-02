@@ -1,0 +1,88 @@
+//
+// simplemde.scss
+//
+
+.editor-toolbar.fullscreen,
+.CodeMirror-fullscreen {
+  z-index: 1000;
+}
+
+.editor-preview,
+.editor-preview-side {
+  background: #{map-get($grays, "300")};
+}
+
+.editor-preview-active {
+  background: #{lighten(map-get($grays, "300"), 2.5%)};
+}
+
+.editor-toolbar {
+  border: 1px solid $input-border-color !important;
+  border-bottom: 0;
+
+  a {
+    color: #{map-get($grays, "700")} !important;
+
+    &:hover,
+    &.active {
+      background-color: transparent;
+      color: $primary !important;
+      border-color: transparent;
+    }
+  }
+  button {
+    &:hover {
+      background-color: $input-bg !important;
+      border-color: $input-border-color !important;
+    }
+  }
+
+  i.separator {
+    display: none !important;
+  }
+
+  &.disabled-for-preview {
+    a:not(.no-disable) {
+      background: transparent;
+    }
+  }
+}
+
+.CodeMirror {
+  border: 1px solid $input-border-color !important;
+  background: $input-bg !important;
+  color: $input-color !important;
+  min-height: 100px;
+}
+
+.CodeMirror-cursor {
+  border-left: 1px solid #{map-get($grays, "800")};
+}
+
+.editor-statusbar {
+  color: #{map-get($grays, "800")};
+}
+
+// Dark mode
+body[data-layout-color="dark"] {
+  .editor-preview,
+  .editor-preview-side {
+    background: #{map-get($dark-grays, "300")};
+  }
+
+  .editor-preview-active {
+    background: #{lighten(map-get($dark-grays, "300"), 2.5%)};
+  }
+  .editor-toolbar {
+    a {
+      color: #{map-get($dark-grays, "700")} !important;
+    }
+  }
+  .CodeMirror-cursor {
+    border-left: 1px solid #{map-get($dark-grays, "800")};
+  }
+
+  .editor-statusbar {
+    color: #{map-get($dark-grays, "800")};
+  }
+}

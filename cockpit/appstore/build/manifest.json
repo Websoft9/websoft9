@@ -1,11 +1,10 @@
 {
     "version": "1.0.0",
-    "name": "myapps",
     "menu": {
-        "index": {
-            "label": "My Apps",
+        "appstore": {
+            "label": "App Store",
             "path": "index.html",
-            "order": 0
+            "order": -1
         }
     },
     "content-security-policy": "default-src 'unsafe-inline' 'unsafe-eval' *;font-src * data:;style-src 'unsafe-inline' 'unsafe-eval' *;img-src * data:;connect-src https://graphql.contentful.com/  http://redhattext http://overpass-webfont *"

@@ -1,0 +1,23 @@
+// Background lighten
+
+@each $color, $value in $theme-colors {
+  .bg-#{$color}-lighten {
+      @include bg-variant-light($value);
+  }
+}
+
+
+
+// Dark Mode
+body[data-layout-color="dark"] {
+  @each $color, $value in $dark-theme-colors {
+    // bg-color
+    .bg-#{$color} {
+      background-color: $value !important;
+    }
+    .bg-#{$color}-lighten {
+      background-color: rgba($value, 0.25) !important;
+    }
+  }
+}
+

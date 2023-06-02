@@ -1,0 +1,67 @@
+// 
+// tabs.scss
+//
+
+.nav-tabs,.nav-pills {
+    > li {
+        > a {
+            color: #{map-get($grays, "700")};
+            font-weight: $font-weight-semibold;
+        }
+    }
+}
+
+.nav-pills {
+    > a {
+        color: #{map-get($grays, "700")};
+        font-weight: $font-weight-semibold;   
+    }
+}
+
+
+.bg-nav-pills {
+    background-color: $nav-pills-bg;
+}
+
+// 
+// nav-bordered
+//
+
+.nav-tabs.nav-bordered {
+    border-bottom: 2px solid #{rgba(map-get($grays, "600"), 0.2)};
+
+    .nav-item {
+        margin-bottom: -1px;
+    }
+
+    li {
+        a {
+            border: 0;
+            padding: 0.625rem 1.25rem;
+        }
+        a.active {
+            border-bottom: 2px solid $primary;
+        }
+    }
+}
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .nav-tabs,.nav-pills {
+        > li {
+            > a {
+                color: #{map-get($dark-grays, "700")};
+            }
+        }
+    }
+    .nav-pills {
+        > a {
+            color: #{map-get($dark-grays, "700")};
+        }
+    }
+    
+    .nav-tabs.nav-bordered {
+        border-bottom: 2px solid #{rgba(map-get($dark-grays, "600"), 0.2)};
+    }
+}

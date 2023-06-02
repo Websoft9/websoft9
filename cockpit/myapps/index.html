@@ -33,13 +33,22 @@
         // var sections = nav.getElementsByTagName("section");
         // sections[0].parentNode.insertBefore(sections[1], sections[0]);
 
-        var myapps = window;
-        myapps.location.href = "../appstore/index.html#/myapps";
+        // var myapps = window;
+        // myapps.location.href = "../appstore/index.html#/myapps";
+        function myFunction() {
+            console.log(window.location.href);
+            console.log(cockpit.location.href);
+            let location = cockpit.location;
+            //location.go("/system/terminal")
+            cockpit.jump("/system/terminal");
+            console.log(cockpit.location.href);
+            console.log(window.location.href);
+        }
     </script>
 </head>
 
 <body>
-
+    <button onclick="myFunction()">跳转</button>
 </body>
 
 </html>

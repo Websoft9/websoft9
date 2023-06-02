@@ -1,0 +1,427 @@
+/*** PF4 overrides ***/
+// Pull in variables (for breakpoints)
+@use "../global-variables" as *;
+
+/* WORKAROUND: Navigation problems with Tertiary Nav widget on mobile */
+/* See: https://github.com/patternfly/patternfly-design/issues/840 */
+/* Helper mod to wrap pf-c-nav__tertiary */
+.ct-m-nav__tertiary-wrap {
+    .pf-c-nav__list {
+        flex-wrap: wrap;
+    }
+
+    .pf-c-nav__scroll-button {
+        display: none;
+    }
+}
+
+/* Helper mod to center pf-c-nav__tertiary when it wraps */
+.ct-m-nav__tertiary-center {
+    .pf-c-nav__list {
+        justify-content: center;
+    }
+}
+
+/* Fix overflow issue with tabs, especially seen in small sizes, like mobile
+seen in:
+- https://github.com/cockpit-project/cockpit-podman/pull/897#issuecomment-1127637202
+- https://github.com/patternfly/patternfly/issues/1625
+- https://github.com/patternfly/patternfly/pull/2757
+- https://github.com/patternfly/patternfly/issues/4800
+- https://github.com/patternfly/patternfly-design/issues/840
+- https://github.com/patternfly/patternfly-design/issues/1034
+- https://github.com/cockpit-project/cockpit-podman/issues/845
+This disables the large and halfway useless overflow buttons and causes the tabs
+to wrap around when there isn't enough space.
+*/
+.pf-c-tabs__list {
+    flex-wrap: wrap;
+}
+
+/* Fix select menu rendering */
+ul.pf-c-select__menu {
+    /* Don't get too tall */
+    max-height: min(20rem, 50vh);
+    /* Don't have a horizontal scrollbar */
+    overflow-y: auto;
+}
+
+/* Adjust padding on form selects to resemble PF non-form selects */
+/* (This can be seen when the longest text is selected on a non-stretched select) */
+/* Upstream: https://github.com/patternfly/patternfly/issues/4387 */
+/* Cockpit-Podman: https://github.com/cockpit-project/cockpit-podman/issues/755 */
+select.pf-c-form-control {
+    --pf-c-form-control--PaddingRight: 41px;
+    --pf-c-form-control--PaddingLeft: 8px;
+
+    // Firefox's select text has additional padding (4px)
+    @-moz-document url-prefix() {
+        --pf-c-form-control--PaddingRight: 37px;
+        --pf-c-form-control--PaddingLeft: 4px;
+    }
+}
+
+/* All SVGs used in PF4 have some inline style to align them
+ * https://github.com/patternfly/patternfly-react/issues/4767
+ */
+svg {
+    vertical-align: -0.125em;
+}
+
+// The default gap between the rows in horizontal lists is too large
+.pf-c-description-list.pf-m-horizontal-on-sm,
+.pf-c-description-list.pf-m-horizontal {
+    --pf-c-description-list--RowGap: 1rem;
+}
+
+.pf-c-description-list {
+
+    // When using horizontal ruler inside description list it's just for the spacing - don't show it
+    >hr {
+        border-top: none;
+    }
+}
+
+.pf-c-modal-box.pf-m-align-top {
+
+    // We utilize custom footers in dialogs
+    // Make sure that the buttons always appear in the next line from the inline alerts
+    .pf-c-modal-box__footer {
+        flex-wrap: wrap;
+        row-gap: var(--pf-global--spacer--sm);
+
+        >div:not(.pf-c-button):not(.dialog-wait-ct) {
+            flex: 0 0 100%;
+        }
+    }
+}
+
+.pf-c-card {
+    // https://github.com/patternfly/patternfly/issues/3959
+    --pf-c-card__header-toggle--MarginTop: 0;
+
+    .pf-c-card__header:not(.ct-card-expandable-header) {
+        // upstream fix (pending): https://github.com/patternfly/patternfly/pull/3714
+        flex-wrap: wrap;
+        row-gap: var(--pf-global--spacer--sm);
+        justify-content: space-between;
+
+        >.pf-c-card__actions {
+            flex-wrap: wrap;
+            row-gap: var(--pf-global--spacer--sm);
+
+            // PF4 CardActions act up when using buttons while the title is large of font
+            // https://github.com/patternfly/patternfly/issues/3713
+            // https://github.com/patternfly/patternfly/issues/4362
+            margin: unset;
+            padding-left: unset;
+        }
+    }
+}
+
+// Add some spacing to nested form groups - PF4 does not support these yet
+// https://github.com/patternfly/patternfly-design/issues/1012
+.pf-c-form__group-control {
+
+    .pf-c-form__group,
+    .pf-c-form__section {
+        padding-top: var(--pf-global--spacer--md);
+    }
+}
+
+// Alerts use elements that have fonts set in other frameworks (including PF3);
+// generally, this is an H4 that often has a font size and sometimes family set.
+// Therefore, it should inherit from the alert font set at the pf-c-alert level.
+// https://github.com/patternfly/patternfly/issues/4206
+.pf-c-alert__title {
+    font-size: inherit;
+    font-family: inherit;
+}
+
+.pf-c-toolbar {
+
+    // Make summary content use the same vertical space as the filter toggle,
+    // when possible.
+    // https://github.com/patternfly/patternfly-design/issues/1055
+    &.ct-compact {
+        @media screen and (max-width: $pf-global--breakpoint--lg - 1) {
+            display: flex;
+            flex-wrap: wrap;
+
+            >.pf-c-toolbar__content:first-child {
+                flex: auto;
+            }
+
+            .pf-c-toolbar__content-section {
+                width: auto;
+            }
+        }
+    }
+}
+
+// When there is an Alert above the Form add some spacing
+.pf-c-modal-box .pf-c-alert+.pf-c-form {
+    padding-top: var(--pf-global--FontSize--sm);
+}
+
+// HACK: Not possible to specify text, so needs some hacks, see https://github.com/patternfly/patternfly-react/issues/6140
+.pf-c-toolbar__toggle {
+    .pf-c-button.pf-m-plain {
+        color: var(--pf-c-button--m-link--Color);
+
+        .pf-c-button__icon {
+            margin-right: var(--pf-global--spacer--sm);
+        }
+    }
+}
+
+// Flex should use gap, not a margin hack
+// https://github.com/patternfly/patternfly/issues/4523
+.pf-l-flex {
+    gap: var(--pf-l-flex--spacer-base);
+
+    // Negate the margin hack used by immediate flex children
+    // (except for nested flex, as we want to mind the gap)
+    > :not(.pf-l-flex) {
+        --pf-l-flex--spacer-base: 0;
+    }
+
+    // Undo all spacer modification adjustments
+    &[class*="pf-m-space-items-"] {
+        >* {
+            --pf-l-flex--spacer: 0;
+        }
+    }
+
+    // Re-add spacer modification adjustments on the flex layout widget
+    // (using class attribute matching for handling breakpoint -on- also)
+    @each $size in (none, xs, sm, md, lg, xl, 2xl, 3xl, 4xl) {
+        &[class*="pf-m-space-items-#{$size}"] {
+            --pf-l-flex--spacer-base: var(--pf-l-flex--spacer--#{$size});
+        }
+    }
+}
+
+// InputMenus now use the PF Panel component which mistakenly uses position:
+// relative, when it needs to be set to absolute.
+// Additionally, it needs to be full width to properly align to the widget the
+// popover panel describes.
+// https://github.com/patternfly/patternfly-react/issues/7592
+.pf-c-search-input__menu.pf-c-panel {
+    position: absolute;
+    width: 100%;
+}
+
+// Breadcrumb links should have the correct pointing hand cursor.
+//
+// PatternFly requires a "to" attribute for an actual link, but we use some
+// funky onClick JS for navigating and override it with a className.
+//
+// Therefore, instead of having a proper <a href="..."> being rendered, we need
+// to override the link. This is a problem with a (correct) assumption in PF
+// and our (incorrect) way of not using links (but using JavaScript) for
+// linking.
+//
+// Nevertheless, Cockpit needs to be adapted for this to work as expected.
+.pf-c-breadcrumb__link {
+    cursor: pointer;
+}
+
+//Page headers are inconsistent with shadows and borders
+// https://github.com/patternfly/patternfly/issues/5184
+.pf-c-page__main-group,
+.pf-c-page__main-nav,
+.pf-c-page__main-section.pf-m-light:not(:last-child) {
+    z-index: var(--pf-c-page--section--m-shadow-bottom--ZIndex);
+    box-shadow: var(--pf-c-page--section--m-shadow-bottom--BoxShadow);
+}
+
+// Dark mode fixes for several PF components
+.pf-theme-dark {
+
+    // Change background color behind cards
+    // (matches PF surge website; PF doesn't specify otherwise)
+    .pf-c-page__main-section {
+        --pf-c-page__main-section--BackgroundColor: var(--pf-global--BackgroundColor--dark-300);
+    }
+
+    // Adapt breadcrumb bar to be similar color as PF website
+    // (We use header bars in slightly different ways from PF)
+    // https://github.com/patternfly/patternfly/issues/5301
+    .pf-c-page__main-breadcrumb,
+    .pf-c-page__main-breadcrumb+.pf-c-page__main-section {
+        --pf-c-page__main-breadcrumb--BackgroundColor: var(--pf-global--BackgroundColor--dark-100);
+        background-color: var(--pf-global--BackgroundColor--dark-100);
+    }
+
+    // Fix input group background and borders
+    // (Looks fixed in PF5, but not in PF4)
+    .pf-c-text-input-group {
+        background-color: var(--pf-global--BackgroundColor--400);
+
+        .pf-c-text-input-group__text {
+            &::before {
+                border-top-color: transparent;
+                border-right-color: transparent;
+                border-left-color: transparent;
+            }
+
+            &:is(:focus, :hover)::after {
+                border-bottom-color: var(--pf-global--active-color--100);
+            }
+
+            &:not(:focus):not(:hover)::after {
+                border-bottom-color: var(--pf-global--BorderColor--400);
+            }
+        }
+    }
+
+    // PatternFly doesn't define gold color in dark mode
+    .pf-c-label {
+        --pf-c-label--m-gold--BackgroundColor: var(--pf-global--BackgroundColor--300);
+        --pf-c-label--m-gold__content--Color: var(--pf-global--palette--gold-100);
+
+        &.pf-m-gold {
+            --pf-c-label__content--Color: var(--pf-c-label--m-gold__content--Color);
+        }
+    }
+
+    // FIXME: https://github.com/patternfly/patternfly/issues/5278
+    .pf-c-modal-box .pf-c-table {
+        background-color: inherit;
+    }
+}
+
+// Override PF to fix Right to Left languages
+[dir="rtl"] {
+
+    // Flip outlines for buttons
+    .pf-m-split-button {
+        button::before {
+            transform: scaleX(-100%);
+        }
+    }
+
+    // Swap image padding in buttons
+    .pf-c-dropdown__toggle-image {
+        margin-right: unset;
+        gap: var(--pf-c-dropdown__toggle-image--MarginRight);
+    }
+
+    // PatternFly and us are setting text-align to the left.
+    // It needs to be to the start.
+    // We should change it to start where we can.
+    // Meanwhile, here's an override just for RTL.
+    body,
+    td,
+    th {
+        text-align: start;
+    }
+
+    // Swap side of selected nav's blue line
+    .pf-c-nav__link.pf-m-current {
+
+        &,
+        &:hover,
+        &:not(.pf-m-expanded) .pf-c-nav__link {
+            &::after {
+                width: 100%;
+                transform: scaleX(-100%);
+            }
+        }
+    }
+
+    // Toolbar content (as seen in the shell) should be left aligned in RTL
+    // See: https://github.com/patternfly/patternfly/issues/3812
+    .pf-c-toolbar__content {
+        margin-right: auto;
+        margin-left: 0;
+    }
+
+    // Dropdown toggles: Swap image margins to be on left instead
+    .pf-c-dropdown__toggle {
+        &-image {
+            margin-right: 0;
+            margin-left: var(--pf-c-dropdown__toggle-image--MarginRight);
+        }
+
+        &-icon {
+            margin-right: var(--pf-c-dropdown__toggle-icon--MarginLeft);
+            margin-left: var(--pf-c-dropdown__toggle-icon--MarginRight);
+        }
+    }
+
+    // Flip popup directions, part 1 of 2
+    .pf-c-dropdown .pf-c-menu.pf-m-align-right,
+    .pf-c-dropdown__menu.pf-m-align-right {
+        right: unset;
+        left: 0;
+    }
+
+    // Flip popup directions, part 2 of 2
+    .pf-c-dropdown .pf-c-menu.pf-m-align-left,
+    .pf-c-dropdown__menu.pf-m-align-left {
+        right: 0;
+        left: unset;
+    }
+
+    // Another case of aligning to the left instead of start
+    .pf-c-dropdown__menu-item {
+        text-align: start;
+    }
+
+    // Flip breadcrum divider
+    .pf-c-breadcrumb__item-divider {
+        transform: scaleX(-100%);
+    }
+}
+
+// Drop side padding in mobile mode,
+// intended mainly for PF PageSection elements (pf-c-page__main-section).
+// It's similar to adding padding={{ default: 'noPadding', sm: 'padding' }},
+// except this only affects the sides, not the top and bottom.
+@media screen and (max-width: $pf-global--breakpoint--sm) {
+    .pf-c-page__main>section.pf-c-page__main-section:not(.pf-m-padding) {
+        padding-left: 0;
+        padding-right: 0;
+    }
+}
+
+// Patch tabular number 0s to not have the slash inside
+// https://github.com/RedHatOfficial/RedHatFont/issues/53
+// https://github.com/patternfly/patternfly/issues/5308
+@font-face {
+    /* red-hat-text-regular */
+    unicode-range: U+0030;
+    font-family: RedHatText;
+    font-style: normal;
+    font-weight: 400;
+    src: url(data:font/woff2;base64,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);
+}
+
+@font-face {
+    /* red-hat-text-italic */
+    unicode-range: U+0030;
+    font-family: RedHatText;
+    font-style: italic;
+    font-weight: 400;
+    src: url(data:font/woff2;base64,d09GMgABAAAAAARQAAsAAAAADYwAAAQEAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgkIRCAqBKIE/CwwAATYCJAMUBCAFkz0HIBvTDBGVnFUBfhzYbVYrgpXBW2mcjbMQzKj2CJ7Xi/85N8mCj8I31EGoJLfybs1VZl6ZyBK4Vh2jT3nLs5sj4dUngEuZ1e+dluoRtq0zKIlQcJ/3KFXzHQpsqVVIHAiJKjWtCRXZx1eZiYvUsXGRKq/wZqa/mnANebooLlGQzkvbYH3zQmMn02IhKYosT9HMsus4eAn7YwxsuHz9BsIUU7K//3+D7O+YisshfkyPYohAhgwDBFggExggNwS5XGBKp5Ns77wjgCgJZxAJSUd/+EtkvGcTotPRBgWoIcdUbAJoACBJzValtf/57znl3Xdr570fp36y5XnFPKe8Vz//gw/i1Pe/mp7yyQfnv/fhbu++FwW2/uD992tAS899ft8Trzjx6K1fv+LYrcLjHn6ydsziJQfvs/T+vXbd9uCNvNW7bXOQc2rfHfXM6M2tz2QH3HJDdeOhZ6/bcNr60+5qHVurzlm/8V2ceq8KTOj8lrZLLwhEuvjgRyZds3N7wW+VevYjfH7H+xfAF1/9ejG89NDNSUUCgYkJtRFiwh566jiLuf8msSHpIqvTNiYIFPpLICEElgAYEmcJwLYeEiA0YowASSmWC5AZEGcIkOseLwlQaMZfApR0TeMFKNs2/SRARTvbX4DquPJK1Fyav4G6PsXlaOhVfIymS8s90dK//MXJ3XSvDJeJvIoH8BD6RAtJI2YiMyfWITcqrkehX3yGkmGpjLIH0kJUDMrWS6vK41GLYdmdqJtS7IqGCcVdaMaw4ie0zCrfelfdjCoT/mNmMPqRhFKFoYAn4EN3lRy6ymXQGkHdzZk0qOVSDE28sMpAUpCmwthIibhcJeFtfkk4UoOOS9ucfNVJoSCkBNJCfGRp0GM6WHHSAca2e5XjNc9wTbxfzu6Ea9L+bzesFFy9ku2ECd4U8btM2SS6R3W0Dm7Nvct9MWBCd3CGAGwwMUlgN3wZ49tTAJ/DEwjFDmZ29mJ3cIrNNpFQ8POCMF6hO2OBiJHTJl2hWM1IqAmEdGPw2aecpAiDHtYuOAoWBOgaRC0j30/SgKTns3uMlCTSsaA5LIXzPVMpqbNQ3zXGyb+rCAq66SboZlBgH0TKIZRZb8TDpTTgfRmXZlLpYu2obzb24skIX0S9eU9FapWzKOozbZflzSW6GXkjQoskWjn00StBUChOXManswhawW0pKUkYMcWhCC3HQCq5Tpb2YA+VVMJP/LjFHXYFe5++22b/HhYBgX2DvWDJMKYOJMjwm/C3tCQUO7kgcYS2wn4xVlSi3TUef1ruwTWOT/dsRyfVaLGfUW7bTbBL7u/Spt0zJvsrQ671aEScUIObukdTouZX0C1qsUxUSreOW5fgH/+/9g2dIwMA);
+}
+
+@font-face {
+    /* red-hat-text-medium */
+    unicode-range: U+0030;
+    font-family: RedHatText;
+    font-style: normal;
+    font-weight: 700;
+    src: url(data:font/woff2;base64,d09GMgABAAAAAARYAAsAAAAADewAAAQLAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgkIRCAqBBIEUCwwAATYCJAMUBCAFlEEHIBssDRHF5AH4ceCUZY9pfajQk3kIirq5CjGXcNU3dzw879+/rX1uIKlLfhd0AMukgzVCNamGesTI7ZlyoyVrc1NnSh8mwlFTCbdmKtP+Dit8tlI4uJx+ywNd5wGHgUayB46pjw3cEzAMA9obaA2wrQFmmmYhpw1jFzajZpAvnYxflbQxTcLQpXLM0Ca6k6JAlq87j+w4K3uxFI1geN+hw/TSSqvs7/9fkv0drbEL4rd0DbUEMmSoJkA3mUA1+dRCPvkEWuVy9Wvk3gogChCASEg2jMM3kQFbCpHLeQX5QRHkQwN0AuQDQJKKgBaFvt38Uaz7eMt7a7/Z9PEZ8aON78yfr31ftGdVrYts/HLjRxs+3vR+/avCjj48fmJf0pGHJ47HC07O3LomD7Q8+b81b41tT7+YcqBX76kHP6toeve6uOr7HbdHcPpTA4FI2z6r8ajDzNduv61o9gG+OvXRHvj62x9Z3dxvaeV5iEISCMRN8R8greRLWf67/xgxnHRSmzRJXYH8ykkgIQR6AagXFwRgsnMChLLRQYCkYEwRIFMtDguQT9n4VoD8iqfSAhRQOvUVoKDJWWEBCimZbRCgsJLZWQGK2JHvOwGK0qrU0zRQTIX+TAPF7ShYAw2UUPX+QQOlPK2B0h43qH8Zn1vtTryFcQacQ2iQEpCUyBDIdMocyKdBLkN+VfIbFFDn1ISCzqQTFFLjmYspTNgFRVLn7i4U1ap5UEyz3oPiqfNYGErocG9CKX8rC6U9rcsvKCO/kQYSqRuJuDwMtTW1taAjjw3t2SxoSmBoS0r4bCaGejLMk5AUVORhLKV0NTS4CPNkDHWmRKTxbV7zrA2Hg5iIED5xz1gixkpA9eTYMhodPRv3toVTwYZzfnC4qGIhd21cYi8zNAv28+xKENSUf4kTUDV3CeiKHtmuZ5iVq4VkIvBLjqMuL1k33vskVyY0SJAOHQrQWp1NH+/QrQwsLOn0E/yJTk3V+ls1HV21l+kE5fySUAsfcTET7pUUkoghMeVgReYSIGkgqh/yvZMCCzNqeIwJLkmIVKFwqAij/piFK0VURf4O8Tvu43iIgnSaBx0kHOxCkGz4FBoi5j/kigfE2TnGwkg58w7pYGap20if9/p69PIrmKo/EcXZ83nb778FJJpPOBNISDCEbOjCr5wnOFjXszsvzLpQFCxKMUkkxZQ6hYTqEpKrYWNsCYyvHC4RuAopKPidh9FUe5gtE2nhvsDPoN1DZrBablAY/vtRWGYtRDj3dii4i2KFX/5YnaLQ3Jx/M14CbaSX7fC6iCkQYjcpW2xHgXndGplBaGzmiD8/n4udCiLBhyIarSIVSpzlI9gYQiEnAv1uYLpLNP0kBmgE4daZBPYHprlOLAA=);
+}
+
+@font-face {
+    /* red-hat-text-medium-italic */
+    unicode-range: U+0030;
+    font-family: RedHatText;
+    font-style: italic;
+    font-weight: 700;
+    src: url(data:font/woff2;base64,d09GMgABAAAAAASEAAsAAAAADlwAAAQ2AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgkIRCAqBFIEsCwwAATYCJAMUBCAFlSEHIBukDRGVnM0Bfh7YtpMt1pMMwRCUu0ZjuTUEq7QbeQVD9K0cz/Ot8btvZnf/YKZJNFnHE01D/RnzSKWKhUyUChVONznY33vvR2dGwQ2aI5GoNmehLcEOiWwABJeyW3OVmVcm8ohUq47RZ7FbwPRAePVny2WpHmHbKIFFSYTiZgv0eNbhCK663oXEgZAouis1niAM8d0RrIJ/++6lfvsW4tlZz+XCcgddeYS86ClXUGEcuZ9pztoaHSVD7Uom1PoYXN4HzmM1HDvo8UJstrl+/duh/ooIdyFfyySwWFBRMV/ALlUwX2cxOp1g8////ez/7wTIYNOHFBRPpuM3UT2dduT/fwTQg7HosBaHAOMBUJSJ41s7f/UIRt8fohuPkYqTk0DjIYx+wDSdIBXHF4dHTScnx41XjWvbCeXg09bl7Kq2spLoZndx7KxpLys+bE+xPzlSvtEU9Kdaw+XrzSFfCjx7S7xYdVVkdxPPNt0V6Tn3pXNM35O5+5Lj8TVY8f+1pJQVQcrNGpprY9Ik7deGqZ/h49BxJ+DT3euFXl45vWgKCHjCmw1FF5wzw5Or//U/Ro5RHsGeErZC0JurgIII9gFYngkI4ITnAmJa5AKKIccFVEvTCwGdufkT0JtQdggYzCr5AkacqAYBzaT6BgLGmFS/CBjrdk8VMM7s/k7AeDMHpoAJbo+kCZhoXuMJmGx828MUE9q1+VPNbbuqdGPwlM8QK4OHYnwOQ3UoSdDZnlXozS1EGGwsFhjxtDRBs7B2yceo12BsltZPGGdzPw7jre+/YEKWDgaYaOfIK0w2u7lgirlNLucvmGpSt7lM7qfkWAGGRgZGhtBDQEM3moI2CEMXpUxIkxiaqrFAplRBDQHGchVPX5/lsEBN6JEyib5sun/VmWE4kkNiintWMinWBKkq1j5mPQKNN61wQ1xoZ4PJlTQWfjfEOg5qkYlI9NKWD4LKvsIBWNs3wdfAg/b9JD/GK04tASqxsZdO7i0AsMW2oxcemJdGiAQY6v2hj4/5jub2DnznuBqjbimBQcMNRmM/O3D5FqNuVZcqy4v1JSg8sy8eXD/7opUqTiaFNzdUr4ltdQWPsnLjOwlH+QU1zSZWiSQ6EEejweUpky0p6SA48swT/xBwKuiT9El+l5vYD1LSkIqGHupwVyFgqz9rKPLSzaGjvds6iLOcPkV66UGKvJMJY/hKQzuzbm7RfuSNODEixDT0CVekwI2Yun7uzTyIAlGRSAvNsUrPEhHr4Wac1Xe2cgCFYQwS3sbkcQPzJRV0vfftYZIvhIHN7j0prlgOThTI+EtwCbhkFD29IrGHWGFLMysqF5fCO59XB/DG+Xle3pOQIjH2k9PYLoHSvy+RUVwIR/xlEFc+BxEXVNQ/eHIo4f1HsH/OR5zIVm52mVCpjKZqyJHY+j1zNf8f/y+v5iopAAAAAA==);
+}

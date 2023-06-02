@@ -1,0 +1,139 @@
+// 
+// tables.scss
+//
+
+//Table centered (Custom)
+.table-centered {
+    th, td {
+        vertical-align: middle !important;
+    }
+}
+
+
+// Custom table components (Custom)
+.table {
+    .table-user {
+        img {
+            height: 30px;
+            width: 30px;
+        }
+    }
+    .action-icon {
+        color: #{map-get($grays, "600")};
+        font-size: 1.2rem;
+        display: inline-block;
+        padding: 0 3px;
+
+        &:hover {
+            color: #{map-get($grays, "700")};
+        }
+    }
+    // &>:not(:first-child) {
+    //     border: inherit;
+    // }
+    > :not(caption) > * > * {
+        background-color: var(--#{$variable-prefix}table-bg) !important;
+    }
+    &.table-bordered {
+        tbody {
+            border-top: $border-width solid;
+            border-top-color: inherit;
+        }
+    }
+}
+
+// Tables fluid
+.table-nowrap {
+    th, td {
+      white-space: nowrap;
+    }
+}
+
+
+table {
+    // Table Hover
+    &.table-hover {
+        thead,
+        tbody {
+            tr {
+                &:hover {
+                    > * {
+                        --ct-table-accent-bg: #f1f3fa;
+                    }
+                }
+            }
+        }
+    }       
+    // Table Active 
+    tr {
+        &.table-active {
+            --ct-table-accent-bg: #f1f3fa;
+        }
+    }
+    //  Table Striped
+    &.table-striped {
+        tbody {
+            tr {
+                &:nth-of-type(odd) {
+                    >* {
+                        --ct-table-accent-bg: #f1f3fa;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    table {
+        .action-icon {
+            color: #{map-get($dark-grays, "600")};
+    
+            &:hover {
+                color: #{map-get($dark-grays, "700")};
+            }
+        }
+        // Table Light - Dark
+        .table-light {
+            --ct-table-bg: #464f5b;
+            color: $white;
+            border-color: $table-group-separator-color;
+        }
+        .table-dark {
+            --ct-table-bg: #424e5a;
+        }
+        // Table Hover
+        &.table-hover {
+            thead,
+            tbody {
+                tr {
+                    &:hover {
+                        > * {
+                            --ct-table-accent-bg: rgba(64, 73, 84, 0.8);
+                        }
+                    }
+                }
+            }
+        }       
+        // Table Active 
+        tr {
+            &.table-active {
+                --ct-table-accent-bg: rgba(64, 73, 84, 0.8);
+            }
+        }
+        //  Table Striped
+        &.table-striped {
+            tbody {
+                tr {
+                    &:nth-of-type(odd) {
+                        >* {
+                            --ct-table-accent-bg: rgba(64, 73, 84, 0.8);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

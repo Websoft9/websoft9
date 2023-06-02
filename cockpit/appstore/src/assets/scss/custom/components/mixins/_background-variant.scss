@@ -1,0 +1,5 @@
+// Background lighten 
+
+@mixin bg-variant-light($color) {
+    background-color: rgba($color, 0.25) !important;
+}

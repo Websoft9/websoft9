@@ -1,0 +1,62 @@
+//
+// typehead.scss
+//
+
+
+.twitter-typeahead {
+  display: inherit !important;
+}
+
+.tt-query,
+.tt-hint {
+  // line-height: 30px;
+  outline: none;
+}
+
+.tt-query {
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+}
+
+.tt-hint {
+  color: $input-color;
+  background: $input-bg !important;
+}
+
+.tt-menu {
+  width: 100%;
+  padding: 8px 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: $dropdown-bg;
+  box-shadow: $box-shadow;
+  border: 1px solid $dropdown-border-color;
+}
+
+.tt-suggestion {
+  padding: 3px 20px;
+  line-height: 24px;
+
+  &:hover,
+  &.tt-cursor {
+    cursor: pointer;
+    color: $white;
+    background-color: $primary;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+.tt-highlight {
+  font-family: $font-family-base;
+}
+
+.typeahead-empty-message {
+  padding: 5px 10px;
+  color: $danger;
+}
+
+.league-name {
+  padding: 3px 20px;
+}

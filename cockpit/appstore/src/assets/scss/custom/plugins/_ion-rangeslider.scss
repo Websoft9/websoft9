@@ -1,0 +1,286 @@
+//
+// ion-rangeslider.scss
+//
+
+.irs {
+  position: relative;
+  display: block;
+  -webkit-touch-callout: none;
+  -ms-user-select: none;
+  user-select: none;
+  font-size: 12px;
+}
+
+.irs-line {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  outline: none !important;
+}
+
+.irs-bar {
+  position: absolute;
+  display: block;
+  left: 0;
+  width: 0;
+}
+
+.irs-shadow {
+  position: absolute;
+  display: none;
+  left: 0;
+  width: 0;
+}
+
+.irs-handle {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  cursor: default;
+  z-index: 1;
+
+  &.type_last {
+    z-index: 2;
+  }
+}
+
+.irs-min,
+.irs-max {
+  position: absolute;
+  display: block;
+  cursor: default;
+}
+
+.irs-min {
+  left: 0;
+  right: auto;
+}
+
+.irs-max {
+  right: 0;
+  left: auto;
+}
+
+[dir="rtl"] {
+  .irs-min {
+    right: 0;
+    left: auto;
+  }
+  
+  .irs-max {
+    left: 0;
+    right: auto;
+  }
+}
+
+.irs-from,
+.irs-to,
+.irs-single {
+  position: absolute;
+  display: block;
+  top: 0;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.irs-grid {
+  position: absolute;
+  display: none;
+  bottom: 0;
+  /*rtl:ignore*/
+  left: 0;
+  width: 100%;
+  height: 20px;
+}
+
+.irs-with-grid  {
+  .irs-grid {
+    display: block;
+  }
+}
+
+.irs-grid-pol {
+  position: absolute;
+  top: 0;
+  /*rtl:ignore*/
+  left: 0;
+  width: 1px;
+  height: 8px;
+  background: $secondary;
+
+  &.small {
+    height: 4px;
+  }
+}
+
+.irs-grid-text {
+  position: absolute;
+  bottom: 0;
+  /*rtl:ignore*/
+  left: 0;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 9px;
+  line-height: 9px;
+  padding: 0 3px;
+  color: $secondary;
+}
+
+.irs-disable-mask {
+  position: absolute;
+  display: block;
+  top: 0;
+  left: -1%;
+  width: 102%;
+  height: 100%;
+  cursor: default;
+  z-index: 2;
+}
+
+.lt-ie9 .irs-disable-mask {
+  background: $secondary;
+  filter: alpha(opacity=0);
+  cursor: not-allowed;
+}
+
+.irs-disabled {
+  opacity: 0.4;
+}
+
+.irs-hidden-input {
+  position: absolute !important;
+  display: block !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+  outline: none !important;
+  z-index: -9999 !important;
+  background: none !important;
+  border-style: solid !important;
+  border-color: transparent !important;
+}
+
+
+
+.irs--flat {
+  height: 40px;
+
+  &.irs-with-grid {
+    height: 60px;
+  }
+  
+  .irs-line {
+    top: 25px;
+    height: 12px;
+    background-color: $progress-bg;
+    border-radius: 4px;
+  }
+  
+  .irs-bar {
+    top: 25px;
+    height: 12px;
+    background-color: $primary;
+  }
+  
+  .irs-bar--single {
+    border-radius: 4px 0 0 4px;
+  }
+
+  .irs-shadow {
+    height: 1px;
+    bottom: 16px;
+    background-color: $progress-bg;
+  }
+  
+  .irs-handle {
+    top: 22px;
+    width: 16px;
+    height: 18px;
+    background-color: transparent;
+  }
+  
+  .irs-handle>i:first-child {
+    position: absolute;
+    display: block;
+    top: 0;
+    left: 50%;
+    width: 2px;
+    height: 100%;
+    margin-left: -1px;
+    background-color: darken($primary,7%);
+  }
+  
+  .irs-min,
+  .irs-max {
+    top: 0;
+    padding: 1px 3px;
+    color: #{map-get($grays, "700")};
+    font-size: 10px;
+    line-height: 1.333;
+    text-shadow: none;
+    background-color: $progress-bg;
+    border-radius: 4px;
+  }
+  
+  .irs-from,
+  .irs-to,
+  .irs-single {
+    color:$white;
+    font-size: 10px;
+    line-height: 1.333;
+    text-shadow: none;
+    padding: 1px 5px;
+    background-color: $primary;
+    border-radius: 4px;
+  }
+  
+  .irs-from:before,
+  .irs-to:before,
+  .irs-single:before {
+    position: absolute;
+    display: block;
+    content: "";
+    bottom: -6px;
+    left: 50%;
+    width: 0;
+    height: 0;
+    margin-left: -3px;
+    overflow: hidden;
+    border: 3px solid transparent;
+    border-top-color: $primary;
+  }
+  
+  .irs-grid-pol {
+    background-color: $progress-bg;;
+  }
+  
+  .irs-grid-text {
+    color: #{map-get($grays, "700")};
+  }
+}
+
+[dir="rtl"] .irs-bar--single {
+  border-radius: 0 4px 4px 0 !important;
+}
+
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+  .irs--flat {
+    .irs-min,
+    .irs-max {
+      color: #{map-get($dark-grays, "700")};
+    }
+  }
+  .irs-grid-text {
+    color: #{map-get($dark-grays, "700")};
+  }
+}

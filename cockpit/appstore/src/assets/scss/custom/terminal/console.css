@@ -1,0 +1,12 @@
+@import "xterm/css/xterm.css";
+
+.terminal:focus .terminal-cursor {
+    border: none;
+    animation: blink 1s step-end infinite;
+}
+
+/* Ensure the console fits to its container (and doesn't attempt to go beyond the limits) */
+.xterm-screen,
+.xterm-viewport {
+    width: auto !important;
+}

@@ -1,0 +1,31 @@
+// 
+// social.scss
+//
+
+.social-list-item {
+    height: 2rem;
+    width: 2rem;
+    line-height: calc(2rem - 2px);
+    display: block;
+    border: 2px solid #{map-get($grays, "500")};
+    border-radius: 50%;
+    color: #{map-get($grays, "500")};
+
+    &:hover {
+        color: #{map-get($grays, "600")};
+        border-color: #{map-get($grays, "600")};
+    }
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .social-list-item {
+        border: 2px solid #{map-get($dark-grays, "500")};
+        &:hover {
+            color: #{map-get($dark-grays, "600")};
+            border-color: #{map-get($dark-grays, "600")};
+        }
+    }
+}

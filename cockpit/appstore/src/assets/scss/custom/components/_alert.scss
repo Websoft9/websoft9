@@ -1,0 +1,18 @@
+//
+// alert.scss
+//
+
+@each $color, $value in $theme-colors {
+  .alert-#{$color} {
+    color: shade-color($value, 5%);
+    background-color: rgba($value, .18);
+    border-color: rgba($value, 0.25);
+    .alert-link {
+      color: shade-color($value, 30%);
+    }
+  }
+}
+
+
+
+

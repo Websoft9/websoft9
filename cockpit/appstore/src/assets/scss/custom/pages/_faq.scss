@@ -1,0 +1,37 @@
+// 
+// faq.scss
+//
+
+.faq-question-q-box {
+    height: 30px;
+    width: 30px;
+    color: $primary;
+    background-color: rgba($primary, 0.25);
+    box-shadow: $box-shadow-lg;
+    text-align: center;
+    border-radius: 50%;
+    float: left;
+    font-weight: $font-weight-bold;
+    line-height: 30px;
+}
+
+.faq-question {
+    margin-top: 0;
+    margin-left: 50px;
+    font-weight: $font-weight-semibold;
+    font-size: 16px;
+    color: #{map-get($grays, "900")};
+}
+
+.faq-answer {
+    margin-left: 50px;
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .faq-question {
+        color: #{map-get($dark-grays, "900")};
+    }
+}

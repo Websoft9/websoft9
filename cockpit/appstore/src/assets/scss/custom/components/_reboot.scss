@@ -1,0 +1,30 @@
+//
+// reboot.scss
+//
+
+body {
+  padding-right: 0px !important;
+  padding-left: 0px !important;
+  &.loading {
+    visibility: hidden;
+  }
+}
+
+button, a {
+  outline: none !important;
+}
+
+// Forms
+
+label {
+  font-weight: $font-weight-semibold;
+}
+
+// Address
+address.address-lg {
+  line-height: 24px;
+}
+
+b, strong {
+  font-weight: $font-weight-bold;
+}

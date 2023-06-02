@@ -1,0 +1,149 @@
+//
+// _rateit.scss
+//
+
+.rateit {
+    display: -moz-inline-box;
+    display: inline-block;
+    position: relative;
+    user-select: none;
+    -webkit-touch-callout: none;
+
+    .rateit-range * {
+        display: block;
+    }
+
+    .rateit-hover,
+    .rateit-selected {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 0;
+    }
+
+    .rateit-hover-rtl,
+    .rateit-selected-rtl {
+        left: auto;
+        right: 0;
+    }
+
+    .rateit-hover {
+        color: $warning;
+    }
+
+    .rateit-hover-rtl {
+        background-position: right -32px;
+    }
+
+    .rateit-selected {
+        color: $danger;
+    }
+
+    .rateit-selected-rtl {
+        background-position: right -16px;
+    }
+
+    .rateit-preset {
+        color: $orange;
+    }
+
+    button.rateit-reset {
+        width: 16px;
+        height: 16px;
+        float: left;
+        outline: none;
+        border: none;
+        padding: 0;
+    }
+
+    .rateit-reset span {
+        display: none;
+    }
+
+
+    .rateit-range {
+        position: relative;
+        display: -moz-inline-box;
+        display: inline-block;
+        height: 16px;
+        outline: none;
+    }
+
+    &.rateit-font {
+        .rateit-reset {
+            width: .6em;
+            height: .6em;
+            margin-right: 5px;
+            margin-top: 5px;
+            background: #{map-get($grays, "300")};
+            border-radius: 50%;
+            position: relative;
+
+            span {
+                display: block;
+                height: calc(50% - 0.045em);
+                top: 2px;
+                position: absolute;
+                border-bottom: 2px solid #{map-get($grays, "700")};
+                width: 50%;
+                margin-left: 25%;
+                margin-right: 25%;
+            }
+        }
+        .rateit-reset:hover,
+        button.rateit-reset:focus {
+            background: $danger;
+            
+            span {
+                border-color: $white;
+            }
+        }
+    }
+}
+
+.rateit-mdi {
+    font-family:'Material Design Icons';
+}
+
+.rateit-font {
+    font-size: 24px;
+    line-height: 1em;
+
+    .rateit-range {
+        background: none;
+        height: auto;
+
+        > div {
+            background: none;
+            overflow: hidden;
+            cursor: default;
+            white-space: nowrap;
+        }
+    }
+    
+    .rateit-empty {
+        color: #{map-get($grays, "400")};
+    }
+}
+
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    .rateit {
+        &.rateit-font {
+            .rateit-reset {
+                background: #{map-get($dark-grays, "300")};
+    
+                span {
+                    border-bottom: 2px solid #{map-get($dark-grays, "700")};
+                }
+            }
+        }
+    }
+    .rateit-font {
+        .rateit-empty {
+            color: #{map-get($dark-grays, "400")};
+        }
+    }
+}

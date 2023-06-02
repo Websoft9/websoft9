@@ -1,0 +1,208 @@
+//
+// react select
+//
+
+.react-select {
+  > div {
+    border: $input-border-width solid $input-border-color;
+    background-color: $input-bg !important;
+
+    &:hover {
+      border: $input-border-width solid $input-border-color;
+    }
+  }
+}
+
+.react-select__control--is-focused {
+  border-color: $input-focus-border-color !important;
+  box-shadow: none !important;
+}
+
+.react-select__indicator-separator {
+  display: none !important;
+}
+
+.react-select__dropdown-indicator {
+  color: #{map-get($grays, "600")} !important;
+}
+
+.react-select__menu {
+  background-color: $dropdown-bg !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: $dropdown-border-radius !important;
+  z-index: $zindex-dropdown !important;
+}
+
+.react-select__menu-list {
+  border: $dropdown-border-width solid $dropdown-border-color !important;
+  border-radius: $dropdown-border-radius !important;
+}
+
+.react-select__option {
+  padding: $dropdown-item-padding-y $dropdown-item-padding-x !important;
+  color: $dropdown-link-color !important;
+
+  &:hover {
+    color: $dropdown-link-hover-color !important;
+    background-color: $dropdown-link-hover-bg !important;
+  }
+}
+
+.react-select__option--is-focused,
+.react-select__option--is-selected {
+  color: $dropdown-link-hover-color !important;
+  background-color: $dropdown-link-hover-bg !important;
+}
+.react-select__single-value {
+  color: #{map-get($grays, "600")} !important;
+}
+.react-select__multi-value {
+  background-color: rgba($primary, 0.2) !important;
+  color: $primary !important;
+
+  .react-select__multi-value__label {
+    color: $primary;
+  }
+
+  .react-select__multi-value__remove {
+    &:hover {
+      background-color: rgba($primary, 0.2) !important;
+      color: $primary !important;
+    }
+  }
+}
+
+// react-bootstrap-typeahead style
+.rbt-token {
+  background-color: rgba($primary, 0.2) !important;
+  color: $primary !important;
+  .rbt-token-remove-button {
+    background-color: transparent;
+    border: none;
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  }
+}
+
+.rbt-input-multi.focus {
+  box-shadow: none !important;
+  background-color: $input-focus-bg !important;
+  border-color: $input-focus-border-color !important;
+}
+
+// Topbar search
+.app-search {
+  .react-select__menu-list {
+    .react-select__option {
+      padding: $dropdown-item-padding-y $dropdown-item-padding-x;
+      color: #{map-get($grays, "700")};
+      background-color: transparent;
+      .dropdown-item {
+        &.active,
+        &:active {
+          background-color: transparent;
+        }
+      }
+      &:hover {
+        color: $dark;
+        background-color: $dropdown-link-hover-bg;
+      }
+      &--is-selected {
+        background-color: $dropdown-link-hover-bg;
+        .dropdown-item {
+          color: $dark !important;
+        }
+      }
+      &--is-disabled {
+        &:hover {
+          background-color: transparent !important;
+        }
+      }
+    }
+  }
+
+  .react-select__value-container {
+    &--has-value {
+      .react-select__single-value {
+        i,
+        img,
+        .user-subinfo {
+          display: none !important;
+        }
+        .dropdown-item {
+          color: #{map-get($grays, "600")} !important;
+          .drop-username {
+            color: #{map-get($grays, "600")} !important;
+          }
+          &:hover {
+            color: $dropdown-link-color;
+            background-color: transparent;
+          }
+        }
+
+        .dropdown-item,
+        .dropdown-item .drop-username {
+          width: 110px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+    }
+  }
+}
+
+body[data-topbar-color="light"] {
+  .app-search {
+    .react-select__value-container {
+      &--has-value {
+        .react-select__single-value {
+          .dropdown-item,
+          .drop-username {
+            color: $dark !important;
+          }
+        }
+      }
+    }
+  }
+}
+
+body[data-layout-color="dark"] {
+  .react-select__dropdown-indicator {
+    color: #{map-get($dark-grays, "600")} !important;
+  }
+  .react-select__single-value {
+    color: #{map-get($dark-grays, "600")} !important;
+  }
+
+  // topbar search
+  .app-search {
+    .react-select__menu-list {
+      .react-select__option {
+        color: #{map-get($dark-grays, "700")};
+      }
+    }
+    .react-select__value-container {
+      &--has-value {
+        .react-select__single-value {
+          .dropdown-item {
+            color: #{map-get($dark-grays, "600")} !important;
+            .drop-username {
+              color: #{map-get($dark-grays, "600")} !important;
+            }
+          }
+        }
+      }
+    }
+  }
+}

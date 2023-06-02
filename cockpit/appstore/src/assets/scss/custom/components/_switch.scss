@@ -1,0 +1,132 @@
+// 
+// switch.scss
+//
+
+//Custom switch
+
+input[data-switch] {
+    display: none;
+
+    + label {
+        width: 56px;
+        height: 24px;
+        background-color: #{map-get($grays, "100")};
+        background-image: none;
+        border-radius: 2rem;
+        cursor: pointer;
+        display: inline-block;
+        text-align: center;
+        position: relative;
+        transition: all 0.1s ease-in-out;
+
+        &:before {
+            color: #{map-get($grays, "900")};
+            content: attr(data-off-label);
+            display: block;
+            font-family: inherit;
+            font-weight: $font-weight-semibold;
+            font-size: 0.75rem;
+            line-height: 24px;
+            position: absolute;
+            right: 3px;
+            margin: 0 .21667rem;
+            top: 0;
+            text-align: center;
+            min-width: 1.66667rem;
+            overflow: hidden;
+            transition: all 0.1s ease-in-out;
+        }
+        &:after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            background-color: #{map-get($grays, "500")};
+            box-shadow: none;
+            border-radius: 2rem;
+            height: 18px;
+            width: 18px;
+            top: 3px;
+            transition: all 0.1s ease-in-out;
+        }
+    }
+    &:checked {
+        +label {
+            background-color: $primary;
+            &:before {
+                color: $white;
+                content: attr(data-on-label);
+                right: auto;
+                left: 4px;
+            }
+            &:after {
+                left: 34px;
+                background-color: #{map-get($grays, "100")};
+            }
+        }
+    }
+}
+
+input[data-switch="bool"] {
+    + label {
+        background-color: $danger;
+    }
+}
+
+input:disabled {
+    + label {
+        opacity: 0.5;
+        cursor: default;
+    }
+}
+
+input[data-switch="bool"]+label:before,
+input[data-switch="bool"]:checked+label:before {
+    color: $white !important;
+}
+
+input[data-switch="bool"]+label:after {
+    background-color: #{map-get($grays, "100")};
+}
+
+@each $color,$value in $theme-colors {
+    input[data-switch="#{$color}"]:checked+label {
+        background-color: #{$value};
+    }
+}
+
+
+// Dark mode
+body[data-layout-color="dark"] {
+    input[data-switch] {
+        &[data-switch="none"] {
+            + label {
+                background-color: #{map-get($dark-grays, "100")};
+            }    
+        }
+        + label {
+            &:before {
+                color: #{map-get($dark-grays, "900")};
+            }
+            &:after {
+                background-color: #{map-get($dark-grays, "500")};
+            }
+        }
+        &:checked {
+            +label {
+                &:after {
+                    background-color: #{map-get($dark-grays, "100")};
+                }
+            }
+        }
+    }
+    input[data-switch="bool"]+label:after {
+        background-color: #{map-get($dark-grays, "100")};
+    }
+
+    @each $color,$value in $dark-theme-colors {
+        input[data-switch="#{$color}"]:checked+label {
+            background-color: #{$value};
+        }
+    }
+    
+}

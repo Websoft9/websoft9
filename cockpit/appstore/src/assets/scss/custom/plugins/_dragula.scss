@@ -1,0 +1,45 @@
+// 
+// dragula.scss
+//
+
+.bg-dragula {
+    background-color: $dragula-bg;
+}
+
+.gu-mirror {
+    position: fixed !important;
+    margin: 0 !important;
+    z-index: 9999 !important;
+    opacity: 0.8;
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";
+    filter: alpha(opacity=80);
+}
+
+.gu-hide {
+    display: none !important;
+}
+
+.gu-unselectable {
+    user-select: none !important;
+}
+
+.gu-transit {
+    opacity: 0.2;
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=20)";
+    filter: alpha(opacity=20);
+}
+
+.dragula-handle {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+    text-align: center;
+    cursor: move;
+
+    &:before {
+        content: "\F01DB";
+        font-family: "Material Design Icons";
+        position: absolute;
+    }
+}

@@ -1,0 +1,10 @@
+// 
+// error.scss
+//
+
+.text-error {
+    color: $primary;
+    text-shadow: rgba($primary, 0.3) 5px 1px, rgba($primary, 0.2) 10px 3px;
+    font-size: 5.25rem;
+    line-height: 5.625rem;
+}

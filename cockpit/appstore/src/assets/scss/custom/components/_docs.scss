@@ -1,0 +1,112 @@
+// 
+// docs.scss
+//
+
+.hljs {
+    display: block;
+    overflow-x: auto;
+    padding: 2em;
+    color: #{map-get($grays, "900")};
+    max-height: 420px;
+    margin: -10px 0 -30px;
+    border: 1px solid #{rgba(map-get($grays, "600"), 0.2)};
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+    color: #{map-get($grays, "900")};
+    font-weight: bold;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+    color: $teal;
+}
+
+.hljs-string,
+.hljs-doctag {
+    color: $danger;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+    color: $danger;
+    font-weight: bold;
+}
+
+.hljs-subst {
+    font-weight: normal;
+}
+
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+    color: darken($blue, 15%);
+    font-weight: normal;
+}
+
+.hljs-regexp,
+.hljs-link {
+    color: $teal;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+    color: $pink;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+    color: $info;
+}
+
+.hljs-meta {
+    color: #{map-get($grays, "800")};
+    font-weight: bold;
+}
+
+.hljs-deletion {
+    background: #fdd;
+}
+
+.hljs-addition {
+    background: #dfd;
+}
+
+.hljs-emphasis {
+    font-style: italic;
+}
+
+.hljs-strong {
+    font-weight: bold;
+}
+
+.hljs-comment {
+    color: #{map-get($grays, "400")};
+}
+
+
+// Dark Mode
+body[data-layout-color="dark"] {
+    .hljs {
+        border: 1px solid #{rgba(map-get($dark-grays, "600"), 0.2)};
+    }
+    .hljs,
+    .hljs-keyword,
+    .hljs-selector-tag,
+    .hljs-subst {
+        color: #{map-get($dark-grays, "900")};
+    }
+    .hljs-meta {
+        color: #{map-get($dark-grays, "800")};
+    }
+    .hljs-comment {
+        color: #{map-get($dark-grays, "400")};
+    }
+}
