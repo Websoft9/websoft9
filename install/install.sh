@@ -205,7 +205,7 @@ if [ "${os_type}" == 'Debian' ]; then
   sudo echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" >/etc/apt/sources.list.d/backports.list
   sudo apt update
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
-  sudo apt install cockpit-pcp -y 1>/dev/null 2>&1
+  sudo apt install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
 fi
 
 if [ "${os_type}" == 'Ubuntu' ]; then
@@ -216,14 +216,14 @@ if [ "${os_type}" == 'Ubuntu' ]; then
   fi
   VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
-  sudo apt install cockpit-pcp -y 1>/dev/null 2>&1
+  sudo apt install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
   echo "Cockpit allow root user" 
   echo "" >/etc/cockpit/disallowed-users 1>/dev/null 2>&1
 fi
 
 if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ]; then
   sudo yum install cockpit -y 
-  sudo yum install cockpit-pcp -y 1>/dev/null 2>&1
+  sudo yum install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
   sudo firewall-cmd --permanent --zone=public --add-service=cockpit
   sudo firewall-cmd --reload
@@ -231,7 +231,7 @@ fi
 
 if [ "$os_type" == 'Fedora' ]; then
   sudo dnf install cockpit -y 
-  sudo dnf install cockpit-pcp -y 1>/dev/null 2>&1
+  sudo dnf install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
   sudo firewall-cmd --add-service=cockpit
   sudo firewall-cmd --add-service=cockpit --permanent
@@ -240,7 +240,7 @@ fi
 if [ "$os_type" == 'Redhat' ] ; then
   sudo subscription-manager repos --enable rhel-7-server-extras-rpms 1>/dev/null 2>&1
   sudo yum install cockpit -y
-  sudo yum install cockpit-pcp -y 1>/dev/null 2>&1
+  sudo yum install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
   sudo setenforce 0  1>/dev/null 2>&1
   sudo sed -i 's/SELINUX=.*/SELINUX=disabled/' /etc/selinux/config  1>/dev/null 2>&1
   sudo systemctl enable --now cockpit.socket
@@ -303,7 +303,7 @@ if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ] ;then
 fi
 
 # uninstall plugins
-rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport
+rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 
 # configure cockpit
 cp /data/apps/stackhub/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
