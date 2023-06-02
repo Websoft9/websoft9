@@ -206,7 +206,7 @@ def check_app(app_name, customer_name, app_version):
     elif customer_name == None:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "customer_name is null"
-    elif len(customer_name) < 1:
+    elif len(customer_name) < 2:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "customer_name must be longer than 2 chars"
     elif app_version == None:
