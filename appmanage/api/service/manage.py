@@ -147,6 +147,10 @@ def delete_app(app_id):
             if app_path != lib_path:
                 cmd = cmd + " && sudo rm -rf " + app_path
             shell_execute.execute_command_output_all(cmd)
+
+            # 强制删除失败又无法通过docker compose down 删除的容器
+            force_cmd = "docker rm -f $(docker ps -f name=^"+customer_name+" -aq)"
+            shell_execute.execute_command_output_all(force_cmd)
         else:
             if check_app_rq(app_id):
                 delete_app_failedjob(app_id)
@@ -194,6 +198,9 @@ def check_app(app_name, customer_name, app_version):
     elif customer_name == None:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "customer_name is null"
+    elif len(customer_name) < 1:
+        code = const.ERROR_CLIENT_PARAM_BLANK
+        message = "customer_name must be longer than 2 chars"
     elif app_version == None:
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "app_version is null"
