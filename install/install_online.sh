@@ -265,17 +265,18 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 
 # install plugins
 # install appstore
-cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/appstore/static
-cp -r /data/apps/stackhub/cockpit/appstore /usr/share/cockpit
+cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/appstore/build/static
+mkdir /usr/share/cockpit/appstore
+cp -r /data/apps/stackhub/cockpit/appstore/build/* /usr/share/cockpit/appstore
 # install portainer
-cp -r /data/apps/stackhub/cockpit/portainer /usr/share/cockpit
-mv /usr/share/cockpit/portainer /usr/share/cockpit/container
+mkdir /usr/share/cockpit/container
+cp -r /data/apps/stackhub/cockpit/portainer/build/* /usr/share/cockpit/container
 ## install nginx
-cp -r /data/apps/stackhub/cockpit/nginxproxymanager /usr/share/cockpit
-mv /usr/share/cockpit/nginxproxymanager /usr/share/cockpit/nginx
+mkdir /usr/share/cockpit/nginx
+cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/nginx
 ## install kopia
-cp -r /data/apps/stackhub/cockpit/kopia /usr/share/cockpit
-mv /usr/share/cockpit/kopia /usr/share/cockpit/backup
+mkdir /usr/share/cockpit/backup
+cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
 ## install myapps
 cp -r /data/apps/stackhub/cockpit/myapps /usr/share/cockpit
 
