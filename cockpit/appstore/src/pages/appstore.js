@@ -104,8 +104,7 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
                     else {
                         setShowAlert(false);
                         setAlertMessage("");
-                        //navigate("/myapps");
-                        cockpit.jump("/users#/root");
+                        cockpit.jump("/myapps");
                     }
                 }
                 catch (error) {

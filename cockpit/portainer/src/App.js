@@ -10,7 +10,7 @@ function App() {
 
   const getData = async () => {
     try {
-      const response = await axios.get('../appstore/config.json'); //从项目下读取配置文件
+      const response = await axios.get('../myapps/config.json'); //从项目下读取配置文件
       if (response.status === 200) {
         let config = response.data.PORTAINER;
         const { PORTAINER_USERNAME, PORTAINER_PASSWORD, PORTAINER_AUTH_URL, PORTAINER_HOME_PAGE } = config;

@@ -10,7 +10,7 @@ function App() {
 
   async function getData() {
     try {
-      const response = await axios.get('../appstore/config.json'); //从项目下读取配置文件
+      const response = await axios.get('../myapps/config.json'); //从项目下读取配置文件
       if (response.status === 200) {
         const config = response.data.KOPIA;
         const { KOPIA_USERNAME, KOPIA_PASSWORD, KOPIA_HOME_PAGE } = config;

@@ -38,12 +38,12 @@ const Topbar = ({ hideLogo, navCssClasses, openLeftMenuCallBack, topbarDark }: T
                             </span>
                         </Link>
                     )}
-                    {/* <ul style={{
+                    <ul style={{
                         display: "flex", justifyContent: "flex-end", flexDirection: "row",
                         alignItems: "center", minHeight: "70px", fontSize: "16px", listStyle: "none",
                         marginBottom: "0px"
                     }}>
-                        <li style={{ margin: "0 10px" }}>
+                        {/* <li style={{ margin: "0 10px" }}>
                             <a href='/myapps' style={{ color: "#428bca" }} target="_parent" >
                                 <i className="dripicons-view-apps"></i>{' '}{_("My Apps")}
                             </a>
@@ -52,14 +52,16 @@ const Topbar = ({ hideLogo, navCssClasses, openLeftMenuCallBack, topbarDark }: T
                             <a href='/appstore' style={{ color: "#428bca" }} target="_parent">
                                 <i className="dripicons-cloud-download"></i>{' '}{_("App Store")}
                             </a>
-                        </li>
+                        </li> */}
                         <li>
-                            <button
+                            <button onClick={()=>{
+                                cockpit.jump("/system/terminal");
+                            }}
                                 className="nav-link dropdown-toggle end-bar-toggle arrow-none btn btn-link shadow-none" style={{ color: "#428bca" }}>
                                 <i className="dripicons-gear noti-icon"></i>{' '}
                             </button>
                         </li>
-                    </ul> */}
+                    </ul>
                 </div>
             </div>
         </>
