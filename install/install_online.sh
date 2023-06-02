@@ -278,6 +278,7 @@ mkdir /usr/share/cockpit/backup
 cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
 ## install myapps
 cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/myapps/build/static
+mkdir /usr/share/cockpit/myapps
 cp -r /data/apps/stackhub/cockpit/myapps /usr/share/cockpit
 
 # install navigator
