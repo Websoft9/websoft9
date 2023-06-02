@@ -210,23 +210,35 @@ UpdatePlugins(){
 
 echo "Check plugins if have update ..."
 rm -rf /tmp/config.json
-cp /usr/share/cockpit/appstore/config.json /tmp/config.json
+cp /usr/share/cockpit/myapps/config.json /tmp/config.json
 rm -rf /data/apps/stackhub
 cp -r /tmp/stackhub /data/apps
 
 # update appstore
 old_appstore_version=$(cat /usr/share/cockpit/appstore/manifest.json | jq .version)
-new_appstore_version=$(cat /data/apps/stackhub/install/version.json|jq .APPSTORE.APPMANAGE_PLUGIN_VERSION)
+new_appstore_version=$(cat /data/apps/stackhub/install/version.json|jq .APPMANAGE.APPSTORE_PLUGIN_VERSION)
 
 if [ "$old_appstore_version" \< "$new_appstore_version" ]; then
     echo "appstore plugin need to update"
-    cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/appstore/static
-    rm -rf /usr/share/cockpit/appstore
-    cp -r /data/apps/stackhub/cockpit/appstore /usr/share/cockpit
-    rm -f /usr/share/cockpit/appstore/config.json
-    cp /tmp/config.json /usr/share/cockpit/appstore/config.json
+    rm -rf /usr/share/cockpit/appstore/*
+    cp -r /data/apps/stackhub/cockpit/appstore/build/* /usr/share/cockpit/appstore
 else
     echo "appstore is not need to update"
+fi
+
+# update myapps
+old_myapps_version=$(cat /usr/share/cockpit/myapps/manifest.json | jq .version)
+new_myapp_version=$(cat /data/apps/stackhub/install/version.json|jq .APPMANAGE.MYAPPS_PLUGIN_VERSION)
+
+if [ "$old_myapps_version" \< "$new_myapp_version" ]; then
+    echo "myapps plugin need to update"
+    rm -rf /usr/share/cockpit/myapps/*
+    cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/myapps/build/static
+    cp -r /data/apps/stackhub/cockpit/myapps/build/* /usr/share/cockpit/myapps
+    rm -f /usr/share/cockpit/myapps/config.json
+    cp /tmp/config.json /usr/share/cockpit/myapps/config.json
+else
+    echo "myapps is not need to update"
 fi
 
 ## update container
@@ -235,9 +247,8 @@ new_container_version=$(cat /data/apps/stackhub/install/version.json|jq .PORTAIN
 
 if [ "$old_container_version" \< "$new_container_version" ]; then
     echo "container plugin need to update"
-    rm -rf /usr/share/cockpit/container
-    cp -r /data/apps/stackhub/cockpit/portainer /usr/share/cockpit
-    mv /usr/share/cockpit/portainer /usr/share/cockpit/container
+    rm -rf /usr/share/cockpit/container/*
+    cp -r /data/apps/stackhub/cockpit/portainer/build/* /usr/share/cockpit/container
 else
     echo "container is not need to update"
 fi
@@ -248,9 +259,8 @@ new_nginx_version=$(cat /data/apps/stackhub/install/version.json|jq .NGINXPROXYM
 
 if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
     echo "nginx plugin need to update"
-    rm -rf /usr/share/cockpit/nginx
-    cp -r /data/apps/stackhub/cockpit/nginxproxymanager /usr/share/cockpit
-    mv /usr/share/cockpit/nginxproxymanager /usr/share/cockpit/nginx
+    rm -rf /usr/share/cockpit/nginx/*
+    cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/nginx
 else
     echo "nginx is not need to update"
 fi
@@ -262,9 +272,8 @@ new_kopia_version=$(cat /data/apps/stackhub/install/version.json|jq .KOPIA.KOPIA
 
 if [ "$old_kopia_version" \< "$new_kopia_version" ]; then
     echo "kopia plugin need to update"
-    rm -rf /usr/share/cockpit/backup
-    cp -r /data/apps/stackhub/cockpit/kopia /usr/share/cockpit
-    mv /usr/share/cockpit/kopia /usr/share/cockpit/backup
+    rm -rf /usr/share/cockpit/backup/*
+    cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
 else
     echo "kopia is not need to update"
 fi
@@ -313,7 +322,7 @@ old_kopia=$(echo $old_version | jq .KOPIA.KOPIA_IMAGE_VERSION)
 new_kopia=$(cat /data/apps/stackhub/install/version.json | jq .KOPIA.KOPIA_IMAGE_VERSION)
 if [ "$old_kopia" \< "$new_kopia" ]; then
     echo "w9kopia need to update"
-    old_password=$(cat /usr/share/cockpit/appstore/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
+    old_password=$(cat /usr/share/cockpit/myapps/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
     sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
     cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
