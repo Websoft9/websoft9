@@ -146,11 +146,19 @@ def delete_app(app_id):
             lib_path = '/data/library/apps/' + app_name
             if app_path != lib_path:
                 cmd = cmd + " && sudo rm -rf " + app_path
-            shell_execute.execute_command_output_all(cmd)
-
+            try:
+                myLogger.info_logger("Intall fail, down app and delete files")
+                shell_execute.execute_command_output_all(cmd)
+            except Exception:
+                myLogger.info_logger("Delete app compose exception")
             # 强制删除失败又无法通过docker compose down 删除的容器
-            force_cmd = "docker rm -f $(docker ps -f name=^"+customer_name+" -aq)"
-            shell_execute.execute_command_output_all(force_cmd)
+            try:
+                myLogger.info_logger("IF delete fail, force to delete containers")
+                force_cmd = "docker rm -f $(docker ps -f name=^"+customer_name+" -aq)"
+                shell_execute.execute_command_output_all(force_cmd)
+            except Exception:
+                myLogger.info_logger("force delete app compose exception")
+
         else:
             if check_app_rq(app_id):
                 delete_app_failedjob(app_id)
