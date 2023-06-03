@@ -274,8 +274,8 @@ cp -r /data/apps/stackhub/cockpit/portainer/build/* /usr/share/cockpit/container
 mkdir /usr/share/cockpit/nginx
 cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/nginx
 ## install kopia
-mkdir /usr/share/cockpit/backup
-cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
+# mkdir /usr/share/cockpit/backup
+# cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
 ## install myapps
 cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/myapps/build/static
 mkdir /usr/share/cockpit/myapps

@@ -88,34 +88,29 @@ function fastest_url() {
 }
 
 CheckUpdate(){
-
+echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
 echo "Update appstore library ..."
 cd /data/library && git pull
 cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
-old_version=$(cat /data/apps/stackhub/install/version.json)
-latest_version=$(cat /tmp/version.json)
-release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
-
-if [ "$old_version" = "$latest_version" ]
-then
-    echo "------------------ Your plugins and services is latest, it not need to update ------------------ "
-    exit 1
+echo "Update stackhub ..."
+fasturl=$(fastest_url "${urls[@]}")
+cd /tmp && rm -rf /tmp/stackhub
+if [ "$fasturl" == *gitee.com* ]; then
+    wget $fasturl/websoft9/StackHub/repository/archive/$release_version
+    unzip $release_version
+    mv StackHub* stackhub
+    rm -f $release_version
 else
-    echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
-    cd /tmp && rm -rf /tmp/stackhub
-    if [ "$fasturl" == *gitee.com* ]; then
-       wget $fasturl/websoft9/StackHub/repository/archive/$release_version
-       unzip $release_version
-       mv StackHub* stackhub
-       rm -f $release_version
-    else
-       wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
-       unzip $release_version.zip
-       mv StackHub* stackhub
-       rm -f $release_version.zip
-    fi
-    
+    wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
+    unzip $release_version.zip
+    mv StackHub* stackhub
+    rm -f $release_version.zip
 fi
+rm -rf /tmp/config.json
+cp /usr/share/cockpit/myapps/config.json /tmp/config.json
+rm -rf /data/apps/stackhub
+cp -r /tmp/stackhub /data/apps
+
 
 if [ $(id -u) != "0" ]; then
     echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
@@ -207,14 +202,10 @@ fi
 UpdatePlugins(){
 
 echo "Check plugins if have update ..."
-rm -rf /tmp/config.json
-cp /usr/share/cockpit/myapps/config.json /tmp/config.json
-rm -rf /data/apps/stackhub
-cp -r /tmp/stackhub /data/apps
 
 # update appstore
 old_appstore_version=$(cat /usr/share/cockpit/appstore/manifest.json | jq .version)
-new_appstore_version=$(cat /data/apps/stackhub/install/version.json|jq .APPMANAGE.APPSTORE_PLUGIN_VERSION)
+new_appstore_version=$(cat /data/apps/stackhub/cockpit/appstore/build/manifest.json |jq .version)
 
 if [ "$old_appstore_version" \< "$new_appstore_version" ]; then
     echo "appstore plugin need to update"
@@ -226,7 +217,7 @@ fi
 
 # update myapps
 old_myapps_version=$(cat /usr/share/cockpit/myapps/manifest.json | jq .version)
-new_myapp_version=$(cat /data/apps/stackhub/install/version.json|jq .APPMANAGE.MYAPPS_PLUGIN_VERSION)
+new_myapp_version=$(cat /data/apps/stackhub/cockpit/myapps/build/manifest.json |jq .version)
 
 if [ "$old_myapps_version" \< "$new_myapp_version" ]; then
     echo "myapps plugin need to update"
@@ -241,7 +232,7 @@ fi
 
 ## update container
 old_container_version=$(cat /usr/share/cockpit/container/manifest.json | jq .version)
-new_container_version=$(cat /data/apps/stackhub/install/version.json|jq .PORTAINER.PORTAINER_PLUGIN_VERSION)
+new_container_version=$(cat /data/apps/stackhub/cockpit/portainer/build/manifest.json |jq .version)
 
 if [ "$old_container_version" \< "$new_container_version" ]; then
     echo "container plugin need to update"
@@ -253,7 +244,7 @@ fi
 
 ## update nginx
 old_nginx_version=$(cat /usr/share/cockpit/nginx/manifest.json | jq .version)
-new_nginx_version=$(cat /data/apps/stackhub/install/version.json|jq .NGINXPROXYMANAGER.NGINXPROXYMANAGER_PLUGIN_VERSION)
+new_nginx_version=$(cat /data/apps/stackhub/cockpit/nginxproxymanager/build/manifest.json |jq .version)
 
 if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
     echo "nginx plugin need to update"
@@ -264,19 +255,18 @@ else
 fi
 
 ## update kopia
+# old_kopia_version=$(cat /usr/share/cockpit/backup/manifest.json | jq .version)
+# new_kopia_version=$(cat /data/apps/stackhub/install/version.json|jq .KOPIA.KOPIA_PLUGIN_VERSION)
 
-old_kopia_version=$(cat /usr/share/cockpit/backup/manifest.json | jq .version)
-new_kopia_version=$(cat /data/apps/stackhub/install/version.json|jq .KOPIA.KOPIA_PLUGIN_VERSION)
-
-if [ "$old_kopia_version" \< "$new_kopia_version" ]; then
-    echo "kopia plugin need to update"
-    rm -rf /usr/share/cockpit/backup/*
-    cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
-else
-    echo "kopia is not need to update"
-fi
+# if [ "$old_kopia_version" \< "$new_kopia_version" ]; then
+#     echo "kopia plugin need to update"
+#     rm -rf /usr/share/cockpit/backup/*
+#     cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
+# else
+#     echo "kopia is not need to update"
+# fi
  
-}
+# }
 
 UpdateServices(){
 echo "Check services if have update ..."
