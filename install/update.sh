@@ -93,6 +93,7 @@ echo "Update appstore library ..."
 cd /data/library && git pull
 cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
 echo "Update stackhub ..."
+release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
 fasturl=$(fastest_url "${urls[@]}")
 cd /tmp && rm -rf /tmp/stackhub
 if [ "$fasturl" == *gitee.com* ]; then
@@ -110,7 +111,6 @@ rm -rf /tmp/config.json
 cp /usr/share/cockpit/myapps/config.json /tmp/config.json
 rm -rf /data/apps/stackhub
 cp -r /tmp/stackhub /data/apps
-
 
 if [ $(id -u) != "0" ]; then
     echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
@@ -270,52 +270,60 @@ fi
 
 UpdateServices(){
 echo "Check services if have update ..."
-old_appmanage=$(echo $old_version | jq .APPMANAGE.APPMANAGE_IMAGE_VERSION)
-new_appmanage=$(cat /data/apps/stackhub/install/version.json | jq .APPMANAGE.APPMANAGE_IMAGE_VERSION)
+old_appmanage=$(cat /data/apps/w9services/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
+new_appmanage=$(cat /data/apps/stackhub/docker/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_appmanage" \< "$new_appmanage" ]; then
-    echo "appmanage need to update"
-    cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+    echo "start to update appmanage..."
+    cp /data/apps/stackhub/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
+    cp /data/apps/stackhub/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
+    cd /data/apps/w9services/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "appmanage is not need to update"
 fi
 
-old_redis=$(echo $old_version | jq .APPMANAGE.REDIS_IMAGE_VERSION)
-new_redis=$(cat /data/apps/stackhub/install/version.json | jq .APPMANAGE.REDIS_IMAGE_VERSION)
+old_redis=$(cat /data/apps/w9services/w9redis/.env |grep APP_VERSION |cut -d= -f2)
+new_redis=$(cat /data/apps/stackhub/docker/w9redis/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_redis" \< "$new_redis" ]; then
     echo "redis need to update"
-    cd /data/apps/stackhub/docker/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+    cp /data/apps/stackhub/docker/w9redis/.env /data/apps/w9services/w9redis/.env
+    cp /data/apps/stackhub/docker/w9redis/docker-compose.yml /data/apps/w9services/w9redis/docker-compose.yml
+    cd /data/apps/w9services/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "redis is not need to update"
 fi
 
-old_portainer=$(echo $old_version | jq .PORTAINER.PORTAINER_IMAGE_VERSION)
-new_portainer=$(cat /data/apps/stackhub/install/version.json | jq .PORTAINER.PORTAINER_IMAGE_VERSION)
+old_portainer=$(cat /data/apps/w9services/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
+new_portainer=$(cat /data/apps/stackhub/docker/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_portainer" \< "$new_portainer" ]; then
     echo "w9portainer need to update"
-    cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+    cp /data/apps/stackhub/docker/w9portainer/.env /data/apps/w9services/w9portainer/.env
+    cp /data/apps/stackhub/docker/w9portainer/docker-compose.yml /data/apps/w9services/w9portainer/docker-compose.yml
+    cd /data/apps/w9services/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "w9portainer is not need to update"
 fi
 
-old_nginx=$(echo $old_version | jq .NGINXPROXYMANAGER.NGINXPROXYMANAGER_IMAGE_VERSION)
-new_nginx=$(cat /data/apps/stackhub/install/version.json | jq .NGINXPROXYMANAGER.NGINXPROXYMANAGER_IMAGE_VERSION)
+old_nginx=$(cat /data/apps/w9services/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
+new_nginx=$(cat /data/apps/stackhub/docker/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_nginx" \< "$new_nginx" ]; then
     echo "w9nginx need to update"
-    cd /data/apps/stackhub/docker/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+    cp /data/apps/stackhub/docker/w9nginxproxymanager/.env /data/apps/w9services/w9nginxproxymanager/.env
+    cp /data/apps/stackhub/docker/w9nginxproxymanager/docker-compose.yml /data/apps/w9services/w9nginxproxymanager/docker-compose.yml
+    cd /data/apps/w9services/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "w9nginx is not need to update"
 fi
 
-old_kopia=$(echo $old_version | jq .KOPIA.KOPIA_IMAGE_VERSION)
-new_kopia=$(cat /data/apps/stackhub/install/version.json | jq .KOPIA.KOPIA_IMAGE_VERSION)
-if [ "$old_kopia" \< "$new_kopia" ]; then
-    echo "w9kopia need to update"
-    old_password=$(cat /usr/share/cockpit/myapps/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
-    sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
-    cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
-else
-    echo "w9kopia is not need to update"
-fi
+# old_kopia=$(echo $old_version | jq .KOPIA.KOPIA_IMAGE_VERSION)
+# new_kopia=$(cat /data/apps/stackhub/install/version.json | jq .KOPIA.KOPIA_IMAGE_VERSION)
+# if [ "$old_kopia" \< "$new_kopia" ]; then
+#     echo "w9kopia need to update"
+#     old_password=$(cat /usr/share/cockpit/myapps/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
+#     sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
+#     cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+# else
+#     echo "w9kopia is not need to update"
+# fi
 
 }
 
