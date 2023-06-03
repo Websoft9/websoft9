@@ -173,7 +173,7 @@ def check_app_url(customer_app_name):
         ip = "localhost"
         url = ""
         try:
-            ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+            ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
             ip = ip_result["result"].rstrip('\n')
         except Exception:
             ip = "127.0.0.1"
