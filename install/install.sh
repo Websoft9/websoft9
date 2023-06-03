@@ -362,23 +362,24 @@ echo "fast url is: "$fasturl
 mkdir -p /data/apps
 clone_repo $fasturl/Websoft9/docker-library /data/library
 clone_repo $fasturl/Websoft9/StackHub /data/apps/stackhub
+cp -r /data/apps/stackhub/docker  /data/apps/w9services
 }
 
 StartAppMng(){
 
 echo "Start appmanage API ..." 
-cd /data/apps/stackhub/docker/w9redis  && sudo docker compose up -d
-cd /data/apps/stackhub/docker/w9appmanage  && sudo docker compose up -d
+cd /data/apps/w9services/w9redis  && sudo docker compose up -d
+cd /data/apps/w9services/w9appmanage  && sudo docker compose up -d
 
 public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
-echo $public_ip > /data/apps/stackhub/docker/w9appmanage/public_ip
+echo $public_ip > /data/apps/w9services/w9appmanage/public_ip
 
 }
 
 StartPortainer(){
 
 echo "Start Portainer ..." 
-cd /data/apps/stackhub/docker/w9portainer  && sudo docker compose up -d
+cd /data/apps/w9services/w9portainer  && sudo docker compose up -d
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
@@ -393,8 +394,8 @@ echo "Start Kopia ..."
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/stackhub/docker/w9kopia/.env
-cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose up -d
+sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/w9services/w9kopia/.env
+cd /data/apps/w9services/w9kopia  && sudo docker compose up -d
 
 sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
 sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
@@ -403,7 +404,7 @@ sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /us
 InstallNginx(){
 
 echo "Install nginxproxymanager ..." 
-cd /data/apps/stackhub/docker/w9nginxproxymanager && sudo docker compose up -d
+cd /data/apps/w9services/w9nginxproxymanager && sudo docker compose up -d
 sleep 25
 echo "edit nginxproxymanager password..." 
 login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://127.0.0.1:9092/api/tokens)
@@ -421,7 +422,7 @@ echo "edit password success ..."
 while [ ! -d "/var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host" ]; do
     sleep 1
 done
-cp /data/apps/stackhub/docker/w9nginxproxymanager/initproxy.conf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host
+cp /data/apps/w9services/w9nginxproxymanager/initproxy.conf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host
 public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 

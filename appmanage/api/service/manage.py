@@ -340,7 +340,7 @@ def get_apps_from_compose():
     myLogger.info_logger(len(output_list))
     ip = "localhost"
     try:
-        ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+        ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
         ip = ip_result["result"].rstrip('\n')
     except Exception:
         ip = "127.0.0.1"
@@ -369,7 +369,7 @@ def get_apps_from_compose():
         default_domain = ""
         admin_path = ""
         admin_domain_url = ""
-        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9kopia','w9portainer'] or app_path == '/data/apps/stackhub/docker/' + customer_name:
+        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9kopia','w9portainer'] or app_path == '/data/apps/w9services/' + customer_name:
             continue
         
         status_show = app_info["Status"]
@@ -960,7 +960,7 @@ def check_real_domain(domain):
         cmd = "ping -c 1 " + domain + "  | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | uniq"
         domain_ip = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
 
-        ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+        ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
         ip_save = ip_result["result"].rstrip('\n')
 
         if domain_ip == ip_save:
@@ -1080,7 +1080,7 @@ def set_domain(domain, app_id):
     if "APP_URL" in app_url:
         myLogger.info_logger("APP_URL is exist")
         if domain == "":
-            ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+            ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')
             cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
             shell_execute.execute_command_output_all(cmd)
@@ -1096,7 +1096,7 @@ def set_domain(domain, app_id):
     else:
         myLogger.info_logger("APP_URL is not exist")
         if domain == "":
-            ip_result = shell_execute.execute_command_output_all("cat /data/apps/stackhub/docker/w9appmanage/public_ip")
+            ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n') 
                 
         cmd = "sed -i '/APP_NETWORK/a APP_URL=" + domain + "' /data/apps/" + customer_name +"/.env"
