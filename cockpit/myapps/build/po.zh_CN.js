@@ -307,43 +307,43 @@
         null,
         "请输入要搜索的应用名称,例如:WordPress,MySQL,GitLab, …"
     ],
-    "App Overview"[
+    "App Overview": [
         null,
         "应用预览"
     ],
-    "App Name"[
+    "App Name": [
         null,
         "应用名称"
     ],
-    "App Version"[
+    "App Version": [
         null,
         "应用版本"
     ],
-    "App Port"[
+    "App Port": [
         null,
         "应用端口"
     ],
-    "Created Time"[
+    "Created Time": [
         null,
         "创建时间"
     ],
-    "Config Path"[
+    "Config Path": [
         null,
         "配置目录"
     ],
-    "Data Path"[
+    "Data Path": [
         null,
         "数据目录"
     ],
-    "Domain Access"[
+    "Domain Access": [
         null,
         "域名访问"
     ],
-    "Domain access for better application performance.HTTPS and custom configurations available."[
+    "Domain access for better application performance.HTTPS and custom configurations available.": [
         null,
         "域名访问以获得更好的应用程序性能,HTTPS和自定义配置可点击"
     ],
-    "Add Domain"[
+    "Add Domain": [
         null,
         "添加域名"
     ]

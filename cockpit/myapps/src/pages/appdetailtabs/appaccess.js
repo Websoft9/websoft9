@@ -348,7 +348,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                                 {
                                                     props.data?.config?.admin_domain_url && (
                                                         <a href={props.data?.config?.admin_domain_url} target="_blank" className="me-2">
-                                                            <Button variant="primary" size="sm">访问后台</Button>
+                                                            <Button variant="primary" size="sm">{_("Admin Page")}</Button>
                                                         </a>
                                                     )
                                                 }

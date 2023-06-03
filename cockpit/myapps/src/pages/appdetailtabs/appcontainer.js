@@ -15,7 +15,7 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
     //通过Portainer的接口获取容器数据
     const getContainersData = async () => {
         try {
-            let jwt = window.localStorage.getItem("portainer.JWT"); //获取存储在本地的JWT数据 
+            let jwt = window.localStorage.getItem("portainer.JWT2"); //获取存储在本地的JWT数据 
 
             //如果获取不到jwt，则模拟登录并写入新的jwt
             if (jwt === null) {
@@ -32,7 +32,7 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
                     if (authResponse.status === 200) {
                         jwt = "\"" + authResponse.data.jwt + "\"";
                         //jwt = authResponse.data.jwt
-                        window.localStorage.setItem('portainer\.JWT', jwt); //关键是将通过API登录后获取的jwt，存储到本地localStorage
+                        window.localStorage.setItem('portainer\.JWT2', jwt); //关键是将通过API登录后获取的jwt，存储到本地localStorage
                     } else {
                         console.error('Error:', authResponse);
                     }
@@ -41,14 +41,11 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
                     console.error('Error:', response);
                 }
             }
-            else {
-                jwt = jwt.replace(/"/g, '')
-            }
 
             //从portainer接口获取endpoints
             const endpointsData = await axios.get('/portainer/api/endpoints', {
                 headers: {
-                    'Authorization': 'Bearer ' + jwt
+                    'Authorization': 'Bearer ' + jwt.replace(/"/g, '')
                 }
             });
             if (endpointsData.status === 200) {
@@ -58,7 +55,7 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
                 //调用接口获取
                 const containersData = await axios.get(`/portainer/api/endpoints/${id}/docker/containers/json`, {
                     headers: {
-                        'Authorization': 'Bearer ' + jwt
+                        'Authorization': 'Bearer ' + jwt.replace(/"/g, '')
                     },
                     params: {
                         all: true,
