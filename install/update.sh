@@ -103,7 +103,7 @@ then
 else
     echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
     cd /tmp && rm -rf /tmp/stackhub
-    if [ "$fasturl" == *gitee.com* ]
+    if [ "$fasturl" == *gitee.com* ]; then
        wget $fasturl/websoft9/StackHub/repository/archive/$release_version
        unzip $release_version
        mv StackHub* stackhub
@@ -181,7 +181,6 @@ if command -v apt > /dev/null;then
   sudo apt -y install --only-upgrade  docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
 elif  command -v dnf > /dev/null;then 
   sudo dnf update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
-fi
 elif  command -v yum > /dev/null;then 
   sudo yum update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
 fi
@@ -200,7 +199,6 @@ if command -v apt > /dev/null;then
   sudo apt -y install --only-upgrade  cockpit-navigator
 elif  command -v dnf > /dev/null;then 
   sudo dnf update -y cockpit-navigator
-fi
 elif  command -v yum > /dev/null;then 
   sudo yum update -y cockpit-navigator
 fi
