@@ -104,7 +104,11 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
                     else {
                         setShowAlert(false);
                         setAlertMessage("");
+                        cockpit.file('/etc/hostname').watch(content => {
+                            console.log(content);
+                        });
                         cockpit.jump("/myapps");
+                        onClose();
                     }
                 }
                 catch (error) {

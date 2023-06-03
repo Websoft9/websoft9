@@ -7,7 +7,7 @@ let credentials;
 async function getCredentials() {
     // 如果 credentials 不存在，就从 config.json 中获取它
     if (!credentials) {
-        const response = await fetch('./config.json');
+        const response = await fetch('../myapps/config.json');
         const data = await response.json();
         const userName = data.APPMANAGE.APPMANAGE_USERNAME;
         const uerPassword = data.APPMANAGE.APPMANAGE_PASSWORD;
