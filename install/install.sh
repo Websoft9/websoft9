@@ -465,6 +465,6 @@ PrepareStaticFiles
 InstallCockpit
 StartAppMng
 StartPortainer
-StartKopia
+#StartKopia
 InstallNginx
 EditMenu
