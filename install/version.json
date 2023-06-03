@@ -1,21 +1,15 @@
 {   
-    "PORTAINER": {
-        "PORTAINER_PLUGIN_VERSION": "1.0.0",
-        "PORTAINER_IMAGE_VERSION": "2.18.3"
+    "SERVICES": {
+        "PORTAINER": "2.18.3",
+        "NGINX": "2.10.3",
+        "APPMANAGE": "0.1.0",
+        "REDIS": "7.0.11"
     },
-    "NGINXPROXYMANAGER": {
-        "NGINXPROXYMANAGER_PLUGIN_VERSION": "1.0.0",
-        "NGINXPROXYMANAGER_IMAGE_VERSION": "2.10.3"
-    },
-    "KOPIA": {
-        "KOPIA_PLUGIN_VERSION": "1.0.0",
-        "KOPIA_IMAGE_VERSION": "0.13"
-    },
-    "APPMANAGE": {
-        "APPSTORE_PLUGIN_VERSION": "1.0.0",
-        "MYAPPS_PLUGIN_VERSION": "1.0.0",
-        "APPMANAGE_IMAGE_VERSION": "0.1.0",
-        "REDIS_IMAGE_VERSION": "7.0.11"
-    },
+    "PLUGINS": {
+        "PORTAINER": "1.0.0",
+        "NGINX": "1.0.0",
+        "MYAPPS": "1.0.0",
+        "APPSTORE": "1.0.0"
+    },    
     "VERSION": "0.1.0"
 }
