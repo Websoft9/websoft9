@@ -95,6 +95,7 @@ cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/insta
 echo "Update stackhub ..."
 release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
 fasturl=$(fastest_url "${urls[@]}")
+echo "fasturl is: "$fasturl
 cd /tmp && rm -rf /tmp/stackhub
 if [ "$fasturl" == *gitee.com* ]; then
     wget $fasturl/websoft9/StackHub/repository/archive/$release_version
