@@ -346,6 +346,10 @@
     "Add Domain": [
         null,
         "添加域名"
+    ],
+    "Admin Page": [
+        null,
+        "访问后台"
     ]
 }));
 

@@ -16,6 +16,7 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
     const getContainersData = async () => {
         try {
             let jwt = window.localStorage.getItem("portainer.JWT2"); //获取存储在本地的JWT数据 
+            let id = null;
 
             //如果获取不到jwt，则模拟登录并写入新的jwt
             if (jwt === null) {
@@ -49,9 +50,34 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
                 }
             });
             if (endpointsData.status === 200) {
-                //应该可能会返回“远程”的endpoint，这里只获取“本地”endpoint,条件为URL包含'/var/run/docker.sock'
-                const id = endpointsData.data.find(({ URL }) => URL.includes('/var/run/docker.sock')).Id;
-                setEndpointsId(id)
+                //先判断是否获取了“本地”endpoint
+                if (endpointsData.data.length == 0) { //没有“本地”endpoint
+                    //调用添加"本地"环境的接口
+                    const addEndpoint = await axios.post('/portainer/api/endpoints', {},
+                        {
+                            params: {
+                                Name: "websoft9-local",
+                                EndpointCreationType: 1
+                            },
+                            headers: {
+                                'Authorization': 'Bearer ' + jwt.replace(/"/g, '')
+                            }
+                        }
+                    );
+                    if (addEndpoint.status === 200) {
+                        id = addEndpoint.data?.Id;
+                        setEndpointsId(id);
+                    }
+                    else {
+                        console.error('Error:', addEndpoint);
+                    }
+                }
+                else {
+                    //应该可能会返回“远程”的endpoint，这里只获取“本地”endpoint,条件为URL包含'/var/run/docker.sock'
+                    id = endpointsData.data.find(({ URL }) => URL.includes('/var/run/docker.sock')).Id;
+                    setEndpointsId(id);
+                }
+
                 //调用接口获取
                 const containersData = await axios.get(`/portainer/api/endpoints/${id}/docker/containers/json`, {
                     headers: {

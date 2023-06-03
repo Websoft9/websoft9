@@ -25,7 +25,7 @@ function App() {
             password: PORTAINER_PASSWORD
           });
           if (authResponse.status === 200) {
-            let jwt = "\"" + authResponse.data.jwt + "\"";
+            jwt = "\"" + authResponse.data.jwt + "\"";
             setPortainerJWT(jwt);
             window.localStorage.setItem('portainer\.JWT', jwt); //关键是将通过API登录后获取的jwt，存储到本地localStorage
           } else {
@@ -37,6 +37,15 @@ function App() {
         }
       }
       else {
+        const response = await axios.get('../myapps/config.json'); //从项目下读取配置文件
+        if (response.status === 200) {
+          let config = response.data.PORTAINER;
+          const { PORTAINER_HOME_PAGE } = config;
+          setPortainerHomePage(PORTAINER_HOME_PAGE);
+        }
+        else {
+          console.log('Error:', response);
+        }
         setPortainerJWT(jwt);
       }
     } catch (error) {
@@ -46,12 +55,12 @@ function App() {
 
   useEffect(() => {
     getData();
-  }, []);
+  }, [portainerJWT]);
 
   return (
     <>
       {
-        portainerJWT && portainerHomePage ? (
+        (portainerJWT && portainerHomePage) ? (
           <div class='myPortainer' key='container'>
             <iframe title='portainer' src={portainerHomePage} />
           </div>
