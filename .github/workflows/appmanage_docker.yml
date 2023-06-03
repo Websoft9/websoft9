@@ -22,7 +22,7 @@ jobs:
         name: Build & push Docker image
         with:
           image: websoft9dev/appmanage
-          tags: 0.1.0
+          tags: 0.2.0
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage

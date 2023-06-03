@@ -221,7 +221,7 @@ old_myapps_version=$(cat /usr/share/cockpit/myapps/manifest.json | jq .version)
 new_myapp_version=$(cat /data/apps/stackhub/cockpit/myapps/build/manifest.json |jq .version)
 
 if [ "$old_myapps_version" \< "$new_myapp_version" ]; then
-    echo "myapps plugin need to update"
+    echo "start to update myapps..."
     rm -rf /usr/share/cockpit/myapps/*
     cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/myapps/build/static
     cp -r /data/apps/stackhub/cockpit/myapps/build/* /usr/share/cockpit/myapps
@@ -236,11 +236,11 @@ old_container_version=$(cat /usr/share/cockpit/container/manifest.json | jq .ver
 new_container_version=$(cat /data/apps/stackhub/cockpit/portainer/build/manifest.json |jq .version)
 
 if [ "$old_container_version" \< "$new_container_version" ]; then
-    echo "container plugin need to update"
+    echo "start  to update portainer..."
     rm -rf /usr/share/cockpit/container/*
     cp -r /data/apps/stackhub/cockpit/portainer/build/* /usr/share/cockpit/container
 else
-    echo "container is not need to update"
+    echo "portainer is not need to update"
 fi
 
 ## update nginx
@@ -248,7 +248,7 @@ old_nginx_version=$(cat /usr/share/cockpit/nginx/manifest.json | jq .version)
 new_nginx_version=$(cat /data/apps/stackhub/cockpit/nginxproxymanager/build/manifest.json |jq .version)
 
 if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
-    echo "nginx plugin need to update"
+    echo "start to update nginx..."
     rm -rf /usr/share/cockpit/nginx/*
     cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/nginx
 else
@@ -274,7 +274,7 @@ echo "Check services if have update ..."
 old_appmanage=$(cat /data/apps/w9services/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
 new_appmanage=$(cat /data/apps/stackhub/docker/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_appmanage" \< "$new_appmanage" ]; then
-    echo "start to update appmanage..."
+    echo "start to update w9appmanage..."
     cp /data/apps/stackhub/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
     cp /data/apps/stackhub/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
     cd /data/apps/w9services/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
@@ -285,7 +285,7 @@ fi
 old_redis=$(cat /data/apps/w9services/w9redis/.env |grep APP_VERSION |cut -d= -f2)
 new_redis=$(cat /data/apps/stackhub/docker/w9redis/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_redis" \< "$new_redis" ]; then
-    echo "redis need to update"
+    echo "start to update w9redis..."
     cp /data/apps/stackhub/docker/w9redis/.env /data/apps/w9services/w9redis/.env
     cp /data/apps/stackhub/docker/w9redis/docker-compose.yml /data/apps/w9services/w9redis/docker-compose.yml
     cd /data/apps/w9services/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
@@ -296,7 +296,7 @@ fi
 old_portainer=$(cat /data/apps/w9services/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
 new_portainer=$(cat /data/apps/stackhub/docker/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_portainer" \< "$new_portainer" ]; then
-    echo "w9portainer need to update"
+    echo "start to update w9portainer..."
     cp /data/apps/stackhub/docker/w9portainer/.env /data/apps/w9services/w9portainer/.env
     cp /data/apps/stackhub/docker/w9portainer/docker-compose.yml /data/apps/w9services/w9portainer/docker-compose.yml
     cd /data/apps/w9services/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
@@ -307,7 +307,7 @@ fi
 old_nginx=$(cat /data/apps/w9services/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
 new_nginx=$(cat /data/apps/stackhub/docker/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_nginx" \< "$new_nginx" ]; then
-    echo "w9nginx need to update"
+    echo "start to update w9nginx..."
     cp /data/apps/stackhub/docker/w9nginxproxymanager/.env /data/apps/w9services/w9nginxproxymanager/.env
     cp /data/apps/stackhub/docker/w9nginxproxymanager/docker-compose.yml /data/apps/w9services/w9nginxproxymanager/docker-compose.yml
     cd /data/apps/w9services/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
