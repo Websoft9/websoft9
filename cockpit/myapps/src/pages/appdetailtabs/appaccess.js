@@ -329,11 +329,11 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                             id="panel1a-header"
                         >
                             <Typography>
-                                <label className="me-2 fs-5 d-block">域名访问</label>
+                                <label className="me-2 fs-5 d-block">{_("Domain Access")}</label>
                                 <span className="me-2 fs-6" style={{ display: isExpandedForDomain ? 'inline' : 'none' }}>
-                                    建议绑定域名访问应用，以免无域名造成应用异常。如要需要进行Https设置或者自定义配置，请点击
+                                    {_("Domain access for better application performance. HTTPS and custom configurations available")}
                                     <a href="/nginx" target="_parent">
-                                        更多
+                                        {_("More")}
                                     </a>
                                 </span>
                             </Typography>
@@ -344,7 +344,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                     <Card.Header>
                                         <Row className="mb-2 align-items-center">
                                             <Col xs={12} md={12} className="d-flex justify-content-end">
-                                                <Button variant="primary" size="sm" className="me-2" onClick={() => addRow()}>添加域名</Button>
+                                                <Button variant="primary" size="sm" className="me-2" onClick={() => addRow()}>{_("Add Domain")}</Button>
                                                 {
                                                     props.data?.config?.admin_domain_url && (
                                                         <a href={props.data?.config?.admin_domain_url} target="_blank" className="me-2">

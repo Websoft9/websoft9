@@ -1,10 +1,14 @@
 // @flow
+import cockpit from "cockpit";
 import React from 'react';
 import { Card, Col, Row } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 // images
 import Logo from '../../assets/images/logo.svg';
+import logoEn from '../../assets/images/websoft9.svg';
+
+const language = cockpit.language;//获取cockpit的当前语言环境
 
 const ErrorPageNotFound = (): React$Element<React$FragmentType> => {
     return (
@@ -18,7 +22,9 @@ const ErrorPageNotFound = (): React$Element<React$FragmentType> => {
                                 <Card.Header className="pt-4 pb-4 text-center bg-primary">
                                     <Link to="/">
                                         <span>
-                                            <img src={Logo} alt="" height="18" />
+                                            {
+                                                language === "zh_CN" ? <img src={Logo} alt="" height="18" /> : <img src={logoEn} alt="" height="18" />
+                                            }
                                         </span>
                                     </Link>
                                 </Card.Header>
@@ -45,8 +51,6 @@ const ErrorPageNotFound = (): React$Element<React$FragmentType> => {
                     </Row>
                 </div>
             </div>
-
-            <footer className="footer footer-alt">2018 - 2021 © Hyper - Coderthemes.com</footer>
         </>
     );
 };

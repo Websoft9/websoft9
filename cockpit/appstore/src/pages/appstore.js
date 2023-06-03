@@ -87,9 +87,9 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
     //用户单击“安装”按钮
     async function handleInstallClick() {
         if (!visible) {
-            if (!customName) { //判断用户是否输入应用名称
+            if (!customName || customName.length < 2 || customName.length > 20) { //判断用户是否输入应用名称
                 setShowAlert(true);
-                setAlertMessage(_("Please enter a custom application name"))
+                setAlertMessage(_("Please enter a custom application name between 2 and 20 characters."))
             }
             else {
                 //调用应用安装接口
@@ -138,9 +138,9 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
 
     const handleInputChange = (inputValue) => {
         setCustomName(inputValue);
-        if (!inputValue) { //当用户没有输入应用名称
+        if (!inputValue) { //验证输入应用名称
             setShowAlert(true);
-            setAlertMessage(_("Please enter a custom application name"))
+            setAlertMessage(_("Please enter a custom application name between 2 and 20 characters."))
         }
         else {
             const newValue = inputValue.replace(/[^a-z0-9]/gi, '').toLowerCase(); //先替换输入值
@@ -236,7 +236,7 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
                             <div style={{ marginTop: "5px" }}>
                                 <span style={{ marginRight: "5px" }}>{_("Name")} :</span>
                                 <FormInput type="text" value={customName} name="app_Name"
-                                    placeholder={_("Only letters and numbers are allowed. No special characters.")}
+                                    placeholder={_("Only letters and numbers from 2 to 20 are allowed. No special characters.")}
                                     onChange={(e) => { handleInputChange(e.target.value) }} />
                             </div>
                         </div>
@@ -393,7 +393,7 @@ const AppStore = (): React$Element<React$FragmentType> => {
                 <Col sm={6}>
                     <Col xs="auto">
                         <FormInput type="text" name="search"
-                            placeholder="Search for apps like WordPress, MySQL, GitLab, …"
+                            placeholder={_("Search for apps like WordPress, MySQL, GitLab, …")}
                             value={searchValue}
                             onChange={(e) => handleInputChange(e.target.value)} />
                     </Col>

@@ -139,13 +139,13 @@
         null,
         "更新"
     ],
-    "Please enter a custom application name": [
+    "Please enter a custom application name between 2 and 20 characters.": [
         null,
-        "请输入一个自定义应用名称"
+        "请输入一个2-20位的自定义应用名称."
     ],
-    "Only letters and numbers are allowed. No special characters.": [
+    "Only letters and numbers from 2 to 20 are allowed. No special characters.": [
         null,
-        "只允许使用字母和数字.不允许使用特殊字符。"
+        "只允许使用2-20位的字母和数字,不允许使用特殊字符."
     ],
     "Start App": [
         null,
@@ -177,7 +177,7 @@
     ],
     "and remove all its data.": [
         null,
-        "并且删除所有数据。"
+        "并且删除所有数据."
     ],
     "Start / Stop": [
         null,
@@ -185,11 +185,11 @@
     ],
     "This will uninstall the app immediately and remove all its data.The app will be inaccessible.": [
         null,
-        "这将立即卸载应用程序并删除其所有数据,该应用程序将无法访问。"
+        "这将立即卸载应用程序并删除其所有数据,该应用程序将无法访问."
     ],
     "Apps can be stopped to conserve server resources instead of uninstalling.": [
         null,
-        "可以停止应用程序以节省服务器资源，而不是卸载。"
+        "可以停止应用程序以节省服务器资源,而不是卸载."
     ],
     "This is the error message for": [
         null,
@@ -302,6 +302,10 @@
     "Navigator": [
         null,
         "文件"
+    ],
+    "Search for apps like WordPress, MySQL, GitLab, …": [
+        null,
+        "请输入要搜索的应用名称,例如:WordPress,MySQL,GitLab, …"
     ]
 }));
 

@@ -98,7 +98,7 @@ release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
 
 if [ "$old_version" = "$latest_version" ]
 then
-    echo "------------------ Your plugins and service is latest, it not need to update ------------------ "
+    echo "------------------ Your plugins and services is latest, it not need to update ------------------ "
     exit 1
 else
     echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"

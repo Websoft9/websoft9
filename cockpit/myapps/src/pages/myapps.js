@@ -335,7 +335,7 @@ const MyApps = (): React$Element<React$FragmentType> => {
                         key="select"
                         onChange={(e) => changeStatus(e.target.value)}
                     >
-                        <option value="all">{"All States"}</option>
+                        <option value="all">{_("All States")}</option>
                         <option value="installing">installing</option>
                         <option value="running">running</option>
                         <option value="exited">exited</option>
@@ -347,7 +347,7 @@ const MyApps = (): React$Element<React$FragmentType> => {
                     <FormInput
                         type="text"
                         name="search"
-                        placeholder="Search for apps like WordPress, Dropbox, Slack, Trello, …"
+                        placeholder={_("Search for apps like WordPress, Dropbox, Slack, Trello, …")}
                         onChange={(e) => handleInputChange(e.target.value)}
                     />
                 </Col>

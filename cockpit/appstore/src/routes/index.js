@@ -10,7 +10,6 @@ import DetachedLayout from '../layouts/Detached';
 const AppStore = React.lazy(() => import('../pages/appstore'));
 const ErrorPageNotFound = React.lazy(() => import('../pages/error/PageNotFound'));
 const ServerError = React.lazy(() => import('../pages/error/ServerError'));
-const CustomError = React.lazy(() => import('../pages/error/CustomError'));
 
 const loading = () => <div className=""></div>;
 
@@ -38,10 +37,6 @@ const AllRoutes = () => {
                 {
                     path: 'error-500',
                     element: <LoadComponent component={ServerError} />,
-                },
-                {
-                    path: "error",
-                    element: <LoadComponent component={CustomError} />,
                 }
             ],
         },
