@@ -266,7 +266,7 @@ fi
 #     echo "kopia is not need to update"
 # fi
  
-# }
+}
 
 UpdateServices(){
 echo "Check services if have update ..."
