@@ -1,8 +1,6 @@
 name: logo timely update
 
 on: 
-#   schedule:
-#   - cron: "0 4 * * *"
   workflow_dispatch:
   
 jobs:
@@ -16,27 +14,52 @@ jobs:
       name: Check out code  
     
     - name: update logo
-      run: |
+      run: |  
         git config --global user.name "${{ github.actor }}"
         git config --global user.email "xxx@websoft9.com"
         
-        files=$(ls appmanage/static/images)
-        for file in $files;do
-          app=$(echo ${file%%-*})
-          entry=$(curl --include \
-                       --request GET \
-                       --header 'Authorization: Bearer ${{secrets.CONTENTFUL_TOKEN}}' \
-                       https://api.contentful.com/spaces/ffrhttfighww/environments/master/entries?content_type=media\&fields.slug=${app} | tail -n 1)
-          data=$(echo $entry | jq -r '.items[0].fields.imageurl')
-          if [[ "$data" == null ]];then
-              continue
+        # 获取contentful中所有url
+        entry=$(curl --include \
+             --request GET \
+             --header 'Authorization: Bearer ${{secrets.CONTENTFUL}}' \
+             https://api.contentful.com/spaces/wbgvl9e8pqe2/environments/master/entries?content_type=media\&select=fields.slug |tail -n 1)
+        echo $entry
+        applist=$(echo $entry | sed 's/en-US/en/g' | jq -r '.items[] | .fields.slug.en')
+        echo $applist
+        
+        for app in ${applist};do
+          if [ "$app" = "customer-ibox" ];then
+            continue
           fi
-          url=$(echo $data | sed 's/en-US/en/' | jq -r '.en')
-
-          logoFile=appmanage/static/images/${app}-websoft9.png
-          git rm $logoFile
-          git commit -m "delete former logo"
-          wget -P appmanage/static/images $url  
+          if [ "$app" = "kodcloud" ];then
+            continue
+          fi
+          if [ "$app" = "onlyoffice" ];then
+            continue
+          fi
+          if [ "$app" = "vendor-mingdao" ];then
+            continue
+          fi
+          if [ "$app" = null ];then
+            continue
+          fi
+          item=$(curl --include \
+                     --request GET \
+                     --header 'Authorization: Bearer ${{secrets.CONTENTFUL_TOKEN}}' \
+                     https://api.contentful.com/spaces/ffrhttfighww/environments/master/entries?content_type=media\&fields.slug=${app}\&select=fields.imageurl\&locale=en-US | tail -n 1)
+          echo $item
+          url=$(echo $item | sed 's/en-US/en/' | jq -r '.items[0].fields.imageurl.en')
+          echo $url
+          file=$(echo appmanage/static/images/${url##*/})
+          echo $file
+          
+          time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
+          
+          if [[ -f ${file} ]];then
+            git rm $file
+            git commit -m "delete former logo"
+          fi
+          wget --no-check-certificate -P appmanage/static/images $url  
         done
         
     - name: push logo
