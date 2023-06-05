@@ -196,6 +196,7 @@ def get_map(path):
     env_dic = {}
     if int(code) == 0:
         ret = output["result"]
+        myLogger.info_logger(ret)
         env_list = ret.split("\n")
         for env in env_list:
             if "=" in env:
