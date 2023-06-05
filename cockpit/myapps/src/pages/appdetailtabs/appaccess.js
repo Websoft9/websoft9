@@ -192,7 +192,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
             else {
                 setShowAlert(true);
                 setAlertType("success")
-                setAlertMessage("设置成功!");
+                setAlertMessage(_("Success"));
                 getDomains();
             }
         }
@@ -224,7 +224,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                             else {
                                 setShowAlert(true);
                                 setAlertType("success")
-                                setAlertMessage("Success");
+                                setAlertMessage(_("Success"));
                                 getDomains();
                             }
                         }
@@ -253,7 +253,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                         else {
                             setShowAlert(true);
                             setAlertType("success")
-                            setAlertMessage("Success");
+                            setAlertMessage(_("Success"));
                             getDomains();
                         }
                     }
@@ -331,9 +331,10 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                             <Typography>
                                 <label className="me-2 fs-5 d-block">{_("Domain Access")}</label>
                                 <span className="me-2 fs-6" style={{ display: isExpandedForDomain ? 'inline' : 'none' }}>
-                                    {_("Domain access for better application performance. HTTPS and custom configurations available")}
+                                    {_("Access the domain name for better application performance, https and custom configuration can click")}
+                                    {" "}
                                     <a href="/nginx" target="_parent">
-                                        {_("More")}
+                                        {_("more")}
                                     </a>
                                 </span>
                             </Typography>
@@ -442,8 +443,10 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                 id="panel2a-header"
                             >
                                 <Typography>
-                                    <label className="me-2 fs-5 d-block">无域名访问</label>
-                                    <span className="me-2 fs-6" style={{ display: isExpandedForNoDomain ? 'inline' : 'none' }}>没有域名可以通过IP+端口的方式临时访问应用</span>
+                                    <label className="me-2 fs-5 d-block">{_("No Domain Access")}</label>
+                                    <span className="me-2 fs-6" style={{ display: isExpandedForNoDomain ? 'inline' : 'none' }}>
+                                        {_("No domain name can temporarily access the application by IP + port")}
+                                    </span>
                                 </Typography>
                             </AccordionSummary>
                             <AccordionDetails>
@@ -454,7 +457,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                                 props.data?.config?.url &&
                                                 (
                                                     <div>
-                                                        <label className="me-2 fs-5">前台:</label>
+                                                        <label className="me-2 fs-5">{_("Front End")}:</label>
                                                         <a href={props.data?.config?.url} target="_blank" className="me-2">
                                                             {props.data?.config?.url}
                                                         </a>
@@ -465,7 +468,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                                 props.data?.config?.admin_url &&
                                                 (
                                                     <div>
-                                                        <label className="me-2 fs-5">后台:</label>
+                                                        <label className="me-2 fs-5">{_("Back End")}:</label>
                                                         <a href={props.data?.config?.admin_url} target="_blank" className="me-2">
                                                             {props.data?.config?.admin_url}
                                                         </a>
@@ -487,9 +490,9 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                 id="panel3a-header"
                             >
                                 <Typography>
-                                    <label className="me-2 fs-5 d-block">初始账号</label>
+                                    <label className="me-2 fs-5 d-block">{_("Initial Account")}</label>
                                     <span className="me-2 fs-6" style={{ display: isExpandedForAccount ? 'inline' : 'none' }}>
-                                        此应用程序是使用管理员帐户预先设置的，请立即更改管理员密码。初始凭据为：
+                                        {_("This application is pre-configured with an administrator account, please change the administrator password immediately. The initial credentials are:")}
                                     </span>
                                 </Typography>
                             </AccordionSummary>
@@ -502,7 +505,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
                                             </p> */}
                                             <Form.Group as={Row} className="mb-3">
                                                 <Form.Label htmlFor="username" column md={2} className='fs-5'>
-                                                    UserName
+                                                    {_("UserName")}
                                                 </Form.Label>
                                                 <Col md={4}>
                                                     <Form.Control
@@ -517,7 +520,7 @@ const AppAccess = (props): React$Element<React$FragmentType> => {
 
                                             <Form.Group as={Row} className="mb-3">
                                                 <Form.Label htmlFor="password" column md={2} className='fs-5'>
-                                                    Password
+                                                    {_("Password")}
                                                 </Form.Label>
                                                 <Col md={4}>
                                                     <FormInput

@@ -231,6 +231,10 @@
         null,
         "更多"
     ],
+    "more": [
+        null,
+        "更多"
+    ],
     "save": [
         null,
         "保存"
@@ -339,7 +343,7 @@
         null,
         "域名访问"
     ],
-    "Domain access for better application performance.HTTPS and custom configurations available.": [
+    "Access the domain name for better application performance, https and custom configuration can click": [
         null,
         "域名访问以获得更好的应用程序性能,HTTPS和自定义配置可点击"
     ],
@@ -350,6 +354,63 @@
     "Admin Page": [
         null,
         "访问后台"
+    ],
+    "This application consists of the following containers, and the one named $0 is the main container.": [
+        null,
+        "本应用由如下容器组成，名称为 $0 的为主容器"
+    ],
+    "Actions": [
+        null,
+        "操作"
+    ],
+    "Image": [
+        null,
+        "镜像"
+    ],
+    "Created": [
+        null,
+        "创建时间"
+    ],
+    "Ip Address": [
+        null,
+        "IP地址"
+    ],
+    "Published Ports": [
+        null,
+        "公共端口"
+    ],
+    "No Domain Access": [
+        null,
+        "无域名访问"
+    ],
+    "No domain name can temporarily access the application by IP + port": [
+        null,
+        "没有域名可以通过IP+端口的方式临时访问应用"
+    ],
+    "Front End": [
+        null,
+        "前台"
+    ],
+    "Back End": [
+        null,
+        "后台"
+    ],
+    "Initial Account": [
+        null,
+        "初始账号"
+    ],
+    "UserName": [
+        null,
+        "账号"
+    ],
+    "Password": [
+        null,
+        "密码"
+    ],
+    "This application is pre-configured with an administrator account, please change the administrator password immediately. The initial credentials are:": [
+        null,
+        "此应用程序是使用管理员帐户预先设置的，请立即更改管理员密码。初始凭据为："
     ]
+
 }));
 

@@ -117,7 +117,9 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
                         <Row className="align-items-center">
                             <Col xs={12} md={10}>
                                 <label className="me-2 fs-5 d-block">{_("Container")}</label>
-                                <span className="me-2 fs-6">本应用由如下容器组成，名称为 {customer_name} 的为主容器  </span>
+                                <span className="me-2 fs-6">
+                                    {cockpit.format(_("This application consists of the following containers, and the one named $0 is the main container."), customer_name)}
+                                </span>
                             </Col>
                             <Col xs={12} md={2}>
                                 <a href={`/portainer/#!/${endpointsId}/docker/stacks/${customer_name}?type=2&regular=false&external=true&orphaned=false`}
@@ -131,13 +133,13 @@ const AppContainer = (props): React$Element<React$FragmentType> => {
                         <Table className="mb-0">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>State</th>
-                                    <th style={{ textAlign: 'center' }}>Actions</th>
-                                    <th>Image</th>
-                                    <th>Created</th>
-                                    <th>Ip Address</th>
-                                    <th>Published Ports</th>
+                                    <th>{_("Name")}</th>
+                                    <th>{_("State")}</th>
+                                    <th style={{ textAlign: 'center' }}>{_("Actions")}</th>
+                                    <th>{_("Image")}</th>
+                                    <th>{_("Created")}</th>
+                                    <th>{_("Ip Address")}</th>
+                                    <th>{_("Published Ports")}</th>
                                 </tr>
                             </thead>
                             <tbody>

@@ -18,11 +18,12 @@ const Alert = React.forwardRef(function Alert(props, ref) {
 });
 
 const getContentfulData = gql`
-    query($locale: String){
-        productCollection(locale:$locale,where:{appStore:true}) {
+    query($locale: String,$skip: Int){
+        productCollection(locale:$locale,where:{appStore:true},limit: 100, skip: $skip) {
+            total
             items {
-            sys {
-                id
+            sys { 
+                id 
             }
             key
             trademark
@@ -32,7 +33,6 @@ const getContentfulData = gql`
             description
             screenshots
             distribution
-            highlights
             vcpu
             memory
             storage
@@ -271,16 +271,53 @@ const AppStore = (): React$Element<React$FragmentType> => {
     const [isAllSelected, setIsAllSelected] = useState(true);
     const [searchValue, setSearchValue] = useState("");
 
-    const { loading: dataLoading, error: dataError, data: allData } = useQuery(getContentfulData, { variables: { locale: language === "zh_CN" ? "zh-CN" : "en-US" } });
+    const { loading: dataLoading, error: dataError, data: allData, fetchMore } = useQuery(getContentfulData, { variables: { locale: language === "zh_CN" ? "zh-CN" : "en-US" } });
+
+    // 定义一个变量来存储已经查询过的数据的数量
+    let skipCount = 0;
+
+    // 定义一个函数来使用fetchMore方法获取更多的产品
+    const fetchMoreProducts = () => {
+        // 检查是否还有更多的产品可以获取
+        if (allData.productCollection.items.length < allData.productCollection.total) {
+            // 使用fetchMore方法，把已经查询过的数据的数量作为skip变量传入
+            fetchMore({
+                variables: {
+                    skip: skipCount,
+                },
+                // 使用新的结果更新之前的结果，通过连接items数组
+                updateQuery: (prevResult, { fetchMoreResult }) => {
+                    return Object.assign({}, prevResult, {
+                        productCollection: {
+                            ...fetchMoreResult.productCollection,
+                            items: [
+                                ...prevResult.productCollection.items,
+                                ...fetchMoreResult.productCollection.items,
+                            ],
+                        },
+                    });
+                },
+            });
+        }
+    };
 
     const mainCatalogs = allData?.catalog.linkedFrom.catalogCollection.items; //主目录数据
-    const apps = allData?.productCollection?.items;//所有应用数据
+    //const apps = allData?.productCollection?.items;//所有应用数据
 
-    const [appList, setAppList] = useState(apps); //用于存储通过目录筛选出来的数据
+    const [apps, setApps] = useState(null); //用于存储通过目录筛选出来的数据
+    const [appList, setAppList] = useState(null); //用于存储通过目录筛选出来的数据
 
     useEffect(() => {
-        setAppList(apps);
-    }, [apps])
+        // 检查是否有任何数据
+        if (allData) {
+            // 更新已经查询过的数据的数量，加上当前返回的数据的数量
+            skipCount += allData.productCollection.items.length;
+            // 调用fetchMoreProducts函数来获取更多的产品，如果有的话
+            fetchMoreProducts();
+            setAppList(allData.productCollection?.items);
+            setApps(allData.productCollection?.items);
+        }
+    }, [allData])
 
     // if (dataLoading) return <p>Loading...</p>;
 
@@ -402,7 +439,7 @@ const AppStore = (): React$Element<React$FragmentType> => {
             <Row>
                 {(appList || []).map((app, i) => {
                     return (
-                        <Col xxl={3} sm={6} md={4} key={app.sys.id} className="appstore-item">
+                        <Col xxl={3} sm={6} md={4} key={"app-" + i} className="appstore-item">
                             <div className='appstore-item-content highlight' onClick={() => { handleClick(app) }}>
                                 <div className='appstore-item-content-icon col-same-height'>
                                     <img
