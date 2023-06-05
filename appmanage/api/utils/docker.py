@@ -129,7 +129,7 @@ def check_app_compose(app_name, customer_name):
     myLogger.info_logger("Set port and random password ...")
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
-    port_dic = read_env(library_path + '/.env', "APP_.*_PORT")
+    port_dic = read_env(library_path + '/.env', "APP_.*_PORT=")
     # 1.判断/data/apps/app_name/.env中的port是否占用，没有被占用，方法结束（get_start_port方法）
     cmd1 = "docker container inspect $(docker ps -aq) | grep HostPort | awk \'{print $2}\' | sort -u"
     cmd2 = "netstat -tunlp | grep \"LISTEN\" | awk '{print $4}' | awk -F \":\" '{print $NF}' | sort -u"
