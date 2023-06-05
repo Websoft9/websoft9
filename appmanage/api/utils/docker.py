@@ -144,6 +144,8 @@ def check_app_compose(app_name, customer_name):
     s = s1 + '\n' + s2 + '\n' + s3
 
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
+    env_path = install_path + "/.env"
+    get_map(env_path)
     for port_name in port_dic:
         port_value = get_start_port(s, port_dic[port_name])
         modify_env(install_path + '/.env', port_name, port_value)
@@ -158,7 +160,8 @@ def check_app_compose(app_name, customer_name):
         new_password = shell_execute.execute_command_output_all("docker run --name pwgen backplane/pwgen 15")["result"].rstrip('\n') + "!"
         modify_env(install_path + '/.env', 'POWER_PASSWORD', new_password)
         shell_execute.execute_command_output_all("docker rm -f pwgen")
-
+    env_path = install_path + "/.env"
+    get_map(env_path)
     myLogger.info_logger("Port check complete")
     return
 
