@@ -455,9 +455,9 @@ if [ -e /usr/share/cockpit/users ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
 fi
 
-# jq  '. | del(.locales.ca-es) | del(.locales.cs-cz) | del(.locales.de-de) | del(.locales.es-es) | del(.locales.fi-fi) | del(.locales.fr-fr) | del(.locales.it-it) | del(.locales.ja-jp) | del(.locales.pl-pl) | del(.locales.pt-br) | del(.locales.ru-ru) | del(.locales.sv-se) | del(.locales.uk-ua) | del(.locales.zh-tw)' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
-# rm -rf /usr/share/cockpit/shell/manifest.json
-# mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
+jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+rm -rf /usr/share/cockpit/shell/manifest.json
+mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
 
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 
