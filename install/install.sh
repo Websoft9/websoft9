@@ -440,9 +440,10 @@ EditMenu(){
 
 echo "Start to  Edit Cockpit Menu ..."
 if [ -e /usr/share/cockpit/systemd ]; then
-  jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+  jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services)' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
   rm -rf /usr/share/cockpit/systemd/manifest.json
   mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+  cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
 fi
 if [ -e /usr/share/cockpit/networkmanager ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
@@ -453,6 +454,10 @@ fi
 if [ -e /usr/share/cockpit/users ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
 fi
+
+jq  '. | del(.locales.ca-es) | del(.locales.cs-cz) | del(.locales.de-de) | del(.locales.es-es) | del(.locales.fi-fi) | del(.locales.fr-fr) | del(.locales.it-it) | del(.locales.ja-jp) | del(.locales.pl-pl) | del(.locales.pt-br) | del(.locales.ru-ru) | del(.locales.sv-se) | del(.locales.uk-ua) | del(.locales.zh-tw)' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+rm -rf /usr/share/cockpit/shell/manifest.json
+mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
 
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 
