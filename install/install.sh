@@ -9,9 +9,9 @@ function  error_exit {
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/issues"' ERR
 
 urls=(
-    https://ghproxy.com/https://github.com
     https://github.com
     https://gitee.com
+    https://ghproxy.com/https://github.com
 )
 
 function get_os_type() {
@@ -337,7 +337,7 @@ function clone_repo() {
     path=$2
     for i in {1..5}
     do
-        git clone $url $path
+        git clone --depth=1 $url $path
         if [ $? -eq 0 ]
         then
             echo "Clone successful"
