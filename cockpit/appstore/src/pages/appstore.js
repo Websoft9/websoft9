@@ -26,6 +26,7 @@ const getContentfulData = gql`
                 id 
             }
             key
+            hot
             trademark
             summary
             overview
@@ -39,11 +40,11 @@ const getContentfulData = gql`
             logo {
                 imageurl
             }
-            catalogCollection(limit:20) {
+            catalogCollection(limit:15) {
                 items {
                 key
                 title
-                catalogCollection(limit:1){
+                catalogCollection(limit:5){
                     items{
                         key
                         title
@@ -58,12 +59,14 @@ const getContentfulData = gql`
             catalogCollection(limit:20) {
                 items {
                 key
+                position
                 title
                 linkedFrom(allowedLocales:["en-US"]) {
                     catalogCollection(limit:20) {
                     items {
                         key
                         title
+                        position
                     }
                     }
                 }
@@ -301,8 +304,18 @@ const AppStore = (): React$Element<React$FragmentType> => {
         }
     };
 
-    const mainCatalogs = allData?.catalog.linkedFrom.catalogCollection.items; //主目录数据
-    //const apps = allData?.productCollection?.items;//所有应用数据
+    //主目录数据
+    const mainCatalogs = allData?.catalog.linkedFrom.catalogCollection.items?.sort(function (a, b) {
+        if (a.position === null && b.position === null) {
+            return 0;
+        } else if (a.position === null) {
+            return 1;
+        } else if (b.position === null) {
+            return -1;
+        } else {
+            return a.position - b.position;
+        }
+    });
 
     const [apps, setApps] = useState(null); //用于存储通过目录筛选出来的数据
     const [appList, setAppList] = useState(null); //用于存储通过目录筛选出来的数据
@@ -314,8 +327,20 @@ const AppStore = (): React$Element<React$FragmentType> => {
             skipCount += allData.productCollection.items.length;
             // 调用fetchMoreProducts函数来获取更多的产品，如果有的话
             fetchMoreProducts();
-            setAppList(allData.productCollection?.items);
-            setApps(allData.productCollection?.items);
+            //对产品根据hot排序：降序
+            const data = allData.productCollection?.items?.sort(function (a, b) {
+                if (a.hot === null && b.hot === null) {
+                    return 0;
+                } else if (a.hot === null) {
+                    return 1;
+                } else if (b.hot === null) {
+                    return -1;
+                } else {
+                    return b.hot - a.hot;
+                }
+            });
+            setAppList(data);
+            setApps(data);
         }
     }, [allData])
 
@@ -345,7 +370,18 @@ const AppStore = (): React$Element<React$FragmentType> => {
             selectedMainCatalog === 'All'
                 ? []
                 : mainCatalogs.filter(c => c.key === selectedMainCatalog)?.[0]?.linkedFrom?.catalogCollection?.items;
-        setSubCatalogs(updatedData);
+        const data = updatedData.sort(function (a, b) {
+            if (a.position === null && b.position === null) {
+                return 0;
+            } else if (a.position === null) {
+                return 1;
+            } else if (b.position === null) {
+                return -1;
+            } else {
+                return a.position - b.position;
+            }
+        });
+        setSubCatalogs(data);
 
         //根据主目录过滤app数据
         let subCatalogApps = null;
@@ -379,7 +415,7 @@ const AppStore = (): React$Element<React$FragmentType> => {
         updatedData =
             searchString === ""
                 ? apps
-                : apps.filter(app => { return app.trademark.toLowerCase().includes(searchString) || app.key.toLowerCase().includes(searchString) });
+                : apps.filter(app => { return app.trademark.toLowerCase().includes(searchString) || app.key.toLowerCase().includes(searchString) || app.summary.toLowerCase().includes(searchString) });
 
         setAppList(updatedData);
         setIsAllSelected(true);

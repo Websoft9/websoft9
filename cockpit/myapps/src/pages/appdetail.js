@@ -1,3 +1,4 @@
+import axios from 'axios';
 import classnames from "classnames";
 import cockpit from 'cockpit';
 import React, { useEffect, useRef, useState } from 'react';
@@ -9,6 +10,7 @@ import { AppRestart, AppStart, AppStop } from '../helpers';
 import AppAccess from './appdetailtabs/appaccess';
 import AppContainer from './appdetailtabs/appcontainer';
 import AppOverview from './appdetailtabs/appoverview';
+import AppTerminal from './appdetailtabs/appterminal';
 import Uninstall from './appdetailtabs/appuninstall';
 
 const _ = cockpit.gettext;
@@ -22,6 +24,105 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
     const [restartAppLoading, setRestartAppLoading] = useState(false); //用户显示重启时应用的加载状态
     const navigate = useNavigate(); //用于页面跳转
     const childRef = useRef();
+    const [containersInfo, setContainersInfo] = useState([]);
+    const customer_name = props.current_app.customer_name;
+    const [endpointsId, setEndpointsId] = useState(null);
+    const [mainContainerId, setMainContainerId] = useState(null);
+
+    //通过Portainer的接口获取容器数据
+    const getContainersData = async () => {
+        try {
+            let jwt = window.localStorage.getItem("portainer.JWT"); //获取存储在本地的JWT数据 
+            let id = null;
+
+            //如果获取不到jwt，则模拟登录并写入新的jwt
+            if (jwt === null) {
+                const response = await axios.get('./config.json'); //从项目下读取配置文件
+                if (response.status === 200) {
+                    let config = response.data.PORTAINER;
+                    const { PORTAINER_USERNAME, PORTAINER_PASSWORD, PORTAINER_AUTH_URL, PORTAINER_HOME_PAGE } = config;
+
+                    //调用portainer的登录API，模拟登录
+                    const authResponse = await axios.post(PORTAINER_AUTH_URL, {
+                        username: PORTAINER_USERNAME,
+                        password: PORTAINER_PASSWORD
+                    });
+                    if (authResponse.status === 200) {
+                        jwt = "\"" + authResponse.data.jwt + "\"";
+                        //jwt = authResponse.data.jwt
+                        window.localStorage.setItem('portainer\.JWT', jwt); //关键是将通过API登录后获取的jwt，存储到本地localStorage
+                    } else {
+                        console.error('Error:', authResponse);
+                    }
+                }
+                else {
+                    console.error('Error:', response);
+                }
+            }
+
+            //从portainer接口获取endpoints
+            const endpointsData = await axios.get('/portainer/api/endpoints', {
+                headers: {
+                    'Authorization': 'Bearer ' + jwt.replace(/"/g, '')
+                }
+            });
+            if (endpointsData.status === 200) {
+                //先判断是否获取了“本地”endpoint
+                if (endpointsData.data.length == 0) { //没有“本地”endpoint
+                    //调用添加"本地"环境的接口
+                    const addEndpoint = await axios.post('/portainer/api/endpoints', {},
+                        {
+                            params: {
+                                Name: "local",
+                                EndpointCreationType: 1
+                            },
+                            headers: {
+                                'Authorization': 'Bearer ' + jwt.replace(/"/g, '')
+                            }
+                        }
+                    );
+                    if (addEndpoint.status === 200) {
+                        id = addEndpoint.data?.Id;
+                        setEndpointsId(id);
+                    }
+                    else {
+                        console.error('Error:', addEndpoint);
+                    }
+                }
+                else {
+                    //应该可能会返回“远程”的endpoint，这里只获取“本地”endpoint,条件为URL包含'/var/run/docker.sock'
+                    id = endpointsData.data.find(({ URL }) => URL.includes('/var/run/docker.sock')).Id;
+                    setEndpointsId(id);
+                }
+
+                //调用接口获取
+                const containersData = await axios.get(`/portainer/api/endpoints/${id}/docker/containers/json`, {
+                    headers: {
+                        'Authorization': 'Bearer ' + jwt.replace(/"/g, '')
+                    },
+                    params: {
+                        all: true,
+                        filters: JSON.stringify({ "label": [`com.docker.compose.project=${customer_name}`] })
+                    }
+                })
+                if (containersData.status === 200) {
+                    const data = containersData.data;
+                    const id = data.find(container => container.Names?.[0]?.replace(/^\/|\/$/g, '') === customer_name)?.Id;
+                    setMainContainerId(id);
+                    setContainersInfo(data);
+                }
+                else {
+                    console.error('Error:', containersData);
+                }
+            }
+            else {
+                console.error('Error:', endpointsData);
+            }
+        }
+        catch (error) {
+            console.error('Error:', error);
+        }
+    }
 
     //设置卸载页面的按钮禁用
     const setUninstallButtonDisable = () => {
@@ -50,6 +151,10 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
         setCurrentApp(props.current_app);
     }, [props.current_app]);
 
+    useEffect(() => {
+        getContainersData();
+    }, []);
+
     const tabContents = [
         {
             id: '1',
@@ -67,10 +172,16 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
             id: '3',
             title: _("Container"),
             icon: 'mdi dripicons-stack',
-            text: <AppContainer data={currentApp} />,
+            text: <AppContainer customer_name={customer_name} endpointsId={endpointsId} containersInfo={containersInfo} />,
         },
         {
             id: '4',
+            title: _("Terminal"),
+            icon: 'mdi dripicons-stack',
+            text: <AppTerminal endpointsId={endpointsId} containerId={mainContainerId} />
+        },
+        {
+            id: '5',
             title: _("Uninstall"),
             icon: 'mdi mdi-cog-outline',
             text: <Uninstall data={currentApp} ref={childRef} disabledButton={setAppdetailButtonDisable} enableButton={setAppdetailButtonEnable}
@@ -122,6 +233,7 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                             }
                                             else {
                                                 props.onDataChange();
+                                                getContainersData(); //刷新容器数据
                                             }
                                         }
                                         catch (error) {
@@ -166,6 +278,7 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                             }
                                             else {
                                                 props.onDataChange();
+                                                getContainersData(); //刷新容器数据
                                             }
                                         }
                                         catch (error) {
@@ -208,6 +321,7 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                         }
                                         else {
                                             props.onDataChange();
+                                            getContainersData(); //刷新容器数据
                                         }
                                     }
                                     catch (error) {
@@ -238,6 +352,11 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                         {_("Terminal")}
                                     </Tooltip>
                                 }>
+                                {/* <Link to={{ pathname: '/terminal', search: `?id=${currentApp.customer_name}` }}
+                                    style={{ color: "#fff", backgroundColor: "#727cf5", padding: "5px 10px", borderRadius: "3px", borderColor: "#727cf5", marginRight: "10px" }}
+                                    target="_blank">
+                                    <i className="dripicons-code noti-icon"></i>{' '}
+                                </Link> */}
                                 <Link to={{ pathname: '/terminal', search: `?id=${currentApp.customer_name}` }}
                                     style={{ color: "#fff", backgroundColor: "#727cf5", padding: "5px 10px", borderRadius: "3px", borderColor: "#727cf5", marginRight: "10px" }}
                                     target="_blank">
@@ -301,7 +420,7 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                 return (
                                     <Tab.Pane eventKey={tab.title} id={tab.id} key={index} style={{ height: "100%" }}>
                                         <Row style={{ height: "100%" }}>
-                                            <Col sm="12" style={{ height: tab.title === "Terminal" ? "600px" : "" }}>
+                                            <Col sm="12" /*style={{ height: tab.title === "Terminal" ? "600px" : "" }}*/>
                                                 {tab.text}
                                             </Col>
                                         </Row>

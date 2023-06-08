@@ -109,3 +109,20 @@ File: Main Css File
 @import "custom/plugins/ion-rangeslider";
 @import "custom/plugins/jstree";
 @import "custom/plugins/frappe-gantt";
+
+
+.myProtainerTerminal {
+    overflow: hidden;
+    /* 16:9 aspect ratio */
+    padding-top: 56.25%;
+    position: relative;
+}
+
+.myProtainerTerminal iframe {
+    border: 0;
+    height: 100%;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 100%;
+}
