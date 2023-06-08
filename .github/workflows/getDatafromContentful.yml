@@ -10,7 +10,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run GraphQL query
-        uses: octokit/graphql-action@v3.5.2
+        uses: octokit/graphql-action@v2.2.24
         with:
           query: |
             query($locale: String){
