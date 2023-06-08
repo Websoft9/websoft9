@@ -14,6 +14,7 @@ jobs:
           CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_GRAPHQLTOKEN }}
           LOCALES: "en-US,zh-CN"
         run: |
+          mkdir -p appmanage/static/json
           IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
           for LOCALE in "${LOCALE_ARRAY[@]}"; do
             curl -X POST \
