@@ -11,7 +11,7 @@ jobs:
 
       - name: Fetch data from contentful graphql
         env:
-          CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_GRAPHQLTOKEN }}
+          ACCESS_TOKEN: ${{ secrets.CONTENTFUL_GRAPHQLTOKEN }}
           LOCALES: "en-US,zh-CN"
         run: |
           mkdir -p appmanage/static/json
