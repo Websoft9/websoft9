@@ -1,3 +1,9 @@
+## 0.3.0 release on 2023-06-06
+
+1. appmanage docker 镜像更新到 0.3.0
+2. 修复 prestashop 无法访问的 bug
+3. 修复 odoo 无法安装的 bug
+
 ## 0.2.0 release on 2023-06-03
 
 1. appmanage docker 镜像更新到 0.2.0

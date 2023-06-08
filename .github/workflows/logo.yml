@@ -13,7 +13,23 @@ jobs:
     - uses: actions/checkout@master
       name: Check out code  
     
+    - name: delete photo
+      run: |
+        git config --global user.name "${{ github.actor }}"
+        git config --global user.email "xxx@websoft9.com"
+        files=$(ls /)
+        for file in ${files};do 
+          if [ $file == *.png ];then
+            echo $file
+            git rm $file
+            git commit -m "delete"
+            break
+          fi
+        done
+        git push -u
+        
     - name: update logo
+      if: contains('Hello world', 'abc')
       run: |  
         git config --global user.name "${{ github.actor }}"
         git config --global user.email "xxx@websoft9.com"
@@ -28,18 +44,6 @@ jobs:
         echo $applist
         
         for app in ${applist};do
-          if [ "$app" = "customer-ibox" ];then
-            continue
-          fi
-          if [ "$app" = "kodcloud" ];then
-            continue
-          fi
-          if [ "$app" = "onlyoffice" ];then
-            continue
-          fi
-          if [ "$app" = "vendor-mingdao" ];then
-            continue
-          fi
           if [ "$app" = null ];then
             continue
           fi
@@ -53,7 +57,7 @@ jobs:
           file=$(echo appmanage/static/images/${url##*/})
           echo $file
           
-          time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
+          wget --timeout=3 -q "$url" || continue
           
           if [[ -f ${file} ]];then
             git rm $file
@@ -63,6 +67,7 @@ jobs:
         done
         
     - name: push logo
+      if: contains('Hello world', 'abc')
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: update logo

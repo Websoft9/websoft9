@@ -172,7 +172,7 @@ def check_app_url(customer_app_name):
     env_map = get_map(env_path)
     if env_map.get("APP_URL_REPLACE") == "true":
         myLogger.info_logger(customer_app_name + "need to change app url...")
-        app_url = list(read_env(env_path, "APP_URL").values())[0]
+        app_url = list(read_env(env_path, "APP_URL=").values())[0]
         ip = "localhost"
         url = ""
         try:

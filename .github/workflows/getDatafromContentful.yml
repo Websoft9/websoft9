@@ -1,0 +1,30 @@
+name: Fetch data from contentful graphql
+
+on: workflow_dispatch
+
+jobs:
+  fetch-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Fetch data from contentful graphql
+        env:
+          ACCESS_TOKEN: ${{ secrets.CONTENTFUL_GRAPHQLTOKEN }}
+          LOCALES: "en-US,zh-CN"
+        run: |
+          mkdir -p appmanage/static/json
+          IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
+          for LOCALE in "${LOCALE_ARRAY[@]}"; do
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              --data '{"query":"query($locale: String){catalog(id: \"2Yp0TY3kBHgG6VDjsHZNpK\",locale:$locale) {linkedFrom(allowedLocales:[\"en-US\"]) {catalogCollection(limit:20) {items {key position title linkedFrom(allowedLocales:[\"en-US\"]) {catalogCollection(limit:20) {items {key title position}}}}}}}}","variables":{"locale":$LOCALE}}' \
+              https://graphql.contentful.com/content/v1/spaces/ffrhttfighww > appmanage/static/json/catalog_$LOCALE.json
+          done
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Update catalog.json

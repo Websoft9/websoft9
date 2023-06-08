@@ -9,9 +9,9 @@ function  error_exit {
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/issues"' ERR
 
 urls=(
-    https://ghproxy.com/https://github.com
     https://github.com
     https://gitee.com
+    https://ghproxy.com/https://github.com
 )
 
 function get_os_type() {
@@ -216,7 +216,7 @@ if [ "${os_type}" == 'Ubuntu' ]; then
   fi
   VERSION_CODENAME=$(cat /etc/os-release |grep VERSION_CODENAME|cut -f2 -d"=")
   sudo apt install -t ${VERSION_CODENAME}-backports cockpit -y
-  sudo apt install cockpit-pcp cockpit-packagekit -y 1>/dev/null 2>&1
+  sudo apt install cockpit-pcp -y 1>/dev/null 2>&1
   echo "Cockpit allow root user" 
   echo "" >/etc/cockpit/disallowed-users 1>/dev/null 2>&1
 fi
@@ -337,7 +337,7 @@ function clone_repo() {
     path=$2
     for i in {1..5}
     do
-        git clone $url $path
+        git clone --depth=1 $url $path
         if [ $? -eq 0 ]
         then
             echo "Clone successful"
@@ -440,9 +440,10 @@ EditMenu(){
 
 echo "Start to  Edit Cockpit Menu ..."
 if [ -e /usr/share/cockpit/systemd ]; then
-  jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+  jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
   rm -rf /usr/share/cockpit/systemd/manifest.json
   mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+  cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
 fi
 if [ -e /usr/share/cockpit/networkmanager ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
@@ -453,6 +454,10 @@ fi
 if [ -e /usr/share/cockpit/users ]; then
   sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
 fi
+
+jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+rm -rf /usr/share/cockpit/shell/manifest.json
+mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
 
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 

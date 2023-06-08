@@ -2,14 +2,14 @@
     "SERVICES": {
         "PORTAINER": "2.18.3",
         "NGINX": "2.10.3",
-        "APPMANAGE": "0.2.0",
+        "APPMANAGE": "0.3.0",
         "REDIS": "7.0.11"
     },
     "PLUGINS": {
         "PORTAINER": "1.0.0",
         "NGINX": "1.0.0",
-        "MYAPPS": "1.0.0",
+        "MYAPPS": "1.0.1",
         "APPSTORE": "1.0.0"
-    },    
-    "VERSION": "0.2.0"
+    },     
+    "VERSION": "0.3.0"
 }
