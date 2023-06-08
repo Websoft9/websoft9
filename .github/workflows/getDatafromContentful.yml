@@ -10,7 +10,57 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run GraphQL query
-        uses: helaili/github-graphql-action@v2.0.1
+        uses: name: Get Data Form Contentful
+
+on: workflow_dispatch
+
+jobs:
+  graphql-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Run GraphQL query
+        uses: octokit/graphql-action@v2.2.24
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          query: |
+            query($locale: String){
+              catalog(id: "2Yp0TY3kBHgG6VDjsHZNpK",locale:$locale) {
+                linkedFrom(allowedLocales:["en-US"]) {
+                  catalogCollection(limit:20) {
+                    items {
+                      key
+                      position
+                      title
+                      linkedFrom(allowedLocales:["en-US"]) {
+                        catalogCollection(limit:20) {
+                          items {
+                            key
+                            title
+                            position
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          variables: |
+            {
+              "locale": "en-US"
+            }
+          url: https://graphql.contentful.com/content/v1/spaces/ffrhttfighww/environments/master
+          headers: |
+            {
+              "Authorization": "Bearer ${{secrets.CONTENTFUL_TOKEN}}"
+            }
+          result-encoding: string
+          result-path: appmanage/static/json/catalog.json
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
