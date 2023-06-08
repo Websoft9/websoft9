@@ -17,7 +17,8 @@ jobs:
       run: |
         git config --global user.name "${{ github.actor }}"
         git config --global user.email "xxx@websoft9.com"
-        git rm akeneo-websoft9.png
+        git add .
+        git rm aladdin-websoft9.png
         git commit -m "delete photo"
         
     - name: update logo
