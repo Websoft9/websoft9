@@ -1,0 +1,45 @@
+name: Get Data Form Contentful
+
+on: workflow_dispatch
+
+jobs:
+  graphql-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Run GraphQL query
+        uses: octokit/graphql-action@v3.x
+        env:
+          CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
+        with:
+          query: |
+            query($locale: String){
+              catalog(id: "2Yp0TY3kBHgG6VDjsHZNpK",locale:$locale) {
+                linkedFrom(allowedLocales:["en-US"]) {
+                  catalogCollection(limit:20) {
+                    items {
+                      key
+                      position
+                      title
+                      linkedFrom(allowedLocales:["en-US"]) {
+                        catalogCollection(limit:20) {
+                          items {
+                            key
+                            title
+                            position
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          variables: |
+            {
+              "locale": "en-US"
+            }
+          result-encoding: string
+          result-path: appmanage/static/json/catalog.json
