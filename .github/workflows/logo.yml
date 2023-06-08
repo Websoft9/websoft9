@@ -28,15 +28,6 @@ jobs:
         echo $applist
         
         for app in ${applist};do
-          if [ "$app" = "customer-ibox" ];then
-            continue
-          fi
-          if [ "$app" = "kodcloud" ];then
-            continue
-          fi
-          if [ "$app" = "onlyoffice" ];then
-            continue
-          fi
           if [ "$app" = "vendor-mingdao" ];then
             continue
           fi
@@ -53,7 +44,7 @@ jobs:
           file=$(echo appmanage/static/images/${url##*/})
           echo $file
           
-          time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
+          wget --timeout=3 -q "$url" || continue
           
           if [[ -f ${file} ]];then
             git rm $file
