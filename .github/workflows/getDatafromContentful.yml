@@ -15,7 +15,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           query: |
-            query($locale: String){
+            query($locale: String, $endpoint: String){
               catalog(id: "2Yp0TY3kBHgG6VDjsHZNpK",locale:$locale) {
                 linkedFrom(allowedLocales:["en-US"]) {
                   catalogCollection(limit:20) {
@@ -39,9 +39,9 @@ jobs:
             }
           variables: |
             {
-              "locale": "en-US"
+              "locale": "en-US",
+              "endpoint": "https://graphql.contentful.com/content/v1/spaces/ffrhttfighww/environments/master"
             }
-          url: https://graphql.contentful.com/content/v1/spaces/ffrhttfighww/environments/master
           headers: |
             {
               "Authorization": "Bearer ${{secrets.CONTENTFUL_TOKEN}}"
