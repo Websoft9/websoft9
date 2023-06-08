@@ -10,7 +10,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run GraphQL query
-        uses: octokit/graphql-action@v3.x
+        uses: octokit/graphql-action@v2.2.24
         env:
           CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
         with:
