@@ -11,6 +11,8 @@ jobs:
 
       - name: Run GraphQL query
         uses: octokit/graphql-action@v2.2.24
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           query: |
             query($locale: String){
