@@ -28,9 +28,6 @@ jobs:
         echo $applist
         
         for app in ${applist};do
-          if [ "$app" = "vendor-mingdao" ];then
-            continue
-          fi
           if [ "$app" = null ];then
             continue
           fi
