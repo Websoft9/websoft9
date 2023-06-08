@@ -10,9 +10,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Run GraphQL query
-        uses: octokit/graphql-action@v2.2.24
-        env:
-          CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
+        uses: octokit/graphql-action@v3.5.2
         with:
           query: |
             query($locale: String){
@@ -40,6 +38,11 @@ jobs:
           variables: |
             {
               "locale": "en-US"
+            }
+          url: https://graphql.contentful.com/content/v1/spaces/ffrhttfighww/environments/master
+          headers: |
+            {
+              "Authorization": "Bearer ${{secrets.CONTENTFUL_TOKEN}}"
             }
           result-encoding: string
           result-path: appmanage/static/json/catalog.json
