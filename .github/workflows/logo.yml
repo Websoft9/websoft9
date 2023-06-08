@@ -18,8 +18,8 @@ jobs:
         git config --global user.name "${{ github.actor }}"
         git config --global user.email "xxx@websoft9.com"
         git rm aladdin-websoft9.png
-        git add .
-        git commit -m "delete photo"
+        git commit -m "delete"
+        git push -u
         
     - name: update logo
       if: contains('Hello world', 'abc')
@@ -60,6 +60,7 @@ jobs:
         done
         
     - name: push logo
+      if: contains('Hello world', 'abc')
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: update logo
