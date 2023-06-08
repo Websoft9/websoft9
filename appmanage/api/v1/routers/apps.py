@@ -343,6 +343,30 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
 
     return response
 
+@router.api_route("/AppUpdateList", methods=["GET", "POST"], summary="查询更新內容",  response_model=Response)
+def AppUpdateList(request: Request):
+
+    try:
+        myLogger.info_logger("Receive request: /AppUpdateList")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['Update_content'] = None
+        myLogger.info_logger(ret)
+        response = JSONResponse(content=ret)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        response = JSONResponse(content=ret)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+        response = JSONResponse(content=ret)
+
+    return response
+
 def get_headers(request):
     headers = request.headers
     try:
