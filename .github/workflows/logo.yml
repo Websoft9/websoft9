@@ -17,8 +17,15 @@ jobs:
       run: |
         git config --global user.name "${{ github.actor }}"
         git config --global user.email "xxx@websoft9.com"
-        git rm aladdin-websoft9.png
-        git commit -m "delete"
+        files=$(ls /)
+        for file in ${files};do 
+          if [ $file == *.png ];then
+            echo $file
+            git rm $file
+            git commit -m "delete"
+            break
+          fi
+        done
         git push -u
         
     - name: update logo
