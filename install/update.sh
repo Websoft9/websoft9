@@ -93,14 +93,16 @@ latest_library_version=$(curl https://websoft9.github.io/docker-library/install/
 if [ "$old_library_version" \< "$latest_library_version" ]; then
     echo "start to update Library..."
     fastest=$(fastest_url "${urls[@]}")
-    echo "fastest is: "$fastest
+    
     cd /tmp && rm -rf /tmp/library
     if [ "$fastest" == *gitee.com* ]; then
+        echo "update from gitee"
         wget $fastest/websoft9/docker-library/repository/archive/$latest_library_version
         unzip $latest_library_version
         mv docker-library* library
         rm -f $latest_library_version
     else
+        echo "update from github"
         wget $fastest/websoft9/docker-library/archive/refs/tags/$latest_library_version.zip
         unzip $latest_library_version.zip
         mv docker-library* library
