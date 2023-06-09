@@ -20,8 +20,7 @@ jobs:
             curl -X POST \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer $ACCESS_TOKEN" \
-              --data '{"query":"query($locale: String){catalog(id: \"2Yp0TY3kBHgG6VDjsHZNpK\",locale:$locale) {linkedFrom(allowedLocales:[\"en-US\"]) {catalogCollection(limit:20) {items {key position title linkedFrom(allowedLocales:[\"en-US\"]) {catalogCollection(limit:20) {items {key title position}}}}}}}}","variables":{"locale":'\"$LOCALE'\"}}' \
-              https://graphql.contentful.com/content/v1/spaces/ffrhttfighww > appmanage/static/json/catalog_$LOCALE.json
+              –data '{“query”:“query($locale: String){catalog(id: "2Yp0TY3kBHgG6VDjsHZNpK",locale:$locale) {linkedFrom(allowedLocales:["en-US"]) {catalogCollection(limit:20) {items {key position title linkedFrom(allowedLocales:["en-US"]) {catalogCollection(limit:20) {items {key title position}}}}}}}}”,“variables”:{“locale”:'"$LOCALE'"}}'
           done
 
       - name: Commit and push changes
