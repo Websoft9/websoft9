@@ -23,17 +23,18 @@ jobs:
           echo "LIMIT=$LIMIT" >> $GITHUB_ENV
           echo "API_URL=$API_URL" >> $GITHUB_ENV
 
-      # Define a function to generate query string from a file and variables
-      - name: Define query function
+      # Create a file with the query function
+      - name: Create query function file
         run: |
+          cat > query.sh <<EOF
+          #!/bin/bash
           query() {
             FILE=$1
             LOCALE=$2
             SKIP=$3
             jq -n --argfile query $FILE --arg locale $LOCALE --arg skip $SKIP '$query + {variables: {locale: $locale, skip: ($skip|tonumber)}}'
           }
-        # Export the function to be available in other steps
-        shell: bash -e {0} && export -f query
+          EOF
 
       # Loop through different queries and locales
       - name: Fetch data from contentful graphql
@@ -47,7 +48,8 @@ jobs:
               SKIP=0
               TOTAL=0
               while [ $SKIP -le $TOTAL ]; do
-                # Generate the query string from the file and variables
+                # Load the query function from the file and generate the query string from the file and variables
+                source query.sh
                 QUERY=$(query $QUERY_FILE $LOCALE $SKIP)
                 # Send the query to the API and get the response
                 RESPONSE=$(curl -X POST \
