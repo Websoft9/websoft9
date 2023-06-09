@@ -19,24 +19,60 @@ from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
+    ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
 
 # 使用指定的 Redis 连接创建 RQ 队列
-q = Queue(connection=redis_conn,default_timeout=3600)
+q = Queue(connection=redis_conn, default_timeout=3600)
+
+
+# 获取github文件内容
+def get_github_content(repo, path):
+    url = 'https://websoft9.github.io/{repo}/{path}'
+    url = url.format(repo=repo, path=path)
+    response = requests.get(url)
+    response.encoding = 'utf-8'
+    contents = response.text
+    return contents
+
+
+# 获取指定仓库CHANGELOG
+def get_update_list(local_path, repo):
+    op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+    local_version = json.loads(op)['VERSION']
+    version_contents = get_github_content(repo, 'install/version.json')
+    version = json.loads(version_contents)['VERSION']
+    if compared_version(local_version, version) == -1:
+        content = []
+        change_log_contents = get_github_content(repo, 'CHANGELOG.md')
+        change_log = change_log_contents.split('## ')[1].split('\n')
+        data = change_log[0].split()[-1]
+        for change in change_log[1:]:
+            if change != '':
+                content.append(change)
+        ret = {}
+        ret['version'] = version
+        ret['data'] = data
+        ret['content'] = content
+        return ret
+    else:
+        return None
+
 
 # 获取所有CHANGELOG
 def get_all_update_list():
-    stack_hub_change = docker.get_update_list('/data/apps/stackhub/install/version.json', 'StackHub')
+    stack_hub_change = get_update_list('/data/apps/stackhub/install/version.json', 'StackHub')
     if stack_hub_change != None:
         ret = []
         ret.append(stack_hub_change)
         return ret
     else:
         return None
+
 
 def conbine_list(installing_list, installed_list):
     app_list = installing_list + installed_list
@@ -50,6 +86,7 @@ def conbine_list(installing_list, installed_list):
             appid_list.append(app_id)
             result_list.append(app)
     return result_list
+
 
 # 获取所有app的信息
 def get_my_app(app_id):
@@ -71,6 +108,7 @@ def get_my_app(app_id):
         ret = app_list
     myLogger.info_logger("app list result ok")
     return ret
+
 
 # 获取具体某个app的信息
 def get_app_status(app_id):
@@ -103,8 +141,8 @@ def install_app(app_name, customer_name, app_version):
 
     return ret
 
-def start_app(app_id):
 
+def start_app(app_id):
     info, flag = app_exits_in_docker(app_id)
     if flag:
         app_path = info.split()[-1].rsplit('/', 1)[0]
@@ -115,7 +153,6 @@ def start_app(app_id):
 
 
 def stop_app(app_id):
-
     info, flag = app_exits_in_docker(app_id)
     if flag:
         app_path = info.split()[-1].rsplit('/', 1)[0]
@@ -123,6 +160,7 @@ def stop_app(app_id):
         shell_execute.execute_command_output_all(cmd)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+
 
 def restart_app(app_id):
     code, message = docker.check_app_id(app_id)
@@ -143,8 +181,8 @@ def delete_app_failedjob(job_id):
     failed = FailedJobRegistry(queue=q)
     failed.remove(job_id, delete_job=True)
 
-def delete_app(app_id):
 
+def delete_app(app_id):
     try:
         app_name = app_id.split('_')[0]
         customer_name = app_id.split('_')[1]
@@ -164,7 +202,7 @@ def delete_app(app_id):
             # 强制删除失败又无法通过docker compose down 删除的容器
             try:
                 myLogger.info_logger("IF delete fail, force to delete containers")
-                force_cmd = "docker rm -f $(docker ps -f name=^"+customer_name+" -aq)"
+                force_cmd = "docker rm -f $(docker ps -f name=^" + customer_name + " -aq)"
                 shell_execute.execute_command_output_all(force_cmd)
             except Exception:
                 myLogger.info_logger("force delete app compose exception")
@@ -179,8 +217,8 @@ def delete_app(app_id):
     except CommandException as ce:
         myLogger.info_logger("Delete app compose exception")
 
-def uninstall_app(app_id):
 
+def uninstall_app(app_id):
     app_name = app_id.split('_')[0]
     customer_name = app_id.split('_')[1]
     app_path = ""
@@ -206,6 +244,7 @@ def uninstall_app(app_id):
     # Delete proxy config when uninstall app
     app_proxy_delete(app_id)
 
+
 def check_app(app_name, customer_name, app_version):
     message = ""
     code = None
@@ -223,8 +262,8 @@ def check_app(app_name, customer_name, app_version):
         code = const.ERROR_CLIENT_PARAM_BLANK
         message = "app_version is null"
     elif app_version == "undefined" or app_version == "":
-       code = const.ERROR_CLIENT_PARAM_BLANK
-       message = "app_version is null"
+        code = const.ERROR_CLIENT_PARAM_BLANK
+        message = "app_version is null"
     elif not docker.check_app_websoft9(app_name):
         code = const.ERROR_CLIENT_PARAM_NOTEXIST
         message = "It is not support to install " + app_name
@@ -238,18 +277,20 @@ def check_app(app_name, customer_name, app_version):
         code = const.ERROR_SERVER_RESOURCE
         message = "Insufficient system resources (cpu, memory, disk space)"
     elif check_app_docker(app_id):
-       code = const.ERROR_CLIENT_PARAM_REPEAT
-       message = "Repeat installation: " + customer_name
+        code = const.ERROR_CLIENT_PARAM_REPEAT
+        message = "Repeat installation: " + customer_name
     elif check_app_rq(app_id):
         code = const.ERROR_CLIENT_PARAM_REPEAT
         message = "Repeat installation: " + customer_name
 
     return code, message
 
+
 def prepare_app(app_name, customer_name):
     library_path = "/data/library/apps/" + app_name
     install_path = "/data/apps/" + customer_name
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
+
 
 def install_app_delay(app_name, customer_name, app_version):
     myLogger.info_logger("-------RQ install start --------")
@@ -279,21 +320,23 @@ def install_app_delay(app_name, customer_name, app_version):
             except Exception as e:
                 myLogger.info_logger(str(e))
         else:
-            error_info= "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)"
+            error_info = "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)"
             myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
         myLogger.info_logger(customer_name + " install failed(docker)!")
         delete_app(job_id)
-        error_info= "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.detail
+        error_info = "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.detail
         myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + " install failed(system)!")
         delete_app(job_id)
-        error_info= "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e)
+        error_info = "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(
+            e)
         myLogger.info_logger(error_info)
         raise Exception(error_info)
+
 
 def app_exits_in_docker(app_id):
     customer_name = app_id.split('_')[1]
@@ -319,8 +362,10 @@ def app_exits_in_docker(app_id):
 
     return info, flag
 
+
 def split_app_id(app_id):
     return app_id.split("_")[1]
+
 
 def get_createtime(official_app, app_path, customer_name):
     data_time = ""
@@ -339,8 +384,9 @@ def get_createtime(official_app, app_path, customer_name):
 
     except Exception as e:
         myLogger.info_logger(str(e))
-    myLogger.info_logger("get_createtime get success"+data_time)
+    myLogger.info_logger("get_createtime get success" + data_time)
     return data_time
+
 
 def get_apps_from_compose():
     myLogger.info_logger("Search all of apps ...")
@@ -379,7 +425,8 @@ def get_apps_from_compose():
         default_domain = ""
         admin_path = ""
         admin_domain_url = ""
-        if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9kopia','w9portainer'] or app_path == '/data/apps/w9services/' + customer_name:
+        if customer_name in ['w9appmanage', 'w9nginxproxymanager', 'w9redis', 'w9kopia',
+                             'w9portainer'] or app_path == '/data/apps/w9services/' + customer_name:
             continue
 
         status_show = app_info["Status"]
@@ -421,32 +468,32 @@ def get_apps_from_compose():
             try:
                 app_version = env_map.get("APP_VERSION")
                 volume_data = "/data/apps/" + customer_name + "/data"
-                user_name = env_map.get("APP_USER","")
-                password = env_map.get("POWER_PASSWORD","")
+                user_name = env_map.get("APP_USER", "")
+                password = env_map.get("POWER_PASSWORD", "")
                 admin_path = env_map.get("APP_ADMIN_PATH")
                 if admin_path:
                     myLogger.info_logger(admin_path)
-                    admin_path = admin_path.replace("\"","")
+                    admin_path = admin_path.replace("\"", "")
                 else:
-                    admin_path =""
+                    admin_path = ""
 
                 if default_domain != "" and admin_path != "":
                     admin_domain_url = "http://" + default_domain + admin_path
             except Exception:
                 myLogger.info_logger("APP_USER POWER_PASSWORD exception")
             try:
-                replace = env_map.get("APP_URL_REPLACE","false")
-                myLogger.info_logger("replace="+replace)
+                replace = env_map.get("APP_URL_REPLACE", "false")
+                myLogger.info_logger("replace=" + replace)
                 if replace == "true":
                     app_replace_url = True
-                https = env_map.get("APP_HTTPS_ACCESS","false")
+                https = env_map.get("APP_HTTPS_ACCESS", "false")
                 if https == "true":
                     app_https = True
             except Exception:
                 myLogger.info_logger("APP_HTTPS_ACCESS exception")
 
             try:
-                http_port = env_map.get("APP_HTTP_PORT","0")
+                http_port = env_map.get("APP_HTTP_PORT", "0")
                 if http_port:
                     port = int(http_port)
             except Exception:
@@ -472,21 +519,25 @@ def get_apps_from_compose():
             app_id = customer_name + "_" + customer_name
         create_time = get_createtime(official_app, app_path, customer_name)
         if status in ['running', 'exited']:
-            config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,admin_domain_url=admin_domain_url,
-                            admin_path=admin_path,admin_username=user_name, admin_password=password, default_domain=default_domain)
+            config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,
+                            admin_domain_url=admin_domain_url,
+                            admin_path=admin_path, admin_username=user_name, admin_password=password,
+                            default_domain=default_domain)
         else:
             config = None
         if status == "failed":
-            status_reason = StatusReason(Code=const.ERROR_SERVER_SYSTEM, Message="system original error", Detail="unknown error")
+            status_reason = StatusReason(Code=const.ERROR_SERVER_SYSTEM, Message="system original error",
+                                         Detail="unknown error")
         else:
             status_reason = None
         app = App(app_id=app_id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
-                app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
-                status=status, status_reason=status_reason, official_app=official_app, image_url=image_url,
-                app_https=app_https,app_replace_url=app_replace_url,config=config)
+                  app_version=app_version, create_time=create_time, volume_data=volume_data, config_path=config_path,
+                  status=status, status_reason=status_reason, official_app=official_app, image_url=image_url,
+                  app_https=app_https, app_replace_url=app_replace_url, config=config)
 
         app_list.append(app.dict())
     return app_list
+
 
 def check_if_official_app(var_path):
     if docker.check_directory(var_path):
@@ -503,8 +554,8 @@ def check_if_official_app(var_path):
     else:
         return False
 
-def check_app_docker(app_id):
 
+def check_app_docker(app_id):
     customer_name = app_id.split('_')[1]
     app_name = app_id.split('_')[0]
     flag = False
@@ -518,8 +569,8 @@ def check_app_docker(app_id):
 
     return flag
 
-def check_app_rq(app_id):
 
+def check_app_rq(app_id):
     myLogger.info_logger("check_app_rq")
 
     started = StartedJobRegistry(queue=q)
@@ -530,7 +581,7 @@ def check_app_rq(app_id):
     myLogger.info_logger(queue_job_ids)
     myLogger.info_logger(run_job_ids)
     myLogger.info_logger(failed_job_ids)
-    if queue_job_ids and app_id  in queue_job_ids:
+    if queue_job_ids and app_id in queue_job_ids:
         myLogger.info_logger("App in RQ")
         return True
     if failed_job_ids and app_id in failed_job_ids:
@@ -541,6 +592,7 @@ def check_app_rq(app_id):
         return True
     myLogger.info_logger("App not in RQ")
     return False
+
 
 def get_apps_from_queue():
     myLogger.info_logger("get queque apps...")
@@ -586,6 +638,7 @@ def get_apps_from_queue():
 
     return installing_list
 
+
 def get_rq_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
     customer_name = id.split('_')[1]
@@ -597,16 +650,17 @@ def get_rq_app(id, status, code, message, detail):
     config_path = ""
     image_url = get_Image_url(app_name)
     config = None
-    if status == "installing" :
+    if status == "installing":
         status_reason = None
     else:
         status_reason = StatusReason(Code=code, Message=message, Detail=detail)
 
     app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
-              app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
+              app_version=app_version, create_time=create_time, volume_data=volume_data, config_path=config_path,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
-              app_https=False,app_replace_url=False,config=config)
+              app_https=False, app_replace_url=False, config=config)
     return app.dict()
+
 
 def get_Image_url(app_name):
     image_url = "static/images/" + app_name + "-websoft9.png"
@@ -617,12 +671,13 @@ def get_url(app_name, easy_url):
     url = easy_url
     return url
 
+
 def get_admin_url(customer_name, url):
     admin_url = ""
     path = "/data/apps/" + customer_name + "/.env"
     try:
         admin_path = list(docker.read_env(path, "APP_ADMIN_PATH").values())[0]
-        admin_path = admin_path.replace("\"","")
+        admin_path = admin_path.replace("\"", "")
         admin_url = url + admin_path
     except IndexError:
         pass
@@ -636,8 +691,8 @@ def get_error_info(code, message, detail):
     error['Detail'] = detail
     return error
 
-def app_domain_list(app_id):
 
+def app_domain_list(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
         info, flag = app_exits_in_docker(app_id)
@@ -658,16 +713,17 @@ def app_domain_list(app_id):
     default_domain = ""
     if domains != None and len(domains) > 0:
         customer_name = app_id.split('_')[1]
-        app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+        app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env")["result"]
         if "APP_URL" in app_url:
-            url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env |grep APP_URL=")["result"].rstrip('\n')
+            url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env |grep APP_URL=")[
+                "result"].rstrip('\n')
             default_domain = url.split('=')[1]
     ret['default_domain'] = default_domain
     myLogger.info_logger(ret)
     return ret
 
-def app_proxy_delete(app_id):
 
+def app_proxy_delete(app_id):
     customer_name = app_id.split('_')[1]
     proxy_host = None
     token = get_token()
@@ -689,6 +745,7 @@ def app_proxy_delete(app_id):
                 'Content-Type': 'application/json'
             }
             response = requests.delete(url, headers=headers)
+
 
 def app_domain_delete(app_id, domain):
     code, message = docker.check_app_id(app_id)
@@ -838,15 +895,15 @@ def app_domain_update(app_id, domain_old, domain_new):
             raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         domain_set = app_domain_list(app_id)
         default_domain = domain_set['default_domain']
-        myLogger.info_logger("default_domain=" + default_domain + ",domain_old="+domain_old)
+        myLogger.info_logger("default_domain=" + default_domain + ",domain_old=" + domain_old)
         # 如果被修改的域名是默认域名，修改后也设置为默认域名
         if default_domain == domain_old:
             set_domain(domain_new, app_id)
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "edit domain is not exist", "")
 
-def app_domain_add(app_id, domain):
 
+def app_domain_add(app_id, domain):
     temp_domains = []
     temp_domains.append(domain)
     check_domains(temp_domains)
@@ -945,6 +1002,7 @@ def app_domain_add(app_id, domain):
 
     return domain
 
+
 def check_domains(domains):
     myLogger.info_logger(domains)
     if domains is None or len(domains) == 0:
@@ -952,8 +1010,8 @@ def check_domains(domains):
     else:
         for domain in domains:
             if is_valid_domain(domain):
-               if  check_real_domain(domain) == False:
-                   raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain and server not match", "")
+                if check_real_domain(domain) == False:
+                    raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain and server not match", "")
             else:
                 raise CommandException(const.ERROR_CLIENT_PARAM_Format, "Domains format error", "")
 
@@ -963,6 +1021,7 @@ def is_valid_domain(domain):
         return False
 
     return True
+
 
 def check_real_domain(domain):
     domain_real = True
@@ -982,6 +1041,7 @@ def check_real_domain(domain):
 
     return domain_real
 
+
 def get_token():
     url = 'http://172.17.0.1:9092/api/tokens'
     headers = {'Content-type': 'application/json'}
@@ -997,6 +1057,7 @@ def get_token():
 
     token = "Bearer " + response.json()["token"]
     return token
+
 
 def get_proxy(app_id):
     customer_name = app_id.split('_')[1]
@@ -1017,6 +1078,7 @@ def get_proxy(app_id):
 
     return proxy_host
 
+
 def get_proxy_domain(app_id, domain):
     customer_name = app_id.split('_')[1]
     proxy_host = None
@@ -1035,11 +1097,12 @@ def get_proxy_domain(app_id, domain):
         if customer_name == portainer_name:
             myLogger.info_logger("-------------------")
             if domain in domain_list:
-               myLogger.info_logger("find the domain proxy")
-               proxy_host = proxy
-               break
+                myLogger.info_logger("find the domain proxy")
+                proxy_host = proxy
+                break
 
     return proxy_host
+
 
 def get_all_domains(app_id):
     customer_name = app_id.split('_')[1]
@@ -1059,6 +1122,7 @@ def get_all_domains(app_id):
                 domains.append(domain)
     return domains
 
+
 def app_domain_set(domain, app_id):
     temp_domains = []
     temp_domains.append(domain)
@@ -1076,6 +1140,7 @@ def app_domain_set(domain, app_id):
 
     set_domain(domain, app_id)
 
+
 def set_domain(domain, app_id):
     myLogger.info_logger("set_domain start")
     old_domains = get_all_domains(app_id)
@@ -1085,20 +1150,20 @@ def set_domain(domain, app_id):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, message, "")
 
     customer_name = app_id.split('_')[1]
-    app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env")["result"]
 
     if "APP_URL" in app_url:
         myLogger.info_logger("APP_URL is exist")
         if domain == "":
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')
-            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
+            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name + "/.env"
             shell_execute.execute_command_output_all(cmd)
             if "APP_URL_REPLACE=true" in app_url:
                 myLogger.info_logger("need up")
                 shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
         else:
-            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name +"/.env"
+            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name + "/.env"
             shell_execute.execute_command_output_all(cmd)
             if "APP_URL_REPLACE=true" in app_url:
                 myLogger.info_logger("need up")
@@ -1109,16 +1174,37 @@ def set_domain(domain, app_id):
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')
 
-        cmd = "sed -i '/APP_NETWORK/a APP_URL=" + domain + "' /data/apps/" + customer_name +"/.env"
+        cmd = "sed -i '/APP_NETWORK/a APP_URL=" + domain + "' /data/apps/" + customer_name + "/.env"
         shell_execute.execute_command_output_all(cmd)
     myLogger.info_logger("set_domain success")
 
+
 def get_container_port(container_name):
     port = "80"
-    cmd = "docker port "+ container_name + " |grep ::"
+    cmd = "docker port " + container_name + " |grep ::"
     result = shell_execute.execute_command_output_all(cmd)["result"]
     myLogger.info_logger(result)
     port = result.split('/')[0]
     myLogger.info_logger(port)
 
     return port
+
+
+def compared_version(ver1, ver2):
+    list1 = str(ver1).split(".")
+    list2 = str(ver2).split(".")
+    # 循环次数为短的列表的len
+    for i in range(len(list1)) if len(list1) < len(list2) else range(len(list2)):
+        if int(list1[i]) == int(list2[i]):
+            pass
+        elif int(list1[i]) < int(list2[i]):
+            return -1
+        else:
+            return 1
+    # 循环结束，哪个列表长哪个版本号高
+    if len(list1) == len(list2):
+        return 0
+    elif len(list1) < len(list2):
+        return -1
+    else:
+        return 1

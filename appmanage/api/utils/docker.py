@@ -1,5 +1,5 @@
 import os, io, sys, platform, shutil, time, json, datetime, psutil
-import re, docker, requests, base64
+import re, docker, requests
 from api.utils import shell_execute
 from dotenv import load_dotenv, find_dotenv
 import dotenv
@@ -8,39 +8,6 @@ from api.utils.common_log import myLogger
 from api.utils import shell_execute, const
 from api.exception.command_exception import CommandException
 from api.service import manage
-
-
-# 获取github文件内容
-def get_github_content(repo, path):
-    url = 'https://websoft9.github.io/{repo}/{path}'
-    url = url.format(repo=repo, path=path)
-    response = requests.get(url)
-    response.encoding = 'utf-8'
-    contents = response.text
-    return contents
-
-
-# 获取指定仓库CHANGELOG
-def get_update_list(local_path, repo):
-    op = shell_execute.execute_command_output_all("cat " + local_path)['result']
-    local_version = json.loads(op)['VERSION']
-    version_contents = get_github_content(repo, 'install/version.json')
-    version = json.loads(version_contents)['VERSION']
-    if local_version != version:
-        content = []
-        change_log_contents = get_github_content(repo, 'CHANGELOG.md')
-        change_log = change_log_contents.split('## ')[1].split('\n')
-        data = change_log[0].split()[-1]
-        for change in change_log[1:]:
-            if change != '':
-                content.append(change)
-        ret = {}
-        ret['version'] = version
-        ret['data'] = data
-        ret['content'] = content
-        return ret
-    else:
-        return None
 
 
 # 已经是running的app怎么知道它已经能够访问，如页面能进入，如mysql能被客户端连接
