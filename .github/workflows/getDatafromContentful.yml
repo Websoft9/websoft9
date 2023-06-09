@@ -24,6 +24,29 @@ jobs:
               https://graphql.contentful.com/content/v1/spaces/ffrhttfighww > appmanage/static/json/catalog_$LOCALE.json
           done
 
+      - name: Fetch Product data from contentful graphql
+        env:
+          ACCESS_TOKEN: ${{ secrets.CONTENTFUL_GRAPHQLTOKEN }}
+          LOCALES: "en-US,zh-CN"
+          LIMIT: 100
+        run: |
+          mkdir -p appmanage/static/json
+          IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
+          for LOCALE in "${LOCALE_ARRAY[@]}"; do
+            SKIP=0
+            TOTAL=0
+            while [ $SKIP -le $TOTAL ]; do
+              RESPONSE=$(curl -X POST \
+                -H "Content-Type: application/json" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                -d '{"query":"query($locale: String,$skip: Int){productCollection(locale:$locale,where:{appStore:true},limit: '$LIMIT', skip: $skip) {total items {sys {id} key hot trademark summary overview websiteurl description screenshots distribution vcpu memory storage logo {imageurl} catalogCollection(limit:15) {items {key title catalogCollection(limit:5){items{key title}}}}}}}", "variables":{"locale":"'$LOCALE'", "skip":'$SKIP'}}' \
+                https://graphql.contentful.com/content/v1/spaces/ffrhttfighww)
+              echo $RESPONSE | jq '.data.productCollection.items' >> appmanage/static/json/product_$LOCALE.json
+              TOTAL=$(echo $RESPONSE | jq '.data.productCollection.total')
+              SKIP=$((SKIP + LIMIT))
+            done
+          done
+
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
