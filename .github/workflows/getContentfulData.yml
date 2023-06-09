@@ -1,4 +1,4 @@
-name: Get data from contentful
+name: Fetch data from contentful graphql
 
 on: workflow_dispatch
 
@@ -32,6 +32,8 @@ jobs:
             SKIP=$3
             jq -n --argfile query $FILE --arg locale $LOCALE --arg skip $SKIP '$query + {variables: {locale: $locale, skip: ($skip|tonumber)}}'
           }
+        # Export the function to be available in other steps
+        shell: bash -e {0} && export -f query
 
       # Loop through different queries and locales
       - name: Fetch data from contentful graphql
