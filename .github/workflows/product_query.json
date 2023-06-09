@@ -1,3 +1,0 @@
-{
-  "query": "query($locale: String,$skip: Int){productCollection(locale:$locale,where:{appStore:true},limit: $LIMIT, skip: $skip) {total items {sys {id} key hot trademark summary overview websiteurl description screenshots distribution vcpu memory storage logo {imageurl} catalogCollection(limit:15) {items {key title catalogCollection(limit:5){items{key title}}}}}}}"
-}
