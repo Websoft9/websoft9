@@ -93,9 +93,9 @@ latest_library_version=$(curl https://websoft9.github.io/docker-library/install/
 if [ "$old_library_version" \< "$latest_library_version" ]; then
     echo "start to update Library..."
     fastest=$(fastest_url "${urls[@]}")
-    
+    echo "fasturl is: "$fastest
     cd /tmp && rm -rf /tmp/library
-    if [ "$fastest" == *gitee.com* ]; then
+    if [[ $fastest == *gitee.com* ]]; then
         echo "update from gitee"
         wget $fastest/websoft9/docker-library/repository/archive/$latest_library_version
         unzip $latest_library_version
@@ -124,7 +124,7 @@ release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
 fasturl=$(fastest_url "${urls[@]}")
 echo "fasturl is: "$fasturl
 cd /tmp && rm -rf /tmp/stackhub
-if [ "$fasturl" == *gitee.com* ]; then
+if [[ $fasturl == *gitee.com* ]]; then
     wget $fasturl/websoft9/StackHub/repository/archive/$release_version
     unzip $release_version
     mv StackHub* stackhub
