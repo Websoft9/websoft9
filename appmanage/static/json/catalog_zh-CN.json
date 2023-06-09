@@ -1,1 +1,1 @@
-{"errors":[{"message":"Query cannot be executed. The request payload JSON format is broken.","extensions":{"contentful":{"code":"BROKEN_JSON","requestId":"37c5a462-06f0-471b-81b0-36d69f0a5c82"}}}]}
+{"errors":[{"message":"Query cannot be executed. The request payload JSON format is broken.","extensions":{"contentful":{"code":"BROKEN_JSON","requestId":"6ec2e607-c26a-482a-8380-81c8c0df125a"}}}]}
