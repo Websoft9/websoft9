@@ -40,8 +40,10 @@ def get_github_content(repo, path):
     return contents
 
 
-# 获取指定仓库CHANGELOG
-def get_update_list(local_path, repo):
+# 获取 update info
+def get_update_list():
+    local_path = '/data/apps/stackhub/install/version.json'
+    repo = 'StackHub'
     op = shell_execute.execute_command_output_all("cat " + local_path)['result']
     local_version = json.loads(op)['VERSION']
     version_contents = get_github_content(repo, 'install/version.json')
@@ -58,17 +60,6 @@ def get_update_list(local_path, repo):
         ret['version'] = version
         ret['data'] = data
         ret['content'] = content
-        return ret
-    else:
-        return None
-
-
-# 获取所有CHANGELOG
-def get_all_update_list():
-    stack_hub_change = get_update_list('/data/apps/stackhub/install/version.json', 'StackHub')
-    if stack_hub_change != None:
-        ret = []
-        ret.append(stack_hub_change)
         return ret
     else:
         return None
