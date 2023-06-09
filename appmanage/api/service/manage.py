@@ -28,6 +28,20 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn,default_timeout=3600)
 
+# 获取所有CHANGELOG
+def get_all_update_list():
+    ret = []
+    stack_hub_change = docker.get_update_list('/data/apps/stackhub/install/version.json', 'StackHub')
+    if stack_hub_change != None:
+        ret.append(stack_hub_change)
+    library_change = docker.get_update_list('/data/library/install/version.json', 'docker-library')
+    if library_change != None:
+        ret.append(library_change)
+    if ret != []:
+        return ret
+    else:
+        return None
+
 def conbine_list(installing_list, installed_list):
     app_list = installing_list + installed_list
     result_list = []
@@ -40,12 +54,12 @@ def conbine_list(installing_list, installed_list):
             appid_list.append(app_id)
             result_list.append(app)
     return result_list
-    
+
 # 获取所有app的信息
 def get_my_app(app_id):
     installed_list = get_apps_from_compose()
     installing_list = get_apps_from_queue()
-    
+
     app_list = conbine_list(installing_list, installed_list)
     find = False
     ret = {}
@@ -140,7 +154,7 @@ def delete_app(app_id):
         customer_name = app_id.split('_')[1]
         app_path = ""
         info, code_exist = app_exits_in_docker(app_id)
-        if code_exist:  
+        if code_exist:
             app_path = info.split()[-1].rsplit('/', 1)[0]
             cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
             lib_path = '/data/library/apps/' + app_name
@@ -175,7 +189,7 @@ def uninstall_app(app_id):
     customer_name = app_id.split('_')[1]
     app_path = ""
     info, code_exist = app_exits_in_docker(app_id)
-    if code_exist:  
+    if code_exist:
         app_path = info.split()[-1].rsplit('/', 1)[0]
         cmd = "docker compose -f " + app_path + "/docker-compose.yml down -v"
         lib_path = '/data/library/apps/' + app_name
@@ -248,9 +262,9 @@ def install_app_delay(app_name, customer_name, app_version):
     try:
         # 因为这个时候还没有复制文件夹，是从/data/library里面文件读取json来检查的，应该是app_name,而不是customer_name
         resource_flag = docker.check_vm_resource(app_name)
-        
+
         if resource_flag == True:
-            
+
             myLogger.info_logger("job check ok, continue to install app")
             env_path = "/data/apps/" + customer_name + "/.env"
             # prepare_app(app_name, customer_name)
@@ -267,21 +281,21 @@ def install_app_delay(app_name, customer_name, app_version):
             try:
                 shell_execute.execute_command_output_all("bash /data/apps/" + customer_name + "/src/after_up.sh")
             except Exception as e:
-                myLogger.info_logger(str(e))  
+                myLogger.info_logger(str(e))
         else:
-            error_info= "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" 
+            error_info= "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)"
             myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
         myLogger.info_logger(customer_name + " install failed(docker)!")
         delete_app(job_id)
-        error_info= "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.detail 
+        error_info= "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.detail
         myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + " install failed(system)!")
         delete_app(job_id)
-        error_info= "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e) 
+        error_info= "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(e)
         myLogger.info_logger(error_info)
         raise Exception(error_info)
 
@@ -371,7 +385,7 @@ def get_apps_from_compose():
         admin_domain_url = ""
         if customer_name in ['w9appmanage', 'w9nginxproxymanager','w9redis','w9kopia','w9portainer'] or app_path == '/data/apps/w9services/' + customer_name:
             continue
-        
+
         status_show = app_info["Status"]
         status = app_info["Status"].split("(")[0]
         if status == "running" or status == "exited" or status == "restarting":
@@ -398,7 +412,7 @@ def get_apps_from_compose():
             # get env info
             path = app_path + "/.env"
             env_map = docker.get_map(path)
-            
+
             try:
                 myLogger.info_logger("get domain for APP_URL")
                 domain = env_map.get("APP_URL")
@@ -419,7 +433,7 @@ def get_apps_from_compose():
                     admin_path = admin_path.replace("\"","")
                 else:
                     admin_path =""
-                
+
                 if default_domain != "" and admin_path != "":
                     admin_domain_url = "http://" + default_domain + admin_path
             except Exception:
@@ -440,7 +454,7 @@ def get_apps_from_compose():
                 if http_port:
                     port = int(http_port)
             except Exception:
-                pass            
+                pass
             if port != 0:
                 try:
                     if app_https:
@@ -460,7 +474,7 @@ def get_apps_from_compose():
         else:
             app_name = customer_name
             app_id = customer_name + "_" + customer_name
-        create_time = get_createtime(official_app, app_path, customer_name)  
+        create_time = get_createtime(official_app, app_path, customer_name)
         if status in ['running', 'exited']:
             config = Config(port=port, compose_file=volume, url=url, admin_url=admin_url,admin_domain_url=admin_domain_url,
                             admin_path=admin_path,admin_username=user_name, admin_password=password, default_domain=default_domain)
@@ -494,7 +508,7 @@ def check_if_official_app(var_path):
         return False
 
 def check_app_docker(app_id):
-    
+
     customer_name = app_id.split('_')[1]
     app_name = app_id.split('_')[0]
     flag = False
@@ -509,7 +523,7 @@ def check_app_docker(app_id):
     return flag
 
 def check_app_rq(app_id):
-    
+
     myLogger.info_logger("check_app_rq")
 
     started = StartedJobRegistry(queue=q)
@@ -522,10 +536,10 @@ def check_app_rq(app_id):
     myLogger.info_logger(failed_job_ids)
     if queue_job_ids and app_id  in queue_job_ids:
         myLogger.info_logger("App in RQ")
-        return True 
+        return True
     if failed_job_ids and app_id in failed_job_ids:
         myLogger.info_logger("App in RQ")
-        return True  
+        return True
     if run_job_ids and app_id in run_job_ids:
         myLogger.info_logger("App in RQ")
         return True
@@ -580,7 +594,7 @@ def get_rq_app(id, status, code, message, detail):
     app_name = id.split('_')[0]
     customer_name = id.split('_')[1]
     # 当app还在RQ时，可能文件夹还没创建，无法获取trade_mark
-    trade_mark = "" 
+    trade_mark = ""
     app_version = ""
     create_time = ""
     volume_data = ""
@@ -591,7 +605,7 @@ def get_rq_app(id, status, code, message, detail):
         status_reason = None
     else:
         status_reason = StatusReason(Code=code, Message=message, Detail=detail)
-    
+
     app = App(app_id=id, app_name=app_name, customer_name=customer_name, trade_mark=trade_mark,
               app_version=app_version,create_time=create_time,volume_data=volume_data,config_path=config_path,
               status=status, status_reason=status_reason, official_app=True, image_url=image_url,
@@ -639,12 +653,12 @@ def app_domain_list(app_id):
         raise CommandException(code, message, "")
 
     domains = get_all_domains(app_id)
-    
+
     myLogger.info_logger(domains)
-    
+
     ret = {}
     ret['domains'] = domains
-    
+
     default_domain = ""
     if domains != None and len(domains) > 0:
         customer_name = app_id.split('_')[1]
@@ -690,23 +704,23 @@ def app_domain_delete(app_id, domain):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
-    
+
     if domain is None or domain == "undefined":
         raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
-        
+
     old_all_domains = get_all_domains(app_id)
     if domain not in old_all_domains:
         myLogger.info_logger("delete domain is not binded")
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind.", "")
-    
-    myLogger.info_logger("Start to delete " + domain)  
+
+    myLogger.info_logger("Start to delete " + domain)
     proxy = get_proxy_domain(app_id, domain)
     if proxy != None:
         myLogger.info_logger(proxy)
         myLogger.info_logger("before update")
         domains_old = proxy["domain_names"]
         myLogger.info_logger(domains_old)
-  
+
         domains_old.remove(domain)
         myLogger.info_logger("after update")
         myLogger.info_logger(domains_old)
@@ -764,7 +778,7 @@ def app_domain_delete(app_id, domain):
             default_domain = domain_set['default_domain']
             # 如果被删除的域名是默认域名，删除后去剩下域名的第一个
             if default_domain == domain:
-                set_domain(domains_old[0], app_id)              
+                set_domain(domains_old[0], app_id)
 
     else:
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Delete domain is not bind", "")
@@ -775,7 +789,7 @@ def app_domain_update(app_id, domain_old, domain_new):
     domain_list = []
     domain_list.append(domain_old)
     domain_list.append(domain_new)
-    
+
     check_domains(domain_list)
 
     code, message = docker.check_app_id(app_id)
@@ -836,7 +850,7 @@ def app_domain_update(app_id, domain_old, domain_new):
         raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "edit domain is not exist", "")
 
 def app_domain_add(app_id, domain):
-    
+
     temp_domains = []
     temp_domains.append(domain)
     check_domains(temp_domains)
@@ -850,17 +864,17 @@ def app_domain_add(app_id, domain):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
-        
+
     old_domains = get_all_domains(app_id)
     if domain in old_domains:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is in use", "") 
-        
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is in use", "")
+
     proxy = get_proxy(app_id)
     if proxy != None:
         domains_old = proxy["domain_names"]
         domain_list = domains_old
         domain_list.append(domain)
-        
+
         proxy_id = proxy["id"]
         token = get_token()
         url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
@@ -926,13 +940,13 @@ def app_domain_add(app_id, domain):
             "hsts_subdomains": False,
             "ssl_forced": False
         }
-        
+
         response = requests.post(url, data=json.dumps(data), headers=headers)
 
         if response.json().get("error"):
             raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         set_domain(domain, app_id)
-        
+
     return domain
 
 def check_domains(domains):
@@ -969,7 +983,7 @@ def check_real_domain(domain):
             domain_real = False
     except CommandException as ce:
         domain_real = False
-    
+
     return domain_real
 
 def get_token():
@@ -1063,7 +1077,7 @@ def app_domain_set(domain, app_id):
             raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
-    
+
     set_domain(domain, app_id)
 
 def set_domain(domain, app_id):
@@ -1072,11 +1086,11 @@ def set_domain(domain, app_id):
     if domain != "":
         if domain not in old_domains:
             message = domain + " is not in use"
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, message, "") 
-        
+            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, message, "")
+
     customer_name = app_id.split('_')[1]
     app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
-    
+
     if "APP_URL" in app_url:
         myLogger.info_logger("APP_URL is exist")
         if domain == "":
@@ -1097,12 +1111,12 @@ def set_domain(domain, app_id):
         myLogger.info_logger("APP_URL is not exist")
         if domain == "":
             ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
-            domain = ip_result["result"].rstrip('\n') 
-                
+            domain = ip_result["result"].rstrip('\n')
+
         cmd = "sed -i '/APP_NETWORK/a APP_URL=" + domain + "' /data/apps/" + customer_name +"/.env"
         shell_execute.execute_command_output_all(cmd)
     myLogger.info_logger("set_domain success")
-    
+
 def get_container_port(container_name):
     port = "80"
     cmd = "docker port "+ container_name + " |grep ::"

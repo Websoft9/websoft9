@@ -1,5 +1,5 @@
 import os, io, sys, platform, shutil, time, json, datetime, psutil
-import re, docker, requests
+import re, docker, requests, base64
 from api.utils import shell_execute
 from dotenv import load_dotenv, find_dotenv
 import dotenv
@@ -8,6 +8,40 @@ from api.utils.common_log import myLogger
 from api.utils import shell_execute, const
 from api.exception.command_exception import CommandException
 from api.service import manage
+
+
+# 获取github文件内容
+def get_github_content(repo, path, owner='Websoft9'):
+    url = 'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
+    url = url.format(owner=owner, repo=repo, path=path)
+    response = requests.get(url)
+    data = json.loads(response.text)
+    s = data['content']
+    contents = str(base64.b64decode(s), "utf-8")
+    return contents
+
+
+# 获取指定仓库CHANGELOG
+def get_update_list(local_path, repo):
+    op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+    local_version = json.loads(op)['VERSION']
+    version_contents = get_github_content(repo, 'install/version.json')
+    version = json.loads(version_contents)['VERSION']
+    if local_version != version:
+        content = []
+        change_log_contents = get_github_content('StackHub', 'CHANGELOG.md')
+        change_log = change_log_contents.split('## ')[1].split('\n')
+        data = change_log[0].split()[-1]
+        for change in change_log[1:]:
+            if change != '':
+                content.append(change)
+        ret = {}
+        ret['version'] = version
+        ret['data'] = data
+        ret['content'] = content
+        return ret
+    else:
+        return None
 
 
 # 已经是running的app怎么知道它已经能够访问，如页面能进入，如mysql能被客户端连接
@@ -125,6 +159,7 @@ def check_directory(path):
     except CommandException as ce:
         return False
 
+
 def check_app_compose(app_name, customer_name):
     myLogger.info_logger("Set port and random password ...")
     library_path = "/data/library/apps/" + app_name
@@ -149,21 +184,23 @@ def check_app_compose(app_name, customer_name):
     for port_name in port_dic:
         port_value = get_start_port(s, port_dic[port_name])
         modify_env(install_path + '/.env', port_name, port_value)
-    
+
     # set random password
-    power_password = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name +"/.env")["result"]
+    power_password = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env")["result"]
     if "POWER_PASSWORD" in power_password:
         try:
             shell_execute.execute_command_output_all("docker rm -f pwgen")
         except Exception:
             pass
-        new_password = shell_execute.execute_command_output_all("docker run --name pwgen backplane/pwgen 15")["result"].rstrip('\n') + "!"
+        new_password = shell_execute.execute_command_output_all("docker run --name pwgen backplane/pwgen 15")[
+                           "result"].rstrip('\n') + "!"
         modify_env(install_path + '/.env', 'POWER_PASSWORD', new_password)
         shell_execute.execute_command_output_all("docker rm -f pwgen")
     env_path = install_path + "/.env"
     get_map(env_path)
     myLogger.info_logger("Port check complete")
     return
+
 
 def check_app_url(customer_app_name):
     myLogger.info_logger("Checking app url...")
@@ -186,11 +223,12 @@ def check_app_url(customer_app_name):
             url = ip + ":" + http_port
         else:
             url = ip
-        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + url + "/g' /data/apps/" + customer_app_name +"/.env"
+        cmd = "sed -i 's/APP_URL=.*/APP_URL=" + url + "/g' /data/apps/" + customer_app_name + "/.env"
         shell_execute.execute_command_output_all(cmd)
 
     myLogger.info_logger("App url check complete")
     return
+
 
 def get_map(path):
     myLogger.info_logger("Read env_dic" + path)
@@ -206,6 +244,7 @@ def get_map(path):
                 env_dic[env.split("=")[0]] = env.split("=")[1]
     myLogger.info_logger(env_dic)
     return env_dic
+
 
 def read_env(path, key):
     myLogger.info_logger("Read " + path)

@@ -351,7 +351,7 @@ def AppUpdateList(request: Request):
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['Update_content'] = None
+        ret['ResponseData']['Update_content'] = manage.get_all_updata_list()
         myLogger.info_logger(ret)
         response = JSONResponse(content=ret)
     except CommandException as ce:
