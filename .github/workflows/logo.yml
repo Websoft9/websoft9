@@ -6,34 +6,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      # Give the default GITHUB_TOKEN write permission to commit and push the changed files back to the repository.
-      contents: write
+
     steps:
     - uses: actions/checkout@master
       name: Check out code  
     
-    - name: delete photo
-      run: |
-        git config --global user.name "${{ github.actor }}"
-        git config --global user.email "xxx@websoft9.com"
-        files=$(ls /)
-        for file in ${files};do 
-          if [ $file == *.png ];then
-            echo $file
-            git rm $file
-            git commit -m "delete"
-            break
-          fi
-        done
-        git push -u
-        
     - name: update logo
-      if: contains('Hello world', 'abc')
-      run: |  
-        git config --global user.name "${{ github.actor }}"
-        git config --global user.email "xxx@websoft9.com"
-        
+      run: |   
         # 获取contentful中所有url
         entry=$(curl --include \
              --request GET \
@@ -56,18 +35,15 @@ jobs:
           echo $url
           file=$(echo appmanage/static/images/${url##*/})
           echo $file
-          
-          wget --timeout=3 -q "$url" || continue
-          
           if [[ -f ${file} ]];then
-            git rm $file
-            git commit -m "delete former logo"
+            echo "存在此文件，跳过"
+            continue
           fi
-          wget --no-check-certificate -P appmanage/static/images $url  
+          echo "执行wget"
+          wget --timeout=3 -q -P appmanage/static/images "$url"
         done
         
     - name: push logo
-      if: contains('Hello world', 'abc')
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: update logo
