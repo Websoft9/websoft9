@@ -11,13 +11,12 @@ from api.service import manage
 
 
 # 获取github文件内容
-def get_github_content(repo, path, owner='Websoft9'):
-    url = 'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
-    url = url.format(owner=owner, repo=repo, path=path)
+def get_github_content(repo, path):
+    url = 'https://websoft9.github.io/{repo}/{path}'
+    url = url.format(repo=repo, path=path)
     response = requests.get(url)
-    data = json.loads(response.text)
-    s = data['content']
-    contents = str(base64.b64decode(s), "utf-8")
+    response.encoding = 'utf-8'
+    contents = response.text
     return contents
 
 
@@ -29,7 +28,7 @@ def get_update_list(local_path, repo):
     version = json.loads(version_contents)['VERSION']
     if local_version != version:
         content = []
-        change_log_contents = get_github_content('StackHub', 'CHANGELOG.md')
+        change_log_contents = get_github_content(repo, 'CHANGELOG.md')
         change_log = change_log_contents.split('## ')[1].split('\n')
         data = change_log[0].split()[-1]
         for change in change_log[1:]:

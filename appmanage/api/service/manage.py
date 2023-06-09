@@ -30,14 +30,10 @@ q = Queue(connection=redis_conn,default_timeout=3600)
 
 # 获取所有CHANGELOG
 def get_all_update_list():
-    ret = []
     stack_hub_change = docker.get_update_list('/data/apps/stackhub/install/version.json', 'StackHub')
     if stack_hub_change != None:
+        ret = []
         ret.append(stack_hub_change)
-    library_change = docker.get_update_list('/data/library/install/version.json', 'docker-library')
-    if library_change != None:
-        ret.append(library_change)
-    if ret != []:
         return ret
     else:
         return None
