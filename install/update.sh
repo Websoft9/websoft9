@@ -87,10 +87,35 @@ function fastest_url() {
   echo "$fastest_url"
 }
 
+LibraryUpdate(){
+old_library_version=$(cat install/version.json | jq .VERSION | tr -d '"')
+latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
+if [ "$old_library_version" \< "$latest_library_version" ]; then
+    echo "start to update Library..."
+    fastest=$(fastest_url "${urls[@]}")
+    echo "fastest is: "$fastest
+    cd /tmp && rm -rf /tmp/library
+    if [ "$fastest" == *gitee.com* ]; then
+        wget $fastest/websoft9/docker-library/repository/archive/$latest_library_version
+        unzip $latest_library_version
+        mv docker-library* library
+        rm -f $latest_library_version
+    else
+        wget $fastest/websoft9/docker-library/archive/refs/tags/$latest_library_version.zip
+        unzip $latest_library_version.zip
+        mv docker-library* library
+        rm -f $latest_library_version.zip
+    fi
+    rm -rf /data/library && cp -r /tmp/library /data
+else
+    echo "Library is not need to update"
+fi
+}
+
 CheckUpdate(){
 echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
 echo "Update appstore library..."
-cd /data/library && git pull
+LibraryUpdate
 cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
 echo "Update stackhub ..."
 release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
