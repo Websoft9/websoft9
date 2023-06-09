@@ -89,7 +89,7 @@ function fastest_url() {
 
 CheckUpdate(){
 echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
-echo "Update appstore library ..."
+echo "Update appstore library..."
 cd /data/library && git pull
 cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
 echo "Update stackhub ..."
