@@ -1,4 +1,4 @@
-name: Fetch data from contentful graphql
+name: Get data from contentful
 
 on: workflow_dispatch
 
