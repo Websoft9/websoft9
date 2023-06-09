@@ -323,9 +323,8 @@ function fastest_url() {
 
   for url in "${urls[@]}"; do
     if curl --output /dev/null --silent --head --fail "$url"; then
-        echo $url" is available"
+        data="url is available"
     else
-        echo $url" is not available"
         continue
     fi 
     time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
