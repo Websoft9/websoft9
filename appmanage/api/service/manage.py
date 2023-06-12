@@ -52,13 +52,13 @@ def get_update_list():
         content = []
         change_log_contents = get_github_content(repo, 'CHANGELOG.md')
         change_log = change_log_contents.split('## ')[1].split('\n')
-        data = change_log[0].split()[-1]
+        date = change_log[0].split()[-1]
         for change in change_log[1:]:
             if change != '':
                 content.append(change)
         ret = {}
         ret['version'] = version
-        ret['data'] = data
+        ret['date'] = date
         ret['content'] = content
         return ret
     else:

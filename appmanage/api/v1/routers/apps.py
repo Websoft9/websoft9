@@ -52,11 +52,16 @@ domain = "&emsp;&emsp;Domain_set：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;domains：域名列表\n\n" \
          "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名\n\n&emsp;&emsp;}\n\n}"
 
+update = "&emsp;&emsp;Update_content: {\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;version: 最新版本\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;}\n\n}"
+
 rd = rd_s + rd_m + rd_e
 rd_info = rd_s + info + rd_e
 rd_status = rd_s + rd_status + rd_e
 rd_domain = rd_s + domain + rd_e
-
+rd_update_list = rd_s + update + rd_e
 
 
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
@@ -343,7 +348,7 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
 
     return response
 
-@router.api_route("/AppUpdateList", methods=["GET", "POST"], summary="查询更新內容",  response_model=Response)
+@router.api_route("/AppUpdateList", methods=["GET", "POST"], summary="查询更新內容", response_model=Response, response_description=rd_update_list)
 def AppUpdateList(request: Request):
 
     try:
