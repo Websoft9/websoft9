@@ -77,7 +77,7 @@ function fastest_url() {
   fastest_time=0
 
   for url in "${urls[@]}"; do
-    if curl --output /dev/null --silent --head --fail "$url"; then
+    if curl --output /dev/null --silent --head --fail --max-time 3 "$url"; then
         data="url is available"
     else
         continue
