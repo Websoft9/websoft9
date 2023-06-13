@@ -19,8 +19,7 @@ from api.model.status_reason import StatusReason
 from api.utils.common_log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, \
-    ScheduledJobRegistry, CanceledJobRegistry
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
 
 # 指定 Redis 容器的主机名和端口
@@ -369,7 +368,7 @@ def get_createtime(official_app, app_path, customer_name):
             cmd_all = "cd " + app_path + " && docker compose ps -a --format json"
             output = shell_execute.execute_command_output_all(cmd_all)
             container_name = json.loads(output["result"])[0]["Name"]
-            cmd = "docker ps -f name=" + customer_name + " --format {{.RunningFor}}  | head -n 1"
+            cmd = "docker ps -f name=" + container_name + " --format {{.RunningFor}}  | head -n 1"
             result = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
             data_time = result
 
@@ -420,6 +419,9 @@ def get_apps_from_compose():
                              'w9portainer'] or app_path == '/data/apps/w9services/' + customer_name:
             continue
 
+        var_path = app_path + "/variables.json"
+        official_app = check_if_official_app(var_path)
+
         status_show = app_info["Status"]
         status = app_info["Status"].split("(")[0]
         if status == "running" or status == "exited" or status == "restarting":
@@ -430,13 +432,17 @@ def get_apps_from_compose():
                     container = result.split("#Exited")[0]
                     if container != customer_name:
                         status = "running"
+            if "restarting" in status_show:
+                about_time = get_createtime(official_app, app_path, customer_name)
+                if "seconds" in about_time:
+                    status = "restarting"
+                else:
+                    status = "failed"
         elif status == "created":
             status = "failed"
         else:
             continue
 
-        var_path = app_path + "/variables.json"
-        official_app = check_if_official_app(var_path)
         if official_app:
             app_name = docker.read_var(var_path, 'name')
             app_id = app_name + "_" + customer_name  # app_id
