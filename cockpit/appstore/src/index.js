@@ -1,4 +1,4 @@
-import { ApolloClient, ApolloProvider, HttpLink, InMemoryCache } from '@apollo/client';
+import { ApolloClient, HttpLink, InMemoryCache } from '@apollo/client';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
@@ -24,10 +24,10 @@ const client = new ApolloClient({
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <ApolloProvider client={client}>
-      <Provider store={configureStore({})}>
-        <App />
-      </Provider>
-    </ApolloProvider>
+    {/* <ApolloProvider client={client}> */}
+    <Provider store={configureStore({})}>
+      <App />
+    </Provider>
+    {/* </ApolloProvider> */}
   </React.StrictMode>
 );

@@ -377,85 +377,87 @@ const MyApps = (): React$Element<React$FragmentType> => {
                         <Row>
                             {/* 根据official_app的值显示不同的标题 */}
                             <h4 style={official_app ? {} : { paddingTop: "10px" }}>{official_app ? _("Websoft9's Apps") : _("Other Apps")}</h4>
-                            {filteredApps.map((app, i) => (
-                                <Col xxl={2} md={3} key={app.app_id + i} className="appstore-item">
-                                    <div className='appstore-item-content highlight text-align-center' onClick={() => { handleClick(app) }}>
-                                        {
-                                            (!official_app && (app.status === "running" || app.status === "exited")) &&
-                                            <Dropdown className="float-end">
-                                                <Dropdown.Toggle as={Link} to="#" className="arrow-none card-drop">
-                                                    {isLoading ? <Spinner className="spinner-border-sm noti-icon" /> : <i className="dripicons-gear noti-icon" />}
-                                                </Dropdown.Toggle>
-                                                <Dropdown.Menu align="end">
-                                                    {(menuItems(app.status) || []).map((item, index) => {
-                                                        return (
-                                                            <React.Fragment key={index}>
-                                                                {item.condition && item.hasDivider && <Dropdown.Divider as="div" />}
-                                                                {
-                                                                    item.condition && <Dropdown.Item className={classNames(item.variant ? item.variant : '')}
-                                                                        onClick={() => NoOfficialAppClick(item.label, app)}
-                                                                    >
-                                                                        {item.icon && <i className={classNames(item.icon, 'me-1')}></i>}
-                                                                        {/* {isLoading ? <Spinner className="spinner-border-sm noti-icon" /> : item.icon && <i className={classNames(item.icon, 'me-1')}></i>} */}
-                                                                        {item.label}
-                                                                    </Dropdown.Item>
-                                                                }
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
-                                                </Dropdown.Menu>
-                                            </Dropdown>
-                                        }
-                                        {
-                                            (official_app && (app.status === "running" || app.status === "exited")) &&
-                                            <>
-                                                <div className="float-end arrow-none card-drop p-0" onClick={() => { handleClick(app) }}>
-                                                    <i className="dripicons-gear noti-icon"></i>
-                                                </div>
-                                                <div className="clearfix"></div>
-                                            </>
-                                        }
-                                        {
-                                            (official_app && app.status === "installing") &&
-                                            <>
-                                                <div className="float-end arrow-none card-drop p-0">
-                                                    <i className="dripicons-empty noti-icon"></i>
-                                                </div>
-                                                <div className="clearfix"></div>
-                                            </>
-                                        }
-                                        {
-                                            app.status === 'failed' &&
-                                            <>
-                                                <div className="float-end arrow-none card-drop p-0" >
-                                                    <i className="dripicons-information noti-icon" style={{ paddingRight: "10px" }} onClick={() => { showError(app) }}></i>
-                                                    <i className="dripicons-trash noti-icon" onClick={() => { deleteApp(app) }}></i>
-                                                </div>
-                                                <div className="clearfix"></div>
-                                            </>
-                                        }
-                                        <div>
-                                            <img
-                                                src={app.image_url}
-                                                alt={app.app_name}
-                                                className="app-icon"
-                                                style={{ margin: "20px 10px 20px 10px" }}
-                                                onError={(e) => (e.target.src = DefaultImg)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <h3 className="appstore-item-content-title" style={{ color: "#2196f3" }}>
-                                                {app.customer_name}
-                                            </h3>
-                                            <div style={{ color: app.status === 'failed' ? 'red' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                {app.status && app.status === "installing" && <Spinner className="spinner-border-sm m-2" />}
-                                                {" "}
-                                                <div className="m-2">{app.status}</div>
+                            {filteredApps.map((app, i) => {
+                                return (
+                                    <Col xxl={2} md={3} key={app.app_id + i} className="appstore-item">
+                                        <div className='appstore-item-content highlight text-align-center' onClick={() => { handleClick(app) }}>
+                                            {
+                                                (!official_app && (app.status === "running" || app.status === "exited")) &&
+                                                <Dropdown className="float-end">
+                                                    <Dropdown.Toggle as={Link} to="#" className="arrow-none card-drop">
+                                                        {isLoading ? <Spinner className="spinner-border-sm noti-icon" /> : <i className="dripicons-gear noti-icon" />}
+                                                    </Dropdown.Toggle>
+                                                    <Dropdown.Menu align="end">
+                                                        {(menuItems(app.status) || []).map((item, index) => {
+                                                            return (
+                                                                <React.Fragment key={index}>
+                                                                    {item.condition && item.hasDivider && <Dropdown.Divider as="div" />}
+                                                                    {
+                                                                        item.condition && <Dropdown.Item className={classNames(item.variant ? item.variant : '')}
+                                                                            onClick={() => NoOfficialAppClick(item.label, app)}
+                                                                        >
+                                                                            {item.icon && <i className={classNames(item.icon, 'me-1')}></i>}
+                                                                            {/* {isLoading ? <Spinner className="spinner-border-sm noti-icon" /> : item.icon && <i className={classNames(item.icon, 'me-1')}></i>} */}
+                                                                            {item.label}
+                                                                        </Dropdown.Item>
+                                                                    }
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
+                                                    </Dropdown.Menu>
+                                                </Dropdown>
+                                            }
+                                            {
+                                                (official_app && (app.status === "running" || app.status === "exited")) &&
+                                                <>
+                                                    <div className="float-end arrow-none card-drop p-0" onClick={() => { handleClick(app) }}>
+                                                        <i className="dripicons-gear noti-icon"></i>
+                                                    </div>
+                                                    <div className="clearfix"></div>
+                                                </>
+                                            }
+                                            {
+                                                (official_app && app.status === "installing") &&
+                                                <>
+                                                    <div className="float-end arrow-none card-drop p-0">
+                                                        <i className="dripicons-empty noti-icon"></i>
+                                                    </div>
+                                                    <div className="clearfix"></div>
+                                                </>
+                                            }
+                                            {
+                                                app.status === 'failed' &&
+                                                <>
+                                                    <div className="float-end arrow-none card-drop p-0" >
+                                                        <i className="dripicons-information noti-icon" style={{ paddingRight: "10px" }} onClick={() => { showError(app) }}></i>
+                                                        <i className="dripicons-trash noti-icon" onClick={() => { deleteApp(app) }}></i>
+                                                    </div>
+                                                    <div className="clearfix"></div>
+                                                </>
+                                            }
+                                            <div>
+                                                <img
+                                                    src={require(`../assets/images/${app.app_name}-websoft9.png`)}
+                                                    alt={app.app_name}
+                                                    className="app-icon"
+                                                    style={{ margin: "20px 10px 20px 10px" }}
+                                                    onError={(e) => (e.target.src = DefaultImg)}
+                                                />
                                             </div>
-                                        </div>
-                                    </div >
-                                </Col>
-                            ))}
+                                            <div>
+                                                <h3 className="appstore-item-content-title" style={{ color: "#2196f3" }}>
+                                                    {app.customer_name}
+                                                </h3>
+                                                <div style={{ color: app.status === 'failed' ? 'red' : 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    {app.status && app.status === "installing" && <Spinner className="spinner-border-sm m-2" />}
+                                                    {" "}
+                                                    <div className="m-2">{app.status}</div>
+                                                </div>
+                                            </div>
+                                        </div >
+                                    </Col>
+                                )
+                            })}
                         </Row >
                     ) : null;
                 })

@@ -195,8 +195,8 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                 <div style={{ padding: "10px", display: "flex", width: "100%", alignItems: "center" }}>
                     <div className='appstore-item-content-icon col-same-height'>
                         <img
-                            src={currentApp.image_url}
-                            alt=""
+                            src={require(`../assets/images/${currentApp.app_name}-websoft9.png`)}
+                            alt={currentApp.app_name}
                             className="app-icon"
                             onError={(e) => (e.target.src = DefaultImg)}
                         />
@@ -342,7 +342,7 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                 }
                             </Button>
                         </OverlayTrigger>
-                        {
+                        {/* {
                             currentApp.status === "running" &&
                             <OverlayTrigger
                                 key="bottom4"
@@ -352,18 +352,13 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                                         {_("Terminal")}
                                     </Tooltip>
                                 }>
-                                {/* <Link to={{ pathname: '/terminal', search: `?id=${currentApp.customer_name}` }}
-                                    style={{ color: "#fff", backgroundColor: "#727cf5", padding: "5px 10px", borderRadius: "3px", borderColor: "#727cf5", marginRight: "10px" }}
-                                    target="_blank">
-                                    <i className="dripicons-code noti-icon"></i>{' '}
-                                </Link> */}
                                 <Link to={{ pathname: '/terminal', search: `?id=${currentApp.customer_name}` }}
                                     style={{ color: "#fff", backgroundColor: "#727cf5", padding: "5px 10px", borderRadius: "3px", borderColor: "#727cf5", marginRight: "10px" }}
                                     target="_blank">
                                     <i className="dripicons-code noti-icon"></i>{' '}
                                 </Link>
                             </OverlayTrigger>
-                        }
+                        } */}
                         {
                             <OverlayTrigger
                                 key="bottom5"
