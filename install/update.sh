@@ -255,7 +255,6 @@ new_myapp_version=$(cat /data/apps/stackhub/cockpit/myapps/build/manifest.json |
 if [ "$old_myapps_version" \< "$new_myapp_version" ]; then
     echo "start to update myapps..."
     rm -rf /usr/share/cockpit/myapps/*
-    cp -r /data/apps/stackhub/appmanage/static/images /data/apps/stackhub/cockpit/myapps/build/static
     cp -r /data/apps/stackhub/cockpit/myapps/build/* /usr/share/cockpit/myapps
     rm -f /usr/share/cockpit/myapps/config.json
     cp /tmp/config.json /usr/share/cockpit/myapps/config.json
