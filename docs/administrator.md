@@ -19,7 +19,8 @@
 - major 主版本号，软件架构或软件界面发生重大变化。
 - minor 次版本号，软件功能新增或删减。
 - patch 错误修复版本号，软件缺陷修复。
-  > 版本通过 release 发布时指定，主版本号小于 1 时为预发布(pre-release)
+
+> 版本通过 release 发布时指定，主版本号小于 1 时为预发布(pre-release)
 
 ### 软件内部组件版本
 
@@ -88,7 +89,3 @@ support min_version: 0.1.0
 
 Appmanage 日志采用 logging 生成，按自然日分割日志文件。日志路径：/var/lib/docker/volumes/w9appmanage_logs/\_data  
 其他微服务采用 Dockhub 公开镜像，用 docker 容器的日志访问命令即可查看。
-
-## 更新与升级
-
-执行升级脚本(/install/update.sh)来实现自动升级。
