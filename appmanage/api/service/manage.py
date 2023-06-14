@@ -38,6 +38,32 @@ def get_github_content(repo, path):
     contents = response.text
     return contents
 
+# 更新软件商店
+def AppStoreUpdate():
+    local_path = '/data/library/install/version.json'
+    local_version = "0"
+    try:
+        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+        local_version = json.loads(op)['VERSION']
+    except:
+        local_version = "0.1.0"
+
+    repo = 'docker-library'
+    version_contents = get_github_content(repo, 'install/version.json')
+    version = json.loads(version_contents)['VERSION']
+
+    if compared_version(local_version, version) == -1:
+        content = []
+        change_log_contents = get_github_content(repo, 'CHANGELOG.md')
+        change_log = change_log_contents.split('## ')[1].split('\n')
+        for change in change_log[1:]:
+            if change != '':
+                content.append(change)
+        shell_execute.execute_command_output_all("curl https://websoft9.github.io/StackHub/install/update_appstore.sh | bash")
+        
+        return content
+    else:
+        return None
 
 # 获取 update info
 def get_update_list():
