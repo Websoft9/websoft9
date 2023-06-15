@@ -437,7 +437,7 @@ const MyApps = (): React$Element<React$FragmentType> => {
                                             }
                                             <div>
                                                 <img
-                                                    src={require(`../assets/images/${app.app_name}-websoft9.png`)}
+                                                    src={`./static/logos/${app.app_name}-websoft9.png`}
                                                     alt={app.app_name}
                                                     className="app-icon"
                                                     style={{ margin: "20px 10px 20px 10px" }}

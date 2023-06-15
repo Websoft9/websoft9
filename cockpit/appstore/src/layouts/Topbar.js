@@ -53,14 +53,14 @@ const Topbar = ({ hideLogo, navCssClasses, openLeftMenuCallBack, topbarDark }: T
                                 <i className="dripicons-cloud-download"></i>{' '}{_("App Store")}
                             </a>
                         </li> */}
-                        {/* <li>
-                            <button onClick={()=>{
-                                cockpit.jump("/system/terminal");
+                        <li>
+                            <button onClick={() => {
+
                             }}
-                                className="nav-link dropdown-toggle end-bar-toggle arrow-none btn btn-link shadow-none" style={{ color: "#428bca" }}>
-                                <i className="dripicons-gear noti-icon"></i>{' '}
+                                className="nav-link dropdown-toggle end-bar-toggle arrow-none btn btn-link shadow-none" style={{ color: "#428bca", fontSize: "16px" }}>
+                                更新应用列表
                             </button>
-                        </li> */}
+                        </li>
                     </ul>
                 </div>
             </div>

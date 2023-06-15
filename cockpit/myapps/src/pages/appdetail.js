@@ -195,7 +195,7 @@ const AppDetailModal = (props): React$Element<React$FragmentType> => {
                 <div style={{ padding: "10px", display: "flex", width: "100%", alignItems: "center" }}>
                     <div className='appstore-item-content-icon col-same-height'>
                         <img
-                            src={require(`../assets/images/${currentApp.app_name}-websoft9.png`)}
+                            src={`./static/logos/${currentApp.app_name}-websoft9.png`}
                             alt={currentApp.app_name}
                             className="app-icon"
                             onError={(e) => (e.target.src = DefaultImg)}

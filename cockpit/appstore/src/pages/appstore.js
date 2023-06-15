@@ -1,16 +1,14 @@
 // @flow
 import MuiAlert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
+import axios from 'axios';
 import cockpit from 'cockpit';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Carousel, Col, Form, Modal, Row } from 'react-bootstrap';
+import Spinner from 'react-bootstrap/Spinner';
 import { useNavigate } from "react-router-dom";
 import DefaultImg from '../assets/images/default.png';
 import FormInput from '../components/FormInput';
-import { catalog_en } from '../data/catalog_en';
-import { catalog_zh } from '../data/catalog_zh';
-import { product_en } from '../data/product_en';
-import { product_zh } from '../data/product_zh';
 import { AppInstall } from '../helpers';
 
 const _ = cockpit.gettext;
@@ -19,66 +17,6 @@ const language = cockpit.language;//获取cockpit的当前语言环境
 const Alert = React.forwardRef(function Alert(props, ref) {
     return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
-
-// const getContentfulData = gql`
-//     query($locale: String,$skip: Int){
-//         productCollection(locale:$locale,where:{appStore:true},limit: 100, skip: $skip) {
-//             total
-//             items {
-//             sys { 
-//                 id 
-//             }
-//             key
-//             hot
-//             trademark
-//             summary
-//             overview
-//             websiteurl
-//             description
-//             screenshots
-//             distribution
-//             vcpu
-//             memory
-//             storage
-//             logo {
-//                 imageurl
-//             }
-//             catalogCollection(limit:15) {
-//                 items {
-//                 key
-//                 title
-//                 catalogCollection(limit:5){
-//                     items{
-//                         key
-//                         title
-//                     }
-//                     }
-//                 }
-//             }
-//             }
-//         }
-//         catalog(id: "2Yp0TY3kBHgG6VDjsHZNpK",locale:$locale) {
-//             linkedFrom(allowedLocales:["en-US"]) {
-//             catalogCollection(limit:20) {
-//                 items {
-//                 key
-//                 position
-//                 title
-//                 linkedFrom(allowedLocales:["en-US"]) {
-//                     catalogCollection(limit:20) {
-//                     items {
-//                         key
-//                         title
-//                         position
-//                     }
-//                     }
-//                 }
-//                 }
-//             }
-//             }
-//         }
-//     }
-// `;
 
 //应用详情弹窗
 const AppDetailModal = ({ product, showFlag, onClose }) => {
@@ -173,7 +111,7 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
                     <div style={{ padding: "10px" }}>
                         <div className='appstore-item-content-icon col-same-height'>
                             <img
-                                src={require(`../assets/images/${imagName}`)}
+                                src={`./static/data/logos/${imagName}`}
                                 alt=""
                                 className="app-icon"
                                 onError={(e) => (e.target.src = DefaultImg)}
@@ -205,7 +143,7 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
                                         <Carousel.Item key={item?.id} >
                                             <img
                                                 className="d-block"
-                                                src={require(`../assets/images/screenshot/${language === "zh_CN" ? "zh" : "en"}/${filename}`)}
+                                                src={`./static/data/screenshots/${language === "zh_CN" ? "zh" : "en"}/${filename}`}
                                                 alt={item?.key}
                                                 width="100%"
                                                 height="300px"
@@ -280,80 +218,59 @@ const AppStore = (): React$Element<React$FragmentType> => {
     const [allMainCatalogApps, setAllMainCatalogApps] = useState(null); //用于存储某个一级子目录下的所有应用
     const [isAllSelected, setIsAllSelected] = useState(true);
     const [searchValue, setSearchValue] = useState("");
+    const [mainCatalogs, setMainCatalogs] = useState([]);
+    const [apps, setApps] = useState([]); //用于存储通过目录筛选出来的数据
+    const [appList, setAppList] = useState([]); //用于存储通过目录筛选出来的数据
+    const [loading, setLoading] = useState(false);
 
-    // const { loading: dataLoading, error: dataError, data: allData, fetchMore } = useQuery(getContentfulData, { variables: { locale: language === "zh_CN" ? "zh-CN" : "en-US" } });
+    const navigate = useNavigate(); //用于页面跳转
 
-    const allData = language === "zh_CN" ? product_zh : product_en;
+    //读取数据文件
+    const getData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [catalogResponse, productResponse] = await Promise.all([
+                axios.get(`./static/data/json/catalog_${language === "zh_CN" ? "zh" : "en"}.json`),
+                axios.get(`./static/data/json/product_${language === "zh_CN" ? "zh" : "en"}.json`)
+            ]);
+            if (catalogResponse.status === 200) {
+                const catalogSort = catalogResponse.data.sort(function (a, b) {
+                    if (a.position === null && b.position === null) {
+                        return 0;
+                    } else if (a.position === null) {
+                        return 1;
+                    } else if (b.position === null) {
+                        return -1;
+                    } else {
+                        return a.position - b.position;
+                    }
+                });
+                setMainCatalogs(catalogSort);
+            }
+            else {
+                return <p>Error: Failed to fetch directory data </p>;
+            }
 
-    // 定义一个变量来存储已经查询过的数据的数量
-    // let skipCount = 0;
-
-    // // 定义一个函数来使用fetchMore方法获取更多的产品
-    // const fetchMoreProducts = () => {
-    //     // 检查是否还有更多的产品可以获取
-    //     if (allData.productCollection.items.length < allData.productCollection.total) {
-    //         // 使用fetchMore方法，把已经查询过的数据的数量作为skip变量传入
-    //         fetchMore({
-    //             variables: {
-    //                 skip: skipCount,
-    //             },
-    //             // 使用新的结果更新之前的结果，通过连接items数组
-    //             updateQuery: (prevResult, { fetchMoreResult }) => {
-    //                 return Object.assign({}, prevResult, {
-    //                     productCollection: {
-    //                         ...fetchMoreResult.productCollection,
-    //                         items: [
-    //                             ...prevResult.productCollection.items,
-    //                             ...fetchMoreResult.productCollection.items,
-    //                         ],
-    //                     },
-    //                 });
-    //             },
-    //         });
-    //     }
-    // };
-
-    //主目录数据
-    const mainCatalogs = (language === "zh_CN" ? catalog_zh : catalog_en).sort(function (a, b) {
-        if (a.position === null && b.position === null) {
-            return 0;
-        } else if (a.position === null) {
-            return 1;
-        } else if (b.position === null) {
-            return -1;
-        } else {
-            return a.position - b.position;
+            if (productResponse.status === 200) {
+                setApps(productResponse.data);
+                setAppList(productResponse.data);
+            }
+            else {
+                return <p>Error: Failed to fetch product data </p>;
+            }
         }
-    });
+        catch {
+            navigate("/error-500");
+        }
+        setLoading(false);
+    }, [language, setMainCatalogs, setApps, setAppList]);
 
-    const [apps, setApps] = useState(allData); //用于存储通过目录筛选出来的数据
-    const [appList, setAppList] = useState(allData); //用于存储通过目录筛选出来的数据
+    useEffect(() => {
+        getData();
+    }, [getData]);
 
-    // useEffect(() => {
-    //     // 检查是否有任何数据
-    //     if (allData) {
-    //         // 更新已经查询过的数据的数量，加上当前返回的数据的数量
-    //         skipCount += allData.productCollection.items.length;
-    //         // 调用fetchMoreProducts函数来获取更多的产品，如果有的话
-    //         fetchMoreProducts();
-    //         //对产品根据hot排序：降序
-    //         const data = allData.productCollection?.items?.sort(function (a, b) {
-    //             if (a.hot === null && b.hot === null) {
-    //                 return 0;
-    //             } else if (a.hot === null) {
-    //                 return 1;
-    //             } else if (b.hot === null) {
-    //                 return -1;
-    //             } else {
-    //                 return b.hot - a.hot;
-    //             }
-    //         });
-    //         setAppList(data);
-    //         setApps(data);
-    //     }
-    // }, [allData])
 
-    // if (dataLoading) return <Spinner className='dis_mid' />
+    if (loading) return <Spinner className='dis_mid' />
     // if (dataError) return <p>Error : ${dataError.message} </p>;
 
     //用于显示应用详情的弹窗
@@ -487,7 +404,7 @@ const AppStore = (): React$Element<React$FragmentType> => {
                             <div className='appstore-item-content highlight' onClick={() => { handleClick(app) }}>
                                 <div className='appstore-item-content-icon col-same-height'>
                                     <img
-                                        src={require(`../assets/images/${imagName}`)}
+                                        src={`./static/data/logos/${imagName}`}
                                         alt=""
                                         className="app-icon"
                                         onError={(e) => (e.target.src = DefaultImg)}
