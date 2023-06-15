@@ -2,7 +2,7 @@
     "SERVICES": {
         "PORTAINER": "2.18.3",
         "NGINX": "2.10.3",
-        "APPMANAGE": "0.3.0",
+        "APPMANAGE": "0.4.0",
         "REDIS": "7.0.11"
     },
     "PLUGINS": {
@@ -14,5 +14,5 @@
     "LIBRARY": {
         "VERSION": "1.0.0"
     },    
-    "VERSION": "0.3.0"
+    "VERSION": "0.4.0"
 }
