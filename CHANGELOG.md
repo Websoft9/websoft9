@@ -1,3 +1,7 @@
+## 0.4.0 release on 2023-06-15
+
+1. owncloud 下线测试
+
 ## 0.3.0 release on 2023-06-06
 
 1. appmanage docker 镜像更新到 0.3.0
