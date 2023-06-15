@@ -93,7 +93,7 @@ function fastest_url() {
 }
 
 LibraryUpdate(){
-old_library_version=$(cat install/version.json | jq .VERSION | tr -d '"')
+old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
 latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
 if [ "$old_library_version" \< "$latest_library_version" ]; then
     echo "start to update Library..."
