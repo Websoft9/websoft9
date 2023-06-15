@@ -1,59 +1,6 @@
 [
   {
     "sys": {
-      "id": "6oRa2Zyb36GxRMo10xDg9D"
-    },
-    "key": "owncloud",
-    "hot": null,
-    "trademark": "OwnCloud ",
-    "summary": "一款云存储开源软件",
-    "overview": "ownCloud用于自建私有网盘的云存储开源软件，功能类似百度云盘，提供了PC、IOS和Android三个同步客户端。",
-    "websiteurl": "https://owncloud.com/",
-    "description": "ownCloud是一款用于自建私有网盘的云存储开源软件，采用PHP+MySQL开发，功能类似百度云盘，提供了PC、IOS和Android三个同步客户端支持多种设备访问，用户可以很方便地与服务器上存储的文件、日程安排、通讯录、书签等重要数据保持同步，还支持其他同步来源：Amazon S3、Dropbox、FTP、Google Drive、OpenStack Object Storage、SMB、WebDAV、SFTP。",
-    "screenshots": [
-      {
-        "id": "1fecd2be-94c4-47da-a188-c51b2ba2931b",
-        "key": "init",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/owncloud/owncloud-init1-websoft9.png"
-      },
-      {
-        "id": "725ef05a-0ea3-4a87-b7bd-193cfe0a3973",
-        "key": "install",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/owncloud/owncloud-installcomplete-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
-        "key": "Community",
-        "value": "10.11"
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/owncloud-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "document",
-          "title": "文档协作",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "collaboration",
-                "title": "协作办公"
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "23HrDKURRv8pE2HGxOjrJg"
     },
     "key": "mattermost",

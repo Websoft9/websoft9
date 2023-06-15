@@ -1,59 +1,6 @@
 [
   {
     "sys": {
-      "id": "6oRa2Zyb36GxRMo10xDg9D"
-    },
-    "key": "owncloud",
-    "hot": null,
-    "trademark": "OwnCloud ",
-    "summary": "A self-hosted file sync and share server software",
-    "overview": "ownCloud provides access to your data through a web interface, sync clients or WebDAV while providing a platform to view, sync and share across devices easily-all under your control.",
-    "websiteurl": "https://owncloud.com/",
-    "description": "This is a repackaged ownCloud with professional support for your business. ownCloud is a self-hosted file sync and share server software. It provides access to your data through a web interface, sync clients or WebDAV while providing a platform to view, sync and share across devices easily-all under your control. ownCloud's open architecture is extensible for applications and plugins and it works with any storage.",
-    "screenshots": [
-      {
-        "id": "5a6b64c9-81b6-40b3-afaa-54916245200f",
-        "key": "init",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/owncloud/owncloud-init1-websoft9.png"
-      },
-      {
-        "id": "fc3dd085-46d9-4c39-b908-49232161f574",
-        "key": "install",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/en/owncloud/owncloudgui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
-        "key": "Community",
-        "value": "10.11"
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/owncloud-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "document",
-          "title": "Document Collaboration",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "collaboration",
-                "title": "Collaboration & Office"
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
       "id": "23HrDKURRv8pE2HGxOjrJg"
     },
     "key": "mattermost",
