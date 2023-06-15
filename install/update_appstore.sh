@@ -51,7 +51,7 @@ if [ "$old_library_version" \< "$latest_library_version" ]; then
         mv docker-library* library
         rm -f $latest_library_version
 
-        wget $fasturl/websoft9/StackHub/repository/archive/$release_version
+        wget $fastest/websoft9/StackHub/repository/archive/$release_version
         unzip $release_version
         mv StackHub* stackhub
         rm -f $release_version
@@ -62,7 +62,7 @@ if [ "$old_library_version" \< "$latest_library_version" ]; then
         mv docker-library* library
         rm -f $latest_library_version.zip
 
-        wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
+        wget $fastest/websoft9/StackHub/archive/refs/tags/$release_version.zip
         unzip $release_version.zip
         mv StackHub* stackhub
         rm -f $release_version.zip
@@ -75,3 +75,4 @@ else
     echo "Library is not need to update"
 fi
 }
+LibraryUpdate
