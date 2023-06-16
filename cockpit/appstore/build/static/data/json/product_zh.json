@@ -1,6 +1,263 @@
 [
   {
     "sys": {
+      "id": "3xOgZOPK7DWmtPXTpHqcsP"
+    },
+    "key": "rowy",
+    "hot": 10000,
+    "trademark": "Rowy",
+    "summary": "快速构建 Web 电子表格程序开源低代码平台",
+    "overview": "低代码后端平台。在类似电子表格的 UI 上管理数据库，并在 JS/TS 中构建云函数工作流，所有这些都在您的浏览器中完成。",
+    "websiteurl": "http://rowy.io/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "3e66b007-9fe2-439c-9a74-63e2e7b23322",
+        "key": "Dashboard",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rowy/rowy-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rowy-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "master-data",
+          "title": "主数据管理",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "analytics",
+                "title": "数据 & 分析"
+              }
+            ]
+          }
+        },
+        {
+          "key": "low-code",
+          "title": "低代码",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "设计创作"
+              },
+              {
+                "key": "itdeveloper",
+                "title": "IT 开发者"
+              }
+            ]
+          }
+        },
+        {
+          "key": "nocode",
+          "title": "零代码",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "设计创作"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "40PUDAY7PxnSiBf3NMhwOd"
+    },
+    "key": "appsmith",
+    "hot": 10000,
+    "trademark": "Appsmith",
+    "summary": "快速构建内部工具的开源低代码平台",
+    "overview": "Appsmith 是一个开源框架，可让您的团队更快、更协作地构建自定义内部应用程序，如仪表板、管理面板、CRUD 应用程序",
+    "websiteurl": "appsmith.com",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "3e66b007-9fe2-439c-9a74-63e2e7b23322",
+        "key": "GUI",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/appsmith/appsmith-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 2,
+    "memory": 4,
+    "storage": 10,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/appsmith-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "master-data",
+          "title": "主数据管理",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "analytics",
+                "title": "数据 & 分析"
+              }
+            ]
+          }
+        },
+        {
+          "key": "low-code",
+          "title": "低代码",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "设计创作"
+              },
+              {
+                "key": "itdeveloper",
+                "title": "IT 开发者"
+              }
+            ]
+          }
+        },
+        {
+          "key": "nocode",
+          "title": "零代码",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "设计创作"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1dozRAa6FMuX7KkNueYXfy"
+    },
+    "key": "huginn",
+    "hot": 10000,
+    "trademark": "Huginn",
+    "summary": "工作流与任务自动化",
+    "overview": "Huginn是一个用于构建代理的系统，可以在线为您执行自动化任务。他们可以阅读网络、监视事件并代表您采取行动。",
+    "websiteurl": "https://github.com/huginn/huginn",
+    "description": "Think of it as a hackable version of IFTTT or Zapier on your own server",
+    "screenshots": [
+      {
+        "id": "b8f4c8aa-fa2c-49dd-a7ad-b64e18325736",
+        "key": "Dashboard",
+        "value": "oss://libs-websoft9-com/Websoft9/DocsPicture/zh/huginn/huginn-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "cb1193c2-6668-4c37-9f14-309cbf2e616d",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/huginn-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "dataintegration",
+          "title": "数据集成",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "analytics",
+                "title": "数据 & 分析"
+              },
+              {
+                "key": "automation",
+                "title": "自动化"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "6oRa2Zyb36GxRMo10xDg9D"
+    },
+    "key": "owncloud",
+    "hot": null,
+    "trademark": "OwnCloud ",
+    "summary": "一款云存储开源软件",
+    "overview": "ownCloud用于自建私有网盘的云存储开源软件，功能类似百度云盘，提供了PC、IOS和Android三个同步客户端。",
+    "websiteurl": "https://owncloud.com/",
+    "description": "ownCloud是一款用于自建私有网盘的云存储开源软件，采用PHP+MySQL开发，功能类似百度云盘，提供了PC、IOS和Android三个同步客户端支持多种设备访问，用户可以很方便地与服务器上存储的文件、日程安排、通讯录、书签等重要数据保持同步，还支持其他同步来源：Amazon S3、Dropbox、FTP、Google Drive、OpenStack Object Storage、SMB、WebDAV、SFTP。",
+    "screenshots": [
+      {
+        "id": "1fecd2be-94c4-47da-a188-c51b2ba2931b",
+        "key": "init",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/owncloud/owncloud-init1-websoft9.png"
+      },
+      {
+        "id": "725ef05a-0ea3-4a87-b7bd-193cfe0a3973",
+        "key": "install",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/owncloud/owncloud-installcomplete-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
+        "key": "Community",
+        "value": "10.11"
+      }
+    ],
+    "vcpu": 2,
+    "memory": 4,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/owncloud-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "document",
+          "title": "文档协作",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "collaboration",
+                "title": "协作办公"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
       "id": "23HrDKURRv8pE2HGxOjrJg"
     },
     "key": "mattermost",
@@ -1110,146 +1367,6 @@
               {
                 "key": "communication",
                 "title": "通信"
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "DEOp8ynxuO4rMELqtrNRl"
-    },
-    "key": "wordpress",
-    "hot": 200,
-    "trademark": "WordPress",
-    "summary": "全球 42% 的网页基于 WordPress 构建",
-    "overview": "WordPress 是一个流行的开源建站平台，市场占有率极高。它以其易用性、易扩展性（ 插件 、模板 、二次开发）、功能强大、美观、搜索引擎友好等特征而广泛流行。",
-    "websiteurl": "https://wordpress.com/",
-    "description": "按你的方式设计\n\n设计您想象的任何东西。从一张空白的画布开始，或者从各种各样的主题和图案中进行选择。自定义每个细节，从颜色和字体到布局和功能。\n\n插入和扩展\n\n让 WordPress 做任何你需要它做的事。添加商店、邮寄列表、投资组合、社交提要、分析；您可以控制超过 55,000 个插件。\n\n拥有你所做的 \n\n您的内容、设计和数据始终属于您。使用 WordPress，您可以自由地讲述您的故事、发展您的品牌，或者只是做您自己。\n\n充满信心地创造\n\n由拥有数十年经验的开源社区构建，其热情的贡献者致力于保持 WordPress 尽可能稳定和安全。",
-    "screenshots": [
-      {
-        "id": "94655745-52ac-419b-bb06-02aa15e0b923",
-        "key": "登录界面",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-add-site-websoft9.png"
-      },
-      {
-        "id": "18f86757-dff9-4e88-94de-e3af48eef29c",
-        "key": "2",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-addplugins-websoft9.png"
-      },
-      {
-        "id": "e5fcd98b-c8d9-4e32-b9a3-d8b6e2e75276",
-        "key": "3",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-addthemes-websoft9.png"
-      },
-      {
-        "id": "0b86adb5-5be4-418a-8e13-bd5693b21e74",
-        "key": "4",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-createmenu-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "id": "f6ee7f47-e0eb-4616-aaa4-71015737c29a",
-        "key": "Community",
-        "value": "6.2"
-      },
-      {
-        "id": "2edce2f3-adae-40ff-b578-aaf01125ca5f",
-        "key": "Multisites",
-        "value": "latest"
-      },
-      {
-        "id": "828bfbbd-97bf-4fe6-b6ac-8a76e594b06c",
-        "key": "Solution",
-        "value": "MinIO,Matomo"
-      },
-      {
-        "id": "dac3dbb6-254c-4192-96fb-e33f14ba2925",
-        "key": "Free themes",
-        "value": "latest"
-      },
-      {
-        "id": "559e2a70-0949-44fa-8a78-dc59308086dd",
-        "key": "Basic services",
-        "value": "latest"
-      },
-      {
-        "id": "ce6ea7a9-7a8b-4fd0-ac6d-58393b83d475",
-        "key": "Senior services",
-        "value": "latest"
-      }
-    ],
-    "vcpu": 1,
-    "memory": 1,
-    "storage": 1,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/wordpress-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "website",
-          "title": "企业建站",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "cms",
-                "title": "内容管理"
-              }
-            ]
-          }
-        },
-        {
-          "key": "low-code",
-          "title": "低代码",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "create",
-                "title": "设计创作"
-              },
-              {
-                "key": "itdeveloper",
-                "title": "IT 开发者"
-              }
-            ]
-          }
-        },
-        {
-          "key": "content-marketing",
-          "title": "内容营销",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "marketing",
-                "title": "市场营销"
-              }
-            ]
-          }
-        },
-        {
-          "key": "nocode",
-          "title": "零代码",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "create",
-                "title": "设计创作"
-              }
-            ]
-          }
-        },
-        {
-          "key": "ecommerce",
-          "title": "电子商务",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "cms",
-                "title": "内容管理"
               }
             ]
           }
@@ -4889,66 +5006,6 @@
               {
                 "key": "architecture",
                 "title": "IT 应用架构"
-              }
-            ]
-          }
-        }
-      ]
-    }
-  },
-  {
-    "sys": {
-      "id": "40PUDAY7PxnSiBf3NMhwOd"
-    },
-    "key": "appsmith",
-    "hot": 10000,
-    "trademark": "Appsmith",
-    "summary": "快速构建内部工具的开源低代码平台",
-    "overview": "Appsmith 是一个开源框架，可让您的团队更快、更协作地构建自定义内部应用程序，如仪表板、管理面板、CRUD 应用程序",
-    "websiteurl": "appsmith.com",
-    "description": null,
-    "screenshots": [
-      {
-        "id": "3e66b007-9fe2-439c-9a74-63e2e7b23322",
-        "key": "GUI",
-        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/appsmith/appsmith-gui-websoft9.png"
-      }
-    ],
-    "distribution": [
-      {
-        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
-        "key": "Community",
-        "value": "latest"
-      }
-    ],
-    "vcpu": 2,
-    "memory": 4,
-    "storage": 10,
-    "logo": {
-      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/appsmith-websoft9.png"
-    },
-    "catalogCollection": {
-      "items": [
-        {
-          "key": "master-data",
-          "title": "主数据管理",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "analytics",
-                "title": "数据 & 分析"
-              }
-            ]
-          }
-        },
-        {
-          "key": "ecommerce",
-          "title": "电子商务",
-          "catalogCollection": {
-            "items": [
-              {
-                "key": "cms",
-                "title": "内容管理"
               }
             ]
           }
