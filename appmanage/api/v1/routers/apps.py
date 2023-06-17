@@ -50,21 +50,23 @@ info = "&emsp;&emsp;app_id：应用ID,\n\n&emsp;&emsp;app_name：应用名,\n\n"
 
 domain = "&emsp;&emsp;Domain_set：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;domains：域名列表\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名\n\n&emsp;&emsp;}\n\n}"
+         "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名\n\n&emsp;&emsp;}\n\n}\n\n"
 
 update = "&emsp;&emsp;Update_content: {\n\n" \
          "&emsp;&emsp;&emsp;&emsp;version: 最新版本\n\n" \
          "&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;}\n\n}"
+         "&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;}\n\n}\n\n"
 
-appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n&emsp;&emsp;\n\n}"
+appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n&emsp;&emsp;\n\n}\n\n"
+auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n&emsp;&emsp;\n\n}\n\n"
 
 rd = rd_s + rd_m + rd_e
 rd_info = rd_s + info + rd_e
 rd_status = rd_s + rd_status + rd_e
 rd_domain = rd_s + domain + rd_e
 rd_update_list = rd_s + update + rd_e
-
+rd_appstore = rd_s + appstore_update + rd_e
+rd_auto_list = rd_s + auto + rd_e
 
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_status,
@@ -374,7 +376,7 @@ def AppUpdateList(request: Request):
 
     return response
 
-@router.api_route("/AppStoreUpdate", methods=["GET", "POST"], summary="更新软件商店", response_model=Response, response_description=rd_update_list)
+@router.api_route("/AppStoreUpdate", methods=["GET", "POST"], summary="更新软件商店", response_model=Response, response_description=rd_appstore)
 def AppStoreUpdate(request: Request):
 
     try:
@@ -384,6 +386,29 @@ def AppStoreUpdate(request: Request):
         ret['ResponseData'] = {}
         ret['ResponseData']['Update_content'] = manage.AppStoreUpdate()
         myLogger.info_logger(ret)
+        response = JSONResponse(content=ret)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        response = JSONResponse(content=ret)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+        response = JSONResponse(content=ret)
+
+    return response
+
+@router.api_route("/AppAutoUpdate", methods=["GET", "POST"], summary="软件商店自动更新", response_model=Response, response_description=rd_auto_list)
+def AppAutoUpdate(request: Request,auto_update: Optional[bool] = Query(default=False, description="自动更新标志")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppAutoUpdate")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['auto_update'] = manage.AppAutoUpdate(auto_update)
         response = JSONResponse(content=ret)
     except CommandException as ce:
         ret = {}

@@ -21,6 +21,8 @@ from redis import Redis
 from rq import Queue, Worker, Connection
 from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger,CronTrigger
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
@@ -28,6 +30,15 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn, default_timeout=3600)
 
+def auto_update():
+    shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
+
+def test():
+    shell_execute.execute_command_output_all("echo 1111 >> /tmp/xuweitest")
+
+scheduler = BackgroundScheduler()
+#scheduler.add_job(auto_update, CronTrigger(hour=1, minute=0))
+scheduler.add_job(test, IntervalTrigger(minutes=1))
 
 # 获取github文件内容
 def get_github_content(repo, path):
@@ -37,6 +48,17 @@ def get_github_content(repo, path):
     response.encoding = 'utf-8'
     contents = response.text
     return contents
+
+def AppAutoUpdate(auto_update):
+    
+    if auto_update:
+        scheduler.start()  
+        return "软件商店自动更新已经开启"
+    else:
+        scheduler.shutdown()
+        return "软件商店自动更新已经关闭"
+
+
 
 # 更新软件商店
 def AppStoreUpdate():
