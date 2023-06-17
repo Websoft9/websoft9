@@ -447,7 +447,7 @@ sudo docker restart websoft9-nginxproxymanager
 EditMenu(){
 
 echo "Start to  Edit Cockpit Menu ..."
-if command -v yq > /dev/null; then
+if command -v jq > /dev/null; then
   if [ -e /usr/share/cockpit/systemd ]; then
     jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
     rm -rf /usr/share/cockpit/systemd/manifest.json
