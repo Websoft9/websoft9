@@ -134,7 +134,7 @@ echo "Prepare to install Tools ..."
 
 if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
   sudo yum update -y 1>/dev/null 2>&1
-  sudo yum install  git curl wget yum-utils jq firewalld bc -y  1>/dev/null 2>&1
+  sudo yum install  git curl wget yum-utils jq firewalld bc unzip -y  1>/dev/null 2>&1
 
 fi
 
@@ -144,7 +144,7 @@ if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
       sleep 5
   done
   sudo apt update -y 1>/dev/null 2>&1
-  sudo apt install git curl wget jq firewalld bc -y  1>/dev/null 2>&1
+  sudo apt install git curl wget jq firewalld bc unzip -y  1>/dev/null 2>&1
 fi
 
 }

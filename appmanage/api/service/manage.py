@@ -59,7 +59,7 @@ def AppStoreUpdate():
         for change in change_log[1:]:
             if change != '':
                 content.append(change)
-        shell_execute.execute_command_output_all("wget curl https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
+        shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
         
         return content
     else:
