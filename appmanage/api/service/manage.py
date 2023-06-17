@@ -36,8 +36,8 @@ def auto_update():
     shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
 
 scheduler = BackgroundScheduler()
-#scheduler.add_job(auto_update, CronTrigger(hour=1, minute=0))
-scheduler.add_job(auto_update, CronTrigger(second='30'))
+scheduler.add_job(auto_update, CronTrigger(hour=1, minute=0))
+scheduler.shutdown()
 
 # 获取github文件内容
 def get_github_content(repo, path):
