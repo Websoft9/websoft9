@@ -469,6 +469,30 @@ if command -v jq > /dev/null; then
   mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
 else
   echo "system have no jq, use cockpit menu ..."
+  if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
+    sudo yum install epel-release -y 1>/dev/null 2>&1
+    sudo yum install jq -y  1>/dev/null 2>&1
+    if [ -e /usr/share/cockpit/systemd ]; then
+      jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+      rm -rf /usr/share/cockpit/systemd/manifest.json
+      mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+      cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
+    fi
+    if [ -e /usr/share/cockpit/networkmanager ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
+    fi
+    if [ -e /usr/share/cockpit/storaged ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
+    fi
+    if [ -e /usr/share/cockpit/users ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
+    fi
+
+    jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+    rm -rf /usr/share/cockpit/shell/manifest.json
+    mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
+  fi
+
 fi
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
