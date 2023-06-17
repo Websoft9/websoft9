@@ -1,8 +1,10 @@
-## 0.5.0 release on 2023-06-17
+## 0.6.0 release on 2023-06-17
 
-1. appstore 升级脚本输出内容过多引起的异常修复
-2. 安装脚本对于 yq 失败的异常处理
-3. 对部分操作系统（如 redhat9）安装 unzip 包
+1. 上架 wordpress
+2. 下架 moodle
+3. 修改 redmine
+4. 升级 discuzq，zabbix
+5. 新增自动更新软件商店功能
 
 ## 0.4.0 release on 2023-06-15
 

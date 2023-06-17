@@ -1,6 +1,365 @@
 [
   {
     "sys": {
+      "id": "DEOp8ynxuO4rMELqtrNRl"
+    },
+    "key": "wordpress",
+    "hot": 200,
+    "trademark": "WordPress",
+    "summary": "WordPress is open source software you can use to create a beautiful website, blog, or app",
+    "overview": "42% of the web is built on WordPress. More bloggers, small businesses, and Fortune 500 companies use WordPress than all other options combined. Join the millions of people that call WordPress.com home.",
+    "websiteurl": "https://wordpress.com/",
+    "description": "Style it your way\n\nDesign anything you imagine. Start with a blank canvas or choose from a wide variety of themes and patterns. Customize every detail, from color and fonts to layouts and functionality.\n\nPlug in and extend\n\nMake WordPress do whatever you need it to. Add a store, mailing list, portfolio, social feed, analytics; you’re in control with over 55,000 plugins.\n\nOwn what you make \n\nYour content, your design, and your data always belong to you. With WordPress you’re free to tell your story, grow your brand, or simply be yourself.\n\nCreate with confidence\n\nBuilt by an open source community with decades of experience, its passionate contributors are committed to keeping WordPress as stable and secure as possible.",
+    "screenshots": [],
+    "distribution": [
+      {
+        "id": "f6ee7f47-e0eb-4616-aaa4-71015737c29a",
+        "key": "Community",
+        "value": "6.2"
+      },
+      {
+        "id": "2edce2f3-adae-40ff-b578-aaf01125ca5f",
+        "key": "Multisites",
+        "value": "latest"
+      },
+      {
+        "id": "828bfbbd-97bf-4fe6-b6ac-8a76e594b06c",
+        "key": "Solution",
+        "value": "MinIO,Matomo"
+      },
+      {
+        "id": "dac3dbb6-254c-4192-96fb-e33f14ba2925",
+        "key": "Free themes",
+        "value": "latest"
+      },
+      {
+        "id": "559e2a70-0949-44fa-8a78-dc59308086dd",
+        "key": "Basic services",
+        "value": "latest"
+      },
+      {
+        "id": "ce6ea7a9-7a8b-4fd0-ac6d-58393b83d475",
+        "key": "Senior services",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/wordpress-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "website",
+          "title": "Website Builder",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "cms",
+                "title": "Content Management"
+              }
+            ]
+          }
+        },
+        {
+          "key": "low-code",
+          "title": "Low Code",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "Design & Create"
+              },
+              {
+                "key": "itdeveloper",
+                "title": "IT Developer"
+              }
+            ]
+          }
+        },
+        {
+          "key": "content-marketing",
+          "title": "Content Marketing",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "marketing",
+                "title": "Marketing"
+              }
+            ]
+          }
+        },
+        {
+          "key": "nocode",
+          "title": "No Code",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "Design & Create"
+              }
+            ]
+          }
+        },
+        {
+          "key": "ecommerce",
+          "title": "eCommerce",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "cms",
+                "title": "Content Management"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "tQDqIYwL2RQSFWy8DIFFF"
+    },
+    "key": "rustdesk",
+    "hot": 10000,
+    "trademark": "RustDesk ",
+    "summary": "Virtual and Remote desktop infrastructure ",
+    "overview": "远程桌面软件以及配套的注册/中继服务器，开箱即用，无需任何配置。您完全掌控数据，不用担心安全。Open source TeamViewer / Citrix alternative.",
+    "websiteurl": "https://rustdesk.com/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "3c3c3232-bc6f-47d7-a1a1-86b2fb978d0a",
+        "key": "Console",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rustdesk/rustdesk-gui-websoft9.jpg"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "1675d02c-0f9e-43ef-84d9-27e0f5a1856f",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rustdesk-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "cloud-workspaces",
+          "title": "Cloud Workspaces",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "collaboration",
+                "title": "Collaboration & Office"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1ieaQhxm7lnSX15t5qUXuR"
+    },
+    "key": "searx",
+    "hot": 10000,
+    "trademark": "searx",
+    "summary": "Privacy-respecting, hackable metasearch engine",
+    "overview": "Searx is a free internet metasearch engine which aggregates results from more than 70 search services. Users are neither tracked nor profiled. Additionally, searx can be used over Tor for online anonymity.",
+    "websiteurl": "https://searx.github.io/searx/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "f618bffe-b689-42fe-9344-3121ef605450",
+        "key": "Site",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/searx/searx-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/searx-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "search",
+          "title": "Search Engine",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT Architecture"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "77rns1P4llrmpgXpmTAIct"
+    },
+    "key": "searxng",
+    "hot": 10000,
+    "trademark": "SearXNG",
+    "summary": "Internet metasearch engine",
+    "overview": "SearXNG is a free internet metasearch engine which aggregates results from more than 70 search services. ",
+    "websiteurl": "https://docs.searxng.org/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "f618bffe-b689-42fe-9344-3121ef605450",
+        "key": "Site",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/searxng/searxng-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/searxng-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "search",
+          "title": "Search Engine",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT Architecture"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "7zX9LDtnbTyD3aYmDTqL7f"
+    },
+    "key": "jellyfin",
+    "hot": 10000,
+    "trademark": "Jellyfin",
+    "summary": "The Free Software Media System",
+    "overview": "Jellyfin is a Free Software Media System that puts you in control of managing and streaming your media. It is an alternative to the proprietary Emby and Plex, to provide media from a dedicated server to end-user devices via multiple apps. ",
+    "websiteurl": "https://jellyfin.org/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "5a6b64c9-81b6-40b3-afaa-54916245200f",
+        "key": "Dashboard",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/jellyfin/jellyfin-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/jellyfin-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "video-server",
+          "title": "Video Server",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT Architecture"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "TDt18yo5osnXrHFktbmIu"
+    },
+    "key": "cloudreve",
+    "hot": 10000,
+    "trademark": "Cloudreve",
+    "summary": "Self-hosted file management system with muilt-cloud support.",
+    "overview": "Cloudreve is a self-hosted file management system with muilt-cloud support. It support storing files into Local storage, Remote storage, Qiniu, Aliyun OSS, Tencent COS, Upyun, OneDrive, S3 compatible API.",
+    "websiteurl": "https://cloudreve.org/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "5a6b64c9-81b6-40b3-afaa-54916245200f",
+        "key": "Dashboard",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/cloudreve/cloudreve-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/cloudreve-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "document",
+          "title": "Document Collaboration",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "collaboration",
+                "title": "Collaboration & Office"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
       "id": "3xOgZOPK7DWmtPXTpHqcsP"
     },
     "key": "rowy",

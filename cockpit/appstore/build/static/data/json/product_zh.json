@@ -1,6 +1,386 @@
 [
   {
     "sys": {
+      "id": "DEOp8ynxuO4rMELqtrNRl"
+    },
+    "key": "wordpress",
+    "hot": 200,
+    "trademark": "WordPress",
+    "summary": "全球 42% 的网页基于 WordPress 构建",
+    "overview": "WordPress 是一个流行的开源建站平台，市场占有率极高。它以其易用性、易扩展性（ 插件 、模板 、二次开发）、功能强大、美观、搜索引擎友好等特征而广泛流行。",
+    "websiteurl": "https://wordpress.com/",
+    "description": "按你的方式设计\n\n设计您想象的任何东西。从一张空白的画布开始，或者从各种各样的主题和图案中进行选择。自定义每个细节，从颜色和字体到布局和功能。\n\n插入和扩展\n\n让 WordPress 做任何你需要它做的事。添加商店、邮寄列表、投资组合、社交提要、分析；您可以控制超过 55,000 个插件。\n\n拥有你所做的 \n\n您的内容、设计和数据始终属于您。使用 WordPress，您可以自由地讲述您的故事、发展您的品牌，或者只是做您自己。\n\n充满信心地创造\n\n由拥有数十年经验的开源社区构建，其热情的贡献者致力于保持 WordPress 尽可能稳定和安全。",
+    "screenshots": [
+      {
+        "id": "94655745-52ac-419b-bb06-02aa15e0b923",
+        "key": "登录界面",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-add-site-websoft9.png"
+      },
+      {
+        "id": "18f86757-dff9-4e88-94de-e3af48eef29c",
+        "key": "2",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-addplugins-websoft9.png"
+      },
+      {
+        "id": "e5fcd98b-c8d9-4e32-b9a3-d8b6e2e75276",
+        "key": "3",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-addthemes-websoft9.png"
+      },
+      {
+        "id": "0b86adb5-5be4-418a-8e13-bd5693b21e74",
+        "key": "4",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/wordpress/wordpress-createmenu-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "f6ee7f47-e0eb-4616-aaa4-71015737c29a",
+        "key": "Community",
+        "value": "6.2"
+      },
+      {
+        "id": "2edce2f3-adae-40ff-b578-aaf01125ca5f",
+        "key": "Multisites",
+        "value": "latest"
+      },
+      {
+        "id": "828bfbbd-97bf-4fe6-b6ac-8a76e594b06c",
+        "key": "Solution",
+        "value": "MinIO,Matomo"
+      },
+      {
+        "id": "dac3dbb6-254c-4192-96fb-e33f14ba2925",
+        "key": "Free themes",
+        "value": "latest"
+      },
+      {
+        "id": "559e2a70-0949-44fa-8a78-dc59308086dd",
+        "key": "Basic services",
+        "value": "latest"
+      },
+      {
+        "id": "ce6ea7a9-7a8b-4fd0-ac6d-58393b83d475",
+        "key": "Senior services",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/wordpress-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "website",
+          "title": "企业建站",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "cms",
+                "title": "内容管理"
+              }
+            ]
+          }
+        },
+        {
+          "key": "low-code",
+          "title": "低代码",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "设计创作"
+              },
+              {
+                "key": "itdeveloper",
+                "title": "IT 开发者"
+              }
+            ]
+          }
+        },
+        {
+          "key": "content-marketing",
+          "title": "内容营销",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "marketing",
+                "title": "市场营销"
+              }
+            ]
+          }
+        },
+        {
+          "key": "nocode",
+          "title": "零代码",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "create",
+                "title": "设计创作"
+              }
+            ]
+          }
+        },
+        {
+          "key": "ecommerce",
+          "title": "电子商务",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "cms",
+                "title": "内容管理"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "tQDqIYwL2RQSFWy8DIFFF"
+    },
+    "key": "rustdesk",
+    "hot": 10000,
+    "trademark": "RustDesk ",
+    "summary": "虚拟与远程桌面服务端",
+    "overview": "远程桌面软件以及配套的注册/中继服务器，开箱即用，无需任何配置。您完全掌控数据，不用担心安全。TeamViewer 或 Citrix 的替代品",
+    "websiteurl": "https://rustdesk.com/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "ec40efc7-139e-4056-aa9a-7b0907b612f4",
+        "key": "控制台",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/rustdesk/rustdesk-gui-websoft9.jpg"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "1675d02c-0f9e-43ef-84d9-27e0f5a1856f",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/rustdesk-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "cloud-workspaces",
+          "title": "云桌面",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "collaboration",
+                "title": "协作办公"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "1ieaQhxm7lnSX15t5qUXuR"
+    },
+    "key": "searx",
+    "hot": 10000,
+    "trademark": "searx",
+    "summary": "聚合互联网搜索引擎",
+    "overview": "Searx是一个免费的互联网元搜索引擎，它汇总了来自更多 超过 70 个搜索服务。既不跟踪也不分析用户。此外 searx可以通过Tor用于在线匿名。",
+    "websiteurl": "https://searx.github.io/searx/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "3e66b007-9fe2-439c-9a74-63e2e7b23322",
+        "key": "Site",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/searx/searx-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/searx-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "search",
+          "title": "搜索引擎",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT 应用架构"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "77rns1P4llrmpgXpmTAIct"
+    },
+    "key": "searxng",
+    "hot": 10000,
+    "trademark": "SearXNG",
+    "summary": "构建自己的搜索引擎",
+    "overview": "SearXNG是一个免费的互联网元搜索引擎，它汇总了来自各种搜索服务和数据库的结果。既不跟踪也不分析用户。",
+    "websiteurl": "https://docs.searxng.org/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "3e66b007-9fe2-439c-9a74-63e2e7b23322",
+        "key": "Site",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/searxng/searxng-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "55c787cf-0625-45af-8ca1-6b4d8e3aef9e",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/searxng-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "search",
+          "title": "搜索引擎",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT 应用架构"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "7zX9LDtnbTyD3aYmDTqL7f"
+    },
+    "key": "jellyfin",
+    "hot": 10000,
+    "trademark": "Jellyfin",
+    "summary": "开源流媒体系统，构建自己影音平台",
+    "overview": "Jellyfin是一个自由软件媒体系统，可让您控制管理和流式传输媒体。它是专有的Emby和Plex的替代方案，通过多个应用程序将媒体从专用服务器提供给最终用户设备。",
+    "websiteurl": "https://jellyfin.org/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "1fecd2be-94c4-47da-a188-c51b2ba2931b",
+        "key": "Dashboard",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/jellyfin/jellyfin-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/jellyfin-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "video-server",
+          "title": "视频服务",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "architecture",
+                "title": "IT 应用架构"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
+      "id": "TDt18yo5osnXrHFktbmIu"
+    },
+    "key": "cloudreve",
+    "hot": 10000,
+    "trademark": "Cloudreve",
+    "summary": "支持多家云存储的云盘系统",
+    "overview": "Cloudreve 是一个支持多家云存储的云盘系统。支持使用本机、从机、七牛、阿里云 OSS、腾讯云 COS、又拍云、AWS S3、OneDrive 作为存储端，上传/下载 均支持客户端直传，无需服务器中转。",
+    "websiteurl": "https://cloudreve.org/",
+    "description": null,
+    "screenshots": [
+      {
+        "id": "1fecd2be-94c4-47da-a188-c51b2ba2931b",
+        "key": "Dashboard",
+        "value": "https://libs.websoft9.com/Websoft9/DocsPicture/zh/cloudreve/cloudreve-gui-websoft9.png"
+      }
+    ],
+    "distribution": [
+      {
+        "id": "883d30e9-bf3a-4466-8c5c-e55639b2c9b7",
+        "key": "Community",
+        "value": "latest"
+      }
+    ],
+    "vcpu": 1,
+    "memory": 1,
+    "storage": 1,
+    "logo": {
+      "imageurl": "https://libs.websoft9.com/Websoft9/logo/product/cloudreve-websoft9.png"
+    },
+    "catalogCollection": {
+      "items": [
+        {
+          "key": "document",
+          "title": "文档协作",
+          "catalogCollection": {
+            "items": [
+              {
+                "key": "collaboration",
+                "title": "协作办公"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "sys": {
       "id": "3xOgZOPK7DWmtPXTpHqcsP"
     },
     "key": "rowy",
@@ -1056,7 +1436,7 @@
         },
         {
           "key": "community",
-          "title": "在线论坛",
+          "title": "社交/论坛",
           "catalogCollection": {
             "items": [
               {
@@ -6006,7 +6386,7 @@
         },
         {
           "key": "community",
-          "title": "在线论坛",
+          "title": "社交/论坛",
           "catalogCollection": {
             "items": [
               {
@@ -6672,7 +7052,7 @@
         },
         {
           "key": "community",
-          "title": "在线论坛",
+          "title": "社交/论坛",
           "catalogCollection": {
             "items": [
               {

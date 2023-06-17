@@ -36,6 +36,7 @@ function fastest_url() {
 }
 
 LibraryUpdate(){
+echo "auto_update start..." >> /tmp/auto_update.txt
 old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
 latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
 release_version=$(curl https://websoft9.github.io/StackHub/install/version.json | jq .VERSION | tr -d '"')
