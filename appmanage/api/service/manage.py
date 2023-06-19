@@ -36,8 +36,12 @@ q = Queue(connection=redis_conn, default_timeout=3600)
 def auto_update():
     shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
 
+def test():
+    shell_execute.execute_command_output_all("echo 1111 >> /tmp/test1")
+
 scheduler = BackgroundScheduler()
-scheduler.add_job(auto_update, IntervalTrigger(minutes=1))
+scheduler.add_job(auto_update, 'cron', second=1)
+scheduler.add_job(test, 'cron', second=1)
 
 # 获取github文件内容
 def get_github_content(repo, path):
