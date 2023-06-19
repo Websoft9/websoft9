@@ -22,7 +22,9 @@ from rq import Queue, Worker, Connection
 from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 
 # 指定 Redis 容器的主机名和端口
@@ -35,7 +37,8 @@ def auto_update():
     shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(auto_update, CronTrigger(hour=1, minute=0))
+#scheduler.add_job(auto_update, CronTrigger(hour=1, minute=0))
+scheduler.add_job(auto_update, IntervalTrigger(minutes=1))
 scheduler.shutdown()
 
 # 获取github文件内容
