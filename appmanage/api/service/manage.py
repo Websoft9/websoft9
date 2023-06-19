@@ -117,13 +117,15 @@ def get_update_list():
             if change != '':
                 content.append(change)
         
-        ret['latest_version'] = version
-        ret['date'] = date
-        ret['content'] = content
+        ret2= {}
+        ret2['latest_version'] = version
+        ret2['date'] = date
+        ret2['content'] = content
+        ret['Update_content']=ret2
         return ret
     else:
+        ret['Update_content']=None
         return ret
-
 
 def conbine_list(installing_list, installed_list):
     app_list = installing_list + installed_list
