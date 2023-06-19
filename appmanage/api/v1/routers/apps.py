@@ -59,7 +59,7 @@ update = "&emsp;&emsp;Compare_content: 新旧版本内容{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;&emsp;&emsp;}\n\n&emsp;&emsp;}\n\n}\n\n"
 
-appstore_update = "&emsp;&emsp;Update_content: [] 更新内容}\n\n"
+appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n}\n\n"
 auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"
 
 rd = rd_s + rd_m + rd_e
