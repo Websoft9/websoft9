@@ -53,14 +53,14 @@ domain = "&emsp;&emsp;Domain_set：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名\n\n&emsp;&emsp;}\n\n}\n\n"
 
 update = "&emsp;&emsp;Compare_content: 新旧版本内容{\n\n" \
-         "&emsp;&emsp;current_version: 当前版本,\n\n" \
-         "&emsp;&emsp;Update_content: {\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;version: 最新版本\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;}\n\n}\n\n}\n\n"
+         "&emsp;&emsp;&emsp;&emsp;current_version: 当前版本,\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;Update_content: {\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;version: 最新版本\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;&emsp;&emsp;}\n\n&emsp;&emsp;}\n\n}\n\n"
 
-appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n&emsp;&emsp;\n\n}\n\n"
-auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n&emsp;&emsp;\n\n}\n\n"
+appstore_update = "&emsp;&emsp;Update_content: [] 更新内容}\n\n"
+auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"
 
 rd = rd_s + rd_m + rd_e
 rd_info = rd_s + info + rd_e
