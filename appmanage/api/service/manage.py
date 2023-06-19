@@ -37,7 +37,8 @@ def auto_update():
     shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(auto_update, CronTrigger(hour=10, minute=42), id='auto_update_job')
+#scheduler.add_job(auto_update, CronTrigger(hour='1'), id='auto_update_job')
+scheduler.add_job(auto_update, CronTrigger.from_crontab('15 * * * * *'))
 
 # 获取github文件内容
 def get_github_content(repo, path):
@@ -53,13 +54,17 @@ def AppAutoUpdate(auto_update):
     myLogger.info_logger(scheduler.state)
     myLogger.info_logger(scheduler.get_jobs())
     if auto_update:
-        scheduler.start()  
-        return "软件商店自动更新已经开启"
+        if scheduler.state == 1:
+            raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in running state", "auto_update already in running state")
+        else:
+            scheduler.start()  
+            return "软件商店自动更新已经开启"
     else:
-        scheduler.shutdown()
-        return "软件商店自动更新已经关闭"
-
-
+        if scheduler.state == 0:
+            raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in closed state", "auto_update already in closed state")
+        else:
+            scheduler.shutdown()
+            return "软件商店自动更新已经关闭"
 
 # 更新软件商店
 def AppStoreUpdate():
