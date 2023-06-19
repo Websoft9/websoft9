@@ -39,7 +39,7 @@ def auto_update():
 scheduler = BackgroundScheduler()
 #scheduler.add_job(auto_update, CronTrigger(hour=1, minute=0))
 scheduler.add_job(auto_update, IntervalTrigger(minutes=1))
-scheduler.shutdown()
+#scheduler.shutdown()
 
 # 获取github文件内容
 def get_github_content(repo, path):
