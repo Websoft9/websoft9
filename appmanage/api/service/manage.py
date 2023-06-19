@@ -106,6 +106,8 @@ def get_update_list():
     local_version = json.loads(op)['VERSION']
     version_contents = get_github_content(repo, 'install/version.json')
     version = json.loads(version_contents)['VERSION']
+    ret = {}
+    ret['current_version'] = local_version
     if compared_version(local_version, version) == -1:
         content = []
         change_log_contents = get_github_content(repo, 'CHANGELOG.md')
@@ -114,13 +116,13 @@ def get_update_list():
         for change in change_log[1:]:
             if change != '':
                 content.append(change)
-        ret = {}
-        ret['version'] = version
+        
+        ret['latest_version'] = version
         ret['date'] = date
         ret['content'] = content
         return ret
     else:
-        return None
+        return ret
 
 
 def conbine_list(installing_list, installed_list):
