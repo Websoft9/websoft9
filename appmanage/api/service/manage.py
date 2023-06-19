@@ -34,14 +34,13 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 q = Queue(connection=redis_conn, default_timeout=3600)
 
 def auto_update():
+    myLogger.info_logger("auto update")
     shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
 
 def test():
     shell_execute.execute_command_output_all("echo 1111 >> /tmp/test1")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(auto_update, 'cron', second=1)
-scheduler.add_job(test, 'cron', second=1)
 
 # 获取github文件内容
 def get_github_content(repo, path):
@@ -60,6 +59,8 @@ def AppAutoUpdate(auto_update):
         if scheduler.state == 1 or scheduler.state == "1":
             raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in running state", "auto_update already in running state")
         else:
+            scheduler.add_job(auto_update, 'cron', second=1)
+            scheduler.add_job(test, 'cron', second=1)
             scheduler.start()  
             return "软件商店自动更新已经开启"
     else:
