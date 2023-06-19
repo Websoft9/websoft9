@@ -59,13 +59,13 @@ def AppAutoUpdate(auto_update):
     myLogger.info_logger(scheduler.state)
     myLogger.info_logger(scheduler.get_jobs())
     if auto_update:
-        if scheduler.state == EVENT_SCHEDULER_RESUMED or scheduler.state == EVENT_SCHEDULER_STARTED:
+        if scheduler.state == "1":
             raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in running state", "auto_update already in running state")
         else:
             scheduler.resume()
             return "软件商店自动更新已经开启"
     else:
-        if scheduler.state == EVENT_SCHEDULER_PAUSED:
+        if scheduler.state == "2":
             raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in closed state", "auto_update already in closed state")
         else:
             scheduler.pause()
