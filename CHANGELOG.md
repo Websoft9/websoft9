@@ -1,3 +1,9 @@
+## 0.7.0 release on 2023-06-20
+
+appstore 增加 更新功能
+myapps 功能优化
+新增 settings(设置) 功能
+
 ## 0.6.0 release on 2023-06-17
 
 1. 上架 wordpress

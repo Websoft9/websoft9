@@ -608,6 +608,11 @@
       "catalogCollection": {
         "items": [
           {
+            "key": "community",
+            "title": "Online Community",
+            "position": null
+          },
+          {
             "key": "headless-cms",
             "title": "Headless CMS",
             "position": 10
@@ -620,11 +625,6 @@
           {
             "key": "kms",
             "title": "Knowledge Management",
-            "position": null
-          },
-          {
-            "key": "community",
-            "title": "Online Community",
             "position": null
           },
           {

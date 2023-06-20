@@ -211,6 +211,7 @@ const AppDetailModal = ({ product, showFlag, onClose }) => {
     );
 }
 
+
 const AppStore = (): React$Element<React$FragmentType> => {
     const [showModal, setShowModal] = useState(false); //用于显示弹窗的标识
     const [selectedProduct, setSelectedProduct] = useState(null); //用于存储被选中的产品（点击应用详情时使用）
@@ -222,8 +223,8 @@ const AppStore = (): React$Element<React$FragmentType> => {
     const [apps, setApps] = useState([]); //用于存储通过目录筛选出来的数据
     const [appList, setAppList] = useState([]); //用于存储通过目录筛选出来的数据
     const [loading, setLoading] = useState(false);
-
     const navigate = useNavigate(); //用于页面跳转
+
 
     //读取数据文件
     const getData = useCallback(async () => {
@@ -268,7 +269,6 @@ const AppStore = (): React$Element<React$FragmentType> => {
     useEffect(() => {
         getData();
     }, [getData]);
-
 
     if (loading) return <Spinner className='dis_mid' />
     // if (dataError) return <p>Error : ${dataError.message} </p>;

@@ -306,6 +306,18 @@
     "Search for apps like WordPress, MySQL, GitLab, …": [
         null,
         "请输入要搜索的应用名称,例如:WordPress,MySQL,GitLab, …"
+    ],
+    "The app store is already the latest version": [
+        null,
+        "应用商店已是最新版本"
+    ],
+    "Update Application List": [
+        null,
+        "更新应用列表"
+    ],
+    "Update Log": [
+        null,
+        "更新日志"
     ]
 }));
 

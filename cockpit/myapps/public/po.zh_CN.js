@@ -410,6 +410,10 @@
     "This application is pre-configured with an administrator account, please change the administrator password immediately. The initial credentials are:": [
         null,
         "此应用程序是使用管理员帐户预先设置的，请立即更改管理员密码。初始凭据为："
+    ],
+    "Overview": [
+        null,
+        "预览"
     ]
 
 }));

@@ -8,11 +8,11 @@
     "PLUGINS": {
         "PORTAINER": "1.0.0",
         "NGINX": "1.0.0",
-        "MYAPPS": "1.0.1",
-        "APPSTORE": "1.0.0"
+        "MYAPPS": "1.0.2",
+        "APPSTORE": "1.0.1"
     },
     "LIBRARY": {
         "VERSION": "0.2.2"
     },    
-    "VERSION": "0.6.0"
+    "VERSION": "0.7.0"
 }

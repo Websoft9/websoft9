@@ -1,9 +1,9 @@
 // @flow
 import {
-    AppInstall
+    AppInstall, AppStoreUpdate
 } from './appManager';
 
 export {
-    AppInstall
+    AppInstall, AppStoreUpdate
 };
 

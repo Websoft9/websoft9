@@ -21,6 +21,7 @@ const Topbar = React.lazy(() => import('./Topbar'));
 
 const loading = () => <div className="text-center"></div>;
 
+
 type VerticalLayoutProps = {
     children?: any,
 };
@@ -28,6 +29,7 @@ type VerticalLayoutProps = {
 type VerticalLayoutState = {
     isMenuOpened?: boolean,
 };
+
 
 const DetachedLayout = ({ children }: VerticalLayoutProps, state: VerticalLayoutState): React$Element<any> => {
     const dispatch = useDispatch();

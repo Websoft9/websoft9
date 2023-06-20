@@ -608,6 +608,11 @@
       "catalogCollection": {
         "items": [
           {
+            "key": "community",
+            "title": "社交/论坛",
+            "position": null
+          },
+          {
             "key": "headless-cms",
             "title": "无头 CMS",
             "position": 10
@@ -620,11 +625,6 @@
           {
             "key": "kms",
             "title": "知识管理",
-            "position": null
-          },
-          {
-            "key": "community",
-            "title": "在线论坛",
             "position": null
           },
           {
