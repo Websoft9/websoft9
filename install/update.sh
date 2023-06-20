@@ -248,6 +248,18 @@ else
     echo "appstore is not need to update"
 fi
 
+# update settings
+old_settings_version=$(cat /usr/share/cockpit/settings/manifest.json | jq .version)
+new_settings_version=$(cat /data/apps/stackhub/cockpit/settings/build/manifest.json |jq .version)
+
+if [ "$old_settings_version" \< "$new_settings_version" ]; then
+    echo "settings plugin need to update"
+    rm -rf /usr/share/cockpit/settings/*
+    cp -r /data/apps/stackhub/cockpit/settings/build/* /usr/share/cockpit/settings
+else
+    echo "settings is not need to update"
+fi
+
 # update myapps
 old_myapps_version=$(cat /usr/share/cockpit/myapps/manifest.json | jq .version)
 new_myapp_version=$(cat /data/apps/stackhub/cockpit/myapps/build/manifest.json |jq .version)
