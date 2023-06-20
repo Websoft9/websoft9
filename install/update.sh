@@ -230,6 +230,8 @@ elif  command -v dnf > /dev/null;then
 elif  command -v yum > /dev/null;then 
   sudo yum update -y cockpit-navigator
 fi
+sudo systemctl restart cockpit.socket
+sudo systemctl restart cockpit
 }
 
 UpdatePlugins(){
@@ -373,6 +375,6 @@ fi
 
 CheckUpdate
 UpdateDocker
-UpdateCockpit
 UpdatePlugins
 UpdateServices
+UpdateCockpit
