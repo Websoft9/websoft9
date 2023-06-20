@@ -93,6 +93,7 @@ function fastest_url() {
 }
 
 LibraryUpdate(){
+echo "Update appstore library..."
 old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
 latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
 if [ "$old_library_version" \< "$latest_library_version" ]; then
@@ -118,32 +119,40 @@ else
     echo "Library is not need to update"
 fi
 }
+StackhubUpdate(){
+echo "Update stackhub ..."
+cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
+old_version=$(cat /data/apps/stackhub/install/version.json | jq .VERSION | tr -d '"')
+release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
 
+if [ "$old_version" \< "$release_version" ]; then
+    echo "start to update stackhub..."
+    fasturl=$(fastest_url "${urls[@]}")
+    echo "fasturl is: "$fasturl
+    cd /tmp && rm -rf /tmp/stackhub
+    if [[ $fasturl == *gitee.com* ]]; then
+        wget $fasturl/websoft9/StackHub/repository/archive/$release_version
+        unzip $release_version
+        mv StackHub* stackhub
+        rm -f $release_version
+    else
+        wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
+        unzip $release_version.zip
+        mv StackHub* stackhub
+        rm -f $release_version.zip
+    fi
+    rm -rf /tmp/config.json
+    cp /usr/share/cockpit/myapps/config.json /tmp/config.json
+    rm -rf /data/apps/stackhub
+    cp -r /tmp/stackhub /data/apps
+    
+else
+    echo "stackhub is not need to update"
+fi
+
+}
 CheckUpdate(){
 echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"
-echo "Update appstore library..."
-LibraryUpdate
-cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
-echo "Update stackhub ..."
-release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
-fasturl=$(fastest_url "${urls[@]}")
-echo "fasturl is: "$fasturl
-cd /tmp && rm -rf /tmp/stackhub
-if [[ $fasturl == *gitee.com* ]]; then
-    wget $fasturl/websoft9/StackHub/repository/archive/$release_version
-    unzip $release_version
-    mv StackHub* stackhub
-    rm -f $release_version
-else
-    wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
-    unzip $release_version.zip
-    mv StackHub* stackhub
-    rm -f $release_version.zip
-fi
-rm -rf /tmp/config.json
-cp /usr/share/cockpit/myapps/config.json /tmp/config.json
-rm -rf /data/apps/stackhub
-cp -r /tmp/stackhub /data/apps
 
 if [ $(id -u) != "0" ]; then
     echo "Please change to root or 'sudo su' to up system privileges, and  reinstall the script again ."
@@ -230,8 +239,7 @@ elif  command -v dnf > /dev/null;then
 elif  command -v yum > /dev/null;then 
   sudo yum update -y cockpit-navigator
 fi
-sudo systemctl restart cockpit.socket
-sudo systemctl restart cockpit
+
 }
 
 UpdatePlugins(){
@@ -360,20 +368,11 @@ else
     echo "w9nginx is not need to update"
 fi
 
-# old_kopia=$(echo $old_version | jq .KOPIA.KOPIA_IMAGE_VERSION)
-# new_kopia=$(cat /data/apps/stackhub/install/version.json | jq .KOPIA.KOPIA_IMAGE_VERSION)
-# if [ "$old_kopia" \< "$new_kopia" ]; then
-#     echo "w9kopia need to update"
-#     old_password=$(cat /usr/share/cockpit/myapps/config.json | jq -r '.KOPIA.KOPIA_PASSWORD')
-#     sudo sed -i 's/POWER_PASSWORD=.*/POWER_PASSWORD="'$old_password'"/g' /data/apps/stackhub/docker/w9kopia/.env
-#     cd /data/apps/stackhub/docker/w9kopia  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
-# else
-#     echo "w9kopia is not need to update"
-# fi
-
 }
 
 CheckUpdate
+LibraryUpdate
+StackhubUpdate
 UpdateDocker
 UpdatePlugins
 UpdateServices
