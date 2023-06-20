@@ -75,5 +75,6 @@ if [ "$old_library_version" \< "$latest_library_version" ]; then
 else
     echo "Library is not need to update"
 fi
+rm $0
 }
 LibraryUpdate
