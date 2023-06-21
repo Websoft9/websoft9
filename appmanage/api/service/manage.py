@@ -37,12 +37,8 @@ def auto_update():
     myLogger.info_logger("auto update")
     shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
 
-def test():
-    shell_execute.execute_command_output_all("echo 1111 >> /tmp/test1")
-
 scheduler = BackgroundScheduler()
-scheduler.add_job(auto_update, 'cron', second=1)
-scheduler.add_job(test, 'cron', second=1)
+scheduler.add_job(auto_update, 'cron', hour=1)
 scheduler.start()
 
 # 获取github文件内容
@@ -79,7 +75,7 @@ def AppStoreUpdate():
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']
         local_version = json.loads(op)['VERSION']
     except:
-        local_version = "0.1.0"
+        local_version = "0.0.1"
 
     repo = 'docker-library'
     version_contents = get_github_content(repo, 'install/version.json')
@@ -102,8 +98,12 @@ def AppStoreUpdate():
 def get_update_list():
     local_path = '/data/apps/stackhub/install/version.json'
     repo = 'StackHub'
-    op = shell_execute.execute_command_output_all("cat " + local_path)['result']
-    local_version = json.loads(op)['VERSION']
+    local_version = "0"
+    try:
+        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+        local_version = json.loads(op)['VERSION']
+    except:
+        local_version = "0.0.1"
     version_contents = get_github_content(repo, 'install/version.json')
     version = json.loads(version_contents)['VERSION']
     ret = {}

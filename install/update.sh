@@ -94,7 +94,11 @@ function fastest_url() {
 
 LibraryUpdate(){
 echo "Update appstore library..."
-old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
+if [ ! -f /data/library/install/version.json ]; then
+    old_library_version="0.0.1"
+else
+    old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
+fi
 latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
 if [ "$old_library_version" \< "$latest_library_version" ]; then
     echo "start to update Library..."
@@ -122,7 +126,12 @@ fi
 StackhubUpdate(){
 echo "Update stackhub ..."
 cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
-old_version=$(cat /data/apps/stackhub/install/version.json | jq .VERSION | tr -d '"')
+
+if [ ! -f /data/apps/stackhub/install/version.json ]; then
+    old_version="0.0.1"
+else
+    old_version=$(cat /data/apps/stackhub/install/version.json | jq .VERSION | tr -d '"')
+fi
 release_version=$(cat /tmp/version.json | jq .VERSION | tr -d '"')
 
 if [ "$old_version" \< "$release_version" ]; then
