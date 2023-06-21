@@ -1,3 +1,9 @@
+## 0.7.1 release on 2023-06-21
+
+appmanage version 文件意外删除时 bug 修改  
+自动更新的时间频率调整为一天  
+更新脚本 version 文件不存在的 bug 修改
+
 ## 0.7.0 release on 2023-06-20
 
 appstore 增加 更新功能  
