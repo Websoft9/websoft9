@@ -43,12 +43,13 @@ else
     old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
 fi
 latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
-release_version=$(curl https://websoft9.github.io/StackHub/install/version.json | jq .VERSION | tr -d '"')
+
 if [ "$old_library_version" \< "$latest_library_version" ]; then
     echo "start to update Library..."
+    release_version=$(curl https://websoft9.github.io/stackhub-web/CHANGELOG.md | head -n 1 |cut -d' ' -f2)
     fastest=$(fastest_url "${urls[@]}")
     echo "fasturl is: "$fastest
-    cd /tmp && rm -rf /tmp/library /tmp/stackhub
+    cd /tmp && rm -rf /tmp/library /tmp/stackhub-web
     if [[ $fastest == *gitee.com* ]]; then
         echo "update from gitee"
         wget $fastest/websoft9/docker-library/repository/archive/$latest_library_version
@@ -56,9 +57,9 @@ if [ "$old_library_version" \< "$latest_library_version" ]; then
         mv docker-library* library
         rm -f $latest_library_version
 
-        wget $fastest/websoft9/StackHub/repository/archive/$release_version
+        wget $fastest/websoft9/stackhub-web/repository/archive/$release_version
         unzip $release_version
-        mv StackHub* stackhub
+        mv stackhub-web* stackhub-web
         rm -f $release_version
     else
         echo "update from github"
@@ -67,14 +68,14 @@ if [ "$old_library_version" \< "$latest_library_version" ]; then
         mv docker-library* library
         rm -f $latest_library_version.zip
 
-        wget $fastest/websoft9/StackHub/archive/refs/tags/$release_version.zip
+        wget $fastest/websoft9/stackhub-web/archive/refs/tags/$release_version.zip
         unzip $release_version.zip
-        mv StackHub* stackhub
+        mv stackhub-web* stackhub-web
         rm -f $release_version.zip
     fi
     rm -rf /data/library && cp -r /tmp/library /data
-    rm -rf /usr/share/cockpit/appstore/static/data && cp -r /tmp/stackhub/cockpit/appstore/build/static/data /usr/share/cockpit/appstore/static
-    rm -rf /usr/share/cockpit/myapps/static/logos && cp -r /tmp/stackhub/cockpit/myapps/build/static/logos /usr/share/cockpit/myapps/static
+    rm -rf /usr/share/cockpit/appstore/static/data && cp -r /tmp/stackhub-web/plugins/appstore/build/static/data /usr/share/cockpit/appstore/static
+    rm -rf /usr/share/cockpit/myapps/static/logos && cp -r /tmp/stackhub-web/plugins/myapps/build/static/logos /usr/share/cockpit/myapps/static
     
 else
     echo "Library is not need to update"

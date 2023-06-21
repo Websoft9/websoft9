@@ -150,8 +150,6 @@ if [ "$old_version" \< "$release_version" ]; then
         mv StackHub* stackhub
         rm -f $release_version.zip
     fi
-    rm -rf /tmp/config.json
-    cp /usr/share/cockpit/myapps/config.json /tmp/config.json
     rm -rf /data/apps/stackhub
     cp -r /tmp/stackhub /data/apps
     
@@ -255,79 +253,94 @@ UpdatePlugins(){
 
 echo "Check plugins if have update ..."
 
+rm -rf /tmp/config.json
+cp /usr/share/cockpit/myapps/config.json /tmp/config.json
+
 # update appstore
 old_appstore_version=$(cat /usr/share/cockpit/appstore/manifest.json | jq .version)
 new_appstore_version=$(cat /data/apps/stackhub/cockpit/appstore/build/manifest.json |jq .version)
-
-if [ "$old_appstore_version" \< "$new_appstore_version" ]; then
-    echo "appstore plugin need to update"
-    rm -rf /usr/share/cockpit/appstore/*
-    cp -r /data/apps/stackhub/cockpit/appstore/build/* /usr/share/cockpit/appstore
-else
-    echo "appstore is not need to update"
-fi
 
 # update settings
 old_settings_version=$(cat /usr/share/cockpit/settings/manifest.json | jq .version)
 new_settings_version=$(cat /data/apps/stackhub/cockpit/settings/build/manifest.json |jq .version)
 
-if [ "$old_settings_version" \< "$new_settings_version" ]; then
-    echo "settings plugin need to update"
-    rm -rf /usr/share/cockpit/settings/*
-    cp -r /data/apps/stackhub/cockpit/settings/build/* /usr/share/cockpit/settings
-else
-    echo "settings is not need to update"
-fi
-
 # update myapps
 old_myapps_version=$(cat /usr/share/cockpit/myapps/manifest.json | jq .version)
 new_myapp_version=$(cat /data/apps/stackhub/cockpit/myapps/build/manifest.json |jq .version)
-
-if [ "$old_myapps_version" \< "$new_myapp_version" ]; then
-    echo "start to update myapps..."
-    rm -rf /usr/share/cockpit/myapps/*
-    cp -r /data/apps/stackhub/cockpit/myapps/build/* /usr/share/cockpit/myapps
-    rm -f /usr/share/cockpit/myapps/config.json
-    cp /tmp/config.json /usr/share/cockpit/myapps/config.json
-else
-    echo "myapps is not need to update"
-fi
 
 ## update container
 old_container_version=$(cat /usr/share/cockpit/container/manifest.json | jq .version)
 new_container_version=$(cat /data/apps/stackhub/cockpit/portainer/build/manifest.json |jq .version)
 
-if [ "$old_container_version" \< "$new_container_version" ]; then
-    echo "start  to update portainer..."
-    rm -rf /usr/share/cockpit/container/*
-    cp -r /data/apps/stackhub/cockpit/portainer/build/* /usr/share/cockpit/container
-else
-    echo "portainer is not need to update"
-fi
-
 ## update nginx
 old_nginx_version=$(cat /usr/share/cockpit/nginx/manifest.json | jq .version)
 new_nginx_version=$(cat /data/apps/stackhub/cockpit/nginxproxymanager/build/manifest.json |jq .version)
 
-if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
-    echo "start to update nginx..."
-    rm -rf /usr/share/cockpit/nginx/*
-    cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/nginx
+if [ "$old_appstore_version" = "$new_appstore_version" ] && [ "$old_settings_version" = "$new_settings_version" ] && [ "$old_myapps_version" = "$new_myapp_version" ] && [ "$old_container_version" = "$new_container_version" ] && [ "$old_nginx_version" \< "$new_nginx_version" ]; then
+    echo "appstore all plugins is latest"
 else
-    echo "nginx is not need to update"
+
+    release_version=$(curl https://websoft9.github.io/stackhub-web/CHANGELOG.md | head -n 1 |cut -d' ' -f2)
+    fastest=$(fastest_url "${urls[@]}")
+    echo "fasturl is: "$fastest
+    cd /tmp && rm -rf /tmp/stackhub-web
+    if [[ $fastest == *gitee.com* ]]; then
+        echo "update from gitee"
+        wget $fastest/websoft9/stackhub-web/repository/archive/$release_version
+        unzip $release_version
+        mv stackhub-web* stackhub-web
+        rm -f $release_version
+    else
+        echo "update from github"
+        wget $fastest/websoft9/stackhub-web/archive/refs/tags/$release_version.zip
+        unzip $release_version.zip
+        mv stackhub-web* stackhub-web
+        rm -f $release_version.zip
+    fi
+    rm -rf /data/apps/stackhub-web && cp -r /tmp/stackhub-web /data/apps
+
+    if [ "$old_appstore_version" \< "$new_appstore_version" ]; then
+        echo "appstore plugin need to update"
+        rm -rf /usr/share/cockpit/appstore/*
+        cp -r /data/apps/stackhub-web/plugins/appstore/build/* /usr/share/cockpit/appstore
+    else
+        echo "appstore is not need to update"
+    fi
+
+    if [ "$old_settings_version" \< "$new_settings_version" ]; then
+        echo "settings plugin need to update"
+        rm -rf /usr/share/cockpit/settings/*
+        cp -r /data/apps/stackhub-web/plugins/settings/build/* /usr/share/cockpit/settings
+    else
+        echo "settings is not need to update"
+    fi
+
+    if [ "$old_myapps_version" \< "$new_myapp_version" ]; then
+        echo "start to update myapps..."
+        rm -rf /usr/share/cockpit/myapps/*
+        cp -r /data/apps/stackhub-web/plugins/myapps/build/* /usr/share/cockpit/myapps
+        rm -f /usr/share/cockpit/myapps/config.json
+        cp /tmp/config.json /usr/share/cockpit/myapps/config.json
+    else
+        echo "myapps is not need to update"
+    fi
+
+    if [ "$old_container_version" \< "$new_container_version" ]; then
+        echo "start  to update portainer..."
+        rm -rf /usr/share/cockpit/container/*
+        cp -r /data/apps/stackhub-web/plugins/portainer/build/* /usr/share/cockpit/container
+    else
+        echo "portainer is not need to update"
+    fi
+
+    if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
+        echo "start to update nginx..."
+        rm -rf /usr/share/cockpit/nginx/*
+        cp -r /data/apps/stackhub-web/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
+    else
+        echo "nginx is not need to update"
+    fi
 fi
-
-## update kopia
-# old_kopia_version=$(cat /usr/share/cockpit/backup/manifest.json | jq .version)
-# new_kopia_version=$(cat /data/apps/stackhub/install/version.json|jq .KOPIA.KOPIA_PLUGIN_VERSION)
-
-# if [ "$old_kopia_version" \< "$new_kopia_version" ]; then
-#     echo "kopia plugin need to update"
-#     rm -rf /usr/share/cockpit/backup/*
-#     cp -r /data/apps/stackhub/cockpit/kopia/build/* /usr/share/cockpit/backup
-# else
-#     echo "kopia is not need to update"
-# fi
  
 }
 

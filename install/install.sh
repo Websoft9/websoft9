@@ -266,19 +266,19 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 # install plugins
 # install appstore
 mkdir /usr/share/cockpit/appstore
-cp -r /data/apps/stackhub/cockpit/appstore/build/* /usr/share/cockpit/appstore
+cp -r /data/apps/stackhub-web/plugins/appstore/build/* /usr/share/cockpit/appstore
 # install portainer
 mkdir /usr/share/cockpit/container
-cp -r /data/apps/stackhub/cockpit/portainer/build/* /usr/share/cockpit/container
+cp -r /data/apps/stackhub-web/plugins/portainer/build/* /usr/share/cockpit/container
 ## install nginx
 mkdir /usr/share/cockpit/nginx
-cp -r /data/apps/stackhub/cockpit/nginxproxymanager/build/* /usr/share/cockpit/nginx
+cp -r /data/apps/stackhub-web/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
 ## install settings
 mkdir /usr/share/cockpit/settings
-cp -r /data/apps/stackhub/cockpit/settings/build/* /usr/share/cockpit/settings
+cp -r /data/apps/stackhub-web/plugins/settings/build/* /usr/share/cockpit/settings
 ## install myapps
 mkdir /usr/share/cockpit/myapps
-cp -r /data/apps/stackhub/cockpit/myapps/build/* /usr/share/cockpit/myapps
+cp -r /data/apps/stackhub-web/plugins/myapps/build/* /usr/share/cockpit/myapps
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -366,6 +366,7 @@ echo "fast url is: "$fasturl
 mkdir -p /data/apps
 clone_repo $fasturl/Websoft9/docker-library /data/library
 clone_repo $fasturl/Websoft9/StackHub /data/apps/stackhub
+clone_repo $fasturl/Websoft9/stackhub-web /data/apps/stackhub-web
 cp -r /data/apps/stackhub/docker  /data/apps/w9services
 }
 
@@ -390,19 +391,6 @@ docker rm -f pwgen
 sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
 sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://127.0.0.1:9091/api/users/admin/init
-}
-
-StartKopia(){
-
-echo "Start Kopia ..."
-docker pull backplane/pwgen
-new_password=$(docker run --name pwgen backplane/pwgen 15)!
-docker rm -f pwgen
-sudo sed -i "s/POWER_PASSWORD=.*/POWER_PASSWORD=$new_password/g" /data/apps/w9services/w9kopia/.env
-cd /data/apps/w9services/w9kopia  && sudo docker compose up -d
-
-sudo sed -i 's/"KOPIA_USERNAME": ".*"/"KOPIA_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
-sudo sed -i 's/"KOPIA_PASSWORD": ".*"/"KOPIA_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
 }
 
 InstallNginx(){

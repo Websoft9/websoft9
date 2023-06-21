@@ -4,16 +4,6 @@
         "NGINX": "2.10.3",
         "APPMANAGE": "0.7.1",
         "REDIS": "7.0.11"
-    },
-    "PLUGINS": {
-        "PORTAINER": "1.0.0",
-        "NGINX": "1.0.0",
-        "SETTING": "1.0.0",
-        "MYAPPS": "1.0.2",
-        "APPSTORE": "1.0.1"
-    },
-    "LIBRARY": {
-        "VERSION": "0.2.2"
-    },    
+    },   
     "VERSION": "0.7.1"
 }
