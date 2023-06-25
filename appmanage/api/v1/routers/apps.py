@@ -403,7 +403,7 @@ def AppStoreUpdate(request: Request):
     return response
 
 @router.api_route("/AppAutoUpdate", methods=["GET", "POST"], summary="软件商店自动更新", response_model=Response, response_description=rd_auto_list)
-def AppAutoUpdate(request: Request,auto_update: Optional[bool] = Query(default=False, description="自动更新标志")):
+def AppAutoUpdate(request: Request,auto_update: Optional[str] = Query(default=None, description="自动更新标志")):
 
     try:
         myLogger.info_logger("Receive request: /AppAutoUpdate")
