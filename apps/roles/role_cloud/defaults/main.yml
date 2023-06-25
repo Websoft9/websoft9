@@ -1,2 +1,2 @@
 # install Cloud Agent, default is false
-cloud_agent: False
+cloud_agent: true

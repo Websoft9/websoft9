@@ -151,8 +151,20 @@ fi
 
 InstallDocker(){
 
-echo "Prepare to install Docker ..."
-
+if command -v docker &> /dev/null
+then
+    echo "Docker is installed, update..."
+    if command -v apt > /dev/null;then  
+      sudo apt -y install --only-upgrade  docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
+    elif  command -v dnf > /dev/null;then 
+      sudo dnf update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
+    elif  command -v yum > /dev/null;then 
+      sudo yum update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
+    fi
+    return
+else
+    echo "Docker is not installed, start to install..."
+fi
 if [ "$os_type" == 'CentOS' ];then
   curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
 fi
