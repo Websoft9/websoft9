@@ -87,10 +87,10 @@
 
     - name: Install huawei agent
       shell: curl -k -O 'https://hss-agent.{{region_id.stdout}}.myhuaweicloud.com:10180/package/agent/linux/x86/hostguard.x86_64.deb' && echo 'MASTER_IP=hss-agent.{{region_id.stdout}}.myhuaweicloud.com:10180' > hostguard_setup_config.conf && echo 'SLAVE_IP=hss-agent-slave.{{region_id.stdout}}.myhuaweicloud.com:10180' >> hostguard_setup_config.conf && echo 'ORG_ID=' >> hostguard_setup_config.conf && dpkg -i hostguard.x86_64.deb && rm -f hostguard_setup_config.conf && rm -f hostguard.x86_64.deb
-      when: ansible_os_family == "RedHat" and cloud.stdout == 'huawei'
+      when: ansible_os_family == "Debian" and cloud.stdout == 'huawei'
 
     - name: Install huawei agent
       shell: curl -k -O 'https://hss-agent.{{region_id.stdout}}.myhuaweicloud.com:10180/package/agent/linux/x86/hostguard.x86_64.rpm' && echo 'MASTER_IP=hss-agent.{{region_id.stdout}}.myhuaweicloud.com:10180' > hostguard_setup_config.conf && echo 'SLAVE_IP=hss-agent-slave.{{region_id.stdout}}.myhuaweicloud.com:10180' >> hostguard_setup_config.conf && echo 'ORG_ID=' >> hostguard_setup_config.conf && rpm -ivh hostguard.x86_64.rpm && rm -f  hostguard_setup_config.conf && rm -f hostguard.x86_64.rpm
-      when: ansible_os_family == "Debian" and cloud.stdout == 'huawei'
+      when: ansible_os_family == "RedHat" and cloud.stdout == 'huawei'
 
   when: cloud_agent
