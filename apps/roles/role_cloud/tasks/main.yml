@@ -5,7 +5,7 @@
     if [ -d "/usr/local/aegis" ];then echo "alicloud";fi
     if [ -f "/snap/bin/amazon-ssm-agent.ssm-cli" ];then echo "aws";fi
     if [ -f "/usr/bin/amazon-ssm-agent" ];then echo "aws";fi
-    if [ -d "/CloudrResetPwdAgent" ];then echo "huaiwei";fi
+    if [ -d "/CloudrResetPwdAgent" ];then echo "huawei";fi
   register: cloud
 
 - debug:
