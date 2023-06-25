@@ -54,18 +54,18 @@ def AppAutoUpdate(auto_update):
 
     myLogger.info_logger(scheduler.state)
     myLogger.info_logger(scheduler.get_jobs())
-    if auto_update:
-        if scheduler.state == "1":
-            raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in running state", "auto_update already in running state")
+    if auto_update == "true" or auto_update == "True":
+        scheduler.resume()
+        return "true"
+    elif auto_update == "false" or auto_update == "False":
+        scheduler.pause()
+        return "false"
+    elif auto_update == None or auto_update == "" or auto_update == "undefine":
+        state = scheduler.state
+        if state == 1:
+          return "true"
         else:
-            scheduler.resume()
-            return "软件商店自动更新已经开启"
-    else:
-        if scheduler.state == "2":
-            raise CommandException(const.ERROR_CLIENT_PARAM_REPEAT,"auto_update already in closed state", "auto_update already in closed state")
-        else:
-            scheduler.pause()
-            return "软件商店自动更新已经关闭"
+          return "false"
 
 # 更新软件商店
 def AppStoreUpdate():
