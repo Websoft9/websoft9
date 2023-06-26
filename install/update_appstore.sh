@@ -36,50 +36,13 @@ function fastest_url() {
 }
 
 LibraryUpdate(){
-echo "auto_update start..." >> /tmp/auto_update.txt
-if [ ! -f /data/library/install/version.json ]; then
-    old_library_version="0.0.1"
-else
-    old_library_version=$(cat /data/library/install/version.json | jq .VERSION | tr -d '"')
-fi
-latest_library_version=$(curl https://websoft9.github.io/docker-library/install/version.json | jq .VERSION | tr -d '"')
 
-if [ "$old_library_version" \< "$latest_library_version" ]; then
-    echo "start to update Library..."
-    release_version=$(curl https://websoft9.github.io/stackhub-web/CHANGELOG.md | head -n 1 |cut -d' ' -f2)
-    fastest=$(fastest_url "${urls[@]}")
-    echo "fasturl is: "$fastest
-    cd /tmp && rm -rf /tmp/library /tmp/stackhub-web
-    if [[ $fastest == *gitee.com* ]]; then
-        echo "update from gitee"
-        wget $fastest/websoft9/docker-library/repository/archive/$latest_library_version
-        unzip $latest_library_version
-        mv docker-library* library
-        rm -f $latest_library_version
+fastest=$(fastest_url "${urls[@]}")
+echo "fasturl is: "$fastest
+cd /tmp && rm -rf /tmp/stackhub-web && git clone $fasturl/Websoft9/stackhub-web
+rm -rf /usr/share/cockpit/appstore/static/data && cp -r /tmp/stackhub-web/plugins/appstore/build/static/data /usr/share/cockpit/appstore/static
+rm -rf /usr/share/cockpit/myapps/static/logos && cp -r /tmp/stackhub-web/plugins/myapps/build/static/logos /usr/share/cockpit/myapps/static
 
-        wget $fastest/websoft9/stackhub-web/repository/archive/$release_version
-        unzip $release_version
-        mv stackhub-web* stackhub-web
-        rm -f $release_version
-    else
-        echo "update from github"
-        wget $fastest/websoft9/docker-library/archive/refs/tags/$latest_library_version.zip
-        unzip $latest_library_version.zip
-        mv docker-library* library
-        rm -f $latest_library_version.zip
-
-        wget $fastest/websoft9/stackhub-web/archive/refs/tags/$release_version.zip
-        unzip $release_version.zip
-        mv stackhub-web* stackhub-web
-        rm -f $release_version.zip
-    fi
-    rm -rf /data/library && cp -r /tmp/library /data
-    rm -rf /usr/share/cockpit/appstore/static/data && cp -r /tmp/stackhub-web/plugins/appstore/build/static/data /usr/share/cockpit/appstore/static
-    rm -rf /usr/share/cockpit/myapps/static/logos && cp -r /tmp/stackhub-web/plugins/myapps/build/static/logos /usr/share/cockpit/myapps/static
-    
-else
-    echo "Library is not need to update"
-fi
 rm $0
 }
 LibraryUpdate
