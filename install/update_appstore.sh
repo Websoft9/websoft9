@@ -39,7 +39,7 @@ LibraryUpdate(){
 
 fastest=$(fastest_url "${urls[@]}")
 echo "fasturl is: "$fastest
-cd /tmp && rm -rf /tmp/stackhub-web && git clone $fasturl/Websoft9/stackhub-web
+cd /tmp && rm -rf /tmp/stackhub-web && git clone $fastest/Websoft9/stackhub-web
 rm -rf /usr/share/cockpit/appstore/static/data && cp -r /tmp/stackhub-web/plugins/appstore/build/static/data /usr/share/cockpit/appstore/static
 rm -rf /usr/share/cockpit/myapps/static/logos && cp -r /tmp/stackhub-web/plugins/myapps/build/static/logos /usr/share/cockpit/myapps/static
 
