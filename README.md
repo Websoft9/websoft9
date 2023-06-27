@@ -3,7 +3,6 @@
 Websoft9 is complete solution for running 200+ apps on your own server. Just install it, don't any steps.
 ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063)
 
-
 ## Funtction
 
 - CLI
@@ -32,19 +31,19 @@ gh repo list Websoft9 -L 500 | awk '{print $1}'  | grep docker > test
 
 ```
 # for example, app is mongodb
-wget -N https://websoft9.github.io/StackHub/scripts/install.sh; bash install.sh -r mongodb
+wget -N https://websoft9.github.io/websoft9/scripts/install.sh; bash install.sh -r mongodb
 ```
 
-### stackhub include appstore
+### websoft9 include appstore
 
 ```
 sudo su # when you have no root privileges
-curl https://websoft9.github.io/StackHub/install/install.sh | bash
+curl https://websoft9.github.io/websoft9/install/install.sh | bash
 ```
 
 ## Upgrade
 
 ```
 sudo su # when you have no root privileges
-curl https://websoft9.github.io/StackHub/install/update.sh | bash
+curl https://websoft9.github.io/websoft9/install/update.sh | bash
 ```
