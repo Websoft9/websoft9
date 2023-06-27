@@ -35,7 +35,9 @@ q = Queue(connection=redis_conn, default_timeout=3600)
 
 def auto_update():
     myLogger.info_logger("auto update")
-    shell_execute.execute_command_output_all("wget https://websoft9.github.io/StackHub/install/update_appstore.sh && bash update_appstore.sh 1>/dev/null 2>&1")
+    shell_execute.execute_command_output_all("rm -rf /tmp/update_appstore.sh")
+    shell_execute.execute_command_output_all("cd /tmp && wget https://websoft9.github.io/websoft9/install/update_appstore.sh")
+    shell_execute.execute_command_output_all("bash /tmp/update_appstore.sh 1>/dev/null 2>&1")
 
 scheduler = BackgroundScheduler()
 scheduler.add_job(auto_update, 'cron', hour=1)
@@ -89,7 +91,7 @@ def AppStoreUpdate():
             if change != '':
                 content.append(change)
         shell_execute.execute_command_output_all("rm -rf /tmp/update_appstore.sh")
-        shell_execute.execute_command_output_all("cd /tmp && wget https://websoft9.github.io/StackHub/install/update_appstore.sh")
+        shell_execute.execute_command_output_all("cd /tmp && wget https://websoft9.github.io/websoft9/install/update_appstore.sh")
         shell_execute.execute_command_output_all("bash /tmp/update_appstore.sh 1>/dev/null 2>&1")
         
         return content
@@ -98,8 +100,8 @@ def AppStoreUpdate():
 
 # 获取 update info
 def get_update_list():
-    local_path = '/data/apps/stackhub/install/version.json'
-    repo = 'StackHub'
+    local_path = '/data/apps/websoft9/install/version.json'
+    repo = 'websoft9'
     local_version = "0"
     try:
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']

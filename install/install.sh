@@ -10,7 +10,6 @@ trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/iss
 
 urls=(
     https://github.com
-    https://gitee.com
     https://ghproxy.com/https://github.com
 )
 
@@ -275,22 +274,35 @@ fi
 echo "Set cockpit port to 9000 ..." 
 sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
 
+clone_repo $fasturl/Websoft9/plugin-appstore /data/apps/plugin-appstore
+clone_repo $fasturl/Websoft9/plugin-myapps /data/apps/plugin-myapps
+clone_repo $fasturl/Websoft9/plugin-portainer /data/apps/plugin-portainer
+clone_repo $fasturl/Websoft9/plugin-settings /data/apps/plugin-settings
+clone_repo $fasturl/Websoft9/plugin-nginx /data/apps/plugin-nginx
+
 # install plugins
 # install appstore
 mkdir /usr/share/cockpit/appstore
-cp -r /data/apps/stackhub-web/plugins/appstore/build/* /usr/share/cockpit/appstore
+cp -r /data/apps/plugin-appstore/build/* /usr/share/cockpit/appstore
+cp -r /data/apps/plugin-appstore/data /usr/share/cockpit/appstore/static/
+
 # install portainer
 mkdir /usr/share/cockpit/container
-cp -r /data/apps/stackhub-web/plugins/portainer/build/* /usr/share/cockpit/container
+cp -r /data/apps/plugin-portainer/build/* /usr/share/cockpit/container
+
 ## install nginx
 mkdir /usr/share/cockpit/nginx
-cp -r /data/apps/stackhub-web/plugins/nginxproxymanager/build/* /usr/share/cockpit/nginx
+cp -r /data/apps/plugin-nginx/build/* /usr/share/cockpit/nginx
+
 ## install settings
 mkdir /usr/share/cockpit/settings
-cp -r /data/apps/stackhub-web/plugins/settings/build/* /usr/share/cockpit/settings
+cp -r /data/apps/plugin-settings/build/* /usr/share/cockpit/settings
+
 ## install myapps
 mkdir /usr/share/cockpit/myapps
-cp -r /data/apps/stackhub-web/plugins/myapps/build/* /usr/share/cockpit/myapps
+cp -r /data/apps/plugin-myapps/build/* /usr/share/cockpit/myapps
+cp -r /data/apps/plugin-appstore/logos /usr/share/cockpit/appstore/static/
+rm -rf /data/apps/plugin-*
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -317,7 +329,7 @@ fi
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 
 # configure cockpit
-cp /data/apps/stackhub/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
+cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now cockpit
@@ -377,9 +389,13 @@ echo "fast url is: "$fasturl
 # download apps
 mkdir -p /data/apps
 clone_repo $fasturl/Websoft9/docker-library /data/library
-clone_repo $fasturl/Websoft9/StackHub /data/apps/stackhub
-clone_repo $fasturl/Websoft9/stackhub-web /data/apps/stackhub-web
-cp -r /data/apps/stackhub/docker  /data/apps/w9services
+clone_repo $fasturl/Websoft9/websoft9 /data/apps/websoft9
+clone_repo $fasturl/Websoft9/plugin-appstore /data/apps/plugin-appstore
+clone_repo $fasturl/Websoft9/plugin-myapps /data/apps/plugin-myapps
+clone_repo $fasturl/Websoft9/plugin-portainer /data/apps/plugin-portainer
+clone_repo $fasturl/Websoft9/plugin-settings /data/apps/plugin-settings
+clone_repo $fasturl/Websoft9/plugin-nginx /data/apps/plugin-nginx
+cp -r /data/apps/websoft9/docker  /data/apps/w9services
 }
 
 StartAppMng(){
@@ -503,6 +519,5 @@ PrepareStaticFiles
 InstallCockpit
 StartAppMng
 StartPortainer
-#StartKopia
 InstallNginx
 EditMenu
