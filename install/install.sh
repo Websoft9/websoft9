@@ -279,12 +279,6 @@ fi
 echo "Set cockpit port to 9000 ..." 
 sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
 
-clone_repo $fasturl/Websoft9/plugin-appstore /data/apps/plugin-appstore
-clone_repo $fasturl/Websoft9/plugin-myapps /data/apps/plugin-myapps
-clone_repo $fasturl/Websoft9/plugin-portainer /data/apps/plugin-portainer
-clone_repo $fasturl/Websoft9/plugin-settings /data/apps/plugin-settings
-clone_repo $fasturl/Websoft9/plugin-nginx /data/apps/plugin-nginx
-
 # install plugins
 # install appstore
 mkdir /usr/share/cockpit/appstore
@@ -390,7 +384,9 @@ PrepareStaticFiles(){
 echo "Prepare to install ..." 
 fasturl=$(fastest_url "${urls[@]}")
 echo "fast url is: "$fasturl
-
+if [ -z "$fasturl" ]; then
+  fasturl="https://ghproxy.com/https://github.com"
+fi
 # download apps
 mkdir -p /data/apps
 clone_repo $fasturl/Websoft9/docker-library /data/library
