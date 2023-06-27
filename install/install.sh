@@ -160,6 +160,11 @@ then
     elif  command -v yum > /dev/null;then 
       sudo yum update -y docker-ce docker-ce-cli containerd.io   docker-buildx-plugin docker-compose-plugin
     fi
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    if ! docker network inspect websoft9 > /dev/null 2>&1; then
+      sudo docker network create websoft9
+    fi
     return
 else
     echo "Docker is not installed, start to install..."
