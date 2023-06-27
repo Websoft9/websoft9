@@ -1,8 +1,8 @@
-# StackHub
+# Websoft9
 
-This repository will replace the [Websoft9 Ansible project](https://github.com/websoft9private) before
+Websoft9 is complete solution for running 200+ apps on your own server. Just install it, don't any steps.
+![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063)
 
-StackHub is for opensource stacks automation, it is developing...
 
 ## Funtction
 
