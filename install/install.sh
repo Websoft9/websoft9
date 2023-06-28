@@ -464,8 +464,8 @@ sleep 25
 echo "edit nginxproxymanager password..." 
 login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://127.0.0.1:9092/api/tokens)
 sleep 3
-token=$(echo $login_data | grep -Po '(?<="token":")[^"]*')
-#token=$(echo $login_data | jq -r '.token')
+#token=$(echo $login_data | grep -Po '(?<="token":")[^"]*')
+token=$(echo $login_data | jq -r '.token')
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://127.0.0.1:9092/api/users/1
