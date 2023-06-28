@@ -502,7 +502,7 @@ if command -v jq > /dev/null; then
     jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
     rm -rf /usr/share/cockpit/systemd/manifest.json
     mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
-    cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
+    cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
   fi
   if [ -e /usr/share/cockpit/networkmanager ]; then
     sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
