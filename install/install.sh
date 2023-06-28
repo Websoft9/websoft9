@@ -143,7 +143,41 @@ if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
       sleep 5
   done
   sudo apt update -y 1>/dev/null 2>&1
-  sudo apt install git curl wget jq firewalld bc unzip -y  1>/dev/null 2>&1
+  if command -v git > /dev/null;then  
+    echo "git installed ..."
+  else
+    sudo apt install git -y
+  fi
+  if command -v curl > /dev/null;then  
+    echo "jcurlq installed ..."
+  else
+    sudo apt install curl -y
+  fi
+  if command -v wget > /dev/null;then  
+    echo "wget installed ..."
+  else
+    sudo apt install wget -y
+  fi
+  if command -v jq > /dev/null;then  
+    echo "jq installed ..."
+  else
+    sudo apt install jq -y
+  fi
+  if command -v firewalld > /dev/null;then  
+    echo "firewalld installed ..."
+  else
+    sudo apt install firewalld -y
+  fi
+  if command -v bc > /dev/null;then  
+    echo "bc installed ..."
+  else
+    sudo apt install bc -y
+  fi
+  if command -v unzip > /dev/null;then  
+    echo "unzip installed ..."
+  else
+    sudo apt install unzip -y
+  fi
 fi
 
 }
@@ -300,7 +334,7 @@ cp -r /data/apps/plugin-settings/build/* /usr/share/cockpit/settings
 ## install myapps
 mkdir /usr/share/cockpit/myapps
 cp -r /data/apps/plugin-myapps/build/* /usr/share/cockpit/myapps
-cp -r /data/apps/plugin-appstore/logos /usr/share/cockpit/appstore/static/
+cp -r /data/apps/plugin-myapps/logos /usr/share/cockpit/appstore/static/
 rm -rf /data/apps/plugin-*
 
 # install navigator
@@ -405,7 +439,7 @@ echo "Start appmanage API ..."
 cd /data/apps/w9services/w9redis  && sudo docker compose up -d
 cd /data/apps/w9services/w9appmanage  && sudo docker compose up -d
 
-public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
+public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
 echo $public_ip > /data/apps/w9services/w9appmanage/public_ip
 
 }
@@ -445,7 +479,7 @@ while [ ! -d "/var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx
     sleep 1
 done
 cp /data/apps/w9services/w9nginxproxymanager/initproxy.conf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host
-public_ip=`bash /data/apps/stackhub/scripts/get_ip.sh`
+public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 
 echo "Add htpasswd for appmanage ..."
