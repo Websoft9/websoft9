@@ -7,7 +7,7 @@ import os, io, sys, platform, shutil, time, subprocess, json, datetime
 
 from api.model.app import App
 from api.model.response import Response
-from api.service import manage
+from api.service import manage, db
 from api.utils import shell_execute, const
 from api.utils.common_log import myLogger
 from api.exception.command_exception import CommandException
@@ -412,6 +412,51 @@ def AppAutoUpdate(request: Request,auto_update: Optional[str] = Query(default=No
         ret['ResponseData'] = {}
         ret['ResponseData']['auto_update'] = manage.AppAutoUpdate(auto_update)
         response = JSONResponse(content=ret)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        response = JSONResponse(content=ret)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+        response = JSONResponse(content=ret)
+
+    return response
+
+@router.api_route("/AppSearchUsers", methods=["GET", "POST"], summary="获取appstore用户信息", response_model=Response, response_description=rd_auto_list)
+def AppSearchUsers(request: Request, plugin_name: Optional[str] = Query(default=None, description="用户名")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppSearchUsers")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['user'] = db.AppSearchUsers(plugin_name)
+        response = JSONResponse(content=ret)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        response = JSONResponse(content=ret)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+        response = JSONResponse(content=ret)
+
+    return response
+
+@router.api_route("/AppUpdateUser", methods=["GET", "POST"], summary="更新appstore用户信息", response_model=Response, response_description=rd_auto_list)
+def AppUpdateUser(request: Request,user_name: Optional[str] = Query(default=None, description="用户名"), password: Optional[str] = Query(default=None, description="密码")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppUpdateUser")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        db.AppUpdateUser(user_name, password)
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}

@@ -1,9 +1,0 @@
-{   
-    "SERVICES": {
-        "PORTAINER": "2.18.3",
-        "NGINX": "2.10.3",
-        "APPMANAGE": "0.7.2",
-        "REDIS": "7.0.11"
-    },   
-    "VERSION": "0.7.2"
-}
