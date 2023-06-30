@@ -441,7 +441,7 @@ cd /data/apps/w9services/w9appmanage  && sudo docker compose up -d
 
 public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
 echo $public_ip > /data/apps/w9services/w9appmanage/public_ip
-
+appmanage_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-appmanage)
 }
 
 StartPortainer(){
@@ -451,9 +451,12 @@ cd /data/apps/w9services/w9portainer  && sudo docker compose up -d
 docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
+portainer_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-portainer)
 sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
 sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
-curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://127.0.0.1:9091/api/users/admin/init
+curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://$portainer_ip:9000/api/users/admin/init
+curl -X POST -H "Content-Type: application/json" -d '{"user_name":"admin", "password":"'$new_password'"}' http://$appmanage_ip:5000/AppUpdateUser
+
 }
 
 InstallNginx(){
@@ -462,15 +465,17 @@ echo "Install nginxproxymanager ..."
 cd /data/apps/w9services/w9nginxproxymanager && sudo docker compose up -d
 sleep 25
 echo "edit nginxproxymanager password..." 
-login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://127.0.0.1:9092/api/tokens)
+login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://$nginx_ip:81/api/tokens)
 sleep 3
+nginx_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-nginxproxymanager)
 #token=$(echo $login_data | grep -Po '(?<="token":")[^"]*')
 token=$(echo $login_data | jq -r '.token')
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://127.0.0.1:9092/api/users/1
-curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://127.0.0.1:9092/api/users/1/auth
+curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://$nginx_ip:81/api/users/1
+curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://$nginx_ip:81/api/users/1/auth
 sleep 3
+curl -X POST -H "Content-Type: application/json" -d '{"user_name":"help@websoft9.com", "password":"'$new_password'"}' http://$appmanage_ip:5000/AppUpdateUser
 sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/myapps/config.json
 sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
 sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/myapps/config.json
