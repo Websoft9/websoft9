@@ -73,8 +73,8 @@ rd_domain = rd_s + domain + rd_e
 rd_update_list = rd_s + update + rd_e
 rd_appstore = rd_s + appstore_update + rd_e
 rd_auto_list = rd_s + auto + rd_e
-rd_auto_list = rd_s + user + rd_e
-
+rd_user_list = rd_s + user + rd_e
+rd_updateuser_list=rd_s + updateuser + rd_e
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_status,
                   response_model=Response)
@@ -430,7 +430,7 @@ def AppAutoUpdate(request: Request,auto_update: Optional[str] = Query(default=No
 
     return response
 
-@router.api_route("/AppSearchUsers", methods=["GET", "POST"], summary="获取appstore用户信息", response_model=Response, response_description=rd_auto_list)
+@router.api_route("/AppSearchUsers", methods=["GET", "POST"], summary="获取appstore用户信息", response_model=Response, response_description=rd_user_list)
 def AppSearchUsers(request: Request, plugin_name: Optional[str] = Query(default=None, description="用户名")):
 
     try:
