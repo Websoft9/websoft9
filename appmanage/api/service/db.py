@@ -19,7 +19,9 @@ def AppUpdateUser(user_name, password):
     conn.close()
 
 def AppSearchUsers(user_type):
-    if user_type != "nginx" or user_type != "portainer":
+    if user_type == None or user_type == "undefine":
+      raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "This plugin is blank!", "This plugin is blank!")
+    if user_type != "nginx" and user_type != "portainer":
       raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This plugin doesn't exist!", "This plugin doesn't exist!")
     conn = sqlite3.connect('/usr/src/app/database.sqlite')
     conn.row_factory = dict_factory
