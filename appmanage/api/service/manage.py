@@ -14,6 +14,7 @@ import re
 from threading import Thread
 from api.utils import shell_execute, docker, const
 from api.model.app import App
+from api.service import db
 from api.model.response import Response
 from api.model.config import Config
 from api.model.status_reason import StatusReason
@@ -43,6 +44,8 @@ def auto_update():
 scheduler = BackgroundScheduler()
 scheduler.add_job(auto_update, 'cron', hour=1)
 scheduler.start()
+
+nginx_token = None
 
 # 获取github文件内容
 def get_github_content(repo, path):
@@ -1108,10 +1111,10 @@ def check_real_domain(domain):
 
 
 def get_token():
-    url = 'http://172.17.0.1:9092/api/tokens'
+    url = const.NGINX_URL+"/api/tokens"
     headers = {'Content-type': 'application/json'}
-    cmd = "cat /usr/share/cockpit/myapps/config.json | jq -r '.NGINXPROXYMANAGER.NGINXPROXYMANAGER_PASSWORD'"
-    password = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
+    password = db.AppSearchUsers("nginx").json()["password"]
+
     myLogger.info_logger(password)
     param = {
         "identity": "help@websoft9.com",
@@ -1120,6 +1123,8 @@ def get_token():
     }
     response = requests.post(url, data=json.dumps(param), headers=headers)
 
+    nginx_token = response.json()
+    myLogger.info_logger(nginx_token)
     token = "Bearer " + response.json()["token"]
     return token
 
