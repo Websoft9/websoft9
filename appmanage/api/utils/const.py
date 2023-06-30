@@ -30,3 +30,5 @@ APP_STATUS_EXITED = "exited"
 APP_STATUS_RESTARTING = "restarting"
 # 应用错误 failed
 APP_STATUS_FAILED = "failed"
+
+NGINX_URL="http://websoft9-nginxproxymanager:81"

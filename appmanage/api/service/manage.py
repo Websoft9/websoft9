@@ -1,3 +1,4 @@
+from ast import Constant
 import os
 import io
 import sys
@@ -791,7 +792,7 @@ def app_proxy_delete(app_id):
     customer_name = app_id.split('_')[1]
     proxy_host = None
     token = get_token()
-    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    url = const.NGINX_URL+"/api/nginx/proxy-hosts"
     headers = {
         'Authorization': token,
         'Content-Type': 'application/json'
@@ -803,7 +804,7 @@ def app_proxy_delete(app_id):
         if customer_name == portainer_name:
             proxy_id = proxy["id"]
             token = get_token()
-            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            url = const.NGINX_URL+"/api/nginx/proxy-hosts/" + str(proxy_id)
             headers = {
                 'Authorization': token,
                 'Content-Type': 'application/json'
@@ -844,7 +845,7 @@ def app_domain_delete(app_id, domain):
         if len(domains_old) == 0:
             proxy_id = proxy["id"]
             token = get_token()
-            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            url = const.NGINX_URL+"/api/nginx/proxy-hosts/" + str(proxy_id)
             headers = {
                 'Authorization': token,
                 'Content-Type': 'application/json'
@@ -859,7 +860,7 @@ def app_domain_delete(app_id, domain):
         else:
             proxy_id = proxy["id"]
             token = get_token()
-            url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+            url = const.NGINX_URL+"/api/nginx/proxy-hosts/" + str(proxy_id)
             headers = {
                 'Authorization': token,
                 'Content-Type': 'application/json'
@@ -925,7 +926,7 @@ def app_domain_update(app_id, domain_old, domain_new):
         domains_old[index] = domain_new
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+        url = const.NGINX_URL+"/api/nginx/proxy-hosts/" + str(proxy_id)
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -994,7 +995,7 @@ def app_domain_add(app_id, domain):
 
         proxy_id = proxy["id"]
         token = get_token()
-        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts/" + str(proxy_id)
+        url = const.NGINX_URL+"/api/nginx/proxy-hosts/" + str(proxy_id)
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -1028,7 +1029,7 @@ def app_domain_add(app_id, domain):
     else:
         # 追加
         token = get_token()
-        url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+        url = const.NGINX_URL+"/api/nginx/proxy-hosts"
         headers = {
             'Authorization': token,
             'Content-Type': 'application/json'
@@ -1127,7 +1128,7 @@ def get_proxy(app_id):
     customer_name = app_id.split('_')[1]
     proxy_host = None
     token = get_token()
-    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    url = const.NGINX_URL+"/api/nginx/proxy-hosts"
     headers = {
         'Authorization': token,
         'Content-Type': 'application/json'
@@ -1147,7 +1148,7 @@ def get_proxy_domain(app_id, domain):
     customer_name = app_id.split('_')[1]
     proxy_host = None
     token = get_token()
-    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    url = const.NGINX_URL+"/api/nginx/proxy-hosts"
     headers = {
         'Authorization': token,
         'Content-Type': 'application/json'
@@ -1172,7 +1173,7 @@ def get_all_domains(app_id):
     customer_name = app_id.split('_')[1]
     domains = []
     token = get_token()
-    url = "http://172.17.0.1:9092/api/nginx/proxy-hosts"
+    url = const.NGINX_URL+"/api/nginx/proxy-hosts"
     headers = {
         'Authorization': token,
         'Content-Type': 'application/json'
