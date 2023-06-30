@@ -1113,9 +1113,9 @@ def check_real_domain(domain):
 def get_token():
     url = const.NGINX_URL+"/api/tokens"
     headers = {'Content-type': 'application/json'}
-    password = db.AppSearchUsers("nginx").json()["password"]
+    password = db.AppSearchUsers("nginx").get("password")
 
-    myLogger.info_logger(password)
+    myLogger.info_logger("token_password: " + password)
     param = {
         "identity": "help@websoft9.com",
         "scope": "user",
