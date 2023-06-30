@@ -61,7 +61,7 @@ update = "&emsp;&emsp;Compare_content: 新旧版本内容{\n\n" \
 
 appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n}\n\n"
 auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"
-user = "&emsp;&emsp;user: 用户信息\n\n" \
+user = "&emsp;&emsp;user: 用户信息{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;username: 用户名\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;password: 密码\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;nick_name: 昵称\n\n&emsp;&emsp;&emsp;&emsp;}\n\n}\n\n"
@@ -431,7 +431,7 @@ def AppAutoUpdate(request: Request,auto_update: Optional[str] = Query(default=No
     return response
 
 @router.api_route("/AppSearchUsers", methods=["GET", "POST"], summary="获取appstore用户信息", response_model=Response, response_description=rd_user_list)
-def AppSearchUsers(request: Request, plugin_name: Optional[str] = Query(default=None, description="用户名")):
+def AppSearchUsers(request: Request, plugin_name: Optional[str] = Query(default=None, description="插件名(仅支持portainer,nginx)")):
 
     try:
         myLogger.info_logger("Receive request: /AppSearchUsers")

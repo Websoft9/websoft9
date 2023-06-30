@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from api.exception.command_exception import CommandException
+from api.utils import const
 from api.model.user import User
 import sqlite3
 
@@ -17,6 +19,8 @@ def AppUpdateUser(user_name, password):
     conn.close()
 
 def AppSearchUsers(user_type):
+    if user_type != "nginx" or user_type != "portainer":
+      raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This plugin doesn't exist!", "This plugin doesn't exist!")
     conn = sqlite3.connect('/usr/src/app/database.sqlite')
     conn.row_factory = dict_factory
     cursor = conn.cursor()
