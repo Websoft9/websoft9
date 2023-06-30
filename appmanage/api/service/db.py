@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from api.model.user import User
 import sqlite3
 
-conn = sqlite3.connect('/usr/src/app/database.sqlite')
+conn = sqlite3.connect('/usr/src/app/database.sqlite', check_same_thread=False)
 cursor = conn.cursor()
 
 
