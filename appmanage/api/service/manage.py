@@ -45,8 +45,6 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(auto_update, 'cron', hour=1)
 scheduler.start()
 
-nginx_token = None
-
 # 获取github文件内容
 def get_github_content(repo, path):
     url = 'https://websoft9.github.io/{repo}/{path}'
@@ -1111,6 +1109,7 @@ def check_real_domain(domain):
 
 
 def get_token():
+
     url = const.NGINX_URL+"/api/tokens"
     headers = {'Content-type': 'application/json'}
     password = db.AppSearchUsers("nginx").get("password")
