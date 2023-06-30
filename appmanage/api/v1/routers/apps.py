@@ -61,7 +61,11 @@ update = "&emsp;&emsp;Compare_content: 新旧版本内容{\n\n" \
 
 appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n}\n\n"
 auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"
-
+user = "&emsp;&emsp;user: 用户信息\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;username: 用户名\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;password: 密码\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;nick_name: 昵称\n\n&emsp;&emsp;&emsp;&emsp;}\n\n}\n\n"
+updateuser = "&emsp;&emsp;Update_user: True or False\n\n}\n\n"
 rd = rd_s + rd_m + rd_e
 rd_info = rd_s + info + rd_e
 rd_status = rd_s + rd_status + rd_e
@@ -69,6 +73,7 @@ rd_domain = rd_s + domain + rd_e
 rd_update_list = rd_s + update + rd_e
 rd_appstore = rd_s + appstore_update + rd_e
 rd_auto_list = rd_s + auto + rd_e
+rd_auto_list = rd_s + user + rd_e
 
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_status,
@@ -448,7 +453,7 @@ def AppSearchUsers(request: Request, plugin_name: Optional[str] = Query(default=
 
     return response
 
-@router.api_route("/AppUpdateUser", methods=["GET", "POST"], summary="更新appstore用户信息", response_model=Response, response_description=rd_auto_list)
+@router.api_route("/AppUpdateUser", methods=["GET", "POST"], summary="更新appstore用户信息", response_model=Response, response_description=rd_updateuser_list)
 def AppUpdateUser(request: Request,user_name: Optional[str] = Query(default=None, description="用户名"), password: Optional[str] = Query(default=None, description="密码")):
 
     try:
@@ -457,6 +462,8 @@ def AppUpdateUser(request: Request,user_name: Optional[str] = Query(default=None
         ret = {}
         ret['ResponseData'] = {}
         db.AppUpdateUser(user_name, password)
+        ret['ResponseData']['update_flag'] = True
+        response = JSONResponse(content=ret)
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}
