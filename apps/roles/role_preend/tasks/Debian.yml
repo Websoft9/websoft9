@@ -1,4 +1,0 @@
-# Some special installation and configuration
-- name: Reinstall pwgen
-  shell: |
-    apt install pwgen

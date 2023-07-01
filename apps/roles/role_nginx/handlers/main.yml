@@ -1,3 +1,0 @@
-- name: check_nginx_service
-  debug:
-    var: check_nginx_service.stdout

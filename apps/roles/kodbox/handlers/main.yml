@@ -1,3 +1,0 @@
-- name: check_kodbox_service
-  debug:
-    var: check_kodbox_service.stdout

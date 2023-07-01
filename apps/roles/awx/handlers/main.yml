@@ -1,3 +1,0 @@
-- name: check_rabbitmq_service
-  debug:
-    var: check_rabbitmq_service.stdout
