@@ -4,21 +4,19 @@
 
 ### 安装组件
 
-1. python环境
-确保安装python3.6+
+1. python 环境
+   确保安装 python3.6+
 
-2. python的pip包fastapi,uvicorn[standard],gunicorn
+2. python 的 pip 包 fastapi,uvicorn[standard],gunicorn
 
 ```
 pip install -r requirements.txt
 ```
 
-3. 安装docker以及docker compose、创建docker 网络websoft9
+3. 安装 docker 以及 docker compose、创建 docker 网络 websoft9
 
 ### 启动
 
 ```
-git clone https://github.com/Websoft9/StackHub.git && cd StackHub/docker/appmanage && docker compose up -d
+git clone https://github.com/Websoft9/stackhub.git && cd stackhub/docker/appmanage && docker compose up -d
 ```
-
-

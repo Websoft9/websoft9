@@ -1,6 +1,6 @@
 # 需求
 
-从两个主线理解 StackHub 的需求：
+从两个主线理解 stackhub 的需求：
 
 - 应用生命周期管理：寻找、安装、发布、停止、卸载、升级等软件全生命周期。
 - 基础设施运维管理：安全、存储、文件、容器、监控等系统管理
@@ -108,7 +108,7 @@ UI 自适应各种屏幕尺寸
 一键自动化安装程序，类似：
 
 ```
-curl https://websoft9.github.io/StackHub/install/install.sh | bash
+curl https://websoft9.github.io/stackhub/install/install.sh | bash
 ```
 
 主要步骤包括：

@@ -67,9 +67,9 @@ echo $repo_name
 echo $repo_init
 
 cd /tmp 
-rm -rf StackHub
-wget -N https://websoft9.github.io/StackHub/scripts/githubclone.sh && bash githubclone.sh websoft9 StackHub
-cd StackHub/apps
+rm -rf stackhub
+wget -N https://websoft9.github.io/stackhub/scripts/githubclone.sh && bash githubclone.sh websoft9 stackhub
+cd stackhub/apps
 sudo echo "localhost" > hosts
 ansible-playbook -i hosts application.yml -c local -e init=$repo_init -e appname=$repo_name
 if [ $repo_init  -ne 0  ]; then

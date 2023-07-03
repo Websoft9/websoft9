@@ -1,6 +1,6 @@
 ## 架构图
 
-![image](https://github.com/Websoft9/StackHub/assets/43192516/3b52f27a-8dff-477b-acea-cf971096540c)
+![image](https://github.com/Websoft9/stackhub/assets/43192516/3b52f27a-8dff-477b-acea-cf971096540c)
 
 ## 详细
 

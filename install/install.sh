@@ -6,7 +6,7 @@ function  error_exit {
   echo "$1" 1>&2
   exit 1
 }
-trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/issues"' ERR
+trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
 urls=(
     https://github.com

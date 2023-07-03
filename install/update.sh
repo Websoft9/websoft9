@@ -6,7 +6,7 @@ function  error_exit {
   echo "$1" 1>&2
   exit 1
 }
-trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/issues"' ERR
+trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
 urls=(
     https://ghproxy.com/https://github.com
@@ -125,7 +125,7 @@ fi
 }
 StackhubUpdate(){
 echo "Update stackhub ..."
-cd /tmp && rm -rf version.json && wget https://websoft9.github.io/StackHub/install/version.json
+cd /tmp && rm -rf version.json && wget https://websoft9.github.io/stackhub/install/version.json
 
 if [ ! -f /data/apps/stackhub/install/version.json ]; then
     old_version="0.0.1"
@@ -140,14 +140,14 @@ if [ "$old_version" \< "$release_version" ]; then
     echo "fasturl is: "$fasturl
     cd /tmp && rm -rf /tmp/stackhub
     if [[ $fasturl == *gitee.com* ]]; then
-        wget $fasturl/websoft9/StackHub/repository/archive/$release_version
+        wget $fasturl/websoft9/stackhub/repository/archive/$release_version
         unzip $release_version
-        mv StackHub* stackhub
+        mv stackhub* stackhub
         rm -f $release_version
     else
-        wget $fasturl/websoft9/StackHub/archive/refs/tags/$release_version.zip
+        wget $fasturl/websoft9/stackhub/archive/refs/tags/$release_version.zip
         unzip $release_version.zip
-        mv StackHub* stackhub
+        mv stackhub* stackhub
         rm -f $release_version.zip
     fi
     rm -rf /data/apps/stackhub

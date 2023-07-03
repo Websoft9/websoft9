@@ -6,7 +6,7 @@ function  error_exit {
   echo "$1" 1>&2
   exit 1
 }
-trap 'error_exit "Please push issue to: https://github.com/Websoft9/StackHub/issues"' ERR
+trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
 urls=(
     https://ghproxy.com/https://github.com
@@ -359,7 +359,7 @@ echo "fast url is: "$fasturl
 # download apps
 mkdir -p /data/apps
 clone_repo $fasturl/Websoft9/docker-library /data/library
-clone_repo $fasturl/Websoft9/StackHub /data/apps/stackhub
+clone_repo $fasturl/Websoft9/stackhub /data/apps/stackhub
 }
 
 StartAppMng(){

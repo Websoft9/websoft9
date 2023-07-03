@@ -3,7 +3,7 @@ Websoft9/role_docker	Install Docker and some applications on Docker	public	2021-
 Websoft9/ansible-superset	Automatic installation for Apache Superset on Linux	public	2021-09-26T03:19:56Z
 Websoft9/ansible-gitlab	Automatic installation for GitLab on Linux	public	2021-09-24T09:57:37Z
 Websoft9/docker-falcon	Docker Compose to deploy Falcon-Plus in production	public, fork	2021-09-24T02:58:00Z
-Websoft9/StackHub	CLI to install hot open source stacks	public	2021-09-23T10:06:45Z
+Websoft9/stackhub	CLI to install hot open source stacks	public	2021-09-23T10:06:45Z
 Websoft9/ansible-ansible	This repository is only for developer who want to testing and learning Ansible	public	2021-09-18T11:08:52Z
 Websoft9/ansible-jenkins	Automatic installation for Jenkins on Linux	public	2021-09-18T03:40:34Z
 Websoft9/docker-wordpress	Docker Compose to deploy WordPress in production	public, fork	2021-09-18T02:23:33Z
