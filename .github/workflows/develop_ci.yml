@@ -10,11 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Initialize Git repository
-        run: git init
-
-      - name: Add remote repository
-        run: git remote add origin https://github.com/${{ github.actor }}/${{ github.repository }}.git
+      - name: Checkout code
+        uses: actions/checkout@v2
 
       - name: Get pull request number
         id: pr
