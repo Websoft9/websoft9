@@ -3,7 +3,7 @@
         "PORTAINER": "2.18.3",
         "NGINX": "2.10.3",
         "APPMANAGE": "0.7.3",
-        "REDIS": "7.0.11"
+        "REDIS": "7.0.12"
     },
     "PLUGINS": {
         "PORTAINER": "1.0.0",
