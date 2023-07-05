@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Initialize Git repository
+        run: git init
+
+      - name: Add remote repository
+        run: git remote add origin https://github.com/${{ github.actor }}/${{ github.repository }}.git
+
       - name: Get pull request number
         id: pr
         run: echo "::set-output name=number::$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)"
