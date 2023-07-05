@@ -13,15 +13,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Get source branch name
-        id: source_branch
-        run: echo "::set-output name=branch::${{ github.event.forkee.default_branch }}"
+      - name: Get source branch commit
+        id: source_commit
+        run: echo "::set-output name=commit::${{ github.event.pull_request.head.sha }}"
 
       - name: Fetch source branch
-        run: git fetch origin ${{ steps.source_branch.outputs.branch }}:${{ steps.source_branch.outputs.branch }}
+        run: git fetch origin ${{ steps.source_commit.outputs.commit }}:${{ steps.source_commit.outputs.commit }}
 
       - name: Checkout source branch
-        run: git checkout ${{ steps.source_branch.outputs.branch }}
+        run: git checkout ${{ steps.source_commit.outputs.commit }}
 
       - name: Test
         run: |
