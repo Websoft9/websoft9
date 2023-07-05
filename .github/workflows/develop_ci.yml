@@ -17,7 +17,7 @@ jobs:
         run: git fetch origin '+refs/pull/*/merge:refs/remotes/origin/pr/*'
 
       - name: Checkout pull request branch
-        run: git checkout origin/pr/${{ github.pr_number }}
+        run: git checkout origin/pr/${{ github.pr_number }}/merge
 
       - name: Test
         run: |
