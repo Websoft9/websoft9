@@ -15,4 +15,4 @@ jobs:
 
       - name: Test
         run: |
-          cat README.md
+          cat README.md && cat version.json
