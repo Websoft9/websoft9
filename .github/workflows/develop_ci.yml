@@ -15,7 +15,7 @@ jobs:
 
       - name: Get source branch name
         id: source_branch
-        run: echo "::set-output name=branch::${{ github.event.pull_request.head.ref }}"
+        run: echo "::set-output name=branch::${{ github.event.forkee.default_branch }}"
 
       - name: Fetch source branch
         run: git fetch origin ${{ steps.source_branch.outputs.branch }}:${{ steps.source_branch.outputs.branch }}
