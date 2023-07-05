@@ -10,14 +10,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Get pull request number
+        id: pr
+        run: echo "::set-output name=number::$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)"
 
-      - name: Fetch all branches
-        run: git fetch origin '+refs/pull/*/merge:refs/remotes/origin/pr/*'
+      - name: Fetch pull request branch
+        run: git fetch origin pull/${{ steps.pr.outputs.number }}/merge
 
       - name: Checkout pull request branch
-        run: git checkout refs/pull/${{ github.pr_number }}/merge
+        run: git checkout FETCH_HEAD
 
       - name: Test
         run: |
