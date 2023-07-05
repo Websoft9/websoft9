@@ -13,15 +13,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Get pull request number
-        id: pr
-        run: echo "::set-output name=number::$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)"
+      - name: Get source branch name
+        id: source_branch
+        run: echo "::set-output name=branch::${{ github.event.pull_request.head.ref }}"
 
-      - name: Fetch pull request branch
-        run: git fetch origin pull/${{ steps.pr.outputs.number }}/merge
+      - name: Fetch source branch
+        run: git fetch origin ${{ steps.source_branch.outputs.branch }}:${{ steps.source_branch.outputs.branch }}
 
-      - name: Checkout pull request branch
-        run: git checkout FETCH_HEAD
+      - name: Checkout source branch
+        run: git checkout ${{ steps.source_branch.outputs.branch }}
 
       - name: Test
         run: |
