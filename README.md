@@ -16,9 +16,9 @@ Websoft9 is complete solution for running 200+ apps on your own server. Just ins
 
 ## Development
 
-- stack template
-- stack core
-- stack docker-compose
+- websoft9 template
+- websoft9 core(appmanage)
+- websoft9 docker-compose
 
 ## API
 
