@@ -22,7 +22,7 @@ Websoft9 is complete solution for running 200+ apps on your own server. Just ins
 
 ## API
 
-- Docker API: http://IP:9009/
+- Docker API: http://IP:5000/
 
 ## CMD for referance
 
