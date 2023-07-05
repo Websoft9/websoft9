@@ -1,4 +1,4 @@
-name: Pull Request Workflow
+name: develop Workflow
 
 on:
   pull_request:
@@ -12,8 +12,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          ref: ${{ github.head_ref }}
+
+      - name: Fetch all branches
+        run: git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
+
+      - name: Checkout pull request branch
+        run: git checkout origin/pr/${{ github.pr_number }}
 
       - name: Test
         run: |
