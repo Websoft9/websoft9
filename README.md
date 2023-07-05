@@ -32,7 +32,7 @@ gh repo list Websoft9 -L 500 | awk '{print $1}'  | grep docker > test
 
 ## All-in-one Installer
 
-### only one app
+### Only one app
 
 ```
 # for example, app is mongodb
