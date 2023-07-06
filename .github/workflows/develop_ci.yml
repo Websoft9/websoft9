@@ -33,6 +33,8 @@ jobs:
         run: |
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
           echo "::set-output name=version::$version"
+          echo ${{ secrets.DOCKER_USERNAME }}
+          echo ${{ secrets.DOCKER_PASSWORD }}
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
