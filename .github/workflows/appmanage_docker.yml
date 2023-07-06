@@ -22,7 +22,7 @@ jobs:
         name: Build & push Docker image
         with:
           image: websoft9dev/appmanage
-          tags: 0.7.2
+          tags: 0.7.4
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
@@ -31,6 +31,8 @@ jobs:
 
       - name: add readme file
         run: |
+          echo ${{ secrets.DOCKER_USERNAME }}
+          echo ${{ secrets.DOCKER_PASSWORD }}
           cd appmanage
           touch myread.md
           echo "This repository is the easiest appmanage deployment on GitHub and DockerHub  "' 
