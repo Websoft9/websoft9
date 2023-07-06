@@ -46,8 +46,8 @@ jobs:
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: websoft9admin
+          password: Qiaofeng@1227
 
       - name: add readme file
         if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
