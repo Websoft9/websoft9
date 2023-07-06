@@ -55,7 +55,7 @@ jobs:
           readme-filepath: appmanage/myread.md
 
   ci-test:
-    needs: build
+    needs: build-image
     runs-on: ubuntu-latest
 
     steps:
