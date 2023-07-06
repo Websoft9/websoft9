@@ -9,8 +9,6 @@ jobs:
   build-image:
     name: Build Docker image
     runs-on: ubuntu-latest
-    env:
-      TAGS: latest
     steps:
       - uses: actions/checkout@v2
         name: Check out code
@@ -30,12 +28,18 @@ jobs:
             echo "::set-output name=appmanage_changed::false"
           fi
 
+      - name: Get version
+        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
+        run: |
+          version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
+          echo "::set-output name=version::$version"
+
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         with:
           image: websoft9dev/appmanage
-          tags: 0.7.2
+          tags: ${{ steps.get_version.outputs.version }}
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
