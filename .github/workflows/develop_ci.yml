@@ -32,6 +32,7 @@ jobs:
         if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         run: |
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
+          echo $version
           echo "::set-output name=version::$version"
           echo ${{ secrets.DOCKER_USERNAME }}
           echo ${{ secrets.DOCKER_PASSWORD }}
