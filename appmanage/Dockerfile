@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.7.3"
+LABEL version="0.7.4"
 
 # Create API Directory
 WORKDIR /usr/src/app
