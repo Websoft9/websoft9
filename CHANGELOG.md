@@ -1,3 +1,7 @@
+## 0.7.3 release on 2023-07-06
+
+appmanage ci 更新
+
 ## 0.7.2 release on 2023-06-25
 
 appmanage 自动更新接口升级
