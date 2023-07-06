@@ -16,15 +16,23 @@ jobs:
         name: Check out code
 
       - name: Check for appmanage changes
-        id: appmanage
+        id: check_changes
         run: |
-          changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          appmanage_changed=$(echo $changed_files | grep -c "appmanage")
-          echo ::set-output name=changed::${appmanage_changed}
+          PR_NUMBER=$(echo "${{ github.event.pull_request.url }}" | awk -F/ '{print $NF}')
+          PR_FILES=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}/files")
+
+          if echo "${PR_FILES}" | jq -e '.[] | select(.filename | contains("appmanage/"))' >/dev/null; then
+            echo "appmanage directory changed"
+            echo "::set-output name=appmanage_changed::true"
+          else
+            echo "appmanage no change"
+            echo "::set-output name=appmanage_changed::false"
+          fi
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
-        if: steps.appmanage.outputs.changed > 0
+        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         with:
           image: websoft9dev/appmanage
           tags: 0.7.2
@@ -35,7 +43,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: add readme file
-        if: steps.appmanage.outputs.changed > 0
+        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         run: |
           cd appmanage
           touch myread.md
@@ -46,7 +54,7 @@ jobs:
           ```' > myread.md
 
       - name: Docker Hub Description
-        if: steps.appmanage.outputs.changed > 0
+        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         uses: peter-evans/dockerhub-description@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
