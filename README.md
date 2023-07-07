@@ -7,7 +7,7 @@
 # What is Websoft9?
 
 
-Websoft9 is complete PaaS solution for running 200+ apps on your own server. Just install it, don't any steps.
+Websoft9 is complete minimalist and web-based PaaS for running open source application that have more than 1k stars on your own server.
 
 Although the architecture in cloud native emphasizes high availability and clustering, this is not suitable for simple applications or low-concurrency scenarios, after all, most applications on the Internet do not need to implement complex clusters or K8S.
 
