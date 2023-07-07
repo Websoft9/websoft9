@@ -8,7 +8,6 @@
 
 
 Websoft9 is complete solution for running 200+ apps on your own server. Just install it, don't any steps.
-![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063)
 
 Websoft9 is microservices architecture. instead of reinventing the wheel, we integrate the best open source products into our interface so that customers don't have to learn new technology stacks or worry about the lack of maintenance of components
 
@@ -17,6 +16,14 @@ Websoft9 is microservices architecture. instead of reinventing the wheel, we int
 - [Nginx Proxy Manager](https://nginxproxymanager.com/): A web-based Nginx management
 - [Portainer](https://www.portainer.io/): Powerful container management for DevSecOps
 - [Redis](https://redis.io/): The open source, in-memory data store
+
+## Demos
+
+| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) |    ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063)  |   ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063)   |
+|      |      |      |
+
+
+
 
 
 ## Funtction
