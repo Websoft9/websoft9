@@ -7,7 +7,7 @@
 # What is Websoft9?
 
 
-Websoft9 is complete solution for running 200+ apps on your own server. Just install it, don't any steps.
+Websoft9 is complete PaaS solution for running 200+ apps on your own server. Just install it, don't any steps.
 
 Websoft9 is microservices architecture. instead of reinventing the wheel, we integrate the best open source products into our interface so that customers don't have to learn new technology stacks or worry about the lack of maintenance of components
 
@@ -17,16 +17,18 @@ Websoft9 is microservices architecture. instead of reinventing the wheel, we int
 - [Portainer](https://www.portainer.io/): Powerful container management for DevSecOps
 - [Redis](https://redis.io/): The open source, in-memory data store
 
-## Demos
+You can see the sceenshoots below:  
 
-| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) |
+| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/e842575b-60bc-4b0d-a57b-28c26b16196a) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/c598412a-9529-4286-ba03-6234d6da99b9)|
 | ---- | ---- | ---- |
-| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) |
+| ![image](https://github.com/Websoft9/websoft9/assets/16741975/7bed3744-1e9f-429e-8678-3714c8c262e2)|![image](https://github.com/Websoft9/websoft9/assets/16741975/a0923c69-2792-4cde-bfaf-bc018b61aee9) | ![image](![image](https://github.com/Websoft9/websoft9/assets/16741975/ce24dcb4-4294-405b-bc76-4795e203ad12)|
+
 
 ## Funtction
 
 - CLI
 - Web Console
+- Languages: English, Chinese（中文）
 
 ## Development
 
