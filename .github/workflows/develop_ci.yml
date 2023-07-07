@@ -47,8 +47,8 @@ jobs:
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
-          username: websoft9admin
-          password: Qiaofeng@1227
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
   ci-test:
     needs: build-image
