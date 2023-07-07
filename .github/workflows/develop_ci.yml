@@ -34,6 +34,7 @@ jobs:
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
           echo $version
           echo "::set-output name=version::$version"
+          echo "VERSION=$version" >> $GITHUB_ENV
           echo ${{ secrets.DOCKER_USERNAME }}
           echo ${{ secrets.DOCKER_PASSWORD }}
 
@@ -42,32 +43,12 @@ jobs:
         if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         with:
           image: websoft9dev/appmanage
-          tags: ${{ steps.get_version.outputs.version }}
+          tags: ${{ env.VERSION }}
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
-          username: websoft9admin
-          password: Qiaofeng@1227
-
-      - name: add readme file
-        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
-        run: |
-          cd appmanage
-          touch myread.md
-          echo "This repository is the easiest appmanage deployment on GitHub and DockerHub  "' 
-          ```  
-             git clone https://github.com/Websoft9/websoft9.git  
-             sudo docker network create websoft9 && cd websoft9/appmanage &&  sudo docker compose up -d  
-          ```' > myread.md
-
-      - name: Docker Hub Description
-        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
-        uses: peter-evans/dockerhub-description@v3
-        with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: websoft9dev/appmanage
-          readme-filepath: appmanage/myread.md
 
   ci-test:
     needs: build-image
