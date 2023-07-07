@@ -19,7 +19,6 @@ jobs:
         name: Check out code
 
       - name: Get version
-        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
         run: |
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
           echo $version
