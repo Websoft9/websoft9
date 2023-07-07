@@ -12,8 +12,8 @@ jobs:
   build:
     name: Build Docker image
     runs-on: ubuntu-latest
-    env:
-      TAGS: latest
+    #env:
+    #  TAGS: latest
     steps:
       - uses: actions/checkout@v2
         name: Check out code
