@@ -18,11 +18,18 @@ jobs:
       - uses: actions/checkout@v2
         name: Check out code
 
+      - name: Get version
+        if: ${{ steps.check_changes.outputs.appmanage_changed == 'true' }}
+        run: |
+          version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
+          echo $version
+          echo "::set-output name=version::$version"
+
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
           image: websoft9dev/appmanage
-          tags: 0.7.3
+          tags: ${{ steps.get_version.outputs.version }}
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
