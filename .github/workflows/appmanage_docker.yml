@@ -23,12 +23,13 @@ jobs:
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' appmanage/Dockerfile)
           echo $version
           echo "::set-output name=version::$version"
+          echo "VERSION=$version" >> $GITHUB_ENV
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
           image: websoft9dev/appmanage
-          tags: ${{ steps.get_version.outputs.version }}
+          tags: ${{ env.VERSION }}
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
