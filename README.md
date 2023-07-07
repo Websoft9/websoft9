@@ -9,7 +9,11 @@
 
 Websoft9 is complete PaaS solution for running 200+ apps on your own server. Just install it, don't any steps.
 
-Websoft9 is microservices architecture. instead of reinventing the wheel, we integrate the best open source products into our interface so that customers don't have to learn new technology stacks or worry about the lack of maintenance of components
+Although the architecture in cloud native emphasizes high availability and clustering, this is not suitable for simple applications or low-concurrency scenarios, after all, most applications on the Internet do not need to implement complex clusters or K8S.
+
+Websoft9 solves the problem of using multiple applications in a single server from the beginning, and we strongly believe in the principle of minimalism.
+
+Websoft9 is microservices architecture on single machine. instead of reinventing the wheel, we integrate the best open source products into our interface so that customers don't have to learn new technology stacks or worry about the lack of maintenance of components
 
 - [Cockpit ](https://cockpit-project.org/): A web-based graphical interface for servers
 - [Docker](https://www.docker.com/): Accelerate how you build, share, and run modern applications
