@@ -1,4 +1,4 @@
-name: develop Workflow
+name: developer Workflow
 
 on:
   pull_request:
