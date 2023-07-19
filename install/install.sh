@@ -474,8 +474,7 @@ docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
 portainer_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-portainer)
-sudo sed -i 's/"PORTAINER_USERNAME": ".*"/"PORTAINER_USERNAME": "admin"/g' /usr/share/cockpit/myapps/config.json
-sudo sed -i 's/"PORTAINER_PASSWORD": ".*"/"PORTAINER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
+echo "Portainer init password:" $new_password
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://$portainer_ip:9000/api/users/admin/init
 curl -X POST -H "Content-Type: application/json" -d '{"user_name":"admin", "password":"'$new_password'"}' http://$appmanage_ip:5000/AppUpdateUser
 
@@ -494,31 +493,20 @@ nginx_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{
 token=$(echo $login_data | jq -r '.token')
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
+echo "Nginx init password:" $new_password
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://$nginx_ip:81/api/users/1
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://$nginx_ip:81/api/users/1/auth
 sleep 3
 curl -X POST -H "Content-Type: application/json" -d '{"user_name":"help@websoft9.com", "password":"'$new_password'"}' http://$appmanage_ip:5000/AppUpdateUser
-sudo sed -i 's/"NGINXPROXYMANAGER_USERNAME": ".*"/"NGINXPROXYMANAGER_USERNAME": "help@websoft9.com"/g' /usr/share/cockpit/myapps/config.json
-sudo sed -i 's/"NGINXPROXYMANAGER_PASSWORD": ".*"/"NGINXPROXYMANAGER_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
-sudo sed -i 's/"NGINXPROXYMANAGER_NIKENAME": ".*"/"NGINXPROXYMANAGER_NIKENAME": "admin"/g' /usr/share/cockpit/myapps/config.json
+
 echo "edit password success ..." 
 while [ ! -d "/var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host" ]; do
     sleep 1
 done
 cp /data/apps/w9services/w9nginxproxymanager/initproxy.conf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host
-public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
+echo $public_ip
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
-
-echo "Add htpasswd for appmanage ..."
-new_password=$(docker run --name pwgen backplane/pwgen 15)!
-docker rm -f pwgen
-sudo sed -i 's/"APPMANAGE_USERNAME": ".*"/"APPMANAGE_USERNAME": "websoft9"/g' /usr/share/cockpit/myapps/config.json
-sudo sed -i 's/"APPMANAGE_PASSWORD": ".*"/"APPMANAGE_PASSWORD": "'$new_password'"/g' /usr/share/cockpit/myapps/config.json
-rm -rf /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd /tmp/.htpasswd
-docker run --rm --volume /tmp:/work backplane/htpasswd -c -b .htpasswd websoft9 $new_password
-cp /tmp/.htpasswd /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/.htpasswd
 sudo docker restart websoft9-nginxproxymanager
-
 }
 
 EditMenu(){
