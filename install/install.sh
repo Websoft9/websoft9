@@ -486,11 +486,11 @@ echo "Install nginxproxymanager ..."
 cd /data/apps/w9services/w9nginxproxymanager && sudo docker compose up -d
 sleep 25
 echo "edit nginxproxymanager password..." 
-login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://$nginx_ip:81/api/tokens)
-sleep 3
 nginx_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-nginxproxymanager)
+login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://$nginx_ip:81/api/tokens)
 #token=$(echo $login_data | grep -Po '(?<="token":")[^"]*')
 token=$(echo $login_data | jq -r '.token')
+echo "Nginx token:"$token
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
 echo "Nginx init password:" $new_password
