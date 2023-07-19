@@ -6,21 +6,19 @@
 
 # What is Websoft9?
 
-
 Websoft9 is complete minimalist and web-based PaaS for running [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) that have more than 1k stars on your own server.
 
 Although the architecture in cloud native emphasizes high availability and clustering, this is not suitable for simple applications or low-concurrency scenarios, after all, most applications on the Internet do not need to implement complex clusters or K8S.
 
-Websoft9 solves the problem of using multiple applications in a single server from the beginning, and we strongly believe in the principle of minimalism.Microservices architecture on single machine is not outdated. On the contrary, it becomes more and more valuable as computing power increases  
+Websoft9 solves the problem of using multiple applications in a single server from the beginning, and we strongly believe in the principle of minimalism.Microservices architecture on single machine is not outdated. On the contrary, it becomes more and more valuable as computing power increases
 
 ## Demos
 
-You can see the sceenshoots below:  
+You can see the sceenshoots below:
 
-| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/e842575b-60bc-4b0d-a57b-28c26b16196a) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/c598412a-9529-4286-ba03-6234d6da99b9)|
-| ---- | ---- | ---- |
-| ![image](https://github.com/Websoft9/websoft9/assets/16741975/7bed3744-1e9f-429e-8678-3714c8c262e2)|![image](https://github.com/Websoft9/websoft9/assets/16741975/a0923c69-2792-4cde-bfaf-bc018b61aee9) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/901efd1c-31a0-4b31-b79c-fc2d441bb679)|
-
+| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/e842575b-60bc-4b0d-a57b-28c26b16196a) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/c598412a-9529-4286-ba03-6234d6da99b9) |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| ![image](https://github.com/Websoft9/websoft9/assets/16741975/7bed3744-1e9f-429e-8678-3714c8c262e2) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/a0923c69-2792-4cde-bfaf-bc018b61aee9) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/901efd1c-31a0-4b31-b79c-fc2d441bb679) |
 
 ## Features
 
@@ -29,8 +27,8 @@ You can see the sceenshoots below:
 - Manage user accounts
 - Use a terminal on a remote server in your local web browser
 - Nginx gui for proxy and free SSL with Let's Encrypt
-- Deploy, configure, troubleshoot and secure containers in minutes on Kubernetes, Docker, and Swarm in any data center, cloud, network edge or IIOT device. 
-- Manage your Linux by GUI: Inspect and change network settings, Configure a firewall, Manage storage, Browse and search system logs, Inspect a system’s hardware, Inspect and interact with systemd-based services, 
+- Deploy, configure, troubleshoot and secure containers in minutes on Kubernetes, Docker, and Swarm in any data center, cloud, network edge or IIOT device.
+- Manage your Linux by GUI: Inspect and change network settings, Configure a firewall, Manage storage, Browse and search system logs, Inspect a system’s hardware, Inspect and interact with systemd-based services,
 - Supported languages: English, Chinese（中文）
 
 ## Containers
@@ -51,15 +49,15 @@ Instead of reinventing the wheel, we integrate the best open source products int
 
 ```
 # when you have no root privileges
-sudo su 
-curl https://websoft9.github.io/websoft9/install/install.sh | bash
+sudo su
+wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh online
 ```
 
 ## Upgrade
 
 ```
 # when you have no root privileges
-sudo su 
+sudo su
 curl https://websoft9.github.io/websoft9/install/update.sh | bash
 ```
 
