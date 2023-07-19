@@ -1,6 +1,9 @@
-## 架构图
+## Architecture
 
-![image](https://github.com/Websoft9/stackhub/assets/43192516/3b52f27a-8dff-477b-acea-cf971096540c)
+```mermaid
+graph LR
+   Portainer --> NginxProxyManager --> Redis --> APPMANAGE
+```  
 
 ## 详细
 
