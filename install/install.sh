@@ -8,8 +8,9 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
+install_way=$1
+
 urls=(
-    https://github.com
     https://ghproxy.com/https://github.com
 )
 
@@ -314,28 +315,34 @@ echo "Set cockpit port to 9000 ..."
 sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
 
 # install plugins
-# install appstore
-mkdir /usr/share/cockpit/appstore
-cp -r /data/apps/plugin-appstore/build/* /usr/share/cockpit/appstore
-cp -r /data/apps/plugin-appstore/data /usr/share/cockpit/appstore/static/
+if [ "${install_way}" == 'online' ] ;then
+    # install appstore
+    mkdir /usr/share/cockpit/appstore
+    cp -r /data/apps/plugin-appstore/build/* /usr/share/cockpit/appstore
+    cp -r /data/apps/plugin-appstore/data /usr/share/cockpit/appstore/static/
 
-# install portainer
-mkdir /usr/share/cockpit/container
-cp -r /data/apps/plugin-portainer/build/* /usr/share/cockpit/container
+    # install portainer
+    mkdir /usr/share/cockpit/container
+    cp -r /data/apps/plugin-portainer/build/* /usr/share/cockpit/container
 
-## install nginx
-mkdir /usr/share/cockpit/nginx
-cp -r /data/apps/plugin-nginx/build/* /usr/share/cockpit/nginx
+    ## install nginx
+    mkdir /usr/share/cockpit/nginx
+    cp -r /data/apps/plugin-nginx/build/* /usr/share/cockpit/nginx
 
-## install settings
-mkdir /usr/share/cockpit/settings
-cp -r /data/apps/plugin-settings/build/* /usr/share/cockpit/settings
+    ## install settings
+    mkdir /usr/share/cockpit/settings
+    cp -r /data/apps/plugin-settings/build/* /usr/share/cockpit/settings
 
-## install myapps
-mkdir /usr/share/cockpit/myapps
-cp -r /data/apps/plugin-myapps/build/* /usr/share/cockpit/myapps
-cp -r /data/apps/plugin-myapps/logos /usr/share/cockpit/appstore/static/
-rm -rf /data/apps/plugin-*
+    ## install myapps
+    mkdir /usr/share/cockpit/myapps
+    cp -r /data/apps/plugin-myapps/build/* /usr/share/cockpit/myapps
+    cp -r /data/apps/plugin-myapps/logos /usr/share/cockpit/appstore/static/
+    rm -rf /data/apps/plugin-*
+else
+    echo "install from artifact"
+fi 
+
+
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -362,7 +369,12 @@ fi
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 
 # configure cockpit
-cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
+if [ "${install_way}" == 'online' ] ;then
+    cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
+else
+    echo "install from artifact"
+fi 
+
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now cockpit
@@ -423,14 +435,20 @@ if [ -z "$fasturl" ]; then
 fi
 # download apps
 mkdir -p /data/apps
-clone_repo $fasturl/Websoft9/docker-library /data/library
-clone_repo $fasturl/Websoft9/websoft9 /data/apps/websoft9
-clone_repo $fasturl/Websoft9/plugin-appstore /data/apps/plugin-appstore
-clone_repo $fasturl/Websoft9/plugin-myapps /data/apps/plugin-myapps
-clone_repo $fasturl/Websoft9/plugin-portainer /data/apps/plugin-portainer
-clone_repo $fasturl/Websoft9/plugin-settings /data/apps/plugin-settings
-clone_repo $fasturl/Websoft9/plugin-nginx /data/apps/plugin-nginx
-cp -r /data/apps/websoft9/docker  /data/apps/w9services
+
+if [ "${install_way}" == 'online' ] ;then
+    clone_repo $fasturl/Websoft9/docker-library /data/library
+    clone_repo $fasturl/Websoft9/websoft9 /data/apps/websoft9
+    clone_repo $fasturl/Websoft9/plugin-appstore /data/apps/plugin-appstore
+    clone_repo $fasturl/Websoft9/plugin-myapps /data/apps/plugin-myapps
+    clone_repo $fasturl/Websoft9/plugin-portainer /data/apps/plugin-portainer
+    clone_repo $fasturl/Websoft9/plugin-settings /data/apps/plugin-settings
+    clone_repo $fasturl/Websoft9/plugin-nginx /data/apps/plugin-nginx
+    cp -r /data/apps/websoft9/docker  /data/apps/w9services
+else
+    echo "install from artifact"
+fi 
+
 }
 
 StartAppMng(){
@@ -439,7 +457,11 @@ echo "Start appmanage API ..."
 cd /data/apps/w9services/w9redis  && sudo docker compose up -d
 cd /data/apps/w9services/w9appmanage  && sudo docker compose up -d
 
-public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
+if [ "${install_way}" == 'online' ] ;then
+    public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
+else
+    public_ip=`curl https://websoft9.github.io/websoft9/scripts/get_ip.sh |bash`
+fi 
 echo $public_ip > /data/apps/w9services/w9appmanage/public_ip
 appmanage_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-appmanage)
 }
