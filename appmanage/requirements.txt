@@ -1,4 +1,4 @@
-fastapi
+fastapi==0.98.0
 uvicorn
 rq
 apscheduler
