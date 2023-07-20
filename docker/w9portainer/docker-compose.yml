@@ -9,6 +9,8 @@ services:
     volumes:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - ${APP_HTTP_PORT}:9000
 
 networks:
   default:

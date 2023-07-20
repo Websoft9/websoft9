@@ -10,6 +10,7 @@ services:
     container_name: ${APP_NAME}
     ports:
       - "80:80"
+      - "${APP_HTTP_PORT}:81"
       - "443:443"
     volumes:
       - nginx_data:/data
