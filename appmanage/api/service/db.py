@@ -12,7 +12,7 @@ def dict_factory(cursor, row):
     return d
 
 def AppUpdateUser(user_name, password):
-    conn = sqlite3.connect('database.sqlite')
+    conn = sqlite3.connect('/usr/src/app/database.sqlite')
     cursor = conn.cursor()
     cursor.execute("UPDATE user SET password=? WHERE user_name=?", ( password,user_name,))
     conn.commit()
