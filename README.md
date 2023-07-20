@@ -43,7 +43,7 @@ Instead of reinventing the wheel, we integrate the best open source products int
 - [Redis](https://redis.io/): The open source, in-memory data store
 - [Appmanage](https://github.com/Websoft9/websoft9/tree/main/appmanage): API for manage docker compose based application powered by Wesoft9
 
-# Install
+# User Guide
 
 ## Installation
 
@@ -60,6 +60,12 @@ wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh o
 sudo su
 curl https://websoft9.github.io/websoft9/install/update.sh | bash
 ```
+
+## Getting Started
+
+Using local Chrome or Firefox to visit the URL http://domain:9000 name or http://Internet IP:900, you will enter the websoft9
+
+> Login using the username and password of the Linux operating system
 
 # Contributing
 

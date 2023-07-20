@@ -35,8 +35,6 @@ jobs:
           echo $version
           echo "::set-output name=version::$version"
           echo "VERSION=$version" >> $GITHUB_ENV
-          echo ${{ secrets.DOCKER_USERNAME2 }}
-          echo ${{ secrets.DOCKER_PASSWORD2 }}
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
@@ -47,8 +45,8 @@ jobs:
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage
-          username: ${{ secrets.DOCKER_USERNAME2 }}
-          password: ${{ secrets.DOCKER_PASSWORD2 }}
+          username: websoft9admin
+          password: Qiaofeng@1227
 
   ci-test:
     needs: build-image
@@ -68,6 +66,10 @@ jobs:
       - name: Checkout source branch
         run: git checkout ${{ steps.source_commit.outputs.commit }}
 
+      - name: Install
+        run: |
+          wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh online
+
       - name: Test
         run: |
-          cat README.md && cat version.json
+          echo "Test"
