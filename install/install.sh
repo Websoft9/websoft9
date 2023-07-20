@@ -8,7 +8,7 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
-install_way=$1
+install_way="online"
 
 urls=(
     https://ghproxy.com/https://github.com
@@ -447,7 +447,9 @@ if [ "${install_way}" == 'online' ] ;then
     cp -r /data/apps/websoft9/docker  /data/apps/w9services
 else
     echo "install from artifact"
-fi 
+fi
+
+#####ci-section#####
 
 }
 
