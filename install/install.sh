@@ -119,11 +119,11 @@ else
 fi
 
 # Check port used
-if netstat -tuln | grep -qE ':(80|9000|5000)\s'; then
-    echo "Port 80 or 9000 or 5000 is already in use."
+if netstat -tuln | grep -qE ':(80|9000)\s'; then
+    echo "Port 80 or 9000  is already in use."
     exit 1
 else
-    echo "Port 80, 9000 and 5000 are free."
+    echo "Port 80, 9000 are free."
 fi
           
 }
@@ -336,7 +336,7 @@ if [ "${install_way}" == 'online' ] ;then
     ## install myapps
     mkdir /usr/share/cockpit/myapps
     cp -r /data/apps/plugin-myapps/build/* /usr/share/cockpit/myapps
-    cp -r /data/apps/plugin-myapps/logos /usr/share/cockpit/appstore/static/
+    cp -r /data/apps/plugin-myapps/logos /usr/share/cockpit/myapps/static/
     rm -rf /data/apps/plugin-*
 else
     echo "install from artifact"
