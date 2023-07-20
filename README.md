@@ -52,7 +52,7 @@ curl https://websoft9.github.io/websoft9/install/update.sh | bash
 
 ## Getting Started
 
-Using local Chrome or Firefox to visit the URL http://domain:9000 name or http://Internet IP:900, you will enter the websoft9
+Using local Chrome or Firefox to visit the URL http://domain:9000 name or http://Internet IP:9000, you will enter the websoft9
 
 > Login using the username and password of the Linux operating system
 
