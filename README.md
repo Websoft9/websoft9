@@ -6,11 +6,13 @@
 
 # What is Websoft9?
 
-Websoft9 is complete minimalist and web-based PaaS for running [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) that have more than 1k stars on your own server.
+Websoft9 is web-based PaaS for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.  
 
-Although the architecture in cloud native emphasizes high availability and clustering, this is not suitable for simple applications or low-concurrency scenarios, after all, most applications on the Internet do not need to implement complex clusters or K8S.
+Websoft9 help you running multiple applications in a single server, that means we believe Microservices on single machine is reasonable. On the contrary, it becomes more and more valuable as computing power increases
 
-Websoft9 solves the problem of using multiple applications in a single server from the beginning, and we strongly believe in the principle of minimalism.Microservices architecture on single machine is not outdated. On the contrary, it becomes more and more valuable as computing power increases
+Although the Cloud Native emphasizes high availability and clustering, but most of the time, applications do not need to implement complex clusters or K8S.
+
+Websoft9's [architecture](https://github.com/Websoft9/websoft9/blob/main/docs/architecture.md) is simple, it did not create any new technology stack, and we fully utilize popular technology components to achieve our product goals, allowing users and developers to participate in our projects without the need to learn new technologies.
 
 ## Demos
 
@@ -22,8 +24,9 @@ You can see the sceenshoots below:
 
 ## Features
 
-- Install 200+ template applications with any configuration
-- Web-base file browser to manage files and folder
+- Applications listing 
+- Install 200+ template applications without any configuration
+- Web-based file browser to manage files and folder
 - Manage user accounts
 - Use a terminal on a remote server in your local web browser
 - Nginx gui for proxy and free SSL with Let's Encrypt
@@ -31,33 +34,19 @@ You can see the sceenshoots below:
 - Manage your Linux by GUI: Inspect and change network settings, Configure a firewall, Manage storage, Browse and search system logs, Inspect a system’s hardware, Inspect and interact with systemd-based services,
 - Supported languages: English, Chinese（中文）
 
-## Containers
+# Install
 
-Instead of reinventing the wheel, we integrate the best open source products into our interface so that customers don't have to learn new technology stacks or worry about the lack of maintenance of container components
-
-- [Cockpit ](https://cockpit-project.org/): A web-based graphical interface for servers
-- [Docker](https://www.docker.com/): Accelerate how you build, share, and run modern applications
-- [Nginx Proxy Manager](https://nginxproxymanager.com/): A web-based Nginx management
-- [Portainer](https://www.portainer.io/): Powerful container management for DevSecOps
-- [Duplicati](https://www.duplicati.com/): Backup software to store encrypted backups online
-- [Redis](https://redis.io/): The open source, in-memory data store
-- [Appmanage](https://github.com/Websoft9/websoft9/tree/main/appmanage): API for manage docker compose based application powered by Wesoft9
-
-# User Guide
+You should have root privileges user to install or upgrade Websoft9, if you use no-root user you can `sudo su` for it
 
 ## Installation
 
 ```
-# when you have no root privileges
-sudo su
 wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh online
 ```
 
 ## Upgrade
 
 ```
-# when you have no root privileges
-sudo su
 curl https://websoft9.github.io/websoft9/install/update.sh | bash
 ```
 
@@ -69,9 +58,10 @@ Using local Chrome or Firefox to visit the URL http://domain:9000 name or http:/
 
 # Contributing
 
-- websoft9 appmanage
-- websoft9 docker-compose
+Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a change in the Websoft9 core. For more information about participating in the community and contributing to the Websoft9 project, see [this page](https://support.websoft9.com/docs/community/contributing).
+
+Documentation for application templates based on Docker maintainers is in the [docker-library](https://github.com/Websoft9/docker-library).
 
 # License
 
-[LGPL-3.0](/License.md), Additional Terms: It is not allowed to publish free or paid image based on this repository in any Cloud platform's Marketplace without authorization (未经授权许可，不允许将基于本项目创建的镜像到云平台市场上售卖)
+Websoft9 is licensed under the [LGPL-3.0](/License.md), and additional Terms: It is not allowed to publish free or paid image based on this repository in any Cloud platform's Marketplace without authorization

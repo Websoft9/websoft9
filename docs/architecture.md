@@ -1,47 +1,24 @@
 ## Architecture
 
-```mermaid
-graph LR
-   Portainer --> NginxProxyManager --> Redis --> APPMANAGE
-```  
+Websoft9 is very simple [architecture](https://www.canva.cn/design/DAFpI9loqzQ/hI_2vrtfoK7zJwauhJzipQ/view?utm_content=DAFpI9loqzQ&utm_campaign=designshare&utm_medium=link&utm_source=publishsharelink) which used [Redhat Cockpit ](https://cockpit-project.org/) for web framework and [Docker](https://www.docker.com/) for running [application](https://github.com/Websoft9/docker-library).  
 
-## 详细
+The benefits of this architecture means you don't have to learn new technology stacks or worry about the lack of maintenance this project.
 
-### 微服务
+![Alt text](image/archi.png)
 
-存在的微服务以及选型：
 
-- Cockpit(Monitor,SSH Ternimal,File Browser)
-- Cockpit plugins(Nodejs web)
-- Container Manager(portainer container)
-- Proxy&DNS(nginxproxymanager container)
-- backup(kopia container)
-- appstore(appmanager container)
-- API gateway: Kong（待定）
-- CLI（待定）
+What we do is integrating below stacks's API or interfaces to Cockpit console by [Cockpit packages (Also known as plugin)](https://cockpit-project.org/guide/latest/packages.html) :  
 
-### 基础组件
+- [Nginx Proxy Manager](https://nginxproxymanager.com/): A web-based Nginx management
+- [Portainer](https://www.portainer.io/): Powerful container management for DevSecOps
+- [Duplicati](https://www.duplicati.com/): Backup software to store encrypted backups online
+- [Redis](https://redis.io/): The open source, in-memory data store
+- [Appmanage](https://github.com/Websoft9/websoft9/tree/main/appmanage): API for create and manage docker compose based application powered by Websoft9
 
-技术选型如下：
 
-- 前端：Nodejs, react, cockpit app
-- 后端：Python, Docker, Docker-compose, FastAPI
-- API DOCS 生成与测试：swagger
-- 安全：pwgen（随机密码），md5(htpasswd)
-- 身份验证：（待定）
-- CLI：（待定）
+As Websoft9 is a complete product, we also offer:
 
-### 产品文件目录
+* API
+* CLI
 
-便于升级、便于用户使用的产品文件目录组织结构
-
-- 微服务容器：/stackhub/docker
-- Cockpit 插件：/stackhub/cockpit
-- 安装和升级脚本: /stackhub/install
-- Appstore 后台源码: /stackhub/appmanage
-- cli: /stackhub/cli(待定)
-
-### Contributor
-
-- 类型标签：Bug, enhancement, Documetation
-- 过程标签：PRD, Dev, QA(include deployment), Documetation
+It is more attractive to users is [200+ application templates](https://github.com/Websoft9/docker-library). 
