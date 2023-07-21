@@ -51,6 +51,8 @@ cancel_jobs = cancel.get_job_ids()
 
 ## Logs partition
 
+Appmanage 日志采用 logging 生成，按自然日分割日志文件。日志路径：/var/lib/docker/volumes/w9appmanage_logs/\_data  
+
     ```
         logPath = 'logs/'
         if not os.path.exists(logPath):
