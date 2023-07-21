@@ -134,7 +134,7 @@ echo "Prepare to install Tools ..."
 
 if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
   sudo yum update -y 1>/dev/null 2>&1
-  sudo yum install  git curl wget yum-utils jq firewalld bc unzip -y  1>/dev/null 2>&1
+  sudo yum install  git curl wget yum-utils jq bc unzip -y  1>/dev/null 2>&1
 
 fi
 
@@ -164,11 +164,7 @@ if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
   else
     sudo apt install jq -y
   fi
-  if command -v firewalld > /dev/null;then  
-    echo "firewalld installed ..."
-  else
-    sudo apt install firewalld -y
-  fi
+
   if command -v bc > /dev/null;then  
     echo "bc installed ..."
   else
@@ -516,7 +512,7 @@ EditMenu(){
 echo "Start to  Edit Cockpit Menu ..."
 cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
 cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
-sudo systemctl stop firewalld
+
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
 
