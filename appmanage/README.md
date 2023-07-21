@@ -4,5 +4,4 @@ AppManage is the core of Websoft9 which can manage application: Create, Stop, Un
 
 * [API-design](docs/API-design.md)
 * [Architecture](docs/architecture.md)
-* [Developer](docs/developer.md)
-
+* [Dev-Setup](docs/DEV-SETUP.md)
