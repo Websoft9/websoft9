@@ -1,6 +1,6 @@
-## 0.7.3 release on 2023-07-06
+## 0.8.2 release on 2023-07-21
 
-1. appmanage ci 更新
+1. install from artifact
 
 ## 0.7.2 release on 2023-06-25
 
@@ -8,14 +8,14 @@
 
 ## 0.7.1 release on 2023-06-21
 
-1. appmanage version 文件意外删除时 bug 修改  
-2. 自动更新的时间频率调整为一天  
+1. appmanage version 文件意外删除时 bug 修改
+2. 自动更新的时间频率调整为一天
 3. 更新脚本 version 文件不存在的 bug 修改
 
 ## 0.7.0 release on 2023-06-20
 
-1. appstore 增加 更新功能  
-2. myapps 功能优化  
+1. appstore 增加 更新功能
+2. myapps 功能优化
 3. 新增 settings(设置) 功能
 
 ## 0.6.0 release on 2023-06-17
