@@ -21,4 +21,4 @@ As Websoft9 is a complete product, we also offer:
 * API
 * CLI
 
-It is more attractive to users is [200+ application templates](https://github.com/Websoft9/docker-library). 
+And Websoft9 is more attractive to users is [200+ application templates](https://github.com/Websoft9/docker-library). 
