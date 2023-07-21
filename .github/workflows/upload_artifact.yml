@@ -1,0 +1,42 @@
+name: upload_artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "version.json"
+
+jobs:
+  upload_artifact:
+    name: Bupload_artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        name: Check out code
+
+      - name: Read Plugin Version
+        run: |
+          version=$(jq -r '.VERSION' version.json)
+          echo version=$version
+          echo "VERSION=$version" >> $GITHUB_ENV
+          mkdir websoft9 artifacts
+          cp -r docker websoft9
+          cp -r cockpit websoft9
+          cp -r scripts websoft9
+          cp CHANGELOG.md websoft9
+          cp version.json websoft9
+          zip -r websoft9-$version.zip websoft9
+          zip -r websoft9-latest.zip websoft9
+          cp websoft9-$version.zip websoft9-latest.zip artifacts
+
+      - name: Upload To Azure Blob
+        uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+        with:
+          connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
+          container_name: release
+          source_folder: artifacts/
+          destination_folder: ./websoft9
+          delete_if_exists: true
+          fail_if_source_empty: true

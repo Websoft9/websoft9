@@ -307,38 +307,6 @@ if [ "$os_type" == 'CentOS Stream' ]; then
   
 fi
 
-echo "Set cockpit port to 9000 ..." 
-sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
-
-# install plugins
-if [ "${install_way}" == 'online' ] ;then
-    # install appstore
-    mkdir /usr/share/cockpit/appstore
-    cp -r /data/apps/plugin-appstore/build/* /usr/share/cockpit/appstore
-    cp -r /data/apps/plugin-appstore/data /usr/share/cockpit/appstore/static/
-
-    # install portainer
-    mkdir /usr/share/cockpit/container
-    cp -r /data/apps/plugin-portainer/build/* /usr/share/cockpit/container
-
-    ## install nginx
-    mkdir /usr/share/cockpit/nginx
-    cp -r /data/apps/plugin-nginx/build/* /usr/share/cockpit/nginx
-
-    ## install settings
-    mkdir /usr/share/cockpit/settings
-    cp -r /data/apps/plugin-settings/build/* /usr/share/cockpit/settings
-
-    ## install myapps
-    mkdir /usr/share/cockpit/myapps
-    cp -r /data/apps/plugin-myapps/build/* /usr/share/cockpit/myapps
-    cp -r /data/apps/plugin-myapps/logos /usr/share/cockpit/myapps/static/
-    rm -rf /data/apps/plugin-*
-else
-    echo "install from artifact"
-fi 
-
-
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -363,21 +331,6 @@ fi
 
 # uninstall plugins
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
-
-# configure cockpit
-if [ "${install_way}" == 'online' ] ;then
-    cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
-else
-    echo "install from artifact"
-fi 
-
-
-sudo systemctl restart cockpit
-sudo systemctl daemon-reload
-sudo systemctl enable --now cockpit
-sudo systemctl enable --now cockpit.socket
-sudo systemctl restart cockpit.socket
-sudo systemctl restart cockpit
 
 }
 
@@ -422,29 +375,56 @@ function clone_repo() {
     fi
 }
 
-PrepareStaticFiles(){
+InstallPlugins(){
 
-echo "Prepare to install ..." 
-fasturl=$(fastest_url "${urls[@]}")
-echo "fast url is: "$fasturl
-if [ -z "$fasturl" ]; then
-  fasturl="https://ghproxy.com/https://github.com"
-fi
 # download apps
-mkdir -p /data/apps
+mkdir -p /data/apps && cd /data/apps
+wget https://w9artifact.blob.core.windows.net/release/websoft9/websoft9-latest.zip
+unzip websoft9-latest.zip
+cp -r /data/apps/websoft9/docker  /data/apps/w9services
 
-if [ "${install_way}" == 'online' ] ;then
-    clone_repo $fasturl/Websoft9/docker-library /data/library
-    clone_repo $fasturl/Websoft9/websoft9 /data/apps/websoft9
-    clone_repo $fasturl/Websoft9/plugin-appstore /data/apps/plugin-appstore
-    clone_repo $fasturl/Websoft9/plugin-myapps /data/apps/plugin-myapps
-    clone_repo $fasturl/Websoft9/plugin-portainer /data/apps/plugin-portainer
-    clone_repo $fasturl/Websoft9/plugin-settings /data/apps/plugin-settings
-    clone_repo $fasturl/Websoft9/plugin-nginx /data/apps/plugin-nginx
-    cp -r /data/apps/websoft9/docker  /data/apps/w9services
-else
-    echo "install from artifact"
-fi
+# install plugins
+cd /usr/share/cockpit
+appstore_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .APPSTORE | tr -d '"')
+wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/appstore-$appstore_version.zip
+unzip appstore-$appstore_version.zip
+
+myapps_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .MYAPPS| tr -d '"')
+wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/myapps-$myapps_version.zip
+unzip myapps-$myapps_version.zip
+
+portainer_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .PORTAINER | tr -d '"')
+wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/portainer-$portainer_version.zip
+unzip portainer-$portainer_version.zip
+
+nginx_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NGINX | tr -d '"')
+wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/nginx-$nginx_version.zip
+unzip nginx-$nginx_version.zip
+
+# settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
+# wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/settings-$settings_version.zip
+# unzip settings-$settings_version.zip
+# rm -f *.zip
+
+# install library
+cd /data
+library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
+wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/library-$library_version.zip
+unzip library-$library_version.zip
+rm -f library-$library_version.zip
+
+echo "Set cockpit port to 9000 ..." 
+sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
+
+# configure cockpit
+cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
+
+sudo systemctl restart cockpit
+sudo systemctl daemon-reload
+sudo systemctl enable --now cockpit
+sudo systemctl enable --now cockpit.socket
+sudo systemctl restart cockpit.socket
+sudo systemctl restart cockpit
 
 #####ci-section#####
 
@@ -456,11 +436,7 @@ echo "Start appmanage API ..."
 cd /data/apps/w9services/w9redis  && sudo docker compose up -d
 cd /data/apps/w9services/w9appmanage  && sudo docker compose up -d
 
-if [ "${install_way}" == 'online' ] ;then
-    public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
-else
-    public_ip=`curl https://websoft9.github.io/websoft9/scripts/get_ip.sh |bash`
-fi 
+public_ip=`bash /data/apps/websoft9/scripts/get_ip.sh`
 echo $public_ip > /data/apps/w9services/w9appmanage/public_ip
 appmanage_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-appmanage)
 }
@@ -510,8 +486,53 @@ sudo docker restart websoft9-nginxproxymanager
 EditMenu(){
 
 echo "Start to  Edit Cockpit Menu ..."
-cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
-cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
+if command -v jq > /dev/null; then
+  if [ -e /usr/share/cockpit/systemd ]; then
+    jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+    rm -rf /usr/share/cockpit/systemd/manifest.json
+    mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+    cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
+  fi
+  if [ -e /usr/share/cockpit/networkmanager ]; then
+    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
+  fi
+  if [ -e /usr/share/cockpit/storaged ]; then
+    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
+  fi
+  if [ -e /usr/share/cockpit/users ]; then
+    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
+  fi
+
+  jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+  rm -rf /usr/share/cockpit/shell/manifest.json
+  mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
+else
+  echo "system have no jq, use cockpit menu ..."
+  if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
+    sudo yum install epel-release -y 1>/dev/null 2>&1
+    sudo yum install jq -y  1>/dev/null 2>&1
+    if [ -e /usr/share/cockpit/systemd ]; then
+      jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+      rm -rf /usr/share/cockpit/systemd/manifest.json
+      mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+      cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
+    fi
+    if [ -e /usr/share/cockpit/networkmanager ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
+    fi
+    if [ -e /usr/share/cockpit/storaged ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
+    fi
+    if [ -e /usr/share/cockpit/users ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
+    fi
+
+    jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+    rm -rf /usr/share/cockpit/shell/manifest.json
+    mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
+  fi
+
+fi
 
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
@@ -519,8 +540,8 @@ echo "---------------------------------- Install success!  you can  install a ap
 CheckEnvironment
 InstallTools
 InstallDocker
-PrepareStaticFiles
 InstallCockpit
+InstallPlugins
 StartAppMng
 StartPortainer
 InstallNginx

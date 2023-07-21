@@ -2,22 +2,31 @@
     "SERVICES": {
         "PORTAINER": "2.18.3",
         "NGINX": "2.10.3",
-        "APPMANAGE": "0.7.3",
+        "APPMANAGE": "0.8.1",
         "REDIS": "7.0.11"
     },
     "PLUGINS": {
-        "PORTAINER": "1.0.0",
-        "NGINX": "1.0.0",
-        "MYAPPS": "1.0.1",
-        "APPSTORE": "1.0.0"
-    },
-    "LIBRARY": {
-        "VERSION": "1.0.0"
+        "PORTAINER": "0.0.1",
+        "NGINX": "0.0.1",
+        "MYAPPS": "0.0.1",
+        "APPSTORE": "0.0.1",
+        "SETTINGS": "0.0.1",
+        "LIBRARY": "0.5.2"
     },
     "OS_SUPPORT": {
-        "CentOS": ["7.9"],
-        "Ubuntu": ["18.04","20.04","22.04"],
-        "RedHat": ["7.9","8.6","9.2"]
+        "CentOS": [
+            "7.9"
+        ],
+        "Ubuntu": [
+            "18.04",
+            "20.04",
+            "22.04"
+        ],
+        "RedHat": [
+            "7.9",
+            "8.6",
+            "9.2"
+        ]
     },
-    "VERSION": "0.7.3"
+    "VERSION": "0.8.1"
 }
