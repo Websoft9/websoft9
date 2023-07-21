@@ -375,7 +375,7 @@ else
     echo "install from artifact"
 fi 
 
-sudo systemctl stop firewalld
+
 sudo systemctl restart cockpit
 sudo systemctl daemon-reload
 sudo systemctl enable --now cockpit
@@ -516,7 +516,7 @@ EditMenu(){
 echo "Start to  Edit Cockpit Menu ..."
 cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
 cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
-
+sudo systemctl stop firewalld
 echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
 }
 
