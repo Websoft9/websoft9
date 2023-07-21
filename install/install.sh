@@ -10,9 +10,7 @@ trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/iss
 
 install_way="online"
 
-urls=(
-    https://ghproxy.com/https://github.com
-)
+urls="https://artifact.azureedge.net/release/websoft9"
 
 function get_os_type() {
     if [ -f /etc/os-release ]; then
@@ -334,82 +332,41 @@ rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdu
 
 }
 
-function fastest_url() {
-  urls=("$@")
-  fastest_url=""
-  fastest_time=0
-
-  for url in "${urls[@]}"; do
-    if curl --output /dev/null --silent --head --fail --max-time 3 "$url"; then
-        data="url is available"
-    else
-        continue
-    fi 
-    time=$(curl --connect-timeout 3 -s -w '%{time_total}\n' -o /dev/null $url)
-    if (( $(echo "$time < $fastest_time || $fastest_time == 0" | bc -l) )); then
-      fastest_time=$time
-      fastest_url=$url
-    fi
-  done
-
-  echo "$fastest_url"
-}
-
-function clone_repo() {
-    url=$1
-    path=$2
-    for i in {1..5}
-    do
-        git clone --depth=1 $url $path
-        if [ $? -eq 0 ]
-        then
-            echo "Clone successful"
-            break
-        else
-            echo "Clone failed, retrying $i/5"
-        fi
-    done
-    if [ ! -d "$path" ]; then
-      echo "$path clone failed."
-      exit 1
-    fi
-}
-
 InstallPlugins(){
 
 # download apps
 mkdir -p /data/apps && cd /data/apps
-wget https://w9artifact.blob.core.windows.net/release/websoft9/websoft9-latest.zip
+wget $urls/websoft9-latest.zip
 unzip websoft9-latest.zip
 cp -r /data/apps/websoft9/docker  /data/apps/w9services
 
 # install plugins
 cd /usr/share/cockpit
 appstore_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .APPSTORE | tr -d '"')
-wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/appstore-$appstore_version.zip
+wget $urls/plugin/appstore-$appstore_version.zip
 unzip appstore-$appstore_version.zip
 
 myapps_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .MYAPPS| tr -d '"')
-wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/myapps-$myapps_version.zip
+wget $urls/plugin/myapps-$myapps_version.zip
 unzip myapps-$myapps_version.zip
 
 portainer_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .PORTAINER | tr -d '"')
-wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/portainer-$portainer_version.zip
+wget $urls/plugin/portainer-$portainer_version.zip
 unzip portainer-$portainer_version.zip
 
 nginx_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NGINX | tr -d '"')
-wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/nginx-$nginx_version.zip
+wget $urls/plugin/nginx-$nginx_version.zip
 unzip nginx-$nginx_version.zip
 
 # settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
 # wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/settings-$settings_version.zip
 # unzip settings-$settings_version.zip
-# rm -f *.zip
+rm -f *.zip
 
 # install library
 cd /data
 library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
-wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/library-$library_version.zip
+wget $urls/plugin/library-$library_version.zip
 unzip library-$library_version.zip
 rm -f library-$library_version.zip
 
@@ -449,7 +406,7 @@ docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
 portainer_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-portainer)
-echo "Portainer init password:" $new_password
+#echo "Portainer init password:" $new_password
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://$portainer_ip:9000/api/users/admin/init
 curl "http://$appmanage_ip:5000/AppUpdateUser?user_name=admin&password=$new_password"
 
@@ -459,16 +416,21 @@ InstallNginx(){
 
 echo "Install nginxproxymanager ..." 
 cd /data/apps/w9services/w9nginxproxymanager && sudo docker compose up -d
-sleep 25
+sleep 30
 echo "edit nginxproxymanager password..." 
 nginx_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-nginxproxymanager)
 login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://$nginx_ip:81/api/tokens)
 #token=$(echo $login_data | grep -Po '(?<="token":")[^"]*')
 token=$(echo $login_data | jq -r '.token')
+while [ -z "$token" ]; do
+    sleep 5
+    login_data=$(curl -X POST -H "Content-Type: application/json" -d '{"identity":"admin@example.com","scope":"user", "secret":"changeme"}' http://$nginx_ip:81/api/tokens)
+    token=$(echo $login_data | jq -r '.token')
+done
 echo "Nginx token:"$token
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-echo "Nginx init password:" $new_password
+#echo "Nginx init password:" $new_password
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://$nginx_ip:81/api/users/1
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://$nginx_ip:81/api/users/1/auth
 sleep 3
