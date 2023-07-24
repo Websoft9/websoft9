@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "version.json"
+      - "CHANGELOG.md"
 
 jobs:
   upload_artifact:
@@ -28,8 +29,8 @@ jobs:
           cp CHANGELOG.md websoft9
           cp version.json websoft9
           zip -r websoft9-$version.zip websoft9
-          zip -r websoft9-latest.zip websoft9
-          cp websoft9-$version.zip websoft9-latest.zip artifacts
+          cp websoft9-$version.zip artifacts
+          cp artifacts/websoft9-$version.zip artifacts/websoft9-latest.zip
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
