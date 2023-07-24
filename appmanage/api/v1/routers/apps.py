@@ -59,7 +59,7 @@ update = "&emsp;&emsp;Compare_content: 新旧版本内容{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n&emsp;&emsp;&emsp;&emsp;}\n\n&emsp;&emsp;}\n\n}\n\n"
 
-appstore_update = "&emsp;&emsp;Update_content: [] 更新内容\n\n}\n\n"
+appstore_update = "&emsp;&emsp;Update_flag:  更新结果(成功或失败)\n\n}\n\n"
 auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"
 user = "&emsp;&emsp;user: 用户信息{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;username: 用户名\n\n" \
@@ -359,7 +359,7 @@ def AppDomainList(request: Request, app_id: Optional[str] = Query(default=None, 
 
     return response
 
-@router.api_route("/AppStoreUpdateList", methods=["GET", "POST"], summary="查询Appstore更新內容", response_model=Response, response_description=rd_appstore)
+@router.api_route("/AppStoreUpdateList", methods=["GET", "POST"], summary="查询Appstore更新內容", response_model=Response, response_description=rd_update_list)
 def AppStoreUpdateList(request: Request):
 
     try:
@@ -413,9 +413,10 @@ def AppStoreUpdate(request: Request):
     try:
         myLogger.info_logger("Receive request: /AppStoreUpdate")
         get_headers(request)
+        manage.AppStoreUpdate()
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['Update_content'] = manage.AppStoreUpdate()
+        ret['ResponseData']['Update_flag'] = "success"
         myLogger.info_logger(ret)
         response = JSONResponse(content=ret)
     except CommandException as ce:

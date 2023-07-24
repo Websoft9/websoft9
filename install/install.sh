@@ -339,6 +339,7 @@ mkdir -p /data/apps && cd /data/apps
 wget $urls/websoft9-latest.zip
 unzip websoft9-latest.zip
 cp -r /data/apps/websoft9/docker  /data/apps/w9services
+rm -f websoft9-latest.zip
 
 # install plugins
 cd /usr/share/cockpit

@@ -39,11 +39,8 @@ def auto_update():
     myLogger.info_logger("auto update start...")
     local_path = '/usr/share/cockpit/appstore/appstore.json'
     local_version = "0"
-    try:
-        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
-        local_version = json.loads(op)['Version']
-    except:
-        local_version = "0.0.0"
+    op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+    local_version = json.loads(op)['Version']
 
     download_url = const.ARTIFACT_URL + "/plugin/appstore-latest.zip"
     cmd = "cd /opt && wget " + download_url + " && unzip  appstore-latest.zip "
@@ -68,8 +65,9 @@ def auto_update():
         myLogger.info_logger("Appstore is latest, not need to update.")
     
 scheduler = BackgroundScheduler()
-scheduler.add_job(auto_update, 'cron', hour=1)
-scheduler.start()
+# scheduler.add_job(auto_update, 'cron', day=1)
+# scheduler.start()
+# scheduler.stop()
 
 # 获取github文件内容
 def get_github_content(repo, path):
@@ -99,36 +97,12 @@ def AppAutoUpdate(auto_update):
 
 # 更新软件商店
 def AppStoreUpdate():
-    local_path = '/data/library/install/version.json'
-    local_version = "0"
-    try:
-        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
-        local_version = json.loads(op)['VERSION']
-    except:
-        local_version = "0.0.1"
-
-    repo = 'docker-library'
-    version_contents = get_github_content(repo, 'install/version.json')
-    version = json.loads(version_contents)['VERSION']
-
-    if compared_version(local_version, version) == -1:
-        content = []
-        change_log_contents = get_github_content(repo, 'CHANGELOG.md')
-        change_log = change_log_contents.split('## ')[1].split('\n')
-        for change in change_log[1:]:
-            if change != '':
-                content.append(change)
-        shell_execute.execute_command_output_all("rm -rf /tmp/update_appstore.sh")
-        shell_execute.execute_command_output_all("cd /tmp && wget https://websoft9.github.io/websoft9/install/update_appstore.sh")
-        shell_execute.execute_command_output_all("bash /tmp/update_appstore.sh 1>/dev/null 2>&1")
-        
-        return content
-    else:
-        return None
+    
+    auto_update()
 
 # 获取 update info
 def get_update_list():
-    local_path = '/data/apps/websoft9/install/version.json'
+    local_path = '/data/apps/websoft9/version.json'
     repo = 'websoft9'
     local_version = "0"
     try:

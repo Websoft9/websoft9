@@ -1,6 +1,7 @@
 ## 0.8.2 release on 2023-07-24
 
 1. install from artifacts
+2. add extre version.json into artifacts
 
 ## 0.7.2 release on 2023-06-25
 
