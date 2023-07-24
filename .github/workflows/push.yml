@@ -13,6 +13,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install
+      - name: Install appstore
         run: |
-          wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh online
+          cd install && bash install.sh
+
+      - name: Test appmanage API
+        run: |
+          echo "Start to test appmanage API"

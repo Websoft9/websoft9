@@ -376,14 +376,14 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 # configure cockpit
 cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
 
+#####ci-section#####
+
 sudo systemctl restart cockpit
 sudo systemctl daemon-reload
 sudo systemctl enable --now cockpit
 sudo systemctl enable --now cockpit.socket
 sudo systemctl restart cockpit.socket
 sudo systemctl restart cockpit
-
-#####ci-section#####
 
 }
 

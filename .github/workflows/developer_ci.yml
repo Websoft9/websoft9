@@ -66,10 +66,11 @@ jobs:
       - name: Checkout source branch
         run: git checkout ${{ steps.source_commit.outputs.commit }}
 
-      - name: Install
+      - name: Install appstore
         run: |
-          wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh online
+          # override cockpit.conf, w9services
+          sed -i '/#####ci-section#####/a rm -f /etc/cockpit/cockpit.conf && cp cockpit/cockpit.conf /etc/cockpit/cockpit.conf && rm -f /data/apps/w9services && cp -r docker  /data/apps/w9services'   install/install.sh
 
-      - name: Test
+      - name: Test appmanage API
         run: |
-          echo "Test"
+          echo "Start to test appmanage API"
