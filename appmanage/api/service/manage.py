@@ -36,11 +36,37 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 q = Queue(connection=redis_conn, default_timeout=3600)
 
 def auto_update():
-    myLogger.info_logger("auto update")
-    shell_execute.execute_command_output_all("rm -rf /tmp/update_appstore.sh")
-    shell_execute.execute_command_output_all("cd /tmp && wget https://websoft9.github.io/websoft9/install/update_appstore.sh")
-    shell_execute.execute_command_output_all("bash /tmp/update_appstore.sh 1>/dev/null 2>&1")
+    myLogger.info_logger("auto update start...")
+    local_path = '/usr/share/cockpit/appstore/appstore.json'
+    local_version = "0"
+    try:
+        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+        local_version = json.loads(op)['Version']
+    except:
+        local_version = "0.0.0"
 
+    download_url = const.ARTIFACT_URL + "/plugin/appstore-latest.zip"
+    cmd = "cd /opt && wget " + download_url + " && unzip  appstore-latest.zip "
+    shell_execute.execute_command_output_all(cmd)
+    latest = shell_execute.execute_command_output_all("cat /opt/appstore/appstore.json")
+    version = json.loads(latest)['Version']
+    
+    ret = {}
+    ret['current_version'] = local_version
+    if compared_version(local_version, version) == -1:
+        shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp /opt/appstore /usr/share/cockpit")
+        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
+
+        library_url = const.ARTIFACT_URL + "/plugin/library-latest.zip"
+        library_cmd = "cd /opt && wget " + library_url + " && unzip  library-latest.zip "
+        shell_execute.execute_command_output_all(library_cmd)
+        shell_execute.execute_command_output_all("rm -rf /data/library && cp /opt/library /data")
+        shell_execute.execute_command_output_all("rm -rf /opt/library*")        
+        myLogger.info_logger("auto update success...")
+    else:
+        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
+        myLogger.info_logger("Appstore is latest, not need to update.")
+    
 scheduler = BackgroundScheduler()
 scheduler.add_job(auto_update, 'cron', hour=1)
 scheduler.start()
@@ -131,6 +157,45 @@ def get_update_list():
         return ret
     else:
         ret['Update_content']=None
+        return ret
+
+# 获取 appstore update info
+def get_appstore_update_list():
+    local_path = '/usr/share/cockpit/appstore/appstore.json'
+    local_version = "0"
+    try:
+        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+        local_version = json.loads(op)['Version']
+    except:
+        local_version = "0.0.0"
+
+    download_url = const.ARTIFACT_URL + "/plugin/appstore-latest.zip"
+    cmd = "cd /opt && wget " + download_url + " && unzip  appstore-latest.zip "
+    shell_execute.execute_command_output_all(cmd)
+    latest = shell_execute.execute_command_output_all("cat /opt/appstore/appstore.json")
+    version = json.loads(latest)['Version']
+    
+    ret = {}
+    ret['current_version'] = local_version
+    if compared_version(local_version, version) == -1:
+        content = []
+        change_log_contents = shell_execute.execute_command_output_all("cat /opt/appstore/CHANGELOG.md")['result']
+        change_log = change_log_contents.split('## ')[1].split('\n')
+        date = change_log[0].split()[-1]
+        for change in change_log[1:]:
+            if change != '':
+                content.append(change)
+        
+        ret2= {}
+        ret2['latest_version'] = version
+        ret2['date'] = date
+        ret2['content'] = content
+        ret['Update_content']=ret2
+        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
+        return ret
+    else:
+        ret['Update_content']=None
+        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
         return ret
 
 def conbine_list(installing_list, installed_list):
