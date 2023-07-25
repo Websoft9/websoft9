@@ -21,6 +21,8 @@ jobs:
           version=$(jq -r '.VERSION' version.json)
           echo version=$version
           echo "VERSION=$version" >> $GITHUB_ENV
+          changelog=$(cat changelog_latest.md)
+          echo "CHANGELOG=$changelog" >> $GITHUB_ENV
           mkdir websoft9 artifacts
           cp -r docker websoft9
           cp -r cockpit websoft9
@@ -41,3 +43,19 @@ jobs:
           destination_folder: ./websoft9
           delete_if_exists: true
           fail_if_source_empty: true
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: appstore/*
+          tag_name: ${{ env.PLUGIN_VERSION }}
+          title: Release-${{ env.PLUGIN_VERSION }}
+          body: ${{ env.CHANGELOG }}
+          draft: false
+          prerelease: true
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Push to github main
