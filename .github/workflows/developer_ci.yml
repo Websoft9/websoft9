@@ -3,7 +3,7 @@ name: developer Workflow
 on:
   pull_request:
     branches:
-      - main
+      - mains
 
 jobs:
   build-image:
