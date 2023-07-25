@@ -130,7 +130,7 @@ InstallTools(){
 
 echo "Prepare to install Tools ..."
 
-if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
+if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'Rocky Linux' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
   sudo yum update -y 1>/dev/null 2>&1
   sudo yum install  git curl wget yum-utils jq bc unzip -y  1>/dev/null 2>&1
 
@@ -228,7 +228,7 @@ if [ "$os_type" == 'Redhat' ] ;then
   sudo yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
 fi
 
-if [ "$os_type" == 'CentOS Stream' ] ;then
+if [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Rocky Linux' ];then
   sudo yum remove docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine podman runc -y 1>/dev/null 2>&1
   wget -O /etc/yum.repos.d/docker-ce.repo https://download.docker.com/linux/centos/docker-ce.repo
   sudo yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
@@ -305,6 +305,13 @@ if [ "$os_type" == 'CentOS Stream' ]; then
   
 fi
 
+file="/etc/cockpit/disallowed-users"
+
+if [ -f "$file" ]; then
+    echo "" > "$file"
+else
+    echo "$file is not exist"
+fi
 
 # install navigator
 if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
@@ -379,12 +386,12 @@ cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
 
 #####ci-section#####
 
-sudo systemctl restart cockpit
+#sudo systemctl restart cockpit
 sudo systemctl daemon-reload
-sudo systemctl enable --now cockpit
 sudo systemctl enable --now cockpit.socket
+#sudo systemctl enable --now cockpit
 sudo systemctl restart cockpit.socket
-sudo systemctl restart cockpit
+#sudo systemctl restart cockpit
 
 }
 
