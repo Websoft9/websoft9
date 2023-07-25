@@ -1,36 +1,36 @@
 {
-    "SERVICES": {
-        "PORTAINER": "2.18.3",
-        "NGINX": "2.10.3",
-        "APPMANAGE": "0.8.2",
-        "REDIS": "7.0.11"
-    },
-    "PLUGINS": {
-        "PORTAINER": "0.0.1",
-        "NGINX": "0.0.1",
-        "MYAPPS": "0.0.1",
-        "APPSTORE": "0.0.1",
-        "SETTINGS": "0.0.1",
-        "LIBRARY": "0.5.2"
-    },
-    "OS_SUPPORT": {
-        "CentOS": [
-            "7",
-            "8"
-        ],
-        "CentOS Stream": [
-            "9"
-        ],
-        "Ubuntu": [
-            "18.04",
-            "20.04",
-            "22.04"
-        ],
-        "RedHat": [
-            "7",
-            "8",
-            "9"
-        ]
-    },
-    "VERSION": "0.8.3"
+  "SERVICES": {
+    "PORTAINER": "2.18.3",
+    "NGINX": "2.10.3",
+    "APPMANAGE": "0.8.2",
+    "REDIS": "7.0.11"
+  },
+  "PLUGINS": {
+    "PORTAINER": "0.0.1",
+    "NGINX": "0.0.1",
+    "MYAPPS": "0.0.1",
+    "APPSTORE": "",
+    "SETTINGS": "0.0.1",
+    "LIBRARY": "0.5.2"
+  },
+  "OS_SUPPORT": {
+    "CentOS": [
+      "7",
+      "8"
+    ],
+    "CentOS Stream": [
+      "9"
+    ],
+    "Ubuntu": [
+      "18.04",
+      "20.04",
+      "22.04"
+    ],
+    "RedHat": [
+      "7",
+      "8",
+      "9"
+    ]
+  },
+  "VERSION": "0.8.3"
 }
