@@ -1,1 +1,1 @@
-version.json文件单独作为制品
+新增接口 docs 文档：appstore 更新信息查询
