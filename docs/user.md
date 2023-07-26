@@ -5,8 +5,9 @@
 #### user can not sudo?
 
 ```
-# add user to sudo/admin group
+# add user to sudo/admin group (select one command)
 usermod -aG wheel username
+usermod -aG sudo username
 
 # sudo not need to input password
 

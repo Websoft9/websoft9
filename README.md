@@ -56,7 +56,8 @@ curl https://websoft9.github.io/websoft9/install/update.sh | bash
 
 Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a change in the Websoft9 core. For more information about participating in the community and contributing to the Websoft9 project, see [this page](https://support.websoft9.com/docs/community/contributing).
 
-Documentation for application templates based on Docker maintainers is in the [docker-library](https://github.com/Websoft9/docker-library).
+- Documentation for [Websoft9 core maintainers](docs/MAINTAINERS.md)
+- Documentation for application templates based on Docker maintainers is in the [docker-library](https://github.com/Websoft9/docker-library).
 
 # License
 
