@@ -1,6 +1,6 @@
 # Documentation for core maintainers
 
-This documentaion is from [jenkins MAINTAINERS] which have a paradigm of rigorous open source project maintenance
+This documentaion is from [jenkins MAINTAINERS](https://github.com/jenkinsci/jenkins/blob/master/docs/MAINTAINERS.adoc) which have a paradigm of rigorous open source project maintenance
 
 ## Scope
 
