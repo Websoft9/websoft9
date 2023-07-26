@@ -14,7 +14,7 @@ What we do is integrating below stacks's API or interfaces to Cockpit console by
 - [Duplicati](https://www.duplicati.com/): Backup software to store encrypted backups online
 - [Redis](https://redis.io/): The open source, in-memory data store
 - [Appmanage](https://github.com/Websoft9/websoft9/tree/main/appmanage): API for create and manage docker compose based application powered by Websoft9
-- [websoft9-plugin](https://github.com/websoft9?q=plugin&type=all&language=&sort=): Cockpit packages powered by Websoft9
+- [websoft9-plugins](https://github.com/websoft9?q=plugin&type=all&language=&sort=): Cockpit packages powered by Websoft9
 
 As Websoft9 is a complete product, we also offer:
 

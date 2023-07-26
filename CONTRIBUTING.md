@@ -13,9 +13,35 @@ It's important to figure out the design [architecture of Websoft9](docs/architec
 
 Contributor only allow to fork [main branch](https://github.com/Websoft9/websoft9/tree/main) and pull request for it. Maintainers don't accept any pr to **production branch**
 
+## Branch
+
+This repository have these branchs:  
+
+* **Contributor's branch**: Develpoer can fork main branch as their delelopment branch anytime 
+* **main branch**: The only branch that accepts PR from Contributors's branch 
+* **production branch**: For version release and don't permit modify directly, only merge PR from **main branch**
+
+
+Flow: Contributor's branch → main branch → production branch
+
+
 ## Pull request
 
+[Pull request](https://docs.github.com/pull-requests) let you tell others about changes you've pushed to a branch in a repository on GitHub.
+
+#### When is PR produced?
+
+* Contributor commit to main branch
+* main branch commit to production branch
+
+#### How to deal with PR?
+
+1. [pull request reviews](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews)
+2. Merge RP and CI/CD for it
+
 ## DevOps principle
+
+DevOps thinks the same way **[5m1e](https://www.dgmfmoldclamps.com/what-is-5m1e-in-injection-molding-industry/)** for manufacturing companies
 
 We follow the development principle of minimization, rapid release
 
@@ -37,5 +63,7 @@ Websoft9 use below [Artifact](https://jfrog.com/devops-tools/article/what-is-a-s
 
 ### WorkFlow
 
-Websoft9 use the [gitlab workflow](https://docs.gitlab.com/ee/topics/gitlab_flow.html) for development collaboration
+Websoft9 use the [Production branch with GitLab flow](https://cm-gitlab.stanford.edu/help/workflow/gitlab_flow.md#production-branch-with-gitlab-flow) for development collaboration
+
+> [gitlab workflow](https://docs.gitlab.com/ee/topics/gitlab_flow.html) is improvement model for git
 
