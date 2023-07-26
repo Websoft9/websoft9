@@ -18,6 +18,7 @@ ERRORMESSAGE_CLIENT_PARAM_REPEAT="Client.Parameter.Value.Repeat.Error"
 ERRORMESSAGE_SERVER_COMMAND="Server.Container.Error"
 ERRORMESSAGE_SERVER_SYSTEM="Server.SystemError"
 ERRORMESSAGE_SERVER_RESOURCE="Server.ResourceError"
+ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT="Server.Version.NotSupport"
 
 # 应用状态定义
 # 应用启动中 installing

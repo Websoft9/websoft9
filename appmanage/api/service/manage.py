@@ -35,48 +35,29 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn, default_timeout=3600)
 
-def auto_update():
-    myLogger.info_logger("auto update start...")
-    local_path = '/usr/share/cockpit/appstore/appstore.json'
-    local_version = "0"
-    op = shell_execute.execute_command_output_all("cat " + local_path)['result']
-    local_version = json.loads(op)['Version']
+def appstore_update():
 
-    download_url = const.ARTIFACT_URL + "/plugin/appstore-latest.zip"
+    myLogger.info_logger("appstore update start...")
+
+    # 当点击appstore升级时，是无条件升级，不需要做版本的判定
+    download_url = const.ARTIFACT_URL + "/plugin/appstore/appstore-latest.zip"
     cmd = "cd /opt && wget " + download_url + " && unzip  appstore-latest.zip "
     shell_execute.execute_command_output_all(cmd)
-    latest = shell_execute.execute_command_output_all("cat /opt/appstore/appstore.json")
-    version = json.loads(latest)['Version']
-    
-    ret = {}
-    ret['current_version'] = local_version
-    if compared_version(local_version, version) == -1:
-        shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp /opt/appstore /usr/share/cockpit")
-        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
 
-        library_url = const.ARTIFACT_URL + "/plugin/library-latest.zip"
-        library_cmd = "cd /opt && wget " + library_url + " && unzip  library-latest.zip "
-        shell_execute.execute_command_output_all(library_cmd)
-        shell_execute.execute_command_output_all("rm -rf /data/library && cp /opt/library /data")
-        shell_execute.execute_command_output_all("rm -rf /opt/library*")        
-        myLogger.info_logger("auto update success...")
-    else:
-        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
-        myLogger.info_logger("Appstore is latest, not need to update.")
-    
+    shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp /opt/appstore /usr/share/cockpit")
+    shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
+
+    library_url = const.ARTIFACT_URL + "/plugin/library/library-latest.zip"
+    library_cmd = "cd /opt && wget " + library_url + " && unzip  library-latest.zip "
+    shell_execute.execute_command_output_all(library_cmd)
+    shell_execute.execute_command_output_all("rm -rf /data/library && cp /opt/library /data")
+    shell_execute.execute_command_output_all("rm -rf /opt/library*")        
+    myLogger.info_logger("auto update success...")
+
 scheduler = BackgroundScheduler()
 # scheduler.add_job(auto_update, 'cron', day=1)
 # scheduler.start()
 # scheduler.stop()
-
-# 获取github文件内容
-def get_github_content(repo, path):
-    url = 'https://websoft9.github.io/{repo}/{path}'
-    url = url.format(repo=repo, path=path)
-    response = requests.get(url)
-    response.encoding = 'utf-8'
-    contents = response.text
-    return contents
 
 def AppAutoUpdate(auto_update):
 
@@ -97,26 +78,34 @@ def AppAutoUpdate(auto_update):
 
 # 更新软件商店
 def AppStoreUpdate():
-    
-    auto_update()
+    version_cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    latest = shell_execute.execute_command_output_all(version_cmd)['result']
+    most_version = json.loads(latest)['Requires at most']
+    least_version = json.loads(latest)['Requires at least']
+    now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
+    now_version = json.loads(now)['VERSION']
+    if now_version < least_version or least_version > most_version:
+        raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
+    appstore_update()
 
 # 获取 update info
 def get_update_list():
     local_path = '/data/apps/websoft9/version.json'
-    repo = 'websoft9'
     local_version = "0"
     try:
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']
         local_version = json.loads(op)['VERSION']
     except:
-        local_version = "0.0.1"
-    version_contents = get_github_content(repo, 'install/version.json')
-    version = json.loads(version_contents)['VERSION']
+        local_version = "0.0.0"
+    version_cmd = "curl" + const.ARTIFACT_URL + "/version.json"
+    latest = shell_execute.execute_command_output_all(version_cmd)['result']
+    version = json.loads(latest)['VERSION']
     ret = {}
     ret['current_version'] = local_version
     if compared_version(local_version, version) == -1:
         content = []
-        change_log_contents = get_github_content(repo, 'CHANGELOG.md')
+        cmd = "curl" + const.ARTIFACT_URL + "/CHANGELOG.md" 
+        change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]
         for change in change_log[1:]:
@@ -143,17 +132,16 @@ def get_appstore_update_list():
     except:
         local_version = "0.0.0"
 
-    download_url = const.ARTIFACT_URL + "/plugin/appstore-latest.zip"
-    cmd = "cd /opt && wget " + download_url + " && unzip  appstore-latest.zip "
-    shell_execute.execute_command_output_all(cmd)
-    latest = shell_execute.execute_command_output_all("cat /opt/appstore/appstore.json")
+    version_cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    latest = shell_execute.execute_command_output_all(version_cmd)
     version = json.loads(latest)['Version']
     
     ret = {}
     ret['current_version'] = local_version
     if compared_version(local_version, version) == -1:
         content = []
-        change_log_contents = shell_execute.execute_command_output_all("cat /opt/appstore/CHANGELOG.md")['result']
+        cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md" 
+        change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]
         for change in change_log[1:]:
@@ -165,11 +153,9 @@ def get_appstore_update_list():
         ret2['date'] = date
         ret2['content'] = content
         ret['Update_content']=ret2
-        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
         return ret
     else:
         ret['Update_content']=None
-        shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
         return ret
 
 def conbine_list(installing_list, installed_list):
