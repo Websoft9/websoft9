@@ -1,3 +1,7 @@
+## 0.8.4 release on 2023-07-26
+
+add appstore search api
+
 ## 0.8.2 release on 2023-07-24
 
 1. install from artifacts

@@ -78,7 +78,7 @@ def AppAutoUpdate(auto_update):
 
 def AppStoreCore():
 
-    version_cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     most_version = json.loads(latest)['Requires at most']
     least_version = json.loads(latest)['Requires at least']
@@ -146,14 +146,14 @@ def get_appstore_update_list():
     except:
         local_version = "0.0.0"
 
-    version_cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)
     version = json.loads(latest)['Version']
     ret = {}
     ret['local_version'] = local_version
     ret['target_version'] = version
     content = []
-    cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md" 
+    cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md" 
     change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
     change_log = change_log_contents.split('## ')[1].split('\n')
     date = change_log[0].split()[-1]
