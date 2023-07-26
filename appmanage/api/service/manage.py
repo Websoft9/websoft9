@@ -147,7 +147,7 @@ def get_appstore_update_list():
         local_version = "0.0.0"
 
     version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
-    latest = shell_execute.execute_command_output_all(version_cmd)
+    latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['Version']
     ret = {}
     ret['local_version'] = local_version
