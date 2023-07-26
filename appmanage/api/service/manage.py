@@ -76,16 +76,31 @@ def AppAutoUpdate(auto_update):
         else:
           return "false"
 
-# 更新软件商店
-def AppStoreUpdate():
+def AppStoreCore():
+
     version_cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     most_version = json.loads(latest)['Requires at most']
     least_version = json.loads(latest)['Requires at least']
     now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
     now_version = json.loads(now)['VERSION']
-    if now_version < least_version or least_version > most_version:
+    if now_version >= least_version and now_version <= most_version:
+        return "0"
+    elif now_version < least_version:
+        return "-1"
+    elif now_version > most_version:
+        return "1"
+    return "0"
+
+# 更新软件商店
+def AppStoreUpdate():
+
+    core_support = AppStoreCore()
+
+    if core_support == "-1":
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
+    elif core_support == "1":
+        raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "core not support,can not upgrade", "core not support,can not upgrade")
     appstore_update()
 
 # 获取 update info
@@ -101,26 +116,25 @@ def get_update_list():
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['VERSION']
     ret = {}
-    ret['current_version'] = local_version
+    ret['local_version'] = local_version
+    ret['target_version'] = version
+    content = []
+    cmd = "curl" + const.ARTIFACT_URL + "/CHANGELOG.md" 
+    change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
+    change_log = change_log_contents.split('## ')[1].split('\n')
+    date = change_log[0].split()[-1]
+    for change in change_log[1:]:
+        if change != '':
+            content.append(change)
+    
     if compared_version(local_version, version) == -1:
-        content = []
-        cmd = "curl" + const.ARTIFACT_URL + "/CHANGELOG.md" 
-        change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
-        change_log = change_log_contents.split('## ')[1].split('\n')
-        date = change_log[0].split()[-1]
-        for change in change_log[1:]:
-            if change != '':
-                content.append(change)
-        
-        ret2= {}
-        ret2['latest_version'] = version
-        ret2['date'] = date
-        ret2['content'] = content
-        ret['Update_content']=ret2
-        return ret
+        ret['update'] = True
     else:
-        ret['Update_content']=None
-        return ret
+        ret['update'] = False
+    ret['date'] = date
+    ret['content'] = content
+    return ret
+  
 
 # 获取 appstore update info
 def get_appstore_update_list():
@@ -135,28 +149,27 @@ def get_appstore_update_list():
     version_cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)
     version = json.loads(latest)['Version']
-    
     ret = {}
-    ret['current_version'] = local_version
+    ret['local_version'] = local_version
+    ret['target_version'] = version
+    content = []
+    cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md" 
+    change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
+    change_log = change_log_contents.split('## ')[1].split('\n')
+    date = change_log[0].split()[-1]
+    for change in change_log[1:]:
+        if change != '':
+            content.append(change)
+
     if compared_version(local_version, version) == -1:
-        content = []
-        cmd = "curl" + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md" 
-        change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
-        change_log = change_log_contents.split('## ')[1].split('\n')
-        date = change_log[0].split()[-1]
-        for change in change_log[1:]:
-            if change != '':
-                content.append(change)
-        
-        ret2= {}
-        ret2['latest_version'] = version
-        ret2['date'] = date
-        ret2['content'] = content
-        ret['Update_content']=ret2
-        return ret
+        ret['update'] = True
     else:
-        ret['Update_content']=None
-        return ret
+        ret['update'] = False
+
+    ret['date'] = date
+    ret['content'] = content
+    ret['core_compare'] = AppStoreCore()
+    return ret
 
 def conbine_list(installing_list, installed_list):
     app_list = installing_list + installed_list
