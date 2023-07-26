@@ -117,11 +117,11 @@ else
 fi
 
 # Check port used
-if netstat -tuln | grep -qE ':(80|9000)\s'; then
-    echo "Port 80 or 9000  is already in use."
+if netstat -tuln | grep -qE ':(80|443|9000)\s'; then
+    echo "Port 80,443,9000  is already in use."
     exit 1
 else
-    echo "Port 80, 9000 are free."
+    echo "Port 80,443, 9000 are free."
 fi
           
 }
@@ -131,8 +131,8 @@ InstallTools(){
 echo "Prepare to install Tools ..."
 
 if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'Rocky Linux' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
-  sudo yum update -y 1>/dev/null 2>&1
-  sudo yum install  git curl wget yum-utils jq bc unzip -y  1>/dev/null 2>&1
+  sudo yum update -y
+  sudo yum install  git curl wget yum-utils jq bc unzip -y
 
 fi
 
