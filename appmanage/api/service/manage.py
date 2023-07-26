@@ -50,7 +50,7 @@ def appstore_update():
     library_url = const.ARTIFACT_URL + "/plugin/library/library-latest.zip"
     library_cmd = "cd /opt && wget " + library_url + " && unzip  library-latest.zip "
     shell_execute.execute_command_output_all(library_cmd)
-    shell_execute.execute_command_output_all("rm -rf /data/library && cp /opt/library /data")
+    shell_execute.execute_command_output_all("rm -rf /data/library && cp -r /opt/library /data")
     shell_execute.execute_command_output_all("rm -rf /opt/library*")        
     myLogger.info_logger("auto update success...")
 
