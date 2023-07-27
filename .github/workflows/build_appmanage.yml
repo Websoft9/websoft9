@@ -30,6 +30,7 @@ jobs:
         with:
           image: websoft9dev/appmanage
           tags: ${{ env.VERSION }}
+          addLatest: True
           registry: docker.io
           dockerfile: appmanage/Dockerfile
           directory: appmanage

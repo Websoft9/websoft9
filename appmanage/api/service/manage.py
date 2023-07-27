@@ -112,7 +112,7 @@ def get_update_list():
         local_version = json.loads(op)['VERSION']
     except:
         local_version = "0.0.0"
-    version_cmd = "curl" + const.ARTIFACT_URL + "/version.json"
+    version_cmd = "curl " + const.ARTIFACT_URL + "/version.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['VERSION']
     ret = {}

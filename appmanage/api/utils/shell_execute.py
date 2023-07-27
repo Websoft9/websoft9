@@ -15,7 +15,7 @@ def execute_command_output_all(cmd_str):
     
     myLogger.info_logger("Start to execute cmd: " + cmd_str)
 
-    process = subprocess.run(f'nsenter -m -u -i -n -p -t 1 sh -c "{cmd_str}"', capture_output=True, check=False, text=True, shell=True)
+    process = subprocess.run(f'nsenter -m -u -i -n -p -t 1 sh -c "{cmd_str}"', capture_output=True, bufsize=65536, check=False, text=True, shell=True)
         
     if process.returncode == 0 and 'Fail' not in process.stdout and 'fail' not in process.stdout and 'Error' not in process.stdout and 'error' not in process.stdout:
 
