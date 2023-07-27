@@ -6,11 +6,11 @@
 
 便于升级、便于用户使用的产品文件目录组织结构
 
-- 微服务容器：/stackhub/docker
-- Cockpit 插件：/stackhub/cockpit
-- 安装和升级脚本: /stackhub/install
-- Appstore 后台源码: /stackhub/appmanage
-- cli: /stackhub/cli(待定)
+- 微服务容器：/websoft9/docker
+- Cockpit 插件：/websoft9/cockpit
+- 安装和升级脚本: /websoft9/install
+- Appstore 后台源码: /websoft9/appmanage
+- cli: /websoft9/cli(待定)
 
 ## Upgrade
 

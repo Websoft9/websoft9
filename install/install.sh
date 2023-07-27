@@ -8,8 +8,6 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
-install_way="online"
-
 urls="https://artifact.azureedge.net/release/websoft9"
 
 function get_os_type() {
@@ -24,6 +22,10 @@ function get_os_type() {
 
     if [[ "$OS" == "CentOS Linux" ]]; then
         echo "CentOS"
+    elif [[ "$OS" == "CentOS Stream" ]]; then
+        echo "CentOS Stream"
+    elif [[ "$OS" == "Rocky Linux" ]]; then
+        echo "Rocky Linux"
     elif [[ "$OS" == "Oracle Linux Server" ]]; then
         echo "OracleLinux"
     elif [[ "$OS" == "Debian GNU/Linux" ]]; then
@@ -103,8 +105,11 @@ fi
 if [[ "$OS" == "CentOS Linux" && "$VERSION" =~ ^[0-6]$ ]]; then
     echo "This script only works on CentOS 7 or later."
     exit 1
-elif [[ "$OS" == "Ubuntu" && "$VERSION" =~ ^1[0-9].*$ ]]; then
-    echo "This script only works on Ubuntu 20.04 or later."
+elif [[ "$OS" == "CentOS Stream" && ! "$VERSION" =~ ^(8|9)$ ]]; then
+    echo "This script only works on CentOS Stream 8,9."
+    exit 1
+elif [[ "$OS" == "Ubuntu" && "$VERSION" =~ ^1[0-7].*$ ]]; then
+    echo "This script only works on Ubuntu 18.04 or later."
     exit 1
 elif [[ "$OS" == "Debian GNU/Linux" && "$VERSION" =~ ^[1-8]$ ]]; then
     echo "This script only works on Debian 9 or later."
@@ -322,7 +327,7 @@ if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
   sudo apt install cockpit-navigator -y 
 fi
 
-if [ "$os_type" == 'Redhat' ] || [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Fedora' ] ;then
+if [ "$os_type" == 'Redhat' ] || [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Rocky Linux' ] || [ "$os_type" == 'Fedora' ] ;then
   curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
   sudo bash setup-repo.sh
   sudo dnf install cockpit-navigator -y 1>/dev/null 2>&1
