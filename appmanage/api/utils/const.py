@@ -19,6 +19,7 @@ ERRORMESSAGE_SERVER_COMMAND="Server.Container.Error"
 ERRORMESSAGE_SERVER_SYSTEM="Server.SystemError"
 ERRORMESSAGE_SERVER_RESOURCE="Server.ResourceError"
 ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT="Server.Version.NotSupport"
+ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE="Server.Version.NeedUpgradeCore"
 
 # 应用状态定义
 # 应用启动中 installing

@@ -52,13 +52,13 @@ domain = "&emsp;&emsp;Domain_set：{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;domains：域名列表\n\n" \
          "&emsp;&emsp;&emsp;&emsp;default_domain：默认域名\n\n&emsp;&emsp;}\n\n}\n\n"
 
-update = "&emsp;&emsp;Compare_content: 内容比较{\n\n" \
+update = "&emsp;&emsp;Compare_content: 内容比较 {\n\n" \
          "&emsp;&emsp;&emsp;&emsp;local_version: 当前版本,\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;&target_version: 最新版本\n\n" \
+         "&emsp;&emsp;&emsp;&emsp;target_version: 最新版本\n\n" \
          "&emsp;&emsp;&emsp;&emsp;content: 更新内容\n\n" \
          "&emsp;&emsp;&emsp;&emsp;date: 更新日期\n\n" \
          "&emsp;&emsp;&emsp;&emsp;update: 是否有更新\n\n" \
-         "&emsp;&emsp;&emsp;&emsp;core_compare: 是否支持升级(-1:需要升级内核 0:可以升级 1:无法支持)\n\n&emsp;&emsp;&emsp;&emsp;}\n\n"
+         "&emsp;&emsp;&emsp;&emsp;core_compare: 是否支持升级(-1:需要升级内核 0:可以升级 1:无法支持)\n\n&emsp;&emsp;&emsp;&emsp;}\n\n}\n\n"
 
 appstore_update = "&emsp;&emsp;Update_flag:  更新结果(成功或失败)\n\n}\n\n"
 auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"

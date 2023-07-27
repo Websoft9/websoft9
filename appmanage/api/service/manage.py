@@ -41,14 +41,14 @@ def appstore_update():
 
     # 当点击appstore升级时，是无条件升级，不需要做版本的判定
     download_url = const.ARTIFACT_URL + "/plugin/appstore/appstore-latest.zip"
-    cmd = "cd /opt && wget " + download_url + " && unzip  appstore-latest.zip "
+    cmd = "cd /opt && rm -rf /opt/appstore* && wget " + download_url + " && unzip  appstore-latest.zip "
     shell_execute.execute_command_output_all(cmd)
 
-    shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp /opt/appstore /usr/share/cockpit")
+    shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp -r /opt/appstore /usr/share/cockpit")
     shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
 
     library_url = const.ARTIFACT_URL + "/plugin/library/library-latest.zip"
-    library_cmd = "cd /opt && wget " + library_url + " && unzip  library-latest.zip "
+    library_cmd = "cd /opt && rm -rf /opt/library* && wget " + library_url + " && unzip  library-latest.zip "
     shell_execute.execute_command_output_all(library_cmd)
     shell_execute.execute_command_output_all("rm -rf /data/library && cp -r /opt/library /data")
     shell_execute.execute_command_output_all("rm -rf /opt/library*")        
@@ -98,7 +98,7 @@ def AppStoreUpdate():
     core_support = AppStoreCore()
 
     if core_support == "-1":
-        raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
+        raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
     elif core_support == "1":
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "core not support,can not upgrade", "core not support,can not upgrade")
     appstore_update()
@@ -119,7 +119,7 @@ def get_update_list():
     ret['local_version'] = local_version
     ret['target_version'] = version
     content = []
-    cmd = "curl" + const.ARTIFACT_URL + "/CHANGELOG.md" 
+    cmd = "curl " + const.ARTIFACT_URL + "/CHANGELOG.md" 
     change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
     change_log = change_log_contents.split('## ')[1].split('\n')
     date = change_log[0].split()[-1]

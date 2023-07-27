@@ -1,3 +1,7 @@
+## 0.8.8 release on 2023-07-27
+
+fixed update search api bug
+
 ## 0.8.5 release on 2023-07-26
 
 add docs
