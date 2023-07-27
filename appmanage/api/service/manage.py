@@ -41,14 +41,14 @@ def appstore_update():
 
     # 当点击appstore升级时，是无条件升级，不需要做版本的判定
     download_url = const.ARTIFACT_URL + "/plugin/appstore/appstore-latest.zip"
-    cmd = "cd /opt && rm -rf /opt/appstore* && wget " + download_url + " && unzip  appstore-latest.zip "
+    cmd = "cd /opt && rm -rf /opt/appstore* && wget -q " + download_url + " && unzip  -q  appstore-latest.zip "
     shell_execute.execute_command_output_all(cmd)
 
     shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp -r /opt/appstore /usr/share/cockpit")
     shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
 
     library_url = const.ARTIFACT_URL + "/plugin/library/library-latest.zip"
-    library_cmd = "cd /opt && rm -rf /opt/library* && wget " + library_url + " && unzip  library-latest.zip "
+    library_cmd = "cd /opt && rm -rf /opt/library* && wget -q  " + library_url + " && unzip  -q  library-latest.zip "
     shell_execute.execute_command_output_all(library_cmd)
     shell_execute.execute_command_output_all("rm -rf /data/library && cp -r /opt/library /data")
     shell_execute.execute_command_output_all("rm -rf /opt/library*")        
