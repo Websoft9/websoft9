@@ -29,7 +29,7 @@ jobs:
         name: Build & push Docker image
         with:
           image: websoft9dev/appmanage
-          tags: latest
+          tags: ${{ env.VERSION }}
           addLatest: True
           registry: docker.io
           dockerfile: appmanage/Dockerfile
