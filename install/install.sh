@@ -351,19 +351,19 @@ rm -f websoft9-latest.zip
 # install plugins
 cd /usr/share/cockpit
 appstore_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .APPSTORE | tr -d '"')
-wget $urls/plugin/appstore-$appstore_version.zip
+wget $urls/plugin/appstore/appstore-$appstore_version.zip
 unzip appstore-$appstore_version.zip
 
 myapps_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .MYAPPS| tr -d '"')
-wget $urls/plugin/myapps-$myapps_version.zip
+wget $urls/plugin/myapps/myapps-$myapps_version.zip
 unzip myapps-$myapps_version.zip
 
 portainer_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .PORTAINER | tr -d '"')
-wget $urls/plugin/portainer-$portainer_version.zip
+wget $urls/plugin/portainer/portainer-$portainer_version.zip
 unzip portainer-$portainer_version.zip
 
 nginx_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NGINX | tr -d '"')
-wget $urls/plugin/nginx-$nginx_version.zip
+wget $urls/plugin/nginx/nginx-$nginx_version.zip
 unzip nginx-$nginx_version.zip
 
 # settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
@@ -374,7 +374,7 @@ rm -f *.zip
 # install library
 cd /data
 library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
-wget $urls/plugin/library-$library_version.zip
+wget $urls/plugin/library/library-$library_version.zip
 unzip library-$library_version.zip
 rm -f library-$library_version.zip
 

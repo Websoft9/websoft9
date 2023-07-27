@@ -3,7 +3,7 @@ name: developer Workflow
 on:
   pull_request:
     branches:
-      - mains
+      - main
 
 jobs:
   build-image:
@@ -69,7 +69,8 @@ jobs:
       - name: Install appstore
         run: |
           # override cockpit.conf, w9services
-          sed -i '/#####ci-section#####/a rm -f /etc/cockpit/cockpit.conf && cp cockpit/cockpit.conf /etc/cockpit/cockpit.conf && rm -f /data/apps/w9services && cp -r docker  /data/apps/w9services'   install/install.sh
+          # sed -i '/#####ci-section#####/a rm -f /etc/cockpit/cockpit.conf && cp cockpit/cockpit.conf /etc/cockpit/cockpit.conf && rm -f /data/apps/w9services && cp -r docker  /data/apps/w9services'   install/install.sh
+          echo "Start to Install appstore"
 
       - name: Test appmanage API
         run: |
