@@ -1,43 +1,43 @@
 {
-    "SERVICES": {
-        "PORTAINER": "2.18.3",
-        "NGINX": "2.10.3",
-        "APPMANAGE": "0.8.8",
-        "REDIS": "7.0.11"
-    },
-    "PLUGINS": {
-        "PORTAINER": "0.0.1",
-        "NGINX": "0.0.1",
-        "MYAPPS": "0.0.1",
-        "APPSTORE": "0.0.1",
-        "SETTINGS": "0.0.1",
-        "LIBRARY": "0.5.2"
-    },
-    "OS_SUPPORT": {
-        "Fedora": [
-            "37"
-        ],
-        "RedHat": [
-            "9",
-            "8",
-            "7"
-        ],
-        "CentOS": [
-            "8",
-            "7"
-        ],
-        "CentOS Stream": [
-            "9",
-            "8"
-        ],
-        "Debian": [
-            "11"
-        ],
-        "Ubuntu": [
-            "22.04",
-            "20.04",
-            "18.04"
-        ]
-    },
-    "VERSION": "0.8.8"
+  "SERVICES": {
+    "PORTAINER": "2.18.3",
+    "NGINX": "2.10.3",
+    "APPMANAGE": "0.8.8",
+    "REDIS": "7.0.11"
+  },
+  "PLUGINS": {
+    "PORTAINER": "0.0.1",
+    "NGINX": "0.0.1",
+    "MYAPPS": "0.0.1",
+    "APPSTORE": "0.0.2",
+    "SETTINGS": "0.0.1",
+    "LIBRARY": "0.5.2"
+  },
+  "OS_SUPPORT": {
+    "Fedora": [
+      "37"
+    ],
+    "RedHat": [
+      "9",
+      "8",
+      "7"
+    ],
+    "CentOS": [
+      "8",
+      "7"
+    ],
+    "CentOS Stream": [
+      "9",
+      "8"
+    ],
+    "Debian": [
+      "11"
+    ],
+    "Ubuntu": [
+      "22.04",
+      "20.04",
+      "18.04"
+    ]
+  },
+  "VERSION": "0.8.8"
 }
