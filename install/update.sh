@@ -213,14 +213,14 @@ pkcon refresh /dev/null 2>&1
 pkcon get-updates >/dev/null 2>&1
 pkcon update -y >/dev/null 2>&1
 
-# update navigator
-if command -v apt > /dev/null;then  
-  sudo apt -y install --only-upgrade  cockpit-navigator
-elif  command -v dnf > /dev/null;then 
-  sudo dnf update -y cockpit-navigator
-elif  command -v yum > /dev/null;then 
-  sudo yum update -y cockpit-navigator
-fi
+# update navigator(not update on official)
+# if command -v apt > /dev/null;then  
+#   sudo apt -y install --only-upgrade  cockpit-navigator
+# elif  command -v dnf > /dev/null;then 
+#   sudo dnf update -y cockpit-navigator
+# elif  command -v yum > /dev/null;then 
+#   sudo yum update -y cockpit-navigator
+# fi
 
 sudo systemctl restart cockpit.socket
 
