@@ -78,7 +78,7 @@ def AppAutoUpdate(auto_update):
 
 def AppStoreCore():
 
-    version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    version_cmd = "wget -O appstore.json " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json && cat appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     most_version = json.loads(latest)['Requires at most']
     least_version = json.loads(latest)['Requires at least']
@@ -86,7 +86,7 @@ def AppStoreCore():
     now_version = json.loads(now)['VERSION']
     version_str = "now_version:" + now_version + " least_version:" + least_version + " most_version:" + most_version
     myLogger.info_logger(version_str)
-    if float(now_version) >= float(least_version) and float(now_version) <= float(most_version):
+    if now_version >= least_version and now_version <= most_version:
         return "0"
     elif now_version < least_version:
         return "-1"
@@ -111,7 +111,7 @@ def AppStoreUpdate():
     except:
         local_version = "0.0.0"
 
-    version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    version_cmd = "wget -O appstore.json  " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json  && cat appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['Version']
     if local_version < version:
