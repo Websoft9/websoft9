@@ -101,7 +101,21 @@ def AppStoreUpdate():
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
     elif core_support == "1":
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "core not support,can not upgrade", "core not support,can not upgrade")
-    appstore_update()
+        local_path = '/usr/share/cockpit/appstore/appstore.json'
+    local_version = "0"
+    try:
+        op = shell_execute.execute_command_output_all("cat " + local_path)['result']
+        local_version = json.loads(op)['Version']
+    except:
+        local_version = "0.0.0"
+
+    version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    latest = shell_execute.execute_command_output_all(version_cmd)['result']
+    version = json.loads(latest)['Version']
+    if local_version < version:
+        appstore_update()
+    else:
+        myLogger.info_logger("You click update appstore, but not need to update")
 
 # 获取 update info
 def get_update_list():
