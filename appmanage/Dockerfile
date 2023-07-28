@@ -11,7 +11,7 @@ COPY static ./static
 COPY requirements.txt main.py database.sqlite  ./
 RUN apt update
 
-# Install  supervisord
+# Install  supervisords
 RUN apt install -y supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY config/cmd.sh /cmd.sh

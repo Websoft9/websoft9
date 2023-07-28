@@ -101,7 +101,7 @@ def AppStoreUpdate():
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
     elif core_support == "1":
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT, "core not support,can not upgrade", "core not support,can not upgrade")
-        local_path = '/usr/share/cockpit/appstore/appstore.json'
+    local_path = '/usr/share/cockpit/appstore/appstore.json'
     local_version = "0"
     try:
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']
@@ -126,14 +126,14 @@ def get_update_list():
         local_version = json.loads(op)['VERSION']
     except:
         local_version = "0.0.0"
-    version_cmd = "curl " + const.ARTIFACT_URL + "/version.json"
+    version_cmd = "wget -O version.json " + const.ARTIFACT_URL + "/version.json  && cat version.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['VERSION']
     ret = {}
     ret['local_version'] = local_version
     ret['target_version'] = version
     content = []
-    cmd = "curl " + const.ARTIFACT_URL + "/CHANGELOG.md" 
+    cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/CHANGELOG.md  && cat CHANGELOG.md" 
     change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
     change_log = change_log_contents.split('## ')[1].split('\n')
     date = change_log[0].split()[-1]
@@ -160,14 +160,14 @@ def get_appstore_update_list():
     except:
         local_version = "0.0.0"
 
-    version_cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json"
+    version_cmd = "wget -O appstore.json -N  " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json && cat appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['Version']
     ret = {}
     ret['local_version'] = local_version
     ret['target_version'] = version
     content = []
-    cmd = "curl " + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md" 
+    cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md  && cat CHANGELOG.md" 
     change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
     change_log = change_log_contents.split('## ')[1].split('\n')
     date = change_log[0].split()[-1]
