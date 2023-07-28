@@ -84,7 +84,9 @@ def AppStoreCore():
     least_version = json.loads(latest)['Requires at least']
     now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
     now_version = json.loads(now)['VERSION']
-    if now_version >= least_version and now_version <= most_version:
+    version_str = "now_version:" + now_version + " least_version:" + least_version + " most_version:" + most_version
+    myLogger.info_logger(version_str)
+    if float(now_version) >= float(least_version) and float(now_version) <= float(most_version):
         return "0"
     elif now_version < least_version:
         return "-1"
