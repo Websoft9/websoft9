@@ -100,14 +100,14 @@ if [ "$os_type" == 'Rocky Linux' ] ;then
 fi
 
 if  [ "$os_type" == 'Fedora' ];then
-  if [ "$os_version" =~ ^[^37] ]; then
+  if [ "$os_version" != "37" ]; then
       echo "This app only supported on Fedora 37"
       exit 1
   fi
 fi
 
 if  [ "$os_type" == 'Redhat' ];then
-  if [ "$os_version" =~ ^[^8] ] and [ "$os_version" =~ ^[^7] ]  ; then
+  if [ "${os_version:0:1}" == "9" ]; then
       echo "This app only supported on Redhat 7,8"
       exit 1
   fi
