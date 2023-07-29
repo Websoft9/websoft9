@@ -379,9 +379,9 @@ nginx_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NGINX | 
 wget $urls/plugin/nginx/nginx-$nginx_version.zip
 unzip nginx-$nginx_version.zip
 
-# settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
-# wget https://w9artifact.blob.core.windows.net/release/websoft9/plugin/settings-$settings_version.zip
-# unzip settings-$settings_version.zip
+settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
+wget $urls/plugin/settings/settings-$settings_version.zip
+unzip settings-$settings_version.zip
 rm -f *.zip
 
 # install library

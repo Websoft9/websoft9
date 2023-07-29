@@ -100,16 +100,16 @@ else
         echo "appstore is not need to update"
     fi
 
-    # if [ "$old_settings_version" \< "$new_settings_version" ]; then
-    #     echo "settings plugin need to update"
-    #     cd /usr/share/cockpit
-    #     wget $urls/plugin/settings/settings-$new_settings_version.zip
-    #     rm -rf settings
-    #     unzip settings-$new_appstore_version.zip
-    #     rm -f settings-$new_appstore_version.zip
-    # else
-    #     echo "settings is not need to update"
-    # fi
+    if [ "$old_settings_version" \< "$new_settings_version" ]; then
+        echo "settings plugin need to update"
+        cd /usr/share/cockpit
+        wget $urls/plugin/settings/settings-$new_settings_version.zip
+        rm -rf settings
+        unzip settings-$new_appstore_version.zip
+        rm -f settings-$new_appstore_version.zip
+    else
+        echo "settings is not need to update"
+    fi
 
     if [ "$old_myapps_version" \< "$new_myapps_version" ]; then
         echo "start to update myapps..."
