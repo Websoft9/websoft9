@@ -164,9 +164,12 @@ old_appmanage=$(cat /data/apps/w9services/w9appmanage/.env |grep APP_VERSION |cu
 new_appmanage=$(cat /data/apps/websoft9/docker/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_appmanage" \< "$new_appmanage" ]; then
     echo "start to update w9appmanage..."
-    cp /data/apps/websoft9/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
-    cp /data/apps/websoft9/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
+    rm -rf /tmp/database.sqlite && sudo docker cp websoft9-appmanage:/usr/src/app/database.sqlite /tmp
+    rm /data/apps/w9services/w9appmanage/.env && cp /data/apps/websoft9/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
+    rm /data/apps/w9services/w9appmanage/docker-compose.yml && cp /data/apps/websoft9/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
     cd /data/apps/w9services/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
+    sudo docker exec -it websoft9-appmanage rm -f /usr/src/app/database.sqlite && sudo docker cp /tmp/database.sqlite websoft9-appmanage:/usr/src/app
+    docker restart websoft9-appmanage
 else
     echo "appmanage is not need to update"
 fi
