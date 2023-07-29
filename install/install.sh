@@ -121,8 +121,8 @@ if  [ "$os_type" == 'Ubuntu' ];then
 fi
 
 if  [ "$os_type" == 'Debian' ];then
-  if [ "$os_version" =~ ^[^10] ]  ; then
-      echo "This app only supported on Redhat 7,8"
+  if [ "$os_version" != "11" ];then
+      echo "This app only supported on Debian 11"
       exit 1
   fi
 fi
