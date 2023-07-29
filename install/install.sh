@@ -93,7 +93,9 @@ if  [ "$os_type" == 'CentOS Stream' ] ;then
 fi
 
 if [ "$os_type" == 'Rocky Linux' ] ;then
-  if [ "$os_version" =~ ^[^8] ]; then
+  if [ "${os_version:0:1}" == "8" ]; then
+      echo ""
+  else
       echo "This app only supported on Rocky Linux 8"
       exit 1
   fi
@@ -107,14 +109,14 @@ if  [ "$os_type" == 'Fedora' ];then
 fi
 
 if  [ "$os_type" == 'Redhat' ];then
-  if [ "${os_version:0:1}" == "9" ]; then
+  if [ "${os_version:0:1}" != "7" ] && [ "${os_version:0:1}" != "8" ]; then
       echo "This app only supported on Redhat 7,8"
       exit 1
   fi
 fi
 
 if  [ "$os_type" == 'Ubuntu' ];then
-  if [ "$os_version" != "22.04" ] and [ "$os_version" != "20.04" ] and [ "$os_version" != "18.04" ]; then
+  if [ "$os_version" != "22.04" ] && [ "$os_version" != "20.04" ] && [ "$os_version" != "18.04" ]; then
       echo "This app only supported on Ubuntu 22.04,20.04,18.04"
       exit 1
   fi
