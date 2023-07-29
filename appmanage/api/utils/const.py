@@ -34,4 +34,5 @@ APP_STATUS_RESTARTING = "restarting"
 APP_STATUS_FAILED = "failed"
 
 NGINX_URL="http://websoft9-nginxproxymanager:81"
-ARTIFACT_URL="https://artifact.azureedge.net/release/websoft9"
+#ARTIFACT_URL="https://artifact.azureedge.net/release/websoft9"
+ARTIFACT_URL="hw9artifact.blob.core.windows.net/release/websoft9"

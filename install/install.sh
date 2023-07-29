@@ -54,19 +54,7 @@ function get_os_version() {
         VERSION=$(uname -r)
     fi
 
-    if [[ "$OS" == "CentOS Linux" && "$VERSION" =~ ^7|8$ ]]; then
-        echo "CentOS"$VERSION
-    elif [[ "$OS" == "Oracle Linux Server" && "$VERSION" =~ ^7|8$ ]]; then
-        echo "OracleLinux"$VERSION
-    elif [[ "$OS" == "Debian GNU/Linux" && "$VERSION" =~ ^9|10|11$ ]]; then
-        echo "Debian"$VERSION
-    elif [[ "$OS" == "Ubuntu" && "$VERSION" =~ ^20.04|20.10|21.04|21.10|22.04$ ]]; then
-        echo "Ubuntu"$VERSION
-    elif [[ "$OS" =~ "Red Hat Enterprise Linux" && "$VERSION" =~ ^7|8$ ]]; then
-        echo "Redhat"$VERSION
-    else
-        echo $OS $VERSION
-    fi
+    echo $VERSION
 }
 os_type=$(get_os_type)
 os_version=$(get_os_version)
@@ -90,35 +78,51 @@ else
     exit 1
 fi
 
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    OS=$NAME
-    VERSION=$VERSION_ID
-elif type lsb_release >/dev/null 2>&1; then
-    OS=$(lsb_release -si)
-    VERSION=$(lsb_release -sr)
-else
-    OS=$(uname -s)
-    VERSION=$(uname -r)
+if [ "$os_type" == 'CentOS' ] ;then
+  if [ "$os_version" != "7" ]; then
+      echo "This app only supported on CentOS 7"
+      exit 1
+  fi
 fi
 
-if [[ "$OS" == "CentOS Linux" && "$VERSION" =~ ^[0-6]$ ]]; then
-    echo "This script only works on CentOS 7 or later."
-    exit 1
-elif [[ "$OS" == "CentOS Stream" && ! "$VERSION" =~ ^(8|9)$ ]]; then
-    echo "This script only works on CentOS Stream 8,9."
-    exit 1
-elif [[ "$OS" == "Ubuntu" && "$VERSION" =~ ^1[0-7].*$ ]]; then
-    echo "This script only works on Ubuntu 18.04 or later."
-    exit 1
-elif [[ "$OS" == "Debian GNU/Linux" && "$VERSION" =~ ^[1-8]$ ]]; then
-    echo "This script only works on Debian 9 or later."
-    exit 1
-elif [[ "$OS" =~ "Red Hat Enterprise Linux" && "$VERSION" =~ ^[0-6]$ ]]; then
-    echo "This script only works on Red Hat 7 or later."
-    exit 1
-else
-    echo "Your server os is supported to install this software."
+if  [ "$os_type" == 'CentOS Stream' ] ;then
+  if [ "$os_version" != "8" ]; then
+      echo "This app only supported on CentOS Stream 8"
+      exit 1
+  fi
+fi
+
+if [ "$os_type" == 'Rocky Linux' ] ;then
+  if [ "$os_version" =~ ^[^8] ]; then
+      echo "This app only supported on Rocky Linux 8"
+      exit 1
+  fi
+fi
+
+if  [ "$os_type" == 'Fedora' ];then
+  sudo yum update -y
+  sudo yum install  git curl wget yum-utils jq bc unzip -y
+
+fi
+
+if  [ "$os_type" == 'Redhat' ];then
+  if [ "$os_version" =~ ^[^8] ] and [ "$os_version" =~ ^[^7]]  ; then
+      echo "This app only supported on Redhat 7,8"
+      exit 1
+  fi
+fi
+
+if  [ "$os_type" == 'Ubuntu' ];then
+  if [ "$os_version" != "22.04" ] and [ "$os_version" != "20.04" ] and [ "$os_version" != "18.04" ]; then
+      echo "This app only supported on Ubuntu 22.04,20.04,18.04"
+      exit 1
+  fi
+fi
+
+if  [ "$os_type" == 'Debian' ];then
+  sudo yum update -y
+  sudo yum install  git curl wget yum-utils jq bc unzip -y
+
 fi
 
 # Check port used
