@@ -279,7 +279,11 @@ pkcon update -y >/dev/null 2>&1
 # fi
 echo "Set cockpit port to 9000 ..." 
 sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
+# uninstall plugins
+rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 EditMenu
+sudo systemctl daemon-reload
+sudo systemctl enable --now cockpit.socket
 sudo systemctl restart cockpit.socket
 
 }
