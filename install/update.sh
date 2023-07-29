@@ -165,8 +165,8 @@ new_appmanage=$(cat /data/apps/websoft9/docker/w9appmanage/.env |grep APP_VERSIO
 if [ "$old_appmanage" \< "$new_appmanage" ]; then
     echo "start to update w9appmanage..."
     rm -rf /tmp/database.sqlite && sudo docker cp websoft9-appmanage:/usr/src/app/database.sqlite /tmp
-    rm /data/apps/w9services/w9appmanage/.env && cp /data/apps/websoft9/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
-    rm /data/apps/w9services/w9appmanage/docker-compose.yml && cp /data/apps/websoft9/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
+    rm -f /data/apps/w9services/w9appmanage/.env && cp /data/apps/websoft9/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
+    rm -f /data/apps/w9services/w9appmanage/docker-compose.yml && cp /data/apps/websoft9/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
     cd /data/apps/w9services/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
     sudo docker exec -it websoft9-appmanage rm -f /usr/src/app/database.sqlite && sudo docker cp /tmp/database.sqlite websoft9-appmanage:/usr/src/app
     docker restart websoft9-appmanage
@@ -178,8 +178,8 @@ old_redis=$(cat /data/apps/w9services/w9redis/.env |grep APP_VERSION |cut -d= -f
 new_redis=$(cat /data/apps/websoft9/docker/w9redis/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_redis" \< "$new_redis" ]; then
     echo "start to update w9redis..."
-    cp /data/apps/websoft9/docker/w9redis/.env /data/apps/w9services/w9redis/.env
-    cp /data/apps/websoft9/docker/w9redis/docker-compose.yml /data/apps/w9services/w9redis/docker-compose.yml
+    rm -f /data/apps/w9services/w9redis/.env && cp /data/apps/websoft9/docker/w9redis/.env /data/apps/w9services/w9redis/.env
+    rm -f /data/apps/w9services/w9redis/docker-compose.yml && cp /data/apps/websoft9/docker/w9redis/docker-compose.yml /data/apps/w9services/w9redis/docker-compose.yml
     cd /data/apps/w9services/w9redis  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "redis is not need to update"
@@ -189,8 +189,8 @@ old_portainer=$(cat /data/apps/w9services/w9portainer/.env |grep APP_VERSION |cu
 new_portainer=$(cat /data/apps/websoft9/docker/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_portainer" \< "$new_portainer" ]; then
     echo "start to update w9portainer..."
-    cp /data/apps/websoft9/docker/w9portainer/.env /data/apps/w9services/w9portainer/.env
-    cp /data/apps/websoft9/docker/w9portainer/docker-compose.yml /data/apps/w9services/w9portainer/docker-compose.yml
+    rm -f /data/apps/w9services/w9portainer/.env && cp /data/apps/websoft9/docker/w9portainer/.env /data/apps/w9services/w9portainer/.env
+    rm -f /data/apps/w9services/w9portainer/docker-compose.yml && cp /data/apps/websoft9/docker/w9portainer/docker-compose.yml /data/apps/w9services/w9portainer/docker-compose.yml
     cd /data/apps/w9services/w9portainer  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "w9portainer is not need to update"
@@ -200,11 +200,64 @@ old_nginx=$(cat /data/apps/w9services/w9nginxproxymanager/.env |grep APP_VERSION
 new_nginx=$(cat /data/apps/websoft9/docker/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
 if [ "$old_nginx" \< "$new_nginx" ]; then
     echo "start to update w9nginx..."
-    cp /data/apps/websoft9/docker/w9nginxproxymanager/.env /data/apps/w9services/w9nginxproxymanager/.env
-    cp /data/apps/websoft9/docker/w9nginxproxymanager/docker-compose.yml /data/apps/w9services/w9nginxproxymanager/docker-compose.yml
+    rm -f /data/apps/w9services/w9nginxproxymanager/.env && cp /data/apps/websoft9/docker/w9nginxproxymanager/.env /data/apps/w9services/w9nginxproxymanager/.env
+    rm -f /data/apps/w9services/w9nginxproxymanager/docker-compose.yml && cp /data/apps/websoft9/docker/w9nginxproxymanager/docker-compose.yml /data/apps/w9services/w9nginxproxymanager/docker-compose.yml
     cd /data/apps/w9services/w9nginxproxymanager  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
 else
     echo "w9nginx is not need to update"
+fi
+
+}
+
+EditMenu(){
+
+echo "Start to  Edit Cockpit Menu ..."
+if command -v jq > /dev/null; then
+  if [ -e /usr/share/cockpit/systemd ]; then
+    jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+    rm -rf /usr/share/cockpit/systemd/manifest.json
+    mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+    cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
+  fi
+  if [ -e /usr/share/cockpit/networkmanager ]; then
+    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
+  fi
+  if [ -e /usr/share/cockpit/storaged ]; then
+    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
+  fi
+  if [ -e /usr/share/cockpit/users ]; then
+    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
+  fi
+
+  jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+  rm -rf /usr/share/cockpit/shell/manifest.json
+  mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
+else
+  echo "system have no jq, use cockpit menu ..."
+  if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
+    sudo yum install epel-release -y 1>/dev/null 2>&1
+    sudo yum install jq -y  1>/dev/null 2>&1
+    if [ -e /usr/share/cockpit/systemd ]; then
+      jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
+      rm -rf /usr/share/cockpit/systemd/manifest.json
+      mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
+      cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
+    fi
+    if [ -e /usr/share/cockpit/networkmanager ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
+    fi
+    if [ -e /usr/share/cockpit/storaged ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
+    fi
+    if [ -e /usr/share/cockpit/users ]; then
+      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
+    fi
+
+    jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
+    rm -rf /usr/share/cockpit/shell/manifest.json
+    mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
+  fi
+
 fi
 
 }
@@ -224,7 +277,9 @@ pkcon update -y >/dev/null 2>&1
 # elif  command -v yum > /dev/null;then 
 #   sudo yum update -y cockpit-navigator
 # fi
-
+echo "Set cockpit port to 9000 ..." 
+sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
+EditMenu
 sudo systemctl restart cockpit.socket
 
 }
