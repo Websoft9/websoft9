@@ -100,13 +100,14 @@ if [ "$os_type" == 'Rocky Linux' ] ;then
 fi
 
 if  [ "$os_type" == 'Fedora' ];then
-  sudo yum update -y
-  sudo yum install  git curl wget yum-utils jq bc unzip -y
-
+  if [ "$os_version" =~ ^[^37] ]; then
+      echo "This app only supported on Fedora 37"
+      exit 1
+  fi
 fi
 
 if  [ "$os_type" == 'Redhat' ];then
-  if [ "$os_version" =~ ^[^8] ] and [ "$os_version" =~ ^[^7]]  ; then
+  if [ "$os_version" =~ ^[^8] ] and [ "$os_version" =~ ^[^7] ]  ; then
       echo "This app only supported on Redhat 7,8"
       exit 1
   fi
@@ -120,9 +121,10 @@ if  [ "$os_type" == 'Ubuntu' ];then
 fi
 
 if  [ "$os_type" == 'Debian' ];then
-  sudo yum update -y
-  sudo yum install  git curl wget yum-utils jq bc unzip -y
-
+  if [ "$os_version" =~ ^[^10] ]  ; then
+      echo "This app only supported on Redhat 7,8"
+      exit 1
+  fi
 fi
 
 # Check port used
@@ -513,7 +515,7 @@ else
 
 fi
 
-echo "---------------------------------- Install success!  you can  install a app by websoft9's appstore -------------------------------------------------------" 
+echo "---------------------------------- Install success! When installation completed, you can access it by: http://Internet IP:9000 and using Linux user for login to  install a app by websoft9's appstore. -------------------------------------------------------" 
 }
 
 CheckEnvironment
