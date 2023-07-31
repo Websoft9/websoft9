@@ -270,10 +270,10 @@ fi
 UpdateCockpit(){
 
 echo "Parpare to update Cockpit to latest  ..."
-pkcon refresh /dev/null 2>&1
-pkcon get-updates >/dev/null 2>&1
-pkcon update -y >/dev/null 2>&1
-
+pkcon refresh
+pkcon get-updates
+pkcon update -y
+echo "cockpit update finished."
 # update navigator(not update on official)
 # if command -v apt > /dev/null;then  
 #   sudo apt -y install --only-upgrade  cockpit-navigator
