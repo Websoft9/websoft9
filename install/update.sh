@@ -270,6 +270,15 @@ fi
 UpdateCockpit(){
 
 echo "Parpare to update Cockpit to latest  ..."
+
+pkcon refresh
+pkcon search cockpit | grep -i cockpit
+if [[ $(pkcon search cockpit | grep -i cockpit | wc -l) -gt 1 ]]; then
+  echo "存在Cockpit更新可用"
+else
+  echo "Cockpit is latest, not need to update"
+fi
+
 pkcon refresh
 pkcon get-updates
 pkcon update -y
