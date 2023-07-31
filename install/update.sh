@@ -66,8 +66,8 @@ old_appstore_version=$(cat /usr/share/cockpit/appstore/appstore.json | jq .Versi
 new_appstore_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .APPSTORE | tr -d '"')
 
 # update settings
-# old_settings_version=$(cat /usr/share/cockpit/settings/settings.json | jq .Version |  tr -d '"')
-# new_settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
+old_settings_version=$(cat /usr/share/cockpit/settings/settings.json | jq .Version |  tr -d '"')
+new_settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
 
 # update myapps
 old_myapps_version=$(cat /usr/share/cockpit/myapps/myapps.json | jq .Version |  tr -d '"')
@@ -282,9 +282,6 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 # uninstall plugins
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 EditMenu
-sudo systemctl daemon-reload
-sudo systemctl enable --now cockpit.socket
-sudo systemctl restart cockpit.socket
 
 }
 
