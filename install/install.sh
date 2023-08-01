@@ -8,7 +8,7 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
-urls="https://artifact.azureedge.net/release/websoft9"
+urls="https://w9artifact.blob.core.windows.net/release/websoft9"
 
 function get_os_type() {
     if [ -f /etc/os-release ]; then

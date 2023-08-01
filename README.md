@@ -6,7 +6,7 @@
 
 # What is Websoft9?
 
-Websoft9 is web-based PaaS platform for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.  
+Websoft9 is web-based PaaS platform for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.
 
 Websoft9 help you running multiple applications in a single server, that means we believe Microservices on single machine is reasonable. On the contrary, it becomes more and more valuable as computing power increases
 
@@ -51,6 +51,8 @@ When installation completed, you can access it by: **http://Internet IP:9000** a
 ```
 curl https://websoft9.github.io/websoft9/install/update.sh | bash
 ```
+
+> If you want to upgrade some plugins but do not have an upgrade portal due to a low version, please use kernel upgrade
 
 # Contributing
 
