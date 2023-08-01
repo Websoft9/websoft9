@@ -34,7 +34,9 @@ jobs:
           cp -r docker websoft9
           cp -r cockpit websoft9
           cp -r scripts websoft9
-          cp CHANGELOG.md websoft9
+          cp -r install websoft9
+          cp -r docs websoft9
+          cp *.md websoft9
           cp version.json websoft9
           zip -r websoft9-$version.zip websoft9
           cp websoft9-$version.zip artifacts

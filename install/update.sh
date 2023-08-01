@@ -212,90 +212,38 @@ fi
 EditMenu(){
 
 echo "Start to  Edit Cockpit Menu ..."
-if command -v jq > /dev/null; then
-  if [ -e /usr/share/cockpit/systemd ]; then
-    rm -f /usr/share/cockpit/systemd/manifest.json.tmp
-    jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
-    rm -rf /usr/share/cockpit/systemd/manifest.json
-    mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
-    cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz services.js services.html services.css
-    
-  fi
-  if [ -e /usr/share/cockpit/networkmanager ]; then
-    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
-  fi
-  if [ -e /usr/share/cockpit/storaged ]; then
-    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
-  fi
-  if [ -e /usr/share/cockpit/users ]; then
-    sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
-  fi
 
-  rm -f /usr/share/cockpit/shell/manifest.json.tmp
-  jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
-  rm -rf /usr/share/cockpit/shell/manifest.json
-  mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
-  
-else
-  echo "system have no jq, use cockpit menu ..."
-  if [ "$os_type" == 'CentOS' ] || [ "$os_type" == 'CentOS Stream' ]  || [ "$os_type" == 'Fedora' ] || [ "$os_type" == 'OracleLinux' ] || [ "$os_type" == 'Redhat' ];then
-    sudo yum install epel-release -y 1>/dev/null 2>&1
-    sudo yum install jq -y  1>/dev/null 2>&1
-    if [ -e /usr/share/cockpit/systemd ]; then
-      rm -f /usr/share/cockpit/systemd/manifest.json.tmp
-      jq  '. | .tools as $menu | .menu as $tools | .tools=$tools | .menu=$menu | del(.tools.services) | del(.menu.preload.services) | .menu.index = .tools.index | del(.tools.index) | .menu.index.order = -2' /usr/share/cockpit/systemd/manifest.json > /usr/share/cockpit/systemd/manifest.json.tmp
-      rm -rf /usr/share/cockpit/systemd/manifest.json
-      mv /usr/share/cockpit/systemd/manifest.json.tmp /usr/share/cockpit/systemd/manifest.json
-      cd /usr/share/cockpit/systemd && rm -rf services.js.gz services.html.gz services.css.gz
-    fi
-    if [ -e /usr/share/cockpit/networkmanager ]; then
-      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/networkmanager/manifest.json
-    fi
-    if [ -e /usr/share/cockpit/storaged ]; then
-      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/storaged/manifest.json
-    fi
-    if [ -e /usr/share/cockpit/users ]; then
-      sudo sed -i 's/menu/tools/g' /usr/share/cockpit/users/manifest.json
-    fi
-    rm -f /usr/share/cockpit/shell/manifest.json.tmp
-    jq  '. | del(.locales."ca-es") | del(.locales."nb-no") | del(.locales."sk-sk") | del(.locales."tr-tr")| del(.locales."cs-cz") | del(.locales."de-de") | del(.locales."es-es") | del(.locales."fi-fi") | del(.locales."fr-fr") | del(.locales."it-it") | del(.locales."ja-jp") | del(.locales."pl-pl") | del(.locales."pt-br") | del(.locales."ru-ru") | del(.locales."sv-se") | del(.locales."uk-ua") | del(.locales."zh-tw") | del(.locales."he-il") | del(.locales."nl-nl")  | del(.locales."ko-kr") | del(.locales."ka-ge")' /usr/share/cockpit/shell/manifest.json > /usr/share/cockpit/shell/manifest.json.tmp
-    rm -rf /usr/share/cockpit/shell/manifest.json
-    mv /usr/share/cockpit/shell/manifest.json.tmp /usr/share/cockpit/shell/manifest.json
-  fi
+# uninstall plugins
+rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
+cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
 
-fi
-
+echo "---------------------------------- Install success! When installation completed, you can access it by: http://Internet IP:9000 and using Linux user for login to  install a app by websoft9's appstore. -------------------------------------------------------" 
 }
 
 UpdateCockpit(){
 
 echo "Parpare to update Cockpit to latest  ..."
 
-pkcon refresh
-pkcon search cockpit | grep -i cockpit
-if [[ $(pkcon search cockpit | grep -i cockpit | wc -l) -gt 1 ]]; then
-  echo "存在Cockpit更新可用"
-else
-  echo "Cockpit is latest, not need to update"
+if command -v apt > /dev/null;then  
+  current_version=$(dpkg-query --showformat='${Version}' --show cockpit)
+  available_version=$(apt-cache policy cockpit | grep Candidate | awk '{print $2}')
+elif  command -v yum > /dev/null;then 
+  current_version=$(rpm -q --queryformat '%{VERSION}' cockpit)
+  available_version=$(yum list available cockpit --quiet | grep cockpit | awk '{print $2}')
 fi
-
-pkcon refresh
-pkcon get-updates
-pkcon update -y
-echo "cockpit update finished."
-# update navigator(not update on official)
-# if command -v apt > /dev/null;then  
-#   sudo apt -y install --only-upgrade  cockpit-navigator
-# elif  command -v dnf > /dev/null;then 
-#   sudo dnf update -y cockpit-navigator
-# elif  command -v yum > /dev/null;then 
-#   sudo yum update -y cockpit-navigator
-# fi
-# echo "Set cockpit port to 9000 ..." 
-# sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
-# # uninstall plugins
-# rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
-# EditMenu
+if [[ $(echo -e "$current_version\n$available_version" | awk -F. '{ for(i=1; i<=NF; i++) { if($i != v2[i]) { if($i < v2[i]) exit 0; else exit 1; } } exit 0; }') == 0 ]]; then
+  echo "There is newer version on cockpit."
+  pkcon refresh
+  pkcon get-updates
+  pkcon update -y 'cockpit' 'cockpit-bridge' 'cockpit-packagekit' 'cockpit-storaged' 'cockpit-system' 'cockpit-ws'
+  EditMenu
+  sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
+  sudo systemctl daemon-reload
+  sudo systemctl restart cockpit.socket
+  echo "cockpit update finished."
+else
+  echo "cockpit is latest, not need to upadate."
+fi
 
 }
 

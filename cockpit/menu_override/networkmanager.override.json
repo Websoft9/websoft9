@@ -1,8 +1,5 @@
 {
-    "name": "network",
-    "conditions": [
-        {"path-exists": "/usr/share/dbus-1/system.d/org.freedesktop.NetworkManager.conf"}
-    ],
+    "menu": null,
     "tools": {
         "index": {
             "label": "Networking",
@@ -31,10 +28,27 @@
             ],
             "keywords": [
                 {
-                    "matches": ["network", "interface", "bridge", "vlan", "bond", "team", "port", "mac", "ipv4", "ipv6"]
+                    "matches": [
+                        "network",
+                        "interface",
+                        "bridge",
+                        "vlan",
+                        "bond",
+                        "team",
+                        "port",
+                        "mac",
+                        "ipv4",
+                        "ipv6"
+                    ]
                 },
                 {
-                    "matches": ["firewall", "firewalld", "zone", "tcp", "udp"],
+                    "matches": [
+                        "firewall",
+                        "firewalld",
+                        "zone",
+                        "tcp",
+                        "udp"
+                    ],
                     "goto": "/network/firewall"
                 }
             ]

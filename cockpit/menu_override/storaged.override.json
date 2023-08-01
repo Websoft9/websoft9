@@ -1,12 +1,5 @@
 {
-    "name": "storage",
-    "requires": {
-        "cockpit": "266"
-    },
-    "conditions": [
-        {"path-exists": "/usr/share/dbus-1/system.d/org.freedesktop.UDisks2.conf"}
-    ],
-
+    "menu": null,
     "tools": {
         "index": {
             "label": "Storage",
@@ -47,29 +40,30 @@
             ],
             "keywords": [
                 {
-                    "matches": ["filesystem", "partition", "nfs", "raid", "volume", "disk", "vdo", "iscsi", "drive", "mount", "unmount", "udisks", "mkfs", "format", "fstab", "lvm2", "luks", "encryption", "nbde", "tang"]
+                    "matches": [
+                        "filesystem",
+                        "partition",
+                        "nfs",
+                        "raid",
+                        "volume",
+                        "disk",
+                        "vdo",
+                        "iscsi",
+                        "drive",
+                        "mount",
+                        "unmount",
+                        "udisks",
+                        "mkfs",
+                        "format",
+                        "fstab",
+                        "lvm2",
+                        "luks",
+                        "encryption",
+                        "nbde",
+                        "tang"
+                    ]
                 }
             ]
         }
-    },
-
-    "config": {
-        "nfs_client_package": {
-            "rhel": "nfs-utils", "fedora": "nfs-utils",
-            "opensuse": "nfs-client", "opensuse-leap": "nfs-client",
-            "debian": "nfs-common", "ubuntu": "nfs-common",
-            "arch": "nfs-utils"
-        },
-        "vdo_package": { "rhel": "vdo", "centos": "vdo" },
-        "stratis_package": { "fedora": "stratisd",
-                             "centos": "stratisd",
-                             "arch": "stratisd",
-                             "platform:el9": "stratisd"
-                           },
-        "nbde_root_help": { "fedora": true,
-                            "centos": true,
-                            "rhel": true
-                          }
-    },
-    "content-security-policy": "img-src 'self' data:"
+    }
 }

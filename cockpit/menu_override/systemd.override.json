@@ -1,22 +1,5 @@
 {
-  "name": "system",
-  "requires": {
-    "cockpit": "265"
-  },
-  "menu": {
-    "terminal": {
-      "label": "Terminal",
-      "keywords": [
-        {
-          "matches": [
-            "console",
-            "command",
-            "bash",
-            "shell"
-          ]
-        }
-      ]
-    },
+  "tools": {
     "index": {
       "label": "Overview",
       "order": -2,
@@ -74,9 +57,7 @@
           "goto": "/metrics"
         }
       ]
-    }
-  },
-  "tools": {
+    },
     "logs": {
       "label": "Logs",
       "order": 20,
@@ -106,7 +87,21 @@
       ]
     }
   },
-  "libexecdir": "${libexecdir}",
+  "menu": {
+    "terminal": {
+      "label": "Terminal",
+      "keywords": [
+        {
+          "matches": [
+            "console",
+            "command",
+            "bash",
+            "shell"
+          ]
+        }
+      ]
+    }
+  },
   "preload": [
     "index",
     "services"

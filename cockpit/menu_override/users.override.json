@@ -1,4 +1,5 @@
 {
+    "menu": null,
     "tools": {
         "index": {
             "label": "Accounts",
@@ -11,7 +12,18 @@
             ],
             "keywords": [
                 {
-                    "matches": ["user", "password", "useradd", "passwd", "username", "login", "access", "roles", "ssh", "keys"]
+                    "matches": [
+                        "user",
+                        "password",
+                        "useradd",
+                        "passwd",
+                        "username",
+                        "login",
+                        "access",
+                        "roles",
+                        "ssh",
+                        "keys"
+                    ]
                 }
             ]
         }
