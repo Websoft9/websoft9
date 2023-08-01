@@ -248,13 +248,13 @@ UpdateCockpit(){
 echo "Parpare to update Cockpit to latest  ..."
 
 if command -v apt > /dev/null;then  
-  current_version=$(dpkg-query --showformat='${Version}' --show cockpit)
-  available_version=$(apt-cache policy cockpit | grep Candidate | awk '{print $2}')
+  current_version=$(dpkg-query --showformat='${Version}' --show cockpit | cut -c 1-3)
+  available_version=$(apt-cache policy cockpit | grep Candidate | awk '{print $2}' | cut -c 1-3)
 elif  command -v yum > /dev/null;then 
-  current_version=$(rpm -q --queryformat '%{VERSION}' cockpit)
-  available_version=$(yum list available cockpit --showduplicates | awk '/cockpit/ {print $2}' | sort -V | tail -n 1)
+  current_version=$(rpm -q --queryformat '%{VERSION}' cockpit | cut -c 1-3)
+  available_version=$(yum list available cockpit --showduplicates | awk '/cockpit/ {print $2}' | sort -V | tail -n 1 | cut -c 1-3)
 fi
-if [[ $(echo -e "$current_version\n$available_version" | awk -F. '{ for(i=1; i<=NF; i++) { if($i != v2[i]) { if($i < v2[i]) exit 0; else exit 1; } } exit 0; }') == 0 ]]; then
+if [ "$current_version" \< "$available_version" ]; then
   echo "There is newer version on cockpit."
   pkcon refresh
   pkcon get-updates
