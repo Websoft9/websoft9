@@ -62,27 +62,51 @@ UpdatePlugins(){
 echo "Check plugins if have update ..."
 
 # update appstore
-old_appstore_version=$(cat /usr/share/cockpit/appstore/appstore.json | jq .Version |  tr -d '"')
+if [ -f "/usr/share/cockpit/appstore/appstore.json" ]; then
+    old_appstore_version=$(cat /usr/share/cockpit/appstore/appstore.json | jq .Version |  tr -d '"')
+else
+    old_appstore_version="0.0.0"
+fi
 new_appstore_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .APPSTORE | tr -d '"')
 
 # update settings
-old_settings_version=$(cat /usr/share/cockpit/settings/settings.json | jq .Version |  tr -d '"')
+if [ -f "/usr/share/cockpit/settings/settings.json" ]; then
+    old_settings_version=$(cat /usr/share/cockpit/settings/settings.json | jq .Version |  tr -d '"')
+else
+    old_settings_version="0.0.0"
+fi
 new_settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
 
 # update myapps
-old_myapps_version=$(cat /usr/share/cockpit/myapps/myapps.json | jq .Version |  tr -d '"')
+if [ -f "/usr/share/cockpit/myapps/myapps.json" ]; then
+    old_myapps_version=$(cat /usr/share/cockpit/myapps/myapps.json | jq .Version |  tr -d '"')
+else
+    old_myapps_version="0.0.0"
+fi
 new_myapps_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .MYAPPS | tr -d '"')
 
 ## update container
-old_container_version=$(cat /usr/share/cockpit/container/portainer.json | jq .Version |  tr -d '"')
+if [ -f "/usr/share/cockpit/container/portainer.json" ]; then
+    old_container_version=$(cat /usr/share/cockpit/container/portainer.json | jq .Version |  tr -d '"')
+else
+    old_container_version="0.0.0"
+fi
 new_container_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .PORTAINER | tr -d '"')
 
 ## update nginx
-old_nginx_version=$(cat /usr/share/cockpit/nginx/nginx.json | jq .Version |  tr -d '"')
+if [ -f "/usr/share/cockpit/nginx/nginx.json" ]; then
+    old_nginx_version=$(cat /usr/share/cockpit/nginx/nginx.json | jq .Version |  tr -d '"')
+else
+    old_nginx_version="0.0.0"
+fi
 new_nginx_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NGINX | tr -d '"')
 
 ## update library
-old_library_version=$(cat /data/library/library.json | jq .Version |  tr -d '"')
+if [ -f "/data/library/library.json" ]; then
+    old_library_version=$(cat /data/library/library.json | jq .Version |  tr -d '"')
+else
+    old_library_version="0.0.0"
+fi
 new_library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
 
 if [ "$old_appstore_version" = "$new_appstore_version" ] && [ "$old_settings_version" = "$new_settings_version" ] && [ "$old_myapps_version" = "$new_myapp_version" ] && [ "$old_container_version" = "$new_container_version" ] && [ "$old_nginx_version" \< "$new_nginx_version" ]; then

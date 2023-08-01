@@ -1,1 +1,2 @@
-fixed update search api bug
+1. improve update.sh
+2. add docs to artifacts

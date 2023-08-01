@@ -1,3 +1,8 @@
+## 0.8.9 release on 2023-08-01
+
+1. improve update.sh
+2. add docs to artifacts
+
 ## 0.8.8 release on 2023-07-27
 
 fixed update search api bug
