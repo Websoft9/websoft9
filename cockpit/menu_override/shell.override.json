@@ -1,6 +1,23 @@
 {
   "locales": {
-    "en-us": "English",
-    "zh-cn": "中文（中国）"
+    "cs-cz": null,
+    "de-de": null,
+    "es-es": null,
+    "fi-fi": null,
+    "fr-fr": null,
+    "he-il": null,
+    "it-it": null,
+    "ja-jp": null,
+    "ka-ge": null,
+    "ko-kr": null,
+    "nb-no": null,
+    "nl-nl": null,
+    "pl-pl": null,
+    "pt-br": null,
+    "ru-ru": null,
+    "sk-sk": null,
+    "sv-se": null,
+    "tr-tr": null,
+    "uk-ua": null
   }
 }
