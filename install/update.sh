@@ -241,7 +241,6 @@ echo "Start to  Edit Cockpit Menu ..."
 rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
 
-echo "---------------------------------- Install success! When installation completed, you can access it by: http://Internet IP:9000 and using Linux user for login to  install a app by websoft9's appstore. -------------------------------------------------------" 
 }
 
 UpdateCockpit(){
