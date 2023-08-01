@@ -252,7 +252,7 @@ if command -v apt > /dev/null;then
   available_version=$(apt-cache policy cockpit | grep Candidate | awk '{print $2}')
 elif  command -v yum > /dev/null;then 
   current_version=$(rpm -q --queryformat '%{VERSION}' cockpit)
-  available_version=$(yum list available cockpit --quiet | grep cockpit | awk '{print $2}')
+  available_version=$(yum list available cockpit --showduplicates | awk '/cockpit/ {print $2}' | sort -V | tail -n 1)
 fi
 if [[ $(echo -e "$current_version\n$available_version" | awk -F. '{ for(i=1; i<=NF; i++) { if($i != v2[i]) { if($i < v2[i]) exit 0; else exit 1; } } exit 0; }') == 0 ]]; then
   echo "There is newer version on cockpit."
