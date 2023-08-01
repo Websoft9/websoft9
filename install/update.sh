@@ -129,8 +129,8 @@ else
         cd /usr/share/cockpit
         wget $urls/plugin/settings/settings-$new_settings_version.zip
         rm -rf settings
-        unzip settings-$new_appstore_version.zip
-        rm -f settings-$new_appstore_version.zip
+        unzip settings-$new_settings_version.zip
+        rm -f settings-$new_settings_version.zip
     else
         echo "settings is not need to update"
     fi
