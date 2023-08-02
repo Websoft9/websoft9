@@ -12,7 +12,7 @@ COPY requirements.txt main.py database.sqlite  ./
 RUN apt update
 
 # Install supervisords
-RUN apt install -y supervisor
+RUN apt install -y supervisor iproute2
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY config/cmd.sh /cmd.sh
 RUN chmod +x /etc/supervisor/conf.d/supervisord.conf /cmd.sh
