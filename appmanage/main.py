@@ -17,7 +17,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url="/")
 @app.on_event("startup")
 async def startup_event():
     myLogger.info_logger("start to write hostname")
-    shell_execute.execute_command_output_all("echo $(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-appmanage) websoft9-redis >> /tmp/test")
+    shell_execute.execute_command_output_all("echo $(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-redis) websoft9-redis >> /tmp/test")
     shell_execute.execute_command_output_all("echo $(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-appmanage) websoft9-appmanage >> /tmp/test")
 
 def get_app():   
