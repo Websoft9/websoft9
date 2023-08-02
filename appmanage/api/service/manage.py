@@ -54,27 +54,26 @@ def appstore_update():
     shell_execute.execute_command_output_all("rm -rf /opt/library*")        
     myLogger.info_logger("auto update success...")
 
-scheduler = BackgroundScheduler()
-# scheduler.add_job(auto_update, 'cron', day=1)
+# scheduler = BackgroundScheduler()
+# scheduler.add_job(add_hostname, 'interval', minutes=1)
 # scheduler.start()
-# scheduler.stop()
 
 def AppAutoUpdate(auto_update):
-
-    myLogger.info_logger(scheduler.state)
-    myLogger.info_logger(scheduler.get_jobs())
-    if auto_update == "true" or auto_update == "True":
-        scheduler.resume()
-        return "true"
-    elif auto_update == "false" or auto_update == "False":
-        scheduler.pause()
-        return "false"
-    elif auto_update == None or auto_update == "" or auto_update == "undefine":
-        state = scheduler.state
-        if state == 1:
-          return "true"
-        else:
-          return "false"
+    myLogger.info_logger("AppAutoUpdate")
+    # myLogger.info_logger(scheduler.state)
+    # myLogger.info_logger(scheduler.get_jobs())
+    # if auto_update == "true" or auto_update == "True":
+    #     scheduler.resume()
+    #     return "true"
+    # elif auto_update == "false" or auto_update == "False":
+    #     scheduler.pause()
+    #     return "false"
+    # elif auto_update == None or auto_update == "" or auto_update == "undefine":
+    #     state = scheduler.state
+    #     if state == 1:
+    #       return "true"
+    #     else:
+    #       return "false"
 
 def AppStoreCore():
 
