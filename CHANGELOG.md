@@ -2,6 +2,7 @@
 
 1. improve update.sh
 2. add docs to artifacts
+3. improve server's hostname
 
 ## 0.8.8 release on 2023-07-27
 
