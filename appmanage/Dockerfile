@@ -8,7 +8,7 @@ WORKDIR /usr/src/app
 # Copy source and install pip dpendencies
 COPY api ./api
 COPY static ./static
-COPY requirements.txt main.py database.sqlite  ./
+COPY requirements.txt main.py hostname.py database.sqlite  ./
 RUN apt update
 
 # Install supervisords
