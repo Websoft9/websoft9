@@ -1,6 +1,7 @@
 import api.v1.api as api_router_v1
 import uvicorn
 from api.utils.common_log import myLogger
+from api.utils import shell_execute
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +16,8 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url="/")
 
 @app.on_event("startup")
 async def startup_event():
-    myLogger.info_logger("应用程序已启动！")
+    myLogger.info_logger("start to write hostname")
+    shell_execute.execute_command_output_all("echo $(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-appmanage) websoft9-appmanage >> /tmp/test")
 
 def get_app():   
     origins = [
