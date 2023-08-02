@@ -1,4 +1,4 @@
-## 0.8.9 release on 2023-08-01
+## 0.8.10 release on 2023-08-01
 
 1. improve update.sh
 2. add docs to artifacts
