@@ -15,7 +15,7 @@ app = FastAPI(docs_url=None, redoc_url=None, openapi_url="/")
 
 @app.on_event("startup")
 async def startup_event():
-    print("应用程序已启动！")
+    myLogger.info_logger("应用程序已启动！")
 
 def get_app():   
     origins = [
