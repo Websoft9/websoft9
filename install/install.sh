@@ -427,7 +427,7 @@ docker pull backplane/pwgen
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
 portainer_ip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' websoft9-portainer)
-#echo "Portainer init password:" $new_password
+echo "Portainer init password:" $new_password >> /usr/password.txt
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin", "Password":"'$new_password'"}' http://$portainer_ip:9000/api/users/admin/init
 curl "http://$appmanage_ip:5000/AppUpdateUser?user_name=admin&password=$new_password"
 
@@ -451,7 +451,7 @@ done
 echo "Nginx token:"$token
 new_password=$(docker run --name pwgen backplane/pwgen 15)!
 docker rm -f pwgen
-#echo "Nginx init password:" $new_password
+echo "Nginx init password:" $new_password >> /usr/password.txt
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "help@websoft9.com", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://$nginx_ip:81/api/users/1
 curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$new_password'"}'  http://$nginx_ip:81/api/users/1/auth
 sleep 3
@@ -464,6 +464,7 @@ cp /data/apps/w9services/w9nginxproxymanager/initproxy.conf /var/lib/docker/volu
 echo $public_ip
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 sudo docker restart websoft9-nginxproxymanager
+sudo docker cp websoft9-appmanage:/usr/src/app/database.sqlite /usr
 }
 
 EditMenu(){
