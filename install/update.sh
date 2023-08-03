@@ -45,15 +45,20 @@ else
 fi
 release_version=$(curl $urls/version.json | jq .VERSION | tr -d '"')
 
-if [ "$old_version" \< "$release_version" ]; then
-    echo "start to update websoft9..."
-    cd /data/apps && rm -rf websoft9
-    wget $urls/websoft9-latest.zip
-    unzip websoft9-latest.zip
-    rm -rf websoft9-latest.zip
-else
-    echo "websoft9 is not need to update"
-fi
+echo "start to update websoft9..."
+cd /data/apps && rm -rf websoft9
+wget $urls/websoft9-latest.zip
+unzip websoft9-latest.zip
+rm -rf websoft9-latest.zip
+# if [ "$old_version" \< "$release_version" ]; then
+#     echo "start to update websoft9..."
+#     cd /data/apps && rm -rf websoft9
+#     wget $urls/websoft9-latest.zip
+#     unzip websoft9-latest.zip
+#     rm -rf websoft9-latest.zip
+# else
+#     echo "websoft9 is not need to update"
+# fi
 
 }
 
