@@ -37,6 +37,8 @@ jobs:
           cp version.json websoft9
           zip -r websoft9-$version.zip websoft9
           cp websoft9-$version.zip artifacts
+          cp install/install.sh artifacts
+          cp install/update.sh artifacts
           cp version.json artifacts
           cp CHANGELOG.md artifacts
           cp artifacts/websoft9-$version.zip artifacts/websoft9-latest.zip
