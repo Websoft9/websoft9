@@ -2,7 +2,7 @@
   "SERVICES": {
     "PORTAINER": "2.18.3",
     "NGINX": "2.10.3",
-    "APPMANAGE": "0.8.9",
+    "APPMANAGE": "0.8.10",
     "REDIS": "7.0.11"
   },
   "PLUGINS": {
@@ -11,7 +11,7 @@
     "MYAPPS": "0.0.3",
     "APPSTORE": "0.0.4",
     "SETTINGS": "0.0.2",
-    "LIBRARY": "0.5.2"
+    "LIBRARY": "0.5.3"
   },
   "OS_SUPPORT": {
     "Fedora": [
@@ -40,5 +40,5 @@
       "18.04"
     ]
   },
-  "VERSION": "0.8.10"
+  "VERSION": "0.8.11"
 }

@@ -1,3 +1,3 @@
-1. improve update.sh
-2. add docs to artifacts
-3. improve server's hostname
+1. Optimize interface calls
+2. library artifacts directory: websoft9/plugin/library
+3. add init apps: nocobase, affine

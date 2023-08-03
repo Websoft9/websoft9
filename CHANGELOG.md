@@ -1,3 +1,9 @@
+## 0.8.11 release on 2023-08-03
+
+1. Optimize interface calls
+2. library artifacts directory: websoft9/plugin/library
+3. add init apps: nocobase, affine
+
 ## 0.8.10 release on 2023-08-01
 
 1. improve update.sh
