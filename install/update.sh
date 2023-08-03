@@ -20,6 +20,24 @@ fi
        
 }
 
+compare_versions() {
+    local old_version="$1"
+    local new_version="$2"
+
+    IFS='.' read -ra old_parts <<< "$old_version"
+    IFS='.' read -ra new_parts <<< "$new_version"
+
+    for i in "${!old_parts[@]}"; do
+        if [[ ${old_parts[i]} -lt ${new_parts[i]} ]]; then
+            return 0
+        elif [[ ${old_parts[i]} -gt ${new_parts[i]} ]]; then
+            return 1
+        fi
+    done
+
+    return 1
+}
+
 UpdateDocker(){
 
 echo "Parpare to update Docker to latest  ..."
@@ -45,20 +63,16 @@ else
 fi
 release_version=$(curl $urls/version.json | jq .VERSION | tr -d '"')
 
-echo "start to update websoft9..."
-cd /data/apps && rm -rf websoft9
-wget $urls/websoft9-latest.zip
-unzip websoft9-latest.zip
-rm -rf websoft9-latest.zip
-# if [ "$old_version" \< "$release_version" ]; then
-#     echo "start to update websoft9..."
-#     cd /data/apps && rm -rf websoft9
-#     wget $urls/websoft9-latest.zip
-#     unzip websoft9-latest.zip
-#     rm -rf websoft9-latest.zip
-# else
-#     echo "websoft9 is not need to update"
-# fi
+compare_versions $old_version $release_version
+if [[ $? -eq 0 ]]; then
+    echo "start to update websoft9..."
+    cd /data/apps && rm -rf websoft9
+    wget $urls/websoft9-latest.zip
+    unzip websoft9-latest.zip
+    rm -rf websoft9-latest.zip
+else
+    echo "websoft9 is not need to update"
+fi
 
 }
 
@@ -117,8 +131,8 @@ new_library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LI
 if [ "$old_appstore_version" = "$new_appstore_version" ] && [ "$old_settings_version" = "$new_settings_version" ] && [ "$old_myapps_version" = "$new_myapp_version" ] && [ "$old_container_version" = "$new_container_version" ] && [ "$old_nginx_version" \< "$new_nginx_version" ]; then
     echo "appstore all plugins is latest"
 else
-
-      if [ "$old_appstore_version" \< "$new_appstore_version" ]; then
+    compare_versions $old_appstore_version $new_appstore_version
+    if [[ $? -eq 0 ]]; then
         echo "appstore plugin need to update"
         cd /usr/share/cockpit
         wget $urls/plugin/appstore/appstore-$new_appstore_version.zip
@@ -128,8 +142,9 @@ else
     else
         echo "appstore is not need to update"
     fi
-
-    if [ "$old_settings_version" \< "$new_settings_version" ]; then
+    
+    compare_versions $old_settings_version $new_settings_version
+    if [[ $? -eq 0 ]]; then
         echo "settings plugin need to update"
         cd /usr/share/cockpit
         wget $urls/plugin/settings/settings-$new_settings_version.zip
@@ -140,7 +155,8 @@ else
         echo "settings is not need to update"
     fi
 
-    if [ "$old_myapps_version" \< "$new_myapps_version" ]; then
+    compare_versions $old_myapps_version $new_myapps_version
+    if [[ $? -eq 0 ]]; then
         echo "start to update myapps..."
         cd /usr/share/cockpit
         wget $urls/plugin/myapps/myapps-$new_myapps_version.zip
@@ -150,8 +166,9 @@ else
     else
         echo "myapps is not need to update"
     fi
-
-    if [ "$old_container_version" \< "$new_container_version" ]; then
+    
+    compare_versions $old_container_version $new_container_version
+    if [[ $? -eq 0 ]]; then
         echo "start  to update portainer..."
         cd /usr/share/cockpit
         wget $urls/plugin/portainer/portainer-$new_container_version.zip
@@ -162,7 +179,8 @@ else
         echo "portainer is not need to update"
     fi
 
-    if [ "$old_nginx_version" \< "$new_nginx_version" ]; then
+    compare_versions $old_nginx_version $new_nginx_version
+    if [[ $? -eq 0 ]]; then
         echo "start to update nginx..."
         cd /usr/share/cockpit
         wget $urls/plugin/nginx/nginx-$new_nginx_version.zip
@@ -173,7 +191,8 @@ else
         echo "nginx is not need to update"
     fi
 
-    if [ "$old_library_version" \< "$new_library_version" ]; then
+    compare_versions $old_library_version $new_library_version
+    if [[ $? -eq 0 ]]; then
         echo "start to update library..."
         cd /data
         wget $urls/plugin/library/library-$new_library_version.zip
@@ -191,7 +210,8 @@ UpdateServices(){
 echo "Check services if have update ..."
 old_appmanage=$(cat /data/apps/w9services/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
 new_appmanage=$(cat /data/apps/websoft9/docker/w9appmanage/.env |grep APP_VERSION |cut -d= -f2)
-if [ "$old_appmanage" \< "$new_appmanage" ]; then
+compare_versions $old_appmanage $new_appmanage
+if [[ $? -eq 0 ]]; then
     echo "start to update w9appmanage..."
     rm -rf /tmp/database.sqlite && sudo docker cp websoft9-appmanage:/usr/src/app/database.sqlite /tmp
     rm -f /data/apps/w9services/w9appmanage/.env && cp /data/apps/websoft9/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
@@ -205,7 +225,8 @@ fi
 
 old_redis=$(cat /data/apps/w9services/w9redis/.env |grep APP_VERSION |cut -d= -f2)
 new_redis=$(cat /data/apps/websoft9/docker/w9redis/.env |grep APP_VERSION |cut -d= -f2)
-if [ "$old_redis" \< "$new_redis" ]; then
+compare_versions $old_redis $new_redis
+if [[ $? -eq 0 ]]; then
     echo "start to update w9redis..."
     rm -f /data/apps/w9services/w9redis/.env && cp /data/apps/websoft9/docker/w9redis/.env /data/apps/w9services/w9redis/.env
     rm -f /data/apps/w9services/w9redis/docker-compose.yml && cp /data/apps/websoft9/docker/w9redis/docker-compose.yml /data/apps/w9services/w9redis/docker-compose.yml
@@ -216,7 +237,8 @@ fi
 
 old_portainer=$(cat /data/apps/w9services/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
 new_portainer=$(cat /data/apps/websoft9/docker/w9portainer/.env |grep APP_VERSION |cut -d= -f2)
-if [ "$old_portainer" \< "$new_portainer" ]; then
+compare_versions $old_portainer $new_portainer
+if [[ $? -eq 0 ]]; then
     echo "start to update w9portainer..."
     rm -f /data/apps/w9services/w9portainer/.env && cp /data/apps/websoft9/docker/w9portainer/.env /data/apps/w9services/w9portainer/.env
     rm -f /data/apps/w9services/w9portainer/docker-compose.yml && cp /data/apps/websoft9/docker/w9portainer/docker-compose.yml /data/apps/w9services/w9portainer/docker-compose.yml
@@ -227,7 +249,8 @@ fi
 
 old_nginx=$(cat /data/apps/w9services/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
 new_nginx=$(cat /data/apps/websoft9/docker/w9nginxproxymanager/.env |grep APP_VERSION |cut -d= -f2)
-if [ "$old_nginx" \< "$new_nginx" ]; then
+compare_versions $old_nginx $new_nginx
+if [[ $? -eq 0 ]]; then
     echo "start to update w9nginx..."
     rm -f /data/apps/w9services/w9nginxproxymanager/.env && cp /data/apps/websoft9/docker/w9nginxproxymanager/.env /data/apps/w9services/w9nginxproxymanager/.env
     rm -f /data/apps/w9services/w9nginxproxymanager/docker-compose.yml && cp /data/apps/websoft9/docker/w9nginxproxymanager/docker-compose.yml /data/apps/w9services/w9nginxproxymanager/docker-compose.yml
