@@ -8,7 +8,7 @@ services:
     privileged: true
     restart: unless-stopped
     volumes:
-      - appmanage:/usr/src/app/logs
+      - appmanage:/usr/src/app
     entrypoint: bash -c "/cmd.sh"
     ports:
       - ${APP_HTTP_PORT}:5000
