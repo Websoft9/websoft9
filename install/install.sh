@@ -326,29 +326,9 @@ else
     echo "$file is not exist"
 fi
 
-# install navigator
-if [ "$os_type" == 'Ubuntu' ] || [ "$os_type" == 'Debian' ] ;then
-  wget -qO - https://repo.45drives.com/key/gpg.asc | sudo gpg --dearmor -o /usr/share/keyrings/45drives-archive-keyring.gpg
-  cd /etc/apt/sources.list.d
-  sudo curl -sSL https://repo.45drives.com/lists/45drives.sources -o /etc/apt/sources.list.d/45drives.sources
-  sudo apt update
-  sudo apt install cockpit-navigator -y 
-fi
+echo "Set cockpit port to 9000 ..." 
+sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
 
-if [ "$os_type" == 'Redhat' ] || [ "$os_type" == 'CentOS Stream' ] || [ "$os_type" == 'Rocky Linux' ] || [ "$os_type" == 'Fedora' ] ;then
-  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-  sudo bash setup-repo.sh
-  sudo dnf install cockpit-navigator -y 1>/dev/null 2>&1
-fi
-
-if [ "${os_type}" == 'CentOS' ] || [ "$os_type" == 'OracleLinux' ] ;then
-  curl -sSL https://repo.45drives.com/setup -o setup-repo.sh
-  sudo bash setup-repo.sh
-  sudo yum install cockpit-navigator -y 1>/dev/null 2>&1
-fi
-
-# uninstall plugins
-rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
 
 }
 
@@ -384,6 +364,9 @@ wget $urls/plugin/settings/settings-$settings_version.zip
 unzip settings-$settings_version.zip
 rm -f *.zip
 
+# install navigator
+cp -r /data/apps/websoft9/cockpit/navigator.zip /usr/share/cockpit && unzip navigator.zip && rm -f navigator.zip
+
 # install library
 cd /data
 library_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .LIBRARY | tr -d '"')
@@ -391,20 +374,14 @@ wget $urls/plugin/library/library-$library_version.zip
 unzip library-$library_version.zip
 rm -f library-$library_version.zip
 
-echo "Set cockpit port to 9000 ..." 
-sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
-
 # configure cockpit
 cp /data/apps/websoft9/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
 
 #####ci-section#####
 
-#sudo systemctl restart cockpit
 sudo systemctl daemon-reload
 sudo systemctl enable --now cockpit.socket
-#sudo systemctl enable --now cockpit
 sudo systemctl restart cockpit.socket
-#sudo systemctl restart cockpit
 
 }
 
