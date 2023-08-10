@@ -120,6 +120,14 @@ else
 fi
 new_nginx_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NGINX | tr -d '"')
 
+## update navigator
+if [ -f "/usr/share/cockpit/navigator/navigator.json" ]; then
+    old_navigator_version=$(cat /usr/share/cockpit/navigator/navigator.json | jq .Version |  tr -d '"')
+else
+    old_navigator_version="0.0.0"
+fi
+new_navigator_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NAVIGATOR | tr -d '"')
+
 ## update library
 if [ -f "/data/library/library.json" ]; then
     old_library_version=$(cat /data/library/library.json | jq .Version |  tr -d '"')
@@ -141,6 +149,18 @@ else
         rm -f appstore-$new_appstore_version.zip
     else
         echo "appstore is not need to update"
+    fi
+
+    compare_versions $old_navigator_version $new_navigator_version
+    if [[ $? -eq 0 ]]; then
+        echo "navigator plugin need to update"
+        cd /usr/share/cockpit
+        wget $urls/plugin/navigator/navigator-$new_navigator_version.zip
+        rm -rf navigator
+        unzip navigator-$navigator_version.zip
+        rm -f navigator-$navigator_version.zip
+    else
+        echo "navigator is not need to update"
     fi
     
     compare_versions $old_settings_version $new_settings_version
@@ -213,12 +233,9 @@ new_appmanage=$(cat /data/apps/websoft9/docker/w9appmanage/.env |grep APP_VERSIO
 compare_versions $old_appmanage $new_appmanage
 if [[ $? -eq 0 ]]; then
     echo "start to update w9appmanage..."
-    rm -rf /tmp/database.sqlite && sudo docker cp websoft9-appmanage:/usr/src/app/database.sqlite /tmp
     rm -f /data/apps/w9services/w9appmanage/.env && cp /data/apps/websoft9/docker/w9appmanage/.env /data/apps/w9services/w9appmanage/.env
     rm -f /data/apps/w9services/w9appmanage/docker-compose.yml && cp /data/apps/websoft9/docker/w9appmanage/docker-compose.yml /data/apps/w9services/w9appmanage/docker-compose.yml
     cd /data/apps/w9services/w9appmanage  && sudo docker compose down &&  sudo docker compose pull &&  sudo docker compose up -d
-    sudo docker exec -it websoft9-appmanage rm -f /usr/src/app/database.sqlite && sudo docker cp /tmp/database.sqlite websoft9-appmanage:/usr/src/app
-    docker restart websoft9-appmanage
 else
     echo "appmanage is not need to update"
 fi

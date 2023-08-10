@@ -1,3 +1,7 @@
+## 0.8.12 release on 2023-08-10
+
+1. navigator plugin install way change
+
 ## 0.8.11 release on 2023-08-03
 
 1. Optimize interface calls

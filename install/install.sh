@@ -362,10 +362,12 @@ unzip nginx-$nginx_version.zip
 settings_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .SETTINGS | tr -d '"')
 wget $urls/plugin/settings/settings-$settings_version.zip
 unzip settings-$settings_version.zip
-rm -f *.zip
 
 # install navigator
-cp -r /data/apps/websoft9/cockpit/navigator.zip /usr/share/cockpit && unzip navigator.zip && rm -f navigator.zip
+navigator_version=$(cat /data/apps/websoft9/version.json | jq .PLUGINS |jq .NAVIGATOR | tr -d '"')
+wget $urls/plugin/navigator/navigator-$navigator_version.zip
+unzip navigator-$navigator_version.zip
+rm -f *.zip
 
 # install library
 cd /data
