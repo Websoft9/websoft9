@@ -169,22 +169,24 @@ def get_appstore_update_list():
     ret['local_version'] = local_version
     ret['target_version'] = version
     content = []
-    cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md  && cat CHANGELOG.md" 
-    change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
-    change_log = change_log_contents.split('## ')[1].split('\n')
-    date = change_log[0].split()[-1]
-    for change in change_log[1:]:
-        if change != '':
-            content.append(change)
+    date = ""
+    core_compare = ""
 
     if compared_version(local_version, version) == -1:
         ret['update'] = True
-    else:
-        ret['update'] = False
-
+        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md  && cat CHANGELOG.md" 
+        change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
+        change_log = change_log_contents.split('## ')[1].split('\n')
+        date = change_log[0].split()[-1]
+        for change in change_log[1:]:
+            if change != '':
+                content.append(change)
+            else:
+                ret['update'] = False
+        core_compare = AppStoreCore()
     ret['date'] = date
     ret['content'] = content
-    ret['core_compare'] = AppStoreCore()
+    ret['core_compare'] = core_compare
     return ret
 
 def conbine_list(installing_list, installed_list):
