@@ -150,7 +150,6 @@ def get_update_list():
     ret['date'] = date
     ret['content'] = content
     return ret
-  
 
 # 获取 appstore update info
 def get_appstore_update_list():
@@ -181,9 +180,9 @@ def get_appstore_update_list():
         for change in change_log[1:]:
             if change != '':
                 content.append(change)
-            else:
-                ret['update'] = False
         core_compare = AppStoreCore()
+    else:
+        ret['update'] = False
     ret['date'] = date
     ret['content'] = content
     ret['core_compare'] = core_compare
