@@ -47,7 +47,7 @@ jobs:
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
-          container_name: release
+          container_name: dev
           source_folder: artifacts/
           destination_folder: ./websoft9
           delete_if_exists: true
@@ -58,11 +58,11 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: /*
-          tag_name: v${{ env.VERSION }}
-          title: Release-v${{ env.VERSION }}
+          tag_name: v${{ env.VERSION }}-dev
+          title: Release-v${{ env.VERSION }}-dev
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
-          prerelease: false
+          prerelease: true
 
       # - name: Commit and push changes
       #   uses: stefanzweifel/git-auto-commit-action@v4
