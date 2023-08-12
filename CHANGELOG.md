@@ -1,6 +1,7 @@
-## 0.8.12 release on 2023-08-10
+## 0.8.12 release on 2023-08-12
 
 1. navigator plugin install way change
+2. update plugin
 
 ## 0.8.11 release on 2023-08-03
 
