@@ -6,7 +6,7 @@
     "REDIS": "7.0.11"
   },
   "PLUGINS": {
-    "PORTAINER": "0.0.4",
+    "PORTAINER": "0.0.5",
     "NGINX": "0.0.3",
     "MYAPPS": "0.0.5",
     "APPSTORE": "0.0.5",
