@@ -6,11 +6,11 @@
     "REDIS": "7.0.11"
   },
   "PLUGINS": {
-    "PORTAINER": "0.0.4",
-    "NGINX": "0.0.3",
-    "MYAPPS": "0.0.5",
-    "APPSTORE": "0.0.5",
-    "SETTINGS": "0.0.3",
+    "PORTAINER": "0.0.5",
+    "NGINX": "0.0.4",
+    "MYAPPS": "0.0.6",
+    "APPSTORE": "0.0.6",
+    "SETTINGS": "0.0.4",
     "NAVIGATOR": "0.5.10",
     "LIBRARY": "0.5.3"
   },
@@ -44,5 +44,5 @@
       "18.04"
     ]
   },
-  "VERSION": "0.8.12"
+  "VERSION": "0.8.13"
 }

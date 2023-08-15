@@ -1,3 +1,8 @@
+## 0.8.13 release on 2023-08-15
+
+1. update plugins
+2. fix bug data save in session
+
 ## 0.8.12 release on 2023-08-12
 
 1. navigator plugin install way change
