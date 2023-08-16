@@ -1,3 +1,7 @@
+## 0.8.14 release on 2023-08-16
+
+1. myapps plugins refresh bug
+
 ## 0.8.13 release on 2023-08-15
 
 1. update plugins
