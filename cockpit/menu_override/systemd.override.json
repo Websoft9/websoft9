@@ -10,6 +10,41 @@
           "url": "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/managing_systems_using_the_rhel_8_web_console/reviewing-logs_system-management-using-the-rhel-8-web-console"
         }
       ],
+      "services": {
+        "label": "Services",
+        "order": 10,
+        "docs": [
+          {
+            "label": "Managing services",
+            "url": "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/managing_systems_using_the_rhel_8_web_console/managing-services-in-the-web-console_system-management-using-the-rhel-8-web-console"
+          }
+        ],
+        "keywords": [
+          {
+            "matches": [
+              "service",
+              "systemd",
+              "target",
+              "socket",
+              "timer",
+              "path",
+              "unit",
+              "systemctl"
+            ]
+          },
+          {
+            "matches": [
+              "boot",
+              "mask",
+              "unmask",
+              "restart",
+              "enable",
+              "disable"
+            ],
+            "weight": 1
+          }
+        ]
+      },
       "keywords": [
         {
           "matches": [
