@@ -35,19 +35,37 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn, default_timeout=3600)
 
+def get_release_version(version):
+    now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
+    now_release = json.loads(now)['RELEASE']
+    if now_release == None or now_release == "dev":
+        dev_version = version + "-dev"
+        return dev_version
+    else:
+        return version
+
+def get_release_url():
+    now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
+    now_release = json.loads(now)['RELEASE']
+    if now_release == None or now_release == "dev":
+        return const.ARTIFACT_URL_DEV
+    else:
+        return const.ARTIFACT_URL
+        
 def appstore_update():
 
     myLogger.info_logger("appstore update start...")
 
     # 当点击appstore升级时，是无条件升级，不需要做版本的判定
-    download_url = const.ARTIFACT_URL + "/plugin/appstore/appstore-latest.zip"
+    release_url = get_release_url()
+    download_url = release_url + "/plugin/appstore/appstore-latest.zip"
     cmd = "cd /opt && rm -rf /opt/appstore* && wget -q " + download_url + " && unzip  -q  appstore-latest.zip "
     shell_execute.execute_command_output_all(cmd)
 
     shell_execute.execute_command_output_all("rm -rf /usr/share/cockpit/appstore && cp -r /opt/appstore /usr/share/cockpit")
     shell_execute.execute_command_output_all("rm -rf /opt/appstore*")
 
-    library_url = const.ARTIFACT_URL + "/plugin/library/library-latest.zip"
+    library_url = release_url + "/plugin/library/library-latest.zip"
     library_cmd = "cd /opt && rm -rf /opt/library* && wget -q  " + library_url + " && unzip  -q  library-latest.zip "
     shell_execute.execute_command_output_all(library_cmd)
     shell_execute.execute_command_output_all("rm -rf /data/library && cp -r /opt/library /data")
@@ -76,8 +94,8 @@ def AppAutoUpdate(auto_update):
     #       return "false"
 
 def AppStoreCore():
-
-    version_cmd = "wget -O appstore.json " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json && cat appstore.json"
+    release_url = get_release_url()
+    version_cmd = "wget -O appstore.json " + release_url + "/plugin/appstore/appstore.json && cat appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     most_version = json.loads(latest)['Requires at most']
     least_version = json.loads(latest)['Requires at least']
@@ -97,7 +115,7 @@ def AppStoreCore():
 def AppStoreUpdate():
 
     core_support = AppStoreCore()
-
+    release_url = get_release_url()
     if core_support == "-1":
         raise CommandException(const.ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE, "You must upgrade websoft9 core", "You must upgrade websoft9 core")
     elif core_support == "1":
@@ -110,7 +128,7 @@ def AppStoreUpdate():
     except:
         local_version = "0.0.0"
 
-    version_cmd = "wget -O appstore.json  " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json  && cat appstore.json"
+    version_cmd = "wget -O appstore.json  " + release_url + "/plugin/appstore/appstore.json  && cat appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['Version']
     if local_version < version:
@@ -122,23 +140,24 @@ def AppStoreUpdate():
 def get_update_list():
     local_path = '/data/apps/websoft9/version.json'
     local_version = "0"
+    release_url = get_release_url()
     try:
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']
         local_version = json.loads(op)['VERSION']
     except:
         local_version = "0.0.0"
-    version_cmd = "wget -O version.json " + const.ARTIFACT_URL + "/version.json  && cat version.json"
+    version_cmd = "wget -O version.json " + release_url + "/version.json  && cat version.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['VERSION']
     ret = {}
-    ret['local_version'] = local_version
-    ret['target_version'] = version
+    ret['local_version'] = get_release_version(local_version)
+    ret['target_version'] = get_release_version(version)
     content = []
     date = ""
 
     if compared_version(local_version, version) == -1:
         ret['update'] = True
-        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/CHANGELOG.md  && cat CHANGELOG.md" 
+        cmd = "wget -O CHANGELOG.md  " + release_url + "/CHANGELOG.md  && cat CHANGELOG.md" 
         change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]
@@ -153,6 +172,7 @@ def get_update_list():
 
 # 获取 appstore update info
 def get_appstore_update_list():
+    release_url = get_release_url()
     local_path = '/usr/share/cockpit/appstore/appstore.json'
     local_version = "0"
     try:
@@ -160,20 +180,21 @@ def get_appstore_update_list():
         local_version = json.loads(op)['Version']
     except:
         local_version = "0.0.0"
-
-    version_cmd = "wget -O appstore.json -N  " + const.ARTIFACT_URL + "/plugin/appstore/appstore.json && cat appstore.json"
+    
+    
+    version_cmd = "wget -O appstore.json -N  " + release_url + "/plugin/appstore/appstore.json && cat appstore.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['Version']
     ret = {}
-    ret['local_version'] = local_version
-    ret['target_version'] = version
+    ret['local_version'] = get_release_version(local_version)
+    ret['target_version'] = get_release_version(version)
     content = []
     date = ""
     core_compare = ""
 
     if compared_version(local_version, version) == -1:
         ret['update'] = True
-        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/plugin/appstore/CHANGELOG.md  && cat CHANGELOG.md" 
+        cmd = "wget -O CHANGELOG.md  " + release_url + "/plugin/appstore/CHANGELOG.md  && cat CHANGELOG.md" 
         change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]

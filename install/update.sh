@@ -9,7 +9,8 @@ function  error_exit {
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/websoft9/issues"' ERR
 
 urls="https://w9artifact.blob.core.windows.net/release/websoft9"
-if [[ "$1" == "dev" ]]; then
+release=$(cat /data/apps/websoft9/version.json | jq .RELEASE | tr -d '"')
+if [[ "$release" == "null" ]] || [[ "$release" == "dev" ]] || [[ -z "$release" ]]; then
     echo "update by dev artifacts"
     urls="https://w9artifact.blob.core.windows.net/dev/websoft9"
 fi
