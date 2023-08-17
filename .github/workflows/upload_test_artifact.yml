@@ -17,17 +17,15 @@ jobs:
         name: Check out code
 
       - name: Read release mode
+        id: check_release
         run: |
           release=$(jq -r '.RELEASE' version.json)
           echo $release
-          exit 1
-          if [$release == "prodution"]; then
-            echo "prodution, exit"
-            exit 1
-          fi
+          echo "::set-output name=release::$release"
 
       - name: Read Plugin Version
         id: update_data
+        if: ${{ steps.check_release.outputs.release == 'dev' }}
         run: |
           version=$(jq -r '.VERSION' version.json)
           echo version=$version
@@ -54,6 +52,7 @@ jobs:
           cp artifacts/websoft9-$version.zip artifacts/websoft9-latest.zip
 
       - name: Upload To Azure Blob
+        if: ${{ steps.check_release.outputs.release == 'dev' }}
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
@@ -64,6 +63,7 @@ jobs:
           fail_if_source_empty: true
 
       - name: Create Release
+        if: ${{ steps.check_release.outputs.release == 'dev' }}
         id: create_release
         uses: softprops/action-gh-release@v1
         with:

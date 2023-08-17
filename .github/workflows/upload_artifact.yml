@@ -17,17 +17,15 @@ jobs:
         name: Check out code
 
       - name: Read release mode
+        id: check_release
         run: |
           release=$(jq -r '.RELEASE' version.json)
           echo $release
-          exit 1
-          if [$release == "dev"]; then
-            echo "dev, exit"
-            exit 1
-          fi
+          echo "::set-output name=release::$release"
 
       - name: Read Plugin Version
         id: update_data
+        if: ${{ steps.check_release.outputs.release != 'dev' }}
         run: |
           version=$(jq -r '.VERSION' version.json)
           echo version=$version
@@ -55,6 +53,7 @@ jobs:
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+        if: ${{ steps.check_release.outputs.release != 'dev' }}
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
           container_name: release
@@ -65,6 +64,7 @@ jobs:
 
       - name: Create Release
         id: create_release
+        if: ${{ steps.check_release.outputs.release != 'dev' }}
         uses: softprops/action-gh-release@v1
         with:
           files: /*

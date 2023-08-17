@@ -1,1 +1,1 @@
-1. myapps plugins refresh bug
+1. service menu bug

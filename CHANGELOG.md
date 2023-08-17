@@ -1,3 +1,7 @@
+## 0.8.15 release on 2023-08-17
+
+1. service menu bug
+
 ## 0.8.14 release on 2023-08-16
 
 1. myapps plugins refresh bug
