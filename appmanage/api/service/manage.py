@@ -1,17 +1,7 @@
-from ast import Constant
-import os
-import io
-import sys
-import platform
-import shutil
-import time
-import subprocess
 import requests
 import json
-import datetime
-import socket
+
 import re
-from threading import Thread
 from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.service import db
@@ -240,7 +230,7 @@ def get_app_status(app_id):
     return ret
 
 
-def install_app(app_name, customer_name, app_version):
+def install_app(app_name, customer_name, app_version, domain_name=None):
     myLogger.info_logger("Install app ...")
     ret = {}
     ret['ResponseData'] = {}
@@ -249,7 +239,7 @@ def install_app(app_name, customer_name, app_version):
 
     code, message = check_app(app_name, customer_name, app_version)
     if code == None:
-        q.enqueue(install_app_delay, app_name, customer_name, app_version, job_id=app_id)
+        q.enqueue(install_app_delay, app_name, customer_name, app_version,  domain_name=domain_name, job_id=app_id)
     else:
         ret['Error'] = get_error_info(code, message, "")
 
@@ -406,9 +396,9 @@ def prepare_app(app_name, customer_name):
     shell_execute.execute_command_output_all("cp -r " + library_path + " " + install_path)
 
 
-def install_app_delay(app_name, customer_name, app_version):
+def install_app_delay(app_name, customer_name, app_version, domain_name=None):
     myLogger.info_logger("-------RQ install start --------")
-    job_id = app_name + "_" + customer_name
+    app_id = app_name + "_" + customer_name
 
     try:
         # 因为这个时候还没有复制文件夹，是从/data/library里面文件读取json来检查的，应该是app_name,而不是customer_name
@@ -420,7 +410,7 @@ def install_app_delay(app_name, customer_name, app_version):
             env_path = "/data/apps/" + customer_name + "/.env"
             # prepare_app(app_name, customer_name)
             docker.check_app_compose(app_name, customer_name)
-            myLogger.info_logger("start JobID=" + job_id)
+            myLogger.info_logger("start JobID=" + app_id)
             docker.modify_env(env_path, 'APP_NAME', customer_name)
             docker.modify_env(env_path, "APP_VERSION", app_version)
             docker.check_app_url(customer_name)
@@ -433,19 +423,21 @@ def install_app_delay(app_name, customer_name, app_version):
                 shell_execute.execute_command_output_all("bash /data/apps/" + customer_name + "/src/after_up.sh")
             except Exception as e:
                 myLogger.info_logger(str(e))
+            if domain_name is not None:
+                app_domain_add(app_id, domain_name)
         else:
             error_info = "##websoft9##" + const.ERROR_SERVER_RESOURCE + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)" + "##websoft9##" + "Insufficient system resources (cpu, memory, disk space)"
             myLogger.info_logger(error_info)
             raise Exception(error_info)
     except CommandException as ce:
         myLogger.info_logger(customer_name + " install failed(docker)!")
-        delete_app(job_id)
+        delete_app(app_id)
         error_info = "##websoft9##" + ce.code + "##websoft9##" + ce.message + "##websoft9##" + ce.detail
         myLogger.info_logger(error_info)
         raise Exception(error_info)
     except Exception as e:
         myLogger.info_logger(customer_name + " install failed(system)!")
-        delete_app(job_id)
+        delete_app(app_id)
         error_info = "##websoft9##" + const.ERROR_SERVER_SYSTEM + "##websoft9##" + 'system original error' + "##websoft9##" + str(
             e)
         myLogger.info_logger(error_info)

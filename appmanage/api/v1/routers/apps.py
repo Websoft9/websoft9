@@ -1,9 +1,8 @@
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, status, Depends, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
-import os, io, sys, platform, shutil, time, subprocess, json, datetime
 
 from api.model.app import App
 from api.model.response import Response
@@ -122,13 +121,15 @@ def AppList(request: Request, app_id: Optional[str] = Query(default=None, descri
 
 @router.api_route("/AppInstall", methods=["GET", "POST"], summary="安装APP", response_description=rd,
                   response_model=Response)
-def AppInstall(request: Request, app_name: Optional[str] = Query(default=None, description="应用名称"),
+def AppInstall(request: Request,
+               app_name: Optional[str] = Query(default=None, description="应用名称"),
                customer_app_name: Optional[str] = Query(default=None, description="用户自定义应用名称"),
-               app_version: Optional[str] = Query(default=None, description="应用版本")):
+               app_version: Optional[str] = Query(default=None, description="应用版本"),
+               domain_name: Optional[str] = Query(default=None, description="自定义域名")):
     try:
         myLogger.info_logger("Receive request: /AppInstall")
         get_headers(request)
-        ret = manage.install_app(app_name, customer_app_name, app_version)
+        ret = manage.install_app(app_name, customer_app_name, app_version, domain_name=domain_name)
     except CommandException as ce:
         ret = {}
         ret['ResponseData'] = {}

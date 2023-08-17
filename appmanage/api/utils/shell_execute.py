@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import os, io, sys, platform, shutil, time, subprocess, json, datetime
+import subprocess
 from api.utils.common_log import myLogger
 from api.exception.command_exception import CommandException
 from api.utils import const
