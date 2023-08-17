@@ -16,6 +16,14 @@ jobs:
       - uses: actions/checkout@v2
         name: Check out code
 
+      - name: Read release mode
+        run: |
+          release=$(jq -r '.RELEASE' version.json)
+          if [$release == "dev"]; then
+            echo "dev, exit"
+            exit 1
+          fi
+
       - name: Read Plugin Version
         id: update_data
         run: |
