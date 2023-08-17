@@ -47,6 +47,7 @@ def get_release_version(version):
 def get_release_url():
     now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
     now_release = json.loads(now)['RELEASE']
+    myLogger.info_logger(now_release)
     if now_release == None or now_release == "dev":
         return const.ARTIFACT_URL_DEV
     else:
