@@ -19,6 +19,8 @@ jobs:
       - name: Read release mode
         run: |
           release=$(jq -r '.RELEASE' version.json)
+          echo $release
+          exit 1
           if [$release == "prodution"]; then
             echo "prodution, exit"
             exit 1

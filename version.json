@@ -43,6 +43,6 @@
       "18.04"
     ]
   },
-  "RELEASE": "dev",
+  "RELEASE": "production",
   "VERSION": "0.8.14"
 }
