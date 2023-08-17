@@ -12,7 +12,7 @@ def dict_factory(cursor, row):
     return d
 
 def AppUpdateUser(user_name, password):
-    conn = sqlite3.connect('/usr/src/app/database.sqlite')
+    conn = sqlite3.connect('/usr/src/app/db/database.sqlite')
     cursor = conn.cursor()
     cursor.execute("UPDATE user SET password=? WHERE user_name=?", ( password,user_name,))
     conn.commit()
@@ -23,7 +23,7 @@ def AppSearchUsers(user_type):
       raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "This plugin is blank!", "This plugin is blank!")
     if user_type != "nginx" and user_type != "portainer":
       raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "This plugin doesn't exist!", "This plugin doesn't exist!")
-    conn = sqlite3.connect('/usr/src/app/database.sqlite')
+    conn = sqlite3.connect('/usr/src/app/db/database.sqlite')
     conn.row_factory = dict_factory
     cursor = conn.cursor()
     cursor.execute("SELECT user_name,password,nick_name FROM user WHERE user_type=?", (user_type,))

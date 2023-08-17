@@ -8,7 +8,9 @@ WORKDIR /usr/src/app
 # Copy source and install pip dpendencies
 COPY api ./api
 COPY static ./static
-COPY requirements.txt main.py hostname.py database.sqlite  ./
+COPY requirements.txt main.py hostname.py ./
+RUN mkdir /usr/src/app/db
+COPY database.sqlite  /usr/src/app/db/
 RUN apt update
 
 # Install supervisord
