@@ -1,3 +1,7 @@
+## 0.8.18 release on 2023-08-17
+
+1. appmanage volumes bug edit
+
 ## 0.8.15 release on 2023-08-17
 
 1. service menu bug
