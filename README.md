@@ -44,15 +44,13 @@ You should have root privileges user to install or upgrade Websoft9, if you use 
 wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh
 ```
 
-When installation completed, you can access it by: **http://Internet IP:9000** and using **Linux user** for login
+After installation, access it by: **http://Internet IP:9000** and using **Linux user** for login
 
 ## Upgrade
 
 ```
 curl https://websoft9.github.io/websoft9/install/update.sh | bash
 ```
-
-> If you want to upgrade some plugins but do not have an upgrade portal due to a low version, please use kernel upgrade
 
 # Contributing
 
