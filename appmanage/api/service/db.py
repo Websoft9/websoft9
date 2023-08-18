@@ -30,7 +30,7 @@ def AppSearchPreview():
     conn = sqlite3.connect('/usr/src/app/db/database.sqlite')
     conn.row_factory = dict_factory
     cursor = conn.cursor()
-    cursor.execute("SELECT preview FROM app_preview WHERE module='appstore'", ())
+    cursor.execute("SELECT preview FROM app_preview WHERE module='appstore'")
     rows = cursor.fetchone()
     conn.close()
     return rows

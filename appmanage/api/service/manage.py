@@ -37,6 +37,7 @@ q = Queue(connection=redis_conn, default_timeout=3600)
 
 def get_release_url():
     preview = db.AppSearchPreview().get("preview")
+    myLogger.info_logger(preview)
     if preview == "false":
         return const.ARTIFACT_URL_DEV
     else:

@@ -61,7 +61,7 @@ update = "&emsp;&emsp;Compare_content: 内容比较 {\n\n" \
          "&emsp;&emsp;&emsp;&emsp;core_compare: 是否支持升级(-1:需要升级内核 0:可以升级 1:无法支持)\n\n&emsp;&emsp;&emsp;&emsp;}\n\n}\n\n"
 
 appstore_update = "&emsp;&emsp;Update_flag:  更新结果(成功或失败)\n\n}\n\n"
-auto = "&emsp;&emsp;auto_update: 目前的自动更新状态\n\n}\n\n"
+auto = "&emsp;&emsp;reviewUpdate: 目前的预览版状态\n\n}\n\n"
 user = "&emsp;&emsp;user: 用户信息{\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;username: 用户名\n\n" \
          "&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;password: 密码\n\n" \
@@ -441,7 +441,7 @@ def AppPreviewUpdate(request: Request,preview: Optional[str] = Query(default=Non
         get_headers(request)
         ret = {}
         ret['ResponseData'] = {}
-        ret['ResponseData']['reviewUpdate'] = "api is not available"
+        ret['ResponseData']['reviewUpdate'] = manage.AppPreviewUpdate(preview)
         response = JSONResponse(content=ret)
     except CommandException as ce:
         ret = {}
