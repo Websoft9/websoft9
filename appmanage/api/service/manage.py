@@ -39,9 +39,9 @@ def get_release_url():
     preview = db.AppSearchPreview().get("preview")
     myLogger.info_logger(preview)
     if preview == "false":
-        return const.ARTIFACT_URL_DEV
-    else:
         return const.ARTIFACT_URL
+    else:
+        return const.ARTIFACT_URL_DEV
         
 def appstore_update():
 
