@@ -433,6 +433,29 @@ def AppStoreUpdate(request: Request):
 
     return response
 
+@router.api_route("/AppPreviewUpdate", methods=["GET", "POST"], summary="软件商店预览版更新", response_model=Response, response_description=rd_auto_list)
+def AppPreviewUpdate(request: Request,preview: Optional[str] = Query(default=None, description="自动更新标志(可选值:true,false,None)")):
+
+    try:
+        myLogger.info_logger("Receive request: /AppPreviewUpdate")
+        get_headers(request)
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['ResponseData']['reviewUpdate'] = "api is not available"
+        response = JSONResponse(content=ret)
+    except CommandException as ce:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(ce.code, ce.message, ce.detail)
+        response = JSONResponse(content=ret)
+    except Exception as e:
+        ret = {}
+        ret['ResponseData'] = {}
+        ret['Error'] = manage.get_error_info(const.ERROR_SERVER_SYSTEM, "system original error", str(e))
+        response = JSONResponse(content=ret)
+
+    return response
+    
 @router.api_route("/AppAutoUpdate", methods=["GET", "POST"], summary="软件商店自动更新", response_model=Response, response_description=rd_auto_list)
 def AppAutoUpdate(request: Request,auto_update: Optional[str] = Query(default=None, description="自动更新标志(可选值:true,false,None)")):
 

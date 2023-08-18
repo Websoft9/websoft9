@@ -35,21 +35,9 @@ redis_conn = Redis(host='websoft9-redis', port=6379)
 # 使用指定的 Redis 连接创建 RQ 队列
 q = Queue(connection=redis_conn, default_timeout=3600)
 
-def get_release_version(version):
-    now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
-    now_release = json.loads(now)['RELEASE']
-    if now_release == None or now_release == "dev":
-        dev_version = version + "-dev"
-        return dev_version
-    else:
-        return version
-
 def get_release_url():
-    now = shell_execute.execute_command_output_all("cat /data/apps/websoft9/version.json")['result']
-    now_release = json.loads(now)['RELEASE']
-    myLogger.info_logger("add  now_release:")
-    myLogger.info_logger(now_release)
-    if now_release == None or now_release == "dev":
+    preview = db.AppSearchPreview().get("preview")
+    if preview == "false":
         return const.ARTIFACT_URL_DEV
     else:
         return const.ARTIFACT_URL
@@ -78,6 +66,19 @@ def appstore_update():
 # scheduler.add_job(add_hostname, 'interval', minutes=1)
 # scheduler.start()
 
+def AppPreviewUpdate(preview):
+    myLogger.info_logger("AppPreviewUpdate")
+    if preview == "true" or preview == "True":
+        db.AppUpdatePreview(preview)
+        return "true"
+    elif preview == "false" or preview == "False":
+        db.AppUpdatePreview(preview)
+        return "false"
+    elif preview == None or preview == "" or preview == "undefine":
+        return db.AppSearchPreview().get("preview")
+    else:
+        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "preview is true,false,blank", "preview is true,false,blank")
+    
 def AppAutoUpdate(auto_update):
     myLogger.info_logger("AppAutoUpdate")
     # myLogger.info_logger(scheduler.state)
@@ -142,24 +143,24 @@ def AppStoreUpdate():
 def get_update_list():
     local_path = '/data/apps/websoft9/version.json'
     local_version = "0"
-    release_url = get_release_url()
+    
     try:
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']
         local_version = json.loads(op)['VERSION']
     except:
         local_version = "0.0.0"
-    version_cmd = "wget -O version.json " + release_url + "/version.json  && cat version.json"
+    version_cmd = "wget -O version.json " + const.ARTIFACT_URL + "/version.json  && cat version.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['VERSION']
     ret = {}
-    ret['local_version'] = get_release_version(local_version)
-    ret['target_version'] = get_release_version(version)
+    ret['local_version'] = local_version
+    ret['target_version'] = version
     content = []
     date = ""
 
     if compared_version(local_version, version) == -1:
         ret['update'] = True
-        cmd = "wget -O CHANGELOG.md  " + release_url + "/CHANGELOG.md  && cat CHANGELOG.md" 
+        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/CHANGELOG.md  && cat CHANGELOG.md" 
         change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]
@@ -188,8 +189,8 @@ def get_appstore_update_list():
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['Version']
     ret = {}
-    ret['local_version'] = get_release_version(local_version)
-    ret['target_version'] = get_release_version(version)
+    ret['local_version'] = local_version
+    ret['target_version'] = version
     content = []
     date = ""
     core_compare = ""

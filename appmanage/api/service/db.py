@@ -18,6 +18,23 @@ def AppUpdateUser(user_name, password):
     conn.commit()
     conn.close()
 
+def AppUpdatePreview(preview):
+    conn = sqlite3.connect('/usr/src/app/db/database.sqlite')
+    cursor = conn.cursor()
+    cursor.execute("UPDATE app_preview SET preview=? WHERE module='appstore'", ( preview,))
+    conn.commit()
+    conn.close()
+
+def AppSearchPreview():
+
+    conn = sqlite3.connect('/usr/src/app/db/database.sqlite')
+    conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    cursor.execute("SELECT preview FROM app_preview WHERE module='appstore'", ())
+    rows = cursor.fetchone()
+    conn.close()
+    return rows
+     
 def AppSearchUsers(user_type):
     if user_type == None or user_type == "undefine":
       raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "This plugin is blank!", "This plugin is blank!")
