@@ -447,7 +447,7 @@ cp /data/apps/w9services/w9nginxproxymanager/initproxy.conf /var/lib/docker/volu
 echo $public_ip
 sudo sed -i "s/domain.com/$public_ip/g" /var/lib/docker/volumes/w9nginxproxymanager_nginx_data/_data/nginx/proxy_host/initproxy.conf
 sudo docker restart websoft9-nginxproxymanager
-sudo docker cp websoft9-appmanage:/usr/src/app/database.sqlite /usr
+sudo docker cp websoft9-appmanage:/usr/src/app/db/database.sqlite /usr
 }
 
 EditMenu(){
