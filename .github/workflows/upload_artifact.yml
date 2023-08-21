@@ -3,7 +3,7 @@ name: upload_artifact
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main-no]
     paths:
       - "version.json"
 
