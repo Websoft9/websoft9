@@ -19,7 +19,9 @@ COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY config/cmd.sh /cmd.sh
 RUN chmod +x /etc/supervisor/conf.d/supervisord.conf /cmd.sh
 RUN pip install -r requirements.txt
-RUN mkdir /data
+RUN mkdir /data 
+RUN mkdir /usr/src/app/config
+COPY config/settings.conf /usr/src/app/config/
 
 # Expose the port in which the application will be deployed
 EXPOSE 5000
