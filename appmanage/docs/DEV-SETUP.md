@@ -30,7 +30,7 @@ This repository only support deployment on Linux:
 
 ## API UI
 
-Access API by: **http://Internet IP:port/docs**
+Access API by: **http://Internet IP:5000/docs**
 
 ### Test Automation
 
