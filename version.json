@@ -7,7 +7,7 @@
   },
   "PLUGINS": {
     "PORTAINER": "0.0.5",
-    "NGINX": "0.0.4",
+    "NGINX": "0.0.5",
     "MYAPPS": "0.0.7",
     "APPSTORE": "0.0.6",
     "SETTINGS": "0.0.4",
