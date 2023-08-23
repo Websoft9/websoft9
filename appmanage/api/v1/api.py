@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from api.v1.routers import health,apps
+from api.v1.routers import health, apps
 
 
 def get_api():

@@ -3,3 +3,8 @@ class CommandException(Exception):
         self.code = code
         self.message = message
         self.detail = detail
+
+
+class MissingConfigException(CommandException):
+
+    pass

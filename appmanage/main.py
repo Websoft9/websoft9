@@ -1,7 +1,6 @@
-import api.v1.api as api_router_v1
+import argparse
 import uvicorn
-from api.utils.common_log import myLogger
-from api.utils import shell_execute
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -11,10 +10,19 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 
+import api.v1.api as api_router_v1
+
+from api.utils.common_log import myLogger
+from api.utils import shell_execute
+from api.settings.settings import settings
+
+
 myLogger.info_logger("Start server...")
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url="/")
 
-def get_app():   
+
+def get_app():
+    settings.init_config_from_file()
     origins = [
         "http://localhost",
         "http://localhost:9090",
@@ -45,6 +53,7 @@ async def custom_swagger_ui_html():
 async def swagger_ui_redirect():
     return get_swagger_ui_oauth2_redirect_html()
 
+
 @app.get("/redoc", include_in_schema=False)
 async def redoc_html():
     return get_redoc_html(
@@ -54,4 +63,9 @@ async def redoc_html():
     )
 
 if __name__ == "__main__":
-    uvicorn.run("main:get_app", host='0.0.0.0', port=5000, reload=True)
+    parser = argparse.ArgumentParser(description='websoft9')
+    parser.add_argument("--port", type=int, dest='port', default=5000, metavar="port")
+    parser.add_argument("--config", type=str, dest="config_file", required=True)
+    args = parser.parse_args()
+    settings.init_config_from_file(config_file=args.config_file)
+    uvicorn.run("main:get_app", host='0.0.0.0', port=args.port, reload=True)
