@@ -10,7 +10,7 @@ services:
     volumes:
       - appmanage-logs:/usr/src/app/logs
       - appmanage-db:/usr/src/app/db
-      - appmanage-config:/usr/src/app/config
+    #      - appmanage-config:/usr/src/app/config
     entrypoint: bash -c "/cmd.sh"
     ports:
       - ${APP_HTTP_PORT}:5000

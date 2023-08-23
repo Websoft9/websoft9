@@ -1,4 +1,8 @@
-## 0.8.18 release on 2023-08-23
+## 0.8.20 release on 2023-08-23
+
+1. appmanage config files error:bug fix
+
+## 0.8.19 release on 2023-08-23
 
 1. New App Store preview push function added
 2. Fix some known bugs
