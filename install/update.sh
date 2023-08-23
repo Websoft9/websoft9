@@ -192,7 +192,7 @@ else
         echo "start  to update portainer..."
         cd /usr/share/cockpit
         wget $urls/plugin/portainer/portainer-$new_container_version.zip
-        rm -rf portainer
+        rm -rf container
         unzip portainer-$new_container_version.zip
         rm -f portainer-$new_container_version.zip
     else
