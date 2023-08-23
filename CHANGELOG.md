@@ -1,3 +1,8 @@
+## 0.8.18 release on 2023-08-23
+
+1. New App Store preview push function added
+2. Fix some known bugs
+
 ## 0.8.18 release on 2023-08-17
 
 1. appmanage volumes bug edit

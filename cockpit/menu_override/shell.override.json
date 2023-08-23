@@ -19,5 +19,11 @@
     "sv-se": null,
     "tr-tr": null,
     "uk-ua": null
-  }
+  },
+  "docs": [
+    {
+      "label": "Documentation",
+      "url": "https://support.websoft9.com/en/docs/"
+    }
+  ]
 }
