@@ -1,25 +1,26 @@
 # 所有常量统一定义区
 
 # 错误代码定义
-ERROR_CLIENT_PARAM_BLANK="Client.Parameter.Blank.Error"
-ERROR_CLIENT_PARAM_Format="Client.Parameter.Format.Error"
-ERROR_CLIENT_PARAM_NOTEXIST="Client.Parameter.Value.NotExist.Error"
-ERROR_CLIENT_PARAM_REPEAT="Client.Parameter.Value.Repeat.Error"
-ERROR_CONFIG_NGINX="Nginx.Configure.Error"
-ERROR_SERVER_COMMAND="Server.Container.Error"
-ERROR_SERVER_SYSTEM="Server.SystemError"
-ERROR_SERVER_RESOURCE="Server.ResourceError"
+ERROR_CLIENT_PARAM_BLANK = "Client.Parameter.Blank.Error"
+ERROR_CLIENT_PARAM_Format = "Client.Parameter.Format.Error"
+ERROR_CLIENT_PARAM_NOTEXIST = "Client.Parameter.Value.NotExist.Error"
+ERROR_CLIENT_PARAM_REPEAT = "Client.Parameter.Value.Repeat.Error"
+ERROR_CONFIG_NGINX = "Nginx.Configure.Error"
+ERROR_SERVER_COMMAND = "Server.Container.Error"
+ERROR_SERVER_SYSTEM = "Server.SystemError"
+ERROR_SERVER_RESOURCE = "Server.ResourceError"
+ERROR_SERVER_CONFIG_MISSING = "Server.Config.NotFound"
 
 # 错误信息定义
-ERRORMESSAGE_CLIENT_PARAM_BLANK="Client.Parameter.Blank.Error"
-ERRORMESSAGE_CLIENT_PARAM_Format="Client.Parameter.Format.Error"
-ERRORMESSAGE_CLIENT_PARAM_NOTEXIST="Client.Parameter.Value.NotExist.Error"
-ERRORMESSAGE_CLIENT_PARAM_REPEAT="Client.Parameter.Value.Repeat.Error"
-ERRORMESSAGE_SERVER_COMMAND="Server.Container.Error"
-ERRORMESSAGE_SERVER_SYSTEM="Server.SystemError"
-ERRORMESSAGE_SERVER_RESOURCE="Server.ResourceError"
-ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT="Server.Version.NotSupport"
-ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE="Server.Version.NeedUpgradeCore"
+ERRORMESSAGE_CLIENT_PARAM_BLANK = "Client.Parameter.Blank.Error"
+ERRORMESSAGE_CLIENT_PARAM_Format = "Client.Parameter.Format.Error"
+ERRORMESSAGE_CLIENT_PARAM_NOTEXIST = "Client.Parameter.Value.NotExist.Error"
+ERRORMESSAGE_CLIENT_PARAM_REPEAT = "Client.Parameter.Value.Repeat.Error"
+ERRORMESSAGE_SERVER_COMMAND = "Server.Container.Error"
+ERRORMESSAGE_SERVER_SYSTEM = "Server.SystemError"
+ERRORMESSAGE_SERVER_RESOURCE = "Server.ResourceError"
+ERRORMESSAGE_SERVER_VERSION_NOTSUPPORT = "Server.Version.NotSupport"
+ERRORMESSAGE_SERVER_VERSION_NEEDUPGRADE = "Server.Version.NeedUpgradeCore"
 
 # 应用状态定义
 # 应用启动中 installing
@@ -33,7 +34,7 @@ APP_STATUS_RESTARTING = "restarting"
 # 应用错误 failed
 APP_STATUS_FAILED = "failed"
 
-NGINX_URL="http://websoft9-nginxproxymanager:81"
-#ARTIFACT_URL="https://artifact.azureedge.net/release/websoft9"
-ARTIFACT_URL="https://w9artifact.blob.core.windows.net/release/websoft9"
-ARTIFACT_URL_DEV="https://w9artifact.blob.core.windows.net/dev/websoft9"
+NGINX_URL = "http://websoft9-nginxproxymanager:81"
+# ARTIFACT_URL="https://artifact.azureedge.net/release/websoft9"
+ARTIFACT_URL = "https://w9artifact.blob.core.windows.net/release/websoft9"
+ARTIFACT_URL_DEV = "https://w9artifact.blob.core.windows.net/dev/websoft9"

@@ -11,6 +11,7 @@ from api.service import manage, db
 from api.utils import shell_execute, const
 from api.utils.common_log import myLogger
 from api.exception.command_exception import CommandException
+from api.settings.settings import settings
 
 router = APIRouter()
 
@@ -76,10 +77,17 @@ rd_appstore = rd_s + appstore_update + rd_e
 rd_auto_list = rd_s + auto + rd_e
 rd_user_list = rd_s + user + rd_e
 rd_updateuser_list=rd_s + updateuser + rd_e
+
+
+class SettingItem(BaseModel):
+
+    key: str = Field(description="配置项")
+    value: str = Field(description="配置项的取值")
+
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_status,
                   response_model=Response)
-def AppStatus(request: Request,app_id: Optional[str] = Query(default=None, description="应用ID")):
+def AppStatus(request: Request, app_id: Optional[str] = Query(default=None, description="应用ID")):
     try:
         myLogger.info_logger("Receive request: /AppStatus")
         get_headers(request)
@@ -525,6 +533,27 @@ def AppUpdateUser(request: Request,user_name: Optional[str] = Query(default=None
         response = JSONResponse(content=ret)
 
     return response
+
+
+@router.api_route("/AppListSettings", methods=['GET', 'POST'], summary="获取配置信息")
+def list_settings():
+    items = settings.list_all_settings()
+    return [{
+        'key': key,
+        'value': value
+    } for key, value in items.items()]
+
+
+@router.api_route("/AppUpdateSettings", methods=['GET', 'POST'], summary="创建或者更新配置信息")
+def create_or_update_settings(item: SettingItem):
+    settings.update_setting(item.key, item.value)
+
+
+
+@router.api_route("/AppDeleteSettings", methods=['GET', 'POST'], summary="删除配置信息")
+def delete_settings(item: SettingItem):
+    settings.delete_setting(item.key, item.value)
+
 
 def get_headers(request):
     headers = request.headers
