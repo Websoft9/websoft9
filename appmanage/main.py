@@ -65,7 +65,5 @@ async def redoc_html():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='websoft9')
     parser.add_argument("--port", type=int, dest='port', default=5000, metavar="port")
-    parser.add_argument("--config", type=str, dest="config_file", required=True)
     args = parser.parse_args()
-    settings.init_config_from_file(config_file=args.config_file)
     uvicorn.run("main:get_app", host='0.0.0.0', port=args.port, reload=True)
