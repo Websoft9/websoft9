@@ -23,6 +23,13 @@ class Settings(object):
             if i.startswith('#'):
                 continue
             i = i.replace('\n', '').replace('\r\n', '')
+            if not i:
+                continue
+            tmp = i.split('=')
+            if len(tmp) != 2:
+                myLogger.error_logger(f'invalid format {i}')
+                continue
+            
             key, value = i.split('=')
             if self._config.get(key) != value:
                 self._config[key] = value
