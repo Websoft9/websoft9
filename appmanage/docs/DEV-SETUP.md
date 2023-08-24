@@ -28,7 +28,17 @@ This repository only support deployment on Linux:
    cd websoft9/docker/appmanage && export APP_VERSION=latest-pr && docker compose up -d
    ```
 
-## API UI
+## API
+
+### Route
+
+New API use apps.router, don't create a new route
+
+### Post method
+
+Support [get,post] submit
+
+### API URL
 
 Access API by: **http://Internet IP:5000/docs**
 
