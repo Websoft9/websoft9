@@ -79,11 +79,6 @@ rd_user_list = rd_s + user + rd_e
 rd_updateuser_list=rd_s + updateuser + rd_e
 
 
-class SettingItem(BaseModel):
-
-    key: str = Field(description="配置项")
-    value: str = Field(description="配置项的取值")
-
 @router.api_route("/AppStatus", methods=["GET", "POST"], summary="获取指定APP的信息",
                   response_description=rd_status,
                   response_model=Response)
@@ -394,7 +389,6 @@ def AppStoreUpdateList(request: Request):
 
 @router.api_route("/AppUpdateList", methods=["GET", "POST"], summary="查询更新內容", response_model=Response, response_description=rd_update_list)
 def AppUpdateList(request: Request):
-
     try:
         myLogger.info_logger("Receive request: /AppUpdateList")
         get_headers(request)
@@ -465,7 +459,7 @@ def AppPreviewUpdate(request: Request,preview: Optional[str] = Query(default=Non
     return response
     
 @router.api_route("/AppAutoUpdate", methods=["GET", "POST"], summary="软件商店自动更新", response_model=Response, response_description=rd_auto_list)
-def AppAutoUpdate(request: Request,auto_update: Optional[str] = Query(default=None, description="自动更新标志(可选值:true,false,None)")):
+def AppAutoUpdate(request: Request, auto_update: Optional[str] = Query(default=None, description="自动更新标志(可选值:true,false,None)")):
 
     try:
         myLogger.info_logger("Receive request: /AppAutoUpdate")
@@ -511,7 +505,7 @@ def AppSearchUsers(request: Request, plugin_name: Optional[str] = Query(default=
     return response
 
 @router.api_route("/AppUpdateUser", methods=["GET", "POST"], summary="更新appstore用户信息", response_model=Response, response_description=rd_updateuser_list)
-def AppUpdateUser(request: Request,user_name: Optional[str] = Query(default=None, description="用户名"), password: Optional[str] = Query(default=None, description="密码")):
+def AppUpdateUser(request: Request, user_name: Optional[str] = Query(default=None, description="用户名"), password: Optional[str] = Query(default=None, description="密码")):
 
     try:
         myLogger.info_logger("Receive request: /AppUpdateUser")
@@ -545,15 +539,16 @@ def list_settings():
 
 
 @router.api_route("/AppUpdateSettings", methods=['GET', 'POST'], summary="创建或者更新配置信息")
-def create_or_update_settings(item: SettingItem):
-    settings.update_setting(item.key, item.value)
+def create_or_update_settings(request: Request, key: str = Query(description="配置 Key"), value: str = Query(description="配置取值")):
+    settings.update_setting(key, value)
+    return JSONResponse(content={})
 
 
 
 @router.api_route("/AppDeleteSettings", methods=['GET', 'POST'], summary="删除配置信息")
-def delete_settings(item: SettingItem):
-    settings.delete_setting(item.key, item.value)
-
+def delete_settings(request: Request, key: str = Query(description="配置 Key"), value: str = Query(description="配置取值")):
+    settings.delete_setting(key, value)
+    return JSONResponse(content={})
 
 def get_headers(request):
     headers = request.headers
