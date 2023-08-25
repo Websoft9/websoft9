@@ -161,7 +161,7 @@ def get_update_list():
 
     if compared_version(local_version, version) == -1:
         ret['update'] = True
-        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/CHANGELOG.md  && cat CHANGELOG.md" 
+        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/CHANGELOG.md  && head -n 20 CHANGELOG.md " 
         change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]

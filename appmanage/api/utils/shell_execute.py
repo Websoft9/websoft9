@@ -4,13 +4,20 @@ from api.utils.common_log import myLogger
 from api.exception.command_exception import CommandException
 from api.utils import const
 
+
+# This fuction is for running shell commands on container
+# cmd_str e.g: "ls -a"
+# return string limit: 4000 chars? to do
 def execute_command_output(cmd_str):
     print(cmd_str)
     out_str = subprocess.getoutput(cmd_str)
     print(out_str)
     return out_str
 
-# cmd_str: 执行的command命令
+
+# This fuction is for running shell commands on host machine
+# cmd_str e.g: "ls -a"
+# return string limit: 4000 chars
 def execute_command_output_all(cmd_str):
     
     myLogger.info_logger("Start to execute cmd: " + cmd_str)
@@ -25,6 +32,9 @@ def execute_command_output_all(cmd_str):
        myLogger.info_logger(process)
        raise CommandException(const.ERROR_SERVER_COMMAND,"Docker returns the original error", process.stderr)
 
+
+
+# This fuction is convert container commands to host machine commands
 def convert_command(cmd_str):
     convert_cmd = ""
     if cmd_str == "":

@@ -28,7 +28,18 @@ This repository only support deployment on Linux:
    cd websoft9/docker/appmanage && export APP_VERSION=latest-pr && docker compose up -d
    ```
 
-## API
+## Structure
+
+### API
+
+```
+├── api
+│   ├── exception
+│   ├── model -- Data models and database schema
+│   ├── service -- Controllers
+│   ├── utils -- Common modules and tools
+│   └── v1 -- Views
+```
 
 ### Route
 
