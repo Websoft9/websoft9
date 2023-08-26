@@ -1,5 +1,21 @@
 # Dev-Setup
 
+AppManage is based Python, and you should read the [Architecture docs](./architecture.md) if you want to contributing code for it.  
+
+## Code format
+
+You can refer to [PEP 8 – Style Guide for Python Code](https://peps.python.org/pep-0008/) and use fomatter tool [Black](https://github.com/psf/black):
+
+```
+pip install black
+black {source_file_or_directory}
+```
+
+## Test
+
+You can test function,class,module and unit by automatic tools []()
+
+
 ## Development runtime
 
 You can use Windows/Linux/Mac for AppMange development if you have Docker and Python3.8 on you machine.
