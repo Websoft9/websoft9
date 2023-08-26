@@ -9,7 +9,7 @@ from api.model.app import App
 from api.model.response import Response
 from api.service import manage, db
 from api.utils import shell_execute, const
-from websoft9.appmanage.api.utils.log import myLogger
+from api.utils.log import myLogger
 from api.exception.command_exception import CommandException
 from api.settings.settings import settings
 
