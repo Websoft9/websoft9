@@ -1,4 +1,4 @@
-from api.utils.common_log import myLogger
+from api.utils.log import myLogger
 from api.utils.helper import Singleton
 
 

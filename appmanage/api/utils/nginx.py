@@ -1,1 +1,1 @@
-# connect Nginx Proxy Manager and executive API commands
+# connect Nginx Proxy Manager and executive API endpoint
