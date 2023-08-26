@@ -1,33 +1,19 @@
-from ast import Constant
-import os
-import io
-import sys
-import platform
-import shutil
-import time
-import subprocess
 import requests
 import json
-import datetime
-import socket
 import re
-from threading import Thread
+
+from redis import Redis
+from rq import Queue
+from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
+
 from api.utils import shell_execute, docker, const
 from api.model.app import App
 from api.service import db
-from api.model.response import Response
 from api.model.config import Config
 from api.model.status_reason import StatusReason
 from api.utils.log import myLogger
-from redis import Redis
-from rq import Queue, Worker, Connection
-from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
 from api.exception.command_exception import CommandException
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.date import DateTrigger
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.events import EVENT_SCHEDULER_PAUSED, EVENT_SCHEDULER_RESUMED,EVENT_SCHEDULER_STARTED,EVENT_SCHEDULER_SHUTDOWN
+
 
 # 指定 Redis 容器的主机名和端口
 redis_conn = Redis(host='websoft9-redis', port=6379)
@@ -141,16 +127,18 @@ def AppStoreUpdate():
         myLogger.info_logger("You click update appstore, but not need to update")
 
 # 获取 update info
-def get_update_list():
+def get_update_list(url: str=None):
     local_path = '/data/apps/websoft9/version.json'
-    local_version = "0"
+    artifact_url = const.ARTIFACT_URL
+    if url:
+        artifact_url = url
     
     try:
         op = shell_execute.execute_command_output_all("cat " + local_path)['result']
         local_version = json.loads(op)['VERSION']
     except:
         local_version = "0.0.0"
-    version_cmd = "wget -O version.json " + const.ARTIFACT_URL + "/version.json  && cat version.json"
+    version_cmd = f"wget -O version.json {artifact_url}/version.json  && cat version.json"
     latest = shell_execute.execute_command_output_all(version_cmd)['result']
     version = json.loads(latest)['VERSION']
     ret = {}
@@ -161,8 +149,8 @@ def get_update_list():
 
     if compared_version(local_version, version) == -1:
         ret['update'] = True
-        cmd = "wget -O CHANGELOG.md  " + const.ARTIFACT_URL + "/CHANGELOG.md  && head -n 20 CHANGELOG.md " 
-        change_log_contents = shell_execute.execute_command_output_all(cmd)['result']
+        cmd = f"wget -O CHANGELOG.md {artifact_url}/CHANGELOG.md  && head -n 20 CHANGELOG.md"
+        change_log_contents = shell_execute.execute_command_output(cmd)
         change_log = change_log_contents.split('## ')[1].split('\n')
         date = change_log[0].split()[-1]
         for change in change_log[1:]:

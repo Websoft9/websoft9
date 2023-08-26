@@ -1,5 +1,6 @@
 #!/usr/bin/python3
-import os, io, sys, platform, shutil, time, subprocess, json, datetime
+import subprocess
+
 from api.utils.log import myLogger
 from api.exception.command_exception import CommandException
 from api.utils import const
@@ -26,11 +27,11 @@ def execute_command_output_all(cmd_str):
         
     if process.returncode == 0 and 'Fail' not in process.stdout and 'fail' not in process.stdout and 'Error' not in process.stdout and 'error' not in process.stdout:
 
-       return {"code": "0", "result": process.stdout,}
+       return {"code": "0", "result": process.stdout}
     else:
        myLogger.info_logger("Failed to execute cmd, output failed result")
        myLogger.info_logger(process)
-       raise CommandException(const.ERROR_SERVER_COMMAND,"Docker returns the original error", process.stderr)
+       raise CommandException(const.ERROR_SERVER_COMMAND, "Docker returns the original error", process.stderr)
 
 
 

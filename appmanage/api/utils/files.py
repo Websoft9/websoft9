@@ -3,7 +3,6 @@ from api.utils.helper import Singleton
 
 
 # This class is add/modify/list/delete item to item=value(键值对) model settings file
-__all__ = ['settings']
 
 class SettingsFile(object):
 
