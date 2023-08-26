@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import os, io, sys, platform, shutil, time, subprocess, json, datetime
-from api.utils.common_log import myLogger
+from websoft9.appmanage.api.utils.log import myLogger
 from api.exception.command_exception import CommandException
 from api.utils import const
 

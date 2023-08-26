@@ -1,4 +1,4 @@
-from api.utils.common_log import myLogger
+from websoft9.appmanage.api.utils.log import myLogger
 from api.utils import shell_execute
 
 shell_execute.execute_command_output_all("sed -i '/websoft9-appmanage/d' /etc/hosts")
