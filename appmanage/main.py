@@ -12,7 +12,7 @@ from fastapi.openapi.docs import (
 
 import api.v1.api as api_router_v1
 
-from websoft9.appmanage.api.utils.log import myLogger
+from api.utils.log import myLogger
 from api.utils import shell_execute
 from api.settings.settings import settings
 
