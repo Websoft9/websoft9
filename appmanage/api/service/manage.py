@@ -18,7 +18,7 @@ from api.service import db
 from api.model.response import Response
 from api.model.config import Config
 from api.model.status_reason import StatusReason
-from websoft9.appmanage.api.utils.log import myLogger
+from api.utils.log import myLogger
 from redis import Redis
 from rq import Queue, Worker, Connection
 from rq.registry import StartedJobRegistry, FinishedJobRegistry, DeferredJobRegistry, FailedJobRegistry, ScheduledJobRegistry, CanceledJobRegistry
