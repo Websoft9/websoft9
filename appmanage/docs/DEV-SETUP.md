@@ -13,32 +13,31 @@ black {source_file_or_directory}
 
 ## Test
 
-You can test function,class,module and unit by automatic tools []()
+You can test function,class,module and unit by automatic tools [Unittest](https://docs.python.org/3/library/unittest.html)
 
 
 ## Development runtime
 
 You can use Windows/Linux/Mac for AppMange development if you have Docker and Python3.8 on you machine.
 
-Then running below commands for development rutime:
+1. Prepare a Linux (not use WSL) instance for development
 
-```
-git clone --depth=1 https://github.com/Websoft9/websoft9.git
-cd websoft9/appmanage
-pip install -r requirements.txt
-```
+2. Connect your local IDE to Linux for codespace
 
-You should fork this repository and push your branch to remote repository.
-
-## Deployment
-
-This repository only support deployment on Linux:
-
-1. Install websoft9 on you Linux
+3. Install websoft9 on you Linux
    ```
    wget https://websoft9.github.io/websoft9/install/install.sh && bash install.sh
    ```
-2. **git clone** your remote repository, and build your AppManage container and running it
+
+4. Running below commands to create project on remote Linux
+
+   ```
+   git clone --depth=1 https://github.com/Websoft9/websoft9.git
+   cd websoft9/appmanage
+   pip install -r requirements.txt
+   ```
+
+5. Once you have change code, you should build your AppManage docker image and running it
    ```
    cd websoft9/appmanage && docker build -t websoft9dev/appmanage:latest-pr .
    cd websoft9/docker/appmanage && export APP_VERSION=latest-pr && docker compose up -d
