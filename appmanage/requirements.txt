@@ -6,3 +6,5 @@ docker
 psutil
 gunicorn
 python-dotenv
+pytest
+httpx

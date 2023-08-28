@@ -1,9 +1,8 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+import sqlite3
+
 from api.exception.command_exception import CommandException
 from api.utils import const
-from api.model.user import User
-import sqlite3
+
 
 def dict_factory(cursor, row):
     d = {}

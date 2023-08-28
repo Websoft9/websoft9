@@ -1,15 +1,12 @@
-from typing import Optional, List
+from typing import Optional
 
-from fastapi import APIRouter, status, Depends, Query, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Query, Request
 from starlette.responses import JSONResponse
-import os, io, sys, platform, shutil, time, subprocess, json, datetime
 
-from api.model.app import App
 from api.model.response import Response
 from api.service import manage, db
-from api.utils import shell_execute, const
 from api.utils.log import myLogger
+from api.utils import const
 from api.exception.command_exception import CommandException
 from api.settings.settings import settings
 

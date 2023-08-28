@@ -3,3 +3,4 @@ __pycache__
 logs
 .venv
 .vscode
+.pytest_cache
