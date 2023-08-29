@@ -1,0 +1,10 @@
+fastapi==0.98.0
+uvicorn
+rq
+apscheduler
+docker
+psutil
+gunicorn
+python-dotenv
+sqlalchemy
+databases[sqlite]
