@@ -1,5 +1,6 @@
 import os
 import tempfile
+
 import unittest
 
 from appmanage.api.settings.settings import settings
