@@ -96,13 +96,6 @@ Gitea API 列出当前 APP 的 repository 之 URL，提供访问链接
 
 查询所有相关的 proxys
 
-
-
-3. Gitea API 修改app_url
-
-4. Portainer API 重新发布Publish app
-
-
 ## Settings
 
 ## Upgrade
