@@ -1,11 +1,22 @@
 version: "3.8"
-
 services:
+
   portainer:
-    image: portainer/portainer-ce:${APP_VERSION}
     container_name: ${APP_NAME}
-    restart: unless-stopped
-    env_file: .env
+    build:
+      context: .
+      dockerfile_inline: |
+        # step1: build entrypoint execute program init_portainer by golang
+        FROM golang:latest AS builder
+        WORKDIR /
+        COPY init_portainer.go /init_portainer.go
+        RUN go build -o init_portainer init_portainer.go
+        RUN chmod +x ./init_portainer
+        # step2: copy build go program to portainer
+        FROM portainer/portainer-ce:${APP_VERSION}
+        COPY --from=builder /init_portainer /
+    entrypoint: ["/init_portainer"]
+    restart: unless-stopped 
     volumes:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
