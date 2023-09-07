@@ -9,10 +9,10 @@
 另外还有与系统维护相关的：
 
 - Settings
+- Install
 - Upgrade
 - Fix
 - CLI
-
 
 ## CI
 
@@ -22,7 +22,29 @@ CI 遵循几个法则：
 * Git 驱动，保证编排物料与应用运行环境分离，编排物料可修改可复原
 * 编排物料中的资源（包/镜像）具备良好的网络可达性
 
-### integation/
+CI 过程中除了直接使用 [Gitea API](https://docs.gitea.cn/api/1.19/) 之外，还需增加如下业务：  
+
+### integation/repository/prepare
+
+准备一个可用的项目：
+
+1. 基于 library/apps/app_name 目录创建一个临时目录 app_id
+   > app_name 是软件名称，例如：wordpress。app_id 是用户安装的应用名称，例如：mywordpress
+
+2. 根据安装输入，更改临时目录 .env 文件中的重要参数: 
+
+   - APP_*_PORT 值确保未被使用或将被使用
+   - APP_URL 用域名/公网IP替换
+   - POWER_PASSWORD 使用 16位 【大小写数字特殊字符】 替代
+   - APP_VERSION 根据安装输入参数替换
+   - APP_NAME 更换为 app_id
+
+###  integation/repository/create
+
+创建一个符合 Websoft9 规范格式的 repository：
+
+1. 在 Gitea 中创建一个名称为 app_id 的 repository
+2. 修改 Gitea repository 仓库的设置属性，只保留【代码】栏
 
 ## CD
 
@@ -114,6 +136,7 @@ function proxy(host，domains[], Optional:port, Optional:exra_proxy.conf)
 查询所有相关的 proxys
 
 **enable()**
+
 enable所有相关的 proxys
 
 **disable()**
@@ -124,23 +147,24 @@ disable 所有相关的 proxys
 
 ### Install
 
-> app_name 是软件名称，例如：wordpress，app_id 是用户安装的应用名称
+功能：安装应用并自动绑定域名  
 
-1. App_Manage API 接受输入并接受语法检查（app_name, app_id, domains[], default_domain, version{}）
-2. App_Manage 后端准备源码：Copy app_name from Library -> Modify .env (*port/url/app_name/POWER_PASSWORD/version)
-3. APP_Manage 后端调用 Gitea API，创建仓库
+输入参数：  
 
-   > 1-3 CI过程
+- app_name 
+- app_id
+- domains[]  可选
+- default_domain  可选
+- version{}
 
-4. APP_Manage 后端调用 Portainer API，基于 Gitea Repository 创建应用 staus: [active,inactive]
+过程：  
 
-   > 4 CD过程
+1. CI：App_Manage 准备 repository
+2. CI：Gitea 创建 repository
+3. CD: Portainer 基于 repository 创建项目（staus: [active,inactive]）
+4. CP：Nginx 为应用创建 Proxy 访问
 
-5. APP_Manage 后端调用 Nginx API，为应用创建 Proxy(port,domains{},customer_proxy)
-
-   > 5 CP过程
-
-步骤 3-5 是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
+以上步骤是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
 
 ### Lists
 
