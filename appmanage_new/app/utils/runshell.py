@@ -34,7 +34,6 @@ def execute_command_output_all(cmd_str):
        raise CommandException(const.ERROR_SERVER_COMMAND, "Docker returns the original error", process.stderr)
 
 
-
 # This fuction is convert container commands to host machine commands
 def convert_command(cmd_str):
     convert_cmd = ""

@@ -6,5 +6,4 @@ docker
 psutil
 gunicorn
 python-dotenv
-sqlalchemy
-databases[sqlite]
+keyring

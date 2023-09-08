@@ -1,3 +1,6 @@
+import time
+
+
 def app_domain_list(app_id):
     code, message = docker.check_app_id(app_id)
     if code == None:
@@ -5,7 +8,8 @@ def app_domain_list(app_id):
         if flag:
             myLogger.info_logger("Check app_id ok[app_domain_list]")
         else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(
+                const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
 
@@ -19,7 +23,8 @@ def app_domain_list(app_id):
     default_domain = ""
     if domains != None and len(domains) > 0:
         customer_name = app_id.split('_')[1]
-        app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env")["result"]
+        app_url = shell_execute.execute_command_output_all(
+            "cat /data/apps/" + customer_name + "/.env")["result"]
         if "APP_URL" in app_url:
             url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env |grep APP_URL=")[
                 "result"].rstrip('\n')
@@ -27,6 +32,26 @@ def app_domain_list(app_id):
     ret['default_domain'] = default_domain
     myLogger.info_logger(ret)
     return ret
+
+
+def get_all_domains(app_id):
+    customer_name = app_id.split('_')[1]
+    domains = []
+    token = get_token()
+    url = const.NGINX_URL+"/api/nginx/proxy-hosts"
+    headers = {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+    }
+    response = requests.get(url, headers=headers)
+
+    for proxy in response.json():
+        portainer_name = proxy["forward_host"]
+        if customer_name == portainer_name:
+            for domain in proxy["domain_names"]:
+                domains.append(domain)
+    return domains
+
 
 def app_proxy_delete(app_id):
     customer_name = app_id.split('_')[1]
@@ -59,17 +84,20 @@ def app_domain_delete(app_id, domain):
         if flag:
             myLogger.info_logger("Check app_id ok[app_domain_delete]")
         else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(
+                const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
 
     if domain is None or domain == "undefined":
-        raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
+        raise CommandException(
+            const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
 
     old_all_domains = get_all_domains(app_id)
     if domain not in old_all_domains:
         myLogger.info_logger("delete domain is not binded")
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind.", "")
+        raise CommandException(
+            const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is not bind.", "")
 
     myLogger.info_logger("Start to delete " + domain)
     proxy = get_proxy_domain(app_id, domain)
@@ -93,7 +121,8 @@ def app_domain_delete(app_id, domain):
             response = requests.delete(url, headers=headers)
             try:
                 if response.json().get("error"):
-                    raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+                    raise CommandException(
+                        const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
             except Exception:
                 myLogger.info_logger(response.json())
             set_domain("", app_id)
@@ -129,9 +158,11 @@ def app_domain_delete(app_id, domain):
                 "ssl_forced": False
             }
 
-            response = requests.put(url, data=json.dumps(data), headers=headers)
+            response = requests.put(
+                url, data=json.dumps(data), headers=headers)
             if response.json().get("error"):
-                raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+                raise CommandException(
+                    const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
             domain_set = app_domain_list(app_id)
             default_domain = domain_set['default_domain']
             # 如果被删除的域名是默认域名，删除后去剩下域名的第一个
@@ -139,7 +170,9 @@ def app_domain_delete(app_id, domain):
                 set_domain(domains_old[0], app_id)
 
     else:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Delete domain is not bind", "")
+        raise CommandException(
+            const.ERROR_CLIENT_PARAM_NOTEXIST, "Delete domain is not bind", "")
+
 
 def app_domain_update(app_id, domain_old, domain_new):
     myLogger.info_logger("app_domain_update")
@@ -155,7 +188,8 @@ def app_domain_update(app_id, domain_old, domain_new):
         if flag:
             myLogger.info_logger("Check app_id ok")
         else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(
+                const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
     proxy = get_proxy_domain(app_id, domain_old)
@@ -196,15 +230,19 @@ def app_domain_update(app_id, domain_old, domain_new):
 
         response = requests.put(url, data=json.dumps(data), headers=headers)
         if response.json().get("error"):
-            raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+            raise CommandException(
+                const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         domain_set = app_domain_list(app_id)
         default_domain = domain_set['default_domain']
-        myLogger.info_logger("default_domain=" + default_domain + ",domain_old=" + domain_old)
+        myLogger.info_logger("default_domain=" +
+                             default_domain + ",domain_old=" + domain_old)
         # 如果被修改的域名是默认域名，修改后也设置为默认域名
         if default_domain == domain_old:
             set_domain(domain_new, app_id)
     else:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "edit domain is not exist", "")
+        raise CommandException(
+            const.ERROR_CLIENT_PARAM_NOTEXIST, "edit domain is not exist", "")
+
 
 def app_domain_add(app_id, domain):
     temp_domains = []
@@ -217,13 +255,15 @@ def app_domain_add(app_id, domain):
         if flag:
             myLogger.info_logger("Check app_id ok")
         else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(
+                const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
 
     old_domains = get_all_domains(app_id)
     if domain in old_domains:
-        raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is in use", "")
+        raise CommandException(
+            const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain is in use", "")
 
     proxy = get_proxy(app_id)
     if proxy != None:
@@ -263,7 +303,8 @@ def app_domain_add(app_id, domain):
         }
         response = requests.put(url, data=json.dumps(data), headers=headers)
         if response.json().get("error"):
-            raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+            raise CommandException(
+                const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
     else:
         # 追加
         token = get_token()
@@ -300,22 +341,27 @@ def app_domain_add(app_id, domain):
         response = requests.post(url, data=json.dumps(data), headers=headers)
 
         if response.json().get("error"):
-            raise CommandException(const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
+            raise CommandException(
+                const.ERROR_CONFIG_NGINX, response.json().get("error").get("message"), "")
         set_domain(domain, app_id)
 
     return domain
 
+
 def check_domains(domains):
     myLogger.info_logger(domains)
     if domains is None or len(domains) == 0:
-        raise CommandException(const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
+        raise CommandException(
+            const.ERROR_CLIENT_PARAM_BLANK, "Domains is blank", "")
     else:
         for domain in domains:
             if is_valid_domain(domain):
                 if check_real_domain(domain) == False:
-                    raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain and server not match", "")
+                    raise CommandException(
+                        const.ERROR_CLIENT_PARAM_NOTEXIST, "Domain and server not match", "")
             else:
-                raise CommandException(const.ERROR_CLIENT_PARAM_Format, "Domains format error", "")
+                raise CommandException(
+                    const.ERROR_CLIENT_PARAM_Format, "Domains format error", "")
 
 
 def is_valid_domain(domain):
@@ -324,13 +370,17 @@ def is_valid_domain(domain):
 
     return True
 
+
 def check_real_domain(domain):
     domain_real = True
     try:
-        cmd = "ping -c 1 " + domain + "  | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | uniq"
-        domain_ip = shell_execute.execute_command_output_all(cmd)["result"].rstrip('\n')
+        cmd = "ping -c 1 " + domain + \
+            "  | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | uniq"
+        domain_ip = shell_execute.execute_command_output_all(cmd)[
+            "result"].rstrip('\n')
 
-        ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
+        ip_result = shell_execute.execute_command_output_all(
+            "cat /data/apps/w9services/w9appmanage/public_ip")
         ip_save = ip_result["result"].rstrip('\n')
 
         if domain_ip == ip_save:
@@ -368,25 +418,6 @@ def get_proxy_domain(app_id, domain):
     return proxy_host
 
 
-def get_all_domains(app_id):
-    customer_name = app_id.split('_')[1]
-    domains = []
-    token = get_token()
-    url = const.NGINX_URL+"/api/nginx/proxy-hosts"
-    headers = {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-    }
-    response = requests.get(url, headers=headers)
-
-    for proxy in response.json():
-        portainer_name = proxy["forward_host"]
-        if customer_name == portainer_name:
-            for domain in proxy["domain_names"]:
-                domains.append(domain)
-    return domains
-
-
 def app_domain_set(domain, app_id):
     temp_domains = []
     temp_domains.append(domain)
@@ -398,7 +429,8 @@ def app_domain_set(domain, app_id):
         if flag:
             myLogger.info_logger("Check app_id ok")
         else:
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
+            raise CommandException(
+                const.ERROR_CLIENT_PARAM_NOTEXIST, "APP is not exist", "")
     else:
         raise CommandException(code, message, "")
 
@@ -411,34 +443,42 @@ def set_domain(domain, app_id):
     if domain != "":
         if domain not in old_domains:
             message = domain + " is not in use"
-            raise CommandException(const.ERROR_CLIENT_PARAM_NOTEXIST, message, "")
+            raise CommandException(
+                const.ERROR_CLIENT_PARAM_NOTEXIST, message, "")
 
     customer_name = app_id.split('_')[1]
-    app_url = shell_execute.execute_command_output_all("cat /data/apps/" + customer_name + "/.env")["result"]
+    app_url = shell_execute.execute_command_output_all(
+        "cat /data/apps/" + customer_name + "/.env")["result"]
 
     if "APP_URL" in app_url:
         myLogger.info_logger("APP_URL is exist")
         if domain == "":
-            ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
+            ip_result = shell_execute.execute_command_output_all(
+                "cat /data/apps/w9services/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')
-            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name + "/.env"
+            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + \
+                "/g' /data/apps/" + customer_name + "/.env"
             shell_execute.execute_command_output_all(cmd)
             if "APP_URL_REPLACE=true" in app_url:
                 myLogger.info_logger("need up")
-                shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
+                shell_execute.execute_command_output_all(
+                    "cd /data/apps/" + customer_name + " && docker compose up -d")
         else:
-            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + "/g' /data/apps/" + customer_name + "/.env"
+            cmd = "sed -i 's/APP_URL=.*/APP_URL=" + domain + \
+                "/g' /data/apps/" + customer_name + "/.env"
             shell_execute.execute_command_output_all(cmd)
             if "APP_URL_REPLACE=true" in app_url:
                 myLogger.info_logger("need up")
-                shell_execute.execute_command_output_all("cd /data/apps/" + customer_name + " && docker compose up -d")
+                shell_execute.execute_command_output_all(
+                    "cd /data/apps/" + customer_name + " && docker compose up -d")
     else:
         myLogger.info_logger("APP_URL is not exist")
         if domain == "":
-            ip_result = shell_execute.execute_command_output_all("cat /data/apps/w9services/w9appmanage/public_ip")
+            ip_result = shell_execute.execute_command_output_all(
+                "cat /data/apps/w9services/w9appmanage/public_ip")
             domain = ip_result["result"].rstrip('\n')
 
-        cmd = "sed -i '/APP_NETWORK/a APP_URL=" + domain + "' /data/apps/" + customer_name + "/.env"
+        cmd = "sed -i '/APP_NETWORK/a APP_URL=" + domain + \
+            "' /data/apps/" + customer_name + "/.env"
         shell_execute.execute_command_output_all(cmd)
     myLogger.info_logger("set_domain success")
-
