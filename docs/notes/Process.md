@@ -5,7 +5,7 @@
 所有的微操作一定归属于如下三个类别：
 
 - CI：持续集成，即源码准确性
-- CD：持续部署，即让软件 running 起来
+- CD：持续部署，即让软件 running，目前采用拉式方式与CI协作
 - CP：持续发布，即通过域名让用户可以访问
 
 另外还有与系统维护相关的：
@@ -23,7 +23,8 @@ API 接口功能设计：
 
 输入参数：  
 
-endpointId: 安装目的地（portainer中有定义），默认为 local
+endpointId: 安装目的地（portainer中有定义），默认为 local  
+```
 body:
 {
 - app_name 
@@ -33,6 +34,7 @@ body:
 - edition{dist:community, version:5.0}
 - 其他
 }
+```
 
 过程：  
 
@@ -50,7 +52,7 @@ body:
 
 ### apps/{id}/*
 
-对单个 apps 的增删改查：
+对单个 apps 的增删改查：  
 
 - 查询：deploy/apps/{id} with **get** method
 - 启动：deploy/apps/{id}/start
@@ -72,12 +74,15 @@ App 域名的：增、删、改、查。
 输入参数：  
 
 pulisherId: 默认为本地 nginx，将来可扩展支持云平台的应用访问网关。  
+
+```
 body:
 {
 - app_id
 - domains[]  可选
 - default_domain  可选
 }
+```
 
 流程：
 
