@@ -1,3 +1,5 @@
+# Portainer can not use .env for the reason that then environments at .env may cover other stacks's .env
+
 version: "3.8"
 services:
 
