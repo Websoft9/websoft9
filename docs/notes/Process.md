@@ -1,5 +1,7 @@
 # Process
 
+要理解整个架构设计，先打开[组件图](https://www.canva.cn/design/DAFt2DhfqYM/3uwKe09X5xaD4QPc47rNMQ/view?utm_content=DAFt2DhfqYM&utm_campaign=designshare&utm_medium=link&utm_source=publishsharelink)，然后结合一下内容进行阅读：  
+
 所有的微操作一定归属于如下三个类别：
 
 - CI：持续集成，即源码准确性
@@ -35,7 +37,7 @@ body:
 过程：  
 
 1. CI：Gitea 创建 repository
-2. CI：Gitea 准备可用的 repository
+2. CI：Gitea 修改 repository
 3. CD: Portainer 创建 websoft9 network (先判断是否存在)
 4. CD: Portainer 基于 repository 在对应的 endpointId 中创建项目（staus: [active,inactive]）
 5. CP：Nginx 为应用创建 Proxy 访问
@@ -185,7 +187,7 @@ CI 过程中除了直接使用 [Gitea API](https://docs.gitea.cn/api/1.19/) 之�
 1. 在 Gitea 中创建一个名称为 app_id 的 repository
 2. 修改 Gitea repository 仓库的设置属性，只保留【代码】栏
 
-#### integation/repository/prepare
+#### integation/repository/modify
 
 更改临时目录 .env 文件中的重要参数: 
 
@@ -195,6 +197,8 @@ CI 过程中除了直接使用 [Gitea API](https://docs.gitea.cn/api/1.19/) 之�
    - APP_NAME 更换为 app_id
 
 然后 git push
+
+#### integation/repository/delete
 
 ### CD
 
