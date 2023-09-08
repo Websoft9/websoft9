@@ -9,12 +9,161 @@
 另外还有与系统维护相关的：
 
 - Settings
-- Install
-- Upgrade
-- Fix
 - CLI
 
-## CI
+## API
+
+API 接口功能设计：
+
+### app/install
+
+功能：安装应用并自动绑定域名  
+
+输入参数：  
+
+endpointId: 安装目的地（portainer中有定义），默认为 local
+body:
+{
+- app_name 
+- app_id
+- domains[]  可选
+- default_domain  可选
+- edition{dist:community, version:5.0}
+- 其他
+}
+
+过程：  
+
+1. CI：Gitea 创建 repository
+2. CI：Gitea 准备可用的 repository
+3. CD: Portainer 创建 websoft9 network (先判断是否存在)
+4. CD: Portainer 基于 repository 在对应的 endpointId 中创建项目（staus: [active,inactive]）
+5. CP：Nginx 为应用创建 Proxy 访问
+
+2-4 以上步骤是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
+
+### apps
+
+查询所有apps的信息，返回完整数据。等同于 CD: deploy/apps
+
+### apps/{id}/*
+
+对单个 apps 的增删改查：
+
+- 查询：deploy/apps/{id} with **get** method
+- 启动：deploy/apps/{id}/start
+- 停止：deploy/apps/{id}/stop
+- 重启：deploy/apps/{id}/restart
+- 迁移：deploy/apps/{id}/migrate
+- 重建：deploy/apps/{id}/git/redeploy + deploy/apps/{id}/restart
+- 卸载：
+   - APP_Manage 调用 integration/，删除 Repository
+   - APP_Manage 调用 publish/nginx/proxy，删除 Proxy
+   - APP_Manage 调用 deploy/apps/{id} with **delete** method，删除应用
+   
+   > 卸载必须是一个事务操作，确保完成所有步骤，以上先后顺序非常关键
+
+### app/domains
+
+App 域名的：增、删、改、查。   
+
+输入参数：  
+
+pulisherId: 默认为本地 nginx，将来可扩展支持云平台的应用访问网关。  
+body:
+{
+- app_id
+- domains[]  可选
+- default_domain  可选
+}
+
+流程：
+
+- CP: publish/nginx/proxy
+- CI: Gitea 修改 repository 的 .env 文件中的 APP_URL 为默认域名
+- CD：deploy/apps/{id}/git/redeploy + deploy/apps/{id}/restart
+
+## Settings
+
+配置文件可以通过接口和CLI进行更改，重启服务后生效。
+
+功能：
+
+- settings 增删改查
+
+```
+[system]
+# websoft9 install path, it can not modify now
+install_path=/data/websoft9
+
+# apps install path, it can not modify now
+apps_path=/data/compose
+
+# enable appstore preview, it use for CLI upgrade COMMAND
+appstore_preview=false
+
+[address]
+# Wildcard Domain Name for application 
+wildcard_domain=test.websoft9.com
+
+
+[smtp]
+smtp_port=743
+smtp_server=smtp.websoft9.com
+smtp_tls/ssl=true
+smtp_user=admin
+smtp_password=password
+
+[receive]
+# receive the notify of system
+email=help@websoft9.com
+wechat=
+```
+
+
+## CLI
+
+CLI 是安装到服务器的服务端命令行工具。它的功能有几种来源：
+
+1. 继承：由 API 直接转换
+2. 相关：多个 API 以及 组合
+3. 无关：与 API 无关，
+
+具体指令以及参数设计如下：
+
+```
+Usage:  w9 [OPTIONS] COMMAND sub-COMMAND
+
+Common Commands
+  version       查询 websoft9 版本
+  repair        修复 websoft9
+  clean         清空 websoft9 使用过程中不需要的残留资源
+  upgrade       检查并更新 [core|plugin], --check 只检查
+  uninstall     删除 Websoft9 所有服务以及组件，除了 Docker 以及 Docker 应用之外
+  environments  list all Environments
+  apikey        生产以及管理 AppManage keys
+
+App Commands:
+  install     安装应用
+  ls          List 应用列表 [app_id, app_name, status, time, endpointId]
+  inspect     显示 APP 详细信息
+  start       启动一个停止的应用
+  stop        停止一个运行中的应用
+  restart     重启应用
+  redeploy    重建应用（包含更新镜像后重建）
+  delete      删除应用
+
+Global Options:
+  -c, --context string     
+  -D, --debug              Enable debug mode
+  -e, --environment        which environment you used
+
+Run 'w9 COMMAND --help' for more information on a command.
+```
+
+## Core
+
+### CI
 
 CI 遵循几个法则：
 
@@ -24,29 +173,30 @@ CI 遵循几个法则：
 
 CI 过程中除了直接使用 [Gitea API](https://docs.gitea.cn/api/1.19/) 之外，还需增加如下业务：  
 
-### integation/repository/prepare
 
-准备一个可用的项目：
+####  integation/repository/create
 
-1. 基于 library/apps/app_name 目录创建一个临时目录 app_id
-   > app_name 是软件名称，例如：wordpress。app_id 是用户安装的应用名称，例如：mywordpress
+功能：  
 
-2. 根据安装输入，更改临时目录 .env 文件中的重要参数: 
+基于本地目录 library/apps/app_name，创建一个符合 Websoft9 规范格式的 repository（名称为：app_id）：
+> app_name 是软件名称，例如：wordpress。app_id 是用户安装的应用名称，例如：mywordpress
 
-   - APP_*_PORT 值确保未被使用或将被使用
+步骤：
+1. 在 Gitea 中创建一个名称为 app_id 的 repository
+2. 修改 Gitea repository 仓库的设置属性，只保留【代码】栏
+
+#### integation/repository/prepare
+
+更改临时目录 .env 文件中的重要参数: 
+
    - APP_URL 用域名/公网IP替换
    - POWER_PASSWORD 使用 16位 【大小写数字特殊字符】 替代
    - APP_VERSION 根据安装输入参数替换
    - APP_NAME 更换为 app_id
 
-###  integation/repository/create
+然后 git push
 
-创建一个符合 Websoft9 规范格式的 repository：
-
-1. 在 Gitea 中创建一个名称为 app_id 的 repository
-2. 修改 Gitea repository 仓库的设置属性，只保留【代码】栏
-
-## CD
+### CD
 
 CD 遵循几个法则：
 
@@ -55,15 +205,15 @@ CD 遵循几个法则：
 * 部署编排物料(CI 的产出物)可以是 docker-compose，也可以是 helm
 * 也可以支持源码编译成镜像后自动部署（参考：waypoint）
 
-### deploy/apps/create/standalone/repository
+#### deploy/apps/create/standalone/repository
 
 基于 repository 创建应用，100% 使用 Portainer API /stacks/create/standalone/repository
 
-### deploy/apps/{id}/git
+#### deploy/apps/{id}/git
 
 设置 portainer 与 repository 之间的连接关系，100% 使用 Portainer API /stacks/{id}/git
 
-### deploy/apps
+#### deploy/apps
 
 List all apps，继承 Portainer API /stacks：
 
@@ -73,36 +223,39 @@ List all apps，继承 Portainer API /stacks：
    > portaier 中的 repository 安装方式中，.env 并不会被 portainer 保存到接口中
 
 2. portainer 中的应用目录的 variables.json 或 repository variables.json
+3. Gitea API 列出当前 APP 的 repository 之 URL，提供访问链接?
+4. 所用应用的数据目录：/var/lib/docker/volumes/...
+5. Portainer 通过主容器的 Label 标签和 Ports，获取 app_*_port等
 
-### deploy/apps{id}
+#### deploy/apps/{id}
 
-与 Portainer API /stacks{id} 雷同，支持 get, put, delete
+与 Portainer API /stacks{id} 雷同，支持 get(查询), delete（删除）
 
-### deploy/apps/{id}/git/redeploy
+#### deploy/apps/{id}/git/redeploy
 
 100% 使用 Portainer API /stacks/{id}/git/redeploy
 
-### deploy/apps/{id}/start
+#### deploy/apps/{id}/start
 
 100% 使用 Portainer API /stacks/{id}/start
 
-### deploy/apps/{id}/stop
+#### deploy/apps/{id}/stop
 
 100% 使用 Portainer API /stacks/{id}/stop
 
-### deploy/apps/{id}/restart
+#### deploy/apps/{id}/restart
 
 Portainer 未提供对应的 API，可以创建此操作，也可以直接在前端通过 stop & start 组合实现。
 
-### deploy/apps/{id}/migrate
+#### deploy/apps/{id}/migrate
 
 将 Docker 应用迁移到另外一台服务器上。此需求暂不实现
 
 100% 使用 Portainer API /stacks/{id}/migrate
 
-## CP
+### CP
 
-### publish/nginx/proxy
+#### publish/nginx/proxy
 
 function proxy(host，domains[], Optional:port, Optional:exra_proxy.conf)
 
@@ -142,69 +295,3 @@ enable所有相关的 proxys
 **disable()**
 
 disable 所有相关的 proxys
-
-## App
-
-### Install
-
-功能：安装应用并自动绑定域名  
-
-输入参数：  
-
-- app_name 
-- app_id
-- domains[]  可选
-- default_domain  可选
-- version{}
-
-过程：  
-
-1. CI：App_Manage 准备 repository
-2. CI：Gitea 创建 repository
-3. CD: Portainer 基于 repository 创建项目（staus: [active,inactive]）
-4. CP：Nginx 为应用创建 Proxy 访问
-
-以上步骤是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
-
-### Lists
-
-
-
-### Manage
-
-#### Uninstall
-
-- App_Manage API 接受输入并接受语法检查（app_id）
-- APP_Manage 后端调用 Gitea API，删除 Repository
-- APP_Manage 后端调用 Nginx API，删除 Proxy
-- APP_Manage 后端调用 Portainer API，删除应用
-
-> 卸载必须是一个事务操作，确保完成所有步骤，以上先后顺序非常关键
-
-#### Stop
-
-APP_Manage 后端调用 Portainer API 的 stop
-
-#### Start
-
-APP_Manage 后端调用 Portainer API 的 start
-
-#### Restart
-
-APP_Manage 后端调用 Portainer API 的 [stop + start]
-
-#### Modify
-
-Gitea API 列出当前 APP 的 repository 之 URL，提供访问链接
-
-#### Redeploy
-
-- APP_Manage 后端调用 Portainer API 的 redeploy
-
-
-
-## Settings
-
-## Upgrade
-
-## CLI

@@ -2,7 +2,7 @@ version: "3.8"
 services:
 
   portainer:
-    container_name: ${APP_NAME}
+    container_name: websoft9-portainer
     build:
       context: .
       dockerfile_inline: |
@@ -13,7 +13,7 @@ services:
         RUN go build -o init_portainer init_portainer.go
         RUN chmod +x ./init_portainer
         # step2: copy build go program to portainer
-        FROM portainer/portainer-ce:${APP_VERSION}
+        FROM portainer/portainer-ce:2.19.0
         COPY --from=builder /init_portainer /
     entrypoint: ["/init_portainer"]
     restart: unless-stopped 
@@ -21,11 +21,11 @@ services:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - ${APP_HTTP_PORT}:9000
+      - 9091:9000
 
 networks:
   default:
-    name: ${APP_NETWORK}
+    name: websoft9
     external: true
 
 volumes:
