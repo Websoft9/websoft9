@@ -23,28 +23,36 @@ API 接口功能设计：
 
 输入参数：  
 
-endpointId: 安装目的地（portainer中有定义），默认为 local  
 ```
 body:
 {
-- app_name 
-- app_id
-- domains[]  可选
-- default_domain  可选
-- edition{dist:community, version:5.0}
-- 其他
+- app_name # 产品名
+- app_id   # 自定义应用名称
+- domains[]  #域名-可选
+- default_domain  #默认域名-可选：设置.env中APP_URL
+- edition{dist:community, version:5.0} #应用版本，来自variable.json，但目前variable.json中只有 version 的数据
+- endpointId: 安装目的地（portainer中有定义），默认为 local
 }
 ```
 
 过程：  
 
-1. CI：Gitea 创建 repository
-2. CI：Gitea 修改 repository
-3. CD: Portainer 创建 websoft9 network (先判断是否存在)
-4. CD: Portainer 基于 repository 在对应的 endpointId 中创建项目（staus: [active,inactive]）
-5. CP：Nginx 为应用创建 Proxy 访问
+1. 参数验证：  
+   app_id 验证：  
+      业务要求：gitea 中是否存在同名的 repository，Portainer中是否存在同名stack  
+      技术要求-【非空，容器要求：2位-20位，字母数字以及-组成 gitea：todo portainer：todo】   
+   app_name 验证: 在gitea容器的library目录下验证  
+   domains[]验证：是否绑定过，数量不能超过2：泛域名+其他域名  
+   default_domain验证：来自domains[]中，自定义域名优先  
+   edition: community这个不做验证，保留扩展，只做version处理  
+   endpointId：通过Portainer容器取名称【local】的endpointId，不存在报错  
+2. CI：Gitea 创建 repository：通过Gitea创建仓库，并修改.env文件  
+3. CD: Portainer ：  
+      创建websoft9网络，判断 websoft9 network (先判断是否存在)  
+      Portainer 基于 Gitea Repository 在对应的 endpointId 中创建项目（staus: [active,inactive]）  
+4. CP：Nginx 为应用创建 Proxy 访问：如果Proxy创建失败，应用安装成功，但提示Proxy创建失败，不做应用安装回滚
 
-2-4 以上步骤是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
+2-3 步骤是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
 
 ### apps
 
@@ -228,7 +236,7 @@ List all apps，继承 Portainer API /stacks：
 
 额外需要增加如下几类数据：
 
-1. 将 app 主容器的 "Env" 合并到 Portainer API 返回的 env[] 中
+1. 将 app 主容器的 "Env" 合并到 Portainer API 返回的 env[] 中。
    > portaier 中的 repository 安装方式中，.env 并不会被 portainer 保存到接口中
 
 2. portainer 中的应用目录的 variables.json 或 repository variables.json
