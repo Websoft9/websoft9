@@ -50,7 +50,7 @@ body:
 3. CD: Portainer ：  
       创建websoft9网络，判断 websoft9 network (先判断是否存在)  
       Portainer 基于 Gitea Repository 在对应的 endpointId 中创建项目（staus: [active,inactive]）  
-4. CP：Nginx 为应用创建 Proxy 访问：如果Proxy创建失败，应用安装成功，但提示Proxy创建失败，不做应用安装回滚
+4. CP：Nginx 为应用创建 Proxy 访问：如果Proxy创建失败，应用安装成功，但提示Proxy创建失败，不做应用安装回滚  
 
 2-3 步骤是有状态操作（产生对后续操作有影响的记录），故需考虑事务完整性。 
 
@@ -100,7 +100,22 @@ body:
 
 ## Settings
 
-配置文件可以通过接口和CLI进行更改，重启服务后生效。
+
+
+配置文件可以通过接口和CLI进行更改
+
+### 系统配置
+
+系统配置，需重启服务后生效。
+
+system.ini
+
+
+### 应用配置
+
+app.ini
+
+应用配置一般会提供API，供前端调用。应用配置更改后，不需要重启。
 
 功能：
 
@@ -157,6 +172,7 @@ Common Commands
   uninstall     删除 Websoft9 所有服务以及组件，除了 Docker 以及 Docker 应用之外
   environments  list all Environments
   apikey        生产以及管理 AppManage keys
+  ip            --replace newIP，直接更改 gitea 和 Nginx IP相关的配置
 
 App Commands:
   install     安装应用
