@@ -30,6 +30,7 @@
     - config.ini                                                    # 应用级别的配置
  - core                                                             # 项目的核心代码
     - api_key.py                                                    # 处理API密钥的模块
+    - config.py
         - config.get_value()                                        # 获取配置值
         - config.set_value()                                        # 设置配置值
         - config.remove_value()                                     # 删除配置值
