@@ -5,8 +5,8 @@ services:
 
   portainer:
     container_name: websoft9-portainer
+    image: websoft9dev/portainer
     build:
-      image: websoft9dev/portainer
       context: .
       dockerfile: Dockerfile
     entrypoint: ["/init_portainer"]
