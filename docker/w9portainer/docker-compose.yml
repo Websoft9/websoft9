@@ -10,7 +10,12 @@ services:
       context: .
       dockerfile: Dockerfile
     entrypoint: ["/init_portainer"]
-    restart: unless-stopped 
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/init_endpoint"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
     volumes:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
