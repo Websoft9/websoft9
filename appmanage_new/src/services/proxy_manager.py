@@ -2,11 +2,11 @@
 import time
 import keyring
 import json
-from app.core.logger import logger
-from app.external.nginx_proxy_manager_api import NginxProxyManagerAPI
+from src.core.logger import logger
+from src.external.nginx_proxy_manager_api import NginxProxyManagerAPI
 
 
-class DomainManager:
+class ProxyManager:
     def __init__(self, app_name):
         """
         Init Domain Manager
@@ -70,25 +70,6 @@ class DomainManager:
             logger.error(f"Set Nginx Proxy Manager's Token To Keyring Error:{e}")
             return
     
-    def is_valid_domain(self, domain_names: list[str]):
-        # 验证domain_names这个列表中的域名格式是否合法，如果不合法，返回以列表格式返回不合法的域名，如果合法，继续验证其是否解析到本机，如果没有解析到本机，返回以列表格式返回没有解析到本机的域名
-        # 验证域名格式是否合法
-        invalid_domain_names = []
-        for domain_name in domain_names:
-            if not self.nginx.is_valid_domain(domain_name):
-                invalid_domain_names.append(domain_name)
-        if len(invalid_domain_names) > 0:
-            return False, invalid_domain_names
-        # 验证域名是否解析到本机
-        not_resolved_domain_names = []
-        for domain_name in domain_names:
-            if not self.nginx.is_resolved_domain(domain_name):
-                not_resolved_domain_names.append(domain_name)
-        if len(not_resolved_domain_names) > 0:
-            return False, not_resolved_domain_names
-        return True, None
-
-
     def create_proxy_for_app(self, domain_names:list[str],forward_port:int,advanced_config:str="",forward_scheme:str="http"):
         try:
             self.nginx.create_proxy_host(domain_names=domain_names,forward_scheme=forward_scheme,forward_port=forward_port,advanced_config=advanced_config)

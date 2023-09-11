@@ -1,13 +1,3 @@
-"""
-    FileName: logger.py
-    Author: Jing.zhao
-    Created: 2023-08-30
-    Description: This script defines a custom logger that can create and manage two types of logs: 'access' and 'error' for the application.
-
-    Modified by: 
-    Modified Date: 
-    Modification: 
-"""
 
 import os
 import logging

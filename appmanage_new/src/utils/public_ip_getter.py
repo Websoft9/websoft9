@@ -1,6 +1,6 @@
 import requests
 
-from app.core.config import ConfigManager
+from src.core.config import ConfigManager
 
 class PublicIPGetter:
     """

@@ -1,13 +1,3 @@
-"""
-    FileName: config.py
-    Author: Jing.zhao
-    Created: 2023-08-31
-    Description: This script demonstrates how to managing configuration using configparser.
-
-    Modified by: 
-    Modified Date: 
-    Modification: 
-"""
 
 import configparser
 

@@ -1,7 +1,7 @@
 
 import requests
 from typing import List, Union
-from app.core.config import ConfigManager
+from src.core.config import ConfigManager
 
 class NginxProxyManagerAPI:
     """
