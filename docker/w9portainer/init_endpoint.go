@@ -18,6 +18,7 @@ type EndpointResponse struct {
 }
 
 func main() {
+	baseURL := "http://119.8.96.66:9091"
 	// Read the /portainer_password file
 	password, err := ioutil.ReadFile("/portainer_password")
 	if err != nil {
@@ -32,7 +33,7 @@ func main() {
 	authRequestBody := fmt.Sprintf(`{"password": "%s", "username": "admin"}`, password)
 
 	// Perform authentication by calling the /auth API
-	authURL := "http://localhost:9000/api/auth"
+    authURL := baseURL + "/api/auth"
 	resp, err := http.Post(authURL, "application/json", strings.NewReader(authRequestBody))
 	if err != nil {
 		fmt.Println("Failed to perform authentication:", err)
@@ -66,7 +67,7 @@ func main() {
 	accessToken := authResponseJSON.JWT
 
 	// Call the /endpoints API with GET method to check if data exists
-	endpointsURL := "http://localhost:9000/api/endpoints"
+	endpointsURL := baseURL + "/api/endpoints"
 	req, err := http.NewRequest("GET", endpointsURL, nil)
 	if err != nil {
 		fmt.Println("Failed to create request:", err)
@@ -89,15 +90,22 @@ func main() {
 		return
 	}
 
+	// Parse the endpoint data response JSON into a slice or array
+	var endpointResponse []EndpointResponse
+	if err := json.Unmarshal(body, &endpointResponse); err != nil {
+		fmt.Println("Failed to parse endpoint data response:", err)
+		return
+	}
+
 	// Check if data exists
-	if len(body) > 0 {
+	if len(endpointResponse) > 0 {
 		// Data exists, perform further operations or return
 		fmt.Println("Data exists:", string(body))
 		return
 	}
 
 	// Data does not exist, call the /endpoints API to get the endpoint information
-        fmt.Println("Data is notexists, need to create endpoint")
+	fmt.Println("Data does not exist, need to create endpoint")
 	req, err = http.NewRequest("POST", endpointsURL, nil)
 	if err != nil {
 		fmt.Println("Failed to create request:", err)
@@ -107,7 +115,7 @@ func main() {
 
 	// Add form data parameters
 	data := url.Values{}
-	data.Set("Name", "local")
+	data.Set("Name", "local_test")
 	data.Set("EndpointCreationType", "1")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Body = ioutil.NopCloser(strings.NewReader(data.Encode()))
