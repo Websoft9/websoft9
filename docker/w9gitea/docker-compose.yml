@@ -1,7 +1,6 @@
 # image: https://hub.docker.com/r/gitea/gitea
 # docs: https://docs.gitea.io/zh-cn/install-with-docker
 
-
 version: '3.8'
 
 services:
@@ -26,3 +25,6 @@ networks:
   default:
     name: ${APP_NETWORK}
     external: true
+
+volumes:
+  gitea:
