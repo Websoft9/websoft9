@@ -2,7 +2,6 @@
 FROM golang:latest AS builder
 WORKDIR /
 COPY init_portainer.go /
-COPY init_endpoint.go /
 RUN go build -o init_portainer /init_portainer.go
 RUN chmod +x /init_portainer
 
