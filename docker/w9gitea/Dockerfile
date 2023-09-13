@@ -1,1 +1,1 @@
-FROM gitea/gitea-ce:latest
+FROM gitea/gitea:latest
