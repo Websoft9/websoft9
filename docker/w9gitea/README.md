@@ -7,4 +7,5 @@ From official Gitea image, and:
 - Disable user register
 - Disable Gravatar
 - Add a webhook at this container when creating repository for the first time
-- Use default URL localhost
+- Create webhook at Gitea container
+- Use default URL localhost for Host/Root_URL settings
