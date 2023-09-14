@@ -58,6 +58,7 @@ Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a c
 
 - Documentation for [Websoft9 core maintainers](docs/MAINTAINERS.md)
 - Documentation for application templates based on Docker maintainers is in the [docker-library](https://github.com/Websoft9/docker-library).
+- [Articles promoting Websoft9](https://github.com/Websoft9/websoft9/issues/327)
 
 # License
 
