@@ -1,15 +1,16 @@
 # image: https://hub.docker.com/r/gitea/gitea
 # docs: https://docs.gitea.io/zh-cn/install-with-docker
+# gitea admin user create --admin --username websoft9 --random-password --email help@websoft9.com
 
 version: '3.8'
 
 services:
   gitea:
-    image: gitea/gitea:$APP_VERSION
     container_name: $APP_NAME
-    environment:
-      - USER_UID=1000
-      - USER_GID=1000
+    image: websoft9dev/portainer:1.20.4
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env

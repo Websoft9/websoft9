@@ -1,0 +1,5 @@
+#!/bin/bash
+
+pushd /root >/dev/null
+exec su-exec $USER /usr/local/bin/hook
+popd
