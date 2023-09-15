@@ -7,7 +7,7 @@ version: '3.8'
 services:
   gitea:
     container_name: $APP_NAME
-    image: websoft9dev/portainer:1.20.4
+    image: websoft9dev/gitea:1.20.4
     build:
       context: .
       dockerfile: Dockerfile
