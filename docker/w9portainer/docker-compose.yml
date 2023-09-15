@@ -14,8 +14,6 @@ services:
     volumes:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - 9091:9000
 
 networks:
   default:

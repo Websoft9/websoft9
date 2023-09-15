@@ -3,7 +3,7 @@
 From official Gitea image, and: 
 
 - Add docker-library to this image
-- Complete install wizard automaticlly by enviroment INSTALL_LOC
+- Complete install wizard automaticlly by enviroment INSTALL_LOCK
 - Create admin credential by admin cli
 - Disable user register
 - Disable Gravatar
