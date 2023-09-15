@@ -8,9 +8,6 @@ services:
   gitea:
     container_name: $APP_NAME
     image: websoft9dev/gitea:1.20.4
-    build:
-      context: .
-      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env

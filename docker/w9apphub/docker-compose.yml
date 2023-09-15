@@ -1,16 +1,16 @@
 version: "3.8"
 
 services:
-  appmanage:
-    image: websoft9dev/appmanage:${APP_VERSION}
+  apphub:
+    image: websoft9dev/apphub${APP_VERSION}
     container_name: ${APP_NAME}
     pid: host
     privileged: true
     restart: unless-stopped
     volumes:
-      - appmanage-logs:/usr/src/app/logs
-      - appmanage-db:/usr/src/app/db
-      - appmanage-config:/usr/src/app/config
+      - apphub-logs:/usr/src/app/logs
+      - apphub-db:/usr/src/app/db
+      - apphub-config:/usr/src/app/config
     entrypoint: bash -c "/cmd.sh"
 
 networks:
@@ -19,6 +19,6 @@ networks:
     external: true
 
 volumes:
-  appmanage-logs:
-  appmanage-db:
-  appmanage-config:
+  apphub-logs:
+  apphub-db:
+  apphub-config:

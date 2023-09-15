@@ -4,8 +4,8 @@ version: "3.8"
 services:
 
   portainer:
-    container_name: websoft9-portainer
-    image: websoft9dev/portainer:2.19.0
+    container_name: websoft9-deploy
+    image: websoft9dev/deploy:2.19.0
     build:
       context: .
       dockerfile: Dockerfile
