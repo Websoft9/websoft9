@@ -12,4 +12,4 @@ COPY --from=build-hook /hook /usr/local/bin/hook
 COPY init.sh /usr/local/bin/init.sh
 COPY ./hook /etc/s6/hook
 COPY ./init /etc/s6/init
-RUN chmod -R 755 /etc/s6/hook /usr/local/bin/init.sh
+RUN chmod -R 755 /etc/s6/hook /etc/s6/init /usr/local/bin/init.sh
