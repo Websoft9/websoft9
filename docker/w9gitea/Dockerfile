@@ -10,5 +10,5 @@ RUN cd / && git clone --depth=1 https://github.com/Websoft9/docker-library.git \
     && mv docker-library library
 COPY --from=build-hook /hook /usr/local/bin/hook
 COPY init.sh /usr/local/bin/init.sh
-COPY hook /etc/s6
+COPY hook init /etc/s6/
 RUN chmod -R 755 /etc/s6/hook /usr/local/bin/init.sh
