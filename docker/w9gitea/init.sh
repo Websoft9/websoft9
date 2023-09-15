@@ -20,7 +20,7 @@ echo "$json" > "$filename"
 api_url="http://localhost:3000/api/v1"
 hook_url="http://gitea:8080"
 
-# 创建新hook的数据
+# Param data
 hook_data='{
   "type": "gitea",
   "config": {
@@ -31,19 +31,5 @@ hook_data='{
   "active": true
 }'
 
-# 从JSON文件中读取用户名和密码
-username=$(jq -r '.username' "$filename")
-password=$(jq -r '.password' "$filename")
-
-# 发送POST请求创建新hook
-response=$(curl -s -u "$username:$password" -X POST -H "Content-Type: application/json" -d "$hook_data" "$api_url/user/hooks")
-
-# 检查响应状态码
-status_code=$(echo "$response" | jq -r '.status')
-if [[ $status_code == "ok" ]]; then
-  echo "New hook created successfully."
-else
-  error_message=$(echo "$response" | jq -r '.message')
-  echo "Failed to create new hook: $error_message"
-fi
-
+# Create a hook
+curl -s -u "$username:$password" -X POST -H "Content-Type: application/json" -d "$hook_data" "$api_url/user/hooks"
