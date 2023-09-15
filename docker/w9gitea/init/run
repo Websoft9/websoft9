@@ -3,8 +3,5 @@
 s6-svwait -u /etc/s6/gitea
 
 pushd /root >/dev/null
-exec 2>&1
 exec  /usr/local/bin/init.sh
-echo "init.sh has been executed" > /var/run/init.sh.executed
-wait
 popd

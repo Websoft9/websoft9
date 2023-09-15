@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ -e "/credential" ]; then
+  echo "File /credential exists. Exiting script."
+  exit 1
+fi
+
 # Create admin credential by admin cli
 su -c '
     gitea admin user create --admin --username websoft9 --random-password --email help@websoft9.com > /tmp/credential
