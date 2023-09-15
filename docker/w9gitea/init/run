@@ -3,5 +3,5 @@
 s6-svwait -u /etc/s6/gitea
 
 pushd /root >/dev/null
-exec su-exec $USER /usr/local/bin/hook
+exec  /usr/local/bin/init.sh
 popd
