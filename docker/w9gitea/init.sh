@@ -7,6 +7,9 @@ su -c '
 
 # Read credential from tmp
 username=$(grep -o "New user '[^']*" /tmp/credential | sed "s/New user '//")
+if [ -z "$username" ]; then
+  username="websoft9"
+fi
 password=$(grep -o "generated random password is '[^']*" /tmp/credential | sed "s/generated random password is '//")
 # Create template credential
 json="{\"username\":\"$username\",\"password\":\"$password\"}"
