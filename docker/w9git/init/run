@@ -1,7 +1,0 @@
-#!/bin/bash
-
-s6-svwait -u /etc/s6/gitea
-
-pushd /root >/dev/null
-exec  /usr/local/bin/init.sh
-popd

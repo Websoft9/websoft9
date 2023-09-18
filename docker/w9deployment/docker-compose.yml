@@ -4,13 +4,17 @@ version: "3.8"
 services:
 
   portainer:
-    container_name: websoft9-deploy
-    image: websoft9dev/deploy:2.19.0
+    container_name: websoft9-deployment
+    image: websoft9dev/deployment:2.19.0
     entrypoint: ["/init_portainer"]
-    restart: unless-stopped
+    restart: always
+    ports:
+      - 9001-9999:9000
     volumes:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      com.docker.compose.w9_http.port: 9000
 
 networks:
   default:

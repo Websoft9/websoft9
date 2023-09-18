@@ -8,13 +8,17 @@ services:
   gitea:
     container_name: $APP_NAME
     image: websoft9dev/gitea:$APP_VERSION
-    restart: unless-stopped
+    restart: always
     env_file:
       - .env
     volumes:
       - gitea:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 9001-9999:3000
+    labels:
+      com.docker.compose.w9_http.port: 3000
 
 networks:
   default:

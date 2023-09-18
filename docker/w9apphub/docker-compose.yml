@@ -6,7 +6,7 @@ services:
     container_name: ${APP_NAME}
     pid: host
     privileged: true
-    restart: unless-stopped
+    restart: always
     volumes:
       - apphub-logs:/usr/src/app/logs
       - apphub-db:/usr/src/app/db
