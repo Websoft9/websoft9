@@ -11,6 +11,23 @@ import (
 
 func main() {
 	
+	dirPath := "/var/websoft9"
+    if _, err := os.Stat("/var"); os.IsNotExist(err) {
+        err = os.Mkdir("/var", 0755)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+    }
+	
+    if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+        err = os.Mkdir(dirPath, 0755)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+    }
+	
 	filePath := "/var/websoft9/credential"
 
 	_, err := os.Stat(filePath)
@@ -58,12 +75,6 @@ func generatePassword(length int) string {
 }
 
 func writeToFile(filePath , content string) error {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-        err = os.MkdirAll(filePath, 0755)
-        if err != nil {
-            fmt.Println(err)
-            return
-        }
-    }
+
 	return ioutil.WriteFile(filePath , []byte(content), 0755)
 }
