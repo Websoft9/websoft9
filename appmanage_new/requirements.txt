@@ -1,9 +1,7 @@
-fastapi==0.98.0
+fastapi
 uvicorn
-rq
-apscheduler
-docker
-psutil
-gunicorn
-python-dotenv
 keyring
+requests
+git
+GitPython
+PyJWT

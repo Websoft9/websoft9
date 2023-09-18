@@ -1,16 +1,14 @@
 FROM python:3.10-slim
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.8.19"
+LABEL version="0.0.1"
 
 # Create API Directory
-WORKDIR /usr/src/app
+WORKDIR  /usr
 
 # Copy source and install pip dpendencies
-COPY api ./api
-COPY static ./static
-COPY requirements.txt main.py hostname.py ./
-RUN mkdir /usr/src/app/db
-COPY database.sqlite  /usr/src/app/db/
+COPY ../../appmanage_new/src /usr
+COPY ../../appmanage_new/requirements.txt  /usr
+
 RUN apt update
 
 # Install supervisord
