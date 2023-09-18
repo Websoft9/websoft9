@@ -7,4 +7,6 @@ RUN chmod +x /init_portainer
 
 # step2: copy build go program to portainer
 FROM portainer/portainer-ce:2.19.0
+LABEL maintainer="Websoft9<help@websoft9.com>"
+LABEL version="2.19.0"
 COPY --from=builder /init_portainer /

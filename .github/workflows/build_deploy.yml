@@ -1,0 +1,36 @@
+name: portainer  Build And Push To DockerHub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker/w9deploy/Dockerfile"
+
+jobs:
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    env:
+      TAGS: latest
+    steps:
+      - uses: actions/checkout@v2
+        name: Check out code
+
+      - name: Get version
+        run: |
+          version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/w9deploy/Dockerfile)
+          echo $version
+          echo "::set-output name=version::$version"
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - uses: mr-smithers-excellent/docker-build-push@v5
+        name: Build & push Docker image
+        with:
+          image: websoft9dev/deploy
+          tags: ${{ env.VERSION }}
+          addLatest: True
+          registry: docker.io
+          dockerfile: docker/w9deploy/Dockerfile
+          directory: docker/w9deploy
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
