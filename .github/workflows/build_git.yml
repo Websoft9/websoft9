@@ -1,4 +1,4 @@
-name: AppManage Build And Push To DockerHub
+name: gitea  Build And Push To DockerHub
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           tags: ${{ env.VERSION }}
           addLatest: True
           registry: docker.io
-          dockerfile: appmanage/Dockerfile
-          directory: appmanage
+          dockerfile: docker/w9git/Dockerfile
+          directory: docker/w9git
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
