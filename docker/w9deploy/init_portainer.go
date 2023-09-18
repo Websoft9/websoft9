@@ -10,7 +10,8 @@ import (
 )
 
 func main() {
-	filePath := "/var/websoft9/portainer_password"
+	
+	filePath := "/var/websoft9/credential"
 
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
@@ -32,7 +33,7 @@ func main() {
 	fmt.Println("-----portainer_admin_user: admin, portainer_admin_password: " + string(content) + " ------")
 
 	// call portainer
-	cmd := exec.Command("./portainer", "--admin-password-file", "/portainer_password")
+	cmd := exec.Command("./portainer", "--admin-password-file", filePath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
