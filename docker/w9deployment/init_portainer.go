@@ -41,7 +41,7 @@ func main() {
 		}
 	}
 
-	content, err := ioutil.ReadFile(filePath)
+	content, err := readPasswordFromFile(filePath)
 	if err != nil {
 		fmt.Println("read file error:", err)
 		return
@@ -74,7 +74,26 @@ func generatePassword(length int) string {
 	return string(password)
 }
 
-func writeToFile(filePath , content string) error {
+func readPasswordFromFile(filePath string) (string, error) {
+    data, err := ioutil.ReadFile(filePath)
+    if err != nil {
+        return "", err
+    }
+    var passwordMap map[string]string
+    err = json.Unmarshal(data, &passwordMap)
+    if err != nil {
+        return "", err
+    }
+    password := passwordMap["password"]
+    return password, nil
+}
 
-	return ioutil.WriteFile(filePath , []byte(content), 0755)
+func writeToFile(filePath, password string) error {
+    data := map[string]string{"username": "admin", "password": password}
+    jsonData, err := json.Marshal(data)
+    if err != nil {
+        return err
+    }
+    err = ioutil.WriteFile(filePath, jsonData, 0755)
+    return err
 }

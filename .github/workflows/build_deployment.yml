@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "docker/w9deploy/Dockerfile"
+      - "docker/w9deployment/Dockerfile"
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
 
       - name: Get version
         run: |
-          version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/w9deploy/Dockerfile)
+          version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/w9deployment/Dockerfile)
           echo $version
           echo "::set-output name=version::$version"
           echo "VERSION=$version" >> $GITHUB_ENV
@@ -26,11 +26,11 @@ jobs:
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
-          image: websoft9dev/deploy
+          image: websoft9dev/deployment
           tags: ${{ env.VERSION }}
           addLatest: True
           registry: docker.io
-          dockerfile: docker/w9deploy/Dockerfile
-          directory: docker/w9deploy
+          dockerfile: docker/w9deployment/Dockerfile
+          directory: docker/w9deployment
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
