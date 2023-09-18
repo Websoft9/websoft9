@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	filePath := "/portainer_password"
+	filePath := "/var/websoft9/portainer_password"
 
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
@@ -56,6 +56,13 @@ func generatePassword(length int) string {
 	return string(password)
 }
 
-func writeToFile(filename, content string) error {
-	return ioutil.WriteFile(filename, []byte(content), 0755)
+func writeToFile(filePath , content string) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+        err = os.MkdirAll(filePath, 0755)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+    }
+	return ioutil.WriteFile(filePath , []byte(content), 0755)
 }
