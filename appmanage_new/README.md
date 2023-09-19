@@ -1,4 +1,5 @@
-# run app : uvicorn app.main:app --reload --port 8080
+# run app : uvicorn src.main:app --reload --port 9999
+# gitea_token: da7b9891a0bc71b5026b389c11ed13238c9a3866
 
 
 # 项目结构

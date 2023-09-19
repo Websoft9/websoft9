@@ -1,4 +1,4 @@
-
+import os
 import configparser
 
 
@@ -17,14 +17,19 @@ class ConfigManager:
         config (configparser.ConfigParser): The configuration data in memory.
     """
 
-    def __init__(self, config_file_path="../config/config.ini"):
+    def __init__(self, config_file_name="config.ini"):
         """
         Initialize a ConfigManager instance.
 
         Args:
-            config_file_path (str): The path to the configuration file.
+            config_file_name (str): The name of the configuration file in the config directory, default is "config.ini".
         """
-        self.config_file_path = config_file_path
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        config_dir = os.path.join(script_dir, "../config")
+
+        self.config_file_path = os.path.join(config_dir, config_file_name)
+        self.config_file_path = os.path.abspath(self.config_file_path)
+
         self.config = configparser.ConfigParser()
         self.config.read(self.config_file_path)
 

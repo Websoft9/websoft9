@@ -1,4 +1,5 @@
 
+from datetime import datetime
 import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -48,12 +49,13 @@ class Logger(metaclass=SingletonMeta):
         logger.setLevel(logging.DEBUG)
 
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            '%(asctime)s - %(levelname)s - %(message)s')
 
         log_folder = os.path.join(os.getcwd(), "logs")
         os.makedirs(log_folder, exist_ok=True)
 
-        log_file = os.path.join(log_folder, f"{log_type}_{{asctime}}.log")
+        current_time = datetime.now().strftime('%Y_%m_%d')        
+        log_file = os.path.join(log_folder, f"{log_type}_{current_time}.log")
 
         file_handler = TimedRotatingFileHandler(
             filename=log_file,
