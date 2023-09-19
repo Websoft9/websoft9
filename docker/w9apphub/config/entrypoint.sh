@@ -22,8 +22,19 @@ check_file_exists() {
 }
 
 check_file_exists "/websoft9/credentials/proxy" 10
-check_file_exists "/websoft9/credentials/git" 10
 check_file_exists "/websoft9/credentials/deployment" 10
+check_file_exists "/websoft9/credentials/git" 10
+
+if [ -f "/websoft9/credentials/git" ]; then
+    # init git
+    content=$(cat /websoft9/credentials/git)
+    username=$(echo "$content" | jq -r '.username')
+    password=$(echo "$content" | jq -r '.password')
+    echo "start to init git"
+else
+    # git user not exist, output the error message
+    echo "can not init git"
+fi
 
 # start by supervisord
 /usr/local/bin/supervisord
