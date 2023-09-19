@@ -8,9 +8,9 @@ services:
       - 127.0.0.1:9001:8080
     restart: always
     volumes:
-      - logs:/usr/websoft9/apphub/logs
-      - media:/usr/websoft9/media
-      - config:/usr/websoft9/apphub/src/conf
+      - logs:/websoft9/apphub/logs
+      - media:/websoft9/media
+      - config:/websoft9/apphub/src/conf
 
 networks:
   default:
