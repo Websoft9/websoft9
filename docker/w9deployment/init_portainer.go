@@ -39,6 +39,9 @@ func main() {
 			fmt.Println("write file error:", err)
 			return
 		}
+	}else{
+		cmd := exec.Command("./portainer")
+		cmd.Run()
 	}
 
 	content, err := ioutil.ReadFile(filePath)
