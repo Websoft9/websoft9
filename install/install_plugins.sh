@@ -1,9 +1,8 @@
-
 #!/bin/bash
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
-InstallPlugins
+
 
 
 ### -----------------------------------------------------###
@@ -132,3 +131,5 @@ cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
 
 echo "---------------------------------- Install success! When installation completed, you can access it by: http://Internet IP:9000 and using Linux user for login to  install a app by websoft9's appstore. -------------------------------------------------------" 
 }
+
+InstallPlugins

@@ -5,10 +5,6 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
 
-CheckEnvironment
-InstallCockpit
-
-
 function get_os_type() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -128,14 +124,14 @@ if  [ "$os_type" == 'Debian' ];then
   fi
 fi
 
+# Todo: need replaced it with vars
 # Check port used
 if netstat -tuln | grep -qE ':(80|443|9000)\s'; then
     echo "Port 80,443,9000  is already in use."
     exit 1
 else
     echo "Port 80,443, 9000 are free."
-fi
-          
+fi        
 }
 
 
@@ -215,3 +211,6 @@ sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit
 
 
 }
+
+CheckEnvironment
+InstallCockpit

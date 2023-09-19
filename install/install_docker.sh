@@ -2,8 +2,6 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
-InstallDocker
-
 
 InstallDocker(){
 
@@ -69,3 +67,5 @@ if ! docker network inspect websoft9 > /dev/null 2>&1; then
 fi
 
 }
+
+InstallDocker
