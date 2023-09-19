@@ -1,3 +1,14 @@
+#!/bin/bash
+# Define PATH
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+# Export PATH
+export PATH
+
+
+CheckEnvironment
+InstallCockpit
+
+
 function get_os_type() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release

@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   apphub:
-    image: websoft9dev/apphub:$APP_VERSION
+    image: websoft9dev/apphub:$APPHUB_VERSION
     container_name: websoft9-apphub
     ports:
       - 127.0.0.1:9001:8080
@@ -17,7 +17,7 @@ services:
       - proxy
 
   deployment:
-    image: websoft9dev/deployment:2.19.0
+    image: websoft9dev/deployment:$DEPLOYMENT_VERSION
     container_name: websoft9-deployment
     restart: always
     ports:
@@ -29,7 +29,7 @@ services:
       com.docker.compose.w9_http.port: 9000
 
   git:
-    image: websoft9dev/git:$APP_VERSION
+    image: websoft9dev/git:$GIT_VERSION
     container_name: websoft9-git
     restart: always
     volumes:
@@ -49,7 +49,7 @@ services:
       com.docker.compose.w9_http.port: 3000
 
   proxy:
-    image: jc21/nginx-proxy-manager:${APP_VERSION}
+    image: jc21/nginx-proxy-manager:$PROXY_VERSION
     container_name: websoft9-proxy
     restart: always
     ports:
