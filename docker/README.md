@@ -2,9 +2,10 @@
 
 ## Test it
 
-All backend services of Websoft9 is packaged to Docker image, if you have install Docker
+All backend services of Websoft9 is packaged to Docker image, just these steps you can running them:  
 
 ```
+curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh && sudo systemctl enable docker && sudo systemctl start docker
 sudo docker network create websoft9
 wget https://websoft9.github.io/websoft9/docker/.env
 wget https://websoft9.github.io/websoft9/docker/docker-compose.yml
