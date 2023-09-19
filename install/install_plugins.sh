@@ -1,12 +1,12 @@
 
+#!/bin/bash
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
 
-urls="https://w9artifact.blob.core.windows.net/release/websoft9"
-if [[ "$1" == "dev" ]]; then
-    echo "update by dev artifacts"
-    urls="https://w9artifact.blob.core.windows.net/dev/websoft9"
-fi
+InstallPlugins
 
 
+### -----------------------------------------------------###
 
 InstallPlugins(){
 

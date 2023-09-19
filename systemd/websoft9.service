@@ -5,8 +5,8 @@ After=network.target docker
 
 [Service]
 KillSignal=SIGQUIT
-WorkingDirectory=/data/develop/stackhub/api
-ExecStart=python3 uvicorn main:app --reload
+WorkingDirectory=/data/websoft9
+ExecStart=bash send_credentials.sh
 Restart=always
 Type=notify
 NotifyAccess=all
