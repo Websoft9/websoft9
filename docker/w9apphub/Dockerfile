@@ -16,8 +16,9 @@ RUN unzip library.zip
 RUN mkdir credentials
 RUN echo "This folder stored the credentials of other services that apphub will connect" > credentials/readme
 
-# Contentful
-
+# Media and master data from Contentful
+RUN wget --depth=1 https://github.com/Websoft9/plugin-appstore
+RUN mv -f plugin-appstore/data ./media
 
 # Copy source and install pip dpendencies
 # Todo: add virtualenv for Python install
@@ -39,7 +40,7 @@ VOLUME /usr/websoft9/apphub/src/conf
 VOLUME /usr/websoft9/media
 
 # Clean
-RUN rm -rf apphub/docs apphub/tests library.zip
+RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore
 
 # Expose the port in which the application will be deployed
 EXPOSE 8080

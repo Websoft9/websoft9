@@ -2,23 +2,22 @@ version: "3.8"
 
 services:
   apphub:
-    image: websoft9dev/apphub${APP_VERSION}
-    container_name: ${APP_NAME}
-    pid: host
-    privileged: true
+    image: websoft9dev/apphub:$APP_VERSION
+    container_name: $APP_NAME
+    ports:
+      - 127.0.0.1:9001:8080
     restart: always
     volumes:
-      - apphub-logs:/usr/src/app/logs
-      - apphub-db:/usr/src/app/db
-      - apphub-config:/usr/src/app/config
-    entrypoint: bash -c "/cmd.sh"
+      - logs:/usr/websoft9/apphub/logs
+      - media:/usr/websoft9/media
+      - config:/usr/websoft9/apphub/src/conf
 
 networks:
   default:
-    name: ${APP_NETWORK}
+    name: $APP_NETWORK
     external: true
 
 volumes:
-  apphub-logs:
-  apphub-db:
-  apphub-config:
+  logs:
+  media:
+  config:
