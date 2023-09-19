@@ -26,7 +26,7 @@ jobs:
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
-          image: websoft9dev/git
+          image: websoft9dev/w9apphub
           tags: ${{ env.VERSION }}
           addLatest: True
           registry: docker.io
