@@ -2,6 +2,6 @@
 
 # start by supervisord
 
-/usr/bin/supervisord
+/usr/local/bin/supervisord
 supervisorctl start all
 tail -f /dev/null
