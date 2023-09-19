@@ -5,9 +5,12 @@ version: "3.8"
 
 services:
   app:
-    image: jc21/nginx-proxy-manager:${APP_VERSION}
+    image: websoft9dev/proxy:2.10.4
     restart: always
     container_name: ${APP_NAME}
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "80:80"
       - "443:443"
