@@ -1,7 +1,7 @@
 [Unit]
 Description=Websoft9 PaaS Platform
-Requires=network.target
-After=network.target
+Requires=network.target docker
+After=network.target docker
 
 [Service]
 KillSignal=SIGQUIT

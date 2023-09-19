@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# check 
+
+
 # start by supervisord
 
 /usr/local/bin/supervisord
