@@ -10,5 +10,4 @@ FROM portainer/portainer-ce:2.19.0
 LABEL maintainer="websoft9<help@websoft9.com>"
 LABEL version="2.19.0"
 COPY --from=builder /init_portainer /
-
 ENTRYPOINT ["/init_portainer"]

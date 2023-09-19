@@ -32,6 +32,7 @@ func main() {
 
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
+		fmt.Println("credential is not exist, create it.")
 		password := generatePassword(16)
 
 		err := writeToFile(filePath, password)
@@ -40,6 +41,7 @@ func main() {
 			return
 		}
 	}else{
+		fmt.Println("credential is  exist, skip it.")
 		cmd := exec.Command("./portainer")
 		cmd.Run()
 	}

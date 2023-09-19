@@ -6,7 +6,6 @@ services:
   portainer:
     container_name: websoft9-deployment
     image: websoft9dev/deployment:2.19.0
-    entrypoint: ["/init_portainer"]
     restart: always
     ports:
       - 9001-9999:9000
