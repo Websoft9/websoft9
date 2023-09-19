@@ -1,3 +1,10 @@
-# Cockpit Plugin
+# Cockpit
 
-Plugin powered by Websoft9
+
+## Install
+
+1. Install Cockpit core and official plugin
+
+
+
+2. Install plugin powered by websoft9
