@@ -30,7 +30,12 @@ if [ -f "/websoft9/credentials/git" ]; then
     content=$(cat /websoft9/credentials/git)
     username=$(echo "$content" | jq -r '.username')
     password=$(echo "$content" | jq -r '.password')
+    email=$(echo "$content" | jq -r '.email')
     echo "start to init git"
+    git config --global user.name $username
+    git config --global user.email $email
+    git config --global user.password $password
+
 else
     # git user not exist, output the error message
     echo "can not init git"
