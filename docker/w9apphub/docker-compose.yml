@@ -5,7 +5,7 @@ services:
     image: websoft9dev/apphub:$APP_VERSION
     container_name: $APP_NAME
     ports:
-      - 127.0.0.1:9001:8080
+      - 9001-9999:8080
     restart: always
     volumes:
       - logs:/websoft9/apphub/logs
