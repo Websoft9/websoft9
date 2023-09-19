@@ -26,7 +26,7 @@ jobs:
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
-          image: websoft9dev/gitea
+          image: websoft9dev/git
           tags: ${{ env.VERSION }}
           addLatest: True
           registry: docker.io

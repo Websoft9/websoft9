@@ -5,14 +5,14 @@
 version: '3.8'
 
 services:
-  gitea:
+  git:
     container_name: $APP_NAME
-    image: websoft9dev/gitea:$APP_VERSION
+    image: websoft9dev/git:$APP_VERSION
     restart: always
     env_file:
       - .env
     volumes:
-      - gitea:/data
+      - git:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     ports:
@@ -26,4 +26,4 @@ networks:
     external: true
 
 volumes:
-  gitea:
+  git:
