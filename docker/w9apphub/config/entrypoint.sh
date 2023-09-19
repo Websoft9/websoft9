@@ -15,7 +15,7 @@ check_file_exists() {
         fi
         sleep 2
         if ((i==max_attempts)); then
-            echo "$file_path is not exists, timeout."
+            echo "$file_path is not exists, app may be work normally."
             break
         fi
     done

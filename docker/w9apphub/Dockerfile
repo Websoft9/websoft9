@@ -15,7 +15,6 @@ RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_V
     mv -f plugin-appstore/data ./media && \
     git clone --depth=1 https://github.com/Websoft9/websoft9
 
-
 FROM python:3.10-slim-bullseye
 WORKDIR  /websoft9
 
