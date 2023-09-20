@@ -4,16 +4,9 @@ set -e
 
 trap "sleep 1; continue" ERR
 
-while ! docker cp my-container:/path/to/file websoft9-apphub:/websoft9/credentials; do
-    sleep 1
-done
-
-
-while ! docker cp my-container:/path/to/file websoft9-apphub:/path/to/credentials; do
-    sleep 1
-done
-
-
-while ! docker cp my-container:/path/to/file websoft9-apphub:/path/to/credentials; do
-    sleep 1
+while true; do
+    docker cp websoft9-git:/var/websoft9/credential websoft9-apphub:/websoft9/credentials
+    docker cp websoft9-deployment:/var/websoft9/credential websoft9-apphub:/websoft9/credentials
+    docker cp websoft9-proxy:/var/websoft9/credential websoft9-apphub:/websoft9/credentials
+    sleep 3
 done

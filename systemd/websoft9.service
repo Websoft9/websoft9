@@ -5,8 +5,8 @@ After=network.target docker
 
 [Service]
 KillSignal=SIGQUIT
-WorkingDirectory=/data/websoft9
-ExecStart=bash send_credentials.sh
+WorkingDirectory=/data/websoft9/systemd
+ExecStart=-/bin/bash send_credentials.sh
 Restart=always
 Type=notify
 NotifyAccess=all
