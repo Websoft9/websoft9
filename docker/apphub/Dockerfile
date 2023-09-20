@@ -15,7 +15,7 @@ RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_V
     mv -f plugin-appstore/data ./media && \
     git clone --depth=1 https://github.com/Websoft9/websoft9
 
-FROM python:3.10-slim-bullseye
+FROM python:3.10-slim
 WORKDIR  /websoft9
 
 COPY --from=buildstage /media/data ./media
@@ -29,7 +29,6 @@ RUN apt update && apt install git jq supervisor -y && \
 RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
 
 # supervisor
-
 # RUN pip install supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf

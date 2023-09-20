@@ -42,6 +42,6 @@ else
 fi
 
 # start by supervisord
-/usr/local/bin/supervisord
+/usr/bin/supervisord
 supervisorctl start all
 tail -f /dev/null
