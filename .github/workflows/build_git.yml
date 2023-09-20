@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "docker/w9git/Dockerfile"
+      - "docker/git/Dockerfile"
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
 
       - name: Get version
         run: |
-          version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/w9git/Dockerfile)
+          version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/git/Dockerfile)
           echo $version
           echo "::set-output name=version::$version"
           echo "VERSION=$version" >> $GITHUB_ENV
@@ -30,7 +30,7 @@ jobs:
           tags: ${{ env.VERSION }}
           addLatest: True
           registry: docker.io
-          dockerfile: docker/w9git/Dockerfile
-          directory: docker/w9git
+          dockerfile: docker/git/Dockerfile
+          directory: docker/git
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
