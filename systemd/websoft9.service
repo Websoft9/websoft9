@@ -8,7 +8,7 @@ KillSignal=SIGQUIT
 WorkingDirectory=/data/websoft9/systemd
 ExecStart=-/bin/bash send_credentials.sh
 Restart=always
-Type=notify
+Type=simple
 NotifyAccess=all
 StandardError=syslog
 
