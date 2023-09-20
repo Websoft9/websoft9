@@ -40,7 +40,9 @@ VOLUME /usr/websoft9/apphub/src/conf
 VOLUME /usr/websoft9/media
 
 # Clean cache and install files
-RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore
+RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
