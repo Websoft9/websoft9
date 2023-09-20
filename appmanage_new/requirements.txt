@@ -1,7 +1,6 @@
 fastapi
 uvicorn
 keyring
-requests
 keyrings.alt
 requests
 GitPython
