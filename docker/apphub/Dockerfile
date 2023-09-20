@@ -33,7 +33,6 @@ RUN pip install supervisor
 COPY config/supervisord.conf /usr/local/supervisord.conf
 RUN chmod +r /usr/local/supervisord.conf
 
-
 COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
