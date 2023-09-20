@@ -51,14 +51,16 @@ function get_os_version() {
 
     echo $VERSION
 }
+
+
 os_type=$(get_os_type)
 os_version=$(get_os_version)
 
-CheckEnvironment(){
 
-echo "---------------------------------- Welcome to install websoft9's appstore, it will take 3-5 minutes -------------------------------------------------------" 
 
-echo "Check  environment ..."
+Check_OS(){
+
+echo "Check OS environment for install Cockpit..."
 echo  os_type: $os_type
 echo  os_version: $os_version
 if [ $(id -u) != "0" ]; then
@@ -122,20 +124,11 @@ if  [ "$os_type" == 'Debian' ];then
       echo "This app only supported on Debian 11"
       exit 1
   fi
-fi
-
-# Todo: need replaced it with vars
-# Check port used
-if netstat -tuln | grep -qE ':(80|443|9000)\s'; then
-    echo "Port 80,443,9000  is already in use."
-    exit 1
-else
-    echo "Port 80,443, 9000 are free."
-fi        
+fi      
 }
 
 
-InstallCockpit(){
+Install_Cockpit(){
 echo "Prepare to install Cockpit ..." 
 
 if [ "${os_type}" == 'Debian' ]; then
@@ -209,8 +202,7 @@ fi
 echo "Set cockpit port to 9000 ..." 
 sudo sed -i 's/ListenStream=9090/ListenStream=9000/' /lib/systemd/system/cockpit.socket
 
-
 }
 
-CheckEnvironment
-InstallCockpit
+Check_OS
+Install_Cockpit
