@@ -31,8 +31,8 @@ RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
 # supervisor
 
 # RUN pip install supervisor
-COPY config/supervisord.conf /usr/local/supervisord.conf
-RUN chmod +r /usr/local/supervisord.conf
+COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
 COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
