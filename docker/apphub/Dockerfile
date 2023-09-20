@@ -29,6 +29,7 @@ RUN apt update && apt install git jq supervisor -y && \
 RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
 
 # supervisor
+
 # RUN pip install supervisor
 COPY config/supervisord.conf /usr/local/supervisord.conf
 RUN chmod +r /usr/local/supervisord.conf
