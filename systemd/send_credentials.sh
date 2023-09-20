@@ -15,8 +15,7 @@ while true; do
     docker cp websoft9-deployment:/var/websoft9/credential /data/websoft9/credential_deployment
     content=$(cat /data/websoft9/credential_deployment)
     username="admin"
-    password=$(echo "$content" | awk -F':' '{print $2}')
-    json="{\"username\":\"$username\",\"password\":\"$password\"}"
+    json="{\"username\":\"$username\",\"password\":\"$content\"}"
     echo "$json" > /data/websoft9/credential_deployment
     docker cp /data/websoft9/credential_deployment websoft9-apphub:/websoft9/credentials
     
