@@ -4,9 +4,8 @@ Requires=network.target docker
 After=network.target docker
 
 [Service]
-KillSignal=SIGQUIT
 WorkingDirectory=/data/websoft9/systemd
-ExecStart=-/bin/bash send_credentials.sh
+ExecStart=/bin/bash send_credentials.sh
 Restart=always
 Type=simple
 NotifyAccess=all
