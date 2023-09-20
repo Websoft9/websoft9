@@ -22,14 +22,14 @@ COPY --from=buildstage /media/data ./media
 COPY --from=buildstage /library ./library
 COPY --from=buildstage /websoft9/appmanage_new ./apphub
 
-RUN apt update && apt install git jq -y && \
+RUN apt update && apt install git jq supervisor -y && \
     mkdir credentials && \
     echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
 
 RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
 
 # supervisor
-RUN pip install supervisor
+# RUN pip install supervisor
 COPY config/supervisord.conf /usr/local/supervisord.conf
 RUN chmod +r /usr/local/supervisord.conf
 COPY config/entrypoint.sh /entrypoint.sh
