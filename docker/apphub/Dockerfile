@@ -2,7 +2,7 @@ FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="0.0.1"
 
-ENV LIBRARY_VERSION=v0.5.4
+ENV LIBRARY_VERSION=v0.5.5
 
 # Prepare library
 RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
