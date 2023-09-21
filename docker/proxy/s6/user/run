@@ -1,6 +1,3 @@
 #!/bin/bash
 
-[[ -f ./setup ]] && source ./setup
-pushd /root >/dev/null
-exec su-exec root /bin/echo ""
-popd
+exec "/etc/s6-overlay/s6-rc.d/user/setup" "$@"
