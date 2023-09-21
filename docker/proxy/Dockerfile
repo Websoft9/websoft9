@@ -9,5 +9,4 @@ COPY ./s6/user /etc/s6-overlay/s6-rc.d/user
 
 COPY init /init
 RUN chmod -R 755 /etc/s6-overlay/s6-rc.d/user /init
-
 ENTRYPOINT ["/init"]

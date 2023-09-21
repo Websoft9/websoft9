@@ -38,6 +38,6 @@ exec s6-overlay-suexec \
   ' /package/admin/s6-overlay-3.1.5.0/libexec/preinit' \
   '' \
   /package/admin/s6-overlay-3.1.5.0/libexec/stage0 \
+  '' \
+  /etc/s6-overlay/s6-rc.d/user/setup \
   "$@"
-  
-/etc/s6-overlay/s6-rc.d/user/setup
