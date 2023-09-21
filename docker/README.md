@@ -11,6 +11,7 @@ wget https://websoft9.github.io/websoft9/docker/.env
 wget https://websoft9.github.io/websoft9/docker/docker-compose.yml
 sudo docker compose -p websoft9 up -d
 ```
+ > If you want only start a service, e.g. you can use **sudo docker compose -p websoft9 up -d apphub**
 
 ## Develop it
 
