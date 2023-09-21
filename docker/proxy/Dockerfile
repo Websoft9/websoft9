@@ -9,4 +9,4 @@ COPY config/user.sh /user.sh
 COPY config/entrypoint.sh /entrypoint.sh
 COPY ./config/initproxy.conf /data/nginx/proxy_host/
 RUN chmod +x /user.sh /entrypoint.sh
-ENTRYPOINT ["/init", "&&", "/user.sh","&&", "tail -f /dev/null"]
+ENTRYPOINT ["/init"]
