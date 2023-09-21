@@ -3,10 +3,8 @@ FROM jc21/nginx-proxy-manager:2.10.4
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="2.10.4"
 
-RUN apt-get update && apt-get install -y curl supervisor jq
-COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY config/user.sh /user.sh
-COPY config/entrypoint.sh /entrypoint.sh
+RUN apt-get update && apt-get install -y curl  jq
 COPY ./config/initproxy.conf /data/nginx/proxy_host/
-RUN chmod +x /user.sh /entrypoint.sh
+COPY ./s6/user /etc/s6-overlay/s6-rc.d/user
+RUN chmod -R 755 /etc/s6-overlay/s6-rc.d/user
 ENTRYPOINT ["/init"]
