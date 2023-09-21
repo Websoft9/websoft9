@@ -21,7 +21,8 @@ jobs:
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/git/Dockerfile)
           echo $version
           echo "::set-output name=version::$version"
-          echo "VERSION=$version" >> $GITHUB_ENV
+          new_version=${version},latest
+          echo "VERSION=$new_version" >> $GITHUB_ENV
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
