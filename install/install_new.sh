@@ -11,10 +11,18 @@ export PATH
 # --force <y|n>
 # Use the --force option to ignore all interactive choices. default is n, for example:
 #
+#  $ sudo sh install.sh --force n
+#
 # --port <9000>
 # Use the --port option to set Websoft9 cosole port. default is 9000, for example:
 #
 #   $ sudo sh install.sh --port 9001
+#
+# --channel <release|dev>
+# Use the --channel option to install a release(production) or dev distribution. default is release, for example:
+#
+#  $ sudo sh install.sh --channel release
+#
 # ==============================================================================
 
 #!/bin/bash
@@ -22,6 +30,7 @@ export PATH
 # 设置参数的默认值
 force="n"
 port="9000"
+channel="release"
 
 # 获取参数值
 while [[ $# -gt 0 ]]; do
@@ -34,6 +43,10 @@ while [[ $# -gt 0 ]]; do
             port="$2"
             shift 2
             ;;
+        --channel)
+            channel="$2"
+            shift 2
+            ;;
         *)
             shift
             ;;
@@ -41,10 +54,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 输出参数值
-echo "Force: $force"
-echo "Port: $port"
+echo "Your installation parameters are as follows: "
+echo "--force: $force"
+echo "--port: $port"
+echo "--channel: $channel"
 
 # Define global vars
+# export var can send it to subprocess
 
 export http_port=80
 export https_port=443
@@ -53,16 +69,12 @@ export force_install=$force
 export install_path="/data/websoft9/source"
 export source_zip="websoft9-latest.zip"
 export source_unzip="websoft9"
+export source_github_pages="https://websoft9.github.io/websoft9"
 export tools_yum="git curl wget yum-utils jq bc unzip"
 export tools_apt="git curl wget jq bc unzip"
 export docker_network="websoft9"
-export urls="https://w9artifact.blob.core.windows.net/release/websoft9"
-
-if [[ "$1" == "dev" ]]; then
-    echo "update by dev artifact"
-    export urls="https://w9artifact.blob.core.windows.net/dev/websoft9"
-fi
-
+export urls="https://w9artifact.blob.core.windows.net/$channel/websoft9"
+echo Install from url: $urls
 
 # Define common functions
 
@@ -78,14 +90,14 @@ install_tools(){
     if [ $dnf_status -eq 0 ]; then
         dnf install $tools_yum -y
     elif [ $yum_status -eq 0 ]; then
-        yum $tools_yum -y
+        yum install $tools_yum -y
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
         echo "Waiting for other software managers to finish..."
         sleep 5
         done
         sudo apt update -y 1>/dev/null 2>&1
-        apt $tools_apt -y --assume-yes
+        apt install $tools_apt -y --assume-yes
     else
         echo "None of the required package managers are installed."
     fi
@@ -95,13 +107,14 @@ install_tools(){
 
 download_source() {
     echo "Download Websoft9 source code..."
+    rm -rf websoft9-latest.zip*
     if [ -d "$install_path" ]; then
         echo "Directory $install_path already exists."
     else
         mkdir -p "$install_path"
     fi
 
-    wget "$urls/$source_package"
+    wget "$urls/$source_zip"
     if [ $? -ne 0 ]; then
         echo "Failed to download source package."
         exit 1
@@ -113,8 +126,13 @@ download_source() {
         exit 1
     fi
 
-    mv -fn "$install_path/$source_unzip/*" "$install_path"
-    rm -rf "$source_package" "$install_path/$source_unzip"
+    mv -fn $install_path/$source_unzip/* "$install_path"
+    if [ $? -ne 0 ]; then
+        echo "Move directory failed"
+        exit 1
+    fi
+
+    rm -rf "$source_zip" "$install_path/$source_unzip"
 
 }
 
@@ -132,7 +150,7 @@ check_ports() {
     echo "All ports are available"
 }
 
-install_compose() {
+install_backends() {
     echo "Install backend docker services"
     cd "$install_path/docker"
     if [ $? -ne 0 ]; then
@@ -151,7 +169,8 @@ install_compose() {
         fi
     fi
 
-    sudo docker-compose -p websoft9 up -d
+    sudo docker compose -p websoft9 pull
+    sudo docker compose -p websoft9 up -d
     if [ $? -ne 0 ]; then
         echo "Failed to start docker services."
         exit 1
@@ -195,10 +214,10 @@ check_ports $http_port $https_port $cockpit_port
 install_tools
 download_source
 
-bash install_docker.sh
-bash install_cockpit.sh
-bash install_plugins.sh
+bash $install_path/install/install_docker.sh
+bash $install_path/install/install_cockpit.sh
+bash $install_path/install/install_plugins.sh
 
-install_compose
+install_backends
 install_systemd
-echo "-- Install success! Access Websoft9 console by: http://Internet IP:9000 and using Linux user for login ------" 
+echo "-- Install success! Access Websoft9 console by: http://Internet IP:$cockpit_port and using Linux user for login ------" 

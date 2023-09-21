@@ -16,6 +16,7 @@
   },
   "OS_SUPPORT": {
     "Fedora": [
+      "38",
       "37"
     ],
     "RedHat": [

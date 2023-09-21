@@ -26,7 +26,7 @@ export PATH
 
 ############################################################
 # This script is 
-#  $force_value is define at install.sh
+#  $force_install is define at install.sh
 ############################################################
 
 docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"

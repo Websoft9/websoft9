@@ -116,13 +116,6 @@ sudo docker restart websoft9-nginxproxymanager
 sudo docker cp websoft9-appmanage:/usr/src/app/db/database.sqlite /usr
 }
 
-EditMenu(){
 
-echo "Start to  Edit Cockpit Menu ..."
-
-# uninstall plugins
-rm -rf /usr/share/cockpit/apps /usr/share/cockpit/selinux /usr/share/cockpit/kdump /usr/share/cockpit/sosreport /usr/share/cockpit/packagekit
-cp -r /data/apps/websoft9/cockpit/menu_override/* /etc/cockpit
-}
 
 InstallPlugins
