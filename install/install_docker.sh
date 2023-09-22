@@ -25,9 +25,10 @@ export PATH
 #   $ sudo sh install-docker.sh
 
 ############################################################
-# This script is 
-#  $force_install is define at install.sh
+# Below vars export from install.sh
+#  $force_install
 ############################################################
+
 
 docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
 docker_exist="command -v docker &> /dev/null && systemctl is-active --quiet docker"
