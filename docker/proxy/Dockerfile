@@ -10,3 +10,5 @@ RUN ls /etc/s6-overlay/s6-rc.d/init_user
 #RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/init_user
 
 RUN chmod -R 755 /etc/s6-overlay/s6-rc.d/init_user
+
+CMD ["/bin/sh", "-c", "/etc/s6-overlay/s6-rc.d/init_user/init_user.sh && nginx"]
