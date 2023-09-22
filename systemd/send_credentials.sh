@@ -4,7 +4,9 @@ set -e
 
 trap "sleep 1; continue" ERR
 
+try_times=30
 counter=1
+
 while true; do
     
     set +e
@@ -41,13 +43,13 @@ while true; do
     if [ -f "/data/websoft9/credential_git" ] && [ -f "/data/websoft9/credential_deployment" ] && [ -f "/data/websoft9/credential_proxy" ]; then
         break
     else
-        if [ $counter -gt 30 ]; then
+        if [ $counter -gt $try_times ]; then
             echo "Systemd can not get all credentials by excuting 30 times"
             break
         fi
     fi
-
-    set -e
     sleep 3
+    set -e
+    
 done
 tail -f /dev/null
