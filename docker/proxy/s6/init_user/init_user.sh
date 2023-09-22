@@ -1,5 +1,9 @@
 #!/bin/bash
 
+echo "Start to change nginxproxymanage users" >> /tmp/userlog
+
+sleep 60
+
 username="help@websoft9.com"
 password=$(openssl rand -base64 16 | tr -d '/+' | cut -c1-16)
 token=""
@@ -12,8 +16,6 @@ fi
 
 echo "create diretory"
 mkdir -p "$(dirname "$cred_path")"
-
-echo "Start to change nginxproxymanage users" >> /tmp/userlog
 
 while [ -z "$token" ]; do
     sleep 5
