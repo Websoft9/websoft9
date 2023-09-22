@@ -7,6 +7,6 @@ RUN apt-get update && apt-get install -y curl  jq
 COPY ./config/initproxy.conf /data/nginx/proxy_host/
 COPY ./s6/init_user /etc/s6-overlay/s6-rc.d/init_user
 RUN ls /etc/s6-overlay/s6-rc.d/init_user
-RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/init_user
+#RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/init_user
 
 RUN chmod -R 755 /etc/s6-overlay/s6-rc.d/init_user
