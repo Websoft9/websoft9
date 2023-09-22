@@ -1,0 +1,3 @@
+#!/bin/bash
+
+exec "/etc/s6-overlay/s6-rc.d/init_user/setup"
