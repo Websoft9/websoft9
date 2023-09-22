@@ -1,8 +1,6 @@
 #!/bin/bash
 
-echo "Start to change nginxproxymanage users" >> /tmp/userlog
-
-sleep 60
+echo "Start to change nginxproxymanage users"
 
 username="help@websoft9.com"
 password=$(openssl rand -base64 16 | tr -d '/+' | cut -c1-16)
