@@ -22,10 +22,28 @@ while [ -z "$token" ]; do
 done
 
 echo "Change username(email)" >> /tmp/userlog
-curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "'$username'", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://localhost:81/api/users/1
+while true; do
+    response=$(curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "'$username'", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://localhost:81/api/users/1)
+    if [ $? -eq 0 ]; then
+        echo "HTTP call successful"
+        break
+    else
+        echo "HTTP call Change username failed, retrying..." >> /tmp/userlog
+        sleep 5
+    fi
+done
 
 echo "Update password" >> /tmp/userlog
-curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$password'"}'  http://localhost:81/api/users/1/auth
+while true; do
+    response=$(curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$password'"}'  http://localhost:81/api/users/1/auth)
+    if [ $? -eq 0 ]; then
+        echo "HTTP call successful"
+        break
+    else
+        echo "HTTP call  Update password failed, retrying..." >> /tmp/userlog
+        sleep 5
+    fi
+done
 
 echo "Save to credential"
 json="{\"username\":\"$username\",\"password\":\"$password\"}"

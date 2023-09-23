@@ -4,7 +4,7 @@ set -e
 
 trap "sleep 1; continue" ERR
 
-try_times=30
+try_times=100
 counter=1
 portainer_username="admin"
 
@@ -38,7 +38,8 @@ copy_credential() {
 
 while true; do
     set +e
-
+    
+    sleep 3
     printf "Try to get credentials for %d times\n" "$counter"
 
     copy_credential "websoft9-git" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_git"
@@ -56,7 +57,6 @@ while true; do
         fi
     fi
 
-    sleep 3
     set -e
 
     counter=$((counter + 1))
