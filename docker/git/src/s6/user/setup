@@ -1,8 +1,23 @@
 #!/bin/bash
 
-echo "start  create user shell"
-
+echo "start  create user shell" >> /tmp/user
 set -e
+
+# Confirm gitea is running
+count=1
+response=""
+while [ "$response" != "200" ]; do
+  response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000)
+  if [ "$response" = "200" ]; then
+    echo "gitea is runing"
+    break
+  fi
+  count=$((count+1))
+  if [ $count -gt 10 ]; then
+    echo "gitea is not runing"
+    break
+  fi
+done
 
 cred_path="/var/websoft9/credential"
 admin_username="websoft9"
@@ -10,15 +25,11 @@ admin_email="help@websoft9.com"
 
 if [ -e "$cred_path" ]; then
   echo "File $cred_path exists. Exiting script."
-  exit 1
+  exit 0
 fi
 
 echo "create diretory"
 mkdir -p "$(dirname "$cred_path")"
-
-
-# TODO IF admin is exists, echo it to cred_path
-# TODO wait culr localhost:3000
 
 echo "Create admin credential by admin cli"
 su -c "

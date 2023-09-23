@@ -25,7 +25,7 @@ admin_email="help@websoft9.com"
 
 if [ -e "$cred_path" ]; then
   echo "File $cred_path exists. Exiting script."
-  exit 1
+  exit 0
 fi
 
 echo "create diretory"
