@@ -7,49 +7,58 @@ trap "sleep 1; continue" ERR
 try_times=30
 counter=1
 
+copy_credential() {
+    source_container=$1
+    source_path=$2
+    destination_container=$3
+    destination_path=$4
+
+    if docker exec "$destination_container" [ -f "$destination_path" ]; then
+        printf "%s already exists\n" "$destination_path"
+    else
+        temp_file=$(mktemp)
+        docker cp "$source_container:$source_path" "$temp_file"
+
+        # Check if temp_file is JSON format
+        if jq -e . >/dev/null 2>&1 <<< "$(cat "$temp_file")"; then
+            # If it is JSON format, use it directly
+            docker cp "$temp_file" "$destination_container:$destination_path"
+        else
+            # If it is not JSON format, get the content and convert it to JSON
+            content=$(cat "$temp_file")
+            json="{\"username\":\"$username\",\"password\":\"$content\"}"
+            echo "$json" > "$temp_file"
+            docker cp "$temp_file" "$destination_container:$destination_path"
+        fi
+
+        rm -f "$temp_file"
+    fi
+}
+
 while true; do
-    
     set +e
-    
-    echo Try to get credentia for $counter times
-    if [ -f "/data/websoft9/credential_git" ]; then
-        echo "/data/websoft9/credential_git is exist"
-    else
-        echo "copy git credential"
-        docker cp websoft9-git:/var/websoft9/credential /data/websoft9/credential_git
-        docker cp /data/websoft9/credential_git websoft9-apphub:/websoft9/credentials
-    fi
 
-    if [ -f "/data/websoft9/credential_deployment" ]; then
-        echo "/data/websoft9/credential_deployment is exist"
-    else
-        echo "copy deployment credential"
-        docker cp websoft9-deployment:/var/websoft9/credential /data/websoft9/credential_deployment
-        content=$(cat /data/websoft9/credential_deployment)
-        username="admin"
-        json="{\"username\":\"$username\",\"password\":\"$content\"}"
-        echo "$json" > /data/websoft9/credential_deployment
-        docker cp /data/websoft9/credential_deployment websoft9-apphub:/websoft9/credentials
-    fi
+    printf "Try to get credentials for %d times\n" "$counter"
 
-    if [ -f "/data/websoft9/credential_proxy" ]; then
-        echo "/data/websoft9/credential_proxy is exist"
-    else
-        echo "copy nginx credential ..."
-        docker cp websoft9-proxy:/var/websoft9/credential /data/websoft9/credential_proxy
-        docker cp /data/websoft9/credential_proxy websoft9-apphub:/websoft9/credentials
-    fi
+    copy_credential "websoft9-git" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_git"
+    copy_credential "websoft9-deployment" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_deployment"
+    copy_credential "websoft9-proxy" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_proxy"
 
-    if [ -f "/data/websoft9/credential_git" ] && [ -f "/data/websoft9/credential_deployment" ] && [ -f "/data/websoft9/credential_proxy" ]; then
+    if docker exec "websoft9-apphub" [ -f "/websoft9/credentials/credential_git" ] && \
+       docker exec "websoft9-apphub" [ -f "/websoft9/credentials/credential_deployment" ] && \
+       docker exec "websoft9-apphub" [ -f "/websoft9/credentials/credential_proxy" ]; then
         break
     else
         if [ $counter -gt $try_times ]; then
-            echo "Systemd can not get all credentials by excuting 30 times"
+            printf "Systemd cannot get all credentials after executing %d times\n" "$try_times"
             break
         fi
     fi
+
     sleep 3
     set -e
-    
+
+    counter=$((counter + 1))
 done
+
 tail -f /dev/null
