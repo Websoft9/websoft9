@@ -6,6 +6,7 @@ trap "sleep 1; continue" ERR
 
 try_times=30
 counter=1
+portainer_username="admin"
 
 copy_credential() {
     source_container=$1
@@ -26,7 +27,7 @@ copy_credential() {
         else
             # If it is not JSON format, get the content and convert it to JSON
             content=$(cat "$temp_file")
-            json="{\"username\":\"$username\",\"password\":\"$content\"}"
+            json="{\"username\":\"$portainer_username\",\"password\":\"$content\"}"
             echo "$json" > "$temp_file"
             docker cp "$temp_file" "$destination_container:$destination_path"
         fi
