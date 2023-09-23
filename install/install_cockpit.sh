@@ -5,13 +5,14 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
 
+## This script is used for install or upgrade Cockpit on Linux
 ## Cockpit build at redhat family: https://copr.fedorainfracloud.org/coprs/g/cockpit/cockpit-preview/monitor/
 ## PackageKit: https://www.freedesktop.org/software/PackageKit/
+## Not use pkcon install/update cockpit, the reason is: https://cockpit-project.org/faq.html#error-message-about-being-offline
 ## pkcon can read repositories at you system directly, it don't provide exra repository
 ## [apt show cockpit] or [apt install cockpit] show all additional packages
-## Ubuntu have backports at file /etc/apt/sources.list
-
-
+## Ubuntu have backports at file /etc/apt/sources.list by default
+## Cockpit application: https://cockpit-project.org/applications
 
 # Command-line options
 # ==========================================================
@@ -51,21 +52,59 @@ if [ -z "$cockpit_port" ]; then
 fi
 
 echo_prefix_cockpit=$'\n[Cockpit] - '
-cockpit_packages="cockpit cockpit-pcp cockpit-sosreport"
+cockpit_packages_install="cockpit cockpit-pcp cockpit-sosreport"
+cockpit_packages_upgrade="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-ws cockpit-storaged cockpit-session-recording  cockpit-doc cockpit-packagekit cockpit-pcp cockpit-sosreport"
 cockpit_plugin_delete="apps,machines,selinux,subscriptions,kdump,updates,playground,packagekit"
 menu_overrides_github_page_url="https://websoft9.github.io/websoft9/cockpit/menu_override"
 cockpit_config_github_page_url="https://websoft9.github.io/websoft9/cockpit/cockpit.conf"
 cockpit_menu_overrides=(networkmanager.override.json shell.override.json storaged.override.json systemd.override.json users.override.json)
+# export OS release environments
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+else
+    echo "Can't judge your Linux distribution"
+    exit 1
+fi
+
+# This solution from: https://help.ubuntu.com/community/PinningHowto
+pin_config="
+Package: cockpit*
+Pin: release a=$VERSION_CODENAME-backports
+Pin-Priority: 1000
+"
+
+check_ports() {
+    local ports=("$@")
+
+    for port in "${ports[@]}"; do
+        if netstat -tuln | grep ":$port " >/dev/null; then
+            echo "Port $port is in use, install failed"
+            exit
+        fi
+    done
+
+    echo "All ports are available"
+}
+
+Print_Version(){
+
+    if command -v apt >/dev/null; then
+        apt show cockpit | head -n 15
+    else
+        yum info cockpit || dnf info cockpit
+    fi
+
+}
 
 Install_PackageKit(){
     echo "$echo_prefix_cockpit Install PackageKit(pkcon) and Cockpit repository"
 
     if command -v pkcon &> /dev/null; then
-        echo "pkcon is at you system"
+        echo "pkcon is at your system ..."
 
     elif command -v yum &> /dev/null; then
         if [ "$(cat /etc/redhat-release)" = "Redhat7" ]; then
-        sudo subscription-manager repos --enable rhel-7-server-extras-rpms
+            sudo subscription-manager repos --enable rhel-7-server-extras-rpms
         fi
         sudo yum install PackageKit
 
@@ -73,20 +112,28 @@ Install_PackageKit(){
         sudo dnf install PackageKit
 
     elif command -v apt &> /dev/null; then
-          if [ -f /etc/os-release ]; then
-            . /etc/os-release
-            if [ "$NAME" == "Debian" ]; then
-               echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list
-            fi
-        fi
         sudo apt update
         sudo apt install packagekit
 
     else
-        echo "PackageKit not found, Cockpit can not install"
+        echo "PackageKit not found, Cockpit cannot be installed"
         exit 1
     fi
 }
+
+
+Set_Repository() {
+    echo "$echo_prefix_cockpit Set Cockpit repository"
+    if command -v apt &> /dev/null; then
+        if [ "$NAME" = "Debian" ]; then
+            echo "deb http://deb.debian.org/debian $VERSION_CODENAME-backports main" > /etc/apt/sources.list.d/backports.list
+        fi
+        echo "Set the cockpit repository priority on Ubuntu/Debian..."
+        sudo bash -c "echo '$pin_config' > /etc/apt/preferences.d/cockpit_backports"
+    fi
+    echo "Complete set Cockpit repository"
+}
+
 
 Restart_Cockpit(){
     echo "$echo_prefix_cockpit Restart Cockpit"
@@ -115,6 +162,9 @@ Set_Cockpit(){
 
     echo "Cockpit allowed root user ..." 
     echo "" > /etc/cockpit/disallowed-users
+
+    # fix bug: https://github.com/Websoft9/websoft9/issues/332
+    sed 's/selector(:is():where())/selector(:is(*):where(*))/' -i /usr/share/cockpit/static/login.js 
 
     echo "Set Cockpit config file..." 
     if [ -f "$install_path/cockpit/cockpit.conf" ]; then
@@ -171,31 +221,38 @@ Edit_Menu(){
         Download_Menu_Override
     fi
 
-    sudo rm -rf /usr/share/cockpit/{$cockpit_plugin_delete}
+    echo "$cockpit_plugin_delete" | tr ',' '\n' | sudo xargs -I {} rm -rf "/usr/share/cockpit/{}"
 }
 
 Upgrade_Cockpit(){
     echo "$echo_prefix_cockpit Prepare to upgrade Cockpit"
-    output=$(sudo pkcon update $cockpit_packages -y --allow-untrusted 2>&1)
-    if [ $? -ne 0 ]; then
-    echo "Cockpit upgrade failed or not need upgrade..."
+    echo "You installed version:  "
+    Print_Version
+    if command -v apt >/dev/null; then
+        export DEBIAN_FRONTEND=noninteractive
+        sudo dpkg --configure -a
+        apt update -y
+        apt --fix-broken install
+        apt install -u $cockpit_packages_upgrade -y
     else
-    echo "$output"
+        sudo pkcon refresh > /dev/null
+        sudo pkcon get-updates > /dev/null
+        sudo pkcon update $cockpit_packages_upgrade -y
     fi
 }
 
 Install_Cockpit(){
-    
-    sudo pkcon refresh > /dev/null
-    sudo pkcon get-updates > /dev/null
 
-    if systemctl is-active --quiet cockpit; then
+    if systemctl list-unit-files | grep -q cockpit.service; then
         Upgrade_Cockpit
         Restart_Cockpit
     else
         echo "$echo_prefix_cockpit Prepare to install Cockpit" 
+        check_ports $port
         export DEBIAN_FRONTEND=noninteractive
-        sudo pkcon install $cockpit_packages -y --allow-untrusted
+        sudo pkcon refresh > /dev/null
+        sudo pkcon get-updates > /dev/null
+        sudo pkcon install $cockpit_packages_install -y --allow-untrusted
         Restart_Cockpit
     fi
 
@@ -215,12 +272,15 @@ Test_Cockpit(){
         echo "Cockpit is not running..."
         exit 1
     fi
+
+    Print_Version
 }
 
 
 #### -------------- main() start here  -------------------  ####
 
 Install_PackageKit
+Set_Repository
 Install_Cockpit
 Test_Cockpit
 
