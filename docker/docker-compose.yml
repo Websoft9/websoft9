@@ -50,7 +50,7 @@ services:
       com.docker.compose.w9_http.port: 3000
 
   proxy:
-    image: jc21/nginx-proxy-manager:$PROXY_VERSION
+    image: websoft9dev/proxy:$PROXY_VERSION
     container_name: websoft9-proxy
     restart: always
     ports:
