@@ -33,5 +33,5 @@ fi
 password=$(grep -o "generated random password is '[^']*" /tmp/credential | sed "s/generated random password is '//")
 
 echo "Save to credential"
-json="{\"username\":\"$username\",\"password\":\"$password\"}"
+json="{\"username\":\"$admin_username\",\"password\":\"$password\",\"email\":\"$admin_email\"}"
 echo "$json" > "$cred_path"
