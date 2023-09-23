@@ -2,6 +2,7 @@
 
 echo "Start to change nginxproxymanage users"
 
+set +e 
 username="help@websoft9.com"
 password=$(openssl rand -base64 16 | tr -d '/+' | cut -c1-16)
 token=""
@@ -48,3 +49,5 @@ done
 echo "Save to credential"
 json="{\"username\":\"$username\",\"password\":\"$password\"}"
 echo "$json" > "$cred_path"
+
+set -e
