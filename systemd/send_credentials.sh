@@ -35,18 +35,18 @@ copy_credential() {
 }
 
 while true; do
-    set +e
-    
+
     sleep 3
-    printf "Try to get credentials for %d times\n" "$counter"
+    set +e
+    echo  "Try to get credentials for %d times\n" "$counter" >> /tmp/copy
 
     copy_credential "websoft9-git" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_git"
     copy_credential "websoft9-deployment" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_deployment"
     copy_credential "websoft9-proxy" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_proxy"
 
-    if docker exec "websoft9-apphub" [ -f "/websoft9/credentials/credential_git" ] && \
-       docker exec "websoft9-apphub" [ -f "/websoft9/credentials/credential_deployment" ] && \
-       docker exec "websoft9-apphub" [ -f "/websoft9/credentials/credential_proxy" ]; then
+    if docker exec "websoft9-apphub" [ -s "/websoft9/credentials/credential_git" ] && \
+       docker exec "websoft9-apphub" [ -s "/websoft9/credentials/credential_deployment" ] && \
+       docker exec "websoft9-apphub" [ -s "/websoft9/credentials/credential_proxy" ]; then
         break
     else
         if [ $counter -gt $try_times ]; then
