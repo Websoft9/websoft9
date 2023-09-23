@@ -64,7 +64,6 @@ class PortainerAPI:
             },
         )
        
-
     def get_endpoints(self,start: int = 0,limit: int = 1000):
         """
         Get endpoints
@@ -80,17 +79,17 @@ class PortainerAPI:
             },
         )
     
-    def get_endpoint_by_id(self, endpointID: int):
+    def get_endpoint_by_id(self, endpointId: int):
         """
         Get endpoint by ID
 
         Args:
-            endpointID (int): Endpoint ID
+            endpointId (int): Endpoint ID
 
         Returns:
             Response: Response from Portainer API
         """
-        return self.api.get(path=f"endpoints/{endpointID}")
+        return self.api.get(path=f"endpoints/{endpointId}")
 
     def create_endpoint(self, name: str, EndpointCreationType: int = 1):
         """
@@ -109,12 +108,12 @@ class PortainerAPI:
             params={"Name": name, "EndpointCreationType": EndpointCreationType},
         )
 
-    def get_stacks(self, endpointID: int):
+    def get_stacks(self, endpointId: int):
         """
         Get stacks
 
         Args:
-            endpointID (int): Endpoint ID
+            endpointId (int): Endpoint ID
 
         Returns:
             Response: Response from Portainer API
@@ -123,7 +122,7 @@ class PortainerAPI:
             path="stacks",
             params={
                 "filters": json.dumps(
-                    {"EndpointID": endpointID, "IncludeOrphanedStacks": True}
+                    {"EndpointID": endpointId, "IncludeOrphanedStacks": True}
                 )
             },
         )
@@ -140,22 +139,22 @@ class PortainerAPI:
         """
         return self.api.get(path=f"stacks/{stackID}")
 
-    def remove_stack(self, stackID: int, endPointID: int):
+    def remove_stack(self, stackID: int, endpointId: int):
         """
         Remove a stack
 
         Args:
             stackID (int): Stack ID
-            endPointID (int): Endpoint ID
+            endpointId (int): Endpoint ID
 
         Returns:
             Response: Response from Portainer API
         """
         return self.api.delete(
-            path=f"stacks/{stackID}", params={"endpointId": endPointID}
+            path=f"stacks/{stackID}", params={"endpointId": endpointId}
         )
 
-    def create_stack_standlone_repository(self, stack_name: str, endpointId: int, repositoryURL: str):
+    def create_stack_standlone_repository(self, stack_name: str, endpointId: int, repositoryURL: str,usr_name:str,usr_password:str):
         """
         Create a stack from a standalone repository
 
@@ -174,6 +173,9 @@ class PortainerAPI:
                 "Name": stack_name,
                 "RepositoryURL": repositoryURL,
                 "ComposeFile": "docker-compose.yml",
+                "repositoryAuthentication": True,
+                "RepositoryUsername": usr_name,
+                "RepositoryPassword": usr_password,
             },
         )
 
@@ -221,3 +223,31 @@ class PortainerAPI:
         return self.api.post(
             path=f"stacks/{stackID}/redeploy", params={"endpointId": endpointId}
         )
+
+    def get_volumes(self, endpointId: int,dangling: bool = False):
+        """
+        Get volumes in endpoint
+
+        Args:
+            endpointId (int): Endpoint ID
+        """
+        return self.api.get(
+        path=f"endpoints/{endpointId}/docker/volumes",
+        params={
+            "filters": json.dumps(
+                {"dangling": [str(dangling).lower()]}
+            )
+        }
+    )
+    
+    def remove_volume_by_name(self, endpointId: int,volume_name:str):
+        """
+        Remove volumes by name
+
+        Args:
+            endpointId (int): Endpoint ID
+            volume_name (str): volume name
+        """
+        return self.api.delete(
+        path=f"endpoints/{endpointId}/docker/volumes/{volume_name}",
+    )

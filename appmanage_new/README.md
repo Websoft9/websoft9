@@ -1,4 +1,9 @@
 # run app : uvicorn src.main:app --reload --port 9999
+# run nginx proxy manager doc:docker run -p 9091:8080 -e SWAGGER_JSON=/foo/api.swagger.json -v /data/websoft9/appmanage_new/docs/:/foo swaggerapi/swagger-ui
+# supervisorctl
+## supervisorctl reload
+## supervisorctl update
+## supervisorctl status
 # gitea_token: da7b9891a0bc71b5026b389c11ed13238c9a3866
 
 

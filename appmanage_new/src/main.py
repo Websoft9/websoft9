@@ -1,12 +1,25 @@
-import json
-from fastapi import FastAPI, HTTPException, Request
+
+import logging
+import uvicorn
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from src.api.v1.routers import app as api_app
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
 from src.core.exception import CustomException
+from src.core.logger import logger
 from src.schemas.errorResponse import ErrorResponse
+
+
+uvicorn_logger = logging.getLogger("uvicorn")
+
+for handler in uvicorn_logger.handlers:
+    uvicorn_logger.removeHandler(handler)
+for handler in logger._error_logger.handlers:  
+    uvicorn_logger.addHandler(handler)
+
+uvicorn_logger.setLevel(logging.INFO)
 
 app = FastAPI(
         title="AppManae API",

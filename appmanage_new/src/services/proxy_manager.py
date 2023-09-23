@@ -1,4 +1,5 @@
 import time
+import jwt
 import keyring
 import json
 from src.core.config import ConfigManager
@@ -8,14 +9,13 @@ from src.external.nginx_proxy_manager_api import NginxProxyManagerAPI
 
 
 class ProxyManager:
-    def __init__(self, app_name):
+    def __init__(self):
         """
         Initialize the ProxyManager instance.
 
         Args:
             app_name (str): The name of the app
         """
-        self.app_name = app_name
         try:
             self.nginx = NginxProxyManagerAPI()
             self._set_nginx_token()
@@ -32,23 +32,23 @@ class ProxyManager:
 
         # Try to get token from keyring
         try:
-            token_json_str = keyring.get_password(service_name, token_name)
+            jwt_token = keyring.get_password(service_name, token_name)
+            print(jwt_token)
         except Exception as e:
-            token_json_str = None
+            jwt_token = None
 
         # if the token is got from keyring, parse it
-        if token_json_str is not None:
+        if jwt_token is not None:
             try:
-                token_json = json.loads(token_json_str)
-                expires = token_json.get("expires")
-                api_token = token_json.get("token")
+                decoded_jwt = jwt.decode(jwt_token, options={"verify_signature": False})
+                exp_timestamp = decoded_jwt['exp']
 
                 # if the token is not expired, return it
-                if int(expires) - int(time.time()) > 3600:
-                    self.nginx.set_token(api_token)
+                if int(exp_timestamp) - int(time.time()) > 3600:
+                    self.nginx.set_token(jwt_token)
                     return
             except Exception as e:
-                logger.error(f"Parse Nginx Proxy Manager's Token Error:{e}")
+                logger.error(f"Decode Nginx Proxy Manager's Token Error:{e}")
                 raise CustomException()
 
         # if the token is expired or not got from keyring, get a new one
@@ -62,16 +62,11 @@ class ProxyManager:
         nginx_tokens = self.nginx.get_token(userName, userPwd)
         if nginx_tokens.status_code == 200:
             nginx_tokens = nginx_tokens.json()
-            expires = nginx_tokens.get("expires")
-            api_token = nginx_tokens.get("token")
-
-            self.nginx.set_token(api_token)
-
-            token_json = {"expires": expires, "token": api_token}
-
+            jwt_token = nginx_tokens.get("token")
+            self.nginx.set_token(jwt_token)
             # set new token to keyring
             try:
-                keyring.set_password(service_name, token_name, json.dumps(token_json))
+                keyring.set_password(service_name, token_name, jwt_token)
             except Exception as e:
                 logger.error(f"Set Nginx Proxy Manager's Token To Keyring Error:{e}")
                 raise CustomException()
@@ -82,23 +77,41 @@ class ProxyManager:
         response = self.nginx.get_proxy_hosts()
         if response.status_code == 200:
             proxy_hosts = response.json()
+            matching_domains = []
             for proxy_host in proxy_hosts:
-                if proxy_host["domain_names"] == domain_names:
-                    return True
-            return False
+                matching_domains += [domain for domain in domain_names if domain in proxy_host.get("domain_names", [])]
+
+            if matching_domains:
+                raise CustomException(
+                    status_code=400,
+                    message=f"Proxy Host Already Used",
+                    details=f"matching_domains:{matching_domains} already used"
+                )
         else:
             raise CustomException()
 
 
     def create_proxy_for_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http"):
-        try:
-            self.nginx.create_proxy_host(
+        response = self.nginx.create_proxy_host(
                 domain_names=domain_names,
                 forward_scheme=forward_scheme,
                 forward_host=forward_host,
                 forward_port=forward_port,
                 advanced_config=advanced_config,
-            )
-        except Exception as e:
-            logger.error(f"Create Proxy Host For {self.app_name} Error {e}")
-            raise e
+        )
+        if response.status_code != 201:
+            logger.error(f"Error create proxy for app:{response.text}")
+            raise CustomException()
+
+
+    def update_proxy_for_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http"):
+        response =  self.nginx.update_proxy_host(
+                domain_names=domain_names,
+                forward_scheme=forward_scheme,
+                forward_host=forward_host,
+                forward_port=forward_port,
+                advanced_config=advanced_config,
+        )
+        if response.status_code != 200:
+            logger.error(f"Error update proxy for app:{response.text}")
+            raise CustomException()

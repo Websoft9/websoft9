@@ -54,56 +54,41 @@ class GiteaManager:
             repo_name (str): Repository name
 
         Returns:
-            bool: True if repo is created, raise exception if repo is not created
+            str: Repository clone url
         """
         response = self.gitea.create_repo(repo_name)
         if response.status_code == 201:
-            return True
+            repo_json = response.json()
+            return repo_json["clone_url"]
         else:
             logger.error(f"Error create repo from gitea: {response.text}")
-            raise CustomException()
-        
-    def create_local_repo_and_push_remote(self, local_git_path: str,remote_git_url: str):
-        if os.path.exists(local_git_path):
-            try:
-                repo = Repo.init(local_git_path)
-                repo.create_head('main')
-                repo.git.add(A=True)
-                repo.index.commit("Initial commit")
-                origin = repo.create_remote('origin',remote_git_url)
-                origin.push(refspec='main:main')
-            except Exception as e:
-                logger.error(f"Error create local repo and push remote: {e}")
-                raise CustomException()
-        else:
-            logger.error(f"Error repo path not exist: {local_git_path}")
             raise CustomException()
         
     def get_file_content_from_repo(self, repo_name: str, file_path: str):
         response = self.gitea.get_file_content_from_repo(repo_name, file_path)
         if response.status_code == 200:
-            return {
-                "name": response.json()["name"],
-                "encoding": response.json()["encoding"],
-                "sha": response.json()["sha"],
-                "content": response.json()["content"],
-            }
+            response_json = response.json() # The gitea Api: if the repo is empty, the response is: []
+            if not response_json:
+                return None
+            else:
+                return {
+                    "name": response_json["name"],
+                    "encoding": response_json["encoding"],
+                    "sha": response_json["sha"],
+                    "content": response_json["content"],
+                }
         else:
             logger.error(f"Error get file content from repo from gitea: {response.text}")
             raise CustomException()
 
     def update_file_in_repo(self, repo_name: str, file_path: str, content: str,sha: str):
         response = self.gitea.update_file_content_in_repo(repo_name, file_path, content, sha)
-        if response.status_code == 201:
-            return True
-        else:
+        if response.status_code != 201:
             logger.error(f"Error update file in repo from gitea: {response.text}")
             raise CustomException()
         
     def remove_repo(self, repo_name: str):
         response = self.gitea.remove_repo(repo_name)
-        if response.status_code == 204:
-            return True
-        else:
+        if response.status_code != 204:
             logger.error(f"Error remove repo from gitea: {response.text}")
             raise CustomException()

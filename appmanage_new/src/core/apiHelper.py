@@ -1,5 +1,7 @@
 import requests
 
+from src.core.logger import logger
+
 class APIHelper:
     """
     Helper class for making API calls
@@ -72,7 +74,7 @@ class APIHelper:
         url = f"{self.base_url}/{path}"
         return requests.put(url, params=params, json=json, headers=self._merge_headers(headers))
 
-    def delete(self, path, headers=None):
+    def delete(self, path,params=None, headers=None):
         """
         Delete a resource
 
@@ -84,7 +86,7 @@ class APIHelper:
             Response: Response from API
         """
         url = f"{self.base_url}/{path}"
-        return  requests.delete(url, headers=self._merge_headers(headers))
+        return  requests.delete(url, params=params, headers=self._merge_headers(headers))
 
     def _merge_headers(self, headers):
         """

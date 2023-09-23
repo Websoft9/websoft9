@@ -2,6 +2,7 @@ import base64
 
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
+from src.core.logger import logger
 
 
 class GiteaAPI:
@@ -69,10 +70,10 @@ class GiteaAPI:
         return self.api.post(
             path="user/repos",
             json={
-                "auto_init": True,
                 "default_branch": "main",
                 "name": repo_name,
                 "trust_model": "default",
+                "private": True,
             },
         )
 
@@ -101,7 +102,7 @@ class GiteaAPI:
         """
         return self.api.get(
             path=f"repos/{self.owner}/{repo_name}/contents/{file_path}",
-            params={"ref": "main"},
+            params={"ref": "main"}
         )
 
     def update_file_content_in_repo(self, repo_name: str, file_path: str, content: str, sha: str):

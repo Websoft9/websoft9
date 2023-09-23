@@ -26,5 +26,4 @@ def apps_install(
     appInstall: appInstall,
     endpointId: int = Query(None, description="Endpoint ID to install app on,if not set, install on the local endpoint"),
 ):
-    appManger = AppManger()
-    appManger.install_app(appInstall, endpointId)
+    AppManger().install_app(appInstall, endpointId)
