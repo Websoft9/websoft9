@@ -30,7 +30,8 @@ export PATH
 #  $install_path
 ############################################################
 
-# 设置参数的默认值
+# Install Cockpit at this port
+# If Cockpit installed, maintain its origin port
 port="9000"
 
 # 获取参数值
@@ -47,14 +48,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-if [ -z "$cockpit_port" ]; then
-  cockpit_port=$port
-fi
-
 echo_prefix_cockpit=$'\n[Cockpit] - '
-cockpit_packages_install="cockpit cockpit-pcp cockpit-sosreport"
-cockpit_packages_upgrade="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-ws cockpit-storaged cockpit-session-recording  cockpit-doc cockpit-packagekit cockpit-pcp cockpit-sosreport"
-cockpit_plugin_delete="apps,machines,selinux,subscriptions,kdump,updates,playground,packagekit"
+# package cockpit depends_on [cockpit-bridge,cockpit-ws,cockpit-system], but update cockpit the depends don't update 
+cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-storaged cockpit-networkmanager cockpit-session-recording cockpit-doc cockpit-packagekit cockpit-sosreport"
+cockpit_plugin_delete="apps,machines,selinux,subscriptions,kdump,updates,playground,packagekit,session-recording"
 menu_overrides_github_page_url="https://websoft9.github.io/websoft9/cockpit/menu_override"
 cockpit_config_github_page_url="https://websoft9.github.io/websoft9/cockpit/cockpit.conf"
 cockpit_menu_overrides=(networkmanager.override.json shell.override.json storaged.override.json systemd.override.json users.override.json)
@@ -72,6 +69,22 @@ Package: cockpit*
 Pin: release a=$VERSION_CODENAME-backports
 Pin-Priority: 1000
 "
+
+cockpit_exist() {
+  systemctl list-unit-files | grep -q "cockpit.service"
+  return $?
+}
+
+
+if cockpit_exist; then
+  cockpit_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
+  echo "Maintain original port: $cockpit_port"
+else
+  if [ -z "$cockpit_port" ]; then
+    cockpit_port="$port"
+  fi
+fi
+
 
 check_ports() {
     local ports=("$@")
@@ -233,17 +246,18 @@ Upgrade_Cockpit(){
         sudo dpkg --configure -a
         apt update -y
         apt --fix-broken install
-        apt install -u $cockpit_packages_upgrade -y
+        apt install -u $cockpit_packages -y
     else
         sudo pkcon refresh > /dev/null
         sudo pkcon get-updates > /dev/null
-        sudo pkcon update $cockpit_packages_upgrade -y
+        sudo pkcon update $cockpit_packages -y
+        sudo pkcon install $cockpit_packages -y --allow-untrusted --allow-reinstall
     fi
 }
 
 Install_Cockpit(){
 
-    if systemctl list-unit-files | grep -q cockpit.service; then
+    if cockpit_exist; then
         Upgrade_Cockpit
         Restart_Cockpit
     else
@@ -252,7 +266,7 @@ Install_Cockpit(){
         export DEBIAN_FRONTEND=noninteractive
         sudo pkcon refresh > /dev/null
         sudo pkcon get-updates > /dev/null
-        sudo pkcon install $cockpit_packages_install -y --allow-untrusted
+        sudo pkcon install $cockpit_packages -y --allow-untrusted --allow-reinstall
         Restart_Cockpit
     fi
 

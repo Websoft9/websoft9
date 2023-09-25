@@ -73,8 +73,8 @@ export source_github_pages="https://websoft9.github.io/websoft9"
 export tools_yum="git curl wget yum-utils jq bc unzip"
 export tools_apt="git curl wget jq bc unzip"
 export docker_network="websoft9"
-export urls="https://w9artifact.blob.core.windows.net/$channel/websoft9"
-echo Install from url: $urls
+export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
+echo Install from url: $artifact_url
 
 # Define common functions
 

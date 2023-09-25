@@ -1,20 +1,14 @@
 {
-  "SERVICES": {
-    "PORTAINER": "2.18.3",
-    "NGINX": "2.10.3",
-    "APPMANAGE": "0.8.17",
-    "REDIS": "7.0.11"
+  "version": "0.8.20",
+  "plugins": {
+    "portainer": "0.0.6",
+    "nginx": "0.0.5",
+    "myapps": "0.0.8",
+    "appstore": "0.0.7",
+    "settings": "0.0.5",
+    "navigator": "0.5.10"
   },
-  "PLUGINS": {
-    "PORTAINER": "0.0.6",
-    "NGINX": "0.0.5",
-    "MYAPPS": "0.0.8",
-    "APPSTORE": "0.0.7",
-    "SETTINGS": "0.0.5",
-    "NAVIGATOR": "0.5.10",
-    "LIBRARY": "0.5.4"
-  },
-  "OS_SUPPORT": {
+  "OS": {
     "Fedora": [
       "38",
       "37"
@@ -37,13 +31,13 @@
       "8"
     ],
     "Debian": [
-      "11"
+      "11",
+      "10"
     ],
     "Ubuntu": [
       "22.04",
       "20.04",
       "18.04"
     ]
-  },
-  "VERSION": "0.8.20"
+  }
 }
