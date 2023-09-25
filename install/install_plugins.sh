@@ -45,15 +45,17 @@ echo "--channel: $channel"
 
 artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9/plugin"
 echo_prefix_cockpit=$'\n[Plugins] - '
-
+mydata=""
 
 version_json(){
 
     if [ -f "$install_path/version.json" ]; then
         echo "Find version file on your $install_path "
+        mydata=$(cat "$install_path/version.json")
+        echo $mydata
     else
-        echo "Get version.json from $source_github_pages "
-        mydata=$(curl -s "$url")
+        echo "Get version.json from $source_github_pages/version.json"
+        mydata=$(curl -s "$source_github_pages/version.json")
         if [ $? -ne 0 ]; then
             echo "URL does not exist or cannot be accessed."
             exit 1
@@ -61,18 +63,19 @@ version_json(){
             echo "$mydata"
         fi
     fi
-    mydata=$(cat "$install_path/version.json")
-    echo $mydata
-    
 }
+
 
 install_plugins() {
     echo "$echo_prefix_cockpit Start to install plugins"
-    data=$(version_json)
+    echo $mydata
 
     # 解析数据文件，获取 plugins 的子元素和对应的版本号
     plugins=$(echo "$data" | jq -r '.plugins | keys_unsorted[]')
     versions=$(echo "$data" | jq -r '.plugins | .[]')
+
+    echo $plugins
+    echo $versions
 
     # 定义数组变量
     declare -a artifact_array
@@ -91,4 +94,5 @@ install_plugins() {
     done
 }
 
+version_json
 install_plugins
