@@ -1,8 +1,9 @@
 #!/bin/bash
 
 echo "start  create user shell" >> /tmp/user
-set -e
+s6-svc -D /etc/s6/user
 
+set -e
 # Confirm gitea is running
 count=1
 response=""
