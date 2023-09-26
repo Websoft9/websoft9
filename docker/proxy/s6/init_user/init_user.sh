@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Start to change nginxproxymanage users"
+echo "Start to change nginxproxymanage users" >> /tmp/userlog
 
 set +e 
 username="help@websoft9.com"
