@@ -44,7 +44,5 @@ RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
     apt clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
-USER root
-
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
