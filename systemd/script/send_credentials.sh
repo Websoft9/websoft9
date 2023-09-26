@@ -1,4 +1,7 @@
 #!/bin/bash
+# Define PATH
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+# Export PATH
 
 set -e
 
