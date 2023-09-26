@@ -40,8 +40,8 @@ git config --global user.email "$password"
 set -e
 
 internal_ip=$(ip addr show eth0 | awk '/inet /{split($2, a, "/"); print a[1]}')
-nsenter -m -u -i -n -p -t 1 sh -c "sed -i '/websoft9-apphub/d' /etc/hosts"
-nsenter -m -u -i -n -p -t 1 sh -c "echo $internal_ip websoft9-apphub>> /etc/hosts"
+sudo nsenter -m -u -i -n -p -t 1 sh -c "sed -i '/websoft9-apphub/d' /etc/hosts"
+sudo nsenter -m -u -i -n -p -t 1 sh -c "echo $internal_ip websoft9-apphub>> /etc/hosts"
 
 # start by supervisord
 /usr/bin/supervisord

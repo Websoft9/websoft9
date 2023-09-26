@@ -38,6 +38,7 @@ VOLUME /usr/websoft9/apphub/logs
 VOLUME /usr/websoft9/apphub/src/conf
 VOLUME /usr/websoft9/media
 
+
 # Clean cache and install files
 RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
     apt clean && \
