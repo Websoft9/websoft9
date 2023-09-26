@@ -2,5 +2,5 @@
 
 [[ -f ./setup ]] && source ./setup
 pushd /root >/dev/null
-exec su-exec root /bin/echo ""
+exec s6-svc -D /etc/s6/user
 popd

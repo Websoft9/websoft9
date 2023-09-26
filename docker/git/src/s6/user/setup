@@ -25,7 +25,6 @@ admin_email="help@websoft9.com"
 
 if [ -e "$cred_path" ]; then
   echo "File $cred_path exists. Exiting script."
-  s6-svc -D /etc/s6/user
   exit 0
 fi
 
@@ -47,4 +46,3 @@ password=$(grep -o "generated random password is '[^']*" /tmp/credential | sed "
 echo "Save to credential"
 json="{\"username\":\"$admin_username\",\"password\":\"$password\",\"email\":\"$admin_email\"}"
 echo "$json" > "$cred_path"
-s6-svc -D /etc/s6/user
