@@ -51,5 +51,3 @@ json="{\"username\":\"$username\",\"password\":\"$password\"}"
 echo "$json" > "$cred_path"
 
 set -e
-
-s6-svc -D /etc/s6-overlay/s6-rc.d/init_user
