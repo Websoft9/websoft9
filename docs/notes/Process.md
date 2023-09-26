@@ -58,6 +58,15 @@ body:
 
 查询所有apps的信息，返回完整数据。等同于 CD: deploy/apps
 
+另外，app 的状态以及各个状态对应的操作：
+
+- 状态：
+    - Active，等同于 Portainer Active。此状态下，显示容器的状态 running(1),stopped(2)
+    - Unactive,等同于 Portainer Unactive
+- 操作：
+   - for running: stop | start | restart |  redeploy | delete && delete(down -v)
+   - for Unactive: redeploy | delete(down -v)
+
 ### apps/{id}/*
 
 对单个 apps 的增删改查：  
