@@ -22,7 +22,7 @@ COPY --from=buildstage /media/data ./media
 COPY --from=buildstage /library ./library
 COPY --from=buildstage /websoft9/appmanage_new ./apphub
 
-RUN apt update && apt install git jq supervisor -y && \
+RUN apt update && apt install git jq iproute2 supervisor -y && \
     mkdir credentials && \
     echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
 
