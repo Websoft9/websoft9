@@ -1,1 +1,1 @@
-exec s6-svc -D /etc/s6-overlay/s6-rc.d/init_user
+s6-svc -D /etc/s6-overlay/s6-rc.d/init_user
