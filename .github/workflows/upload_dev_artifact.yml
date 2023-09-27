@@ -19,7 +19,7 @@ jobs:
       - name: Read Plugin Version
         id: update_data
         run: |
-          version=$(jq -r '.VERSION' version.json)
+          version=$(jq -r '.version' version.json)
           echo version=$version
           echo "VERSION=$version" >> $GITHUB_ENV
           changelog=$(cat changelog_latest.md)

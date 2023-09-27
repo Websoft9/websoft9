@@ -1,1 +1,1 @@
-1. appmanage config files error
+1. websoft9 new framework init release
