@@ -2,7 +2,7 @@ FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="0.0.1"
 
-ENV LIBRARY_VERSION=v0.5.6
+ENV LIBRARY_VERSION=v0.5.7
 
 # Prepare library
 RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
@@ -37,7 +37,6 @@ RUN chmod +x /entrypoint.sh
 VOLUME /usr/websoft9/apphub/logs 
 VOLUME /usr/websoft9/apphub/src/conf
 VOLUME /usr/websoft9/media
-
 
 # Clean cache and install files
 RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
