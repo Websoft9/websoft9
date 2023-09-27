@@ -77,6 +77,7 @@ export https_port=443
 export cockpit_port=$port
 export force_install=$force
 export install_path=$path
+export channel
 export systemd_path="/opt/websoft9/systemd"
 export source_zip="websoft9-latest.zip"
 export source_unzip="websoft9"
@@ -191,7 +192,19 @@ install_backends() {
             exit 1
         fi
     fi
+
+    container_names=$(docker ps -a --format "{{.Names}}" --filter "name=websoft9")
     sudo docker compose down
+    
+    # delete some dead containers that docker compose cannot deleted
+    if [ ! -z "$container_names" ]; then
+        echo "Deleting containers:"
+        echo $container_names
+        docker rm $container_names
+    else
+        echo "No containers to delete."
+    fi
+
     sudo docker compose -p websoft9 pull
     sudo docker compose -p websoft9 up -d
     if [ $? -ne 0 ]; then

@@ -44,7 +44,7 @@ curl https://websoft9.github.io/websoft9/install/install.sh | bash
 
 
 # install Websoft9 development version and install path at /data/websoft9/source
-curl https://websoft9.github.io/websoft9/install/install.sh | bash --port 9000 --channel dev --path "/data/websoft9/source"
+wget https://websoft9.github.io/websoft9/install/install.sh &&  bash install.sh --port 9000 --channel dev --path "/data/websoft9/source"
 ```
 After installation, access it by: **http://Internet IP:9000** and using **Linux user** for login
 
