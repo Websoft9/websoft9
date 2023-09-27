@@ -24,6 +24,7 @@ services:
       - 9001-9999:9000
     volumes:
       - portainer:/data
+      - /data/compose:/data/compose
       - /var/run/docker.sock:/var/run/docker.sock
       #- /run/podman/podman.sock:/var/run/docker.sock
     labels:

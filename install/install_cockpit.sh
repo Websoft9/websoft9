@@ -29,6 +29,8 @@ export PATH
 #  $cockpit_port
 #  $install_path
 ############################################################
+echo "cockpit_port:$cockpit_port"
+echo "install_path:$install_path"
 
 # Install Cockpit at this port
 # If Cockpit installed, maintain its origin port
@@ -159,8 +161,16 @@ Set_Firewall(){
   echo "$echo_prefix_cockpit Set firewall for cockpit access"
   if command -v firewall-cmd &> /dev/null; then
      echo "Set firewall for Cockpit..."
-     sudo firewall-cmd --permanent --zone=public --add-service=cockpit
-     sudo firewall-cmd --reload
+     if ! systemctl is-active --quiet firewalld; then
+        sudo systemctl start firewalld
+        sudo firewall-cmd --permanent --zone=public --add-service=cockpit
+        sudo firewall-cmd --reload
+        sudo systemctl stop firewalld
+     else
+        sudo firewall-cmd --permanent --zone=public --add-service=cockpit
+        sudo firewall-cmd --reload
+     fi
+
   fi
 
   if [ -f /etc/selinux/config ]; then

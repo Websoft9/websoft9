@@ -139,7 +139,7 @@ Set_Docker(){
 if eval $docker_exist; then
     echo "$echo_prefix_docker Starting to Set docker..."
     sudo systemctl enable docker
-    sudo systemctl start docker
+    sudo systemctl restart docker
     if ! docker network inspect websoft9 > /dev/null 2>&1; then
       sudo docker network create websoft9
     fi
