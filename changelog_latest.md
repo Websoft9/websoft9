@@ -1,1 +1,1 @@
-1. websoft9 new framework init release
+1. add systemd to websoft9 artifacts

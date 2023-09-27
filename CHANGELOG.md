@@ -1,3 +1,7 @@
+## 0.8.22 release on 2023-09-27
+
+1. add systemd to websoft9 artifacts
+
 ## 0.8.20 release on 2023-08-23
 
 1. appmanage config files error:bug fix
