@@ -1,12 +1,8 @@
 #!/bin/bash
-# Define PATH
+
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
-# Export PATH
-
 set -e
-
 trap "sleep 1; continue" ERR
-
 try_times=100
 counter=1
 portainer_username="admin"
