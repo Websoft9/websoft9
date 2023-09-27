@@ -10,13 +10,47 @@ trap "sleep 1; continue" ERR
 try_times=100
 counter=1
 portainer_username="admin"
+credential_path="/var/websoft9/credential"
+apphub_container_name="websoft9-apphub"
 
 copy_credential() {
+
+	# 设置参数的默认值
+	source_container="websoft9-git"
+	source_path="/var/websoft9/credential"
+	destination_container="websoft9-apphub"
+	destination_path="/websoft9/credentials/credential_git"
+
+	# 获取参数值
+	while [[ $# -gt 0 ]]; do
+		case $1 in
+			--sc)
+				source_container="$2"
+				shift 2
+				;;
+			--sp)
+				source_path="$2"
+				shift 2
+				;;
+			--dc)
+				destination_container="$2"
+				shift 2
+				;;
+			--dp)
+				destination_path="$2"
+				shift 2
+				;;
+			*)
+				shift
+				;;
+		esac
+	done
     
-    source_container=$1
-    source_path=$2
-    destination_container=$3
-    destination_path=$4
+	echo "Your installation parameters are as follows: "
+	echo "--sc: $source_container"
+	echo "--sp: $source_path"
+	echo "--dc: $destination_container"
+	echo "--dp: $destination_path"
 
     temp_file=$(mktemp)
     docker cp "$source_container:$source_path" "$temp_file"
@@ -43,9 +77,9 @@ while true; do
     set +e
     echo  "Try to get credentials for %d times\n" "$counter" >> /tmp/copy
 
-    copy_credential "websoft9-git" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_git"
-    copy_credential "websoft9-deployment" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_deployment"
-    copy_credential "websoft9-proxy" "/var/websoft9/credential" "websoft9-apphub" "/websoft9/credentials/credential_proxy"
+    copy_credential  --sc "websoft9-git" --sp $credential_path --dc $apphub_container_name --dp "/websoft9/credentials/credential_git"
+    copy_credential  --sc "websoft9-deployment" --sp $credential_path --dc $apphub_container_name --dp "/websoft9/credentials/credential_deployment"
+    copy_credential  --sc "websoft9-proxy" --sp $credential_path --dc $apphub_container_name --dp "/websoft9/credentials/credential_proxy"
 
     if docker exec "websoft9-apphub" [ -s "/websoft9/credentials/credential_git" ] && \
        docker exec "websoft9-apphub" [ -s "/websoft9/credentials/credential_deployment" ] && \
@@ -62,5 +96,3 @@ while true; do
 
     counter=$((counter + 1))
 done
-
-tail -f /dev/null
