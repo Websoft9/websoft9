@@ -26,7 +26,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-
+# channel,source_github_pages,install_path from install.sh priority
 if [ -z "$channel" ]; then
   channel="release"
 fi
@@ -44,55 +44,65 @@ echo "Your installation parameters are as follows: "
 echo "--channel: $channel"
 
 artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9/plugin"
-echo_prefix_cockpit=$'\n[Plugins] - '
-mydata=""
+echo_prefix_plugins=$'\n[Plugins] - '
 
-version_json(){
+versions_local_file="$install_path/version.json"
+versions_url="$source_github_pages/version.json"
+file_suffix=".zip"
+plugin_path="/usr/share/cockpit"
 
-    if [ -f "$install_path/version.json" ]; then
-        echo "Find version file on your $install_path "
-        mydata=$(cat "$install_path/version.json")
-        echo $mydata
-    else
-        echo "Get version.json from $source_github_pages/version.json"
-        mydata=$(curl -s "$source_github_pages/version.json")
-        if [ $? -ne 0 ]; then
-            echo "URL does not exist or cannot be accessed."
-            exit 1
-        else
-            echo "$mydata"
-        fi
-    fi
-}
+echo "$echo_prefix_plugins Starting dowload plugin and update it"
 
+python3 - << END
+import requests
+import json
+import queue
+import os
+import sys
+import zipfile
+import io
 
-install_plugins() {
-    echo "$echo_prefix_cockpit Start to install plugins"
-    echo $mydata
+def get_plugin_versions(versions_local_file, versions_url, artifact_url, file_suffix, plugin_path):
+    if os.path.exists(versions_local_file):
+        print("Get version file on your local install"+versions_local_file)
+        with open(versions_local_file) as f:
+            data = json.load(f)
+    else:
+        try:
+            print("Get version file from URL " + versions_url)
+            response = requests.get(versions_url, timeout=5)  # Set timeout to 5 seconds
+            data = json.loads(response.text)
+        except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+            print("Error occurred while getting version file from URL: ", e)
+            sys.exit(1)  # Exit the program if an error occurred
 
-    # 解析数据文件，获取 plugins 的子元素和对应的版本号
-    plugins=$(echo "$data" | jq -r '.plugins | keys_unsorted[]')
-    versions=$(echo "$data" | jq -r '.plugins | .[]')
+    plugins = data.get('plugins', {})
 
-    echo $plugins
-    echo $versions
+    q = queue.Queue()
+    for plugin, version in plugins.items():
+        q.put(f'{artifact_url}/{plugin}/{plugin}-{version}{file_suffix}')
 
-    # 定义数组变量
-    declare -a artifact_array
+    return q
 
-    # 构建数组内容
-    readarray -t plugins_array <<<"$plugins"
-    readarray -t versions_array <<<"$versions"
+# 使用函数
+q = get_plugin_versions("${versions_local_file}", "${versions_url}", "${artifact_url}", "${file_suffix}", "${plugin_path}")
 
-    for ((i=0; i<${#plugins_array[@]}; i++)); do
-    artifact_array+=("$artifact_url/${plugins_array[$i]}-${versions_array[$i]}")
-    done
+# 下载并解压缩文件
+while not q.empty():
+    try:
+        file_url = q.get()
+        print(f"Downloading {file_url}...")
+        response = requests.get(file_url, stream=True, timeout=120)  # Set timeout to 120 seconds
 
-    # 打印数组元素
-    for element in "${artifact_array[@]}"; do
-    echo "$element"
-    done
-}
+        # Make sure the download was successful
+        response.raise_for_status()  
 
-version_json
-install_plugins
+        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+            z.extractall("${plugin_path}")
+        print(f"Successfully extracted {file_url} to ${plugin_path}")
+    except Exception as e:
+        print(f"Error occurred while downloading or extracting file: {e}")
+        sys.exit(1)  # Exit the program if an error occurred
+END
+
+echo "Plugins install successfully..."

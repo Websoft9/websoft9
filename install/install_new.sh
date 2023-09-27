@@ -67,6 +67,7 @@ export https_port=443
 export cockpit_port=$port
 export force_install=$force
 export install_path="/data/websoft9/source"
+export systemd_path="/opt/websoft9/systemd"
 export source_zip="websoft9-latest.zip"
 export source_unzip="websoft9"
 export source_github_pages="https://websoft9.github.io/websoft9"
@@ -79,7 +80,9 @@ echo Install from url: $artifact_url
 # Define common functions
 
 install_tools(){
-    echo "Starting install necessary tool..."
+    echo_prefix_tools=$'\n[Tools] - '
+    echo "$echo_prefix_tools Starting install necessary tool..."
+
     dnf --version >/dev/null 2>&1
     dnf_status=$?
     yum --version >/dev/null 2>&1
@@ -106,15 +109,17 @@ install_tools(){
 
 
 download_source() {
-    echo "Download Websoft9 source code..."
+    echo_prefix_source=$'\n[Dowload Source] - '
+    echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
+    
     rm -rf websoft9-latest.zip*
     if [ -d "$install_path" ]; then
-        echo "Directory $install_path already exists."
+        echo "Directory $install_path already exists and installation will cover it."
     else
         mkdir -p "$install_path"
     fi
 
-    wget "$urls/$source_zip"
+    wget "$artifact_url/$source_zip"
     if [ $? -ne 0 ]; then
         echo "Failed to download source package."
         exit 1
@@ -151,7 +156,9 @@ check_ports() {
 }
 
 install_backends() {
-    echo "Install backend docker services"
+    echo_prefix_backends=$'\n[Backend] - '
+    echo "$echo_prefix_backends Install backend docker services"
+
     cd "$install_path/docker"
     if [ $? -ne 0 ]; then
         echo "Failed to change directory."
@@ -179,8 +186,15 @@ install_backends() {
 
 
 install_systemd() {
-    echo "Install Systemd service"
-    cp "$install_path/systemd/websoft9.service" /lib/systemd/system/
+    echo_prefix_systemd=$'\n[Systemd] - '
+    echo "$echo_prefix_systemdInstall Systemd service"
+
+    if [ ! -d "$systemd_path" ]; then
+    sudo mkdir -p "$systemd_path"
+    fi
+
+    sudo cp -r $install_path/systemd/* "$systemd_path"
+    sudo cp -f "$systemd_path/websoft9.service" /lib/systemd/system/
     if [ $? -ne 0 ]; then
         echo "Failed to copy Systemd service file."
         exit 1

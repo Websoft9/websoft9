@@ -4,8 +4,8 @@ Requires=network.target docker
 After=network.target docker
 
 [Service]
-WorkingDirectory=/data/websoft9/systemd
-ExecStart=/bin/bash send_credentials.sh
+WorkingDirectory=/opt/websoft9/systemd
+ExecStart=/bin/bash /opt/websoft9/systemd/startup.sh
 Restart=always
 Type=simple
 NotifyAccess=all
