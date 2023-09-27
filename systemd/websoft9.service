@@ -5,7 +5,7 @@ After=network.target docker
 
 [Service]
 WorkingDirectory=/opt/websoft9/systemd
-ExecStart=/bin/bash /opt/websoft9/systemd/startup.sh
+ExecStart=/bin/bash /opt/websoft9/systemd/start_up.sh
 Restart=always
 Type=simple
 NotifyAccess=all
