@@ -34,9 +34,9 @@ RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
 COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-VOLUME /usr/websoft9/apphub/logs 
-VOLUME /usr/websoft9/apphub/src/conf
-VOLUME /usr/websoft9/media
+VOLUME /websoft9/apphub/logs 
+VOLUME /websoft9/apphub/src/conf
+VOLUME /websoft9/media
 
 # Clean cache and install files
 RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
