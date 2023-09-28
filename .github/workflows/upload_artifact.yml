@@ -1,11 +1,11 @@
-name: upload_artifact
+name: upload_artifact(decide by version)
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - "version2.json"
+      - "version.json"
 
 jobs:
   upload_artifact:
@@ -20,13 +20,20 @@ jobs:
         id: update_data
         run: |
           version=$(jq -r '.version' version.json)
-          echo version=$version
-          echo "VERSION=$version" >> $GITHUB_ENV
+          real_version=${version%%-*}
+          echo "VERSION=$real_version" >> $GITHUB_ENV
           changelog=$(cat changelog_latest.md)
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT 
           echo "$changelog" >> $GITHUB_OUTPUT 
           echo "EOF" >> $GITHUB_OUTPUT
-
+          
+          if [[ $version == *-* ]]; then
+            echo "release version"
+            echo "::set-output name=release::true"
+          else
+            echo "rc release version"
+            echo "::set-output name=release::false"
+          fi
           mkdir websoft9 artifacts
           cp -r docker websoft9
           cp -r cockpit websoft9
@@ -39,13 +46,36 @@ jobs:
           zip -r websoft9-$version.zip websoft9
           cp websoft9-$version.zip artifacts
           cp install/install.sh artifacts
-          cp install/update.sh artifacts
           cp version.json artifacts
           cp CHANGELOG.md artifacts
           cp artifacts/websoft9-$version.zip artifacts/websoft9-latest.zip
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+        if: ${{ steps.check_changes.outputs.release == 'false' }}
+        with:
+          connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
+          container_name: dev
+          source_folder: artifacts/
+          destination_folder: ./websoft9
+          delete_if_exists: true
+          fail_if_source_empty: true
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        if: ${{ steps.check_changes.outputs.release == 'false' }}
+        with:
+          files: /*
+          tag_name: v${{ env.VERSION }}-rc
+          title: Release-v${{ env.VERSION }}-rc
+          body: ${{ steps.update_data.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+
+      - name: Upload To Azure Blob
+        uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+        if: ${{ steps.check_changes.outputs.release == 'true' }}
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
           container_name: release
@@ -57,6 +87,7 @@ jobs:
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
+        if: ${{ steps.check_changes.outputs.release == 'true' }}
         with:
           files: /*
           tag_name: v${{ env.VERSION }}
@@ -64,8 +95,3 @@ jobs:
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false
-
-      # - name: Commit and push changes
-      #   uses: stefanzweifel/git-auto-commit-action@v4
-      #   with:
-      #     commit_message: Push to github main
