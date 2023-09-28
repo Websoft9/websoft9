@@ -1,3 +1,7 @@
+from src.core.exception import CustomException
+from src.core.logger import logger
+
+
 class FileHelper:
     """
     Helper class for file operations.
@@ -17,11 +21,13 @@ class FileHelper:
         Returns:
             str: The contents of the file.
         """
-        
-        with open(file_path, 'r') as f:
-            content = f.read()
-            
-        return content
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()               
+            return content
+        except:
+            logger.error(f"Failed to read file {file_path}")
+            raise CustomException()
 
     @staticmethod
     def write_file(file_path, content):
@@ -32,6 +38,9 @@ class FileHelper:
              file_path (str): The path to the file.
              content (str): The content to be written.
          """
-
-        with open(file_path, 'w') as f:
-             f.write(content)
+        try:
+            with open(file_path, 'w') as f:
+                f.write(content)
+        except:
+            logger.error(f"Failed to write file {file_path}")
+            raise CustomException()

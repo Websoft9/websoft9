@@ -1,6 +1,4 @@
-
 import logging
-import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -11,12 +9,11 @@ from src.core.exception import CustomException
 from src.core.logger import logger
 from src.schemas.errorResponse import ErrorResponse
 
-
 uvicorn_logger = logging.getLogger("uvicorn")
 
 for handler in uvicorn_logger.handlers:
     uvicorn_logger.removeHandler(handler)
-for handler in logger._error_logger.handlers:  
+for handler in logger._error_logger.handlers: 
     uvicorn_logger.addHandler(handler)
 
 uvicorn_logger.setLevel(logging.INFO)

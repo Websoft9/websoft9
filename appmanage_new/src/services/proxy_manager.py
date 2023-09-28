@@ -9,6 +9,9 @@ from src.external.nginx_proxy_manager_api import NginxProxyManagerAPI
 
 
 class ProxyManager:
+    """
+    Proxy Manager
+    """
     def __init__(self):
         """
         Initialize the ProxyManager instance.
@@ -88,8 +91,8 @@ class ProxyManager:
                     details=f"matching_domains:{matching_domains} already used"
                 )
         else:
+            logger.error(f"Check proxy host:{domain_names} exists error:{response.status_code}:{response.text}")
             raise CustomException()
-
 
     def create_proxy_for_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http"):
         response = self.nginx.create_proxy_host(
@@ -100,9 +103,8 @@ class ProxyManager:
                 advanced_config=advanced_config,
         )
         if response.status_code != 201:
-            logger.error(f"Error create proxy for app:{response.text}")
+            logger.error(f"Create proxy for app:{forward_host} error:{response.status_code}:{response.text}")
             raise CustomException()
-
 
     def update_proxy_for_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http"):
         response =  self.nginx.update_proxy_host(
@@ -113,5 +115,31 @@ class ProxyManager:
                 advanced_config=advanced_config,
         )
         if response.status_code != 200:
-            logger.error(f"Error update proxy for app:{response.text}")
+            logger.error(f"Update proxy for app:{forward_host} error:{response.status_code}:{response.text}")
             raise CustomException()
+
+    def get_proxy_host_by_app(self,app_id:str):
+        response = self.nginx.get_proxy_hosts()
+        if response.status_code == 200:
+            proxys_host = response.json()
+            proxy_result = []
+            for proxy_host in proxys_host:
+                if proxy_host.get("forward_host") == app_id:
+                    proxy_data = {
+                        "proxy_id": proxy_host.get("id"),
+                        "domain_names": proxy_host.get("domain_names")
+                    }
+                    proxy_result.append(proxy_data)
+            return proxy_result
+        else:
+            logger.error(f"Get proxy host by app:{app_id} error:{response.status_code}:{response.text}")
+            raise CustomException()
+        
+    def remove_proxy_host_for_app(self,app_id:str):
+        proxy_hosts = self.get_proxy_host_by_app(app_id)
+        if proxy_hosts:
+            for proxy_host in proxy_hosts:
+                response = self.nginx.delete_proxy_host(proxy_host.get("proxy_id"))
+                if response.status_code != 200:
+                    logger.error(f"Remove proxy host:{proxy_host.get('proxy_id')} for app:{app_id} error:{response.status_code}:{response.text}")
+                    raise CustomException()

@@ -13,15 +13,20 @@ class PortainerAPI:
         api (APIHelper): API helper
 
     Methods:
-        get_jwt_token(username: str, password: str) -> Response): Get JWT token
-        get_endpoints() -> Response: Get endpoints
-        get_stacks(endpointID: int) -> Response: Get stacks
-        get_stack_by_id(stackID: int) -> Response: Get stack by ID
-        remove_stack(stackID: int,endPointID: int) -> Response: Remove a stack
-        create_stack_standlone_repository(app_name: str, endpointId: int,repositoryURL:str) -> Response: Create a stack from a standalone repository
-        start_stack(stackID: int, endpointId: int) -> Response: Start a stack
-        stop_stack(stackID: int, endpointId: int) -> Response: Stop a stack
-        redeploy_stack(stackID: int, endpointId: int) -> Response: Redeploy a stack
+        set_jwt_token(jwt_token): Set JWT token
+        get_jwt_token(username, password): Get JWT token
+        get_endpoints(): Get endpoints  
+        get_endpoint_by_id(endpointId): Get endpoint by ID
+        create_endpoint(name, EndpointCreationType): Create an endpoint
+        get_stacks(endpointId): Get stacks
+        get_stack_by_id(stackID): Get stack by ID
+        remove_stack(stackID, endpointId): Remove a stack
+        create_stack_standlone_repository(stack_name, endpointId, repositoryURL): Create a stack from a standalone repository
+        start_stack(stackID, endpointId): Start a stack
+        stop_stack(stackID, endpointId): Stop a stack
+        redeploy_stack(stackID, endpointId): Redeploy a stack
+        get_volumes(endpointId,dangling): Get volumes in endpoint
+        remove_volume_by_name(endpointId,volume_name): Remove volumes by name
     """
 
     def __init__(self):
@@ -179,9 +184,9 @@ class PortainerAPI:
             },
         )
 
-    def start_stack(self, stackID: int, endpointId: int):
+    def up_stack(self, stackID: int, endpointId: int):
         """
-        Start a stack
+        Up a stack
 
         Args:
             stackID (int): Stack ID
@@ -194,9 +199,9 @@ class PortainerAPI:
             path=f"stacks/{stackID}/start", params={"endpointId": endpointId}
         )
 
-    def stop_stack(self, stackID: int, endpointId: int):
+    def down_stack(self, stackID: int, endpointId: int):
         """
-        Stop a stack
+        Down a stack
 
         Args:
             stackID (int): Stack ID
@@ -224,12 +229,13 @@ class PortainerAPI:
             path=f"stacks/{stackID}/redeploy", params={"endpointId": endpointId}
         )
 
-    def get_volumes(self, endpointId: int,dangling: bool = False):
+    def get_volumes(self, endpointId: int,dangling: bool):
         """
         Get volumes in endpoint
 
         Args:
             endpointId (int): Endpoint ID
+            dangling (bool): the volume is dangling or not
         """
         return self.api.get(
         path=f"endpoints/{endpointId}/docker/volumes",
@@ -251,3 +257,97 @@ class PortainerAPI:
         return self.api.delete(
         path=f"endpoints/{endpointId}/docker/volumes/{volume_name}",
     )
+
+    def get_containers(self, endpointId: int):
+        """
+        Get containers in endpoint
+
+        Args:
+            endpointId (int): Endpoint ID
+        """
+        return self.api.get(
+            path=f"endpoints/{endpointId}/docker/containers/json",
+            params={
+                "all": True,
+            }
+        )
+
+    def get_containers_by_stackName(self, endpointId: int,stack_name:str):
+        """
+        Get containers in endpoint
+
+        Args:
+            endpointId (int): Endpoint ID
+        """
+        return self.api.get(
+            path=f"endpoints/{endpointId}/docker/containers/json",
+            params={
+                "all": True,
+                "filters": json.dumps(
+                    {"label": [f"com.docker.compose.project={stack_name}"]}
+                )
+            }
+        )
+
+    def get_container_by_id(self, endpointId: int, container_id: str):
+        """
+        Get container by ID
+
+        Args:
+            endpointId (int): Endpoint ID
+            container_id (str): container ID
+        """
+        return self.api.get(
+            path=f"endpoints/{endpointId}/docker/containers/{container_id}/json",
+        )
+
+    def stop_container(self, endpointId: int, container_id: str):
+        """
+        Stop container
+
+        Args:
+            endpointId (int): Endpoint ID
+            container_id (str): container ID
+        """
+        return self.api.post(
+            path=f"endpoints/{endpointId}/docker/containers/{container_id}/stop",
+        )
+    
+    def start_container(self, endpointId: int, container_id: str):
+        """
+        Start container
+
+        Args:
+            endpointId (int): Endpoint ID
+            container_id (str): container ID
+        """
+        return self.api.post(
+            path=f"endpoints/{endpointId}/docker/containers/{container_id}/start",
+        )
+    
+    def restart_container(self, endpointId: int, container_id: str):
+        """
+        Restart container
+
+        Args:
+            endpointId (int): Endpoint ID
+            container_id (str): container ID
+        """
+        return self.api.post(
+            path=f"endpoints/{endpointId}/docker/containers/{container_id}/restart",
+        )
+    
+    def redeploy_stack(self, stackID: int, endpointId: int,pullImage:bool,user_name:str,user_password:str ):
+        return self.api.put(
+            path=f"stacks/{stackID}/git/redeploy", 
+            params={"endpointId": endpointId},
+            json={
+                "env":[],
+                "prune":False,
+                "RepositoryReferenceName":"",
+                "RepositoryAuthentication":True,
+                "RepositoryUsername":user_name,
+                "RepositoryPassword":user_password,
+                "PullImage":pullImage
+            }
+        )

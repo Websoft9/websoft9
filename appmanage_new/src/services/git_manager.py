@@ -1,5 +1,4 @@
 import os
-import shutil
 from git import Repo, GitCommandError
 from src.core.exception import CustomException
 from src.core.logger import logger
@@ -15,7 +14,6 @@ class GitManager:
     Methods:
         init_local_repo_from_dir() -> None: Initialize a local git repository from a directory.
         push_local_repo_to_remote_repo(remote_url:str,user_name:str,user_pwd:str) -> None: Push a local git repository to a remote origin.
-        remove_git_directory() -> None: Remove the .git directory.
     """
 
     def __init__(self,local_path:str):
@@ -91,4 +89,3 @@ class GitManager:
             logger.error(f"Failed to push from 'main' branch in git repository at {self.local_path} to remote '{remote_url}': {str(e)}")
             raise CustomException()  
         
-    

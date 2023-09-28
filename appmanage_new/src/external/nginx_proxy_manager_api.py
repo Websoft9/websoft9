@@ -13,11 +13,12 @@ class NginxProxyManagerAPI:
         api (APIHelper): API helper
 
     Methods:
-        get_token(identity: str, secret: str) -> Response: Request a new access token
-        get_proxy_hosts() -> Response: Get all proxy hosts
-        create_proxy_host(domain_names: List[str], forward_scheme: str, forward_host: str, forward_port: int, advanced_config: str) -> Response: Create a new proxy host
-        update_proxy_host(proxy_id: int, domain_names: List[str], forward_scheme: str, forward_host: str, forward_port: int, advanced_config: str) -> Response: Update an existing proxy host
-        delete_proxy_host(proxy_id: int) -> Response: Delete a proxy host
+        set_token(api_token): Set API token
+        get_token(identity, secret): Request a new access token
+        get_proxy_hosts(): Get all proxy hosts
+        create_proxy_host(domain_names, forward_scheme, forward_host, forward_port, advanced_config): Create a new proxy host
+        update_proxy_host(proxy_id, domain_names, forward_scheme, forward_host, forward_port, advanced_config): Update an existing proxy host
+        delete_proxy_host(proxy_id): Delete a proxy host
     """
 
     def __init__(self):

@@ -8,7 +8,13 @@ from src.external.gitea_api import GiteaAPI
 
 
 class GiteaManager:
+    """
+    Gitea Manager
+    """
     def __init__(self):
+        """
+        Init GiteaManager
+        """
         try:
             self.gitea = GiteaAPI()
             self._set_basic_auth_credential()
@@ -43,7 +49,7 @@ class GiteaManager:
         elif response.status_code == 404:
             return False
         else:
-            logger.error(f"Error validate repo is exist from gitea: {response.text}")
+            logger.error(f"Check repo:{repo_name} exists error:{response.status_code}:{response.text}")
             raise CustomException()
         
     def create_repo(self, repo_name: str):
@@ -61,7 +67,7 @@ class GiteaManager:
             repo_json = response.json()
             return repo_json["clone_url"]
         else:
-            logger.error(f"Error create repo from gitea: {response.text}")
+            logger.error(f"Create repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
         
     def get_file_content_from_repo(self, repo_name: str, file_path: str):
@@ -78,17 +84,17 @@ class GiteaManager:
                     "content": response_json["content"],
                 }
         else:
-            logger.error(f"Error get file content from repo from gitea: {response.text}")
+            logger.error(f"Get file:{file_path} content from repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
 
     def update_file_in_repo(self, repo_name: str, file_path: str, content: str,sha: str):
         response = self.gitea.update_file_content_in_repo(repo_name, file_path, content, sha)
         if response.status_code != 201:
-            logger.error(f"Error update file in repo from gitea: {response.text}")
+            logger.error(f"Update file:{file_path} content in repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
         
     def remove_repo(self, repo_name: str):
         response = self.gitea.remove_repo(repo_name)
         if response.status_code != 204:
-            logger.error(f"Error remove repo from gitea: {response.text}")
+            logger.error(f"Remove repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
