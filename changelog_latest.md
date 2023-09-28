@@ -1,1 +1,2 @@
-1. add systemd to websoft9 artifacts
+1. Fix install error: docker not found
+2. Fix install error: cockpit.socket not found
