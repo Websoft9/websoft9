@@ -29,10 +29,10 @@ jobs:
           
           if [[ $version == *-* ]]; then
             echo "release version"
-            echo "::set-output name=release::true"
+            echo "::set-output name=release::false"
           else
             echo "rc release version"
-            echo "::set-output name=release::false"
+            echo "::set-output name=release::true"
           fi
           mkdir websoft9 artifacts
           cp -r docker websoft9
@@ -43,12 +43,12 @@ jobs:
           cp -r systemd websoft9
           cp *.md websoft9
           cp version.json websoft9
-          zip -r websoft9-$version.zip websoft9
-          cp websoft9-$version.zip artifacts
+          zip -r websoft9-$real_version.zip websoft9
+          cp websoft9-$real_version.zip artifacts
           cp install/install.sh artifacts
           cp version.json artifacts
           cp CHANGELOG.md artifacts
-          cp artifacts/websoft9-$version.zip artifacts/websoft9-latest.zip
+          cp artifacts/websoft9-$real_version.zip artifacts/websoft9-latest.zip
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
