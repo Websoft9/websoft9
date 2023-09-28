@@ -66,4 +66,3 @@ Websoft9 use below [Artifact](https://jfrog.com/devops-tools/article/what-is-a-s
 Websoft9 use the [Production branch with GitLab flow](https://cm-gitlab.stanford.edu/help/workflow/gitlab_flow.md#production-branch-with-gitlab-flow) for development collaboration
 
 > [gitlab workflow](https://docs.gitlab.com/ee/topics/gitlab_flow.html) is improvement model for git
-
