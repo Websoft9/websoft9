@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
-        if: ${{ steps.check_changes.outputs.release == 'false' }}
+        if: ${{ steps.update_data.outputs.release == 'false' }}
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
           container_name: dev
@@ -63,7 +63,7 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: ${{ steps.check_changes.outputs.release == 'false' }}
+        if: ${{ steps.update_data.outputs.release == 'false' }}
         with:
           files: /*
           tag_name: v${{ env.VERSION }}-rc
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
-        if: ${{ steps.check_changes.outputs.release == 'true' }}
+        if: ${{ steps.update_data.outputs.release == 'true' }}
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
           container_name: release
@@ -85,7 +85,7 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: ${{ steps.check_changes.outputs.release == 'true' }}
+        if: ${{ steps.update_data.outputs.release == 'true' }}
         with:
           files: /*
           tag_name: v${{ env.VERSION }}
