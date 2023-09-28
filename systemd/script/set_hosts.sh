@@ -9,7 +9,7 @@ set -e
 container_name="websoft9-apphub"
 
 # 最大尝试次数
-max_attempts=60
+max_attempts=6
 
 # 获取容器的内网IP
 attempt=0
@@ -21,7 +21,7 @@ while [ $attempt -lt $max_attempts ]; do
     fi
 
     attempt=$(( $attempt + 1 ))
-    sleep 1
+    sleep 5
 done
 
 # 检查获取IP是否成功
