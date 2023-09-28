@@ -39,12 +39,12 @@ You can see the sceenshoots below:
 You should have root privileges user to install or upgrade Websoft9, if you use no-root user you can `sudo su` for it
 
 ```
-# install by default
+# Install by default
 curl https://websoft9.github.io/websoft9/install/install.sh | bash
 
 
-# install Websoft9 development version and install path at /data/websoft9/source
-wget https://websoft9.github.io/websoft9/install/install.sh &&  bash install.sh --port 9000 --channel dev --path "/data/websoft9/source"
+# Install Websoft9 special version by development artifact and install path at /data/websoft9/source ...
+wget https://websoft9.github.io/websoft9/install/install.sh &&  bash install.sh --port 9000 --channel dev --path "/data/websoft9/source" --version "0.8.25"
 ```
 After installation, access it by: **http://Internet IP:9000** and using **Linux user** for login
 

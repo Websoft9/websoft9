@@ -8,31 +8,31 @@ export PATH
 # Command-line options
 # ==============================================================================
 #
-# --force <y|n>
-# Use the --force option to ignore all interactive choices. default is n, for example:
+# --version
+# Use the --version option to install a special version for installation. default is latest, for example:
 #
-#  $ sudo sh install.sh --force n
+#  $ sudo bash install.sh --version "0.8.25"
 #
 # --port <9000>
 # Use the --port option to set Websoft9 cosole port. default is 9000, for example:
 #
-#   $ sudo sh install.sh --port 9001
+#   $ sudo bash install.sh --port 9001
 #
 # --channel <release|dev>
 # Use the --channel option to install a release(production) or dev distribution. default is release, for example:
 #
-#  $ sudo sh install.sh --channel release
+#  $ sudo bash install.sh --channel release
 #
 # --path
 # Use the --path option to for installation path for example:
 #
-#  $ sudo sh install.sh --path "/data/websoft9/source"
+#  $ sudo bash install.sh --path "/data/websoft9/source"
 #
 # ==============================================================================
 
 
 # 设置参数的默认值
-force="n"
+version="latest"
 port="9000"
 channel="release"
 path="/data/websoft9/source"
@@ -40,8 +40,8 @@ path="/data/websoft9/source"
 # 获取参数值
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --force)
-            force="$2"
+        --version)
+            version="$2"
             shift 2
             ;;
         --port)
@@ -64,7 +64,7 @@ done
 
 # 输出参数值
 echo "Your installation parameters are as follows: "
-echo "--force: $force"
+echo "--version: $version"
 echo "--port: $port"
 echo "--channel: $channel"
 echo "--path: $path"
@@ -75,11 +75,11 @@ echo "--path: $path"
 export http_port=80
 export https_port=443
 export cockpit_port=$port
-export force_install=$force
 export install_path=$path
 export channel
+export version
 export systemd_path="/opt/websoft9/systemd"
-export source_zip="websoft9-latest.zip"
+export source_zip="websoft9-$version.zip"
 export source_unzip="websoft9"
 export source_github_pages="https://websoft9.github.io/websoft9"
 export tools_yum="git curl wget yum-utils jq bc unzip"
@@ -123,7 +123,7 @@ download_source() {
     echo_prefix_source=$'\n[Dowload Source] - '
     echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
     
-    rm -rf websoft9-latest.zip*
+    find . -type f -name "websoft9*.zip*" -exec rm -f {} \;
     if [ -d "$install_path" ]; then
         echo "Directory $install_path already exists and installation will cover it."
     else

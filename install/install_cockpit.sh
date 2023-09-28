@@ -7,6 +7,7 @@ export PATH
 
 ## This script is used for install or upgrade Cockpit on Linux
 ## Cockpit build at redhat family: https://copr.fedorainfracloud.org/coprs/g/cockpit/cockpit-preview/monitor/
+## Cockpit reposoitory list: https://pkgs.org/download/cockpit
 ## PackageKit: https://www.freedesktop.org/software/PackageKit/
 ## Not use pkcon install/update cockpit, the reason is: https://cockpit-project.org/faq.html#error-message-about-being-offline
 ## pkcon can read repositories at you system directly, it don't provide exra repository
@@ -102,13 +103,7 @@ check_ports() {
 }
 
 Print_Version(){
-
-    if command -v apt >/dev/null; then
-        apt show cockpit | head -n 15
-    else
-        yum info cockpit || dnf info cockpit
-    fi
-
+    sudo /usr/libexec/cockpit-ws --version 2>/dev/null || sudo /usr/lib/cockpit-ws --version 2>/dev/null
 }
 
 Install_PackageKit(){
@@ -121,14 +116,14 @@ Install_PackageKit(){
         if [ "$(cat /etc/redhat-release)" = "Redhat7" ]; then
             sudo subscription-manager repos --enable rhel-7-server-extras-rpms
         fi
-        sudo yum install PackageKit
+        sudo yum install PackageKit -y
 
     elif command -v dnf &> /dev/null; then
-        sudo dnf install PackageKit
+        sudo dnf install PackageKit -y
 
     elif command -v apt &> /dev/null; then
         sudo apt update
-        sudo apt install packagekit
+        sudo apt install packagekit -y
 
     else
         echo "PackageKit not found, Cockpit cannot be installed"
@@ -154,7 +149,7 @@ Restart_Cockpit(){
     echo "$echo_prefix_cockpit Restart Cockpit"
     sudo systemctl daemon-reload
     sudo systemctl restart cockpit
-    sudo systemctl restart cockpit.socket
+    sudo systemctl restart cockpit.socket 2> /dev/null
 }
 
 Set_Firewall(){
@@ -290,12 +285,22 @@ Test_Cockpit(){
     echo "$echo_prefix_cockpit Test Cockpit console accessibility" 
     test_cmd="curl localhost:$cockpit_port"
 
-    if $test_cmd >/dev/null 2>&1; then
-        echo "Cockpit running OK..."
-    else
-        echo "Cockpit is not running..."
-        exit 1
-    fi
+    start_time=$(date +%s)
+    timeout=30
+    while true; do
+        if $test_cmd >/dev/null 2>&1; then
+            echo "Cockpit running OK..."
+            break
+        else
+            current_time=$(date +%s)
+            elapsed_time=$(($current_time - $start_time))
+            if [ $elapsed_time -ge $timeout ]; then
+                echo "Cockpit is not running... Timeout after waiting $timeout seconds."
+                exit 1
+            fi
+            sleep 1
+        fi
+    done
 
     Print_Version
 }
