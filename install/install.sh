@@ -194,7 +194,7 @@ install_backends() {
     fi
 
     container_names=$(docker ps -a --format "{{.Names}}" --filter "name=websoft9")
-    sudo docker compose down
+    sudo docker compose -p websoft9 down
     
     # delete some dead containers that docker compose cannot deleted
     if [ ! -z "$container_names" ]; then

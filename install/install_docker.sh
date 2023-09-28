@@ -113,6 +113,22 @@ fi
 }
 
 
+Set_Firewall(){
+  echo "$echo_prefix_cockpit Set Firewalld for Docker"
+  if command -v firewall-cmd &> /dev/null; then
+     if ! systemctl is-active --quiet firewalld; then
+        sudo systemctl start firewalld
+        sudo firewall-cmd --zone=trusted --remove-interface=docker0 --permanent
+        sudo firewall-cmd --reload
+        sudo systemctl stop firewalld
+     else
+        sudo firewall-cmd --zone=trusted --remove-interface=docker0 --permanent
+        sudo firewall-cmd --reload
+     fi
+
+  fi
+}
+
 Set_Docker(){
 # should have Docker server and Docker cli
 if docker_exist; then
@@ -121,6 +137,7 @@ if docker_exist; then
     sudo systemctl restart docker
     if ! docker network inspect websoft9 > /dev/null 2>&1; then
       sudo docker network create websoft9
+      sudo systemctl restart docker
     fi
 else
    echo "Docker settings failed, exit..."
@@ -129,4 +146,5 @@ fi
 }
 
 Upgrade_Docker
+Set_Firewall
 Set_Docker
