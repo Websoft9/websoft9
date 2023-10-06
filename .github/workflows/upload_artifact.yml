@@ -22,6 +22,7 @@ jobs:
           version=$(jq -r '.version' version.json)
           real_version=${version%%-*}
           echo "VERSION=$real_version" >> $GITHUB_ENV
+          echo "RC_VERSION=$version" >> $GITHUB_ENV
           changelog=$(cat changelog_latest.md)
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT 
           echo "$changelog" >> $GITHUB_OUTPUT 
@@ -66,8 +67,8 @@ jobs:
         if: ${{ steps.update_data.outputs.release == 'false' }}
         with:
           files: /*
-          tag_name: v${{ env.VERSION }}-rc
-          title: Release-v${{ env.VERSION }}-rc
+          tag_name: v${{ env.RC_VERSION }}
+          title: Release-v${{ env.RC_VERSION }}
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false
