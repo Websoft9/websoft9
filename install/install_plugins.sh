@@ -39,8 +39,7 @@ if [ -z "$install_path" ]; then
   install_path="/data/websoft9/source"
 fi
 
-echo "$echo_prefix_plugins Starting dowload plugin and update it"
-
+echo -e "\n\n-------- Plugins --------"
 echo "Your installation parameters are as follows: "
 echo "--channel: $channel"
 echo "--install_path: $install_path"
@@ -52,6 +51,8 @@ versions_local_file="$install_path/version.json"
 versions_url="$source_github_pages/version.json"
 file_suffix=".zip"
 plugin_path="/usr/share/cockpit"
+
+echo "$echo_prefix_plugins Starting download plugin and update it"
 
 python3 - << END
 import requests

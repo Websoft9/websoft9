@@ -30,6 +30,7 @@ export PATH
 #  $cockpit_port
 #  $install_path
 ############################################################
+echo -e "\n\n-------- Cockpit --------"
 echo "cockpit_port:$cockpit_port"
 echo "install_path:$install_path"
 
@@ -192,8 +193,7 @@ Set_Cockpit(){
     fi
 
     echo "Change cockpit default port to $cockpit_port ..." 
-    sudo sed -i "s/ListenStream=9090/ListenStream=$cockpit_port/" /lib/systemd/system/cockpit.socket
-
+    sudo sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
 
     # fwupd-refresh.service may push error for Cockpit menu, so disable it
     if sudo systemctl is-active --quiet fwupd-refresh.service; then
