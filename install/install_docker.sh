@@ -29,21 +29,6 @@ export PATH
 docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
 echo_prefix_docker=$'\n[Docker] - '
 
-# Function to check if apt is locked
-Wait_apt() {
-    local lock_files=("/var/lib/dpkg/lock" "/var/lib/apt/lists/lock")
-
-    for lock_file in "${lock_files[@]}"; do
-        while fuser "${lock_file}" >/dev/null 2>&1 ; do
-            echo "${lock_file} is locked by another process. Waiting..."
-            sleep 5
-        done
-    done
-
-    echo "APT locks are not held by any processes. You can proceed."
-}
-
-
 docker_exist() {
     # 检查 `docker` 命令是否存在
     if ! command -v docker &> /dev/null; then
@@ -83,7 +68,6 @@ Install_Docker(){
 
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then
-        Wait_apt
         apt update
         # Wait for apt to be unlocked
         curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
@@ -111,7 +95,11 @@ if docker_exist; then
         echo "Docker installed, but cannot upgrade"
     fi
 else
-    Install_Docker
+    export -f Install_Docker
+    timeout 300 bash -c Install_Docker
+    if [ $? -eq 124 ]; then
+    echo "Install Docker timed out, Docker packages maybe can't download"
+    fi
 fi
 }
 
@@ -122,8 +110,8 @@ if docker_exist; then
     sudo systemctl enable docker
     sudo systemctl restart docker
 else
-   echo "Docker start failed, exit..."
-   exit
+   echo "Docker not installed or start failed, exit..."
+   exit 1
 fi
 }
 

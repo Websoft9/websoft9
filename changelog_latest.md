@@ -1,2 +1,2 @@
-1. Fix install error: print version at Ubuntu
-2. Fix install error: cockpit can not start at Ubuntu
+1. Fix install: timeout for install Docker
+2. Fix install: export apt lock check

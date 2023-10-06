@@ -90,6 +90,25 @@ echo Install from url: $artifact_url
 
 # Define common functions
 
+Wait_apt() {
+    # Function to check if apt is locked
+    local lock_files=("/var/lib/dpkg/lock" "/var/lib/apt/lists/lock")
+
+    for lock_file in "${lock_files[@]}"; do
+        while fuser "${lock_file}" >/dev/null 2>&1 ; do
+            echo "${lock_file} is locked by another process. Waiting..."
+            sleep 5
+        done
+    done
+
+    echo "APT locks are not held by any processes. You can proceed."
+}
+
+export -f Wait_apt
+
+
+
+
 install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
@@ -268,7 +287,7 @@ install_backends() {
     if [ ! -z "$container_names" ]; then
         echo "Deleting containers:"
         echo $container_names
-        docker rm $container_names
+        docker rm -f $container_names 2>/dev/null
     else
         echo "No containers to delete."
     fi
@@ -291,7 +310,7 @@ install_systemd() {
     fi
 
     sudo cp -r $install_path/systemd/script/* "$systemd_path"
-    sudo cp -f "$systemd_path/websoft9.service" /lib/systemd/system/
+    sudo cp -f "$install_path/systemd/websoft9.service" /lib/systemd/system/
     if [ $? -ne 0 ]; then
         echo "Failed to copy Systemd service file."
         exit 1
