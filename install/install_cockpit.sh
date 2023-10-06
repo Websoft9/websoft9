@@ -56,7 +56,7 @@ echo_prefix_cockpit=$'\n[Cockpit] - '
 cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-storaged cockpit-networkmanager cockpit-session-recording cockpit-doc cockpit-packagekit cockpit-sosreport"
 menu_overrides_github_page_url="https://websoft9.github.io/websoft9/cockpit/menu_override"
 cockpit_config_github_page_url="https://websoft9.github.io/websoft9/cockpit/cockpit.conf"
-cockpit_menu_overrides=(networkmanager.override.json shell.override.json storaged.override.json systemd.override.json users.override.json apps.override.json machines.override.json selinux.override.json subscriptions.override.json kdump.override.json updated.override.json playground.override.json packagekit.override.json session-recording.override.json)
+cockpit_menu_overrides=()
 # export OS release environments
 if [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -207,7 +207,32 @@ Set_Cockpit(){
 
 }
 
+get_github_files() {
+    python3 - <<EOF
+import requests
+import json
+
+url = "https://api.github.com/repos/Websoft9/websoft9/contents/cockpit/menu_override?ref=main"
+headers = {
+    "Accept": "application/vnd.github.v3+json"
+}
+
+response = requests.get(url, headers=headers)
+
+if response.status_code == 200:
+    files = json.loads(response.text)
+    for file in files:
+        print(file['name'])
+else:
+    print(f"Error: {response.status_code}")
+EOF
+}
+
+
 Download_Menu_Override(){
+
+    cockpit_menu_overrides=($(get_github_files))
+
     for file in "${cockpit_menu_overrides[@]}"
         do
 

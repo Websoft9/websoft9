@@ -30,13 +30,19 @@ docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin dock
 echo_prefix_docker=$'\n[Docker] - '
 
 # Function to check if apt is locked
-is_apt_locked(){
-    if [[ -f /var/lib/dpkg/lock-frontend || -f /var/lib/apt/lists/lock ]]; then
-        return 0  # Apt is locked
-    else
-        return 1  # Apt is not locked
-    fi
+Wait_apt() {
+    local lock_files=("/var/lib/dpkg/lock" "/var/lib/apt/lists/lock")
+
+    for lock_file in "${lock_files[@]}"; do
+        while fuser "${lock_file}" >/dev/null 2>&1 ; do
+            echo "${lock_file} is locked by another process. Waiting..."
+            sleep 5
+        done
+    done
+
+    echo "APT locks are not held by any processes. You can proceed."
 }
+
 
 docker_exist() {
     # 检查 `docker` 命令是否存在
@@ -77,12 +83,9 @@ Install_Docker(){
 
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then
+        Wait_apt
         apt update
         # Wait for apt to be unlocked
-        while is_apt_locked; do
-            echo "Waiting for apt to be unlocked..."
-            sleep 5
-        done
         curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
     fi
 }
@@ -112,39 +115,18 @@ else
 fi
 }
 
-
-Set_Firewall(){
-  echo "$echo_prefix_cockpit Set Firewalld for Docker"
-  if command -v firewall-cmd &> /dev/null; then
-     if ! systemctl is-active --quiet firewalld; then
-        sudo systemctl start firewalld
-        sudo firewall-cmd --zone=trusted --remove-interface=docker0 --permanent
-        sudo firewall-cmd --reload
-        sudo systemctl stop firewalld
-     else
-        sudo firewall-cmd --zone=trusted --remove-interface=docker0 --permanent
-        sudo firewall-cmd --reload
-     fi
-
-  fi
-}
-
-Set_Docker(){
+Start_Docker(){
 # should have Docker server and Docker cli
 if docker_exist; then
-    echo "$echo_prefix_docker Starting to Set docker..."
+    echo "$echo_prefix_docker Starting Docker"
     sudo systemctl enable docker
     sudo systemctl restart docker
-    if ! docker network inspect websoft9 > /dev/null 2>&1; then
-      sudo docker network create websoft9
-      sudo systemctl restart docker
-    fi
 else
-   echo "Docker settings failed, exit..."
+   echo "Docker start failed, exit..."
    exit
 fi
 }
 
+
 Upgrade_Docker
-Set_Firewall
-Set_Docker
+Start_Docker

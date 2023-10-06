@@ -158,9 +158,10 @@ check_ports() {
     local ports=("$@")
 
     echo "Stop Websoft9 Proxy and Cockpit service for reserve ports..."
-    sudo docker stop websoft9-proxy || echo "docker stop websoft9-proxy failed "
-    sudo systemctl stop cockpit || echo "systemctl stop cockpit failed"
-    sudo systemctl stop cockpit.socket || echo "systemctl stop cockpit.socket failed"
+    sudo docker stop websoft9-proxy 2>/dev/null || echo "docker stop websoft9-proxy not need "
+    sudo systemctl stop cockpit 2>/dev/null || echo "systemctl stop cockpit not need"
+    sudo systemctl stop cockpit.socket 2>/dev/null || echo "systemctl stop cockpit.socket not need"
+
 
     for port in "${ports[@]}"; do
         if netstat -tuln | grep ":$port " >/dev/null; then
@@ -172,9 +173,51 @@ check_ports() {
     echo "All ports are available"
 }
 
+
+merge_daemon_files() {
+    remote_url="$1"
+    local_file="$2"
+
+    python3 - <<END
+import json
+import requests
+
+# 获取远程 daemon.json 文件的内容
+response = requests.get("$remote_url")
+remote_daemon = response.json()
+
+# 读取本地的 daemon.json 文件
+with open("$local_file", 'r') as f:
+    local_daemon = json.load(f)
+
+# 合并本地和远程的 daemon.json 文件内容
+local_daemon.update(remote_daemon)
+
+# 将合并后的内容写入到本地的 daemon.json 文件中
+with open("$local_file", 'w') as f:
+    json.dump(local_daemon, f, indent=4)
+END
+}
+
+set_docker(){
+   echo "Set Docker for Websoft9 backend service..."
+
+    if [ -f "${install_path}/docker/daemon.json" ]; then
+        merge_daemon_files "${install_path}/docker/daemon.json" "/etc/docker/daemon.json"
+    else
+        merge_daemon_files "${source_github_pages}/docker/daemon.json" "/etc/docker/daemon.json"
+    fi
+
+    if ! docker network inspect websoft9 > /dev/null 2>&1; then
+        sudo docker network create websoft9
+        sudo systemctl restart docker
+    fi
+}
+
 install_backends() {
     echo_prefix_backends=$'\n[Backend] - '
     echo "$echo_prefix_backends Install backend docker services"
+    set_docker
 
     cd "$install_path/docker"
     if [ $? -ne 0 ]; then
