@@ -17,7 +17,7 @@ Create more, better and more realistic software solutions for the world
 
 ## Candidate
 
-- [mayo7e](https://github.com/mayo7e): [#296](https://github.com/Websoft9/websoft9/issues/296)
+- [mayo7e](https://github.com/mayo7e): [#296](https://github.com/Websoft9/websoft9/issues/296) mayowa.wh@gmail.com
 
 ## Honorary Alumni
 

@@ -54,10 +54,9 @@ done
 echo_prefix_cockpit=$'\n[Cockpit] - '
 # package cockpit depends_on [cockpit-bridge,cockpit-ws,cockpit-system], but update cockpit the depends don't update 
 cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-storaged cockpit-networkmanager cockpit-session-recording cockpit-doc cockpit-packagekit cockpit-sosreport"
-cockpit_plugin_delete="apps,machines,selinux,subscriptions,kdump,updates,playground,packagekit,session-recording"
 menu_overrides_github_page_url="https://websoft9.github.io/websoft9/cockpit/menu_override"
 cockpit_config_github_page_url="https://websoft9.github.io/websoft9/cockpit/cockpit.conf"
-cockpit_menu_overrides=(networkmanager.override.json shell.override.json storaged.override.json systemd.override.json users.override.json)
+cockpit_menu_overrides=(networkmanager.override.json shell.override.json storaged.override.json systemd.override.json users.override.json apps.override.json machines.override.json selinux.override.json subscriptions.override.json kdump.override.json updated.override.json playground.override.json packagekit.override.json session-recording.override.json)
 # export OS release environments
 if [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -238,8 +237,6 @@ Edit_Menu(){
         echo "Download override files from URL..."
         Download_Menu_Override
     fi
-
-    echo "$cockpit_plugin_delete" | tr ',' '\n' | sudo xargs -I {} rm -rf "/usr/share/cockpit/{}"
 }
 
 Upgrade_Cockpit(){

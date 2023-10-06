@@ -16,3 +16,7 @@ usermod -aG sudo username
 #### Can not login when I reinstall my Instance?
 
 Need to clear all cookie at you browser
+
+#### How to modify Websoft9 port?
+
+Access web console > settings or use cli to modify port
