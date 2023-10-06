@@ -102,7 +102,7 @@ check_ports() {
 }
 
 Print_Version(){
-    sudo /usr/libexec/cockpit-ws --version 2>/dev/null || sudo /usr/lib/cockpit-ws --version 2>/dev/null
+    sudo /usr/libexec/cockpit-ws --version 2>/dev/null || sudo /usr/lib/cockpit-ws --version 2>/dev/null || /usr/lib/cockpit/cockpit-ws --version 2>/dev/null
 }
 
 Install_PackageKit(){
@@ -132,7 +132,7 @@ Install_PackageKit(){
 
 
 Set_Repository() {
-    echo "$echo_prefix_cockpit Set Cockpit repository"
+    echo "$echo_prefix_cockpit Set Cockpit deb repository"
     if command -v apt &> /dev/null; then
         if [ "$NAME" = "Debian" ]; then
             echo "deb http://deb.debian.org/debian $VERSION_CODENAME-backports main" > /etc/apt/sources.list.d/backports.list
@@ -147,8 +147,8 @@ Set_Repository() {
 Restart_Cockpit(){
     echo "$echo_prefix_cockpit Restart Cockpit"
     sudo systemctl daemon-reload
-    sudo systemctl restart cockpit
     sudo systemctl restart cockpit.socket 2> /dev/null
+    sudo systemctl restart cockpit
 }
 
 Set_Firewall(){

@@ -120,7 +120,7 @@ install_tools(){
 
 
 download_source() {
-    echo_prefix_source=$'\n[Dowload Source] - '
+    echo_prefix_source=$'\n[Download Source] - '
     echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
     
     find . -type f -name "websoft9*.zip*" -exec rm -f {} \;
@@ -290,7 +290,7 @@ install_systemd() {
     sudo mkdir -p "$systemd_path"
     fi
 
-    sudo cp -r $install_path/systemd/* "$systemd_path"
+    sudo cp -r $install_path/systemd/script/* "$systemd_path"
     sudo cp -f "$systemd_path/websoft9.service" /lib/systemd/system/
     if [ $? -ne 0 ]; then
         echo "Failed to copy Systemd service file."
