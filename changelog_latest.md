@@ -1,2 +1,2 @@
-1. Fix install error: docker not found
-2. Fix install error: cockpit.socket not found
+1. Fix install error: apt locked
+2. Install: add Docker daemon.json

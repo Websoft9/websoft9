@@ -174,40 +174,65 @@ check_ports() {
 }
 
 
-merge_daemon_files() {
-    remote_url="$1"
-    local_file="$2"
+source_github_pages="https://websoft9.github.io/websoft9"
+install_path="/data/websoft9/source"
 
-    python3 - <<END
+
+merge_json_files() {
+    local target_path="/etc/docker/daemon.json"
+
+    python3 - <<EOF 2>/dev/null
 import json
-import requests
+import urllib.request
+import os
 
-# 获取远程 daemon.json 文件的内容
-response = requests.get("$remote_url")
-remote_daemon = response.json()
+def merge_json_files(file1, file2):
+    print("Merge from local file... ")
+    with open(file1, 'r') as f1, open(file2, 'r') as f2:
+        data1 = json.load(f1)
+        data2 = json.load(f2)
 
-# 读取本地的 daemon.json 文件
-with open("$local_file", 'r') as f:
-    local_daemon = json.load(f)
+    merged_data = {**data1, **data2}
 
-# 合并本地和远程的 daemon.json 文件内容
-local_daemon.update(remote_daemon)
+    with open(file1, 'w') as f:
+        json.dump(merged_data, f, indent=4)
 
-# 将合并后的内容写入到本地的 daemon.json 文件中
-with open("$local_file", 'w') as f:
-    json.dump(local_daemon, f, indent=4)
-END
+def download_and_merge(url, file_path):
+    print("Download daemon.json from url and merge... ")
+    with urllib.request.urlopen(url) as response:
+        data = json.loads(response.read().decode())
+
+    with open(file_path, 'r') as f:
+        local_data = json.load(f)
+
+    merged_data = {**local_data, **data}
+
+    with open(file_path, 'w') as f:
+        json.dump(merged_data, f, indent=4)
+
+# Create target file if it does not exist
+if not os.path.exists("${target_path}"):
+    os.makedirs(os.path.dirname("${target_path}"), exist_ok=True)
+    with open("${target_path}", 'w') as f:
+        json.dump({}, f)
+
+if os.path.exists("${install_path}/docker/daemon.json"):
+    merge_json_files("${target_path}", "${install_path}/docker/daemon.json")
+elif urllib.request.urlopen("${source_github_pages}/docker/daemon.json").getcode() == 200:
+    download_and_merge("${source_github_pages}/docker/daemon.json", "${target_path}")
+else:
+    print("No target daemon.json file need to merged")
+EOF
+
+    if [ $? -ne 0 ]; then
+        echo "merge daemon.json failed, but install continue running"
+    fi
 }
 
+
 set_docker(){
-   echo "Set Docker for Websoft9 backend service..."
-
-    if [ -f "${install_path}/docker/daemon.json" ]; then
-        merge_daemon_files "${install_path}/docker/daemon.json" "/etc/docker/daemon.json"
-    else
-        merge_daemon_files "${source_github_pages}/docker/daemon.json" "/etc/docker/daemon.json"
-    fi
-
+    echo "Set Docker for Websoft9 backend service..."
+    merge_json_files
     if ! docker network inspect websoft9 > /dev/null 2>&1; then
         sudo docker network create websoft9
         sudo systemctl restart docker
