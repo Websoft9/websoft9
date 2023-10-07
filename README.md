@@ -44,9 +44,19 @@ curl https://websoft9.github.io/websoft9/install/install.sh | bash
 
 
 # Install Websoft9 special version by development artifact and install path at /data/websoft9/source ...
-wget https://websoft9.github.io/websoft9/install/install.sh &&  bash install.sh --port 9000 --channel dev --path "/data/websoft9/source" --version "0.8.25"
+wget -O - https://websoft9.github.io/websoft9/install/install.sh | bash /dev/stdin --port 9000 --channel dev --path "/data/websoft9/source" --version "0.8.25"
 ```
 After installation, access it by: **http://Internet IP:9000** and using **Linux user** for login
+
+# Uninstall
+
+```
+# Uninstall by default
+curl https://websoft9.github.io/websoft9/install/uninstall.sh | bash
+
+# Uninstall all
+wget -O - https://websoft9.github.io/websoft9/install/uninstall.sh | bash /dev/stdin --cockpit --files
+```
 
 # Contributing
 

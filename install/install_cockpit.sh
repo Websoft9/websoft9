@@ -257,6 +257,7 @@ Edit_Menu(){
         if [ $? -ne 0 ]; then
         echo "Failed to download cockpit.conf"
         exit 1
+        fi
     fi
 
     if test -d "$install_path/cockpit/menu_override"; then

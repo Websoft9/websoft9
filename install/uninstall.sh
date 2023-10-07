@@ -16,7 +16,7 @@ export PATH
 # --files
 # Use the  --files option remove files have installed:
 #
-#   $ sudo sh install.sh --cockpit
+#   $ sudo sh install.sh --files
 #
 #
 # ==============================================================================
