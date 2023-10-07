@@ -10,12 +10,18 @@ usermod -aG wheel username
 usermod -aG sudo username
 
 # sudo not need to input password
-
 ```
 
-#### Can not login when I reinstall my Instance?
+#### Can not login with correct credential?
 
-Need to clear all cookie at you browser
+Many reason may make you login failed with the correct credential:
+
+- Cookie at you browser if IP change, need to clear cookie
+- *.override.json is not correct
+- TLS certificate
+- User not allowed login, need to modify ssh_config file
+
+More details, you can get it from `sudo grep cockpit /var/log/messages`
 
 #### How to modify Websoft9 port?
 

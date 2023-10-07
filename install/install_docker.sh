@@ -24,8 +24,6 @@ export PATH
 #
 #   $ sudo sh install_docker.sh
 
-
-
 docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
 echo_prefix_docker=$'\n[Docker] - '
 
@@ -98,7 +96,8 @@ else
     export -f Install_Docker
     timeout 300 bash -c Install_Docker
     if [ $? -eq 124 ]; then
-    echo "Install Docker timed out, Docker packages maybe can't download"
+      echo "Install Docker timed out, Docker packages maybe can't download"
+      exit 1
     fi
 fi
 }
