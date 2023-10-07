@@ -253,6 +253,7 @@ set_docker(){
     echo "Set Docker for Websoft9 backend service..."
     merge_json_files
     if ! docker network inspect websoft9 > /dev/null 2>&1; then
+        sudo systemctl stop firewalld 2> /dev/null
         sudo docker network create websoft9
         sudo systemctl restart docker
     fi
