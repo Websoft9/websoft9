@@ -79,13 +79,13 @@ cockpit_exist() {
 }
 
 
-if cockpit_exist; then
-  cockpit_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
-  echo "Maintain original port: $cockpit_port"
-else
-  if [ -z "$cockpit_port" ]; then
-    cockpit_port="$port"
-  fi
+if cockpit_exist && [ -n "${cockpit_port// }" ]; then
+    cockpit_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
+fi
+
+if [ -z "${cockpit_port// }" ]; then
+    cockpit_port=$port
+    echo "Maintain original port: $cockpit_port"
 fi
 
 
@@ -254,6 +254,9 @@ Edit_Menu(){
     else
         echo "Download config file from URL..."
         curl -sSL $cockpit_config_github_page_url | sudo tee /etc/cockpit/cockpit.conf > /dev/null
+        if [ $? -ne 0 ]; then
+        echo "Failed to download cockpit.conf"
+        exit 1
     fi
 
     if test -d "$install_path/cockpit/menu_override"; then
