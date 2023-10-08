@@ -178,9 +178,11 @@ Set_Firewall(){
         sudo firewall-cmd --permanent --zone=public --add-service=cockpit
         sudo firewall-cmd --reload
      fi
-
   fi
+}
 
+Set_Selinux(){
+  echo "$echo_prefix_cockpit Set Selinux for cockpit access"
   if [ -f /etc/selinux/config ]; then
      echo "Set Selinux for Cockpit..."
      sudo setenforce 0  1>/dev/null 2>&1
@@ -315,6 +317,7 @@ Install_Cockpit(){
     fi
 
     Set_Firewall
+    Set_Selinux
     Set_Cockpit
     Edit_Menu
     Restart_Cockpit
