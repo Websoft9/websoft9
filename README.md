@@ -34,9 +34,11 @@ You can see the sceenshoots below:
 - Manage your Linux by GUI: Inspect and change network settings, Configure a firewall, Manage storage, Browse and search system logs, Inspect a system’s hardware, Inspect and interact with systemd-based services,
 - Supported languages: English, Chinese（中文）
 
-# Install & Upgrade
+# Installation
 
-You should have root privileges user to install or upgrade Websoft9, if you use no-root user you can `sudo su` for it
+You should have root privileges user to install or upgrade or uninstall Websoft9, if you use no-root user you can `sudo su` for it
+
+## Install & Upgrade
 
 ```
 # Install by default
@@ -48,7 +50,7 @@ wget -O - https://websoft9.github.io/websoft9/install/install.sh | bash /dev/std
 ```
 After installation, access it by: **http://Internet IP:9000** and using **Linux user** for login
 
-# Uninstall
+## Uninstall
 
 ```
 # Uninstall by default

@@ -63,11 +63,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 输出参数值
-echo "Your installation parameters are as follows: "
+echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
+echo -e "\nYour installation parameters are as follows: "
 echo "--version: $version"
 echo "--port: $port"
 echo "--channel: $channel"
 echo "--path: $path"
+
+echo -e "\nYour OS: "
+cat /etc/os-release | head -n 3  2>/dev/null
 
 # Define global vars
 # export var can send it to subprocess
@@ -105,8 +109,6 @@ Wait_apt() {
 }
 
 export -f Wait_apt
-
-
 
 
 install_tools(){
@@ -252,11 +254,16 @@ EOF
 set_docker(){
     echo "Set Docker for Websoft9 backend service..."
     merge_json_files
-    if ! docker network inspect websoft9 > /dev/null 2>&1; then
-        sudo systemctl stop firewalld 2> /dev/null
-        sudo docker network create websoft9
-        sudo systemctl restart docker
+    if ! systemctl is-active --quiet firewalld; then
+        echo "firewalld is not running"  
+    else
+        echo "Set firewall for Docker..."
+        sudo sudo firewall-cmd --permanent --new-zone=docker 2> /dev/null
+        sudo firewall-cmd --permanent --zone=docker --add-interface=docker0 2> /dev/null
+        sudo firewall-cmd --permanent --zone=docker --set-target=ACCEPT
+        sudo firewall-cmd --reload
     fi
+    sudo systemctl restart docker   
 }
 
 install_backends() {
@@ -339,8 +346,6 @@ install_systemd() {
 
 
 #--------------- main-----------------------------------------
-
-echo "------ Welcome to install Websoft9, it will take 3-5 minutes ------" 
 check_ports $http_port $https_port $cockpit_port
 install_tools
 download_source
@@ -365,4 +370,6 @@ fi
 
 install_backends
 install_systemd
-echo "-- Install success! Access Websoft9 console by: http://Internet IP:$cockpit_port and using Linux user for login ------" 
+
+echo -e "\n-- Install success! ------" 
+echo "Access Websoft9 console by: http://Internet IP:$(grep ListenStream /lib/systemd/system/cockpit.socket | cut -d= -f2) and using Linux user for login"

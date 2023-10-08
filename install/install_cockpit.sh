@@ -81,11 +81,12 @@ cockpit_exist() {
 
 if cockpit_exist && [ -n "${cockpit_port// }" ]; then
     cockpit_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
+    echo "$cockpit_port at cockpit.socket"
 fi
 
 if [ -z "${cockpit_port// }" ]; then
     cockpit_port=$port
-    echo "Maintain original port: $cockpit_port"
+    echo "Confirm the port: $cockpit_port"
 fi
 
 
