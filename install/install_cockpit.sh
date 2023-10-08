@@ -23,22 +23,14 @@ export PATH
 #
 #   $ sudo sh install_cockpit.sh --port 9001
 
-
-
 ############################################################
 # Below vars export from install.sh
-#  $cockpit_port
+#  $port
 #  $install_path
 ############################################################
+
 echo -e "\n\n-------- Cockpit --------"
-echo "cockpit_port:$cockpit_port"
-echo "install_path:$install_path"
 
-# Install Cockpit at this port
-# If Cockpit installed, maintain its origin port
-port="9000"
-
-# 获取参数值
 while [[ $# -gt 0 ]]; do
     case $1 in
         --port)
@@ -50,6 +42,43 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Port priority: --port > ListenStream= > 9000
+
+cockpit_exist() {
+  systemctl list-unit-files | grep -q "cockpit.service"
+  return $?
+}
+
+if cockpit_exist; then
+    cockpit_now_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
+    if [ -z "${cockpit_now_port// }" ]; then
+        echo "cockpit port is null,set it to 9000"
+        cockpit_now_port=9000
+    else
+        echo "$cockpit_now_port at cockpit.socket"
+    fi
+
+else
+    cockpit_now_port=9000
+fi
+
+if [ -n "$port" ]; then
+    cockpit_port=$port
+else
+    cockpit_port=$cockpit_now_port
+fi
+
+
+if [ -n "$install_path" ]; then
+    echo "Have found install files"
+else
+    install_path="/data/websoft9/source"
+fi
+
+echo -e "\nYour installation parameters are as follows: "
+echo "cockpit_port:$cockpit_port"
+echo "install_path:$install_path"
 
 
 echo_prefix_cockpit=$'\n[Cockpit] - '
@@ -72,23 +101,6 @@ Package: cockpit*
 Pin: release a=$VERSION_CODENAME-backports
 Pin-Priority: 1000
 "
-
-cockpit_exist() {
-  systemctl list-unit-files | grep -q "cockpit.service"
-  return $?
-}
-
-
-if cockpit_exist && [ -n "${cockpit_port// }" ]; then
-    cockpit_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
-    echo "$cockpit_port at cockpit.socket"
-fi
-
-if [ -z "${cockpit_port// }" ]; then
-    cockpit_port=$port
-    echo "Confirm the port: $cockpit_port"
-fi
-
 
 check_ports() {
     local ports=("$@")
@@ -311,7 +323,7 @@ Install_Cockpit(){
 Test_Cockpit(){
     echo "$echo_prefix_cockpit Test Cockpit console accessibility" 
     test_cmd="curl localhost:$cockpit_port"
-
+    echo test_cmd
     start_time=$(date +%s)
     timeout=30
     while true; do

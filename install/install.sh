@@ -33,7 +33,6 @@ export PATH
 
 # 设置参数的默认值
 version="latest"
-port="9000"
 channel="release"
 path="/data/websoft9/source"
 
@@ -62,6 +61,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [ -n "$port" ]; then
+    export port
+else
+    port=9000
+fi
+
+
 # 输出参数值
 echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
 echo -e "\nYour installation parameters are as follows: "
@@ -78,7 +84,6 @@ cat /etc/os-release | head -n 3  2>/dev/null
 
 export http_port=80
 export https_port=443
-export cockpit_port=$port
 export install_path=$path
 export channel
 export version
@@ -346,7 +351,7 @@ install_systemd() {
 
 
 #--------------- main-----------------------------------------
-check_ports $http_port $https_port $cockpit_port
+check_ports $http_port $https_port $port
 install_tools
 download_source
 
