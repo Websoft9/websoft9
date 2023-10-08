@@ -1,6 +1,6 @@
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.0.1"
+LABEL version="0.0.2"
 
 ENV LIBRARY_VERSION=v0.5.8
 
@@ -10,7 +10,10 @@ RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_V
     mv docker-library-* library && \
     mkdir credentials && \
     echo "This folder stored the credentials of other services that apphub will connect" > credentials/readme  && \
-    # Prepare  Media and master data from Contentful 
+    # Prepare  Media and master data from Contentful
+    git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
+    wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \ 
+    cp redoc.standalone.js swagger-ui/dist && \ 
     git clone --depth=1 https://github.com/Websoft9/plugin-appstore && \
     mv -f plugin-appstore/data ./media && \
     git clone --depth=1 https://github.com/Websoft9/websoft9
@@ -21,6 +24,7 @@ WORKDIR  /websoft9
 COPY --from=buildstage /media/data ./media
 COPY --from=buildstage /library ./library
 COPY --from=buildstage /websoft9/appmanage_new ./apphub
+COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
 
 RUN apt update && apt install git jq iproute2 supervisor -y && \
     mkdir credentials && \
