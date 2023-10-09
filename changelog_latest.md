@@ -1,1 +1,1 @@
-1. Fix install error: Cockpit port
+1. Fix install error: Firewalld for cockpit
