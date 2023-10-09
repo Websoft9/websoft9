@@ -1,6 +1,6 @@
-# run app : uvicorn src.main:app --reload --port 9999 --log-level error
-# run nginx proxy manager doc:docker run -p 9091:8080 -e SWAGGER_JSON=/foo/api.swagger.json -v /data/websoft9/appmanage_new/docs/:/foo swaggerapi/swagger-ui
-# supervisorctl
+## run app : uvicorn src.main:app --reload --port 9999 --log-level error
+## run nginx proxy manager doc:docker run -p 9091:8080 -e SWAGGER_JSON=/foo/api.swagger.json -v /data/websoft9/appmanage_new/docs/:/foo swaggerapi/swagger-ui
+## supervisorctl
 ## supervisorctl reload
 ## supervisorctl update
 ## supervisorctl status

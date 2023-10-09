@@ -23,7 +23,7 @@ class FileHelper:
         """
         try:
             with open(file_path, 'r') as f:
-                content = f.read()               
+                content = f.read()
             return content
         except:
             logger.error(f"Failed to read file {file_path}")

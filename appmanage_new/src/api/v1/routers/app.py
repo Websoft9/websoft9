@@ -6,7 +6,7 @@ from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_manager import AppManger
 
-router = APIRouter(prefix="/api/v1")
+router = APIRouter()
 
 @router.get(
         "/apps/catalog/{locale}",
@@ -22,7 +22,6 @@ def get_catalog_apps(
     locale: str = Path(..., description="Language to get catalogs from", regex="^(zh|en)$"),
 ):
     return AppManger().get_catalog_apps(locale)
-
 
 @router.get(
         "/apps/available/{locale}",

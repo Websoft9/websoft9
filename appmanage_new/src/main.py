@@ -2,12 +2,14 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from src.api.v1.routers import app as api_app
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.schemas.errorResponse import ErrorResponse
+from fastapi.responses import HTMLResponse
 
 uvicorn_logger = logging.getLogger("uvicorn")
 
@@ -23,7 +25,34 @@ app = FastAPI(
         # summary="[ Base URL: /api/v1 ]",
         description="This documentation describes the AppManage API.",
         version="0.0.1",
+        docs_url=None
     )
+
+app.mount("/static", StaticFiles(directory="swagger-ui"), name="static")
+
+@app.get("/docs", response_class=HTMLResponse,include_in_schema=False)
+async def custom_swagger_ui_html():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Websoft9 API</title>
+        <link rel="stylesheet" type="text/css" href="/static/swagger-ui.css">
+        <script src="/static/swagger-ui-bundle.js"></script>
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script>
+        const ui = SwaggerUIBundle({
+            url: "/openapi.json",
+            dom_id: '#swagger-ui',
+            presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+            layout: "BaseLayout"
+        })
+        </script>
+    </body>
+    </html>
+    """
 
 # remove 422 responses
 @app.on_event("startup")

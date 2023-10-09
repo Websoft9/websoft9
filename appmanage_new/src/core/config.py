@@ -1,5 +1,6 @@
 import os
 import configparser
+from src.core.logger import logger
 
 
 class ConfigManager:
