@@ -31,7 +31,6 @@ RUN apt update && apt install git jq iproute2 supervisor -y && \
     echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
 
 RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
-
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
