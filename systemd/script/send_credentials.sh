@@ -5,6 +5,8 @@ set -e
 trap "sleep 1; continue" ERR
 try_times=100
 counter=1
+
+
 portainer_username="admin"
 credential_path="/var/websoft9/credential"
 apphub_container_name="websoft9-apphub"
@@ -12,7 +14,7 @@ apphub_container_name="websoft9-apphub"
 copy_credential() {
 
 	# 设置参数的默认值
-	source_container="websoft9-git"
+	source_container=
 	source_path="/var/websoft9/credential"
 	destination_container="websoft9-apphub"
 	destination_path="/websoft9/credentials/credential_git"
