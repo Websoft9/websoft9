@@ -1,8 +1,7 @@
-[![](https://lab.frogg.it/lydra/yunohost/ansible-yunohost/badges/main/pipeline.svg)](https://lab.frogg.it/lydra/yunohost/ansible-yunohost/-/pipelines)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
-[![GitHub last commit](https://img.shields.io/github/last-commit/LydraFr/ansible-yunohost)](https://github.com/LydraFr/ansible-yunohost)
-[![GitHub Release Date](https://img.shields.io/github/release-date/LydraFr/ansible-yunohost)](https://github.com/LydraFr/ansible-yunohost)
-[![GitHub Repo stars](https://img.shields.io/github/stars/LydraFr/ansible-yunohost?style=social)](https://github.com/LydraFr/ansible-yunohost)
+[![GitHub last commit](https://img.shields.io/github/last-commit/websoft9/websoft9)](https://github.com/websoft9/websoft9)
+[![GitHub Release Date](https://img.shields.io/github/release-date/websoft9/websoft9)](https://github.com/websoft9/websoft9)
+[![GitHub Repo stars](https://img.shields.io/github/stars/websoft9/websoft9?style=social)](https://github.com/websoft9/websoft9)
 
 # What is Websoft9?
 

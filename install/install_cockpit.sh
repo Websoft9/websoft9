@@ -165,20 +165,27 @@ Restart_Cockpit(){
     sudo systemctl restart cockpit
 }
 
-Set_Firewall(){
-  echo "$echo_prefix_cockpit Set firewall for cockpit access"
+Add_Firewalld(){
+    echo "Add cockpit service to Firewalld..."
+    # cockpit.xml is not always the same path at Linux distributions
+    sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml
+    sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /usr/lib/firewalld/services/cockpit.xml
+    sudo firewall-cmd --zone=public --add-service=cockpit --permanent 
+    sudo firewall-cmd --zone=public --add-port=443/tcp --permanent
+    sudo firewall-cmd --zone=public --add-port=80/tcp --permanent
+    sudo firewall-cmd --reload
+}
+
+Set_Firewalld(){
+  echo "$echo_prefix_cockpit Set firewalld for cockpit access"
   if command -v firewall-cmd &> /dev/null; then
      echo "Set firewall for Cockpit..."
      if ! systemctl is-active --quiet firewalld; then
         sudo systemctl start firewalld
-        sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml
-        sudo firewall-cmd --permanent --zone=public --add-service=cockpit
-        sudo firewall-cmd --reload
+        Add_Firewalld
         sudo systemctl stop firewalld
      else
-        sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml
-        sudo firewall-cmd --permanent --zone=public --add-service=cockpit
-        sudo firewall-cmd --reload
+        Add_Firewalld
      fi
   fi
 }
@@ -318,7 +325,7 @@ Install_Cockpit(){
         Restart_Cockpit
     fi
 
-    Set_Firewall
+    Set_Firewalld
     Set_Selinux
     Set_Cockpit
     Edit_Menu
