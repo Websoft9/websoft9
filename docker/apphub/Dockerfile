@@ -38,7 +38,7 @@ COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 VOLUME /websoft9/apphub/logs 
-VOLUME /websoft9/apphub/src/conf
+VOLUME /websoft9/apphub/src/config
 VOLUME /websoft9/media
 
 # Clean cache and install files
