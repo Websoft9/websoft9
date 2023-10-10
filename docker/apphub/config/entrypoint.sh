@@ -25,18 +25,6 @@ set +e
 check_file_exists "/websoft9/credentials/credential_proxy" 1
 check_file_exists "/websoft9/credentials/credential_deployment" 1
 check_file_exists "/websoft9/credentials/credential_git" 1
-
-# set git user and email
-if [ $? -eq 0 ]; then
-    username=$(jq -r '.username' /websoft9/credentials/credential_git)
-    password=$(jq -r '.email' /websoft9/credentials/credential_git)
-else
-    echo "Git set with default value"
-    username="websoft9"
-    password="help@websoft9.com"
-fi
-git config --global user.name "$username"
-git config --global user.email "$password"
 set -e
 
 # start by supervisord
