@@ -1,36 +1,58 @@
-# Install and Upgrade
+# Install
 
-## Install
+- The [install.sh](./install.sh) is the entry file for install or upgrade
+- You can separate running the [install_cockpit.sh](./install_cockpit.sh), [install_docker.sh](./install_docker.sh), [install_plugins.sh](./install_plugins.sh) also
+- The [uninstall.sh](./install.sh) is the entry file for uninstall
 
-### Install Path
 
-便于升级、便于用户使用的产品文件目录组织结构
+## User it
 
-- 微服务容器：/websoft9/docker
-- Cockpit 插件：/websoft9/cockpit
-- 安装和升级脚本: /websoft9/install
-- Appstore 后台源码: /websoft9/appmanage
-- cli: /websoft9/cli(待定)
+```
+# install or upgrade Websoft9
+wget -O - https://websoft9.github.io/websoft9/install/install.sh | bash
 
-## Upgrade
+# install or upgrade Websoft9 with parameters
+wget -O - https://websoft9.github.io/websoft9/install/install.sh | bash /dev/stdin --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
 
-升级主要分成软件商店升级和内核升级。
+# install or upgrade Cockpit with parameters
+wget -O - https://websoft9.github.io/websoft9/install/install_cockpit.sh | bash --port 9000
 
-#### 软件商店升级
+# install or upgrade Docker
+wget -O - https://websoft9.github.io/websoft9/install/install_docker.sh | bash
 
-主要是软件商店插件更新后引起的升级。
-当本地 appstore 版本小于最新 version.json 的版本时，升级 appstore 插件以及 library 制品。
+# uninstall by default
+curl https://websoft9.github.io/websoft9/install/uninstall.sh | bash
 
-#### 内核升级
+# uninstall all
+wget -O - https://websoft9.github.io/websoft9/install/uninstall.sh | bash /dev/stdin --cockpit --files
+```
 
-内核升级会将所有组件升级到最新，除了软件商店升级外，还需要升级以下内容：
+## Develop it
 
-1. docker， cockpit 系统组件
-2. 后台微服务容器
-3. cockpit 对应插件
+This install script have below related resources:
 
-升级都会从制品库获取 version.json 对应版本的制品。
+- Tools: Install or upgrade some useful software packages at Linux
+- Source Code: Download source code from artifactory
+- Docker: Install and upgrade Docker, compose up **backend service** with docker-compose.yml
+- Cockpit: Install and upgrade Cockpit and its Packages, manage it port, fix it menu
+- Plugins: Install and upgrade Websoft9 plugins which is the **frontend**
+- Systemd: Install and upgrade websoft9.serivce
+- Set Firewalld: let 80,443 and Cockpit port allowed, Cockpit and Docker service with firewalld
 
-#### 升级限制
+The install script should adhere to the following principles:
 
-内核升级可能会因为架构系统等原因无法升级，在 version.json 中含有支持升级操作系统依赖，据此来判断是否能升级。
+1. Not allowed to modify the source code of the application.
+2. Every task must have an exception exit mechanism.
+3. Both installation and updates should be considered simultaneously.
+4. Upgrade script should not overwrite existing configurations.
+5. Duplication of codes in any form is not allowed, it must used function.
+6. Paths, ports, etc. must be defined using variables.
+
+
+Some default parameters you should know:
+
+- Websoft9 root path：*/data/websoft9/source* 
+- Websoft9 Systemd script path: */opt/websoft9/systemd*  
+- Plugins path: */usr/share/cockpit*  
+- Cockpit config path: */ect/cockpit* 
+- Cockpit default port: 9000
