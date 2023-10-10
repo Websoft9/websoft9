@@ -1,0 +1,3 @@
+FROM websoft9dev/apphub:0.0.4 as buildstage
+RUN mkdir -p /websoft9/src
+RUN sed -i 's/supervisorctl start apphub/supervisorctl start apphubdev/g' /entrypoint.sh
