@@ -171,10 +171,12 @@ Set_Firewall(){
      echo "Set firewall for Cockpit..."
      if ! systemctl is-active --quiet firewalld; then
         sudo systemctl start firewalld
+        sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml
         sudo firewall-cmd --permanent --zone=public --add-service=cockpit
         sudo firewall-cmd --reload
         sudo systemctl stop firewalld
      else
+        sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml
         sudo firewall-cmd --permanent --zone=public --add-service=cockpit
         sudo firewall-cmd --reload
      fi
