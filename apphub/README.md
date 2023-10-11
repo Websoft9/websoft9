@@ -1,6 +1,5 @@
 
-# cli
-## apphub
+## apphub cli
 ```
 Usage: apphub [OPTIONS] COMMAND [ARGS]...
 
