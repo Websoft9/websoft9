@@ -1,0 +1,2 @@
+[console_scripts]
+apphub = cli.apphub_cli:main

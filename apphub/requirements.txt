@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+keyring
+keyrings.alt
+requests
+GitPython
+PyJWT
+click

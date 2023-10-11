@@ -1,0 +1,7 @@
+setup.py
+apphub.egg-info/PKG-INFO
+apphub.egg-info/SOURCES.txt
+apphub.egg-info/dependency_links.txt
+apphub.egg-info/entry_points.txt
+apphub.egg-info/requires.txt
+apphub.egg-info/top_level.txt
