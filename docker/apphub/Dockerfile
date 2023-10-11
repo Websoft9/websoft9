@@ -1,6 +1,6 @@
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.0.4"
+LABEL version="0.0.5"
 
 ENV LIBRARY_VERSION=v0.5.8
 
@@ -23,7 +23,7 @@ WORKDIR  /websoft9
 
 COPY --from=buildstage /media/data ./media
 COPY --from=buildstage /library ./library
-COPY --from=buildstage /websoft9/appmanage_new ./apphub
+COPY --from=buildstage /websoft9/apphub ./apphub
 COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
 
 RUN apt update && apt install git jq iproute2 supervisor -y && \
