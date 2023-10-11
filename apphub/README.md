@@ -1,7 +1,7 @@
 
 # cli
 ## apphub
-'''
+```
 Usage: apphub [OPTIONS] COMMAND [ARGS]...
 
 Options:
@@ -11,7 +11,7 @@ Commands:
   genkey     Generate a new API key
   getconfig  Get a config value
   setconfig  Set a config value
-'''
+```
 
 # 项目结构
 ## src
