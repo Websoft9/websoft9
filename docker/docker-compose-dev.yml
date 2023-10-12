@@ -18,8 +18,6 @@ services:
     volumes:
       - /data/mysource:/websoft9/apphub-dev
       - apphub_media:/websoft9/media
-      # - apphub_logs:/websoft9/apphub-dev/logs
-      # - apphub_config:/websoft9/apphub-dev/src/config
     depends_on:
       - deployment
       - git
@@ -82,9 +80,7 @@ networks:
     external: true
 
 volumes:
-  apphub_logs:
   apphub_media:
-  apphub_config:
   portainer:
   gitea:
   nginx_data:
