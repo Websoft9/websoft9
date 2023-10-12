@@ -5,7 +5,7 @@ version: "3.8"
 
 services:
   apphub:
-    image: websoft9dev/apphub:dev
+    image: websoft9dev/apphub:${APPHUB_VERSION}
     container_name: websoft9-apphub
     build:
       context: .
