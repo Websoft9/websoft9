@@ -28,6 +28,11 @@ export PATH
 #
 #  $ sudo bash install.sh --path "/data/websoft9/source"
 #
+# --devto
+# Use the --devto option to developer mode, devto is the developer code path, for example:
+#
+#  $ sudo bash install.sh --devto "/data/dev/mycode"
+#
 # ==============================================================================
 
 
@@ -55,6 +60,10 @@ while [[ $# -gt 0 ]]; do
             path="$2"
             shift 2
             ;;
+        --devto)
+            devto="$2"
+            shift 2
+            ;;
         *)
             shift
             ;;
@@ -75,6 +84,7 @@ echo "--version: $version"
 echo "--port: $port"
 echo "--channel: $channel"
 echo "--path: $path"
+echo "--devto: $devto"
 
 echo -e "\nYour OS: "
 cat /etc/os-release | head -n 3  2>/dev/null
@@ -293,8 +303,16 @@ install_backends() {
         fi
     fi
 
+    # set to devloper mode
+    if [ -n "$devto" ]; then
+        sed -i "s|.*:/websoft9/src|$devto:/websoft9/src|g" docker-compose-dev.yml
+        composefile=docker-compose-dev.yml
+    else
+        composefile=docker-compose.yml
+    fi
+
     container_names=$(docker ps -a --format "{{.Names}}" --filter "name=websoft9")
-    sudo docker compose -p websoft9 down
+    sudo docker compose -p websoft9 -f $composefile down
     
     # delete some dead containers that docker compose cannot deleted
     if [ ! -z "$container_names" ]; then
@@ -305,8 +323,8 @@ install_backends() {
         echo "No containers to delete."
     fi
 
-    sudo docker compose -p websoft9 pull
-    sudo docker compose -p websoft9 up -d
+    sudo docker compose -f $composefile pull
+    sudo docker compose -p websoft9 -f $composefile up -d --build
     if [ $? -ne 0 ]; then
         echo "Failed to start docker services."
         exit 1
