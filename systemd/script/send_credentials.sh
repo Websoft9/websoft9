@@ -4,6 +4,7 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 deployment_username="admin"
 credential_path="/var/websoft9/credential"
 containers=("websoft9-git" "websoft9-deployment" "websoft9-proxy")
+sections=("gitea" "portainer" "nginx_proxy_manager")
 max_retries=20
 
 declare -A usernames passwords
@@ -56,10 +57,12 @@ done
 
 set -e  # Stop ignoring errors
 
-# Set credentials to config.ini
-for container in ${containers[@]}; do
+length=${#containers[@]}
+for ((i=0; i<$length; i++)); do
+    container=${containers[$i]}
+    section=${sections[$i]}
     echo "$container:"
     echo "Username: ${usernames[$container]}"
     echo "Password: ${passwords[$container]}"
-    docker exec -it websoft9-apphub apphub getconfig cockpit port
+    sudo docker exec -i websoft9-apphub apphub setconfig --section $section --key ${usernames[$container]} --value ${passwords[$container]}
 done

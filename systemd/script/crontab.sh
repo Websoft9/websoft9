@@ -8,8 +8,8 @@ cockpit_port="9000"
 # 监控文件发生变动时需要做的事情
 on_change() {
     set +e
-    # TODO 从配置文件中获取端口号 apphub need add getconfig cli
-    cockpit_port =$(docker exec -it websoft9-apphub apphub getconfig cockpit port)
+    # 从配置文件中获取端口号
+    cockpit_port=$(sudo docker exec -i websoft9-apphub apphub getconfig --section cockpit --key port)
     sudo sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
     sudo systemctl daemon-reload
     sudo systemctl restart cockpit
