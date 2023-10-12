@@ -64,5 +64,5 @@ for ((i=0; i<$length; i++)); do
     echo "$container:"
     echo "Username: ${usernames[$container]}"
     echo "Password: ${passwords[$container]}"
-    sudo docker exec -i websoft9-apphub apphub setconfig --section $section --key ${usernames[$container]} --value ${passwords[$container]}
+    sudo docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
 done
