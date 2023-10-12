@@ -13,8 +13,8 @@ services:
       - deployment
       - git
       - proxy
-        labels:
-    com.docker.compose.w9_http.port: 8080
+    labels:
+      com.docker.compose.w9_http.port: 8080
 
   deployment:
     image: websoft9dev/deployment:$DEPLOYMENT_VERSION
