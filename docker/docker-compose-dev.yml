@@ -11,9 +11,10 @@ services:
       - 9001-9999:8080
     restart: always
     volumes:
-      - /data/mysource:/websoft9/src
+      - /data/mysource:/websoft9/apphub-dev
       - apphub_media:/websoft9/media
-      - apphub_logs:/websoft9/apphub/logs
+      - apphub_logs:/websoft9/apphub-dev/logs
+      - apphub_config:/websoft9/apphub-dev/src/config
     depends_on:
       - deployment
       - git
