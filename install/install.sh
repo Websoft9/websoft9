@@ -28,6 +28,11 @@ export PATH
 #
 #  $ sudo bash install.sh --path "/data/websoft9/source"
 #
+# --devto
+# Use the --devto option to developer mode, devto is the developer code path, for example:
+#
+#  $ sudo bash install.sh --devto "/data/dev/mycode"
+#
 # ==============================================================================
 
 
@@ -56,7 +61,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --devto)
-            path="$2"
+            devto="$2"
             shift 2
             ;;
         *)
