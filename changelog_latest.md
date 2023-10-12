@@ -1,1 +1,1 @@
-1. Fix install error: Firewalld for cockpit
+1. Add install: developer mode at install.sh

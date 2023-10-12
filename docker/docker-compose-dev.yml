@@ -1,3 +1,6 @@
+# this file for developer
+# install --devto "/data/mysource"
+
 version: "3.8"
 
 services:
@@ -7,6 +10,8 @@ services:
     build:
       context: .
       dockerfile: ./apphub/Dockerfiledev
+      args:
+        - APPHUB_VERSION=${APPHUB_VERSION}
     ports:
       - 9001-9999:8080
     restart: always

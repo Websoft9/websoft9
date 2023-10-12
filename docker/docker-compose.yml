@@ -4,8 +4,6 @@ services:
   apphub:
     image: websoft9dev/apphub:$APPHUB_VERSION
     container_name: websoft9-apphub
-    ports:
-      - 9001-9999:8080
     restart: always
     volumes:
       - apphub_logs:/websoft9/apphub/logs
@@ -15,13 +13,13 @@ services:
       - deployment
       - git
       - proxy
+        labels:
+    com.docker.compose.w9_http.port: 8080
 
   deployment:
     image: websoft9dev/deployment:$DEPLOYMENT_VERSION
     container_name: websoft9-deployment
     restart: always
-    ports:
-      - 9001-9999:9000
     volumes:
       - portainer:/data
       - /data/compose:/data/compose
@@ -38,8 +36,6 @@ services:
       - gitea:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-    ports:
-      - 9001-9999:3000
     environment:
       - INSTALL_LOCK=true
       - DISABLE_SSH=true
@@ -58,7 +54,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "9001-9999:81"
     volumes:
       - nginx_data:/data
       - nginx_letsencrypt:/etc/letsencrypt
