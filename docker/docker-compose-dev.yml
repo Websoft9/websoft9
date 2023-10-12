@@ -50,6 +50,7 @@ services:
       - HTTP_PORT=3000
       - DISABLE_REGISTRATION=false
       - REQUIRE_SIGNIN_VIEW=false
+      - ROOT_URL=http://localhost/w9git/
     labels:
       com.docker.compose.w9_http.port: 3000
 
