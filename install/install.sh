@@ -305,7 +305,7 @@ install_backends() {
 
     # set to devloper mode
     if [ -n "$devto" ]; then
-        sed -i "s|.*:/websoft9/src|$devto:/websoft9/src|g" docker-compose-dev.yml
+        sed -i "s|.*:/websoft9/app-dev|$devto:/websoft9/app-dev|g" docker-compose-dev.yml
         composefile=docker-compose-dev.yml
     else
         composefile=docker-compose.yml
