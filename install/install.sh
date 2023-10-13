@@ -379,6 +379,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+install_backends
+
 bash $install_path/install/install_cockpit.sh
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
@@ -391,7 +393,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-install_backends
 install_systemd
 
 echo -e "\n-- Install success! ------" 

@@ -80,7 +80,7 @@ echo -e "\nYour installation parameters are as follows: "
 echo "cockpit_port:$cockpit_port"
 echo "install_path:$install_path"
 
-
+related_containers=("websoft9-apphub")
 echo_prefix_cockpit=$'\n[Cockpit] - '
 # package cockpit depends_on [cockpit-bridge,cockpit-ws,cockpit-system], but update cockpit the depends don't update 
 cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-storaged cockpit-networkmanager cockpit-session-recording cockpit-doc cockpit-packagekit cockpit-sosreport"
@@ -162,7 +162,7 @@ Restart_Cockpit(){
     echo "$echo_prefix_cockpit Restart Cockpit"
     sudo systemctl daemon-reload
     sudo systemctl restart cockpit.socket 2> /dev/null
-    sudo systemctl restart cockpit
+    sudo systemctl restart cockpit || exit 1
 }
 
 Add_Firewalld(){
@@ -216,8 +216,18 @@ Set_Cockpit(){
         curl -sSL $cockpit_config_github_page_url | sudo tee /etc/cockpit/cockpit.conf > /dev/null
     fi
 
+
     echo "Change cockpit default port to $cockpit_port ..." 
     sudo sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
+
+
+    if docker ps --format '{{.Names}}' | grep -wq "${related_containers[0]}"; then
+        echo "Try to change cockpit port at ${related_containers[0]} container..."
+        sudo docker exec -i ${related_containers[0]} apphub setconfig --section cockpit --key port --value $cockpit_port || true
+    else
+        echo "Not found ${related_containers[0]} container"
+    fi
+
 
     # fwupd-refresh.service may push error for Cockpit menu, so disable it
     if sudo systemctl is-active --quiet fwupd-refresh.service; then
