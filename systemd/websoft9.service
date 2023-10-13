@@ -1,6 +1,6 @@
 [Unit]
 Description=Websoft9 Linux AppStore
-Requires=network.target docker
+Requires=network.target docker.service
 After=network.target docker.service
 
 [Service]
