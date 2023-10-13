@@ -1,7 +1,7 @@
 {
-  "version": "0.8.26-rc36",
+  "version": "0.8.26-rc37",
   "plugins": {
-    "portainer": "0.0.6",
+    "portainer": "0.0.7",
     "nginx": "0.0.5",
     "myapps": "0.0.8",
     "appstore": "0.0.7",
