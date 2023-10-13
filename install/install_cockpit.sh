@@ -352,7 +352,6 @@ Install_Cockpit(){
 Test_Cockpit(){
     echo "$echo_prefix_cockpit Test Cockpit console accessibility" 
     test_cmd="curl localhost:$cockpit_port"
-    echo test_cmd
     start_time=$(date +%s)
     timeout=30
     while true; do

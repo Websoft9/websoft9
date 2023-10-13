@@ -78,7 +78,6 @@ fi
 
 
 starttime=$(date +%s)
-cat starttime
 
 # 输出参数值
 echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
