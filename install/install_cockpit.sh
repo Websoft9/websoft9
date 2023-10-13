@@ -321,7 +321,10 @@ Install_Cockpit(){
         export DEBIAN_FRONTEND=noninteractive
         sudo pkcon refresh > /dev/null
         sudo pkcon get-updates > /dev/null
-        sudo pkcon install $cockpit_packages -y --allow-untrusted --allow-reinstall
+        output=$(sudo pkcon install $cockpit_packages -y --allow-untrusted --allow-reinstall 2>&1)
+        if echo "$output" | grep -q "offline"; then
+            Upgrade_Cockpit
+        fi
         Restart_Cockpit
     fi
 
