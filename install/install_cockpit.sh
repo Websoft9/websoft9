@@ -370,7 +370,6 @@ Test_Cockpit(){
     done
 
     Print_Version
-    echo "after print version"
 }
 
 
@@ -380,6 +379,5 @@ Install_PackageKit
 Set_Repository
 Install_Cockpit
 Test_Cockpit
-echo "after print version---"
 # release package memory
-sudo systemctl restart packagekit.service
+-sudo systemctl restart packagekit.service

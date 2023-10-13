@@ -377,16 +377,12 @@ if [ $? -ne 0 ]; then
 fi
 
 install_backends
-bash $install_path/install/install_cockpit.sh
-echo "start plugins bash1"
 
 bash $install_path/install/install_cockpit.sh
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
 fi
-
-echo "start plugins bash2"
 
 bash $install_path/install/install_plugins.sh
 if [ $? -ne 0 ]; then
