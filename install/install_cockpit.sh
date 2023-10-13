@@ -380,4 +380,6 @@ Set_Repository
 Install_Cockpit
 Test_Cockpit
 # release package memory
--sudo systemctl restart packagekit.service
+set +e
+sudo systemctl restart packagekit.service
+set -e
