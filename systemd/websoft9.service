@@ -1,7 +1,7 @@
 [Unit]
 Description=Websoft9 Linux AppStore
 Requires=network.target docker
-After=network.target docker
+After=network.target docker.service
 
 [Service]
 WorkingDirectory=/opt/websoft9/systemd
