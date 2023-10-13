@@ -76,6 +76,15 @@ class ProxyManager:
             raise CustomException()
             
     def check_proxy_host_exists(self,domain_names: list[str]):
+        """
+        Check proxy host is exist
+
+        Args:
+            domain_names (list[str]): Domain names
+
+        Returns:
+            bool: True if proxy host is exist, False if proxy host is not exist, raise exception if error
+        """
         response = self.nginx.get_proxy_hosts()
         if response.status_code == 200:
             proxy_hosts = response.json()
@@ -101,6 +110,18 @@ class ProxyManager:
                 forward_port=forward_port,
                 advanced_config=advanced_config,
         )
+        # if response.status_code == 201:
+        #     return response.json()
+        # elif response.status_code == 500:
+        #     logger.error(f"Create proxy for app:{forward_host} error:{response.status_code}:{response.text}")
+        #     raise CustomException()
+        # else:
+        #     logger.error(f"Create proxy for app:{forward_host} error:{response.status_code}:{response.text}")
+        #     raise CustomException(
+        #         status_code=400,
+        #         message=f"Invalid Request",
+        #         details=f"{json.loads(response.text).get('error',{}).get('message','Unknown Error')}"
+        #     )
         if response.status_code != 201:
             logger.error(f"Create proxy for app:{forward_host} error:{response.status_code}:{response.text}")
             raise CustomException()

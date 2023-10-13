@@ -64,15 +64,19 @@ class GitManager:
             logger.error(f"Invalid repo path: {self.local_path}")
             raise CustomException()
         
-        # Parse the remote URL.
-        parsed = urlparse(remote_url)
+        try:
+            # Parse the remote URL.
+            parsed = urlparse(remote_url)
 
-        # Get the network location.
-        auth_netloc = f"{user_name}:{user_pwd}@{parsed.netloc}"
+            # Get the network location.
+            auth_netloc = f"{user_name}:{user_pwd}@{parsed.netloc}"
 
-        # Create a new ParseResult with the updated network location
-        auth_parsed = parsed._replace(netloc=auth_netloc)
-        auth_repo_url = urlunparse(auth_parsed)
+            # Create a new ParseResult with the updated network location
+            auth_parsed = parsed._replace(netloc=auth_netloc)
+            auth_repo_url = urlunparse(auth_parsed)
+        except Exception as e:
+            logger.error(f"Failed to parse remote URL {remote_url}: {str(e)}")
+            raise CustomException()
 
         # Set remote origin URL.
         try: 

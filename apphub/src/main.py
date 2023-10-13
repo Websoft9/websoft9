@@ -38,6 +38,7 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
         )
 
     if api_key_header != API_KEY:
+        logger.error(f"Invalid API Key: {api_key_header}")
         raise CustomException(
             status_code=400, 
             message="Invalid Request",

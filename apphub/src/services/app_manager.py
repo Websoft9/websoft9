@@ -21,6 +21,7 @@ from src.utils.password_generator import PasswordGenerator
 
 class AppManger:
     def get_catalog_apps(self,locale:str):
+        logger.access(f"Get catalog apps: {locale}")
         try:
             # Get the app media path
             base_path = ConfigManager().get_value("app_media", "path")

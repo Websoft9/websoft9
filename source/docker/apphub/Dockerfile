@@ -1,0 +1,52 @@
+FROM python:3.10-bullseye AS buildstage
+LABEL maintainer="Websoft9<help@websoft9.com>"
+LABEL version="0.0.5"
+
+ENV LIBRARY_VERSION=v0.5.8
+
+# Prepare library
+RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
+    unzip library.zip && \
+    mv docker-library-* library && \
+    mkdir credentials && \
+    echo "This folder stored the credentials of other services that apphub will connect" > credentials/readme  && \
+    # Prepare  Media and master data from Contentful
+    git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
+    wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \ 
+    cp redoc.standalone.js swagger-ui/dist && \ 
+    git clone --depth=1 https://github.com/Websoft9/plugin-appstore && \
+    mv -f plugin-appstore/data ./media && \
+    git clone --depth=1 https://github.com/Websoft9/websoft9
+
+FROM python:3.10-slim-bullseye
+WORKDIR  /websoft9
+
+COPY --from=buildstage /media/data ./media
+COPY --from=buildstage /library ./library
+COPY --from=buildstage /websoft9/apphub ./apphub
+COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
+
+RUN apt update && apt install git jq iproute2 supervisor -y && \
+    mkdir credentials && \
+    echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
+
+RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
+RUN pip install -e ./apphub
+
+# supervisor
+COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
+COPY config/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+VOLUME /websoft9/apphub/logs 
+VOLUME /websoft9/apphub/src/config
+VOLUME /websoft9/media
+
+# Clean cache and install files
+RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
+
+EXPOSE 8080
+ENTRYPOINT ["/entrypoint.sh"]

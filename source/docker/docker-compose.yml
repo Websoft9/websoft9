@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  apphub:
+    image: websoft9dev/apphub:$APPHUB_VERSION
+    container_name: websoft9-apphub
+    restart: always
+    volumes:
+      - apphub_logs:/websoft9/apphub/logs
+      - apphub_media:/websoft9/media
+      - apphub_config:/websoft9/apphub/src/config
+    depends_on:
+      - deployment
+      - git
+      - proxy
+    labels:
+      com.docker.compose.w9_http.port: 8080
+
+  deployment:
+    image: websoft9dev/deployment:$DEPLOYMENT_VERSION
+    container_name: websoft9-deployment
+    restart: always
+    volumes:
+      - portainer:/data
+      - /data/compose:/data/compose
+      - /var/run/docker.sock:/var/run/docker.sock
+      #- /run/podman/podman.sock:/var/run/docker.sock
+    labels:
+      com.docker.compose.w9_http.port: 9000
+
+  git:
+    image: websoft9dev/git:$GIT_VERSION
+    container_name: websoft9-git
+    restart: always
+    volumes:
+      - gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - INSTALL_LOCK=true
+      - DISABLE_SSH=true
+      - RUN_MODE=prod
+      - HTTP_PORT=3000
+      - DISABLE_REGISTRATION=false
+      - REQUIRE_SIGNIN_VIEW=false
+      - ROOT_URL=http://localhost/w9git/
+    labels:
+      com.docker.compose.w9_http.port: 3000
+
+  proxy:
+    image: websoft9dev/proxy:$PROXY_VERSION
+    container_name: websoft9-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nginx_data:/data
+      - nginx_letsencrypt:/etc/letsencrypt
+    labels:
+      com.docker.compose.w9_http.port: 80
+      com.docker.compose.w9_https.port: 443
+      com.docker.compose.w9_console.port: 81
+
+networks:
+  default:
+    name: websoft9
+    external: true
+
+volumes:
+  apphub_logs:
+  apphub_media:
+  apphub_config:
+  portainer:
+  gitea:
+  nginx_data:
+  nginx_letsencrypt:

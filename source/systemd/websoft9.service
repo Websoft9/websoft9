@@ -1,0 +1,17 @@
+[Unit]
+Description=Websoft9 Linux AppStore
+Requires=network.target docker
+After=network.target docker
+
+[Service]
+WorkingDirectory=/opt/websoft9/systemd
+ExecStart=/bin/bash /opt/websoft9/systemd/start_up.sh
+Restart=on-failure
+Type=simple
+NotifyAccess=all
+StandardError=syslog
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
