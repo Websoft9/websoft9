@@ -2,7 +2,7 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 
 # 监控的文件
-FILES="/lib/systemd/system/cockpit.socket /var/lib/docker"
+FILES="/lib/systemd/system/cockpit.socket /var/lib/docker/volumes/websoft9_apphub_config/_data"
 cockpit_port="9000"
 
 # 监控文件发生变动时需要做的事情
