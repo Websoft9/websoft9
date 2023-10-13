@@ -77,6 +77,9 @@ else
 fi
 
 
+starttime=$(date +%s)
+cat starttime
+
 # 输出参数值
 echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
 echo -e "\nYour installation parameters are as follows: "
@@ -208,11 +211,6 @@ check_ports() {
 
     echo "All ports are available"
 }
-
-
-source_github_pages="https://websoft9.github.io/websoft9"
-install_path="/data/websoft9/source"
-
 
 merge_json_files() {
     local target_path="/etc/docker/daemon.json"
@@ -395,5 +393,9 @@ fi
 
 install_systemd
 
+
+endtime=$(date +%s)
+runtime=$((endtime-starttime))
+echo "Script execution time: $runtime seconds"
 echo -e "\n-- Install success! ------" 
 echo "Access Websoft9 console by: http://Internet IP:$(grep ListenStream /lib/systemd/system/cockpit.socket | cut -d= -f2) and using Linux user for login"
