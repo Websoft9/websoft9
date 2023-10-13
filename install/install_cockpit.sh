@@ -379,5 +379,10 @@ Install_PackageKit
 Set_Repository
 Install_Cockpit
 Test_Cockpit
+
 # release package memory
-# sudo systemctl restart packagekit.service
+if systemctl cat packagekit > /dev/null 2>&1; then
+  sudo systemctl restart packagekit
+else
+  echo "no packagekit"
+fi
