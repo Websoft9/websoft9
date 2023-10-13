@@ -301,7 +301,11 @@ Upgrade_Cockpit(){
         sudo dpkg --configure -a
         apt update -y
         apt --fix-broken install
-        apt install -u $cockpit_packages -y
+        for pkg in $cockpit_packages
+        do
+            echo "Installing $pkg"
+            sudo apt install -u -y "$pkg" || echo "$pkg failed to install"
+        done
     else
         sudo pkcon refresh > /dev/null
         sudo pkcon get-updates > /dev/null
