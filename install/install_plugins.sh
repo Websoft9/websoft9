@@ -13,6 +13,7 @@ export PATH
 #
 # ==============================================================================
 
+echo "start plugins install..."
 # get input and define vars
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -30,6 +31,8 @@ done
 if [ -z "$channel" ]; then
   channel="release"
 fi
+
+echo "start plugins install......"
 
 if [ -z "$source_github_pages" ]; then
   source_github_pages="https://websoft9.github.io/websoft9"
