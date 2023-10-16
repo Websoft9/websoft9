@@ -1,6 +1,6 @@
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.0.5"
+LABEL version="0.0.6"
 
 ENV LIBRARY_VERSION=v0.5.8
 
