@@ -3,7 +3,6 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 # Export PATH
 export PATH
-export port=8000
 
 ## This script is used for install or upgrade Cockpit on Linux
 ## Cockpit build at redhat family: https://copr.fedorainfracloud.org/coprs/g/cockpit/cockpit-preview/monitor/
@@ -386,4 +385,3 @@ if systemctl cat packagekit > /dev/null 2>&1; then
 else
   echo "no packagekit"
 fi
-echo "cockpit install finished."

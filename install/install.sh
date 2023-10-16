@@ -73,7 +73,7 @@ done
 if [ -n "$port" ]; then
     export port
 else
-    export port=7000
+    export port=9000
 fi
 
 
