@@ -9,7 +9,7 @@ services:
     container_name: websoft9-apphub
     build:
       context: .
-      dockerfile: ./apphub/Dockerfiledev
+      dockerfile: ./apphub/Dockerfiletmp
       args:
         - APPHUB_VERSION=${APPHUB_VERSION}
     ports:

@@ -23,25 +23,23 @@ WORKDIR  /websoft9
 
 COPY --from=buildstage /media/data ./media
 COPY --from=buildstage /library ./library
-COPY --from=buildstage /websoft9/apphub ./apphub
-COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
+COPY --from=buildstage /websoft9/apphub ./apphub-dev
+COPY --from=buildstage /swagger-ui/dist ./apphub-dev/swagger-ui
 
 RUN apt update && apt install git jq iproute2 supervisor -y && \
     mkdir credentials && \
     echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
 
-RUN pip install --upgrade pip && pip install -r apphub/requirements.txt
-RUN pip install -e ./apphub
+RUN pip install --upgrade pip && pip install -r apphub-dev/requirements.txt
+RUN pip install -e ./apphub-dev
 
 # supervisor
-COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY apphub/config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
-COPY config/entrypoint.sh /entrypoint.sh
+COPY apphub/config/entrypoint.sh /entrypoint.sh
+RUN sed -i 's/supervisorctl start apphub/supervisorctl start apphubdev/g' /entrypoint.sh 
 RUN chmod +x /entrypoint.sh
 
-
-VOLUME /websoft9/apphub/logs 
-VOLUME /websoft9/apphub/src/config
 VOLUME /websoft9/media
 
 # Clean cache and install files

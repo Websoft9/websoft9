@@ -37,6 +37,5 @@ fi
 # start by supervisord
 /usr/bin/supervisord
 # debug
-cat /entrypoint.sh |grep "supervisorctl start"
 supervisorctl start apphub
 tail -f /dev/null
