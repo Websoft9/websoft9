@@ -370,7 +370,7 @@ check_ports $http_port $https_port $port
 install_tools
 download_source
 
-bash $install_path/install/install_docker.sh
+source $install_path/install/install_docker.sh
 if [ $? -ne 0 ]; then
     echo "install_docker failed with error $?. Exiting."
     exit 1
@@ -378,13 +378,13 @@ fi
 
 install_backends
 
-bash $install_path/install/install_cockpit.sh
+source $install_path/install/install_cockpit.sh
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
 fi
 
-bash $install_path/install/install_plugins.sh
+source $install_path/install/install_plugins.sh
 if [ $? -ne 0 ]; then
     echo "install_plugins failed with error $?. Exiting."
     exit 1
