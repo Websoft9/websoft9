@@ -379,12 +379,11 @@ fi
 install_backends
 
 bash $install_path/install/install_cockpit.sh
-echo "cockpit install ok"
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
 fi
-echo "plugins start to install"
+
 bash $install_path/install/install_plugins.sh
 if [ $? -ne 0 ]; then
     echo "install_plugins failed with error $?. Exiting."
