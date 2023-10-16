@@ -28,7 +28,7 @@ export PATH
 #  $port
 #  $install_path
 ############################################################
-
+set -e
 echo -e "\n\n-------- Cockpit --------"
 
 while [[ $# -gt 0 ]]; do
