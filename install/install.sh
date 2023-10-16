@@ -379,6 +379,7 @@ fi
 install_backends
 
 bash $install_path/install/install_cockpit.sh
+echo "Finished executing install_cockpit.sh with exit status $?"
 echo "cockpit install ok"
 # if [ $? -ne 0 ]; then
 #     echo "install_cockpit failed with error $?. Exiting."
