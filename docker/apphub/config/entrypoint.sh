@@ -5,10 +5,10 @@ set -e
 try_times=3
 # set git user and email
 for ((i=0; i<$try_times; i++)); do
-    (
-        username=$(apphub getconfig --section gitea --key user_name) 
-        email=$(apphub getconfig --section gitea --key email)
-    ) || true
+    set +e
+    username=$(apphub getconfig --section gitea --key user_name) 
+    email=$(apphub getconfig --section gitea --key email)
+    set -e
     if [ -n "$username" ] && [ -n "$email" ]; then
         break
     fi
