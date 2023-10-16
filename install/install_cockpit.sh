@@ -2,7 +2,7 @@
 # Define PATH
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 # Export PATH
-export PATH
+# export PATH
 
 
 ## This script is used for install or upgrade Cockpit on Linux
