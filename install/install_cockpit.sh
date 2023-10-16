@@ -386,3 +386,5 @@ if systemctl cat packagekit > /dev/null 2>&1; then
 else
   echo "no packagekit"
 fi
+
+echo "cockpit install finished."
