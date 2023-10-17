@@ -103,7 +103,8 @@ export systemd_path="/opt/websoft9/systemd"
 export source_zip="websoft9-$version.zip"
 export source_unzip="websoft9"
 export source_github_pages="https://websoft9.github.io/websoft9"
-export tools_yum="git curl wget yum-utils jq bc unzip inotify-tools"
+# inotify-tools is at epel-release
+export tools_yum="git curl wget epel-release yum-utils jq bc unzip inotify-tools"
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
 export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
@@ -140,9 +141,10 @@ install_tools(){
     apt_status=$?
 
     if [ $dnf_status -eq 0 ]; then
+        
         dnf install $tools_yum -y
     elif [ $yum_status -eq 0 ]; then
-        yum install $tools_yum -y
+        yum install epel $tools_yum -y
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
         echo "Waiting for other software managers to finish..."
@@ -202,11 +204,12 @@ check_ports() {
 
 
     for port in "${ports[@]}"; do
-        if netstat -tuln | grep ":$port " >/dev/null; then
+        if ss -tuln | grep ":$port " >/dev/null; then
             echo "Port $port is in use, install failed"
             exit
         fi
     done
+
 
     echo "All ports are available"
 }
@@ -274,6 +277,7 @@ set_docker(){
         sudo firewall-cmd --permanent --zone=docker --add-interface=docker0 2> /dev/null
         sudo firewall-cmd --permanent --zone=docker --set-target=ACCEPT
         sudo firewall-cmd --reload
+        sudo systemctl stop firewalld
     fi
     sudo systemctl restart docker   
 }
