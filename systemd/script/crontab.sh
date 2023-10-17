@@ -9,20 +9,20 @@ cockpit_port="9000"
 on_change() {
     set +e
     # 从配置文件中获取端口号
-    cockpit_port=$(sudo docker exec -i websoft9-apphub apphub getconfig --section cockpit --key port)
-    sudo sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
-    sudo systemctl daemon-reload
-    sudo systemctl restart cockpit.socket 2> /dev/null
-    sudo systemctl restart cockpit || exit 1
+    cockpit_port=$(docker exec -i websoft9-apphub apphub getconfig --section cockpit --key port)
+    sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
+    systemctl daemon-reload
+    systemctl restart cockpit.socket 2> /dev/null
+    systemctl restart cockpit || exit 1
     set_Firewalld
     set -e
 }
 
 set_Firewalld(){
     echo "Set cockpit service to Firewalld..."
-    sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml 2>/dev/nul
-    sudo sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /usr/lib/firewalld/services/cockpit.xml 2>/dev/nul
-    sudo firewall-cmd --reload 2>/dev/nul
+    sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /etc/firewalld/services/cockpit.xml 2>/dev/nul
+    sed -i "s/port=\"[0-9]*\"/port=\"$cockpit_port\"/g" /usr/lib/firewalld/services/cockpit.xml 2>/dev/nul
+    firewall-cmd --reload 2>/dev/nul
 }
 
 # 循环，持续监控
