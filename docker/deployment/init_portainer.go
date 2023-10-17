@@ -11,24 +11,7 @@ import (
 
 func main() {
 	
-	dirPath := "/var/websoft9"
-    if _, err := os.Stat("/var"); os.IsNotExist(err) {
-        err = os.Mkdir("/var", 0755)
-        if err != nil {
-            fmt.Println(err)
-            return
-        }
-    }
-	
-    if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-        err = os.Mkdir(dirPath, 0755)
-        if err != nil {
-            fmt.Println(err)
-            return
-        }
-    }
-	
-	filePath := "/var/websoft9/credential"
+	filePath := "/data/credential"
 
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
@@ -41,7 +24,7 @@ func main() {
 			return
 		}
 	}else{
-		fmt.Println("credential is  exist, skip it.")
+		fmt.Println("credential is exist, skip it.")
 		cmd := exec.Command("./portainer")
 		cmd.Run()
 	}
@@ -51,8 +34,6 @@ func main() {
 		fmt.Println("read file error:", err)
 		return
 	}
-
-	fmt.Println("-----portainer_admin_user: admin, portainer_admin_password: " + string(content) + " ------")
 
 	// call portainer
 	cmd := exec.Command("./portainer", "--admin-password-file", filePath)

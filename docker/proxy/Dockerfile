@@ -1,3 +1,4 @@
+# Dockerfile refer to: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 FROM jc21/nginx-proxy-manager:2.10.4
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
