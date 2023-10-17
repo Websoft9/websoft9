@@ -63,5 +63,5 @@ for ((i=0; i<$length; i++)); do
     container=${containers[$i]}
     section=${sections[$i]}
     echo "$container:"
-    sudo docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
+    docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
 done
