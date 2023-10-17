@@ -23,28 +23,22 @@ func main() {
 			fmt.Println("write file error:", err)
 			return
 		}
+		// call portainer
+		cmd := exec.Command("./portainer", "--admin-password-file", filePath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println("error running compiled_program:", err)
+			return
+		}
 	}else{
 		fmt.Println("credential is exist, skip it.")
 		cmd := exec.Command("./portainer")
 		cmd.Run()
 	}
 
-	content, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		fmt.Println("read file error:", err)
-		return
-	}
-
-	// call portainer
-	cmd := exec.Command("./portainer", "--admin-password-file", filePath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println("error running compiled_program:", err)
-		return
-	}
 }
 
 func generatePassword(length int) string {
