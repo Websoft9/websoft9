@@ -1,3 +1,5 @@
+# modify time: 202310181524, you can modify here to trigger Docker Build action
+
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="0.0.6"
@@ -51,5 +53,3 @@ RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
 
 EXPOSE 8080
 ENTRYPOINT ["/entrypoint.sh"]
-
-# modify time: 202310181524
