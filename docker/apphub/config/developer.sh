@@ -13,4 +13,4 @@ pip install -e $source_path
 
 echo "Running the apphub"
 cd $source_path
-exec uvicorn src.main:app --reload --host 0.0.0.0 --port 8080 --log-level debug
+exec uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
