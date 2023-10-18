@@ -141,10 +141,9 @@ install_tools(){
     apt_status=$?
 
     if [ $dnf_status -eq 0 ]; then
-        
-        dnf install $tools_yum -y
+        for package in $tools_yum; do sudo dnf install -y $package > /dev/null; done
     elif [ $yum_status -eq 0 ]; then
-        yum install epel $tools_yum -y
+        for package in $tools_yum; do sudo yum install -y $package > /dev/null; done
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
         echo "Waiting for other software managers to finish..."
