@@ -12,13 +12,18 @@
 
 // const (
 // 	AdminUser     = "admin"
-// 	EndpointURL   = "http://localhost:9000/api/endpoints"
-// 	CredentialLoc = "/data/credential"
+// 	EndpointURL   = "http://localhost:8888/api/endpoints"
+// 	AuthURL       = "http://localhost:8888/api/auth"
+// 	CredentialLoc = "/root/credential"
 // )
 
 // type Endpoint struct {
 // 	Name string `json:"Name"`
 // 	URL  string `json:"URL"`
+// }
+
+// type AuthResponse struct {
+// 	Jwt string `json:"jwt"`
 // }
 
 // func main() {
@@ -41,7 +46,7 @@
 // 	}
 
 // 	client := &http.Client{}
-// 	req, err := http.NewRequest("GET", EndpointURL, nil)
+// 	req, err := http.NewRequest("GET", AuthURL, nil)
 // 	req.SetBasicAuth(AdminUser, password)
 // 	resp, err := client.Do(req)
 // 	if err != nil {
@@ -51,6 +56,32 @@
 // 	defer resp.Body.Close()
 
 // 	body, err := ioutil.ReadAll(resp.Body)
+// 	if err != nil {
+// 		fmt.Println("Failed to read response:", err)
+// 		return
+// 	}
+
+// 	fmt.Printf("Received body: %s\n", string(body))
+
+// 	var authResponse AuthResponse
+// 	err = json.Unmarshal(body, &authResponse)
+// 	if err != nil {
+// 		fmt.Println("Failed to parse JSON:", err)
+// 		return
+// 	}
+
+// 	fmt.Printf("Received JWT: %s\n", authResponse.Jwt)
+
+// 	req, err = http.NewRequest("GET", EndpointURL, nil)
+// 	req.Header.Set("Authorization", "Bearer "+authResponse.Jwt)
+// 	resp, err = client.Do(req)
+// 	if err != nil {
+// 		fmt.Println("Failed to make request:", err)
+// 		return
+// 	}
+// 	defer resp.Body.Close()
+
+// 	body, err = ioutil.ReadAll(resp.Body)
 // 	if err != nil {
 // 		fmt.Println("Failed to read response:", err)
 // 		return
@@ -82,7 +113,7 @@
 // 	}
 
 // 	req, err = http.NewRequest("POST", EndpointURL, bytes.NewBuffer(data))
-// 	req.SetBasicAuth(AdminUser, password)
+// 	req.Header.Set("Authorization", "Bearer "+authResponse.Jwt)
 // 	resp, err = client.Do(req)
 // 	if err != nil {
 // 		fmt.Println("Failed to make request:", err)
