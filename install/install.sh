@@ -277,6 +277,7 @@ set_docker(){
         sudo firewall-cmd --permanent --zone=docker --set-target=ACCEPT
         sudo firewall-cmd --reload
         sudo systemctl stop firewalld
+        sudo systemctl disable firewalld
     fi
     sudo systemctl restart docker   
 }
@@ -392,6 +393,9 @@ if [ $? -ne 0 ]; then
     echo "install_plugins failed with error $?. Exiting."
     exit 1
 fi
+
+echo "Restart Docker for Firewalld..."
+sudo systemctl restart docker
 
 install_systemd
 
