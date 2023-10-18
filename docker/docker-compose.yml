@@ -26,7 +26,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       #- /run/podman/podman.sock:/var/run/docker.sock
     healthcheck:
-      test: ["CMD", "/healthcheck"]
+      test: ["CMD", "/environment"]
       interval: 30s
       timeout: 10s
       retries: 3
