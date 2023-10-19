@@ -39,6 +39,8 @@ type Credentials struct {
 }
 
 func main() {
+	
+	fmt.Println("Start to create endpoint...")
 	client := &http.Client{}
 
 	password, err := getPassword()
