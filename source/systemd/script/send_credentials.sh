@@ -2,7 +2,7 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 
 deployment_username="admin"
-credential_path="/var/websoft9/credential"
+credentials=("/data/gitea/credential" "/data/credential" "/data/credential")
 containers=("websoft9-git" "websoft9-deployment" "websoft9-proxy")
 sections=("gitea" "portainer" "nginx_proxy_manager")
 max_retries=20
@@ -11,13 +11,14 @@ declare -A usernames passwords
 
 set +e  # Ignore errors
 
-for container in ${containers[@]}; do
+for i in ${!containers[@]}; do
+    container=${containers[$i]}
+    credential_path=${credentials[$i]}
     echo "Processing $container"
     success=false
     counter=0
     while [[ $success == false && $counter -lt $max_retries ]]; do
         temp_file=$(mktemp)
-        echo "Attempt $((counter+1)) to copy $credential_path from $container to $temp_file"
         if docker cp $container:$credential_path $temp_file; then
             # Check if temp_file is JSON format
             if jq -e . >/dev/null 2>&1 <<< "$(cat "$temp_file")"; then
@@ -62,7 +63,5 @@ for ((i=0; i<$length; i++)); do
     container=${containers[$i]}
     section=${sections[$i]}
     echo "$container:"
-    echo "Username: ${usernames[$container]}"
-    echo "Password: ${passwords[$container]}"
-    sudo docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
+    docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
 done

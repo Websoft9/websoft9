@@ -5,14 +5,13 @@ from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_manager import AppManger
-from src.core.logger import logger
 
 router = APIRouter()
 
 @router.get(
         "/apps/catalog/{locale}",
-        summary="List Catalogsaaaaaaaaaaaaa",
-        description="List all app's catalogs aaaa",
+        summary="List Catalogs",
+        description="List all app's catalogs",
         responses={
         200: {"model": list[AppCatalogResponse]},
         400: {"model": ErrorResponse},

@@ -8,3 +8,4 @@
 - create volumes at dockerfile
 - EXPOSE port
 - process logs should output to docker logs by supervisord 
+- [uvicorn](https://www.uvicorn.org/) load Fastapi

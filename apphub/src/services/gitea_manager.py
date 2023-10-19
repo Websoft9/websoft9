@@ -65,7 +65,12 @@ class GiteaManager:
         response = self.gitea.create_repo(repo_name)
         if response.status_code == 201:
             repo_json = response.json()
-            return repo_json["clone_url"]
+            # 将repo_json字符串中:localhost/w9git 替换为:websoft9-git:3000
+            url = repo_json["clone_url"].replace("localhost/w9git","websoft9-git:3000")
+
+            # http://localhost/w9git/websoft9/test.git
+            # http://websoft9-git:3000/websoft9/wp.git
+            return url
         else:
             logger.error(f"Create repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()

@@ -9,10 +9,10 @@
 
 ```
 # install or upgrade Websoft9
-wget -O - https://websoft9.github.io/websoft9/install/install.sh | bash
+wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh
 
 # install or upgrade Websoft9 with parameters
-wget -O - https://websoft9.github.io/websoft9/install/install.sh | bash /dev/stdin --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
+wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
 
 # install or upgrade Cockpit with parameters
 wget -O - https://websoft9.github.io/websoft9/install/install_cockpit.sh | bash --port 9000

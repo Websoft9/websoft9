@@ -24,7 +24,9 @@ export PATH
 #
 #   $ sudo sh install_docker.sh
 
-docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+
+# it must export, otherwise Rocky Linux cannot used at yum command
+export docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
 echo_prefix_docker=$'\n[Docker] - '
 
 docker_exist() {

@@ -1,6 +1,8 @@
+# modify time: 202310181824, you can modify here to trigger Docker Build action
+
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.0.5"
+LABEL version="0.0.6"
 
 ENV LIBRARY_VERSION=v0.5.8
 
@@ -38,6 +40,7 @@ COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
 COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
 
 VOLUME /websoft9/apphub/logs 
 VOLUME /websoft9/apphub/src/config

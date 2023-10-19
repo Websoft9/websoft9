@@ -1,33 +1,43 @@
 #!/bin/bash
 
-# check credentials exists
-check_file_exists() {
-    file_path=$1
-    max_attempts=$2
-
-    for ((i=1; i<=max_attempts; i++))
-    do
-        if [ -f "$file_path" ]; then
-            echo "$file_path exists"
-            return 0
-        else
-            echo "$file_path is not exists, wait a moment.."
-        fi
-        sleep 1
-        if ((i==max_attempts)); then
-            echo "$file_path is not exists, app may be work normally."
-            return 1
-        fi
-    done
-}
-
-set +e 
-check_file_exists "/websoft9/credentials/credential_proxy" 1
-check_file_exists "/websoft9/credentials/credential_deployment" 1
-check_file_exists "/websoft9/credentials/credential_git" 1
 set -e
+
+try_times=3
 
 # start by supervisord
 /usr/bin/supervisord
+# debug
 supervisorctl start apphub
+
+# set git user and email
+for ((i=0; i<$try_times; i++)); do
+    set +e
+    username=$(apphub getconfig --section gitea --key user_name) 
+    email=$(apphub getconfig --section gitea --key email)
+    set -e
+    if [ -n "$username" ] && [ -n "$email" ]; then
+        break
+    fi
+    echo "Command failed, retrying..."
+    sleep 3
+done
+
+echo $username
+echo $email
+
+if [[ -n "$username" ]]; then
+    git config --global user.name "$username"
+else
+    echo "username is null"
+    exit 1
+fi
+
+regex="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+if [[ $email =~ $regex ]]; then
+    git config --global user.email "$email"
+else
+    echo "Not have correct email"
+    exit 1
+fi
+
 tail -f /dev/null

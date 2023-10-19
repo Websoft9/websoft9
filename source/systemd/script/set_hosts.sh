@@ -33,11 +33,11 @@ fi
 # 检查 /etc/hosts 文件中是否已经存在一个条目与容器名称相同
 if grep -q $container_name /etc/hosts; then
     # 如果存在，使用 sed 命令更新这个条目
-    sudo sed -i "/$container_name/d" /etc/hosts
-    echo "$container_ip $container_name" | sudo tee -a /etc/hosts > /dev/null
+    sed -i "/$container_name/d" /etc/hosts
+    echo "$container_ip $container_name" | tee -a /etc/hosts > /dev/null
     echo "Container $container_name IP updated to $container_ip in /etc/hosts"
 else
     # 如果不存在，添加一个新的条目
-    echo "$container_ip $container_name" | sudo tee -a /etc/hosts > /dev/null
+    echo "$container_ip $container_name" | tee -a /etc/hosts > /dev/null
     echo "Container $container_name IP $container_ip added to /etc/hosts"
 fi

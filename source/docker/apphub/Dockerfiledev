@@ -1,4 +1,6 @@
 ARG APPHUB_VERSION
 FROM websoft9dev/apphub:${APPHUB_VERSION} as buildstage
 RUN mkdir -p /websoft9/apphub-dev
-RUN sed -i 's/supervisorctl start apphub/supervisorctl start apphubdev/g' /entrypoint.sh
+COPY apphub/config/developer.sh /developer.sh
+RUN chmod +x /developer.sh
+RUN sed -i '/supervisorctl start apphub/c\supervisorctl start apphubdev' /entrypoint.sh

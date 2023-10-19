@@ -1,3 +1,5 @@
+# modify time: 202310181524, you can modify here to trigger Docker Build action
+# Dockerfile refer to: https://github.com/go-gitea/gitea/blob/main/Dockerfile
 FROM gitea/gitea:1.20.4
 
 LABEL maintainer="Websoft9<help@websoft9.com>"

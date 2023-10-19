@@ -14,3 +14,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable websoft9.service  
 sudo systemctl start websoft9
 ```
+
+## Develop it
+
+* [systemd.exec — Execution environment configuration](https://www.freedesktop.org/software/systemd/man/systemd.exec.html)
+* [systemd.unit — Unit configuration](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+* [systemd.service — Service unit configuration](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
