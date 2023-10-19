@@ -13,7 +13,7 @@ supervisorctl start apphub
 for ((i=0; i<$try_times; i++)); do
     set +e
     username=$(apphub getconfig --section gitea --key user_name 2>/dev/null) 
-    email=$(apphub getconfig --section gitea --key email 2>/dev/null)
+    email=$(apphub getconfig --section gitea --key user_email 2>/dev/null)
     set -e
     if [ -n "$username" ] && [ -n "$email" ]; then
         break
