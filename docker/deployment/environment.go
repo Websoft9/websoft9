@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 	"os"
 	"time"
 )
@@ -18,8 +20,13 @@ const (
 )
 
 type Endpoint struct {
-	Name string `json:"Name"`
-	URL  string `json:"URL"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type EndpointCreation struct {
+	Name string `json:"name"`
+	EndpointCreationType int `json:"EndpointCreationType"`
 }
 
 type AuthResponse struct {
@@ -27,13 +34,45 @@ type AuthResponse struct {
 }
 
 type Credentials struct {
-	Username string `json:"Username"`
-	Password string `json:"Password"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func main() {
-	var password string
+	client := &http.Client{}
 
+	password, err := getPassword()
+	if err != nil {
+		fmt.Println("Failed to get password:", err)
+		return
+	}
+
+	token, err := authenticate(client, AdminUser, password)
+	if err != nil {
+		fmt.Println("Failed to authenticate:", err)
+		return
+	}
+
+	endpoints, err := queryEndpoints(client, token)
+	if err != nil {
+		fmt.Println("Failed to query endpoints:", err)
+		return
+	}
+
+	for _, endpoint := range endpoints {
+		if endpoint.Name == "local" && endpoint.URL == "unix:///var/run/docker.sock" {
+			fmt.Println("Endpoint exists, exiting...")
+			return
+		}
+	}
+
+	fmt.Println("Endpoint does not exist, creating...")
+	createEndpoint(client, token)
+
+	fmt.Println("Endpoint created successfully")
+}
+
+func getPassword() (string, error) {
 	for {
 		if _, err := os.Stat(CredentialLoc); os.IsNotExist(err) {
 			fmt.Printf("%s does not exist, waiting for 3 seconds...\n", CredentialLoc)
@@ -42,99 +81,85 @@ func main() {
 			fmt.Printf("%s exists, proceeding...\n", CredentialLoc)
 			data, err := ioutil.ReadFile(CredentialLoc)
 			if err != nil {
-				fmt.Println("Failed to read file:", err)
-				return
+				return "", err
 			}
-			password = string(data)
-			break
+			return string(data), nil
 		}
 	}
+}
 
-	client := &http.Client{}
-	credentials := Credentials{Username: AdminUser, Password: password}
+func authenticate(client *http.Client, username, password string) (string, error) {
+	credentials := Credentials{Username: username, Password: password}
 	credentialsJson, err := json.Marshal(credentials)
 	if err != nil {
-		fmt.Println("Failed to encode JSON:", err)
-		return
+		return "", err
 	}
 
 	req, err := http.NewRequest("POST", AuthURL, bytes.NewBuffer(credentialsJson))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to make request:", err)
-		return
+		return "", err
 	}
 	defer resp.Body.Close()
-   
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Failed to read response:", err)
-		return
+		return "", err
 	}
-
-	fmt.Printf("Received body: %s\n", string(body))
 
 	var authResponse AuthResponse
 	err = json.Unmarshal(body, &authResponse)
 	if err != nil {
-		fmt.Println("Failed to parse JSON:", err)
-		return
+		return "", err
 	}
 
-	fmt.Printf("Received JWT: %s\n", authResponse.Jwt)
+	return authResponse.Jwt, nil
+}
 
-	req, err = http.NewRequest("GET", EndpointURL, nil)
-	req.Header.Set("Authorization", "Bearer "+authResponse.Jwt)
-	resp, err = client.Do(req)
+func queryEndpoints(client *http.Client, token string) ([]Endpoint, error) {
+	req, err := http.NewRequest("GET", EndpointURL, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failed to make request:", err)
-		return
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Failed to read response:", err)
-		return
+		return nil, err
 	}
 
 	var endpoints []Endpoint
 	err = json.Unmarshal(body, &endpoints)
 	if err != nil {
-		fmt.Println("Failed to parse JSON:", err)
-		return
+		return nil, err
 	}
 
-	for _, endpoint := range endpoints {
-		if endpoint.Name == "local" {
-			fmt.Println("Endpoint exists, exiting...")
-			return
-		}
+	return endpoints, nil
+}
+
+func createEndpoint(client *http.Client, token string) error {
+	data := url.Values{
+		"Name":                  {"local"},
+		"EndpointCreationType":  {"1"},
 	}
 
-	fmt.Println("Endpoint does not exist, creating...")
-	endpoint := Endpoint{
-		Name: "local",
-		URL:  "/var/run/docker.sock",
-	}
-	data, err := json.Marshal(endpoint)
+	req, err := http.NewRequest("POST", EndpointURL, strings.NewReader(data.Encode()))
 	if err != nil {
-		fmt.Println("Failed to encode JSON:", err)
-		return
+		return err
 	}
 
-	req, err = http.NewRequest("POST", EndpointURL, bytes.NewBuffer(data))
-	req.Header.Set("Authorization", "Bearer "+authResponse.Jwt)
-	resp, err = client.Do(req)
-	if err != nil {
-		fmt.Println("Failed to make request:", err)
-		return
-	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
 
 	if resp.StatusCode != http.StatusCreated {
-		fmt.Println("Failed to create endpoint:", resp.Status)
-	} else {
-		fmt.Println("Endpoint created successfully")
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("Failed to create endpoint: %s, Response body: %s", resp.Status, string(body))
 	}
+
+	return nil
 }
