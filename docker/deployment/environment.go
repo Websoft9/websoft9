@@ -12,8 +12,8 @@ import (
 
 const (
 	AdminUser     = "admin"
-	EndpointURL   = "http://localhost:8888/api/endpoints"
-	AuthURL       = "http://localhost:8888/api/auth"
+	EndpointURL   = "http://localhost:9000/api/endpoints"
+	AuthURL       = "http://localhost:9000/api/auth"
 	CredentialLoc = "/data/credential"
 )
 
