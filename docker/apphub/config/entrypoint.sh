@@ -3,6 +3,12 @@
 set -e
 
 try_times=3
+
+# start by supervisord
+/usr/bin/supervisord
+# debug
+supervisorctl start apphub
+
 # set git user and email
 for ((i=0; i<$try_times; i++)); do
     set +e
@@ -34,8 +40,4 @@ else
     exit 1
 fi
 
-# start by supervisord
-/usr/bin/supervisord
-# debug
-supervisorctl start apphub
 tail -f /dev/null
