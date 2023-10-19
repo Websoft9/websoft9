@@ -104,6 +104,7 @@ else
         if [ $? -ne 0 ]; then
             echo "Installation timeout or failed, retrying..."
             ((retry_count++))
+            sleep 3
         else
             echo "Docker installed successfully."
             exit 0
