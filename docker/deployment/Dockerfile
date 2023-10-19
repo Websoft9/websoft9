@@ -4,11 +4,11 @@
 FROM golang:latest AS builder
 WORKDIR /
 COPY init_portainer.go /
-RUN go build -o init_portainer /init_portainer.go
+RUN CGO_ENABLED=0 go build -o init_portainer /init_portainer.go
 RUN chmod +x /init_portainer
 
 COPY endpoint.go /
-RUN go build -o endpoint /endpoint.go
+RUN CGO_ENABLED=0 go build -o endpoint /endpoint.go
 RUN chmod +x /endpoint
 
 # step2: Copy build go program to portainer
