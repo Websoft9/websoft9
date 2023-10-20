@@ -5,7 +5,7 @@ set -e
 try_times=5
 
 # start by supervisord
-/usr/bin/supervisord -n
+/usr/bin/supervisord
 
 # debug
 supervisorctl start apphub
@@ -40,4 +40,4 @@ else
     exit 1
 fi
 
-tail -f /dev/null
+# tail -f /dev/null
