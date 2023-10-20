@@ -4,6 +4,9 @@ set -e
 
 try_times=5
 
+# TODO start by supervisord on frontground(/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf)
+/usr/bin/supervisord
+
 # debug
 supervisorctl start apphub
 
@@ -37,5 +40,4 @@ else
     exit 1
 fi
 
-# start by supervisord on frontground
-/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
+tail -f /dev/null
