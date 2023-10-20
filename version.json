@@ -6,7 +6,8 @@
     "myapps": "0.0.8",
     "appstore": "0.0.7",
     "settings": "0.0.5",
-    "navigator": "0.5.10"
+    "navigator": "0.5.10",
+    "gitea": "0.0.1"
   },
   "OS": {
     "Fedora": [
