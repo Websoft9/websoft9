@@ -4,9 +4,6 @@ set -e
 
 try_times=5
 
-# start by supervisord on frontground
-/usr/bin/supervisord -n &
-
 # debug
 supervisorctl start apphub
 
@@ -39,3 +36,6 @@ else
     echo "Not have correct email, git config email failed"
     exit 1
 fi
+
+# start by supervisord on frontground
+/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
