@@ -4,3 +4,4 @@ logs
 .venv
 .vscode
 .pytest_cache
+.apphub/swagger-ui
