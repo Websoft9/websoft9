@@ -84,6 +84,15 @@ jobs:
           delete_if_exists: true
           fail_if_source_empty: true
 
+      - name: Upload Websoft9 API to Azure
+        uses: bacongobbler/azure-blob-storage-upload@main
+        with:
+          source_dir: apphub/apidocs
+          container_name: $web
+          connection_string: ${{ secrets.Azure_blob }}
+          extra_args: '--destination-path ./apidocs'
+          overwrite: true
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: ${{ steps.update_data.outputs.release == 'true' }}
