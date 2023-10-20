@@ -5,7 +5,8 @@ set -e
 try_times=5
 
 # start by supervisord
-/usr/bin/supervisord
+/usr/bin/supervisord -n
+
 # debug
 supervisorctl start apphub
 
