@@ -40,4 +40,5 @@ else
     exit 1
 fi
 
+sleep 3600
 # tail -f /dev/null
