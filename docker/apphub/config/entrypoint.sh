@@ -1,13 +1,15 @@
 #!/bin/bash
+# Define PATH
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+# Export PATH
+export PATH
 
 set -e
 
 try_times=5
 
 # TODO start by supervisord on frontground(/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf)
-/usr/bin/supervisord
-
-# debug
+exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
 supervisorctl start apphub
 
 # set git user and email
