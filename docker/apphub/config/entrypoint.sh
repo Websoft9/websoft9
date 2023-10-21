@@ -9,7 +9,7 @@ set -e
 try_times=5
 
 # TODO start by supervisord on frontground(/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf)
-exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
+supervisord
 supervisorctl start apphub
 
 # set git user and email
@@ -42,4 +42,4 @@ else
     exit 1
 fi
 
-tail -f /dev/null
+tail -f /var/log/supervisord.log
