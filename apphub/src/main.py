@@ -1,4 +1,4 @@
-import logging
+import logging, sys
 from fastapi import FastAPI, Request,Security,Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -15,10 +15,16 @@ from fastapi.security.api_key import APIKeyHeader
 
 uvicorn_logger = logging.getLogger("uvicorn")
 
-for handler in uvicorn_logger.handlers:
-    uvicorn_logger.removeHandler(handler)
-for handler in logger._error_logger.handlers: 
-    uvicorn_logger.addHandler(handler)
+# for handler in uvicorn_logger.handlers:
+#     uvicorn_logger.removeHandler(handler)
+# for handler in logger._error_logger.handlers: 
+#     uvicorn_logger.addHandler(handler)
+    
+# 创建一个日志处理器，将日志发送到 stdout
+stdout_handler = logging.StreamHandler(sys.stdout)
+
+# 将日志处理器添加到 Uvicorn 的 logger
+uvicorn_logger.addHandler(stdout_handler)
 
 uvicorn_logger.setLevel(logging.INFO)
 
