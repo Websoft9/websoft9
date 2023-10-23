@@ -5,3 +5,4 @@ logs
 .vscode
 .pytest_cache
 .apphub/swagger-ui
+.apphub/apphub.egg-info
