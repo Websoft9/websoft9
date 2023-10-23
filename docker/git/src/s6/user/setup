@@ -8,6 +8,7 @@ response=""
 cred_path="/data/gitea/credential"
 admin_username="websoft9"
 admin_email="help@websoft9.com"
+user_exist=0
 
 while [ "$response" != "200" ]; do
   response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000)
@@ -34,17 +35,20 @@ su -c "
         exit 0
     else
         gitea admin user create --admin --username '$admin_username' --random-password --email '$admin_email' > /tmp/credential
+        user_exist=1
     fi
 " git
 
-echo "Read credential from tmp"
-username=$(grep -o "New user '[^']*" /tmp/credential | sed "s/New user '//")
-if [ -z "$username" ] || [ "$username" != "websoft9" ]; then
-  echo "username is not websoft9, exit"
-fi
-password=$(grep -o "generated random password is '[^']*" /tmp/credential | sed "s/generated random password is '//")
-rm -rf /tmp/credential
+if [ "$user_exist" -eq 1 ]; then
+    echo "Read credential from tmp"
+    username=$(grep -o "New user '[^']*" /tmp/credential | sed "s/New user '//")
+    if [ -z "$username" ] || [ "$username" != "websoft9" ]; then
+      echo "username is not websoft9, exit"
+    fi
+    password=$(grep -o "generated random password is '[^']*" /tmp/credential | sed "s/generated random password is '//")
+    rm -rf /tmp/credential
 
-echo "Save to credential"
-json="{\"username\":\"$admin_username\",\"password\":\"$password\",\"email\":\"$admin_email\"}"
-echo "$json" > "$cred_path"
+    echo "Save to credential"
+    json="{\"username\":\"$admin_username\",\"password\":\"$password\",\"email\":\"$admin_email\"}"
+    echo "$json" > "$cred_path"
+fi

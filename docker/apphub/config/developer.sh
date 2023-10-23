@@ -6,6 +6,7 @@ echo "Start to cp source code"
 if [ ! "$(ls -A $source_path)" ]; then
    cp -r /websoft9/apphub/* $source_path
 fi
+cp -r /websoft9/apphub/swagger-ui $source_path
 
 echo "Install apphub cli"
 pip uninstall apphub -y

@@ -8,7 +8,6 @@ set -e
 
 try_times=5
 
-# TODO start by supervisord on frontground(/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf)
 supervisord
 supervisorctl start apphub
 
@@ -41,5 +40,21 @@ else
     echo "Not have correct email, git config email failed"
     exit 1
 fi
+
+create_apikey() {
+    # 容器第一次启动时，不管apikey是否为空，调用apphub genkey
+    if [ ! -f /websoft9/first_run ]; then
+        echo "Create new apikey"
+        apphub genkey
+        touch /websoft9/first_run
+    fi
+    # apphub getkey 为空时，创建新的apikey
+    if [ -z "$(apphub getkey)" ]; then
+        echo "Create new apikey"
+        apphub genkey
+    fi
+}
+
+create_apikey
 
 tail -f /var/log/supervisord.log
