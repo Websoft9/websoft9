@@ -1,5 +1,5 @@
 {
-  "version": "0.8.26-rc3",
+  "version": "0.8.26-rc80",
   "plugins": {
     "portainer": "0.0.7",
     "nginx": "0.0.5",
