@@ -17,6 +17,12 @@ def genkey():
     click.echo(f"{key}")
 
 @cli.command()
+def getkey():
+    """Get the API key"""
+    key = APIKeyManager().get_key()
+    click.echo(f"{key}")
+
+@cli.command()
 @click.option('--section',required=True, help='The section name')
 @click.option('--key', required=True, help='The key name')
 @click.option('--value', required=True,help='The value of the key')
