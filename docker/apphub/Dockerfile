@@ -1,4 +1,4 @@
-# modify time: 202310241516, you can modify here to trigger Docker Build action
+# modify time: 202310241540, you can modify here to trigger Docker Build action
 
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -6,14 +6,17 @@ LABEL version="0.0.6"
 
 ENV LIBRARY_VERSION=v0.5.8
 ENV MEDIA_VERSION=0.0.3
+ENV websoft9_repo="https://github.com/Websoft9/websoft9"
+ENV docker_library_repo="https://github.com/Websoft9/docker-library"
+ENV media_repo="https://github.com/Websoft9/media"
 
 # Prepare source files
-RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
+RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
     unzip library.zip && \
     mv docker-library-* w9library && \
     rm -rf w9library/.github && \
 
-    wget https://github.com/Websoft9/media/archive/refs/tags/$MEDIA_VERSION.zip -O ./media.zip && \
+    wget $media_repo/archive/refs/tags/$MEDIA_VERSION.zip -O ./media.zip && \
     unzip media.zip && \
     mv media-* w9media && \
     rm -rf w9media/.github && \
@@ -23,7 +26,7 @@ RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_V
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \ 
     cp redoc.standalone.js swagger-ui/dist && \ 
 
-    git clone --depth=1 https://github.com/Websoft9/websoft9
+    git clone --depth=1 $websoft9_repo
 
 FROM python:3.10-slim-bullseye
 WORKDIR  /websoft9
@@ -33,9 +36,7 @@ COPY --from=buildstage /w9library ./library
 COPY --from=buildstage /websoft9/apphub ./apphub
 COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
 
-RUN apt update && apt install curl git jq iproute2 supervisor -y && \
-    mkdir credentials && \
-    echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
+RUN apt update && apt install curl git jq iproute2 supervisor -y
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
 RUN pip install -e ./apphub
@@ -48,7 +49,6 @@ RUN chmod +x /entrypoint.sh
 
 VOLUME /websoft9/apphub/logs 
 VOLUME /websoft9/apphub/src/config
-VOLUME /websoft9/media
 
 # Clean cache and install files
 RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
