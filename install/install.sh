@@ -198,17 +198,13 @@ check_ports() {
 
     echo "Stop Websoft9 Proxy and Cockpit service for reserve ports..."
     sudo docker stop websoft9-proxy 2>/dev/null || echo "docker stop websoft9-proxy not need "
-    sudo systemctl stop cockpit 2>/dev/null || echo "systemctl stop cockpit not need"
-    sudo systemctl stop cockpit.socket 2>/dev/null || echo "systemctl stop cockpit.socket not need"
-
 
     for port in "${ports[@]}"; do
-        if ss -tuln | grep ":$port " >/dev/null; then
-            echo "Port $port is in use, install failed"
+        if ss -tuln | grep ":$port " >/dev/null && ! systemctl status cockpit.socket | grep "$port" >/dev/null; then
+            echo "Port $port is in use or not in cockpit.socket, install failed"
             exit
         fi
     done
-
 
     echo "All ports are available"
 }
@@ -334,8 +330,9 @@ install_backends() {
 
 
 install_systemd() {
+    echo -e "\n\n-------- Systemd --------"
     echo_prefix_systemd=$'\n[Systemd] - '
-    echo "$echo_prefix_systemdInstall Systemd service"
+    echo "$echo_prefix_systemd Install Systemd service"
 
     if [ ! -d "$systemd_path" ]; then
     sudo mkdir -p "$systemd_path"
@@ -382,6 +379,8 @@ fi
 
 install_backends
 
+install_systemd
+
 bash $install_path/install/install_cockpit.sh
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
@@ -396,9 +395,6 @@ fi
 
 echo "Restart Docker for Firewalld..."
 sudo systemctl restart docker
-
-install_systemd
-
 
 endtime=$(date +%s)
 runtime=$((endtime-starttime))
