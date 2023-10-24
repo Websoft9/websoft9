@@ -7,7 +7,6 @@ services:
     restart: always
     volumes:
       - apphub_logs:/websoft9/apphub/logs
-      - apphub_media:/websoft9/media
       - apphub_config:/websoft9/apphub/src/config
     depends_on:
       - deployment
@@ -74,7 +73,6 @@ networks:
 
 volumes:
   apphub_logs:
-  apphub_media:
   apphub_config:
   portainer:
   gitea:
