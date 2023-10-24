@@ -20,15 +20,30 @@ jobs:
         run: |
           version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/apphub/Dockerfile)
           echo $version
-          echo "::set-output name=version::$version"
-          new_version=${version},latest
-          echo "VERSION=$new_version" >> $GITHUB_ENV
+          real_version=${version%%-*}
+          echo "VERSION=$version" >> $GITHUB_ENV
+          if [ "$version" != "$real_version" ]; then
+            version_list=$version
+          else
+            IFS='.' read -ra VERSION_PARTS <<< "$real_version"
+            version_list="latest"
+            version_accumulator=""
+            for i in "${VERSION_PARTS[@]}"; do
+              if [ -z "$version_accumulator" ]; then
+                version_accumulator=$i
+              else
+                version_accumulator=$version_accumulator.$i
+              fi
+              version_list=$version_accumulator,$version_list
+            done
+          fi
+          echo "VERSION_LIST=$version_list" >> $GITHUB_ENV
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
           image: websoft9dev/apphub
-          tags: ${{ env.VERSION }}
+          tags: ${{ env.VERSION_LIST }}
           addLatest: True
           registry: docker.io
           dockerfile: docker/apphub/Dockerfile
@@ -46,6 +61,11 @@ jobs:
           wget -O apphub/apidocs/openapi.json http://localhost:8080/docs/openapi.json
           docker stop apphub
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
+      - name: Upload Websoft9 API to Azure
+        uses: bacongobbler/azure-blob-storage-upload@main
         with:
-          commit_message: Upgrade apphub api docs
+          source_dir: apphub/apidocs
+          container_name: $web
+          connection_string: ${{ secrets.Azure_blob }}
+          extra_args: '--destination-path ./apidocs'
+          overwrite: true
