@@ -1,4 +1,4 @@
-# modify time: 202310241441, you can modify here to trigger Docker Build action
+# modify time: 202310241516, you can modify here to trigger Docker Build action
 
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -10,11 +10,13 @@ ENV MEDIA_VERSION=0.0.3
 # Prepare source files
 RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
     unzip library.zip && \
-    mv docker-library-* library && \
+    mv docker-library-* w9library && \
+    rm -rf w9library/.github && \
 
     wget https://github.com/Websoft9/media/archive/refs/tags/$MEDIA_VERSION.zip -O ./media.zip && \
     unzip media.zip && \
-    mv media-* media && \
+    mv media-* w9media && \
+    rm -rf w9media/.github && \
 
     # Prepare  Media and master data from Contentful
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
@@ -26,8 +28,8 @@ RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_V
 FROM python:3.10-slim-bullseye
 WORKDIR  /websoft9
 
-COPY --from=buildstage /media ./media
-COPY --from=buildstage /library ./library
+COPY --from=buildstage /w9media ./media
+COPY --from=buildstage /w9library ./library
 COPY --from=buildstage /websoft9/apphub ./apphub
 COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
 
