@@ -56,10 +56,20 @@ jobs:
 
       - name: Run Docker container and get openapi.json
         run: |
-          docker run -d --name apphub -p 8080:80 websoft9dev/apphub:${{ env.VERSION }}
-          sleep 10  # Wait for the container to start
-          wget -O apphub/apidocs/openapi.json http://localhost:8080/docs/openapi.json
-          docker stop apphub
+          docker run -d --name apphub -p 8080:8080 websoft9dev/apphub:${{ env.VERSION }}
+          sleep 5
+          max_attempts=10
+          url="http://localhost:8080/openapi.json"
+          for attempt in $(seq 1 $max_attempts); do
+            echo "Attempt #$attempt to download $url..."
+            if wget -O apphub/apidocs/openapi.json "$url"; then
+              echo "Successfully downloaded $url"
+              break
+            else
+              echo "Failed to download $url. Waiting for 5 seconds before retry..."
+              sleep 5
+            fi
+          done
 
       - name: Upload Websoft9 API to Azure
         uses: bacongobbler/azure-blob-storage-upload@main
