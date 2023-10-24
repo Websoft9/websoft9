@@ -12,17 +12,25 @@ import (
 func main() {
 	
 	filePath := "/data/credential"
+	initPath := "/data/init" 
 
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
-		fmt.Println("credential is not exist, create it.")
-		password := generatePassword(16)
 
-		err := writeToFile(filePath, password)
-		if err != nil {
-			fmt.Println("write file error:", err)
-			return
+		_, err := os.Stat(initPath)
+
+		if os.IsNotExist(err) {
+			fmt.Println("credential is not exist, create it.")
+			password := generatePassword(16)
+			err := writeToFile(filePath, password)
+			if err != nil {
+				fmt.Println("write file error:", err)
+				return
+			}
+		} else {
+			fmt.Println("credential is exist, skip it.")
 		}
+
 		// call portainer
 		cmd := exec.Command("./portainer", "--admin-password-file", filePath)
 		cmd.Stdout = os.Stdout
@@ -32,6 +40,8 @@ func main() {
 		if err != nil {
 			fmt.Println("error running compiled_program:", err)
 			return
+		}else{
+			os.Create(initPath)
 		}
 	}else{
 		fmt.Println("credential is exist, skip it.")
