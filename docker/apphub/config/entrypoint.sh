@@ -42,7 +42,7 @@ else
 fi
 
 create_apikey() {
-    # 容器第一次启动时，不管apikey是否为空，调用apphub genkey
+
     if [ ! -f /websoft9/apphub/src/config/initialized  ] || [ -z "$(apphub getkey)" ]; then
         echo "Create new apikey"
         apphub genkey

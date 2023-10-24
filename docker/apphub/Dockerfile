@@ -2,7 +2,7 @@
 
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.0.6-rc1"
+LABEL version="0.0.6-rc2"
 
 ENV LIBRARY_VERSION=v0.5.8
 ENV MEDIA_VERSION=0.0.3
