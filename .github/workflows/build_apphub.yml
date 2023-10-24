@@ -36,3 +36,16 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Download redoc.standalone.js
+        run: wget -O apphub/apidocs/redoc.standalone.js https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js
+
+      - name: Run Docker container and get openapi.json
+        run: |
+          docker run -d --name apphub -p 8080:80 websoft9dev/apphub:${{ env.VERSION }}
+          sleep 10  # Wait for the container to start
+          wget -O apphub/apidocs/openapi.json http://localhost:8080/docs/openapi.json
+          docker stop apphub
+
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Upgrade apphub api docs

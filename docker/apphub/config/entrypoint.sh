@@ -43,10 +43,10 @@ fi
 
 create_apikey() {
     # 容器第一次启动时，不管apikey是否为空，调用apphub genkey
-    if [ ! -f /websoft9/first_run ]; then
+    if [ ! -f /websoft9/apphub/src/config/first_run ]; then
         echo "Create new apikey"
         apphub genkey
-        touch /websoft9/first_run
+        touch /websoft9/apphub/src/config/first_run
     fi
     # apphub getkey 为空时，创建新的apikey
     if [ -z "$(apphub getkey)" ]; then
