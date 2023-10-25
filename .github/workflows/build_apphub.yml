@@ -1,4 +1,4 @@
-name: apphub Build And Push To DockerHub
+name: Push apphub image To DockerHub, and upload Websoft9 API to https://support.websoft9.com/apidocs
 
 on:
   push:
