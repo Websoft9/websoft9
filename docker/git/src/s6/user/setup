@@ -39,6 +39,7 @@ su -c "
     fi
 " git
 
+echo "$user_exist"
 if [ "$user_exist" -eq 1 ]; then
     echo "Read credential from tmp"
     username=$(grep -o "New user '[^']*" /tmp/credential | sed "s/New user '//")
