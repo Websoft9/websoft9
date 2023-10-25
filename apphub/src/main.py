@@ -55,8 +55,8 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
 
     
 app = FastAPI(
-        title="AppManae API",
-        description="This documentation describes the AppManage API.",
+        title="AppHub API",
+        description="This documentation describes the AppHub API.",
         version="0.0.1",
         docs_url=None,
         dependencies=[Depends(verify_key)]

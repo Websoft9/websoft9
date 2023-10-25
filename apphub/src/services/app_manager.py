@@ -97,7 +97,7 @@ class AppManger:
                     app_id=not_stack,
                     app_official=False,
                 )
-            apps_info.append(not_stack_response)
+                apps_info.append(not_stack_response)
 
             return apps_info
         except (CustomException,Exception) as e:

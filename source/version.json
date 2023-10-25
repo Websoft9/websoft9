@@ -1,8 +1,9 @@
 {
-  "version": "0.8.26-rc69",
+  "version": "0.8.26-rc81",
   "plugins": {
     "portainer": "0.0.7",
     "nginx": "0.0.5",
+    "gitea": "0.0.1",
     "myapps": "0.0.8",
     "appstore": "0.0.7",
     "settings": "0.0.5",

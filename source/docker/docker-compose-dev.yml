@@ -35,10 +35,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       #- /run/podman/podman.sock:/var/run/docker.sock
     healthcheck:
-      test: ["CMD", "/environment"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "/endpoint"]
+      interval: 10s
+      timeout: 30s
+      retries: 4
     labels:
       com.docker.compose.w9_http.port: 9000
 

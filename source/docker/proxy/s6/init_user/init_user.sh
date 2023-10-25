@@ -26,10 +26,10 @@ echo "Change username(email)"
 while true; do
     response=$(curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"email": "'$username'", "nickname": "admin", "is_disabled": false, "roles": ["admin"]}'  http://localhost:81/api/users/1)
     if [ $? -eq 0 ]; then
-        echo "HTTP call successful"
+        echo "Set username successful"
         break
     else
-        echo "HTTP call Change username failed, retrying..."
+        echo "Set username failed, retrying..."
         sleep 5
     fi
 done
@@ -38,15 +38,15 @@ echo "Update password"
 while true; do
     response=$(curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer $token" -d '{"type":"password","current":"changeme","secret":"'$password'"}'  http://localhost:81/api/users/1/auth)
     if [ $? -eq 0 ]; then
-        echo "HTTP call successful"
+        echo "Set password successful"
+        echo "Save to credential"
+        json="{\"username\":\"$username\",\"password\":\"$password\"}"
+        echo "$json" > "$cred_path"
         break
     else
-        echo "HTTP call  Update password failed, retrying..."
+        echo "Set password failed, retrying..."
         sleep 5
     fi
 done
 
-echo "Save to credential"
-json="{\"username\":\"$username\",\"password\":\"$password\"}"
-echo "$json" > "$cred_path"
 set -e

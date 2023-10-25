@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query,Path,Response
+from fastapi import APIRouter, Query,Path
 from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
 from src.schemas.appInstall import appInstall
@@ -48,8 +48,10 @@ def get_available_apps(
         500: {"model": ErrorResponse},
         }
     )
-def get_apps():
-    return AppManger().get_apps()
+def get_apps(
+    endpointId: int = Query(None, description="Endpoint ID to get apps from. If not set, get apps from the local endpoint")
+):
+    return AppManger().get_apps(endpointId)
 
 @router.get(
         "/apps/{app_id}",

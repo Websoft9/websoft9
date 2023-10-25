@@ -1,4 +1,5 @@
 import os
+import json
 import configparser
 from typing import Dict
 from src.core.exception import CustomException
@@ -33,10 +34,18 @@ class SettingsManager:
         with open(self.filename, 'w') as configfile:
             self.config.write(configfile)
 
-    def read_section(self, section_name: str) -> Dict[str, str]:
+    def read_section(self, section: str) -> Dict[str, str]:
         try:
             self.config.read(self.config_file_path)
-            return dict(self.config.items(section_name))
+            if section not in self.config.sections():
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"Section:{section} does not exist"
+                )
+            return dict(self.config.items(section))
+        except CustomException as e:
+            raise e
         except Exception as e:
             logger.error(e)
             raise CustomException()

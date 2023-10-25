@@ -50,7 +50,6 @@ docker_exist() {
     return 0
 }
 
-
 Install_Docker(){
     echo "$echo_prefix_docker Installing Docker for your system"
 
@@ -61,6 +60,7 @@ Install_Docker(){
             curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
         else
         # For other distributions
+            sudo yum install yum-utils -y > /dev/null
             sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
             sudo yum install $docker_packages -y
         fi
@@ -68,7 +68,6 @@ Install_Docker(){
 
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then
-        apt update
         # Wait for apt to be unlocked
         curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
     fi
@@ -90,17 +89,31 @@ if docker_exist; then
     elif [ $yum_status -eq 0 ]; then
         sudo yum update -y $docker_packages
     elif [ $apt_status -eq 0 ]; then
+        sudo apt update -y
         sudo apt -y install --only-upgrade $docker_packages
     else
         echo "Docker installed, but cannot upgrade"
     fi
 else
-    export -f Install_Docker
-    timeout 300 bash -c Install_Docker
-    if [ $? -eq 124 ]; then
-      echo "Install Docker timed out, Docker packages maybe can't download"
-      exit 1
-    fi
+
+    max_retries=3
+    retry_count=0
+
+    while ((retry_count < max_retries)); do
+        Install_Docker
+        if [ $? -ne 0 ]; then
+            echo "Installation timeout or failed, retrying..."
+            ((retry_count++))
+            sleep 3
+        else
+            echo "Docker installed successfully."
+            exit 0
+        fi
+    done
+
+    echo "Docker Installation failed after $max_retries retries."
+    exit 1
+
 fi
 }
 

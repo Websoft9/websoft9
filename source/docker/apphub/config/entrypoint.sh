@@ -1,12 +1,14 @@
 #!/bin/bash
+# Define PATH
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+# Export PATH
+export PATH
 
 set -e
 
 try_times=5
 
-# start by supervisord
-/usr/bin/supervisord
-# debug
+supervisord
 supervisorctl start apphub
 
 # set git user and email
@@ -39,4 +41,20 @@ else
     exit 1
 fi
 
-tail -f /dev/null
+create_apikey() {
+    # 容器第一次启动时，不管apikey是否为空，调用apphub genkey
+    if [ ! -f /websoft9/first_run ]; then
+        echo "Create new apikey"
+        apphub genkey
+        touch /websoft9/first_run
+    fi
+    # apphub getkey 为空时，创建新的apikey
+    if [ -z "$(apphub getkey)" ]; then
+        echo "Create new apikey"
+        apphub genkey
+    fi
+}
+
+create_apikey
+
+tail -f /var/log/supervisord.log
