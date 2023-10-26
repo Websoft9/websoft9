@@ -15,4 +15,4 @@ COPY ./s6/w9init/migration.sh /app/migration.sh
 
 RUN chmod +x /app/setuser.sh /app/migration.sh
 
-CMD ["/bin/sh", "-c", "/app/setuser.sh && /app/migration.sh &&  tail -f /dev/null"]
+CMD ["/bin/sh", "-c", "/app/migration.sh && /app/setuser.sh && tail -f /dev/null"]
