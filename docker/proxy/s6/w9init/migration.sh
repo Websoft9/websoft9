@@ -4,7 +4,11 @@ set +e
 
 nginx_proxy(){
 
-    if [ ! -f /data/nginx/proxy_host/initproxy.conf ] || [ $(stat -c %Y /etc/shadow) -ge $(stat -c %Y /data/nginx/proxy_host) ]
+    current_time=$(date +%s)
+    shadow_modified_time=$(stat -c %Y /etc/shadow)
+    time_difference=$((current_time - shadow_modified_time))
+
+    if [ ! -f /data/nginx/proxy_host/initproxy.conf ] || [ $time_difference -le 60 ]
     then
         cp /etc/initproxy.conf /data/nginx/proxy_host/
         echo "Update initproxy.conf to Nginx"
