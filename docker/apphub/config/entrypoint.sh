@@ -6,8 +6,9 @@ export PATH
 
 set -e
 
-try_times=5
+bash /migration.sh
 
+try_times=5
 supervisord
 supervisorctl start apphub
 

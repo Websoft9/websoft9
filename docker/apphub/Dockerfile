@@ -35,6 +35,7 @@ COPY --from=buildstage /w9media ./media
 COPY --from=buildstage /w9library ./library
 COPY --from=buildstage /websoft9/apphub ./apphub
 COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
+COPY --from=buildstage /websoft9/apphub/src/config ./config
 
 RUN apt update && apt install curl git jq iproute2 supervisor -y
 
@@ -46,6 +47,7 @@ COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
 COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+COPY config/migration.sh /migration.sh
 
 VOLUME /websoft9/apphub/logs 
 VOLUME /websoft9/apphub/src/config
