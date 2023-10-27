@@ -49,6 +49,7 @@ RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
 
 # cron
 COPY config/cron /etc/cron.d/cron
+RUN echo "" >> /etc/cron.d/cron
 RUN crontab /etc/cron.d/cron
 
 # chmod for all .sh script
