@@ -1,1 +1,1 @@
-* * * * * /websoft9/script/update.sh
+0 2 * * * /websoft9/script/update.sh
