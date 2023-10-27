@@ -6,7 +6,7 @@ export PATH
 
 set -e
 
-bash /migration.sh
+bash /websoft9/script/migration.sh
 
 try_times=5
 supervisord
@@ -53,4 +53,4 @@ create_apikey() {
 
 create_apikey
 
-tail -f /var/log/supervisord.log
+tail -n 1000 -f /var/log/supervisord.log

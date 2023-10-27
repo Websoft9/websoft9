@@ -1,4 +1,4 @@
-# modify time: 202310270905, you can modify here to trigger Docker Build action
+# modify time: 2023102712, you can modify here to trigger Docker Build action
 
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -36,8 +36,9 @@ COPY --from=buildstage /w9library ./library
 COPY --from=buildstage /websoft9/apphub ./apphub
 COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
 COPY --from=buildstage /websoft9/apphub/src/config ./config
+COPY --from=buildstage /websoft9/docker/apphub/script ./script
 
-RUN apt update && apt install curl git jq iproute2 supervisor -y
+RUN apt update && apt install curl git jq cron iproute2 supervisor -y --no-install-recommends
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
 RUN pip install -e ./apphub
@@ -45,9 +46,14 @@ RUN pip install -e ./apphub
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
-COPY config/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-COPY config/migration.sh /migration.sh
+
+# cron
+COPY config/cron /etc/cron.d/cron
+RUN echo "" >> /etc/cron.d/cron
+RUN crontab /etc/cron.d/cron
+
+# chmod for all .sh script
+RUN find /websoft9/script -name "*.sh" -exec chmod +x {} \;
 
 VOLUME /websoft9/apphub/logs 
 VOLUME /websoft9/apphub/src/config
@@ -58,4 +64,4 @@ RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
 EXPOSE 8080
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/websoft9/script/entrypoint.sh"]

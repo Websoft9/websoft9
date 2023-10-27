@@ -4,6 +4,6 @@ logs
 .venv
 .vscode
 .pytest_cache
-.apphub/swagger-ui
-.apphub/apphub.egg-info
+apphub/swagger-ui
+apphub/apphub.egg-info
 cli/__pycache__
