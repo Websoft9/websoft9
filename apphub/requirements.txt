@@ -6,4 +6,3 @@ requests
 GitPython
 PyJWT
 click
-schedule

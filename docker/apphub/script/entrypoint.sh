@@ -6,7 +6,7 @@ export PATH
 
 set -e
 
-bash /migration.sh
+bash /websoft9/script/migration.sh
 
 try_times=5
 supervisord
