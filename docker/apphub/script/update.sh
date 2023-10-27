@@ -2,6 +2,6 @@
 
 # update media and library
 
-echo "Compare remote version and local version"
+echo "$(date) - Compare remote version and local version" | sudo tee -a /var/log/supervisord.log
 
 echo "Download "
