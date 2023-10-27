@@ -2,57 +2,56 @@
 
 echo "start to migrate config.ini"
 
-migrate_config() {
+migrate_ini() {
+
+# Define file paths, use template ini and syn exsit items from target ini
+local target_ini="$1"
+local template_ini="$2"
+
     /usr/local/bin/python3 - <<EOF
 import configparser
 import os
 import sys
 
-# Define file paths
-runtime_configfile = '/websoft9/apphub/src/config/config.ini'
-parent_configfile = '/websoft9/config/config.ini'
+# Create two config parsers
+target_parser = configparser.ConfigParser()
+template_parser = configparser.ConfigParser()
 
 # Check if the files exist and are not empty
-if not os.path.isfile(runtime_configfile) or os.stat(runtime_configfile).st_size == 0:
-    print(f"Error: {runtime_configfile} does not exist or is empty.")
+if not os.path.isfile(target_ini) or os.stat(target_ini).st_size == 0:
+    print(f"Error: {target_ini} does not exist or is empty.")
     sys.exit(1)
 
-if not os.path.isfile(parent_configfile) or os.stat(parent_configfile).st_size == 0:
-    print(f"Error: {parent_configfile} does not exist or is empty.")
+if not os.path.isfile(template_ini) or os.stat(template_ini).st_size == 0:
+    print(f"Error: {template_ini} does not exist or is empty.")
     sys.exit(1)
 
-# Create two config parsers
-config_runtime = configparser.ConfigParser()
-config_parent = configparser.ConfigParser()
-
-# Try to read the two files and handle errors
 try:
-    config_runtime.read(runtime_configfile)
-    config_parent.read(parent_configfile)
+    target_parser.read(target_ini)
+    template_parser.read(template_ini)
 except configparser.MissingSectionHeaderError:
     print("Error: The provided files are not valid INI files.")
     sys.exit(1)
 
-# Traverse each section and property in parent_configfile
-for section in config_parent.sections():
-    if not config_runtime.has_section(section):
-        # If the section does not exist in runtime_configfile, add the whole section from parent_configfile
-        config_runtime.add_section(section)
-        for key, value in config_parent.items(section):
-            config_runtime.set(section, key, value)
+# Traverse each section and property in template_ini
+for section in template_parser.sections():
+    if not target_parser.has_section(section):
+        # If the section does not exist in target_ini, add the whole section from template_ini
+        target_parser.add_section(section)
+        for key, value in template_parser.items(section):
+            target_parser.set(section, key, value)
     else:
-        # If the section exists in runtime_configfile, only add the keys that don't exist in runtime_configfile
-        for key, value in config_parent.items(section):
-            if not config_runtime.has_option(section, key):
-                config_runtime.set(section, key, value)
+        # If the section exists in target_ini, only add the keys that don't exist in target_ini
+        for key, value in template_parser.items(section):
+            if not target_parser.has_option(section, key):
+                target_parser.set(section, key, value)
 
-# Write the updated runtime_configfile back to the file
-with open(runtime_configfile, 'w') as f:
-    config_runtime.write(f)
+with open(target_ini, 'w') as f:
+    template_parser.write(f)
 EOF
 }
 
-migrate_config
+migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.ini"
 
 if [ $? -eq 0 ]; then
     echo "Success to update config.ini"
