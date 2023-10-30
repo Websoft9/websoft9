@@ -1,4 +1,4 @@
-# modify time: 202310271640, you can modify here to trigger Docker Build action
+# modify time: 202310301056, you can modify here to trigger Docker Build action
 
 FROM python:3.10-bullseye AS buildstage
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -38,7 +38,7 @@ COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
 COPY --from=buildstage /websoft9/apphub/src/config ./config
 COPY --from=buildstage /websoft9/docker/apphub/script ./script
 
-RUN apt update && apt install curl git jq cron iproute2 supervisor -y --no-install-recommends
+RUN apt update && apt install curl git jq cron iproute2 supervisor rsync wget zip -y --no-install-recommends
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
 RUN pip install -e ./apphub
