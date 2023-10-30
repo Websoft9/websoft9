@@ -26,17 +26,16 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
     rm -rf w9media/.github && \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
-    cp redoc.standalone.js swagger-ui/dist && \
-    ls -la /websoft9
+    cp redoc.standalone.js swagger-ui/dist
 
-RUN git clone --depth=1 $websoft9_repo ./w9source
-RUN cp -r ./w9media ./media
-RUN cp -r ./w9library ./library
-RUN cp -r ./w9source/apphub ./apphub
-RUN cp -r ./swagger-ui/dist ./apphub/swagger-ui
-RUN cp -r ./w9source/apphub/src/config ./config
-RUN cp -r ./w9source/docker/apphub/script ./script
-RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
+RUN git clone --depth=1 $websoft9_repo ./w9source && \
+    cp -r ./w9media ./media && \
+    cp -r ./w9library ./library && \
+    cp -r ./w9source/apphub ./apphub && \
+    cp -r ./swagger-ui/dist ./apphub/swagger-ui && \
+    cp -r ./w9source/apphub/src/config ./config && \
+    cp -r ./w9source/docker/apphub/script ./script && \
+    curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
 RUN pip install -e ./apphub
@@ -57,7 +56,7 @@ VOLUME /websoft9/apphub/logs
 VOLUME /websoft9/apphub/src/config
 
 # Clean cache and install files
-RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
+RUN rm -rf apphub/docs apphub/tests library.zip media.zip  redoc.standalone.js swagger-ui w9library w9media w9source && \
     apt clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
