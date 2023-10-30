@@ -51,14 +51,10 @@ fi
 artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9/plugin"
 
 upgrade_zip() {
-    # Check if the correct number of arguments were passed
-    if [ "$#" -ne 2 ]; then
-        echo "Usage: download_package <name> <sync_to>"
-        return 1
-    fi
 
     # Create the full URL by appending the package name to the artifact URL
-    local url="$artifact_url/$package_name"
+    local plugin_name=${package_name%%-*}
+    local url="$artifact_url/$plugin_name/$package_name"
 
     # Initialize download attempts
     local attempts=0
