@@ -1,4 +1,4 @@
-# modify time: 202310301511, you can modify here to trigger Docker Build action
+# modify time: 202310301531, you can modify here to trigger Docker Build action
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -26,10 +26,10 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
     rm -rf w9media/.github && \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
-    cp redoc.standalone.js swagger-ui/dist
+    cp redoc.standalone.js swagger-ui/dist && \
+    git clone --depth=1 $websoft9_repo ./w9source
 
-RUN git clone --depth=1 $websoft9_repo ./w9source && \
-    cp -r ./w9media ./media && \
+RUN cp -r ./w9media ./media && \
     cp -r ./w9library ./library && \
     cp -r ./w9source/apphub ./apphub && \
     cp -r ./swagger-ui/dist ./apphub/swagger-ui && \
@@ -56,7 +56,7 @@ VOLUME /websoft9/apphub/logs
 VOLUME /websoft9/apphub/src/config
 
 # Clean cache and install files
-RUN rm -rf apphub/docs apphub/tests library.zip media.zip  redoc.standalone.js swagger-ui w9library w9media w9source && \
+RUN rm -rf apphub/docs apphub/tests library.zip media.zip redoc.standalone.js swagger-ui w9library w9media w9source && \
     apt clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
