@@ -41,6 +41,7 @@ COPY --from=buildstage /websoft9/docker/apphub/script ./script
 
 RUN apt update && apt install curl git jq cron iproute2 supervisor rsync wget zip -y --no-install-recommends
 
+RUN curl https://websoft9.github.io/websoft9/scripts/update_zip.sh
 RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
