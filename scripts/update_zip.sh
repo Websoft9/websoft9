@@ -111,3 +111,5 @@ upgrade_zip() {
 
     return 0
 }
+
+upgrade_zip
