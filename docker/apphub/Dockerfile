@@ -31,14 +31,14 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \ 
     cp redoc.standalone.js swagger-ui/dist && \ 
 
-    git clone --depth=1 $websoft9_repo
+    git clone --depth=1 $websoft9_repo ./w9source
 
 COPY ./w9media ./media
 COPY ./w9library ./library
-COPY ./websoft9/apphub ./apphub
+COPY ./w9source/apphub ./apphub
 COPY ./swagger-ui/dist ./apphub/swagger-ui
-COPY ./websoft9/apphub/src/config ./config
-COPY ./websoft9/docker/apphub/script ./script
+COPY ./w9source/apphub/src/config ./config
+COPY ./w9source/docker/apphub/script ./script
 
 RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
