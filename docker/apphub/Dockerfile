@@ -30,13 +30,12 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
     ls -la /websoft9
 
 RUN git clone --depth=1 $websoft9_repo ./w9source
-RUN cp ./w9media ./media
-RUN cp ./w9library ./library
-RUN cp /w9source/apphub ./apphub
-RUN cp ./swagger-ui/dist ./apphub/swagger-ui
-RUN cp /w9source/apphub/src/config ./config
-RUN cp /w9source/docker/apphub/script ./script
-
+RUN cp -r ./w9media ./media
+RUN cp -r ./w9library ./library
+RUN cp -r ./w9source/apphub ./apphub
+RUN cp -r ./swagger-ui/dist ./apphub/swagger-ui
+RUN cp -r ./w9source/apphub/src/config ./config
+RUN cp -r ./w9source/docker/apphub/script ./script
 RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
