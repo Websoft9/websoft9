@@ -24,18 +24,18 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
     unzip media.zip && \
     mv media-* w9media && \
     rm -rf w9media/.github && \
-    ls -la / && \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
-    cp redoc.standalone.js swagger-ui/dist
+    cp redoc.standalone.js swagger-ui/dist && \
+    ls -la /websoft9
 
 RUN git clone --depth=1 $websoft9_repo /w9source && \
     cp ./w9media ./media && \
     cp ./w9library ./library && \
-    cp ./w9source/apphub ./apphub && \
+    cp /w9source/apphub ./apphub && \
     cp ./swagger-ui/dist ./apphub/swagger-ui && \
-    cp ./w9source/apphub/src/config ./config && \
-    cp ./w9source/docker/apphub/script ./script
+    cp /w9source/apphub/src/config ./config && \
+    cp /w9source/docker/apphub/script ./script
 
 RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
