@@ -1,14 +1,19 @@
-# modify time: 202310301141, you can modify here to trigger Docker Build action
+# modify time: 202310301411, you can modify here to trigger Docker Build action
 
-FROM python:3.10-bullseye AS buildstage
+FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="0.0.6"
+
+WORKDIR  /websoft9
 
 ENV LIBRARY_VERSION=v0.5.8
 ENV MEDIA_VERSION=0.0.3
 ENV websoft9_repo="https://github.com/Websoft9/websoft9"
 ENV docker_library_repo="https://github.com/Websoft9/docker-library"
 ENV media_repo="https://github.com/Websoft9/media"
+ENV source_github_pages="https://websoft9.github.io/websoft9"
+
+RUN apt update && apt install curl git jq cron iproute2 supervisor rsync wget unzip zip -y --no-install-recommends
 
 # Prepare source files
 RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
@@ -28,19 +33,12 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
 
     git clone --depth=1 $websoft9_repo
 
-FROM python:3.10-slim-bullseye
-WORKDIR  /websoft9
-
-ENV source_github_pages="https://websoft9.github.io/websoft9"
-
-COPY --from=buildstage /w9media ./media
-COPY --from=buildstage /w9library ./library
-COPY --from=buildstage /websoft9/apphub ./apphub
-COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
-COPY --from=buildstage /websoft9/apphub/src/config ./config
-COPY --from=buildstage /websoft9/docker/apphub/script ./script
-
-RUN apt update && apt install curl git jq cron iproute2 supervisor rsync wget zip -y --no-install-recommends
+COPY ./w9media ./media
+COPY ./w9library ./library
+COPY ./websoft9/apphub ./apphub
+COPY ./swagger-ui/dist ./apphub/swagger-ui
+COPY ./websoft9/apphub/src/config ./config
+COPY ./websoft9/docker/apphub/script ./script
 
 RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
