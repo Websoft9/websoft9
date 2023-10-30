@@ -9,6 +9,7 @@ ENV MEDIA_VERSION=0.0.3
 ENV websoft9_repo="https://github.com/Websoft9/websoft9"
 ENV docker_library_repo="https://github.com/Websoft9/docker-library"
 ENV media_repo="https://github.com/Websoft9/media"
+ENV source_github_pages="https://websoft9.github.io/websoft9"
 
 # Prepare source files
 RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
@@ -39,6 +40,8 @@ COPY --from=buildstage /websoft9/apphub/src/config ./config
 COPY --from=buildstage /websoft9/docker/apphub/script ./script
 
 RUN apt update && apt install curl git jq cron iproute2 supervisor rsync wget zip -y --no-install-recommends
+
+RUN curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh
 
 RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
 RUN pip install -e ./apphub
