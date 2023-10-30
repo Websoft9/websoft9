@@ -20,17 +20,13 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
     unzip library.zip && \
     mv docker-library-* w9library && \
     rm -rf w9library/.github && \
-
     wget $media_repo/archive/refs/tags/$MEDIA_VERSION.zip -O ./media.zip && \
     unzip media.zip && \
     mv media-* w9media && \
     rm -rf w9media/.github && \
-
-    # Prepare  Media and master data from Contentful
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
-    wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \ 
-    cp redoc.standalone.js swagger-ui/dist && \ 
-
+    wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
+    cp redoc.standalone.js swagger-ui/dist && \
     git clone --depth=1 $websoft9_repo /w9source
 
 COPY ./w9media ./media
