@@ -9,7 +9,6 @@ ENV MEDIA_VERSION=0.0.3
 ENV websoft9_repo="https://github.com/Websoft9/websoft9"
 ENV docker_library_repo="https://github.com/Websoft9/docker-library"
 ENV media_repo="https://github.com/Websoft9/media"
-ENV source_github_pages="https://websoft9.github.io/websoft9"
 
 # Prepare source files
 RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
@@ -31,6 +30,8 @@ RUN wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./librar
 
 FROM python:3.10-slim-bullseye
 WORKDIR  /websoft9
+
+ENV source_github_pages="https://websoft9.github.io/websoft9"
 
 COPY --from=buildstage /w9media ./media
 COPY --from=buildstage /w9library ./library
