@@ -88,10 +88,10 @@ upgrade_zip() {
     fi
 
     # Get the name of the package without the .zip extension for syncing
-    local package_directory="${package_name%.zip}"
+    local package_directory="${package_name%%-*}"
 
     # Sync the unzipped package to the desired location
-    rsync -av "/tmp/$package_directory" "$sync_to"
+    rsync -av "/tmp/$package_directory/" "$sync_to"
 
     # Check if the sync was successful
     if [ $? -ne 0 ]; then
@@ -102,8 +102,8 @@ upgrade_zip() {
     echo "Successfully downloaded, unzipped, and synced package: $package_name"
 
     # Remove the downloaded .zip file and the unzipped directory
-    rm "/tmp/$package_name"
-    rm -r "/tmp/$package_directory"
+    rm -f "/tmp/$package_name"
+    rm -rf "/tmp/$package_directory"
 
     return 0
 }
