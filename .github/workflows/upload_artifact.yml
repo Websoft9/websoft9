@@ -67,8 +67,8 @@ jobs:
         if: ${{ steps.update_data.outputs.release == 'false' }}
         with:
           files: /*
-          tag_name: v${{ env.RC_VERSION }}
-          title: Release-v${{ env.RC_VERSION }}
+          tag_name: ${{ env.RC_VERSION }}
+          title: Release-${{ env.RC_VERSION }}
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false
@@ -89,8 +89,8 @@ jobs:
         if: ${{ steps.update_data.outputs.release == 'true' }}
         with:
           files: /*
-          tag_name: v${{ env.VERSION }}
-          title: Release-v${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          title: Release-${{ env.VERSION }}
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false
