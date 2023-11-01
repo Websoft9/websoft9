@@ -1,1 +1,2 @@
-1. Add install: developer mode at install.sh
+1. improve dockerfile to reduce image size
+2. fixed update_zip.sh
