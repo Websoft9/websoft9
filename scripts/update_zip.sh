@@ -86,9 +86,16 @@ upgrade_zip() {
         echo "Unzip failed for package: $package_name"
         return 1
     fi
-
+    
     # Get the name of the package without the .zip extension for syncing
-    local package_directory="${package_name%%-*}"
+    local package_directory="${package_name%.zip}"
+    package_directory="${package_directory%%-*}"
+
+    if [ "$unzipped_folder" != "/tmp/$package_directory/" ]; then
+        mv "$unzipped_folder" "/tmp/$package_directory"
+    else
+        echo "The unzipped folder has the same name as the target folder."
+    fi
 
     # Sync the unzipped package to the desired location
     rsync -av "/tmp/$package_directory/" "$sync_to"
