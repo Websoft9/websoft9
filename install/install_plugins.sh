@@ -106,4 +106,6 @@ while not q.empty():
         sys.exit(1)  # Exit the program if an error occurred
 END
 
+find /usr/share/cockpit -type f -name "*.py3" -exec chmod +x {} \;
+
 echo "Plugins install successfully..."
