@@ -1,1 +1,1 @@
-5,10,15,20,25,30,35 * * * * /websoft9/script/update.sh
+0 2 * * * /websoft9/script/update.sh
