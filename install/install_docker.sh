@@ -51,6 +51,7 @@ docker_exist() {
 }
 
 Install_Docker(){
+    
     echo "$echo_prefix_docker Installing Docker for your system"
 
     # For redhat family
@@ -72,7 +73,6 @@ Install_Docker(){
         curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
     fi
 }
-
 
 Upgrade_Docker(){
 if docker_exist; then
@@ -101,7 +101,7 @@ else
 
     while ((retry_count < max_retries)); do
         Install_Docker
-        if [ $? -ne 0 ]; then
+        if ! docker_exist; then
             echo "Installation timeout or failed, retrying..."
             ((retry_count++))
             sleep 3
