@@ -25,10 +25,9 @@ stdout_handler = logging.StreamHandler(sys.stdout)
 
 # 将日志处理器添加到 Uvicorn 的 logger
 uvicorn_logger.addHandler(stdout_handler)
-
 uvicorn_logger.setLevel(logging.INFO)
 
-API_KEY = ConfigManager().get_value("api_key","key")
+
 API_KEY_NAME = "api_key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
@@ -42,6 +41,7 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
             message="Invalid Request",
             details="No API Key provided"
         )
+    API_KEY = ConfigManager().get_value("api_key","key")
 
     if api_key_header != API_KEY:
         logger.error(f"Invalid API Key: {api_key_header}")

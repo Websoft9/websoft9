@@ -21,7 +21,6 @@ from src.utils.password_generator import PasswordGenerator
 
 class AppManger:
     def get_catalog_apps(self,locale:str):
-        logger.access(f"Get catalog apps: {locale}")
         try:
             # Get the app media path
             base_path = ConfigManager().get_value("app_media", "path")
@@ -153,6 +152,8 @@ class AppManger:
             
             # Get the main container
             main_container_id = None
+            app_env = []
+            app_env_format = {} # format app_env to dict
             for container in app_containers:
                 if f"/{app_id}" in container.get("Names", []):
                     main_container_id = container.get("Id", "")
@@ -160,15 +161,17 @@ class AppManger:
             if main_container_id:
                 # Get the main container info
                 main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
-            # Get the env
-            app_env = main_container_info.get("Config", {}).get("Env", [])
+                # Get the env            
+                app_env = main_container_info.get("Config", {}).get("Env", [])
 
             # Get http port from env
             app_http_port = None
             app_name = None
             app_dist = None
+            app_version = None
             for item in app_env:
                 key, value = item.split("=", 1)
+                app_env_format[key] = value
                 if key == "APP_HTTP_PORT":
                     app_http_port = value
                 elif key == "APP_NAME":
@@ -205,7 +208,7 @@ class AppManger:
                 gitConfig = gitConfig,
                 containers = app_containers,
                 volumes = app_volumes,
-                env = app_env
+                env = app_env_format
             )
             return appResponse
         else:
@@ -224,7 +227,7 @@ class AppManger:
                 gitConfig = gitConfig,
                 containers = [],
                 volumes = app_volumes,
-                env = []
+                env = {}
             )
             return appResponse
     
@@ -392,7 +395,7 @@ class AppManger:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"{app_id} is empty, can not uninstall it,you can remove it"
+                details=f"{app_id} is inactive, can not uninstall it,you can remove it"
             )
 
         if purge_data:
@@ -454,7 +457,7 @@ class AppManger:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"{app_id} is not empty, please uninstall it first"
+                details=f"{app_id} is not inactive, please uninstall it first"
             )
         # Check the proxy is exists
         proxyManager = ProxyManager()
@@ -497,7 +500,7 @@ class AppManger:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"{app_id} is empty, can not start it,you can redeploy it"
+                details=f"{app_id} is inactive, can not start it,you can redeploy it"
             )
         
         portainerManager.start_stack(app_id,endpointId)
@@ -528,7 +531,7 @@ class AppManger:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"{app_id} is empty, can not stop it,you can redeploy it"
+                details=f"{app_id} is inactive, can not stop it,you can redeploy it"
             )
         portainerManager.stop_stack(app_id,endpointId)
 
@@ -558,7 +561,7 @@ class AppManger:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"{app_id} is empty, can not restart it,you can redeploy it"
+                details=f"{app_id} is inactive, can not restart it,you can redeploy it"
             )
         portainerManager.restart_stack(app_id,endpointId)
         

@@ -32,7 +32,7 @@ class PortainerManager:
     def __init__(self):
         try:
             self.portainer = PortainerAPI()
-            self._set_portainer_token()
+            # self._set_portainer_token()
         except Exception as e:
             logger.error(f"Init Portainer API Error:{e}")
             raise CustomException()
