@@ -1,9 +1,22 @@
 #!/bin/bash
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 
-# 监控的文件
-FILES="/lib/systemd/system/cockpit.socket /var/lib/docker/volumes/websoft9_apphub_config/_data/config.ini"
 cockpit_port="9000"
+container_name="websoft9-apphub"
+volume_name="websoft9_apphub_config"
+
+# get volume from container
+function get_volume_path() {
+    local container_name="$1"
+    local volume_name="$2"
+    local mounts=$(docker inspect -f '{{ json .Mounts }}' "$container_name" | jq -r '.[] | select(.Name == "'$volume_name'") | .Source')
+    echo "$mounts"
+}
+
+volume_path=$(get_volume_path "$container_name" "$volume_name")
+config_path="$volume_path/config.ini"
+cockpit_service_path="/lib/systemd/system/cockpit.socket"
+FILES="$cockpit_service_path $config_path"
 
 # 监控文件发生变动时需要做的事情
 on_change() {
@@ -31,4 +44,3 @@ inotifywait -e modify -m $FILES | while read PATH EVENT FILE; do
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
     on_change
 done
-
