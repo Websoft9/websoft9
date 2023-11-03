@@ -32,7 +32,7 @@ func main() {
 		}
 
 		// call portainer
-		cmd := exec.Command("./portainer", "--admin-password-file", filePath)
+		cmd := exec.Command("./portainer", "--admin-password-file", filePath, "--hide-label", "owner=websoft9")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	
@@ -45,7 +45,7 @@ func main() {
 		}
 	}else{
 		fmt.Println("credential is exist, skip it.")
-		cmd := exec.Command("./portainer")
+		cmd := exec.Command("./portainer", "--hide-label", "owner=websoft9")
 		cmd.Run()
 	}
 
