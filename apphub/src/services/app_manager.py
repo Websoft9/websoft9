@@ -289,7 +289,7 @@ class AppManger:
                 "APP_VERSION": app_version,
                 "POWER_PASSWORD": PasswordGenerator.generate_strong_password(),
                 "APP_URL": domain_names[0]
-            }            
+            }
             EnvHelper(env_file_path).modify_env_values(new_env_values)
            
             # Commit and push to remote repo
@@ -318,14 +318,16 @@ class AppManger:
             if proxy_enabled and domain_names:
                 # Get the forward port form env file
                 forward_port = EnvHelper(env_file_path).get_env_value_by_key("APP_HTTP_PORT")
+                forward_scheme = "https" if EnvHelper(env_file_path).get_env_value_by_key("APP_HTTPS_ACCESS") else "http"
+
                 # Get the nginx proxy config path
                 nginx_proxy_path = f"{app_tmp_dir_path}/src/nginx-proxy.conf"
                 if os.path.exists(nginx_proxy_path):
                     # Get the advanced config
                     advanced_config = FileHelper.read_file(nginx_proxy_path)
-                    ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,advanced_config)
+                    ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,advanced_config,forward_scheme)
                 else:
-                    ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port)
+                    ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
         except (CustomException,Exception) as e:
             # Rollback-1: remove repo in gitea
             giteaManager.remove_repo(app_id)
@@ -620,24 +622,20 @@ class AppManger:
         # Get the forward port
         stack_env = self.get_app_by_id(app_id,endpointId).env
         if stack_env:
-            for item in stack_env:
-                key, value = item.split("=", 1)
-                if key == "APP_HTTP_PORT":
-                    forward_port = value
-                    break
+            forward_port = stack_env.get("APP_HTTP_PORT",None)
             # Create proxy
             if forward_port:
                 proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port)
                 if proxy_host:
-                    return ProxyHost(
-                        proxy_id=proxy_host.get("id"),
-                        domain_names=proxy_host.get("domain_names"),
-                    )
+                    return proxy_host
                 else:
+                    logger.error(f"Create app:{app_id} proxy error")
                     raise CustomException()
             else:
+                logger.error(f"Get app:{app_id} forward_port error")
                 raise CustomException()
         else:
+            logger.error(f"Get app:{app_id} env error")
             raise CustomException()
 
     def remove_proxy_by_app(self,app_id:str,endpointId:int = None):
@@ -678,50 +676,26 @@ class AppManger:
             )
         ProxyManager().remove_proxy_host_by_id(proxy_id)
 
-    def update_proxy_by_app(self,app_id:str,proxyHost:ProxyHost,endpointId:int = None):
+    def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None):
         proxyManager = ProxyManager()
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
         endpointId = check_endpointId(endpointId, portainerManager)
         
-        # Check the app_id is exists
-        stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
-        if stack_info is None:
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{app_id} Not Found"
-            )
-        
         # Check the proxy id is exists
-        host = proxyManager.get_proxy_host_by_id(proxyHost.proxy_id)
+        host = proxyManager.get_proxy_host_by_id(proxy_id)
         if host is None:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"Proxy ID:{proxyHost.proxy_id} Not Found"
+                details=f"Proxy ID:{proxy_id} Not Found"
             )
-        
-        # Check the domain_names
+
+        # check_domain_names(domain_names)
 
         # Update proxy
-        proxy_host = proxyManager.update_proxy_by_app(
-            proxyHost.proxy_id,
-            proxyHost.domain_names,
-            host.get("forward_host"),
-            host.get("forward_port"),
-            host.get("advanced_config"),
-            host.get("forward_scheme")
-        )
-
-        if proxy_host:
-            return ProxyHost(
-                proxy_id=proxy_host.get("id"),
-                domain_names=proxy_host.get("domain_names"),
-            )
-        else:
-            raise CustomException()
+        return proxyManager.update_proxy_by_app(proxy_id,domain_names)
 
     def _init_local_repo_and_push_to_remote(self,local_path:str,repo_url:str):
         """

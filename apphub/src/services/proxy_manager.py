@@ -128,26 +128,36 @@ class ProxyManager:
         else:
             return response.json()
 
-    def update_proxy_by_app(self,proxy_id:int,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http"):
-        response =  self.nginx.update_proxy_host(
-                proxy_id=proxy_id,
-                domain_names=domain_names,
-                forward_scheme=forward_scheme,
-                forward_host=forward_host,
-                forward_port=forward_port,
-                advanced_config=advanced_config,
-        )
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 500:
-            logger.error(f"Update proxy for app:{forward_host} error:{response.status_code}:{response.text}")
-            raise CustomException()
-        else:
-            logger.error(f"Update proxy for app:{forward_host} error:{response.status_code}:{response.text}")
+    def update_proxy_by_app(self,proxy_id:int,domain_names: list[str]):
+        # Get proxy host by id
+        req_json = self.get_proxy_host_by_id(proxy_id)
+        if req_json is None:
             raise CustomException(
                 status_code=400,
                 message=f"Invalid Request",
-                details=f"{json.loads(response.text).get('error',{}).get('message')}"
+                details=f"Proxy host:{proxy_id} not found"
+            )
+        # update domain_names
+        req_json["domain_names"] = domain_names
+        keys_to_delete = ["id","created_on","modified_on","owner_user_id","enabled","certificate","owner","access_list","use_default_location","ipv6"]
+        for key in keys_to_delete:
+            req_json.pop(key, None) 
+
+        response =  self.nginx.update_proxy_host(proxy_id=proxy_id, json=req_json)
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 500:
+            logger.error(f"Update proxy for app:{req_json['forward_host']} error:{response.status_code}:{response.text}")
+            raise CustomException()
+        else:
+            logger.error(f"Update proxy for app:{req_json['forward_host']} error:{response.status_code}:{response.text}")
+            response_dict = json.loads(response.text)
+            error_dict = response_dict.get('error', {})
+            details = error_dict.get('message')
+            raise CustomException(
+                status_code=400,
+                message=f"Invalid Request",
+                details=details
             )
 
     def get_proxy_host_by_app(self,app_id:str):

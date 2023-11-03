@@ -44,7 +44,7 @@ def create_proxys(
     return AppManger().create_proxy_by_app(app_id,domain_names.domain_names,endpointId)
     
 @router.put(
-            "/proxys/{app_id}}",
+            "/proxys/{proxy_id}",
             summary="Update Proxys",
             description="Update proxys by app",
             responses={
@@ -54,11 +54,11 @@ def create_proxys(
             }
         )
 def update_proxys(
-    proxyHost:ProxyHost = Body(..., description="Proxy host to update proxys from"),
-    app_id: str = Path(..., description="App ID to create proxys from"),
+    domain_names: DomainNames = Body(..., description="Domain names to update proxys from", example={"domain_names": ["example1.com","example2.com"]}),
+    proxy_id: int = Path(..., description="Proxy ID to update proxys from"),
     endpointId: int = Query(None, description="Endpoint ID to create proxys from. If not set, create proxys from the local endpoint"),
 ):
-    return AppManger().update_proxy_by_app(app_id,proxyHost,endpointId)
+    return AppManger().update_proxy_by_app(proxy_id,domain_names.domain_names,endpointId)
 
 @router.delete(
             "/proxys/app/{app_id}",

@@ -113,48 +113,22 @@ class NginxProxyManagerAPI:
         )
 
     def update_proxy_host(
-        self,
-        proxy_id: int,
-        domain_names: List[str],
-        forward_scheme: str,
-        forward_host: str,
-        forward_port: int,
-        advanced_config: str,
+        self,proxy_id :int,json: dict
     ):
         """
         Update an existing proxy host
 
         Args:
             proxy_id (int): Proxy ID
-            domain_names (List[str]): Domain names
-            forward_scheme (str): Forward scheme
-            forward_host (str): Forward host
-            forward_port (int): Forward port
-            advanced_config (str): Advanced config
+            json (dict): Proxy host data
 
         Returns:
             Response: Response from Nginx Proxy Manager API
         """
+
         return self.api.put(
             path=f"nginx/proxy-hosts/{proxy_id}",
-            json={
-                "domain_names": domain_names,
-                "forward_scheme": forward_scheme,
-                "forward_host": forward_host,
-                "forward_port": forward_port,
-                "access_list_id": "0",
-                "certificate_id": 0,
-                "meta": {"letsencrypt_agree": False, "dns_challenge": False},
-                "advanced_config": advanced_config,
-                "block_exploits": False,
-                "caching_enabled": False,
-                "allow_websocket_upgrade": False,
-                "http2_support": False,
-                "hsts_enabled": False,
-                "hsts_subdomains": False,
-                "ssl_forced": False,
-                "locations": [],
-            },
+            json=json,
         )
 
     def delete_proxy_host(self, proxy_id: int):
