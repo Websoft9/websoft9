@@ -13,7 +13,8 @@ services:
       - git
       - proxy
     labels:
-      com.docker.compose.w9_http.port: 8080
+      - "owner=websoft9"
+      - "com.docker.compose.w9_http.port:8080"
 
   deployment:
     image: websoft9dev/deployment:$DEPLOYMENT_VERSION
@@ -30,7 +31,8 @@ services:
       timeout: 30s
       retries: 4
     labels:
-      com.docker.compose.w9_http.port: 9000
+      - "owner=websoft9"
+      - "com.docker.compose.w9_http.port:9000"
 
   git:
     image: websoft9dev/git:$GIT_VERSION
@@ -49,7 +51,8 @@ services:
       - REQUIRE_SIGNIN_VIEW=false
       - ROOT_URL=http://localhost/w9git/
     labels:
-      com.docker.compose.w9_http.port: 3000
+      - "owner=websoft9"
+      - "com.docker.compose.w9_http.port:3000"
 
   proxy:
     image: websoft9dev/proxy:$PROXY_VERSION
@@ -62,9 +65,10 @@ services:
       - nginx_data:/data
       - nginx_letsencrypt:/etc/letsencrypt
     labels:
-      com.docker.compose.w9_http.port: 80
-      com.docker.compose.w9_https.port: 443
-      com.docker.compose.w9_console.port: 81
+      - "owner=websoft9"
+      - "com.docker.compose.w9_http.port: 80"
+      - "com.docker.compose.w9_https.port: 443"
+      - "com.docker.compose.w9_console.port: 81"
 
 networks:
   default:

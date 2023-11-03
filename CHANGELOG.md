@@ -2,6 +2,7 @@
 
 1. improve dockerfile to reduce image size
 2. fixed update_zip.sh
+3. hide websoft9 containers
 
 ## 0.8.27 release on 2023-10-31
 
