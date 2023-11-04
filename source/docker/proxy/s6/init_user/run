@@ -1,6 +1,0 @@
-#!/bin/bash
-
-[[ -f ./init_user.sh ]] && source ./init_user.sh
-pushd /root >/dev/null
-exec s6-svc -D /etc/s6-overlay/s6-rc.d/init_user
-popd
