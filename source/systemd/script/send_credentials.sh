@@ -60,8 +60,13 @@ set -e  # Stop ignoring errors
 
 length=${#containers[@]}
 for ((i=0; i<$length; i++)); do
+
     container=${containers[$i]}
     section=${sections[$i]}
-    echo "$container:"
-    docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
+    if [[ -n ${passwords[$container]} ]]; then
+        echo "$container start to set password"
+        docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
+    else
+        echo "Password for $container is not set or empty. Skipping..."
+    fi
 done

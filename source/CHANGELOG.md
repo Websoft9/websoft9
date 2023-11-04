@@ -1,6 +1,21 @@
-## 0.8.22 release on 2023-09-27
+## 0.8.29-rc1 release on 2023-11-04
 
-1. add systemd to websoft9 artifacts
+1. gitea,myapps,appstore update
+2. apphub domains 
+
+## 0.8.28 release on 2023-11-01
+
+1. improve dockerfile to reduce image size
+2. fixed update_zip.sh
+3. hide websoft9 containers
+
+## 0.8.27 release on 2023-10-31
+
+1. new websoft9 init
+
+## 0.8.26 release on 2023-09-27
+
+1. appmanage change to apphub
 
 ## 0.8.20 release on 2023-08-23
 

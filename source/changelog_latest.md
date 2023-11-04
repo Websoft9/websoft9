@@ -1,1 +1,2 @@
-1. Add install: developer mode at install.sh
+1. gitea,myapps,appstore update
+2. apphub domains 

@@ -8,7 +8,6 @@ response=""
 cred_path="/data/gitea/credential"
 admin_username="websoft9"
 admin_email="help@websoft9.com"
-user_exist=0
 
 while [ "$response" != "200" ]; do
   response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000)
@@ -35,11 +34,11 @@ su -c "
         exit 0
     else
         gitea admin user create --admin --username '$admin_username' --random-password --email '$admin_email' > /tmp/credential
-        user_exist=1
+        touch /data/gitea/create_user 2>/dev/null
     fi
 " git
 
-if [ "$user_exist" -eq 1 ]; then
+if [ -f /data/gitea/create_user ]; then
     echo "Read credential from tmp"
     username=$(grep -o "New user '[^']*" /tmp/credential | sed "s/New user '//")
     if [ -z "$username" ] || [ "$username" != "websoft9" ]; then

@@ -1,55 +1,59 @@
-# modify time: 202310231530, you can modify here to trigger Docker Build action
+# modify time: 202311040940, you can modify here to trigger Docker Build action
 
-FROM python:3.10-bullseye AS buildstage
+FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="0.0.6"
 
-ENV LIBRARY_VERSION=v0.5.8
-
-# Prepare library
-RUN wget https://github.com/Websoft9/docker-library/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
-    unzip library.zip && \
-    mv docker-library-* library && \
-    mkdir credentials && \
-    echo "This folder stored the credentials of other services that apphub will connect" > credentials/readme  && \
-    # Prepare  Media and master data from Contentful
-    git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
-    wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \ 
-    cp redoc.standalone.js swagger-ui/dist && \ 
-    git clone --depth=1 https://github.com/Websoft9/plugin-appstore && \
-    mv -f plugin-appstore/data ./media && \
-    git clone --depth=1 https://github.com/Websoft9/websoft9
-
-FROM python:3.10-slim-bullseye
 WORKDIR  /websoft9
 
-COPY --from=buildstage /media/data ./media
-COPY --from=buildstage /library ./library
-COPY --from=buildstage /websoft9/apphub ./apphub
-COPY --from=buildstage /swagger-ui/dist ./apphub/swagger-ui
+ENV LIBRARY_VERSION=0.5.8
+ENV MEDIA_VERSION=0.0.3
+ENV websoft9_repo="https://github.com/Websoft9/websoft9"
+ENV docker_library_repo="https://github.com/Websoft9/docker-library"
+ENV media_repo="https://github.com/Websoft9/media"
+ENV source_github_pages="https://websoft9.github.io/websoft9"
 
-RUN apt update && apt install git jq iproute2 supervisor -y && \
-    mkdir credentials && \
-    echo "This folder stored the credentials of other services that integrated with apphub" > credentials/readme
-
-RUN pip install --no-cache-dir --upgrade -r apphub/requirements.txt
-RUN pip install -e ./apphub
+RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
+    # Prepare source files
+    wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
+    unzip library.zip && \
+    mv docker-library-* w9library && \
+    rm -rf w9library/.github && \
+    wget $media_repo/archive/refs/tags/$MEDIA_VERSION.zip -O ./media.zip && \
+    unzip media.zip && \
+    mv media-* w9media && \
+    rm -rf w9media/.github && \
+    git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
+    wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
+    cp redoc.standalone.js swagger-ui/dist && \
+    git clone --depth=1 $websoft9_repo ./w9source && \
+    cp -r ./w9media ./media && \
+    cp -r ./w9library ./library && \
+    cp -r ./w9source/apphub ./apphub && \
+    cp -r ./swagger-ui/dist ./apphub/swagger-ui && \
+    cp -r ./w9source/apphub/src/config ./config && \
+    cp -r ./w9source/docker/apphub/script ./script && \
+    curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh && \
+    pip install --no-cache-dir --upgrade -r apphub/requirements.txt && \
+    pip install -e ./apphub && \
+    # Clean cache and install files
+    rm -rf apphub/docs apphub/tests library.zip media.zip redoc.standalone.js swagger-ui w9library w9media w9source && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
-COPY config/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
+# cron
+COPY config/cron /etc/cron.d/cron
+RUN echo "" >> /etc/cron.d/cron && crontab /etc/cron.d/cron
+
+# chmod for all .sh script
+RUN find /websoft9/script -name "*.sh" -exec chmod +x {} \;
 
 VOLUME /websoft9/apphub/logs 
 VOLUME /websoft9/apphub/src/config
-VOLUME /websoft9/media
-
-# Clean cache and install files
-RUN rm -rf apphub/docs apphub/tests library.zip plugin-appstore && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
 
 EXPOSE 8080
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/websoft9/script/entrypoint.sh"]

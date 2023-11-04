@@ -14,11 +14,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.security.api_key import APIKeyHeader
 
 uvicorn_logger = logging.getLogger("uvicorn")
-
-# for handler in uvicorn_logger.handlers:
-#     uvicorn_logger.removeHandler(handler)
-# for handler in logger._error_logger.handlers: 
-#     uvicorn_logger.addHandler(handler)
     
 # 创建一个日志处理器，将日志发送到 stdout
 stdout_handler = logging.StreamHandler(sys.stdout)
@@ -28,11 +23,13 @@ uvicorn_logger.addHandler(stdout_handler)
 uvicorn_logger.setLevel(logging.INFO)
 
 
-API_KEY_NAME = "api_key"
+API_KEY_NAME = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def verify_key(request: Request, api_key_header: str = Security(api_key_header)):
-    if request.url.path == "/docs":
+    logger.access(request.headers)
+    logger.access(request.url.path)
+    if request.url.path == "/api/docs":
         return None 
 
     if api_key_header is None:
@@ -59,7 +56,9 @@ app = FastAPI(
         description="This documentation describes the AppHub API.",
         version="0.0.1",
         docs_url=None,
-        dependencies=[Depends(verify_key)]
+        root_path="/api",
+        servers=[{"url": "/api"}],
+         dependencies=[Depends(verify_key)],
     )
 
 app.mount("/static", StaticFiles(directory="swagger-ui"), name="static")
@@ -71,14 +70,14 @@ async def custom_swagger_ui_html():
     <html>
     <head>
         <title>Websoft9 API</title>
-        <link rel="stylesheet" type="text/css" href="/static/swagger-ui.css">
-        <script src="/static/swagger-ui-bundle.js"></script>
+        <link rel="stylesheet" type="text/css" href="/api/static/swagger-ui.css">
+        <script src="/api/static/swagger-ui-bundle.js"></script>
     </head>
     <body>
         <div id="swagger-ui"></div>
         <script>
         const ui = SwaggerUIBundle({
-            url: "/openapi.json",
+            url: "/api/openapi.json",
             dom_id: '#swagger-ui',
             presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
             layout: "BaseLayout"
