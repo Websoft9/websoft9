@@ -1,7 +1,8 @@
-## 0.8.29-rc1 release on 2023-11-04
+## 0.8.29 release on 2023-11-04
 
 1. gitea,myapps,appstore update
 2. apphub domains 
+3. apphub docs nginx config
 
 ## 0.8.28 release on 2023-11-01
 
