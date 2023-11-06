@@ -311,7 +311,30 @@ Install_Cockpit(){
         check_ports $port
     fi
     
-    if command -v apt >/dev/null; then
+    dnf --version >/dev/null 2>&1
+    dnf_status=$?
+    yum --version >/dev/null 2>&1
+    yum_status=$?
+    apt --version >/dev/null 2>&1
+    apt_status=$? 
+
+    if [ $dnf_status -eq 0 ]; then
+        sudo dnf check-update
+        sudo dnf upgrade -y
+        for pkg in $cockpit_packages
+        do
+            echo "Installing $pkg"
+            sudo dnf install -y "$pkg" || echo "$pkg failed to install"
+        done
+    elif [ $yum_status -eq 0 ]; then
+        sudo yum check-update
+        sudo yum update -y
+        for pkg in $cockpit_packages
+        do
+            echo "Installing $pkg"
+            sudo yum install -y "$pkg" || echo "$pkg failed to install"
+        done
+    elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
         sudo dpkg --configure -a
         apt update -y
@@ -321,25 +344,10 @@ Install_Cockpit(){
             echo "Installing $pkg"
             sudo apt install -u -y "$pkg" || echo "$pkg failed to install"
         done
-    elif command -v dnf >/dev/null; then
-        sudo dnf check-update
-        sudo dnf upgrade -y
-        for pkg in $cockpit_packages
-        do
-            echo "Installing $pkg"
-            sudo dnf install -y "$pkg" || echo "$pkg failed to install"
-        done
-    elif command -v yum >/dev/null; then
-        sudo yum check-update
-        sudo yum update -y
-        for pkg in $cockpit_packages
-        do
-            echo "Installing $pkg"
-            sudo yum install -y "$pkg" || echo "$pkg failed to install"
-        done
     else
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
     fi
+
     Set_Firewalld
     Set_Selinux
     Set_Cockpit
