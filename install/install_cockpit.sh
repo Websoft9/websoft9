@@ -301,10 +301,16 @@ Edit_Menu(){
     fi
 }
 
-Upgrade_Cockpit(){
-    echo "$echo_prefix_cockpit Prepare to upgrade Cockpit"
-    echo "You installed version:  "
-    Print_Version
+Install_Cockpit(){
+    if cockpit_exist; then
+        echo "$echo_prefix_cockpit Prepare to upgrade Cockpit"
+        echo "You installed version:  "
+        Print_Version
+    else
+        echo "$echo_prefix_cockpit Prepare to install Cockpit" 
+        check_ports $port
+    fi
+    
     if command -v apt >/dev/null; then
         export DEBIAN_FRONTEND=noninteractive
         sudo dpkg --configure -a
@@ -315,32 +321,25 @@ Upgrade_Cockpit(){
             echo "Installing $pkg"
             sudo apt install -u -y "$pkg" || echo "$pkg failed to install"
         done
+    elif command -v dnf >/dev/null; then
+        sudo dnf check-update
+        sudo dnf upgrade -y
+        for pkg in $cockpit_packages
+        do
+            echo "Installing $pkg"
+            sudo dnf install -y "$pkg" || echo "$pkg failed to install"
+        done
+    elif command -v yum >/dev/null; then
+        sudo yum check-update
+        sudo yum update -y
+        for pkg in $cockpit_packages
+        do
+            echo "Installing $pkg"
+            sudo yum install -y "$pkg" || echo "$pkg failed to install"
+        done
     else
-        sudo pkcon refresh > /dev/null
-        sudo pkcon get-updates > /dev/null
-        sudo pkcon update $cockpit_packages -y
-        sudo pkcon install $cockpit_packages -y --allow-untrusted --allow-reinstall
+        echo "Neither apt,dnf nor yum found. Please install one of them and try again."
     fi
-}
-
-Install_Cockpit(){
-
-    if cockpit_exist; then
-        Upgrade_Cockpit
-        Restart_Cockpit
-    else
-        echo "$echo_prefix_cockpit Prepare to install Cockpit" 
-        check_ports $port
-        export DEBIAN_FRONTEND=noninteractive
-        sudo pkcon refresh > /dev/null
-        sudo pkcon get-updates > /dev/null
-        output=$(sudo pkcon install $cockpit_packages -y --allow-untrusted --allow-reinstall 2>&1)
-        if echo "$output" | grep -q "offline"; then
-            Upgrade_Cockpit
-        fi
-        Restart_Cockpit
-    fi
-
     Set_Firewalld
     Set_Selinux
     Set_Cockpit
