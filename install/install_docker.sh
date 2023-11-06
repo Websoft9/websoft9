@@ -51,26 +51,31 @@ docker_exist() {
 }
 
 Install_Docker(){
-    
-    echo "$echo_prefix_docker Installing Docker for your system"
+    local mirror=$1
+    local timeout=$2
+    local repo_url=$3
+
+    echo "$echo_prefix_docker Installing Docker from ${mirror} with timeout ${timeout} seconds for your system"
 
     # For redhat family
     if [[ -f /etc/redhat-release ]]; then
         # For CentOS, Fedora, or RHEL(only s390x)
         if [[ $(cat /etc/redhat-release) =~ "RHEL" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
-            curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
+            curl -fsSL https://get.docker.com -o get-docker.sh
+			timeout $timeout sh get-docker.sh --mirror $mirror
         else
         # For other distributions
             sudo yum install yum-utils -y > /dev/null
-            sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-            sudo yum install $docker_packages -y
+            sudo yum-config-manager --add-repo $repo_url
+            timeout $timeout sudo yum install $docker_packages -y
         fi
     fi
 
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then
         # Wait for apt to be unlocked
-        curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh
+        curl -fsSL https://get.docker.com -o get-docker.sh
+		timeout $timeout sh get-docker.sh  --mirror $mirror
     fi
 }
 
@@ -95,14 +100,16 @@ if docker_exist; then
         echo "Docker installed, but cannot upgrade"
     fi
 else
-
-    max_retries=3
-    retry_count=0
+    local mirrors=("Official" "Official" "AzureChinaCloud" "Aliyun")
+    local urls=("https://download.docker.com/linux/centos/docker-ce.repo" "https://download.docker.com/linux/centos/docker-ce.repo" "https://mirror.azure.cn/docker-ce/linux/centos/docker-ce.repo" "https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo")
+    local timeout=60
+    local max_retries=${#mirrors[@]}
+    local retry_count=0
 
     while ((retry_count < max_retries)); do
-        Install_Docker
+        Install_Docker ${mirrors[$retry_count]} $timeout ${urls[$retry_count]}
         if ! docker_exist; then
-            echo "Installation timeout or failed, retrying..."
+            echo "Installation timeout or failed, retrying with ${mirrors[$retry_count]} mirror..."
             ((retry_count++))
             sleep 3
         else
