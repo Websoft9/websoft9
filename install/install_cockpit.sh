@@ -319,25 +319,21 @@ Install_Cockpit(){
     apt_status=$? 
 
     if [ $dnf_status -eq 0 ]; then
-        sudo dnf check-update
-        sudo dnf upgrade -y
         for pkg in $cockpit_packages
         do
-            echo "Installing $pkg"
-            sudo dnf install -y "$pkg" || echo "$pkg failed to install"
+            echo "Install or upgrade $pkg"
+            sudo dnf upgrade -y "$pkg" || sudo dnf install -y "$pkg" || echo "$pkg failed to install or upgrade"
         done
     elif [ $yum_status -eq 0 ]; then
-        sudo yum check-update
-        sudo yum update -y
         for pkg in $cockpit_packages
         do
-            echo "Installing $pkg"
-            sudo yum install -y "$pkg" || echo "$pkg failed to install"
+            echo "Install or update $pkg"
+            sudo yum update -y "$pkg" || sudo yum install -y "$pkg" || echo "$pkg failed to install or update"
         done
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
         sudo dpkg --configure -a
-        apt update -y
+        apt update -y >/dev/null 2>&1
         apt --fix-broken install
         for pkg in $cockpit_packages
         do

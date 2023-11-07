@@ -65,7 +65,7 @@ Install_Docker(){
         # For CentOS, Fedora, or RHEL(only s390x)
         if [[ $(cat /etc/redhat-release) =~ "RHEL" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
             curl -fsSL https://get.docker.com -o get-docker.sh
-			timeout $timeout sh get-docker.sh --mirror $mirror
+			timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
         else
         # For other distributions
             sudo yum install yum-utils -y > /dev/null
@@ -78,7 +78,7 @@ Install_Docker(){
     if type apt >/dev/null 2>&1; then
         # Wait for apt to be unlocked
         curl -fsSL https://get.docker.com -o get-docker.sh
-		timeout $timeout sh get-docker.sh  --mirror $mirror
+		timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
     fi
 }
 
