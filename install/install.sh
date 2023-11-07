@@ -133,6 +133,14 @@ install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
 
+    OS_TYPE=$(cat /etc/*-release | awk -F= '/^NAME/{print $2}' | tr -d '"')
+    if [[ $OS_TYPE == "Red Hat Enterprise Linux" ]]; then
+        RHEL_VERSION=$(rpm -E %{rhel})
+        sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RHEL_VERSION}.noarch.rpm
+    else
+        echo "The script is only applicable to Red Hat Enterprise Linux."
+    fi
+
     dnf --version >/dev/null 2>&1
     dnf_status=$?
     yum --version >/dev/null 2>&1

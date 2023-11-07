@@ -322,13 +322,15 @@ Install_Cockpit(){
         for pkg in $cockpit_packages
         do
             echo "Install or upgrade $pkg"
-            sudo dnf upgrade -y "$pkg" || sudo dnf install -y "$pkg" || echo "$pkg failed to install or upgrade"
+            sudo dnf upgrade -y "$pkg"
+            sudo dnf install -y "$pkg" || echo "$pkg failed to install or upgrade"
         done
     elif [ $yum_status -eq 0 ]; then
         for pkg in $cockpit_packages
         do
             echo "Install or update $pkg"
-            sudo yum update -y "$pkg" || sudo yum install -y "$pkg" || echo "$pkg failed to install or update"
+            sudo yum update -y "$pkg"
+            sudo yum install -y "$pkg" || echo "$pkg failed to install or update"
         done
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive

@@ -63,11 +63,11 @@ Install_Docker(){
     # For redhat family
     if [[ -f /etc/redhat-release ]]; then
         # For CentOS, Fedora, or RHEL(only s390x)
-        if [[ $(cat /etc/redhat-release) =~ "RHEL" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
+        if [[ $(cat /etc/redhat-release) =~ "Red Hat" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
             curl -fsSL https://get.docker.com -o get-docker.sh
 			timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
         else
-        # For other distributions
+            # For other distributions(Redhat and Rocky linux)
             sudo yum install yum-utils -y > /dev/null
             sudo yum-config-manager --add-repo $repo_url
             timeout $timeout sudo yum install $docker_packages -y
