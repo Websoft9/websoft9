@@ -52,6 +52,9 @@ docker_exist() {
 
 Install_Docker(){
     local mirror=$1
+    if [ "$mirror" = "Official" ]; then
+        mirror=""
+    fi
     local timeout=$2
     local repo_url=$3
 
