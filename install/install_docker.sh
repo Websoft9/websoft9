@@ -105,8 +105,8 @@ if docker_exist; then
 else
     local mirrors=("Official" "Official" "AzureChinaCloud" "Aliyun")
     local urls=("https://download.docker.com/linux/centos/docker-ce.repo" "https://download.docker.com/linux/centos/docker-ce.repo" "https://mirror.azure.cn/docker-ce/linux/centos/docker-ce.repo" "https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo")
-    local timeout=60
-    local max_retries=${#mirrors[@]}
+    local timeout=180
+    local max_retries=4
     local retry_count=0
 
     while ((retry_count < max_retries)); do
