@@ -2,7 +2,7 @@ from typing import Any, Dict, List,Optional
 from pydantic import BaseModel, Field
 
 class AppAvailableResponse(BaseModel):
-    sys: Dict[str, str] = Field(..., description="System info",example={"id": "2KY3eyxKkWDp2ZDTS66aP4"})
+    sys: Dict[str, str] = Field(..., description="id",example={"id": "2KY3eyxKkWDp2ZDTS66aP4"})
     key: Optional[str] = Field(..., description="Key",example="wordpress")
     hot: Optional[int] = Field(0, description="Hot",example=1000)
     trademark: Optional[str] = Field(None, description="Trademark",example="WordPress")

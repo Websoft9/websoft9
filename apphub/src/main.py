@@ -27,8 +27,6 @@ API_KEY_NAME = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def verify_key(request: Request, api_key_header: str = Security(api_key_header)):
-    logger.access(request.headers)
-    logger.access(request.url.path)
     if request.url.path == "/api/docs":
         return None 
 
@@ -58,7 +56,7 @@ app = FastAPI(
         docs_url=None,
         root_path="/api",
         servers=[{"url": "/api"}],
-         dependencies=[Depends(verify_key)],
+        dependencies=[Depends(verify_key)],
     )
 
 app.mount("/static", StaticFiles(directory="swagger-ui"), name="static")

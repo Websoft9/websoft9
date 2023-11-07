@@ -8,7 +8,6 @@ from src.core.envHelper import EnvHelper
 from src.core.exception import CustomException
 from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
-from src.schemas.proxyHosts import ProxyHost
 from src.services.common_check import check_appId, check_appName_and_appVersion, check_domain_names, check_endpointId
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
@@ -21,6 +20,12 @@ from src.utils.password_generator import PasswordGenerator
 
 class AppManger:
     def get_catalog_apps(self,locale:str):
+        """
+        Get catalog apps
+
+        Args:
+            locale (str): The language to get catalog apps from.
+        """
         try:
             # Get the app media path
             base_path = ConfigManager().get_value("app_media", "path")
@@ -39,6 +44,12 @@ class AppManger:
             raise CustomException()
 
     def get_available_apps(self,locale:str):
+        """
+        Get available apps
+
+        Args:
+            locale (str): The language to get available apps from.
+        """
         try:
             # Get the app media path
             base_path = ConfigManager().get_value("app_media", "path")
@@ -49,52 +60,70 @@ class AppManger:
                 raise CustomException()
             
             # Get the app available list
-            with open(app_media_path, "r") as f:
+            with open(app_media_path, "r",encoding='utf-8') as f:
                 data = json.load(f)
                 # appAvailableResponses = [AppAvailableResponse(**item) for item in data]
                 # return appAvailableResponses
                 return data
+                
         except (CustomException,Exception) as e:
             logger.error(f"Get available apps error:{e}")
             raise CustomException()
 
     def get_apps(self,endpointId:int = None):
+        """
+        Get apps
+
+        Args:
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
+        # Get the portainer manager
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
         endpointId = check_endpointId(endpointId, portainerManager)
         
         try:
+            # Set the apps info for response
             apps_info = []
-            # Get the stacks
+            # Get the stacks by endpointId from portainer
             stacks = portainerManager.get_stacks(endpointId)
             for stack in stacks:
                 stack_name = stack.get("Name",None)
                 if stack_name is not None:
+                    # Get the app info by stack_name from portainer
                     app_info = self.get_app_by_id(stack_name,endpointId)
                     apps_info.append(app_info)
 
             # Get the not stacks(not installed apps)
-            all_containers = portainerManager.get_containers(endpointId)
-            # Get the not stacks
-            not_stacks = []
+            all_containers = portainerManager.get_containers(endpointId) # Get all containers by endpointId from portainer
+
+            # Set the not stacks info for response(app not install by portainer)
+            not_stacks = [] 
             for container in all_containers:
+                # Get the container labels
                 container_labels = container.get("Labels",None)
                 if container_labels is not None:
+                    # Get the container_project
                     container_project = container_labels.get("com.docker.compose.project",None)
                     if container_project is not None:
+                        # Check the container_project is exists in stacks
                         if not any(container_project in stack.get("Name",[]) for stack in stacks):
+                            # Add the not stacks
                             not_stacks.append(container_project)
+            
             # Remove the duplicate elements
             not_stacks = list(set(not_stacks))
+
             # Remove the websoft9
             if "websoft9" in not_stacks:
                 not_stacks.remove("websoft9")
-            # Get the not stacks info
+            
+            # Set the not stacks info
             for not_stack in not_stacks:
                 not_stack_response = AppResponse(
-                    app_id=not_stack,
-                    app_official=False,
+                    app_id = not_stack,
+                    app_official = False,
                 )
                 apps_info.append(not_stack_response)
 
@@ -104,6 +133,13 @@ class AppManger:
             raise CustomException()
 
     def get_app_by_id(self,app_id:str,endpointId:int = None):
+        """
+        Get app by app_id
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
@@ -118,36 +154,36 @@ class AppManger:
                 details=f"{app_id} Not Found"
             )
         
-        # Get stack_info
+        # Get stack_info by app_id from portainer
         stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
         # Get the stack_id
         stack_id = stack_info.get("Id",None)
-        # Get the stack_status
-        stack_status = stack_info.get("Status",0)
-        # Get the gitConfig
-        gitConfig = stack_info.get("GitConfig",{}) or {}
-        # Get the creationDate
-        creationDate = stack_info.get("CreationDate","")
+        # Check the stack_id is exists
         if stack_id is None:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        
-        # Get the domain_names
+        # Get the stack_status
+        stack_status = stack_info.get("Status",0)
+        # Get the gitConfig
+        gitConfig = stack_info.get("GitConfig",{}) or {}
+        # Get the creationDate
+        creationDate = stack_info.get("CreationDate","")
+        # Get the domain_names by app_id from nginx proxy manager
         domain_names = ProxyManager().get_proxy_host_by_app(app_id)
-        # Get the proxy_enabled
+        # Set the proxy_enabled
         if not domain_names:
             proxy_enabled = False
         else :
             proxy_enabled = True
-        # Get the volumes
+        # Get the volumes by app_id from portainer
         app_volumes = portainerManager.get_volumes_by_stack_name(app_id,endpointId,False)
 
         # if stack is empty(status=2-inactive),can not get it
         if stack_status == 1:
-            # Get the containers
+            # Get the containers by app_id from portainer
             app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId)
             
             # Get the main container
@@ -159,12 +195,12 @@ class AppManger:
                     main_container_id = container.get("Id", "")
                     break
             if main_container_id:
-                # Get the main container info
+                # Get the main container info by main_container_id from portainer
                 main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
-                # Get the env            
+                # Get the env from main_container_info
                 app_env = main_container_info.get("Config", {}).get("Env", [])
 
-            # Get http port from env
+            # Get info from app_env
             app_http_port = None
             app_name = None
             app_dist = None
@@ -185,6 +221,7 @@ class AppManger:
             app_port = None
             if app_http_port:
                 internal_port_str = str(app_http_port) + "/tcp"
+                # Get the port_mappings
                 port_mappings = main_container_info["NetworkSettings"]["Ports"].get(internal_port_str, [])
                 for mapping in port_mappings:
                     try:
@@ -193,6 +230,7 @@ class AppManger:
                     except ipaddress.AddressValueError:
                         continue
             
+            # Set the appResponse
             appResponse = AppResponse(
                 app_id = app_id,
                 endpointId = endpointId,
@@ -232,6 +270,13 @@ class AppManger:
             return appResponse
     
     def install_app(self,appInstall: appInstall, endpointId: int = None):
+        """
+        Install app
+
+        Args:
+            appInstall (appInstall): The app install info.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         # Get the library path
         library_path = ConfigManager().get_value("docker_library", "path")
 
@@ -304,8 +349,10 @@ class AppManger:
             # Get gitea user_name and user_pwd
             user_name = ConfigManager().get_value("gitea","user_name")
             user_pwd = ConfigManager().get_value("gitea","user_pwd")
+
             # Create stack in portainer
             stack_info = portainerManager.create_stack_from_repository(app_id,endpointId,repo_url,user_name,user_pwd)
+
             # Get the stack_id
             stack_id = stack_info.get("Id")
         except (CustomException,Exception) as e:
@@ -318,6 +365,7 @@ class AppManger:
             if proxy_enabled and domain_names:
                 # Get the forward port form env file
                 forward_port = EnvHelper(env_file_path).get_env_value_by_key("APP_HTTP_PORT")
+                # Get the forward scheme form env file: http or https
                 forward_scheme = "https" if EnvHelper(env_file_path).get_env_value_by_key("APP_HTTPS_ACCESS") else "http"
 
                 # Get the nginx proxy config path
@@ -325,8 +373,10 @@ class AppManger:
                 if os.path.exists(nginx_proxy_path):
                     # Get the advanced config
                     advanced_config = FileHelper.read_file(nginx_proxy_path)
+                    # Create proxy in nginx proxy manager
                     ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,advanced_config,forward_scheme)
                 else:
+                    # Create proxy in nginx proxy manager
                     ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
         except (CustomException,Exception) as e:
             # Rollback-1: remove repo in gitea
@@ -341,6 +391,14 @@ class AppManger:
         return self.get_app_by_id(app_id,endpointId)
 
     def redeploy_app(self,app_id:str,pull_image:bool,endpointId:int = None):
+        """
+        Redeploy app
+
+        Args:
+            app_id (str): The app id.
+            pull_image (bool): Whether to pull the image when redeploying the app.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
@@ -369,6 +427,14 @@ class AppManger:
             portainerManager.redeploy_stack(stack_id,endpointId,pull_image,user_name,user_pwd)
 
     def uninstall_app(self,app_id:str,purge_data:bool,endpointId:int = None):
+        """
+        Uninstall app
+
+        Args:
+            app_id (str): The app id.
+            purge_data (bool): Whether to purge data when uninstalling the app.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
@@ -399,14 +465,16 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not uninstall it,you can remove it"
             )
-
+        
         if purge_data:
             # Uninstall app - Step 1 : remove proxy in nginx proxy manager
             # Check the proxy is exists
             proxyManager = ProxyManager()
+            # Check the proxy is exists
             proxys_host = proxyManager.get_proxy_host_by_app(app_id)
             # If the proxy is exists, remove it
             if proxys_host:
+                # Remove proxy
                 proxyManager.remove_proxy_host_by_app(app_id)
 
             # Uninstall app - Step 2 : remove repo in gitea
@@ -414,10 +482,11 @@ class AppManger:
             giteaManager = GiteaManager()
             is_repo_exists = giteaManager.check_repo_exists(app_id)
             if is_repo_exists:
+                # Remove repo
                 giteaManager.remove_repo(app_id)
             
             # Uninstall app - Step 3 : remove stack in portainer
-            # Get stack_id
+            # Get stack_id by app_id from portainer
             stack_id = portainerManager.get_stack_by_name(app_id,endpointId).get("Id",None)
             if stack_id is None:
                 raise CustomException(
@@ -432,6 +501,13 @@ class AppManger:
             portainerManager.down_stack(stack_id,endpointId)
 
     def remove_app(self,app_id:str,endpointId:int = None):
+        """
+        Remove app
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
@@ -477,19 +553,27 @@ class AppManger:
         portainerManager.remove_stack_and_volumes(stack_id,endpointId)
 
     def start_app(self,app_id:str,endpointId:int = None):
+        """
+        Start app
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
         endpointId = check_endpointId(endpointId, portainerManager)
         
         # validate the app_id is exists in portainer
-        # is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
-        # if not is_stack_exists:
-        #     raise CustomException(
-        #         status_code=400,
-        #         message="Invalid Request",
-        #         details=f"{app_id} Not Found"
-        #     )
+        is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
+        if not is_stack_exists:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"{app_id} Not Found"
+            )
+        # Get stack_info by app_id from portainer
         stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
         if stack_info is None:
             raise CustomException(
@@ -497,6 +581,7 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
+        # validate the stack is active
         stack_status = stack_info.get("Status",None)
         if stack_status == 2:
             raise CustomException(
@@ -504,23 +589,31 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not start it,you can redeploy it"
             )
-        
+        # start stack
         portainerManager.start_stack(app_id,endpointId)
 
     def stop_app(self,app_id:str,endpointId:int = None):
+        """
+        Stop app
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.  
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
         endpointId = check_endpointId(endpointId, portainerManager)
         
         # validate the app_id is exists in portainer
-        # is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
-        # if not is_stack_exists:
-        #     raise CustomException(
-        #         status_code=400,
-        #         message="Invalid Request",
-        #         details=f"{app_id} Not Found"
-        #     )
+        is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
+        if not is_stack_exists:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"{app_id} Not Found"
+            )
+        # Get stack_info by app_id from portainer
         stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
         if stack_info is None:
             raise CustomException(
@@ -528,6 +621,7 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
+        # validate the stack is active
         stack_status = stack_info.get("Status",None)
         if stack_status == 2:
             raise CustomException(
@@ -535,22 +629,31 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not stop it,you can redeploy it"
             )
+        # stop stack
         portainerManager.stop_stack(app_id,endpointId)
 
     def restart_app(self,app_id:str,endpointId:int = None):
+        """
+        Restart app
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
         endpointId = check_endpointId(endpointId, portainerManager)
         
         # validate the app_id is exists in portainer
-        # is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
-        # if not is_stack_exists:
-        #     raise CustomException(
-        #         status_code=400,
-        #         message="Invalid Request",
-        #         details=f"{app_id} Not Found"
-        #     )
+        is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
+        if not is_stack_exists:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"{app_id} Not Found"
+            )
+        # Get stack_info by app_id from portainer
         stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
         if stack_info is None:
             raise CustomException(
@@ -558,6 +661,7 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
+        # validate the stack is active
         stack_status = stack_info.get("Status",None)
         if stack_status == 2:
             raise CustomException(
@@ -565,15 +669,24 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not restart it,you can redeploy it"
             )
+        # restart stack
         portainerManager.restart_stack(app_id,endpointId)
         
     def get_proxys_by_app(self,app_id:str,endpointId:int = None):
+        """
+        Get proxys by app_id
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         portainerManager = PortainerManager()
         proxyManager = ProxyManager()
         
         # Check the endpointId is exists.
         endpointId = check_endpointId(endpointId, portainerManager)
         
+        # Check the app_id is exists
         stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
         if stack_info is None:
             raise CustomException(
@@ -581,18 +694,18 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        # stack_status = stack_info.get("Status",None)
-        # if stack_status == 2:
-        #     raise CustomException(
-        #         status_code=400,
-        #         message="Invalid Request",
-        #         details=f"{app_id} is inactive, can not get proxy,you can redeploy it"
-        #     )
         # Get the proxys
-        proxys_host = proxyManager.get_proxy_host_by_app(app_id)
-        return proxys_host
+        return proxyManager.get_proxy_host_by_app(app_id)
 
     def create_proxy_by_app(self,app_id:str,domain_names:list[str],endpointId:int = None):
+        """
+        Create proxy by app_id
+
+        Args:
+            app_id (str): The app id.
+            domain_names (list[str]): The domain names.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         proxyManager = ProxyManager()
         portainerManager = PortainerManager()
         
@@ -622,9 +735,11 @@ class AppManger:
         # Get the forward port
         stack_env = self.get_app_by_id(app_id,endpointId).env
         if stack_env:
+            # Get the forward_port
             forward_port = stack_env.get("APP_HTTP_PORT",None)
             # Create proxy
             if forward_port:
+                # Get the forward scheme form env file: http or https
                 proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port)
                 if proxy_host:
                     return proxy_host
@@ -639,6 +754,13 @@ class AppManger:
             raise CustomException()
 
     def remove_proxy_by_app(self,app_id:str,endpointId:int = None):
+        """
+        Remove proxy by app_id
+
+        Args:
+            app_id (str): The app id.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         proxyManager = ProxyManager()
         portainerManager = PortainerManager()
         
@@ -653,7 +775,7 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        
+        #  Get the domain_names by app_id from nginx proxy manager
         domain_names = proxyManager.get_proxy_host_by_app(app_id)
         if not domain_names:
             raise CustomException(
@@ -666,6 +788,12 @@ class AppManger:
         proxyManager.remove_proxy_host_by_app(app_id)
 
     def remove_proxy_by_id(self,proxy_id:int):
+        """
+        Remove proxy by proxy_id
+
+        Args:
+            proxy_id (int): The proxy id.
+        """
         # Check the proxy id is exists
         host = ProxyManager().get_proxy_host_by_id(proxy_id)
         if host is None:
@@ -674,9 +802,18 @@ class AppManger:
                 message="Invalid Request",
                 details=f"Proxy ID:{proxy_id} Not Found"
             )
+        # Remove proxy
         ProxyManager().remove_proxy_host_by_id(proxy_id)
 
     def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None):
+        """
+        Update proxy by app_id
+
+        Args:
+            proxy_id (str): The proxy id.
+            domain_names (list[str]): The domain names.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
         proxyManager = ProxyManager()
         portainerManager = PortainerManager()
         
@@ -706,10 +843,16 @@ class AppManger:
             repo_url (str): The URL of the remote origin.
         """
         try:
+            # instantiate a GitManager object
             gitManager =GitManager(local_path) 
+
+            # Initialize a local git repository from a directory
             gitManager.init_local_repo_from_dir()
+
             user_name = ConfigManager().get_value("gitea","user_name")
             user_pwd = ConfigManager().get_value("gitea","user_pwd")
+
+            # Push the local repo to remote repo
             gitManager.push_local_repo_to_remote_repo(repo_url,user_name,user_pwd)
         except (CustomException,Exception) as e:
             logger.error(f"Init local repo and push to remote repo error:{e}")
