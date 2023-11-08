@@ -65,7 +65,7 @@ Install_Docker(){
         # For CentOS, Fedora, or RHEL(only s390x)
         if [[ $(cat /etc/redhat-release) =~ "Red Hat" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
             curl -fsSL https://get.docker.com -o get-docker.sh
-			timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
+            timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
         else
             # For other distributions(Redhat and Rocky linux ...)
             dnf --version >/dev/null 2>&1
@@ -85,7 +85,8 @@ Install_Docker(){
                 echo "None of the required package managers are installed."
             fi                
         fi
-
+    fi
+    
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then
         # Wait for apt to be unlocked
