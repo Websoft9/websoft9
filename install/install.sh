@@ -108,6 +108,13 @@ export tools_yum="git curl wget epel-release yum-utils jq bc unzip inotify-tools
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
 export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
+# export OS release environments
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+else
+    echo "Can't judge your Linux distribution"
+    exit 1
+fi
 echo Install from url: $artifact_url
 
 # Define common functions
@@ -133,9 +140,8 @@ install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
 
-    OS_TYPE=$(cat /etc/*-release | awk -F= '/^NAME/{print $2}' | tr -d '"')
-    if [[ $OS_TYPE == "Red Hat Enterprise Linux" ]]; then
-        RHEL_VERSION=$(rpm -E %{rhel})
+    if [ "$ID" = "rhel" ]; then
+        RHEL_VERSION=${VERSION_ID%%.*}
         sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RHEL_VERSION}.noarch.rpm
     else
         echo "The script is only applicable to Red Hat Enterprise Linux."

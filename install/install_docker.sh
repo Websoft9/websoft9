@@ -67,12 +67,24 @@ Install_Docker(){
             curl -fsSL https://get.docker.com -o get-docker.sh
 			timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
         else
-            # For other distributions(Redhat and Rocky linux)
-            sudo yum install yum-utils -y > /dev/null
-            sudo yum-config-manager --add-repo $repo_url
-            timeout $timeout sudo yum install $docker_packages -y
+            # For other distributions(Redhat and Rocky linux ...)
+            dnf --version >/dev/null 2>&1
+            dnf_status=$?
+            yum --version >/dev/null 2>&1
+            yum_status=$?
+
+            if [ $dnf_status -eq 0 ]; then
+                sudo dnf install dnf-utils -y > /dev/null
+                sudo dnf config-manager --add-repo $repo_url
+                timeout $timeout sudo dnf install $docker_packages -y
+            elif [ $yum_status -eq 0 ]; then
+                sudo yum install yum-utils -y > /dev/null
+                sudo yum-config-manager --add-repo $repo_url
+                timeout $timeout sudo yum install $docker_packages -y
+            else
+                echo "None of the required package managers are installed."
+            fi                
         fi
-    fi
 
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then

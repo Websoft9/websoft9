@@ -52,6 +52,15 @@ versions_url="$source_github_pages/version.json"
 file_suffix=".zip"
 plugin_path="/usr/share/cockpit"
 
+if ! command -v python3 &> /dev/null
+then
+    echo "Python 3 is not installed. Installing..."
+    sudo yum install -y python3 &> /dev/null || sudo apt update -y  && sudo apt install -y python3 &> /dev/null
+else
+    echo "Python 3 is already installed."
+fi
+
+
 echo "$echo_prefix_plugins Starting download plugin and update it"
 
 python3 - << END
