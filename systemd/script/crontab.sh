@@ -22,12 +22,18 @@ FILES="$cockpit_service_path $config_path"
 on_change() {
     set +e
     # 从配置文件中获取端口号
+
     cockpit_port=$(docker exec -i websoft9-apphub apphub getconfig --section cockpit --key port)
-    sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
-    systemctl daemon-reload
-    systemctl restart cockpit.socket 2> /dev/null
-    systemctl restart cockpit || exit 1
-    set_Firewalld
+    listen_stream=$(grep -Po 'ListenStream=\K[0-9]*' /lib/systemd/system/cockpit.socket)
+
+    if [ "$cockpit_port" != "$listen_stream" ]; then
+        sed -i "s/ListenStream=${listen_stream}/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
+        systemctl daemon-reload
+        systemctl restart cockpit.socket 2> /dev/null
+        systemctl restart cockpit || exit 1
+        set_Firewalld
+    fi
+
     set -e
 }
 
