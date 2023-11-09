@@ -143,8 +143,6 @@ install_tools(){
     if [ "$ID" = "rhel" ]; then
         RHEL_VERSION=${VERSION_ID%%.*}
         sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RHEL_VERSION}.noarch.rpm
-    else
-        echo "The script is only applicable to Red Hat Enterprise Linux."
     fi
 
     dnf --version >/dev/null 2>&1
