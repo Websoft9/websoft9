@@ -141,9 +141,13 @@ install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
 
-    if [ "$ID" = "rhel" ]; then
+    if [ "$ID" = "rhel" ] || [ "$ID" = "ol" ]; then
         RHEL_VERSION=${VERSION_ID%%.*}
         sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RHEL_VERSION}.noarch.rpm
+    elif [ "$ID" = "centos" ] || [ "$ID" = "rocky" ]; then
+        sudo yum install -y "$repo_tools_yum"
+    elif [ "$ID" = "amzn" ]; then
+        sudo amazon-linux-extras install epel -y
     fi
 
     dnf --version >/dev/null 2>&1
@@ -154,16 +158,25 @@ install_tools(){
     apt_status=$?
 
     if [ $dnf_status -eq 0 ]; then
-        for package in $tools_yum; do sudo dnf install -y $package > /dev/null; done
+        for package in $tools_yum; do 
+            echo "Start to install $package"
+            sudo dnf install -y $package > /dev/null 2>&1
+        done
     elif [ $yum_status -eq 0 ]; then
-        for package in $tools_yum; do sudo yum install -y $package > /dev/null; done
+        for package in $tools_yum; do 
+            echo "Start to install $package"
+            sudo yum install -y $package > /dev/null 2>&1
+        done
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
         echo "Waiting for other software managers to finish..."
         sleep 5
         done
         sudo apt update -y 1>/dev/null 2>&1
-        apt install $tools_apt -y --assume-yes
+        for package in $tools_apt; do 
+            echo "Start to install $package"
+            sudo apt install $package -y > /dev/null 2>&1
+        done
     else
         echo "You system can not install Websoft9 because not have available Linux Package Manager"
         exit 1
