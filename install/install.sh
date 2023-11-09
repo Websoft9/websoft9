@@ -104,6 +104,7 @@ export source_zip="websoft9-$version.zip"
 export source_unzip="websoft9"
 export source_github_pages="https://websoft9.github.io/websoft9"
 # inotify-tools is at epel-release
+export repo_tools_yum="epel-release"
 export tools_yum="git curl wget epel-release yum-utils jq bc unzip inotify-tools"
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
@@ -164,7 +165,8 @@ install_tools(){
         sudo apt update -y 1>/dev/null 2>&1
         apt install $tools_apt -y --assume-yes
     else
-        echo "None of the required package managers are installed."
+        echo "You system can not install Websoft9 because not have available Linux Package Manager"
+        exit 1
     fi
 }
 
