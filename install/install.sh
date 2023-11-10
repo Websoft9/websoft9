@@ -160,12 +160,18 @@ install_tools(){
     if [ $dnf_status -eq 0 ]; then
         for package in $tools_yum; do 
             echo "Start to install $package"
-            sudo dnf install -y $package > /dev/null 2>&1
+            sudo dnf install -y $package > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi 
         done
     elif [ $yum_status -eq 0 ]; then
         for package in $tools_yum; do 
             echo "Start to install $package"
-            sudo yum install -y $package > /dev/null 2>&1
+            sudo yum install -y $package > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi 
         done
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
@@ -175,7 +181,10 @@ install_tools(){
         sudo apt update -y 1>/dev/null 2>&1
         for package in $tools_apt; do 
             echo "Start to install $package"
-            sudo apt install $package -y > /dev/null 2>&1
+            sudo apt install $package -y > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi                        
         done
     else
         echo "You system can not install Websoft9 because not have available Linux Package Manager"
