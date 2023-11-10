@@ -335,12 +335,12 @@ Install_Cockpit(){
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
         sudo dpkg --configure -a
-        apt update -y >/dev/null 2>&1
-        apt --fix-broken install
+        apt-get update -y >/dev/null
+        apt-get --fix-broken install
         for pkg in $cockpit_packages
         do
             echo "Installing $pkg"
-            sudo apt install -u -y "$pkg" > /dev/null || echo "$pkg failed to install"
+            sudo apt-get install -u -y "$pkg" > /dev/null || echo "$pkg failed to install"
         done
     else
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."

@@ -211,7 +211,7 @@ download_source() {
     if [ -d "$install_path" ]; then
         echo "Directory $install_path already exists and installation will cover it."
     else
-        mkdir -p "$install_path"
+        sudo mkdir -p "$install_path"
     fi
 
     wget "$artifact_url/$source_zip"
