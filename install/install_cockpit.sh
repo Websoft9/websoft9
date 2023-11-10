@@ -322,15 +322,15 @@ Install_Cockpit(){
         for pkg in $cockpit_packages
         do
             echo "Install or upgrade $pkg"
-            sudo dnf upgrade -y "$pkg" > /dev/null 2>&1 || echo "$pkg failed to upgrade"
-            sudo dnf install -y "$pkg" > /dev/null 2>&1 || echo "$pkg failed to install"
+            sudo dnf upgrade -y "$pkg" > /dev/null  || echo "$pkg failed to upgrade"
+            sudo dnf install -y "$pkg" > /dev/null  || echo "$pkg failed to install"
         done
     elif [ $yum_status -eq 0 ]; then
         for pkg in $cockpit_packages
         do
             echo "Install or update $pkg"
-            sudo yum update -y "$pkg" > /dev/null 2>&1 || echo "$pkg failed to update"
-            sudo yum install -y "$pkg" > /dev/null 2>&1 || echo "$pkg failed to install"
+            sudo yum update -y "$pkg" > /dev/null || echo "$pkg failed to update"
+            sudo yum install -y "$pkg" > /dev/null || echo "$pkg failed to install"
         done
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
@@ -340,7 +340,7 @@ Install_Cockpit(){
         for pkg in $cockpit_packages
         do
             echo "Installing $pkg"
-            sudo apt install -u -y "$pkg" > /dev/null 2>&1 || echo "$pkg failed to install"
+            sudo apt install -u -y "$pkg" > /dev/null || echo "$pkg failed to install"
         done
     else
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
