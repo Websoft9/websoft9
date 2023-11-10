@@ -62,7 +62,7 @@ Install_Docker(){
     fi
 
     # For redhat family
-    if [[ -f /etc/redhat-release ]]; then
+    if [[ -f /etc/redhat-release ]] || command -v amazon-linux-extras >/dev/null 2>&1; then
         # For CentOS, Fedora, or RHEL(only s390x)
         if [[ $(cat /etc/redhat-release) =~ "Red Hat" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
             curl -fsSL https://get.docker.com -o get-docker.sh
@@ -81,6 +81,9 @@ Install_Docker(){
             elif [ $yum_status -eq 0 ]; then
                 sudo yum install yum-utils -y > /dev/null
                 sudo yum-config-manager --add-repo $repo_url
+                if command -v amazon-linux-extras >/dev/null 2>&1; then
+                    sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
+                fi
                 timeout $timeout sudo yum install $docker_packages -y
             else
                 echo "None of the required package managers are installed."
