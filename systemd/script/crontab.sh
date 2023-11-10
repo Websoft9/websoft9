@@ -42,7 +42,7 @@ on_change() {
         if [ $? -eq 0 ]; then
             sudo docker exec -i websoft9-apphub apphub setconfig --section cockpit --key port --value "$listen_stream"
         else
-            sudo sed -i "s/ListenStream=${listen_stream}/ListenStream=${cockpit_port}/" "$cockpit_service_path"
+            ex -s -c "g/ListenStream=${listen_stream}/s//ListenStream=${cockpit_port}/" -c wq "$cockpit_service_path"
             systemctl daemon-reload
             systemctl restart cockpit.socket 2> /dev/null
             systemctl restart cockpit || exit 1
