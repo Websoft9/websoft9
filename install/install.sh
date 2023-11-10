@@ -105,7 +105,7 @@ export source_unzip="websoft9"
 export source_github_pages="https://websoft9.github.io/websoft9"
 # inotify-tools is at epel-release
 export repo_tools_yum="epel-release"
-export tools_yum="git curl wget epel-release yum-utils jq bc unzip inotify-tools"
+export tools_yum="git curl wget yum-utils jq bc unzip inotify-tools"
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
 export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
