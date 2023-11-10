@@ -178,10 +178,10 @@ install_tools(){
         echo "Waiting for other software managers to finish..."
         sleep 5
         done
-        sudo apt update -y 1>/dev/null 2>&1
+        sudo apt-get update -y 1>/dev/null 2>&1
         for package in $tools_apt; do 
             echo "Start to install $package"
-            sudo apt install $package -y > /dev/null
+            sudo apt-get install $package -y > /dev/null
             if [ $? -ne 0 ]; then
                 exit 1
             fi                        
