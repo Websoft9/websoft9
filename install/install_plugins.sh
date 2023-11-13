@@ -51,13 +51,20 @@ versions_local_file="$install_path/version.json"
 versions_url="$source_github_pages/version.json"
 file_suffix=".zip"
 plugin_path="/usr/share/cockpit"
+modules=("requests")
 
 if ! command -v python3 &> /dev/null
 then
     echo "Python 3 is not installed. Installing..."
     sudo yum install -y python3 &> /dev/null || sudo apt update -y  && sudo apt install -y python3 &> /dev/null
-    pip3 install requests
 fi
+for module in "${modules[@]}"
+do
+    python3 -c "import $module" &> /dev/null
+    if [ $? -ne 0 ]; then
+        pip3 install $module
+    fi
+done
 
 echo "$echo_prefix_plugins Starting download plugin and update it"
 
