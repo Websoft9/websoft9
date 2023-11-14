@@ -58,6 +58,7 @@ then
     echo "Python 3 is not installed. Installing..."
     sudo yum install -y python3 &> /dev/null || sudo apt update -y  && sudo apt install -y python3 &> /dev/null
 fi
+
 for module in "${modules[@]}"
 do
     python3 -c "import $module" &> /dev/null
