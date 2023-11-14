@@ -82,11 +82,13 @@ Install_Docker(){
                 sudo yum install yum-utils -y > /dev/null
                 sudo yum-config-manager --add-repo $repo_url
                 if command -v amazon-linux-extras >/dev/null 2>&1; then
-                    wget -O /etc/yum.repos.d/CentOS7-Base.repo https://websoft9.github.io/stackhub/apps/roles/role_common/files/CentOS7-Base.repo
-                    rm -rf /etc/yum.repos.d/amzn2-extras.repo /etc/yum.repos.d/amzn2-core.repo
+                    wget -O /etc/yum.repos.d/CentOS7-Base.repo https://websoft9.github.io/stackhub/apps/roles/role_common/files/CentOS7-Base.repo        
                     sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
+                    timeout $timeout sudo yum install $docker_packages --disablerepo='amzn2-extras,amzn2-core' -y
+                else
+                    timeout $timeout sudo yum install $docker_packages -y
                 fi
-                timeout $timeout sudo yum install $docker_packages -y
+                
             else
                 echo "None of the required package managers are installed."
             fi                
