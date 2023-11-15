@@ -74,7 +74,7 @@ for key in $(jq -r '.plugins | keys[]' $versions_local_file); do
   echo "Download from $file_url"
   wget -q $file_url -O $file_name
   unzip -oq $file_name -d $plugin_path
-  rm $file_name
+  rm -rf $file_name
 done
 
 find /usr/share/cockpit -type f -name "*.py3" -exec chmod +x {} \;
