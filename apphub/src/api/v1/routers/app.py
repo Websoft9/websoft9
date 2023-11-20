@@ -5,6 +5,8 @@ from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_manager import AppManger
+from src.services.common_check import install_validate
+from threading import Thread
 
 router = APIRouter()
 
@@ -84,8 +86,16 @@ def apps_install(
     appInstall: appInstall,
     endpointId: int = Query(None, description="Endpoint ID to install app on,if not set, install on the local endpoint"),
 ):
-    return AppManger().install_app(appInstall, endpointId)
-
+    # install validate
+    install_validate(appInstall,endpointId)
+    # install app
+    Thread(target=AppManger().install_app, args=(appInstall, endpointId)).start()
+    # return success
+    return ErrorResponse(
+        status_code=200,
+        message="Success",
+        details="The app is installing and can be viewed through 'My Apps.'",
+    )
 
 @router.post(
     "/apps/{app_id}/start",

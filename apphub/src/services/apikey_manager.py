@@ -11,14 +11,18 @@ class APIKeyManager:
     Methods:
         generate_key: Generate a new API key.
         delete_key: Delete the API key.
+        get_key: Get the API key.
     """
     def generate_key(self):
         """
         Generate a new API key.
         """
         try:
+            # Generate a random string
             base = secrets.token_urlsafe(32)
+            # Hash the string
             key = hashlib.sha256(base.encode()).hexdigest()
+            # Save the key
             ConfigManager().set_value('api_key', 'key', key)
             return key
         except Exception as e:

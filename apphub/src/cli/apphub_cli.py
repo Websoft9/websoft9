@@ -16,14 +16,24 @@ def cli():
 @cli.command()
 def genkey():
     """Generate a new API key"""
-    key = APIKeyManager().generate_key()
-    click.echo(f"{key}")
+    try:
+        key = APIKeyManager().generate_key()
+        click.echo(f"{key}")
+    except CustomException as e:
+        raise click.ClickException(e.details)
+    except Exception as e:
+        raise click.ClickException(str(e))
 
 @cli.command()
 def getkey():
     """Get the API key"""
-    key = APIKeyManager().get_key()
-    click.echo(f"{key}")
+    try:
+        key = APIKeyManager().get_key()
+        click.echo(f"{key}")
+    except CustomException as e:
+        raise click.ClickException(e.details)
+    except Exception as e:
+        raise click.ClickException(str(e))
 
 @cli.command()
 @click.option('--section',required=True, help='The section name')
@@ -31,7 +41,12 @@ def getkey():
 @click.option('--value', required=True,help='The value of the key')
 def setconfig(section, key, value):
     """Set a config value"""
-    SettingsManager().write_section(section, key, value)
+    try:
+        SettingsManager().write_section(section, key, value)
+    except CustomException as e:
+        raise click.ClickException(e.details)
+    except Exception as e:
+        raise click.ClickException(str(e))
 
 @cli.command()
 @click.option('--section',required=True, help='The section name')
@@ -47,11 +62,9 @@ def getconfig(section, key):
             value = SettingsManager().read_key(section, key)
             click.echo(f"{value}")
     except CustomException as e:
-        click.echo(f"{e.details}")
-        return
+        raise click.ClickException(e.details)
     except Exception as e:
-        click.echo(f"{e}")
-        return
+        raise click.ClickException(str(e))
 
 if __name__ == "__main__":
     cli()

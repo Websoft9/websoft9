@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Query,Path
 from src.schemas.appSettings import AppSettings
 from src.schemas.errorResponse import ErrorResponse
-from typing import List
 
 from src.services.settings_manager import SettingsManager
 

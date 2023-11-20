@@ -7,7 +7,6 @@ from src.schemas.errorResponse import ErrorResponse
 from src.schemas.proxyHosts import ProxyHost
 from src.services.app_manager import AppManger
 
-
 router = APIRouter()
 
 @router.get(

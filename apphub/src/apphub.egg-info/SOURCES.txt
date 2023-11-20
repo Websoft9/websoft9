@@ -1,0 +1,10 @@
+README.md
+setup.py
+src/apphub.egg-info/PKG-INFO
+src/apphub.egg-info/SOURCES.txt
+src/apphub.egg-info/dependency_links.txt
+src/apphub.egg-info/entry_points.txt
+src/apphub.egg-info/requires.txt
+src/apphub.egg-info/top_level.txt
+src/cli/__init__.py
+src/cli/apphub_cli.py

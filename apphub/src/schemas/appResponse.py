@@ -19,3 +19,4 @@ class AppResponse(BaseModel):
     gitConfig: dict[str, Any] = Field({}, description="Git configuration")
     containers: List[dict]  = Field([], description="Containers")
     volumes: List[dict] = Field([], description="Volumes")
+    error:Optional[str] = Field(None,description="Error message",example="Internal Server Error")

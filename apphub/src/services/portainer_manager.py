@@ -1,8 +1,4 @@
 import json
-import time
-import jwt
-import keyring
-from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.external.portainer_api import PortainerAPI
 from src.core.logger import logger
@@ -16,7 +12,6 @@ class PortainerManager:
         portainer (PortainerAPI): Portainer API
 
     Methods:
-        _set_portainer_token(): Set Portainer token
         get_local_endpoint_id(): Get local endpoint id
         check_endpoint_exists(endpoint_id): Check endpoint exists
         check_stack_exists(stack_name, endpoint_id): Check stack exists
@@ -32,59 +27,10 @@ class PortainerManager:
     def __init__(self):
         try:
             self.portainer = PortainerAPI()
-            # self._set_portainer_token()
         except Exception as e:
             logger.error(f"Init Portainer API Error:{e}")
             raise CustomException()
 
-    def _set_portainer_token(self):
-        """
-        Set Portainer token
-        """
-        service_name = "portainer"
-        token_name = "user_token"
-
-        # Try to get token from keyring
-        try:
-            jwt_token = keyring.get_password(service_name, token_name)
-        except Exception as e:
-            jwt_token = None
-
-        # if the token is got from keyring,vaildate the exp time
-        if jwt_token is not None:
-            try:
-                decoded_jwt = jwt.decode(jwt_token, options={"verify_signature": False})
-                exp_timestamp = decoded_jwt['exp']
-                # if the token is not expired, return it
-                if int(exp_timestamp) - int(time.time()) > 3600:
-                    self.portainer.set_jwt_token(jwt_token)
-                    return
-            except Exception as e:
-                logger.error(f"Decode Portainer's Token Error:{e}")
-                raise CustomException()
-
-        # if the token is expired or not got from keyring, get a new one
-        try:
-            userName = ConfigManager().get_value("portainer", "user_name")
-            userPwd = ConfigManager().get_value("portainer", "user_pwd")
-        except Exception as e:
-            logger.error(f"Get Portainer's UserName and UserPwd Error:{e}")
-            raise CustomException()
-        
-        token_response = self.portainer.get_jwt_token(userName, userPwd)
-        if token_response.status_code == 200:
-            jwt_token = token_response.json()["jwt"]
-            self.portainer.set_jwt_token(jwt_token)
-             # set new token to keyring
-            try:
-                keyring.set_password(service_name, token_name, jwt_token)
-            except Exception as e:
-                logger.error(f"Set Portainer's Token To Keyring Error:{e}")
-                raise CustomException()
-        else:
-            logger.error(f"Error Calling Portainer API: {token_response.status_code}:{token_response.text}")
-            raise CustomException()
-    
     def get_local_endpoint_id(self):
         """
         Get local endpoint id: the endpoint id of the local docker engine
@@ -93,26 +39,41 @@ class PortainerManager:
         Returns:
             str: local endpoint id
         """
+        # get all endpoints
         response = self.portainer.get_endpoints()
         if response.status_code == 200:
             endpoints = response.json()
             local_endpoint = None
             for endpoint in endpoints:
+                # find the local endpoint
                 if endpoint["URL"] == "unix:///var/run/docker.sock":
-                    if local_endpoint is None:
+                    if local_endpoint is None: # if there is only one local endpoint, return it
                         local_endpoint = endpoint
-                    elif endpoint["Id"] < local_endpoint["Id"]:
+                    elif endpoint["Id"] < local_endpoint["Id"]: # if there are multiple local endpoints, return the one with the smallest id
                         local_endpoint = endpoint
-            if local_endpoint is not None:
+            if local_endpoint is not None: 
                 return local_endpoint["Id"]
             else:
-                logger.error(f"Can't find local endpoint")
-                raise CustomException()
+                logger.error(f"Get local endpoint id error: Local endpoint is not exist")
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="Local endpoint is not exist"
+                )
         else:
             logger.error(f"Get local endpoint id error: {response.status_code}:{response.text}")
             raise CustomException()
 
     def check_endpoint_exists(self, endpoint_id: int):
+        """
+        Check endpoint exists
+
+        Args:
+            endpoint_id (int): endpoint id
+
+        Returns:
+            bool: endpoint exists or not
+        """
         response = self.portainer.get_endpoint_by_id(endpoint_id)
         if response.status_code == 200:
             return True
@@ -123,6 +84,17 @@ class PortainerManager:
             raise CustomException()
         
     def check_stack_exists(self, stack_name: str, endpoint_id: int):
+        """
+        Check stack exists
+
+        Args:
+            stack_name (str): stack name
+            endpoint_id (int): endpoint id
+
+        Returns:
+            bool: stack exists or not
+        """
+        # get all stacks
         response = self.portainer.get_stacks(endpoint_id)
         if response.status_code == 200:
             stacks = response.json()

@@ -15,15 +15,19 @@ class PortainerSetting(BaseModel):
     user_name: str = Field(..., title="The user name for portainer")
     user_pwd: str = Field(..., title="The user password for portainer")
 
-class DockerLibrarySetting(BaseModel):
-    path: str = Field(..., title="The path of docker library")
+class ApiKeySetting(BaseModel):
+    key: str = Field(..., title="The api key")
 
-class AppMediaSetting(BaseModel):
-    path: str = Field(..., title="The path of app media")
+class Domain(BaseModel):
+    wildcard_domain: str = Field(None, title="The domain name")
+
+class Cockpit(BaseModel):
+    port: int = Field(..., title="The port of cockpit")
 
 class AppSettings(BaseModel):
     nginx_proxy_manager: NginxProxyManagerSetting
     gitea: GiteaSetting
     portainer: PortainerSetting
-    docker_library: DockerLibrarySetting
-    app_media: AppMediaSetting
+    api_key: ApiKeySetting
+    domain: Domain
+    cockpit: Cockpit

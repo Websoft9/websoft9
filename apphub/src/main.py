@@ -13,31 +13,40 @@ from src.schemas.errorResponse import ErrorResponse
 from fastapi.responses import HTMLResponse
 from fastapi.security.api_key import APIKeyHeader
 
+# set uvicorn logger to stdout
 uvicorn_logger = logging.getLogger("uvicorn")
-    
-# 创建一个日志处理器，将日志发送到 stdout
 stdout_handler = logging.StreamHandler(sys.stdout)
-
-# 将日志处理器添加到 Uvicorn 的 logger
 uvicorn_logger.addHandler(stdout_handler)
 uvicorn_logger.setLevel(logging.INFO)
-
 
 API_KEY_NAME = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def verify_key(request: Request, api_key_header: str = Security(api_key_header)):
+    """
+    Verify API Key
+    """
+    # skip docs
     if request.url.path == "/api/docs":
         return None 
 
+    # validate api key is provided
     if api_key_header is None:
         raise CustomException(
             status_code=400, 
             message="Invalid Request",
             details="No API Key provided"
         )
+    # get api key from config
     API_KEY = ConfigManager().get_value("api_key","key")
-
+    # validate api key is set
+    if API_KEY is None:
+        raise CustomException(
+            status_code=500, 
+            message="Invalid API Key",
+            details="API Key is not set"
+        )
+    # validate api key is correct
     if api_key_header != API_KEY:
         logger.error(f"Invalid API Key: {api_key_header}")
         raise CustomException(
@@ -45,9 +54,7 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
             message="Invalid Request",
             details="Invalid API Key"
         )
-
     return api_key_header
-
     
 app = FastAPI(
         title="AppHub API",
@@ -67,7 +74,7 @@ async def custom_swagger_ui_html():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Websoft9 API</title>
+        <title>AppHub API</title>
         <link rel="stylesheet" type="text/css" href="/api/static/swagger-ui.css">
         <script src="/api/static/swagger-ui-bundle.js"></script>
     </head>
@@ -86,13 +93,14 @@ async def custom_swagger_ui_html():
     """
 
 # remove 422 responses
-@app.on_event("startup")
 async def remove_422_responses():
     openapi_schema = app.openapi()
     for path, path_item in openapi_schema["paths"].items():
         for method, operation in path_item.items():
             operation["responses"].pop("422", None)
     app.openapi_schema = openapi_schema
+
+app.add_event_handler("startup", remove_422_responses)
 
 #custom error handler
 @app.exception_handler(CustomException)
@@ -113,5 +121,5 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 app.include_router(api_app.router,tags=["apps"])
-app.include_router(api_settings.router,tags=["settings"])
 app.include_router(api_proxy.router,tags=["proxys"])
+app.include_router(api_settings.router,tags=["settings"])
