@@ -26,6 +26,7 @@ You can see the sceenshoots below:
 - Applications listing
 - Install 200+ template applications without any configuration
 - Web-based file browser to manage files and folder
+- Docker Compose GUI
 - Manage user accounts
 - Use a terminal on a remote server in your local web browser
 - Nginx gui for proxy and free SSL with Let's Encrypt

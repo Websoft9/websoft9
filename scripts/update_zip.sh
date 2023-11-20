@@ -62,6 +62,7 @@ upgrade_zip() {
 
     # Download the package using wget
     while [ $attempts -lt $max_attempts ]; do
+        rm -f "/tmp/$package_name"
         wget --timeout=120 --no-clobber "$url" -O "/tmp/$package_name"
         # Check if the download was successful
         if [ $? -eq 0 ]; then

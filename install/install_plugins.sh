@@ -54,57 +54,28 @@ plugin_path="/usr/share/cockpit"
 
 echo "$echo_prefix_plugins Starting download plugin and update it"
 
-python3 - << END
-import requests
-import json
-import queue
-import os
-import sys
-import zipfile
-import io
+if [ -f "$versions_local_file" ]; then
+  echo "File $versions_local_file exists."
+else
+  echo "File $versions_local_file does not exist. Downloading from $versions_url"
+  wget -q $versions_url -O $versions_local_file
+fi
 
-def get_plugin_versions(versions_local_file, versions_url, artifact_url, file_suffix, plugin_path):
-    if os.path.exists(versions_local_file):
-        print("Get version file on your local install"+versions_local_file)
-        with open(versions_local_file) as f:
-            data = json.load(f)
-    else:
-        try:
-            print("Get version file from URL " + versions_url)
-            response = requests.get(versions_url, timeout=5)  # Set timeout to 5 seconds
-            data = json.loads(response.text)
-        except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
-            print("Error occurred while getting version file from URL: ", e)
-            sys.exit(1)  # Exit the program if an error occurred
+plugins=$(jq -c '.plugins' $versions_local_file)
+if [ -z "$plugins" ]; then
+  echo "No plugins found in $versions_local_file"
+  exit 1
+fi
 
-    plugins = data.get('plugins', {})
-
-    q = queue.Queue()
-    for plugin, version in plugins.items():
-        q.put(f'{artifact_url}/{plugin}/{plugin}-{version}{file_suffix}')
-
-    return q
-
-# 使用函数
-q = get_plugin_versions("${versions_local_file}", "${versions_url}", "${artifact_url}", "${file_suffix}", "${plugin_path}")
-
-# 下载并解压缩文件
-while not q.empty():
-    try:
-        file_url = q.get()
-        print(f"Downloading {file_url}...")
-        response = requests.get(file_url, stream=True, timeout=120)  # Set timeout to 120 seconds
-
-        # Make sure the download was successful
-        response.raise_for_status()  
-
-        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-            z.extractall("${plugin_path}")
-        print(f"Successfully extracted {file_url} to ${plugin_path}")
-    except Exception as e:
-        print(f"Error occurred while downloading or extracting file: {e}")
-        sys.exit(1)  # Exit the program if an error occurred
-END
+for key in $(jq -r '.plugins | keys[]' $versions_local_file); do
+  version=$(jq -r ".plugins.${key}" $versions_local_file)
+  file_url=$artifact_url/$key/$key-$version$file_suffix
+  file_name=$key-$version$file_suffix
+  echo "Download from $file_url"
+  wget -q $file_url -O $file_name
+  unzip -oq $file_name -d $plugin_path
+  rm -rf $file_name
+done
 
 find /usr/share/cockpit -type f -name "*.py3" -exec chmod +x {} \;
 

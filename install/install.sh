@@ -104,10 +104,18 @@ export source_zip="websoft9-$version.zip"
 export source_unzip="websoft9"
 export source_github_pages="https://websoft9.github.io/websoft9"
 # inotify-tools is at epel-release
-export tools_yum="git curl wget epel-release yum-utils jq bc unzip inotify-tools"
+export repo_tools_yum="epel-release"
+export tools_yum="git curl wget yum-utils jq bc unzip inotify-tools"
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
 export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
+# export OS release environments
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+else
+    echo "Can't judge your Linux distribution"
+    exit 1
+fi
 echo Install from url: $artifact_url
 
 # Define common functions
@@ -133,6 +141,24 @@ install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
 
+    if [ "$ID" = "rhel" ] || [ "$ID" = "ol" ]; then
+        RHEL_VERSION=${VERSION_ID%%.*}
+        sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RHEL_VERSION}.noarch.rpm >/dev/null
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi 
+    elif [ "$ID" = "centos" ] || [ "$ID" = "rocky" ]; then
+        sudo yum install -y "$repo_tools_yum" >/dev/null
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi 
+    elif [ "$ID" = "amzn" ]; then
+        sudo amazon-linux-extras install epel -y >/dev/null
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi 
+    fi
+
     dnf --version >/dev/null 2>&1
     dnf_status=$?
     yum --version >/dev/null 2>&1
@@ -141,18 +167,37 @@ install_tools(){
     apt_status=$?
 
     if [ $dnf_status -eq 0 ]; then
-        for package in $tools_yum; do sudo dnf install -y $package > /dev/null; done
+        for package in $tools_yum; do 
+            echo "Start to install $package"
+            sudo dnf install -y $package > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi 
+        done
     elif [ $yum_status -eq 0 ]; then
-        for package in $tools_yum; do sudo yum install -y $package > /dev/null; done
+        for package in $tools_yum; do 
+            echo "Start to install $package"
+            sudo yum install -y $package > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi 
+        done
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
         echo "Waiting for other software managers to finish..."
         sleep 5
         done
-        sudo apt update -y 1>/dev/null 2>&1
-        apt install $tools_apt -y --assume-yes
+        sudo apt-get update -y 1>/dev/null 2>&1
+        for package in $tools_apt; do 
+            echo "Start to install $package"
+            sudo apt-get install $package -y > /dev/null
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi                        
+        done
     else
-        echo "None of the required package managers are installed."
+        echo "You system can not install Websoft9 because not have available Linux Package Manager"
+        exit 1
     fi
 }
 
@@ -166,7 +211,7 @@ download_source() {
     if [ -d "$install_path" ]; then
         echo "Directory $install_path already exists and installation will cover it."
     else
-        mkdir -p "$install_path"
+        sudo mkdir -p "$install_path"
     fi
 
     wget "$artifact_url/$source_zip"

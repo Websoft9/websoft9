@@ -52,28 +52,49 @@ docker_exist() {
 
 Install_Docker(){
     local mirror=$1
-    if [ "$mirror" = "Official" ]; then
-        mirror=""
-    fi
     local timeout=$2
     local repo_url=$3
 
     echo "$echo_prefix_docker Installing Docker from ${mirror} with timeout ${timeout} seconds for your system"
 
-    # For redhat family
-    if [[ -f /etc/redhat-release ]]; then
-        # For CentOS, Fedora, or RHEL(only s390x)
-        if [[ $(cat /etc/redhat-release) =~ "RHEL" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
-            curl -fsSL https://get.docker.com -o get-docker.sh
-			timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
-        else
-        # For other distributions
-            sudo yum install yum-utils -y > /dev/null
-            sudo yum-config-manager --add-repo $repo_url
-            timeout $timeout sudo yum install $docker_packages -y
-        fi
+    if [ "$mirror" = "Official" ]; then
+        mirror=""
     fi
 
+    # For redhat family
+    if [[ -f /etc/redhat-release ]] || command -v amazon-linux-extras >/dev/null 2>&1; then
+        # For CentOS, Fedora, or RHEL(only s390x)
+        if [[ $(cat /etc/redhat-release) =~ "Red Hat" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
+        else
+            # For other distributions(Redhat and Rocky linux ...)
+            dnf --version >/dev/null 2>&1
+            dnf_status=$?
+            yum --version >/dev/null 2>&1
+            yum_status=$?
+
+            if [ $dnf_status -eq 0 ]; then
+                sudo dnf install dnf-utils -y > /dev/null
+                sudo dnf config-manager --add-repo $repo_url
+                timeout $timeout sudo dnf install $docker_packages -y
+            elif [ $yum_status -eq 0 ]; then
+                sudo yum install yum-utils -y > /dev/null
+                sudo yum-config-manager --add-repo $repo_url
+                if command -v amazon-linux-extras >/dev/null 2>&1; then
+                    wget -O /etc/yum.repos.d/CentOS7-Base.repo https://websoft9.github.io/stackhub/apps/roles/role_common/files/CentOS7-Base.repo        
+                    sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
+                    timeout $timeout sudo yum install $docker_packages --disablerepo='amzn2-extras,amzn2-core' -y
+                else
+                    timeout $timeout sudo yum install $docker_packages -y
+                fi
+                
+            else
+                echo "None of the required package managers are installed."
+            fi                
+        fi
+    fi
+    
     # For Ubuntu, Debian, or Raspbian
     if type apt >/dev/null 2>&1; then
         # Wait for apt to be unlocked

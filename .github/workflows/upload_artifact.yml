@@ -16,25 +16,34 @@ jobs:
       - uses: actions/checkout@v2
         name: Check out code
 
-      - name: Read Plugin Version
-        id: update_data
+      - name: Version convert
+        id: convert_version      
         run: |
           version=$(jq -r '.version' version.json)
-          real_version=${version%%-*}
-          echo "VERSION=$real_version" >> $GITHUB_ENV
-          echo "RC_VERSION=$version" >> $GITHUB_ENV
+          version_core=${version%%-*}
+          echo "VERSION=$version" >> $GITHUB_OUTPUT
+          echo "VERSION_CORE=$version_core" >> $GITHUB_OUTPUT
+          if [[ $version == *-* ]]; then
+            echo "rc release version"
+            echo "CHANNEL=dev" >> $GITHUB_OUTPUT
+          else
+            echo "release version"
+            echo "CHANNEL=release" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Update CHANGELOG.md
+        id: update_data
+        run: |                 
           changelog=$(cat changelog_latest.md)
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT 
           echo "$changelog" >> $GITHUB_OUTPUT 
           echo "EOF" >> $GITHUB_OUTPUT
-          
-          if [[ $version == *-* ]]; then
-            echo "release version"
-            echo "::set-output name=release::false"
-          else
-            echo "rc release version"
-            echo "::set-output name=release::true"
-          fi
+          current_date=$(date +%Y-%m-%d)
+          printf "## ${{ steps.convert_version.outputs.VERSION }} release on $current_date\n$changelog\n$(cat CHANGELOG.md)" > temp.txt
+          mv temp.txt CHANGELOG.md
+
+      - name: Create Zip Archive
+        run: |                 
           mkdir websoft9 artifacts
           cp -r docker websoft9
           cp -r cockpit websoft9
@@ -44,19 +53,18 @@ jobs:
           cp -r systemd websoft9
           cp *.md websoft9
           cp version.json websoft9
-          zip -r websoft9-$real_version.zip websoft9
-          cp websoft9-$real_version.zip artifacts
+          zip -r websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip websoft9
+          cp websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts
           cp install/install.sh artifacts
           cp version.json artifacts
           cp CHANGELOG.md artifacts
-          cp artifacts/websoft9-$real_version.zip artifacts/websoft9-latest.zip
+          cp artifacts/websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts/websoft9-latest.zip
 
       - name: Upload To Azure Blob
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
-        if: ${{ steps.update_data.outputs.release == 'false' }}
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
-          container_name: dev
+          container_name: ${{ steps.convert_version.outputs.CHANNEL }}
           source_folder: artifacts/
           destination_folder: ./websoft9
           delete_if_exists: true
@@ -64,33 +72,12 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: ${{ steps.update_data.outputs.release == 'false' }}
         with:
-          files: /*
-          tag_name: ${{ env.RC_VERSION }}
-          title: Release-${{ env.RC_VERSION }}
-          body: ${{ steps.update_data.outputs.CHANGELOG }}
-          draft: false
-          prerelease: false
-
-      - name: Upload To Azure Blob
-        uses: LanceMcCarthy/Action-AzureBlobUpload@v2
-        if: ${{ steps.update_data.outputs.release == 'true' }}
-        with:
-          connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
-          container_name: release
-          source_folder: artifacts/
-          destination_folder: ./websoft9
-          delete_if_exists: true
-          fail_if_source_empty: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        if: ${{ steps.update_data.outputs.release == 'true' }}
-        with:
-          files: /*
-          tag_name: ${{ env.VERSION }}
-          title: Release-${{ env.VERSION }}
+          files: |
+            version.json
+            CHANGELOG.md
+          tag_name: ${{ steps.convert_version.outputs.VERSION }}
+          title: Release-${{ steps.convert_version.outputs.VERSION }}
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false

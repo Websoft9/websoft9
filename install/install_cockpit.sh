@@ -82,7 +82,7 @@ echo "install_path:$install_path"
 related_containers=("websoft9-apphub")
 echo_prefix_cockpit=$'\n[Cockpit] - '
 # package cockpit depends_on [cockpit-bridge,cockpit-ws,cockpit-system], but update cockpit the depends don't update 
-cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-networkmanager cockpit-session-recording cockpit-doc cockpit-packagekit cockpit-sosreport"
+cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-networkmanager cockpit-session-recording cockpit-sosreport"
 menu_overrides_github_page_url="https://websoft9.github.io/websoft9/cockpit/menu_override"
 cockpit_config_github_page_url="https://websoft9.github.io/websoft9/cockpit/cockpit.conf"
 cockpit_menu_overrides=()
@@ -322,23 +322,25 @@ Install_Cockpit(){
         for pkg in $cockpit_packages
         do
             echo "Install or upgrade $pkg"
-            sudo dnf upgrade -y "$pkg" || sudo dnf install -y "$pkg" || echo "$pkg failed to install or upgrade"
+            sudo dnf upgrade -y "$pkg" > /dev/null  || echo "$pkg failed to upgrade"
+            sudo dnf install -y "$pkg" > /dev/null  || echo "$pkg failed to install"
         done
     elif [ $yum_status -eq 0 ]; then
         for pkg in $cockpit_packages
         do
             echo "Install or update $pkg"
-            sudo yum update -y "$pkg" || sudo yum install -y "$pkg" || echo "$pkg failed to install or update"
+            sudo yum update -y "$pkg" > /dev/null || echo "$pkg failed to update"
+            sudo yum install -y "$pkg" > /dev/null || echo "$pkg failed to install"
         done
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
         sudo dpkg --configure -a
-        apt update -y >/dev/null 2>&1
-        apt --fix-broken install
+        apt-get update -y >/dev/null
+        apt-get --fix-broken install
         for pkg in $cockpit_packages
         do
             echo "Installing $pkg"
-            sudo apt install -u -y "$pkg" || echo "$pkg failed to install"
+            sudo apt-get install -u -y "$pkg" > /dev/null || echo "$pkg failed to install"
         done
     else
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
@@ -377,7 +379,6 @@ Test_Cockpit(){
 
 #### -------------- main() start here  -------------------  ####
 
-Install_PackageKit
 Set_Repository
 Install_Cockpit
 Test_Cockpit

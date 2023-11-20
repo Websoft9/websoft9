@@ -1,3 +1,2 @@
-1. gitea,myapps,appstore update
-2. apphub domains 
-3. apphub docs nginx config
+1. improve all plugins githubaction
+2. install plugin by shell 
