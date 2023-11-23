@@ -14,7 +14,6 @@
 #   $ sudo bash check_ports.sh --port 9001,9001
 # ==============================================================================
 
-
 # 获取参数值
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -29,15 +28,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 check_ports() {
+    local used_ports=()
     for port in "${ports[@]}"; do
         if ss -tuln | grep ":$port " >/dev/null; then
-            echo "Port $port is in use!"
-            return 1
+            used_ports+=("$port")
         fi
     done
 
-    echo "All ports are available"
-    return 0
+    if [ ${#used_ports[@]} -eq 0 ]; then
+        echo "0"
+    else
+        IFS=','; echo "${used_ports[*]}"
+    fi
 }
 
 check_ports
