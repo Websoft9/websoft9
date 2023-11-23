@@ -3,11 +3,6 @@
 # Command-line options
 # ==============================================================================
 #
-# --version
-# Use the --version option to install a special version for installation. default is latest, for example:
-#
-#  $ sudo bash install.sh --version "0.8.25"
-#
 # --port check ports
 # Use the --port option to check port, for example:
 #
