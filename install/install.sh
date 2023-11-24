@@ -45,27 +45,53 @@ path="/data/websoft9/source"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --version)
-            version="$2"
-            shift 2
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --version"
+                exit 1
+            fi
+            version="$1"
+            shift
             ;;
         --port)
-            port="$2"
-            shift 2
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --port"
+                exit 1
+            fi
+            port="$1"
+            shift
             ;;
         --channel)
-            channel="$2"
-            shift 2
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --channel"
+                exit 1
+            fi
+            channel="$1"
+            shift
             ;;
         --path)
-            path="$2"
-            shift 2
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --path"
+                exit 1
+            fi
+            path="$1"
+            shift
             ;;
         --devto)
-            devto="$2"
-            shift 2
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --devto"
+                exit 1
+            fi
+            devto="$1"
+            shift
             ;;
         *)
-            shift
+            echo "Unknown parameter: $1"
+            exit 1
             ;;
     esac
 done

@@ -30,14 +30,21 @@ export PATH
 
 echo -e "\n\n-------- Cockpit --------"
 
+# 获取参数值
 while [[ $# -gt 0 ]]; do
     case $1 in
         --port)
-            port="$2"
-            shift 2
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --port"
+                exit 1
+            fi
+            port="$1"
+            shift
             ;;
         *)
-            shift
+            echo "Unknown parameter: $1"
+            exit 1
             ;;
     esac
 done
