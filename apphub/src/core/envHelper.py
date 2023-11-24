@@ -1,57 +1,33 @@
-import fileinput
-from src.core.exception import CustomException
+from dotenv import set_key, unset_key, dotenv_values
+import os
 from src.core.logger import logger
+from src.core.exception import CustomException
 
 class EnvHelper:
-    """
-    This class is used to modify env file
-
-    Attributes:
-        env_file_path (str): Path to env file
-
-    Methods:
-        modify_env_values(new_values: dict): Modify env file
-    """
-    def __init__(self, env_file_path):
-        self.env_file_path = env_file_path
-
-    def modify_env_values(self, new_values: dict):
-        """
-        Modify env file
-
-        Args:
-            new_values (dict): New values
-            example: {"key1": "value1", "key2": "value2"}
-        """
-        try:
-            with fileinput.FileInput(self.env_file_path, inplace=True) as env_file:
-                for line in env_file:
-                    for key, new_value in new_values.items():
-                        if line.startswith(f"{key}="):
-                            print(f"{key}={new_value}")
-                            break
-                    else:  # Executed when the loop ended normally (no break was encountered).
-                        print(line, end='')
-                        
-        except Exception as e:
-            logger.error(f"Modify env file error:{e}")
+    def __init__(self, dotenv_path='.env'):
+        self.dotenv_path = dotenv_path
+        if not os.path.exists(dotenv_path):
+            logger.access(f"{dotenv_path} does not exist.")
             raise CustomException()
         
-    def get_env_value_by_key(self,key:str):
-        """
-        Get env value by key
-
-        Args:
-            key (str): Key
-
-        Returns:
-            str: Value
-        """
+    def get_all_values(self):
         try:
-            with open(self.env_file_path, "r") as env_file:
-                for line in env_file:
-                    if line.startswith(f"{key}="):
-                        return line.replace(f"{key}=","").strip()
+            return dotenv_values(self.dotenv_path)
         except Exception as e:
-            logger.error(f"Get env value by key error:{e}")
+            logger.error(f"Error getting values from {self.dotenv_path}: {e}")
+            raise CustomException()
+
+    def get_value(self, key):
+        try:
+            values = dotenv_values(self.dotenv_path)
+            return values.get(key)
+        except Exception as e:
+            logger.error(f"Error getting {key} from {self.dotenv_path}: {e}")
+            raise CustomException()
+
+    def set_value(self, key, value):
+        try:
+            set_key(self.dotenv_path, key, value)
+        except Exception as e:
+            logger.error(f"Error setting {key} to {value} in {self.dotenv_path}: {e}")
             raise CustomException()

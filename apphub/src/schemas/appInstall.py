@@ -33,6 +33,7 @@ class appInstall(BaseModel):
         If proxy_enabled is true, provide the domain name.The first domain name will be used as the primary domain name.(e.g., ["wordpress.example1.com", "wordpress.example2.com"])
         If proxy_enabled is false, provide the host machine's IP address.(e.g., ["192.168.1.1"])""",
         example=["wordpress.example1.com", "wordpress.example2.com"])
+    settings: Optional[dict] = Field(None, description="The settings for the app", example={"W9_HTTP_PORT_SET": "9001"})
    
     @validator('app_name')
     def validate_app_name(cls, v):

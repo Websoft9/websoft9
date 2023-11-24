@@ -12,7 +12,7 @@ class AppResponse(BaseModel):
     app_version: Optional[str]=Field(None, description="App version",example="1.0.0")
     app_official: bool=Field(True, description="App official",example=True)              
     proxy_enabled: bool=Field(False, description="Proxy enabled",example=False)
-    status: int=Field(0, description="App status(0:unknown,1:active,2:inactive)",example=0)
+    status: int=Field(0, description="App status(0:unknown,1:active,2:inactive,3:installing,4:error)",example=0)
     creationDate: Optional[int]=Field(None, description="Creation date",example=0)
     domain_names: List[dict]=Field([], description="Domain names")
     env: dict[str, Any] = Field({}, description="Environment variables")

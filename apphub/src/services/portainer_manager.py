@@ -214,11 +214,18 @@ class PortainerManager:
             raise CustomException()
     
     def remove_vloumes(self, stack_name: str, endpoint_id: int):
+        """
+        Remove volumes by stack name
+
+        Args:
+            stack_name (str): stack name
+            endpoint_id (int): endpoint id
+        """
         volumes = self.get_volumes_by_stack_name(stack_name, endpoint_id,True)
         if volumes is not None:
             volume_names = []
-            for volume in volumes.get("mountpoint", []): 
-                volume_names.append(volume["name"])
+            for volume in volumes: 
+                volume_names.append(volume["Name"])
             self.remove_volume(volume_names, endpoint_id)
 
     def remove_stack_and_volumes(self, stack_id: int, endpoint_id: int):

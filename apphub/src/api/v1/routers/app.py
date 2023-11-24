@@ -207,3 +207,20 @@ def app_remove(
     endpointId: int = Query(None, description="Endpoint ID to remove app on. If not set, remove on the local endpoint"),
 ):
     AppManger().remove_app(app_id, endpointId)
+
+@router.delete(
+    "/apps/{app_id}/error/remove",
+    summary="Remove Error App",
+    response_model_exclude_defaults=True, 
+    description="Remove an app on an endpoint where the app is error(status is 'error')",
+    status_code=204,
+    responses={
+        204: {"description": "App removed successfully"},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def app_remove(
+    app_id: str = Path(..., description="The error app ID to remove"),
+):
+    AppManger().remove_error_app(app_id)

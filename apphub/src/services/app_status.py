@@ -40,3 +40,8 @@ def remove_app_from_errors(app_uuid):
     if app_uuid in appInstallingError:
         appInstallingError.pop(app_uuid)
 
+# Remove app from  appInstallingError by app_id
+def remove_app_from_errors_by_app_id(app_id):
+    app_uuids_to_remove = [app_uuid for app_uuid, app in appInstallingError.items() if app["app_id"] == app_id]
+    for app_uuid in app_uuids_to_remove:
+        appInstallingError.pop(app_uuid)

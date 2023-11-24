@@ -1,4 +1,3 @@
-
 import ipaddress
 import json
 import os
@@ -10,8 +9,7 @@ from src.core.envHelper import EnvHelper
 from src.core.exception import CustomException
 from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
-from src.schemas.errorResponse import ErrorResponse
-from src.services.common_check import check_endpointId, install_validate
+from src.services.common_check import check_endpointId
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
@@ -19,7 +17,7 @@ from src.core.logger import logger
 from src.services.proxy_manager import ProxyManager
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
-from src.services.app_status import appInstalling, appInstallingError,start_app_installation,remove_app_installation,modify_app_information,remove_app_from_errors
+from src.services.app_status import appInstalling, appInstallingError,start_app_installation,remove_app_installation,modify_app_information,remove_app_from_errors_by_app_id
 
 class AppManger:
     def get_catalog_apps(self,locale:str):
@@ -46,7 +44,7 @@ class AppManger:
             logger.error(f"Get app'catalog error:{e}")
             raise CustomException()
 
-    def get_available_apps(self,locale:str):
+    def get_available_apps(self, locale:str):
         """
         Get available apps
 
@@ -65,10 +63,20 @@ class AppManger:
             # Get the app available list
             with open(app_media_path, "r",encoding='utf-8') as f:
                 data = json.load(f)
-                # appAvailableResponses = [AppAvailableResponse(**item) for item in data]
-                # return appAvailableResponses
-                return data
-                
+            
+            # Iterate over the keys in data
+            app_lib_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            for item in data:
+                key = item.get("key")
+                env_path =app_lib_path+ f"/{key}/.env"
+                if os.path.exists(env_path):
+                    env_helper = EnvHelper(env_path)
+                    env_data = env_helper.get_all_values()
+                    settings = {k: v for k, v in env_data.items() if k.startswith("W9_") and k.endswith("_SET")}
+                    item["settings"] = settings
+                    item["is_web_app"] = "W9_URL" in env_data
+                            
+            return data
         except (CustomException,Exception) as e:
             logger.error(f"Get available apps error:{e}")
             raise CustomException()
@@ -238,34 +246,21 @@ class AppManger:
                 app_env = main_container_info.get("Config", {}).get("Env", [])
 
             # Get info from app_env
-            app_http_port = None
+            app_port = None
             app_name = None
             app_dist = None
             app_version = None
             for item in app_env:
                 key, value = item.split("=", 1)
                 app_env_format[key] = value
-                if key == "APP_HTTP_PORT":
-                    app_http_port = value
-                elif key == "APP_NAME":
+                if key == "W9_HTTP_PORT_SET" or key == "W9_DB_PORT_SET":
+                    app_port = value
+                elif key == "W9_APP_NAME":
                     app_name = value
-                elif key == "APP_DIST":
+                elif key == "W9_DIST":
                     app_dist = value
-                elif key == "APP_VERSION":
+                elif key == "W9_VERSION":
                     app_version = value
-
-            # Get the app_port
-            app_port = None
-            if app_http_port:
-                internal_port_str = str(app_http_port) + "/tcp"
-                # Get the port_mappings
-                port_mappings = main_container_info["NetworkSettings"]["Ports"].get(internal_port_str, [])
-                for mapping in port_mappings:
-                    try:
-                        ipaddress.IPv4Address(mapping["HostIp"])
-                        app_port = mapping["HostPort"]
-                    except ipaddress.AddressValueError:
-                        continue
             
             # Set the appResponse
             appResponse = AppResponse(
@@ -324,14 +319,18 @@ class AppManger:
         app_id = appInstall.app_id
         proxy_enabled = appInstall.proxy_enabled
         domain_names = appInstall.domain_names
+        settings = appInstall.settings
 
         # Check the endpointId is exists.
         if endpointId is None:
             # Get the local endpointId
             endpointId = portainerManager.get_local_endpoint_id()
+
+        # generate app_id
+        app_id = app_id + "_" + PasswordGenerator.generate_weak_password(6)
         
         # add app to appInstalling
-        app_uuid = start_app_installation(appInstall.app_id, appInstall.app_name)
+        app_uuid = start_app_installation(app_id, app_name)
 
         # Install app - Step 1 : create repo in gitea
         try:
@@ -377,15 +376,32 @@ class AppManger:
 
             # Modify the env file
             env_file_path = f"{app_tmp_dir_path}/.env"
-            new_env_values = {
-                "APP_ID": app_id,
-                "APP_NAME": app_name,
-                "APP_DIST": "community",
-                "APP_VERSION": app_version,
-                "POWER_PASSWORD": PasswordGenerator.generate_strong_password(),
-                "APP_URL": domain_names[0]
-            }
-            EnvHelper(env_file_path).modify_env_values(new_env_values)
+            envHelper = EnvHelper(env_file_path)
+
+            # Set the install info to env file
+            envHelper.set_value("W9_APP_NAME", app_name)
+            envHelper.set_value("W9_ID", app_id)
+            envHelper.set_value("W9_DIST", "community")
+            envHelper.set_value("W9_VERSION", app_version)
+            envHelper.set_value("POWER_PASSWORD", PasswordGenerator.generate_strong_password())
+
+            # Get "W9_URL" from env file (validate the app is web app)
+            is_web_app = envHelper.get_value("W9_URL")
+            if is_web_app:
+                envHelper.set_value("W9_URL", domain_names[0])
+                # validate is bind ip(proxy_enabled is false)
+                # if not proxy_enabled:
+                #     envHelper.set_value("W9_URL", domain_names[0])
+                # else:
+                #     replace_domain_name = domain_names[0]
+                #     replace_domain_name = replace_domain_name.replace(replace_domain_name.split(".")[0], app_id, 1)
+                #     domain_names[0] = replace_domain_name
+                #     envHelper.set_value("W9_URL", domain_names[0])
+
+            # Set the settings to env file
+            if settings:
+                for key, value in settings.items():
+                    envHelper.set_value(key, value)
            
             # Commit and push to remote repo
             self._init_local_repo_and_push_to_remote(app_tmp_dir_path,repo_url)
@@ -417,12 +433,16 @@ class AppManger:
         except CustomException as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
+            # Remove volumes
+            portainerManager.remove_vloumes(app_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,e.details)
             raise
         except Exception as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
+            # Remove volumes
+            portainerManager.remove_vloumes(app_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,"Create stack error")
             logger.error(f"Create stack error:{e}")
@@ -430,22 +450,30 @@ class AppManger:
         
         # Install app - Step 4 : create proxy in nginx proxy manager
         try:
-            if proxy_enabled and domain_names:
-                # Get the forward port form env file
-                forward_port = EnvHelper(env_file_path).get_env_value_by_key("APP_HTTP_PORT")
-                # Get the forward scheme form env file: http or https
-                forward_scheme = "https" if EnvHelper(env_file_path).get_env_value_by_key("APP_HTTPS_ACCESS") else "http"
+            # check the app is web app
+            if is_web_app:
+                if proxy_enabled and domain_names:
+                    # Get the forward port form env file
+                    http_port = EnvHelper(env_file_path).get_value("W9_HTTP_PORT")
+                    https_port = EnvHelper(env_file_path).get_value("W9_HTTPS_PORT")
 
-                # Get the nginx proxy config path
-                nginx_proxy_path = f"{app_tmp_dir_path}/src/nginx-proxy.conf"
-                if os.path.exists(nginx_proxy_path):
-                    # Get the advanced config
-                    advanced_config = FileHelper.read_file(nginx_proxy_path)
-                    # Create proxy in nginx proxy manager
-                    ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,advanced_config,forward_scheme)
-                else:
-                    # Create proxy in nginx proxy manager
-                    ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
+                    if http_port:
+                        forward_scheme = "http"
+                        forward_port = http_port
+                    elif https_port:
+                        forward_scheme = "https"
+                        forward_port = https_port
+                    
+                    # Get the nginx proxy config path
+                    nginx_proxy_path = f"{app_tmp_dir_path}/src/nginx-proxy.conf"
+                    if os.path.exists(nginx_proxy_path):
+                        # Get the advanced config
+                        advanced_config = FileHelper.read_file(nginx_proxy_path)
+                        # Create proxy in nginx proxy manager
+                        ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,advanced_config,forward_scheme)
+                    else:
+                        # Create proxy in nginx proxy manager
+                        ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
         except CustomException as e:
             # Rollback-1: remove repo in gitea
             giteaManager.remove_repo(app_id)
@@ -466,17 +494,6 @@ class AppManger:
 
         # remove app from installing
         remove_app_installation(app_uuid)
-
-        # Get the app info
-        # try:
-        #     result = self.get_app_by_id(app_id,endpointId)
-        # except CustomException as e:
-        #     modify_app_information(app_uuid,e.details)
-        #     raise
-        # except Exception as e:
-        #     modify_app_information(app_uuid,"Get app info error")
-        #     logger.error(f"Get app info error:{e}")
-        #     raise CustomException()
 
         # Remove the tmp dir
         shutil.rmtree(app_tmp_dir_path)
@@ -659,6 +676,32 @@ class AppManger:
         portainerManager.remove_stack_and_volumes(stack_id,endpointId)
 
         logger.access(f"Successfully removed app: [{app_id}]")
+
+    def remove_error_app(self,app_id:str):
+        """
+        Remove error app
+
+        Args:
+            app_id (str): The error app id.
+        """
+        # validate the app_id is exists in appInstallingError
+        try:
+            is_app_in_appInstallingError = any(item['app_id'] == app_id for item in appInstallingError.values())
+            if not is_app_in_appInstallingError:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"Error App:{app_id}  Not Found"
+                )
+            # remove app from appInstallingError
+            remove_app_from_errors_by_app_id(app_id)
+        except CustomException as e:
+            raise
+        except Exception as e:
+            logger.error(f"Remove error app error:{e}")
+            raise CustomException()    
+
+        logger.access(f"Successfully removed error app: [{app_id}]")
 
     def start_app(self,app_id:str,endpointId:int = None):
         """
@@ -862,11 +905,18 @@ class AppManger:
         stack_env = self.get_app_by_id(app_id,endpointId).env
         if stack_env:
             # Get the forward_port
-            forward_port = stack_env.get("APP_HTTP_PORT",None)
+            http_port = stack_env.get("W9_HTTP_PORT",None)
+            https_port = stack_env.get("W9_HTTPS_PORT",None)
+            if http_port:
+                forward_scheme = "http"
+                forward_port = http_port
+            elif https_port:
+                forward_scheme = "https"
+                forward_port = https_port
             # Create proxy
             if forward_port:
                 # Get the forward scheme form env file: http or https
-                proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port)
+                proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
                 if proxy_host:
                     logger.access(f"Successfully created domains:{domain_names} for app: [{app_id}]")
                     return proxy_host
