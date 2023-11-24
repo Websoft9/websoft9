@@ -27,7 +27,7 @@ API 接口功能设计：
 body:
 {
 - app_name # 产品名
-- app_id   # 自定义应用名称
+- app_id   # 自定义应用名称+随机字符串组成唯一标识
 - domains[]  #域名-可选
 - default_domain  #默认域名-可选：设置.env中APP_URL
 - edition{dist:community, version:5.0} #应用版本，来自variable.json，但目前variable.json中只有 version 的数据
@@ -38,9 +38,7 @@ body:
 过程：  
 
 1. 参数验证：  
-   app_id 验证：  
-      业务要求：gitea 中是否存在同名的 repository，Portainer中是否存在同名stack  
-      技术要求-【非空，容器要求：2位-20位，字母数字以及-组成 gitea：todo portainer：todo】   
+   app_id 验证：随机字符串保证唯一性，无需验证  
    app_name 验证: 在gitea容器的library目录下验证  
    domains[]验证：是否绑定过，数量不能超过2：泛域名+其他域名  
    default_domain验证：来自domains[]中，自定义域名优先  
@@ -267,7 +265,10 @@ List all apps，继承 Portainer API /stacks：
 2. portainer 中的应用目录的 variables.json 或 repository variables.json
 3. Gitea API 列出当前 APP 的 repository 之 URL，提供访问链接?
 4. 所用应用的数据目录：/var/lib/docker/volumes/...
-5. Portainer 通过主容器的 Label 标签和 Ports，获取 app_*_port等
+5. Portainer 各种说明
+ - 主容器：通过 W9_HTTP_PORT_SET获取http端口，通过W9_DB_PORT_SET获取DB端口，通过W9_MQ_PORT_SET获取消息队列端口
+   > 当数据库是主应用时，url 显示为 IP和端口，以非链接形式展示
+ - web应用数据库： 通过 W9_DB_EXPOSE 来确定数据库类型，然后根据数据库字典获得数据库用户名，POWER_PASSWORD是数据库密码，HOST 是APP_ID-db
 
 #### deploy/apps/{id}
 
@@ -305,9 +306,9 @@ function proxy(host，domains[], Optional:port, Optional:exra_proxy.conf)
 
 也可以使用 getPort(), getExra_proxy()
 
-1. 获取 Port: 从 portainer.containers 接口中 Label 属性集中获取 http 或 https
+1. 获取 Port: 从 .env 获取 W9_HTTP_PORT 或者 W9_HTTPS_PORT
 
-   > com.docker.compose.http.port": "9001"  | com.docker.compose.https.port": "9002"
+   > W9_HTTP_PORT=9001 | W9_HTTPS_PORT=9002，根据是否含有HTTPS决定proxy的协议
    
 2. 获取 exra_proxy.conf: 从 Gitea 接口中获取 repository 的 src/nginx_proxy.conf
 
