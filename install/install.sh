@@ -243,12 +243,19 @@ check_ports() {
 
     echo "Stop Websoft9 Proxy and Cockpit service for reserve ports..."
     sudo docker stop websoft9-proxy 2>/dev/null || echo "docker stop websoft9-proxy not need "
-
+    
     for port in "${ports[@]}"; do
-        if ss -tuln | grep ":$port " >/dev/null && ! systemctl status cockpit.socket | grep "$port" >/dev/null; then
-            echo "Port $port is in use or not in cockpit.socket, install failed"
-            exit
+
+        if [[ $port =~ ^[0-9]+$ ]] && [ $port -ge 0 ] && [ $port -le 65535 ]; then
+            if ss -tuln | grep ":$port " >/dev/null && ! systemctl status cockpit.socket | grep "$port" >/dev/null; then
+                echo "Port $port is in use or not in cockpit.socket, install failed"
+                exit 1
+            fi
+        else
+            echo "Invalid port: $port"
+            exit 1
         fi
+
     done
 
     echo "All ports are available"
