@@ -105,9 +105,14 @@ check_ports() {
     local ports=("$@")
 
     for port in "${ports[@]}"; do
-        if netstat -tuln | grep ":$port " >/dev/null; then
-            echo "Port $port is in use, install failed"
-            exit
+        if [[ $port =~ ^[0-9]+$ ]] && [ $port -ge 0 ] && [ $port -le 65535 ]; then
+            if netstat -tuln | grep ":$port " >/dev/null; then
+                echo "Port $port is in use, install failed"
+                exit
+            fi
+        else
+            echo "Invalid port: $port"
+            exit 1
         fi
     done
 
