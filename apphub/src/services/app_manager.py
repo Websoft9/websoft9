@@ -1,4 +1,3 @@
-import ipaddress
 import json
 import os
 import shutil
@@ -170,7 +169,9 @@ class AppManger:
                 apps_info.append(app_response)
 
             return apps_info
-        except (CustomException,Exception) as e:
+        except CustomException as e:
+            raise e
+        except Exception as e:
             logger.error(f"Get apps error:{e}")
             raise CustomException()
 
@@ -246,28 +247,34 @@ class AppManger:
                 app_env = main_container_info.get("Config", {}).get("Env", [])
 
             # Get info from app_env
-            app_port = None
             app_name = None
             app_dist = None
             app_version = None
+            w9_url = None
+            w9_url_replace = False
             for item in app_env:
                 key, value = item.split("=", 1)
                 app_env_format[key] = value
-                if key == "W9_HTTP_PORT_SET" or key == "W9_DB_PORT_SET":
-                    app_port = value
-                elif key == "W9_APP_NAME":
+                if key == "W9_APP_NAME":
                     app_name = value
                 elif key == "W9_DIST":
                     app_dist = value
                 elif key == "W9_VERSION":
                     app_version = value
+                elif key == "W9_URL_REPLACE":
+                    w9_url_replace = value
+                elif key == "W9_URL":
+                    w9_url = value
+
+            for domain in domain_names:
+                domain["w9_url_replace"] = w9_url_replace
+                domain["w9_url"] = w9_url
             
             # Set the appResponse
             appResponse = AppResponse(
                 app_id = app_id,
                 endpointId = endpointId,
                 app_name = app_name,
-                app_port = app_port,
                 app_dist = app_dist,
                 app_version = app_version,
                 app_official = True,
@@ -286,7 +293,6 @@ class AppManger:
                 app_id = app_id,
                 endpointId = endpointId,
                 app_name = "",
-                app_port = 0,
                 app_dist = "",
                 app_version = "",
                 app_official = True,
@@ -983,6 +989,19 @@ class AppManger:
                 message="Invalid Request",
                 details=f"Proxy ID:{proxy_id} Not Found"
             )
+        # # Get the app_id by proxy_id
+        # app_id = host.get("forward_host",None)
+        # if app_id:
+        #     # Get the app_info by app_id
+        #     app_info = self.get_app_by_id(app_id)
+        #     if app_info:
+        #         # Get the w9_url and w9_url_replace
+        #         w9_url = app_info.get("w9_url",None)
+        #         w9_url_replace = app_info.get("w9_url_replace",None)
+               
+        #         if w9_url_replace:
+        #             domain_names = host.get("domain_names",None)
+
         # Remove proxy
         ProxyManager().remove_proxy_host_by_id(proxy_id)
         logger.access(f"Successfully removed domains:{host['domain_names']} for app: [{host['forward_host']}]")

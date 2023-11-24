@@ -1,4 +1,4 @@
-## 0.8.30 release on 2023-11-16
+## 0.8.30-rc1 release on 2023-11-16
 1. improve all plugins githubaction
 2. install plugin by shell 
 ## 0.8.29 release on 2023-11-04
