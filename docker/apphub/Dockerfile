@@ -6,7 +6,7 @@ LABEL version="0.0.6"
 
 WORKDIR  /websoft9
 
-ENV LIBRARY_VERSION=0.5.13
+ENV LIBRARY_VERSION=0.5.14
 ENV MEDIA_VERSION=0.0.7
 ENV websoft9_repo="https://github.com/Websoft9/websoft9"
 ENV docker_library_repo="https://github.com/Websoft9/docker-library"
