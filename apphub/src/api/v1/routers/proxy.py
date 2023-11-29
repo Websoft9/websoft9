@@ -1,6 +1,6 @@
 
 from typing import List, Optional
-from fastapi import APIRouter, Query,Path
+from fastapi import APIRouter, Query,Path,Request,Depends
 from fastapi.params import Body
 from src.schemas.domainNames import DomainNames
 from src.schemas.errorResponse import ErrorResponse
@@ -59,22 +59,22 @@ def update_proxys(
 ):
     return AppManger().update_proxy_by_app(proxy_id,domain_names.domain_names,endpointId)
 
-@router.delete(
-            "/proxys/app/{app_id}",
-            summary="Delete Proxys",
-            description="Delete proxys by app",
-            status_code=204,
-            responses={
-                204: {"description": "Delete Proxys Success"},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
-def delete_proxys_by_app(
-    app_id: str = Path(..., description="App ID to create proxys from"),
-    endpointId: int = Query(None, description="Endpoint ID to create proxys from. If not set, create proxys from the local endpoint"),
-):
-    AppManger().remove_proxy_by_app(app_id,endpointId)
+# @router.delete(
+#             "/proxys/app/{app_id}",
+#             summary="Delete Proxys",
+#             description="Delete proxys by app",
+#             status_code=204,
+#             responses={
+#                 204: {"description": "Delete Proxys Success"},
+#                 400: {"model": ErrorResponse},
+#                 500: {"model": ErrorResponse},
+#             }
+#         )
+# def delete_proxys_by_app(
+#     app_id: str = Path(..., description="App ID to create proxys from"),
+#     endpointId: int = Query(None, description="Endpoint ID to create proxys from. If not set, create proxys from the local endpoint"),
+# ):
+#     AppManger().remove_proxy_by_app(app_id,endpointId)
 
 @router.delete(
             "/proxys/{proxy_id}",
@@ -88,6 +88,10 @@ def delete_proxys_by_app(
             }
         )
 def delete_proxys_by_id(
+    request: Request,
     proxy_id: int = Path(..., description="Proxy ID to delete proxys from")
+    
 ):
-    AppManger().remove_proxy_by_id(proxy_id)
+    client_host = request.headers.get("Host")
+    # client_host = request.client.host
+    AppManger().remove_proxy_by_id(proxy_id,client_host)

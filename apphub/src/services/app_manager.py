@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import shutil
@@ -245,7 +246,7 @@ class AppManger:
                 main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
                 # Get the env from main_container_info
                 app_env = main_container_info.get("Config", {}).get("Env", [])
-
+                
             # Get info from app_env
             app_name = None
             app_dist = None
@@ -333,7 +334,7 @@ class AppManger:
             endpointId = portainerManager.get_local_endpoint_id()
 
         # generate app_id
-        app_id = app_id + "_" + PasswordGenerator.generate_weak_password(6)
+        app_id = app_id + "_" + PasswordGenerator.generate_random_string(5)
         
         # add app to appInstalling
         app_uuid = start_app_installation(app_id, app_name)
@@ -389,7 +390,7 @@ class AppManger:
             envHelper.set_value("W9_ID", app_id)
             envHelper.set_value("W9_DIST", "community")
             envHelper.set_value("W9_VERSION", app_version)
-            envHelper.set_value("POWER_PASSWORD", PasswordGenerator.generate_strong_password())
+            envHelper.set_value("W9_POWER_PASSWORD", PasswordGenerator.generate_strong_password())
 
             # Get "W9_URL" from env file (validate the app is web app)
             is_web_app = envHelper.get_value("W9_URL")
@@ -921,6 +922,30 @@ class AppManger:
                 forward_port = https_port
             # Create proxy
             if forward_port:
+                w9_url = stack_env.get("W9_URL",None)
+                w9_url_replace = stack_env.get("W9_URL_REPLACE",None)
+
+                if w9_url and w9_url_replace:
+                    # Get the all proxys by app_id
+                    all_domain_names = proxyManager.get_proxy_host_by_app(app_id)
+                    # if all_domain_names is empty,create proxy
+                    if not all_domain_names:
+                        # update the env file
+                            self._update_gitea_env_file(app_id,w9_url,domain_names[0])           
+                            # redeploy app
+                            self.redeploy_app(app_id,False)
+                    else:
+                        combined_domain_names = []
+                        for item in all_domain_names:
+                            combined_domain_names.extend(item['domain_names'])
+                        combined_domain_names.extend(domain_names)
+
+                        if w9_url not in combined_domain_names:
+                            # update the env file
+                            self._update_gitea_env_file(app_id,w9_url,domain_names[0])           
+                            # redeploy app
+                            self.redeploy_app(app_id,False)
+
                 # Get the forward scheme form env file: http or https
                 proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
                 if proxy_host:
@@ -974,7 +999,7 @@ class AppManger:
         proxyManager.remove_proxy_host_by_app(app_id)
         logger.access(f"Successfully removed all domains for app: [{app_id}]")
 
-    def remove_proxy_by_id(self,proxy_id:int):
+    def remove_proxy_by_id(self,proxy_id:int,client_host:str):
         """
         Remove proxy by proxy_id
 
@@ -982,29 +1007,59 @@ class AppManger:
             proxy_id (int): The proxy id.
         """
         # Check the proxy id is exists
-        host = ProxyManager().get_proxy_host_by_id(proxy_id)
-        if host is None:
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"Proxy ID:{proxy_id} Not Found"
-            )
-        # # Get the app_id by proxy_id
-        # app_id = host.get("forward_host",None)
-        # if app_id:
-        #     # Get the app_info by app_id
-        #     app_info = self.get_app_by_id(app_id)
-        #     if app_info:
-        #         # Get the w9_url and w9_url_replace
-        #         w9_url = app_info.get("w9_url",None)
-        #         w9_url_replace = app_info.get("w9_url_replace",None)
-               
-        #         if w9_url_replace:
-        #             domain_names = host.get("domain_names",None)
+        try:
+            proxyManager = ProxyManager()
+            host = proxyManager.get_proxy_host_by_id(proxy_id)
+            if host is None:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"Proxy ID:{proxy_id} Not Found"
+                )
+            # Get the app_id by proxy_id
+            app_id = host.get("forward_host",None)
+            if app_id:
+                # Get the app_info by app_id 
+                app_info = self.get_app_by_id(app_id)
+                if app_info:
+                    # Get the w9_url and w9_url_replace
+                    w9_url_replace = next((element.get("w9_url_replace") for element in app_info.domain_names if element.get("id") == proxy_id), None)
+                    w9_url = next((element.get("w9_url") for element in app_info.domain_names if element.get("id") == proxy_id), None)
+                    
+                    # validate w9_url_replace is true
+                    if w9_url_replace:
+                        domain_names = host.get("domain_names",None)
+                        if domain_names:
+                            # Get the all proxys by app_id
+                            app_proxys =  self.get_proxys_by_app(app_id)
+                            # if w9_url is in domain_names：
+                            if w9_url in domain_names:
+                                new_w9_url = None
+                                if len(app_proxys) == 1 and app_proxys[0].get("id") == proxy_id:
+                                    new_w9_url = client_host
+                                elif len(app_proxys) > 1:
+                                    # Get the first proxy_host
+                                    proxy_host = next((proxy for proxy in app_proxys if proxy.get("id") != proxy_id), None)
+                                    if proxy_host:
+                                        # Get the domain_names
+                                        domain_names = proxy_host.get("domain_names",None)
+                                        if domain_names:
+                                            # Get the first domain_name
+                                            new_w9_url = domain_names[0]
+                                
+                                # update the env file
+                                self._update_gitea_env_file(app_id,w9_url,new_w9_url)
 
-        # Remove proxy
-        ProxyManager().remove_proxy_host_by_id(proxy_id)
-        logger.access(f"Successfully removed domains:{host['domain_names']} for app: [{host['forward_host']}]")
+                                # redeploy app
+                                self.redeploy_app(app_id,False)
+                    # Remove proxy
+                    proxyManager.remove_proxy_host_by_id(proxy_id)
+                    logger.access(f"Successfully removed domains:{host['domain_names']} for app: [{app_id}]")
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Remove proxy error:{e}")
+            raise CustomException()
 
     def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None):
         """
@@ -1032,8 +1087,27 @@ class AppManger:
                 message="Invalid Request",
                 details=f"Proxy ID:{proxy_id} Not Found"
             )
-
-        # check_domain_names(domain_names)
+        
+        # Get the app_id by proxy_id
+        app_id = host.get("forward_host",None)
+        old_domain_names = host.get("domain_names",None)
+        logger.access(f"old_domain_names:{old_domain_names}")
+        if app_id:
+            # Get the app_info by app_id 
+            app_info = self.get_app_by_id(app_id)
+            if app_info:
+                # Get the w9_url and w9_url_replace
+                w9_url_replace = next((element.get("w9_url_replace") for element in app_info.domain_names if element.get("id") == proxy_id), None)
+                w9_url = next((element.get("w9_url") for element in app_info.domain_names if element.get("id") == proxy_id), None)
+                
+                # validate w9_url_replace is true
+                if w9_url_replace and w9_url:
+                    if w9_url in old_domain_names:
+                        if w9_url not in domain_names:
+                            # update the env file
+                            self._update_gitea_env_file(app_id,w9_url,domain_names[0])
+                            # redeploy app
+                            self.redeploy_app(app_id,False)
 
         # Update proxy
         result = proxyManager.update_proxy_by_app(proxy_id,domain_names)
@@ -1064,4 +1138,37 @@ class AppManger:
             logger.error(f"Init local repo and push to remote repo error:{e}")
             raise CustomException()
 
-    
+    def _update_gitea_env_file(self,app_id:str,key:str,value:str):
+        """
+        Update the env file w9_url
+
+        Args:
+            app_id (str): The app id.
+            domain_name (str): The domain name.
+        """
+        try:
+            giteaManager = GiteaManager()
+            # Get the env file from git repo
+            git_env_file = giteaManager.get_file_content_from_repo(app_id,".env")
+            # Get the env file sha
+            git_env_file_sha = git_env_file.get("sha",None)
+            # Get the env file content
+            git_env_file_content = git_env_file.get("content",None)
+            if git_env_file_sha and git_env_file_content:
+                # Get the env file content
+                env_file_content = base64.b64decode(git_env_file_content).decode("utf-8")
+                # Modify the env file content
+                env_file_content = env_file_content.replace(key,value)
+                # base64 encode for env_file_content
+                env_file_content = base64.b64encode(env_file_content.encode("utf-8")).decode("utf-8")
+                # Update the env file to git repo
+                giteaManager.update_file_in_repo(app_id,".env",env_file_content,git_env_file_sha)
+                logger.access(f"Update the git repo env file for app: [{app_id}]")
+            else:
+                logger.error(f"Get the git repo env file error")
+                raise CustomException()
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Update the git repo env file error:{e}")
+            raise CustomException()

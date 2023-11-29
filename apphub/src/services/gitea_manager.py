@@ -116,7 +116,7 @@ class GiteaManager:
             sha (str): File sha
         """
         response = self.gitea.update_file_content_in_repo(repo_name, file_path, content, sha)
-        if response.status_code != 201:
+        if response.status_code != 200:
             logger.error(f"Update file:{file_path} content in repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
         

@@ -33,8 +33,9 @@ class PasswordGenerator:
 
         return password
 
+
     @staticmethod
-    def generate_weak_password(length:int=8):
+    def generate_random_string(length:int=8):
         """
         Generate a weak password.
 
@@ -44,5 +45,5 @@ class PasswordGenerator:
         Returns:
             str: A weak password.
         """
-        return ''.join(random.choice(string.ascii_lowercase) for _ in range(length))
-
+        characters = string.ascii_lowercase + string.digits
+        return ''.join(random.choice(characters) for _ in range(length))
