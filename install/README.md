@@ -15,7 +15,7 @@ wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bas
 wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
 
 # install or upgrade Cockpit with parameters
-wget -O - https://websoft9.github.io/websoft9/install/install_cockpit.sh | bash --port 9000
+wget -O install_cockpit.sh https://websoft9.github.io/websoft9/install/install_cockpit.sh && bash install_cockpit.sh --port 9000
 
 # install or upgrade Docker
 wget -O - https://websoft9.github.io/websoft9/install/install_docker.sh | bash
