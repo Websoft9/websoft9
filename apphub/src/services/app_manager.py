@@ -316,6 +316,7 @@ class AppManger:
             appInstall (appInstall): The app install info.
             endpointId (int, optional): The endpoint id. Defaults to None.
         """
+        logger.access(f"Start installing app: [{appInstall.app_id}]")
         # Get the portainer and gitea manager
         portainerManager = PortainerManager()
         giteaManager = GiteaManager()
@@ -333,7 +334,7 @@ class AppManger:
             # Get the local endpointId
             endpointId = portainerManager.get_local_endpoint_id()
 
-        # generate app_id
+        # generate app_id  
         app_id = app_id + "_" + PasswordGenerator.generate_random_string(5)
         
         # add app to appInstalling
@@ -367,7 +368,7 @@ class AppManger:
             # Generate a random number
             rand_num = random.randint(1000, 9999)
 
-            # 将时间戳和随机数添加到 app_name 后面
+            # The temporary directory path.
             app_tmp_dir_path = f"{app_tmp_dir}/{app_name}_{timestamp_str}_{rand_num}"
 
             # If the temporary directory does not exist, create it.
@@ -386,15 +387,20 @@ class AppManger:
             envHelper = EnvHelper(env_file_path)
 
             # Set the install info to env file
-            envHelper.set_value("W9_APP_NAME", app_name)
             envHelper.set_value("W9_ID", app_id)
+            envHelper.set_value("W9_APP_NAME", app_name)
             envHelper.set_value("W9_DIST", "community")
             envHelper.set_value("W9_VERSION", app_version)
-            envHelper.set_value("W9_POWER_PASSWORD", PasswordGenerator.generate_strong_password())
+            
+            # Verify if a password needs to be set
+            is_set_password = envHelper.get_value("W9_POWER_PASSWORD")
+            if is_set_password is not None:
+                # Set the password to env file
+                envHelper.set_value("W9_POWER_PASSWORD", PasswordGenerator.generate_strong_password())
 
-            # Get "W9_URL" from env file (validate the app is web app)
+            # Verify the app is web app
             is_web_app = envHelper.get_value("W9_URL")
-            if is_web_app:
+            if is_web_app is not None:
                 envHelper.set_value("W9_URL", domain_names[0])
                 # validate is bind ip(proxy_enabled is false)
                 # if not proxy_enabled:
@@ -505,7 +511,7 @@ class AppManger:
         # Remove the tmp dir
         shutil.rmtree(app_tmp_dir_path)
 
-        logger.access(f"Successfully installed app: [{app_id}] and created domains:{domain_names}")
+        logger.access(f"Successfully installed app: [{app_id}]")
         # return result
 
     def redeploy_app(self,app_id:str,pull_image:bool,endpointId:int = None):
