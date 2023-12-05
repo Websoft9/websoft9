@@ -105,6 +105,15 @@ fi
 
 starttime=$(date +%s)
 
+# Check is install or upgrade
+if systemctl cat websoft9 >/dev/null 2>&1 && systemctl cat cockpit >/dev/null 2>&1 && sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^websoft9-apphub'; then
+    echo "execute_mode=upgrade"
+    export execute_mode="upgrade"
+else
+    echo "execute_mode=install"
+    export execute_mode="install"
+fi
+
 # 输出参数值
 echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
 echo -e "\nYour installation parameters are as follows: "
@@ -404,6 +413,10 @@ install_backends() {
         echo "Failed to start docker services."
         exit 1
     fi
+
+    if [ "$execute_mode" = "install" ]; then
+        sudo docker exec -i websoft9-apphub apphub setconfig --section domain --key wildcard_domain --value ""
+    fi 
 }
 
 
@@ -441,7 +454,6 @@ install_systemd() {
         exit 1
     fi
 }
-
 
 
 #--------------- main-----------------------------------------

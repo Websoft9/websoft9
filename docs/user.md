@@ -41,3 +41,7 @@ Websoft9 控制台 > 【用户账号】菜单中创建用户，创建完成后�
 ```
 user001 ALL=(ALL:ALL) ALL
 ```
+
+#### appstore 502 error?
+
+Try `docker restart websoft9-proxy` to solved it
