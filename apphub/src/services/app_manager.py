@@ -108,9 +108,12 @@ class AppManger:
                     # Get the app info by stack_name from portainer
                     app_info = self.get_app_by_id(stack_name,endpointId)
                     apps_info.append(app_info)
+            
+            logger.access(apps_info)
 
             # Get the not stacks(not installed apps)
             all_containers = portainerManager.get_containers(endpointId) # Get all containers by endpointId from portainer
+
 
             # Set the not stacks info for response(app not install by portainer)
             not_stacks = [] 
@@ -184,129 +187,143 @@ class AppManger:
             app_id (str): The app id.
             endpointId (int, optional): The endpoint id. Defaults to None.
         """
-        portainerManager = PortainerManager()
-        
-        # Check the endpointId is exists.
-        if endpointId:
-              check_endpointId(endpointId, portainerManager)
-        else:
-            endpointId = portainerManager.get_local_endpoint_id()
-        
-        # validate the app_id is exists in portainer
-        is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
-        if not is_stack_exists:
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{app_id} Not Found"
-            )
-        
-        # Get stack_info by app_id from portainer
-        stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
-        # Get the stack_id
-        stack_id = stack_info.get("Id",None)
-        # Check the stack_id is exists
-        if stack_id is None:
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{app_id} Not Found"
-            )
-        # Get the stack_status
-        stack_status = stack_info.get("Status",0)
-        # Get the gitConfig
-        gitConfig = stack_info.get("GitConfig",{}) or {}
-        # Get the creationDate
-        creationDate = stack_info.get("CreationDate","")
-        # Get the domain_names by app_id from nginx proxy manager
-        domain_names = ProxyManager().get_proxy_host_by_app(app_id)
-        # Set the proxy_enabled
-        if not domain_names:
-            proxy_enabled = False
-        else :
-            proxy_enabled = True
-        # Get the volumes by app_id from portainer
-        app_volumes = portainerManager.get_volumes_by_stack_name(app_id,endpointId,False)
-
-        # if stack is empty(status=2-inactive),can not get it
-        if stack_status == 1:
-            # Get the containers by app_id from portainer
-            app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId)
+        try:
+            portainerManager = PortainerManager()
             
-            # Get the main container
-            main_container_id = None
-            app_env = []
-            app_env_format = {} # format app_env to dict
-            for container in app_containers:
-                if f"/{app_id}" in container.get("Names", []):
-                    main_container_id = container.get("Id", "")
-                    break
-            if main_container_id:
-                # Get the main container info by main_container_id from portainer
-                main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
-                # Get the env from main_container_info
-                app_env = main_container_info.get("Config", {}).get("Env", [])
+            # Check the endpointId is exists.
+            if endpointId:
+                check_endpointId(endpointId, portainerManager)
+            else:
+                endpointId = portainerManager.get_local_endpoint_id()
+            
+            # validate the app_id is exists in portainer
+            is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
+            if not is_stack_exists:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"{app_id} Not Found"
+                )
+            
+            # Get stack_info by app_id from portainer
+            stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
+            # Get the stack_id
+            stack_id = stack_info.get("Id",None)
+            # Check the stack_id is exists
+            if stack_id is None:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"{app_id} Not Found"
+                )
+            # Get the stack_status
+            stack_status = stack_info.get("Status",0)
+            # Get the gitConfig
+            gitConfig = stack_info.get("GitConfig",{}) or {}
+            # Get the creationDate
+            creationDate = stack_info.get("CreationDate","")
+            # Get the domain_names by app_id from nginx proxy manager
+            domain_names = ProxyManager().get_proxy_host_by_app(app_id)
+            # Set the proxy_enabled
+            if not domain_names:
+                proxy_enabled = False
+            else :
+                proxy_enabled = True
+            # Get the volumes by app_id from portainer
+            app_volumes = portainerManager.get_volumes_by_stack_name(app_id,endpointId,False)
+
+            # if stack is empty(status=2-inactive),can not get it
+            if stack_status == 1:
+                # Get the containers by app_id from portainer
+                app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId)
                 
-            # Get info from app_env
-            app_name = None
-            app_dist = None
-            app_version = None
-            w9_url = None
-            w9_url_replace = False
-            for item in app_env:
-                key, value = item.split("=", 1)
-                app_env_format[key] = value
-                if key == "W9_APP_NAME":
-                    app_name = value
-                elif key == "W9_DIST":
-                    app_dist = value
-                elif key == "W9_VERSION":
-                    app_version = value
-                elif key == "W9_URL_REPLACE":
-                    w9_url_replace = value
-                elif key == "W9_URL":
-                    w9_url = value
+                # Get the main container
+                main_container_id = None
+                app_env = []
+                app_env_format = {} # format app_env to dict
+                for container in app_containers:
+                    if f"/{app_id}" in container.get("Names", []):
+                        main_container_id = container.get("Id", "")
+                        break
+                if main_container_id:
+                    # Get the main container info by main_container_id from portainer
+                    main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
+                    # Get the env from main_container_info
+                    app_env = main_container_info.get("Config", {}).get("Env", [])
 
-            for domain in domain_names:
-                domain["w9_url_replace"] = w9_url_replace
-                domain["w9_url"] = w9_url
-            
-            # Set the appResponse
-            appResponse = AppResponse(
-                app_id = app_id,
-                endpointId = endpointId,
-                app_name = app_name,
-                app_dist = app_dist,
-                app_version = app_version,
-                app_official = True,
-                proxy_enabled = proxy_enabled,
-                domain_names = domain_names,
-                status = stack_status,
-                creationDate = creationDate,
-                gitConfig = gitConfig,
-                containers = app_containers,
-                volumes = app_volumes,
-                env = app_env_format
-            )
-            return appResponse
-        else:
-            appResponse = AppResponse(
-                app_id = app_id,
-                endpointId = endpointId,
-                app_name = "",
-                app_dist = "",
-                app_version = "",
-                app_official = True,
-                proxy_enabled = proxy_enabled,
-                domain_names = domain_names,
-                status = stack_status,
-                creationDate = creationDate,
-                gitConfig = gitConfig,
-                containers = [],
-                volumes = app_volumes,
-                env = {}
-            )
-            return appResponse
+                logger.access(f"app_env:{app_env}")
+                    
+                # Get info from app_env
+                app_name = None
+                app_dist = None
+                app_version = None
+                w9_url = None
+                w9_url_replace = False
+                for item in app_env:
+                    parts  = item.split("=", 1)
+                    if len(parts) == 2:
+                        key, value = parts
+                    else:
+                        key = parts[0]
+                        value = "" 
+                    app_env_format[key] = value
+                    if key == "W9_APP_NAME":
+                        app_name = value
+                    elif key == "W9_DIST":
+                        app_dist = value
+                    elif key == "W9_VERSION":
+                        app_version = value
+                    elif key == "W9_URL_REPLACE":
+                        w9_url_replace = value
+                    elif key == "W9_URL":
+                        w9_url = value
+
+                for domain in domain_names:
+                    domain["w9_url_replace"] = w9_url_replace
+                    domain["w9_url"] = w9_url
+
+                # Set the appResponse
+                appResponse = AppResponse(
+                    app_id = app_id,
+                    endpointId = endpointId,
+                    app_name = app_name,
+                    app_dist = app_dist,
+                    app_version = app_version,
+                    app_official = True,
+                    proxy_enabled = proxy_enabled,
+                    domain_names = domain_names,
+                    status = stack_status,
+                    creationDate = creationDate,
+                    gitConfig = gitConfig,
+                    containers = app_containers,
+                    volumes = app_volumes,
+                    env = app_env_format
+                )
+                logger.access(appResponse)
+                return appResponse
+            else:
+                appResponse = AppResponse(
+                    app_id = app_id,
+                    endpointId = endpointId,
+                    app_name = "",
+                    app_dist = "",
+                    app_version = "",
+                    app_official = True,
+                    proxy_enabled = proxy_enabled,
+                    domain_names = domain_names,
+                    status = stack_status,
+                    creationDate = creationDate,
+                    gitConfig = gitConfig,
+                    containers = [],
+                    volumes = app_volumes,
+                    env = {}
+                )
+                return appResponse
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Get app by app_id:{app_id} error:{e}")
+            raise CustomException()
     
     def install_app(self,appInstall: appInstall, endpointId: int = None):
         """
