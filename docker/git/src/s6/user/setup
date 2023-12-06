@@ -23,6 +23,7 @@ while [ "$response" != "200" ]; do
 done
 
 if [ -e "$cred_path" ]; then
+  echo "File $cred_path exists. Exiting script."
   exit 0
 fi
 
