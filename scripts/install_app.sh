@@ -107,16 +107,11 @@ get_ip_path=$(find / -name get_ip.sh 2>/dev/null)
 public_ip=$(bash "$get_ip_path")
 if [ -z "$domain_names" ]; then
     domain_names="$public_ip"
+    proxy_enabled=false
 fi
 
 rm -rf /tmp/library && sudo docker cp websoft9-apphub:/websoft9/library /tmp
 filename="/tmp/library/apps/${appname}/.env"
-if ! grep -q "W9_URL" "$filename"; then
-    proxy_enabled=false
-else
-    echo "W9_URL found in $filename."
-fi
-
 settings=$(grep "^W9_.*_SET=" "$filename" | awk -F '=' '{print $1, $2}' | \
 while read -r key value; do
     jq -n --arg key "$key" --arg value "$value" '{($key): $value}'
@@ -146,12 +141,18 @@ request_param=$(jq -n \
                    }')
 
 echo $request_param
-response=$(curl -s -w "%{http_code}" -X POST "$api_url" \
+response=$(curl -s -w "\n%{http_code}" -X POST "$api_url" \
                 -H "Content-Type: application/json" \
                 -H "x-api-key: $api_key" \
                 -d "$request_param")
 
 echo "$response"
+http_code=$(echo "$response" | tail -n1)
+response_body=$(echo "$response" | head -n -1)
+
+echo "HTTP Code: $http_code"
+echo "Response Body: $response_body"
+
 echo "------------------------------"
 # http_code=$(echo "$response" | tail -n1)
 # response_body=$(echo "$response" | head -n -1)
