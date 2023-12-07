@@ -250,8 +250,6 @@ class AppManger:
                     main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
                     # Get the env from main_container_info
                     app_env = main_container_info.get("Config", {}).get("Env", [])
-
-                logger.access(f"app_env:{app_env}")
                     
                 # Get info from app_env
                 app_name = None
@@ -299,7 +297,6 @@ class AppManger:
                     volumes = app_volumes,
                     env = app_env_format
                 )
-                logger.access(appResponse)
                 return appResponse
             else:
                 appResponse = AppResponse(
