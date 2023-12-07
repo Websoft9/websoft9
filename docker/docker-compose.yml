@@ -47,7 +47,8 @@ services:
       - DISABLE_SSH=true
       - RUN_MODE=prod
       - HTTP_PORT=3000
-      - DISABLE_REGISTRATION=false
+      - DISABLE_REGISTRATION=true
+      - GITEA__server__OFFLINE_MODE=true
       - REQUIRE_SIGNIN_VIEW=false
       - ROOT_URL=http://localhost/w9git/
     labels:

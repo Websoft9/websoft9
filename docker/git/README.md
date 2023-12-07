@@ -2,10 +2,17 @@
 
 ## Development
 
-From official Gitea image, and: 
+### What do done?
+
+From official Gitea image, we have complete these modification: 
 
 - Complete install wizard automaticlly by enviroment INSTALL_LOCK
 - Use default URL localhost for Host/Root_URL settings
+- create administrator user
+
+### Environments
+
+Any app.ini items can set by environment, refer to [Managing Deployments With Environment Variables](https://docs.gitea.com/installation/install-with-docker#managing-deployments-with-environment-variables)
 
 ## User
 

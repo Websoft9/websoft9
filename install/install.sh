@@ -362,7 +362,10 @@ set_docker(){
         sudo systemctl stop firewalld
         sudo systemctl disable firewalld
     fi
-    sudo systemctl restart docker   
+
+    if [ "$execute_mode" = "install" ]; then
+        sudo systemctl restart docker   
+    fi 
 }
 
 install_backends() {
@@ -484,7 +487,9 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Restart Docker for Firewalld..."
-sudo systemctl restart docker
+if [ "$execute_mode" = "install" ]; then
+    sudo systemctl restart docker   
+fi 
 
 endtime=$(date +%s)
 runtime=$((endtime-starttime))

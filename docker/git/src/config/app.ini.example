@@ -1,3 +1,6 @@
+# This file only for your reference, it maybe not always update
+# it from: https://github.com/go-gitea/gitea/blob/main/custom/conf/app.example.ini
+
 APP_NAME = gitea
 RUN_MODE = prod
 RUN_USER = git

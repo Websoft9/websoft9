@@ -162,4 +162,7 @@ fi
 
 echo -e "\n\n-------- Docker --------"
 Upgrade_Docker
-Start_Docker
+
+if [ -z "$execute_mode" ] || [ "$execute_mode" = "install" ]; then
+    Start_Docker
+fi
