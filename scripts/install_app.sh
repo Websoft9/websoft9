@@ -145,15 +145,13 @@ request_param=$(jq -n \
                     "settings": $settings
                    }')
 
-echo "####################################################"
 echo $request_param
 response=$(curl -s -w "%{http_code}" -X POST "$api_url" \
                 -H "Content-Type: application/json" \
                 -H "x-api-key: $api_key" \
                 -d "$request_param")
-echo "--------------------------------------------------"
+
 echo "$response"
-echo "---------------------------------------------------"
 http_code=$(echo "$response" | tail -n1)
 response_body=$(echo "$response" | head -n -1)
 
@@ -163,4 +161,4 @@ else
     error_message=$(echo "$response_body" | jq -r '.message')
     error_details=$(echo "$response_body" | jq -r '.details')
     echo "Error: $error_message, Details: $error_details"
-fi 
+fi
