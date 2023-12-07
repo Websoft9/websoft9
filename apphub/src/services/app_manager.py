@@ -108,12 +108,9 @@ class AppManger:
                     # Get the app info by stack_name from portainer
                     app_info = self.get_app_by_id(stack_name,endpointId)
                     apps_info.append(app_info)
-            
-            logger.access(apps_info)
 
             # Get the not stacks(not installed apps)
             all_containers = portainerManager.get_containers(endpointId) # Get all containers by endpointId from portainer
-
 
             # Set the not stacks info for response(app not install by portainer)
             not_stacks = [] 
@@ -330,7 +327,6 @@ class AppManger:
             appInstall (appInstall): The app install info.
             endpointId (int, optional): The endpoint id. Defaults to None.
         """
-        logger.access(f"Start installing app: [{appInstall.app_id}]")
         # Get the portainer and gitea manager
         portainerManager = PortainerManager()
         giteaManager = GiteaManager()
@@ -525,7 +521,7 @@ class AppManger:
         # Remove the tmp dir
         shutil.rmtree(app_tmp_dir_path)
 
-        logger.access(f"Successfully installed app: [{app_id}]")
+        logger.access(f"Installed app: [{app_id}]")
         # return result
 
     def redeploy_app(self,app_id:str,pull_image:bool,endpointId:int = None):
@@ -566,7 +562,7 @@ class AppManger:
             user_pwd = ConfigManager().get_value("gitea","user_pwd")
             # redeploy stack
             portainerManager.redeploy_stack(stack_id,endpointId,pull_image,user_name,user_pwd)
-            logger.access(f"Successfully redeployed app: [{app_id}]")
+            logger.access(f"Redeployed app: [{app_id}]")
 
     def uninstall_app(self,app_id:str,purge_data:bool,endpointId:int = None):
         """
@@ -641,11 +637,11 @@ class AppManger:
                 )
             # remove stack and volumes
             portainerManager.remove_stack_and_volumes(stack_id,endpointId)
-            logger.access(f"Successfully uninstalled app: [{app_id}] and removed all data")
+            logger.access(f"Uninstalled app: [{app_id}] and removed all data")
         else:
             # down stack
             portainerManager.down_stack(stack_id,endpointId)
-            logger.access(f"Successfully uninstalled app: [{app_id}] and keep data")
+            logger.access(f"Uninstalled app: [{app_id}] and keep data")
 
     def remove_app(self,app_id:str,endpointId:int = None):
         """
@@ -702,7 +698,7 @@ class AppManger:
         # remove stack and volumes
         portainerManager.remove_stack_and_volumes(stack_id,endpointId)
 
-        logger.access(f"Successfully removed app: [{app_id}]")
+        logger.access(f"Removed app: [{app_id}]")
 
     def remove_error_app(self,app_id:str):
         """
@@ -728,7 +724,7 @@ class AppManger:
             logger.error(f"Remove error app error:{e}")
             raise CustomException()    
 
-        logger.access(f"Successfully removed error app: [{app_id}]")
+        logger.access(f"Removed error app: [{app_id}]")
 
     def start_app(self,app_id:str,endpointId:int = None):
         """
@@ -772,7 +768,7 @@ class AppManger:
             )
         # start stack
         portainerManager.start_stack(app_id,endpointId)
-        logger.access(f"Successfully started app: [{app_id}]")
+        logger.access(f"Started app: [{app_id}]")
 
     def stop_app(self,app_id:str,endpointId:int = None):
         """
@@ -816,7 +812,7 @@ class AppManger:
             )
         # stop stack
         portainerManager.stop_stack(app_id,endpointId)
-        logger.access(f"Successfully stopped app: [{app_id}]")
+        logger.access(f"Stopped app: [{app_id}]")
 
     def restart_app(self,app_id:str,endpointId:int = None):
         """
@@ -860,7 +856,7 @@ class AppManger:
             )
         # restart stack
         portainerManager.restart_stack(app_id,endpointId)
-        logger.access(f"Successfully restarted app: [{app_id}]")
+        logger.access(f"Restarted app: [{app_id}]")
         
     def get_proxys_by_app(self,app_id:str,endpointId:int = None):
         """
@@ -969,7 +965,7 @@ class AppManger:
                 # Get the forward scheme form env file: http or https
                 proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
                 if proxy_host:
-                    logger.access(f"Successfully created domains:{domain_names} for app: [{app_id}]")
+                    logger.access(f"Created domains:{domain_names} for app: [{app_id}]")
                     return proxy_host
                 else:
                     logger.error(f"Create app:{app_id} proxy error")
@@ -1017,7 +1013,7 @@ class AppManger:
 
         # Remove proxy
         proxyManager.remove_proxy_host_by_app(app_id)
-        logger.access(f"Successfully removed all domains for app: [{app_id}]")
+        logger.access(f"Removed all domains for app: [{app_id}]")
 
     def remove_proxy_by_id(self,proxy_id:int,client_host:str):
         """
@@ -1074,7 +1070,7 @@ class AppManger:
                                 self.redeploy_app(app_id,False)
                     # Remove proxy
                     proxyManager.remove_proxy_host_by_id(proxy_id)
-                    logger.access(f"Successfully removed domains:{host['domain_names']} for app: [{app_id}]")
+                    logger.access(f"Removed domains:{host['domain_names']} for app: [{app_id}]")
         except CustomException as e:
             raise e
         except Exception as e:
@@ -1131,7 +1127,7 @@ class AppManger:
 
         # Update proxy
         result = proxyManager.update_proxy_by_app(proxy_id,domain_names)
-        logger.access(f"Successfully updated domains:{domain_names} for app: [{host['forward_host']}]")
+        logger.access(f"Updated domains:{domain_names} for app: [{host['forward_host']}]")
         return result
 
     def _init_local_repo_and_push_to_remote(self,local_path:str,repo_url:str):
