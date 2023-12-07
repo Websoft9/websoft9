@@ -152,13 +152,14 @@ response=$(curl -s -w "%{http_code}" -X POST "$api_url" \
                 -d "$request_param")
 
 echo "$response"
-http_code=$(echo "$response" | tail -n1)
-response_body=$(echo "$response" | head -n -1)
+echo "------------------------------"
+# http_code=$(echo "$response" | tail -n1)
+# response_body=$(echo "$response" | head -n -1)
 
-if [ "$http_code" -eq 200 ]; then
-    sudo docker ps -a |grep "$appid"
-else
-    error_message=$(echo "$response_body" | jq -r '.message')
-    error_details=$(echo "$response_body" | jq -r '.details')
-    echo "Error: $error_message, Details: $error_details"
-fi
+# if [ "$http_code" -eq 200 ]; then
+#     sudo docker ps -a |grep "$appid"
+# else
+#     error_message=$(echo "$response_body" | jq -r '.message')
+#     error_details=$(echo "$response_body" | jq -r '.details')
+#     echo "Error: $error_message, Details: $error_details"
+# fi
