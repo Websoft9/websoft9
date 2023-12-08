@@ -1,0 +1,92 @@
+# This action is used for building websoft9 docker images to DockerHub at one time
+# It need LABEL version="" at your dockerfile. And it can divide version. e.g version v3.4.0.3 will divide to latest,v3,v3.4,v3.4.0,v3.4.0.3
+# When version include "-", it not divide version and build ony one test image
+# It have enable multiPlatform, you add more platform at platform: linux/amd64...
+# If you add more paths for trigger, please update app_list= at set-matrix for it also
+
+name: Build image to DockerHub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker/*/Dockerfile"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+
+    - id: set-matrix
+      run: |
+        git diff --name-only HEAD^ HEAD
+        changed_files=$(git diff --name-only HEAD^ HEAD)
+        app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
+        app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
+        echo "::set-output name=matrix::{\"app\": $app_list_json}"
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{fromJson(needs.setup.outputs.matrix)}}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 2
+
+    - name: Prepare tags and files for Docker build
+      run: |
+        APP=${{ matrix.app }}
+        TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
+        echo $APP version is $TAG
+        if [[ "$TAG" == *"-"* ]]; then
+          TAGS="$TAG"
+        else
+          IFS='.' read -ra PARTS <<< "$TAG"
+          TAGS="latest"
+          TAG_PART=""
+          for i in "${!PARTS[@]}"; do 
+            if [ "$i" -eq 0 ]; then 
+              TAG_PART="${PARTS[$i]}"
+            else 
+              TAG_PART="${TAG_PART}.${PARTS[$i]}"
+            fi
+            TAGS="${TAGS},${TAG_PART}"
+          done
+        fi
+        echo "Building and pushing Docker image for $APP with tags: $TAGS"
+        echo "TAGS=$TAGS" >> $GITHUB_ENV
+        echo "APP=$APP" >> $GITHUB_ENV
+        echo "DOCKERFILE=docker/$APP/Dockerfile" >> $GITHUB_ENV
+        echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
+        echo "README=docker/$APP/README.md" >> $GITHUB_ENV
+
+    - name: Build & push Docker image
+      uses: mr-smithers-excellent/docker-build-push@v6
+      with:
+        image: websoft9dev/${{env.APP}}
+        tags: ${{env.TAGS}}
+        registry: docker.io
+        directory: ${{env.DIRECTORY}}
+        dockerfile: ${{env.DOCKERFILE}}
+        multiPlatform: true
+        platform: linux/amd64
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Docker Hub Description
+      uses: peter-evans/dockerhub-description@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        repository: websoft9dev/${{env.APP}}
+        readme-filepath: ${{env.README}}
+      if: needs.setup.outputs.matrix != ''

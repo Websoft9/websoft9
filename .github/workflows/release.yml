@@ -1,4 +1,4 @@
-name: upload_artifact(decide by version)
+name: Release to Github and Artifact
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         name: Check out code
 
       - name: Version convert
@@ -81,3 +81,48 @@ jobs:
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false
+
+
+  apidocs:
+    needs: upload_artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        name: Check out code
+
+      - name: Get version
+        run: |
+          version=$(grep -Po '(?<=LABEL version=").*?(?=")' docker/apphub/Dockerfile)
+          echo $version
+          real_version=${version%%-*}
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - name: Download redoc.standalone.js
+        run: wget -O apphub/apidocs/redoc.standalone.js https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js
+
+      - name: Run Docker container and get openapi.json
+        run: |
+          docker run -d --name apphub -p 8080:8080 websoft9dev/apphub:${{ env.VERSION }}
+          sleep 5
+          max_attempts=10
+          url="http://localhost:8080/openapi.json"
+          for attempt in $(seq 1 $max_attempts); do
+            echo "Attempt #$attempt to download $url..."
+            if wget -O apphub/apidocs/openapi.json "$url"; then
+              echo "Successfully downloaded $url"
+              break
+            else
+              echo "Failed to download $url. Waiting for 5 seconds before retry..."
+              sleep 5
+            fi
+          done
+
+      - name: Upload Websoft9 API to Azure
+        uses: bacongobbler/azure-blob-storage-upload@main
+        with:
+          source_dir: apphub/apidocs
+          container_name: $web
+          connection_string: ${{ secrets.Azure_blob }}
+          extra_args: '--destination-path ./apidocs'
+          overwrite: true
