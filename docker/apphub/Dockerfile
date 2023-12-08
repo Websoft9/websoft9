@@ -15,8 +15,11 @@ ENV source_github_pages="https://websoft9.github.io/websoft9"
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
     git clone --depth=1 $library_repo && \
     mv docker-library w9library && \
-    rm -rf w9library/.github && \
-
+    rm -rf w9library/.github
+    if [ ! -f ./media.zip ]; then \
+      wget $websoft9_artifact/plugin/media/media-latest.zip -O ./media.zip  \
+    fi && \
+    unzip media.zip
 
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
