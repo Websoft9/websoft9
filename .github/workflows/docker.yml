@@ -72,10 +72,16 @@ jobs:
     ##------------ special task for apphub begin----------------------#
     - name: Trigger media.yml workflow
       uses: mathze/workflow-dispatch-action@v1.1.0
+      id: startAndWaitWorkflow
       with:
         workflow-name: media.yml
         token: ${{github.token}}
-      if: env.APP == 'apphub' 
+        run-id: dummy
+      if: env.APP == 'apphub'
+
+    - name: Reuse workflow run id
+      run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
+      if: env.APP == 'apphub'
 
     - name: Download media.zip from artifacts
       uses: Legit-Labs/action-download-artifact@v2

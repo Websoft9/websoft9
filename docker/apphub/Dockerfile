@@ -1,4 +1,7 @@
-# modify time: 202312081856, you can modify here to trigger Docker Build action
+# This file can running at actions
+# If you build this image on local, need download media.zip from websoft9_artifact to docker/apphub directory
+
+# modify time: 202312081911, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
@@ -11,6 +14,7 @@ ENV websoft9_repo="https://github.com/Websoft9/websoft9"
 ENV websoft9_artifact="https://w9artifact.blob.core.windows.net/release/websoft9"
 ENV library_repo="https://github.com/Websoft9/docker-library"
 ENV source_github_pages="https://websoft9.github.io/websoft9"
+
 
 COPY media.zip /websoft9
 
