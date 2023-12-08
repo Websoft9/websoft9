@@ -74,6 +74,7 @@ jobs:
       uses: mathze/workflow-dispatch-action@v1.1.0
       with:
         workflow-name: media.yml
+        token: ${{github.token}}
       if: env.APP == 'apphub' 
 
     - name: Download media.zip from artifacts
