@@ -18,6 +18,10 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     git clone --depth=1 $library_repo && \
     mv docker-library w9library && \
     rm -rf w9library/.github && \
+    if [ ! -f ./media.zip ]; then \
+      wget $websoft9_artifact/plugin/media/media-latest.zip -O ./media.zip && \
+      unzip media.zip \
+    fi && \
     mv media* w9media && \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
