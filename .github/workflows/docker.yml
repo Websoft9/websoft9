@@ -77,7 +77,7 @@ jobs:
         workflow-name: media.yml
         token: ${{github.token}}
         run-id: dummy
-        wait-interval: 10
+        wait-interval: PT10S
       if: env.APP == 'apphub'
 
     - name: Reuse workflow run id
