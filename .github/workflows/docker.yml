@@ -73,8 +73,7 @@ jobs:
     - name: Trigger media.yml workflow
       uses: benc-uk/workflow-dispatch@v1
       with:
-        workflow: Media Action
-        token: ${{ secrets.GITHUB_TOKEN }}
+        workflow: media
       if: env.APP == 'apphub' 
 
     - name: Download media.zip from artifacts
