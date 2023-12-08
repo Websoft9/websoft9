@@ -96,58 +96,109 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+check_appname() {
+    if [ -z "$appname" ]; then
+        echo "appname cannot be empty"
+        exit 1
+    fi
+    if [ ! -d "/tmp/library/apps/$appname" ]; then
+        echo "websoft9 can not support to install this app"
+        exit 1
+    fi
+}
 
-echo "Start to get ip from script"
-get_ip_path=$(find / -name get_ip.sh 2>/dev/null)
-public_ip=$(bash "$get_ip_path")
-ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-if [ -z "$domain_names" ]; then
-    domain_names="$public_ip"
-    proxy_enabled=false
-elif [[ $domain_names =~ $ip_regex ]]; then
-    proxy_enabled=false
-fi
+get_public_ip() {
+    get_ip_path=$(find / -name get_ip.sh 2>/dev/null)
+    public_ip=$(bash "$get_ip_path")
+    echo "$public_ip"
+}
 
-rm -rf /tmp/library && sudo docker cp websoft9-apphub:/websoft9/library /tmp
-filename="/tmp/library/apps/${appname}/.env"
-settings=$(grep "^W9_.*_SET=" "$filename" | awk -F '=' '{print $1, $2}' | \
-while read -r key value; do
-    jq -n --arg key "$key" --arg value "$value" '{($key): $value}'
-done | jq -s add | jq -c .)
+get_domain_names() {
+    local domain_names="$1"
+    local public_ip="$2"
+    local ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+    if [ -z "$domain_names" ]; then
+        domain_names="$public_ip"
+    elif [[ $domain_names =~ $ip_regex ]]; then
+        domain_names="$domain_names"
+    fi
+    echo "$domain_names"
+}
 
-echo "Start to install $appname"
-api_url="localhost/api/apps/install"
-api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
-request_param=$(jq -n \
-                  --arg app_name "$appname" \
-                  --arg dist "$dist" \
-                  --arg version "$version" \
-                  --arg app_id "$appid" \
-                  --argjson proxy_enabled "$proxy_enabled" \
-                  --arg domain_names "$domain_names" \
-                  --argjson settings "$settings" \
-                  '{
-                    "app_name": $app_name,
-                    "edition": {
-                      "dist": $dist,
-                      "version": $version
-                    },
-                    "app_id": $app_id,
-                    "proxy_enabled": $proxy_enabled,
-                    "domain_names": [$domain_names],
-                    "settings": $settings
-                   }')
+get_proxy_enabled() {
+    local domain_names="$1"
+    local ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+    local proxy_enabled=true
+    if [ -z "$domain_names" ] || [[ $domain_names =~ $ip_regex ]]; then
+        proxy_enabled=false
+    fi
+    echo "$proxy_enabled"
+}
 
-echo $request_param
-response=$(curl -s -w "\n%{http_code}" -X POST "$api_url" \
-                -H "Content-Type: application/json" \
-                -H "x-api-key: $api_key" \
-                -d "$request_param")
+get_settings() {
+    local filename="$1"
+    local settings=$(grep "^W9_.*_SET=" "$filename" | awk -F '=' '{print $1, $2}' | \
+    while read -r key value; do
+        jq -n --arg key "$key" --arg value "$value" '{($key): $value}'
+    done | jq -s add | jq -c .)
+    echo "$settings"
+}
+
+install_app(){
+  
+  check_appname
+  public_ip=$(get_public_ip)
+  domain_names=$(get_domain_names "$domain_names" "$public_ip")
+  proxy_enabled=$(get_proxy_enabled "$domain_names")
+  rm -rf /tmp/library && sudo docker cp websoft9-apphub:/websoft9/library /tmp
+  filename="/tmp/library/apps/${appname}/.env"
+  settings=$(get_settings "${filename}")
+  api_url="localhost/api/apps/install"
+  api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
+  request_param=$(jq -n \
+                    --arg app_name "$appname" \
+                    --arg dist "$dist" \
+                    --arg version "$version" \
+                    --arg app_id "$appid" \
+                    --arg proxy_enabled "$proxy_enabled" \
+                    --arg domain_names "$domain_names" \
+                    --argjson settings "$settings" \
+                    '{
+                      "app_name": $app_name,
+                      "edition": {
+                        "dist": $dist,
+                        "version": $version
+                      },
+                      "app_id": $app_id,
+                      "proxy_enabled": $proxy_enabled,
+                      "domain_names": [$domain_names],
+                      "settings": $settings
+                    }')
+
+  response=$(curl -s -w "\n%{http_code}" -X POST "$api_url" \
+                  -H "Content-Type: application/json" \
+                  -H "x-api-key: $api_key" \
+                  -d "$request_param")
+  echo "$response"
+  
+}
+
+app_list(){
+  api_url="localhost/api/apps"
+  api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
+  response=$(curl -s -w "\n%{http_code}" -X GET "$api_url" \
+                  -H "Content-Type: application/json" \
+                  -H "x-api-key: $api_key")
+  echo "$response"
+}
+
+echo "-----------------Start to install ${appname}---------------------"
+response=$(install_app)
 
 http_code=$(echo "$response" | tail -n1)
 response_body=$(echo "$response" | head -n -1)
 
-echo "HTTP Code: $http_code"
+echo "Install HTTP Code: $http_code"
 echo "Response Body: $response_body"
 
 if [ "$http_code" -eq 200 ]; then
@@ -155,15 +206,17 @@ if [ "$http_code" -eq 200 ]; then
     max_attempts=50
     for (( i=1; i<=$max_attempts; i++ ))
     do
-        result=$(sudo docker ps -a | grep "$appid")
-        if [[ -n "$result" ]]; then
-            echo "Found appid in docker processes."
-            docker ps -a | grep "$appid"
+        result=$(app_list)
+        result_body=$(echo "$result" | head -n -1)
+        echo $result_body
+        if echo "$result_body" | jq -e --arg app_id "$appid" '.[] | select((.app_id | startswith($app_id)) and .status != 3)' >/dev/null; then
+            echo "$appname install success."
+            echo "---------check $appname status for docker---------"
+            sudo docker ps -a |grep $appid
             break
         else
-            echo "Appid not found, waiting for 5 seconds..."
+            echo "App is installing, waiting for 5 seconds..."
             sleep 5
-            # TODO max_attempts=50, 调用 /api/apps/{appid}
         fi
     done
 else
