@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  Build_New_Version_For_Release:
+  build:
     runs-on: ubuntu-latest
     env:
       ACCESS_TOKEN: ${{ secrets.CONTENTFUL_GRAPHQLTOKEN }}
@@ -16,7 +16,7 @@ jobs:
       CI: false
 
     steps:
-      - uses: actions/checkout@v2    
+      - uses: actions/checkout@v3    
 
       - name: Install GNU Parallel
         run: sudo apt-get install -y parallel
@@ -54,12 +54,11 @@ jobs:
              echo ${ITEMS[@]} | jq -s '.' > $DATA_DIR/product_${LOCALE:0:2}.json
            done
 
-      - name: Install ossutil
+      - name: Install and configure Aliyun ossutil
         run: |
           wget http://gosspublic.alicdn.com/ossutil/1.7.6/ossutil64
           chmod 755 ossutil64
-      - name: Configure ossutil
-        run: ./ossutil64 config -e ${{ secrets.OSS_ENDPOINT }} -i ${{ secrets.OSS_ACCESS_KEY_ID }} -k ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          ./ossutil64 config -e ${{ secrets.OSS_ENDPOINT }} -i ${{ secrets.OSS_ACCESS_KEY_ID }} -k ${{ secrets.OSS_ACCESS_KEY_SECRET }}
 
       - name: Download logos from oss
         run: ./ossutil64 cp oss://libs-websoft9-com/Websoft9/logo/product/ $APPSTORE_LOGO_DIR -r --update
@@ -70,7 +69,7 @@ jobs:
           zip -r media.zip media/
     
       - name: Upload media.zip to artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: media
           path: media.zip

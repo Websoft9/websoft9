@@ -1,4 +1,4 @@
-# modify time: 202312081555, you can modify here to trigger Docker Build action
+# modify time: 202312081656, you can modify here to trigger Docker Build action
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -6,8 +6,6 @@ LABEL version="0.0.6"
 
 WORKDIR  /websoft9
 
-ENV LIBRARY_VERSION=0.5.18
-ENV MEDIA_VERSION=0.0.7
 ENV websoft9_repo="https://github.com/Websoft9/websoft9"
 ENV websoft9_artifact="https://w9artifact.blob.core.windows.net/release/websoft9"
 ENV library_repo="https://github.com/Websoft9/docker-library"
