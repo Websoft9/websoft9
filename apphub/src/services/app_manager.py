@@ -474,7 +474,7 @@ class AppManger:
         # Install app - Step 4 : create proxy in nginx proxy manager
         try:
             # check the app is web app
-            if is_web_app:
+            if is_web_app is not None :
                 if proxy_enabled and domain_names:
                     # Get the forward port form env file
                     http_port = EnvHelper(env_file_path).get_value("W9_HTTP_PORT")

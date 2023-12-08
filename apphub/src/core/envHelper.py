@@ -7,7 +7,7 @@ class EnvHelper:
     def __init__(self, dotenv_path='.env'):
         self.dotenv_path = dotenv_path
         if not os.path.exists(dotenv_path):
-            logger.access(f"{dotenv_path} does not exist.")
+            logger.error(f"{dotenv_path} does not exist.")
             raise CustomException()
         
     def get_all_values(self):
