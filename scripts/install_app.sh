@@ -105,8 +105,11 @@ fi
 echo "Start to get ip from script"
 get_ip_path=$(find / -name get_ip.sh 2>/dev/null)
 public_ip=$(bash "$get_ip_path")
+ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
 if [ -z "$domain_names" ]; then
     domain_names="$public_ip"
+    proxy_enabled=false
+elif [[ $domain_names =~ $ip_regex ]]; then
     proxy_enabled=false
 fi
 
@@ -146,21 +149,29 @@ response=$(curl -s -w "\n%{http_code}" -X POST "$api_url" \
                 -H "x-api-key: $api_key" \
                 -d "$request_param")
 
-echo "$response"
 http_code=$(echo "$response" | tail -n1)
 response_body=$(echo "$response" | head -n -1)
 
 echo "HTTP Code: $http_code"
 echo "Response Body: $response_body"
 
-echo "------------------------------"
-# http_code=$(echo "$response" | tail -n1)
-# response_body=$(echo "$response" | head -n -1)
-
-# if [ "$http_code" -eq 200 ]; then
-#     sudo docker ps -a |grep "$appid"
-# else
-#     error_message=$(echo "$response_body" | jq -r '.message')
-#     error_details=$(echo "$response_body" | jq -r '.details')
-#     echo "Error: $error_message, Details: $error_details"
-# fi
+if [ "$http_code" -eq 200 ]; then
+    
+    max_attempts=50
+    for (( i=1; i<=$max_attempts; i++ ))
+    do
+        result=$(sudo docker ps -a | grep "$appid")
+        if [[ -n "$result" ]]; then
+            echo "Found appid in docker processes."
+            break
+        else
+            echo "Appid not found, waiting for 5 seconds..."
+            sleep 5
+            # TODO max_attempts=50, 调用 /api/apps/{appid}
+        fi
+    done
+else
+    error_message=$(echo "$response_body" | jq -r '.message')
+    error_details=$(echo "$response_body" | jq -r '.details')
+    echo "Install failed: $error_message, Details: $error_details"
+fi
