@@ -121,7 +121,7 @@ while read -r key value; do
 done | jq -s add | jq -c .)
 
 echo "Start to install $appname"
-api_url="$public_ip/api/apps/install"
+api_url="localhost/api/apps/install"
 api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
 request_param=$(jq -n \
                   --arg app_name "$appname" \
@@ -163,6 +163,7 @@ if [ "$http_code" -eq 200 ]; then
         result=$(sudo docker ps -a | grep "$appid")
         if [[ -n "$result" ]]; then
             echo "Found appid in docker processes."
+            docker ps -a | grep "$appid"
             break
         else
             echo "Appid not found, waiting for 5 seconds..."
