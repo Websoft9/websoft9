@@ -1,3 +1,6 @@
+# This action will be trigger by docker.yml action
+# docker.yml action download the artifact for build
+
 name: Build media for apphub image
 
 on:
