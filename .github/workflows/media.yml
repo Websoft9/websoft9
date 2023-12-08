@@ -68,7 +68,7 @@ jobs:
 
       - name: Create Zip Archive
         run: |
-          rsync -av json logos screenshots docs media
+          rsync -av json logos screenshots media
           zip -r media.zip media/
     
       - name: Upload media.zip to artifacts
