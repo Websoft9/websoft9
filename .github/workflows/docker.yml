@@ -68,8 +68,22 @@ jobs:
         echo "DOCKERFILE=docker/$APP/Dockerfile" >> $GITHUB_ENV
         echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
         echo "README=docker/$APP/README.md" >> $GITHUB_ENV
+     
+    ##------------ special task for apphub begin----------------------#
+    - name: Trigger media.yml workflow
+      uses: benc-uk/workflow-dispatch@v1
+      with:
+        workflow: Media Action
+        token: ${{ secrets.GITHUB_TOKEN }}
+      if: env.APP == 'apphub' 
 
-    
+    - name: Download media.zip from artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: media
+        path: ${{env.DIRECTORY}}
+      if: env.APP == 'apphub' 
+    ##------------ special task for apphub end----------------------#
 
     - name: Build & push Docker image
       uses: mr-smithers-excellent/docker-build-push@v6
