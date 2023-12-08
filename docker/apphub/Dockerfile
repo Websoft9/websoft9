@@ -1,4 +1,4 @@
-# modify time: 202312081709, you can modify here to trigger Docker Build action
+# modify time: 202312081725, you can modify here to trigger Docker Build action
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
@@ -20,7 +20,7 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     if [ ! -f ./media.zip ]; then \
       wget $websoft9_artifact/plugin/media/media-latest.zip -O ./media.zip && \
       unzip media.zip \
-    fi \
+    fi && \
     mv media* w9media \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
