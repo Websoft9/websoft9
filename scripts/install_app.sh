@@ -36,8 +36,8 @@ export PATH
 # 设置参数的默认值
 dist="community"
 version="latest"
-appname="wordpress"
-appid="mywp"
+appname=""
+appid="demo"
 domain_names=""
 proxy_enabled=true
 
@@ -96,11 +96,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-have_websoft9=$(docker compose ls | grep websoft9)
-if [ -z "$have_websoft9" ]; then
-    echo "You must install websoft9 service first"
-    exit 1
-fi
 
 echo "Start to get ip from script"
 get_ip_path=$(find / -name get_ip.sh 2>/dev/null)
