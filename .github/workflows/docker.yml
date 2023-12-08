@@ -69,6 +69,8 @@ jobs:
         echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
         echo "README=docker/$APP/README.md" >> $GITHUB_ENV
 
+    
+
     - name: Build & push Docker image
       uses: mr-smithers-excellent/docker-build-push@v6
       with:

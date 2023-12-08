@@ -15,10 +15,10 @@ ENV source_github_pages="https://websoft9.github.io/websoft9"
 
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
     # Prepare source files
-    wget $docker_library_repo/archive/refs/tags/$LIBRARY_VERSION.zip -O ./library.zip && \
-    unzip library.zip && \
-    mv docker-library-* w9library && \
+    git clone --depth=1 $docker_library
+    mv docker-library w9library && \
     rm -rf w9library/.github && \
+    
     wget $media_repo/archive/refs/tags/$MEDIA_VERSION.zip -O ./media.zip && \
     unzip media.zip && \
     mv media-* w9media && \

@@ -1,0 +1,13 @@
+{
+    "Plugin Name": "Media",
+    "Repository": "https://github.com/Websoft9/plugin-media",
+    "Update URI": "https://example.com/my-plugin/",
+    "Description": "Wesoft9 application Logos, data and Screen shoot.",
+    "Version": "0.0.7",
+    "Requires at most": "1.9.0",
+    "Requires at least": "0.0.2",
+    "Author": "Websoft9 Inc",
+    "Author URI": "https://www.websoft9.com/",
+    "License": "GPL v2 or later",
+    "License URI": "https://www.gnu.org/licenses/gpl-2.0.html"
+}
