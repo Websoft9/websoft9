@@ -12,12 +12,14 @@ ENV library_repo="https://github.com/Websoft9/docker-library"
 ENV source_github_pages="https://websoft9.github.io/websoft9"
 
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
-    # Prepare library
-    git clone --depth=1 $library_repo \
+    git clone --depth=1 $library_repo && \
     mv docker-library w9library && \
     rm -rf w9library/.github && \
-    # Prepare media
-    mv media* w9media \
+    if [ ! -f ./media.zip ]; then \
+      wget $websoft9_artifact/plugin/media/media-latest.zip -O ./media.zip && \
+      unzip media.zip; \
+    fi && \
+    mv media* w9media && \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
     cp redoc.standalone.js swagger-ui/dist && \
@@ -31,10 +33,7 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh && \
     pip install --no-cache-dir --upgrade -r apphub/requirements.txt && \
     pip install -e ./apphub && \
-    # Clean cache and install files
-    rm -rf apphub/docs apphub/tests library.zip media.zip redoc.standalone.js swagger-ui w9library w9media w9source && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
+    rm -rf apphub/docs apphub/tests library.zip ...
 
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
