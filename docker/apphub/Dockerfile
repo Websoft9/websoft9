@@ -20,7 +20,7 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     mv docker-library w9library && \
     rm -rf w9library/.github && \
     ls -la && \
-    unzip media.zip && rm -rf media.zip \
+    unzip media.zip && rm -rf media.zip && \
     mv media* w9media && \
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
