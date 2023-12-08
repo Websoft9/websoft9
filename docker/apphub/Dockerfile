@@ -12,12 +12,11 @@ ENV websoft9_artifact="https://w9artifact.blob.core.windows.net/release/websoft9
 ENV library_repo="https://github.com/Websoft9/docker-library"
 ENV source_github_pages="https://websoft9.github.io/websoft9"
 
-SHELL ["/bin/bash", "-c"]
-
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
     git clone --depth=1 $library_repo && \
     mv docker-library w9library && \
-    
+    rm -rf w9library/.github && \
+
 
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
