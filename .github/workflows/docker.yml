@@ -71,9 +71,9 @@ jobs:
      
     ##------------ special task for apphub begin----------------------#
     - name: Trigger media.yml workflow
-      uses: benc-uk/workflow-dispatch@v1
+      uses: mathze/workflow-dispatch-action@v1.1.0
       with:
-        workflow: media.yml
+        workflow-name: media.yml
       if: env.APP == 'apphub' 
 
     - name: Download media.zip from artifacts
