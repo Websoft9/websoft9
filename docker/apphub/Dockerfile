@@ -1,5 +1,5 @@
 # This file can running at actions
-# If you build this image on local, need download media.zip from websoft9_artifact to docker/apphub directory
+# If you build this image on local, need download media.zip from WEBSOFT9_ARTIFACT to docker/apphub directory
 
 # modify time: 202312081919, you can modify here to trigger Docker Build action
 
@@ -10,17 +10,17 @@ LABEL version="0.0.6"
 
 WORKDIR  /websoft9
 
-ENV websoft9_repo="https://github.com/Websoft9/websoft9"
-ENV websoft9_artifact="https://w9artifact.blob.core.windows.net/release/websoft9"
-ENV library_repo="https://github.com/Websoft9/docker-library"
-ENV source_github_pages="https://websoft9.github.io/websoft9"
+ARG WEBSOFT9_REPO="https://github.com/Websoft9/websoft9"
+ARG WEBSOFT9_ARTIFACT="https://w9artifact.blob.core.windows.net/release/websoft9"
+ARG LIBRARY_REPO="https://github.com/Websoft9/docker-library"
+ARG SOURCE_GITHUB_PAGES="https://websoft9.github.io/websoft9"
 
 
 COPY media.zip /websoft9
 
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
     # download docker-library
-    git clone --depth=1 $library_repo && \
+    git clone --depth=1 $LIBRARY_REPO && \
     mv docker-library w9library && \
     rm -rf w9library/.github && \
     ls -la && \
@@ -29,14 +29,14 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
     cp redoc.standalone.js swagger-ui/dist && \
-    git clone --depth=1 $websoft9_repo ./w9source && \
+    git clone --depth=1 $WEBSOFT9_REPO ./w9source && \
     cp -r ./w9media ./media && \
     cp -r ./w9library ./library && \
     cp -r ./w9source/apphub ./apphub && \
     cp -r ./swagger-ui/dist ./apphub/swagger-ui && \
     cp -r ./w9source/apphub/src/config ./config && \
     cp -r ./w9source/docker/apphub/script ./script && \
-    curl -o ./script/update_zip.sh $source_github_pages/scripts/update_zip.sh && \
+    curl -o ./script/update_zip.sh $SOURCE_GITHUB_PAGES/scripts/update_zip.sh && \
     pip install --no-cache-dir --upgrade -r apphub/requirements.txt && \
     pip install -e ./apphub && \
     # Clean cache and install files
