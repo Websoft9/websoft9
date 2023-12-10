@@ -76,6 +76,7 @@ jobs:
     ##begin----------- special task for apphub----------------------#
 
     - name: Trigger media.yml workflow
+      if: env.APP == 'apphub' && if env.MEDIA_FROM == 'source'
       uses: mathze/workflow-dispatch-action@v1.1.0
       id: startAndWaitWorkflow
       with:
@@ -83,20 +84,19 @@ jobs:
         token: ${{github.token}}
         run-id: dummy
         wait-interval: PT10S
-      if: env.APP == 'apphub' && if env.MEDIA_FROM == 'source'
 
     - name: Wait for Workflow
-      run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
       if: env.APP == 'apphub' && if env.MEDIA_FROM == 'source'
-
+      run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
+      
     - name: Download media.zip from action artifact
       uses: Legit-Labs/action-download-artifact@v2
+      if: env.APP == 'apphub' && if env.MEDIA_FROM == 'source'
       with:
         workflow: media.yml
         name: media
         path: ${{env.DIRECTORY}}
-      if: env.APP == 'apphub' && if env.MEDIA_FROM == 'source'
-
+      
     - name: Download media-latest.zip from Websoft9 artifact  
       if: env.MEDIA_FROM == 'artifact'  
       run: |  
