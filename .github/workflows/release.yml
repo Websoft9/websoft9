@@ -77,7 +77,7 @@ jobs:
             version.json
             CHANGELOG.md
           tag_name: ${{ steps.convert_version.outputs.VERSION }}
-          title: Release-${{ steps.convert_version.outputs.VERSION }}
+          name: Release-${{ steps.convert_version.outputs.VERSION }}
           body: ${{ steps.update_data.outputs.CHANGELOG }}
           draft: false
           prerelease: false

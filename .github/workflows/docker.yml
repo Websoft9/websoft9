@@ -13,8 +13,6 @@ on:
     paths:
       - "docker/*/Dockerfile"
 
-
-
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -75,7 +73,7 @@ jobs:
         echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
         echo "README=docker/$APP/README.md" >> $GITHUB_ENV
      
-    ## begin----------- special task for apphub----------------------#
+    ##begin----------- special task for apphub----------------------#
 
     - name: Trigger media.yml workflow
       uses: mathze/workflow-dispatch-action@v1.1.0
@@ -104,7 +102,7 @@ jobs:
         curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
       if env.MEDIA_FROM == 'artifact'
 
-    ## end------------ special task for apphub ---------------------#
+    ##end------------ special task for apphub ---------------------#
 
     - name: Build & push Docker image
       uses: mr-smithers-excellent/docker-build-push@v6
