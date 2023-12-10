@@ -7,18 +7,13 @@ on:
     paths:
       - "version.json"
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
-permissions:
-  pages: write
-  id-token: write
-
 jobs:
   upload_artifact:
     name: upload_artifact
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: Check out code
 
       - name: Version convert
