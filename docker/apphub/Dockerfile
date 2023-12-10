@@ -1,7 +1,7 @@
 # This file can running at actions
 # If you build this image on local, need download media.zip from WEBSOFT9_ARTIFACT to docker/apphub directory
 
-# modify time: 202312110754, you can modify here to trigger Docker Build action
+# modify time: 202312110756, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye

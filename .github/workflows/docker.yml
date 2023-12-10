@@ -97,10 +97,10 @@ jobs:
         path: ${{env.DIRECTORY}}
       if: env.APP == 'apphub' && if env.MEDIA_FROM == 'source'
 
-    - name: Download media-latest.zip from Websoft9 artifact
-      run: |
+    - name: Download media-latest.zip from Websoft9 artifact  
+      if: env.MEDIA_FROM == 'artifact'  
+      run: |  
         curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
-      if env.MEDIA_FROM == 'artifact'
 
     ##end------------ special task for apphub ---------------------#
 
