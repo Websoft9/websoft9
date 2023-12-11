@@ -12,7 +12,7 @@ COPY ./config/initproxy.conf /etc/
 COPY ./s6/w9init/setuser.sh /app/setuser.sh
 COPY ./s6/w9init/migration.sh /app/migration.sh
 COPY ./s6/w9init/setproxy.sh /app/setproxy.sh
-RUN chmod +x /app/setuser.sh /app/migration.sh
+RUN chmod +x /app/setuser.sh /app/migration.sh /app/setproxy.sh
 
 RUN export add_ip_data="const ipDataFile={[CLOUDFRONT_URL]:'ip-ranges.json',[CLOUDFARE_V4_URL]:'ips-v4',[CLOUDFARE_V6_URL]:'ips-v6'}[url];logger.info(ipDataFile);if(ipDataFile){return fs.readFile(__dirname+'/../lib/ipData/'+ipDataFile,'utf8',(error,data)=>{if(error){logger.error('fetch '+ipDataFile+' error');reject(error);return}logger.info('fetch '+ipDataFile+' success');resolve(data)})}" && \
     sed -i "s#url);#&${add_ip_data}#g" /app/internal/ip_ranges.js && \
