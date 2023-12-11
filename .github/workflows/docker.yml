@@ -31,6 +31,7 @@ jobs:
         app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
         app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
         echo "::set-output name=matrix::{\"app\": $app_list_json}"
+        echo "matrix={\"app\": $app_list_json}" >> $GITHUB_ENV
 
   build:
     needs: setup
@@ -39,7 +40,7 @@ jobs:
       # You can set it to choice where download from 
       MEDIA_FROM: "source"
     strategy:
-      matrix: ${{fromJson(needs.setup.outputs.matrix)}}
+      matrix: ${{ env.matrix }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
