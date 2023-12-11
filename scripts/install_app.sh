@@ -97,6 +97,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 check_appname() {
+    rm -rf /tmp/library && sudo docker cp websoft9-apphub:/websoft9/library /tmp
     if [ -z "$appname" ]; then
         echo "appname cannot be empty"
         exit 1
@@ -111,18 +112,6 @@ get_public_ip() {
     get_ip_path=$(find / -name get_ip.sh 2>/dev/null)
     public_ip=$(bash "$get_ip_path")
     echo "$public_ip"
-}
-
-get_domain_names() {
-    local domain_names="$1"
-    local public_ip="$2"
-    local ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-    if [ -z "$domain_names" ]; then
-        domain_names="$public_ip"
-    elif [[ $domain_names =~ $ip_regex ]]; then
-        domain_names="$domain_names"
-    fi
-    echo "$domain_names"
 }
 
 get_proxy_enabled() {
@@ -148,9 +137,13 @@ install_app(){
   
   check_appname
   public_ip=$(get_public_ip)
-  domain_names=$(get_domain_names "$domain_names" "$public_ip")
+  local ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+  if [ -z "$domain_names" ]; then
+    domain_names="$public_ip"
+  elif [[ $domain_names =~ $ip_regex ]]; then
+    domain_names="$domain_names"
+  fi
   proxy_enabled=$(get_proxy_enabled "$domain_names")
-  rm -rf /tmp/library && sudo docker cp websoft9-apphub:/websoft9/library /tmp
   filename="/tmp/library/apps/${appname}/.env"
   settings=$(get_settings "${filename}")
   api_url="localhost/api/apps/install"
