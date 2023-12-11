@@ -1,5 +1,5 @@
 # This file can running at actions
-# If you build this image on local, need download media.zip from WEBSOFT9_ARTIFACT to docker/apphub directory
+
 
 # modify time: 202312110758, you can modify here to trigger Docker Build action
 
@@ -15,7 +15,8 @@ ARG WEBSOFT9_ARTIFACT="https://w9artifact.blob.core.windows.net/release/websoft9
 ARG LIBRARY_REPO="https://github.com/Websoft9/docker-library"
 ARG SOURCE_GITHUB_PAGES="https://websoft9.github.io/websoft9"
 
-
+# If you build this image on local, need download media.zip from WEBSOFT9_ARTIFACT to docker/apphub directory like below
+# RUN curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
 COPY media.zip /websoft9
 
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \
