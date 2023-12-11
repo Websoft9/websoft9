@@ -26,7 +26,7 @@ jobs:
       run: |
         git diff --name-only HEAD^ HEAD
         changed_files=$(git diff --name-only HEAD^ HEAD)
-        app_list=$(echo "$changed_files" | grep -E 'apps/.*/(Dockerfile|cmd.sh|entrypoint.sh)' | awk -F'/' '{print $2}' | sort | uniq)
+        app_list=$(echo "$changed_files" | grep -E 'apps/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
         if [ -z "$app_list" ]; then
           app_list_json='[]'
         else
