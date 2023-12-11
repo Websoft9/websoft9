@@ -30,7 +30,6 @@ jobs:
         changed_files=$(git diff --name-only HEAD^ HEAD)
         app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
         app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
-        echo "::set-output name=matrix::{\"app\": $app_list_json}"
         echo "matrix={\"app\": $app_list_json}" >> $GITHUB_ENV
 
   build:
