@@ -1,4 +1,4 @@
-# modify time: 202311071641, you can modify here to trigger Docker Build action
+# modify time: 202312111034, you can modify here to trigger Docker Build action
 # from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y curl jq && rm -
 COPY ./config/initproxy.conf /etc/
 COPY ./s6/w9init/setuser.sh /app/setuser.sh
 COPY ./s6/w9init/migration.sh /app/migration.sh
+COPY ./s6/w9init/proxy.sh /app/proxy.sh
 RUN chmod +x /app/setuser.sh /app/migration.sh
 
 RUN export add_ip_data="const ipDataFile={[CLOUDFRONT_URL]:'ip-ranges.json',[CLOUDFARE_V4_URL]:'ips-v4',[CLOUDFARE_V6_URL]:'ips-v6'}[url];logger.info(ipDataFile);if(ipDataFile){return fs.readFile(__dirname+'/../lib/ipData/'+ipDataFile,'utf8',(error,data)=>{if(error){logger.error('fetch '+ipDataFile+' error');reject(error);return}logger.info('fetch '+ipDataFile+' success');resolve(data)})}" && \
@@ -20,4 +21,4 @@ RUN export add_ip_data="const ipDataFile={[CLOUDFRONT_URL]:'ip-ranges.json',[CLO
     curl -O https://www.cloudflare.com/ips-v4 && \
     curl -O https://www.cloudflare.com/ips-v6
 
-CMD ["/bin/sh", "-c", "/app/migration.sh && /app/setuser.sh && tail -f /dev/null"]
+CMD ["/bin/sh", "-c", "/app/migration.sh && /app/setuser.sh && setproxy.sh && tail -f /dev/null"]
