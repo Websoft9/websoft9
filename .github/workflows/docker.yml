@@ -12,6 +12,8 @@ on:
     branches: [main]
     paths:
       - "docker/*/Dockerfile"
+env:
+  matrix: ""
 
 jobs:
   setup:
