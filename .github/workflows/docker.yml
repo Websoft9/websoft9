@@ -26,9 +26,13 @@ jobs:
       run: |
         git diff --name-only HEAD^ HEAD
         changed_files=$(git diff --name-only HEAD^ HEAD)
-        app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
-        app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
-        echo "::set-output name=matrix::{\"app\": $app_list_json}"  
+        app_list=$(echo "$changed_files" | grep -E 'apps/.*/(Dockerfile|cmd.sh|entrypoint.sh)' | awk -F'/' '{print $2}' | sort | uniq)
+        if [ -z "$app_list" ]; then
+          app_list_json='[]'
+        else
+          app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
+        fi
+        echo "::set-output name=matrix::{\"app\": $app_list_json}"
 
   build:
     needs: setup
