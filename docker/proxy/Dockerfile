@@ -21,4 +21,4 @@ RUN export add_ip_data="const ipDataFile={[CLOUDFRONT_URL]:'ip-ranges.json',[CLO
     curl -O https://www.cloudflare.com/ips-v4 && \
     curl -O https://www.cloudflare.com/ips-v6
 
-CMD ["/bin/sh", "-c", "/app/migration.sh && /app/setuser.sh && setproxy.sh && tail -f /dev/null"]
+CMD ["/bin/sh", "-c", "/app/migration.sh && /app/setuser.sh && /app/setproxy.sh && tail -f /dev/null"]
