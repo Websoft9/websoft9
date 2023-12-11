@@ -12,14 +12,12 @@ on:
     branches: [main]
     paths:
       - "docker/*/Dockerfile"
-env:
+env:  
   matrix: ""
 
 jobs:
   setup:
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -41,7 +39,7 @@ jobs:
       # You can set it to choice where download from 
       MEDIA_FROM: "source"
     strategy:
-      matrix: ${{ env.matrix }}
+      matrix: $matrix
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
