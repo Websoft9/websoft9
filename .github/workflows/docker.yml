@@ -3,6 +3,7 @@
 # When version include "-", it not divide version and build ony one test image
 # It have enable multiPlatform, you add more platform at platform: linux/amd64...
 # If you add more paths for trigger, please update app_list= at set-matrix for it also
+# MEDIA_FROM environment: source | artifact, when use source get from contentful and oss, use artifact download media-latest from Websoft9 artifact
 
 name: Build image to DockerHub
 
@@ -34,6 +35,9 @@ jobs:
   build:
     needs: setup
     runs-on: ubuntu-latest
+    env:
+      # You can set it to choice where download from 
+      MEDIA_FROM: "source"
     strategy:
       matrix: ${{fromJson(needs.setup.outputs.matrix)}}
     steps:
@@ -78,11 +82,11 @@ jobs:
         token: ${{github.token}}
         run-id: dummy
         wait-interval: PT10S
-      if: env.APP == 'apphub'
+      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
     - name: Reuse workflow run id
       run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
-      if: env.APP == 'apphub'
+      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
     - name: Download media.zip from artifacts
       uses: Legit-Labs/action-download-artifact@v2
@@ -90,7 +94,13 @@ jobs:
         workflow: media.yml
         name: media
         path: ${{env.DIRECTORY}}
-      if: env.APP == 'apphub' 
+      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+
+    - name: Download media-latest.zip from Websoft9 artifact  
+      if: env.MEDIA_FROM == 'artifact'  
+      run: |  
+        curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
+    
     ##------------ special task for apphub end----------------------#
 
     - name: Build & push Docker image
