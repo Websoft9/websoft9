@@ -12,8 +12,6 @@ on:
     branches: [main]
     paths:
       - "docker/*/Dockerfile"
-env:  
-  MATRIX: '{}'
 
 jobs:
   setup:
@@ -30,8 +28,7 @@ jobs:
         changed_files=$(git diff --name-only HEAD^ HEAD)
         app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
         app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
-        MATRIX={\"app\": $app_list_json}
-        echo "MATRIX=$MATRIX" >> $GITHUB_ENV  
+        echo "::set-output name=matrix::{\"app\": $app_list_json}"  
 
   build:
     needs: setup
@@ -40,7 +37,7 @@ jobs:
       # You can set it to choice where download from 
       MEDIA_FROM: "source"
     strategy:
-      matrix: ${{ fromJson(env.MATRIX) }}
+      matrix: ${{fromJson(needs.setup.outputs.matrix)}}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
