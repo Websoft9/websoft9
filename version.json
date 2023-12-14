@@ -1,5 +1,5 @@
 {
-  "version": "0.8.34-rc2",
+  "version": "0.8.35",
   "plugins": {
     "portainer": "0.0.8",
     "nginx": "0.0.6",
@@ -10,8 +10,8 @@
     "navigator": "0.5.10"
   },
   "data": {
-    "media": "0.0.7",
-    "library": "0.5.19-rc1"
+    "media": "0.0.8",
+    "library": "0.5.20"
   },
   "OS": {
     "Fedora": [
