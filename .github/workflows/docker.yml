@@ -25,6 +25,14 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 2
+      
+      - name: Trigger docker-libaray/release.yml workflow
+        uses: mathze/workflow-dispatch-action@v1.1.0
+        with:
+          workflow-name: release.yml
+          repo: docker-libaray
+          owner: websoft9
+          token: ${{github.token}}
 
       - id: set-matrix
         run: |
