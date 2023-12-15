@@ -125,7 +125,7 @@ jobs:
         destination_folder: ./websoft9/plugin/media
         delete_if_exists: true
         fail_if_source_empty: true
-    if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
     
     ##------------ special task for apphub end----------------------#
 
