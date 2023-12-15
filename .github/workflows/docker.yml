@@ -49,7 +49,6 @@ jobs:
           fetch-depth: 2
 
       - name: Prepare tags and files for Docker build
-        id: convert_version 
         run: |
           APP=${{ matrix.app }}
           TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
@@ -120,7 +119,7 @@ jobs:
         uses: LanceMcCarthy/Action-AzureBlobUpload@v2
         with:
           connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
-          container_name: ${{ steps.convert_version.outputs.CHANNEL }}
+          container_name: ${{ env.CHANNEL }}
           source_folder: media/
           destination_folder: ./websoft9/plugin/media
           delete_if_exists: true
