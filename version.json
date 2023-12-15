@@ -9,10 +9,6 @@
     "settings": "0.0.8",
     "navigator": "0.5.10"
   },
-  "data": {
-    "media": "0.0.8",
-    "library": "0.5.20"
-  },
   "OS": {
     "Fedora": [
       "38",

@@ -1,4 +1,5 @@
 # This file can running at actions
+# MEDIA_VERSION and LIBRARY_VERSION will trigger its release
 # modify time: 202312141910, you can modify here to trigger Docker Build action
 
 
@@ -8,6 +9,8 @@ LABEL version="0.0.6"
 
 WORKDIR  /websoft9
 
+ARG MEDIA_VERSION="0.0.9"
+ARG LIBRARY_VERSION="0.5.21"
 ARG WEBSOFT9_REPO="https://github.com/Websoft9/websoft9"
 ARG WEBSOFT9_ARTIFACT="https://w9artifact.blob.core.windows.net/release/websoft9"
 ARG LIBRARY_REPO="https://github.com/Websoft9/docker-library"

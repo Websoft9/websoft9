@@ -1,4 +1,6 @@
 # This action is used for building websoft9 docker images to DockerHub at one time
+# This action is also release Media and Libarary with build apphub image
+
 # It need LABEL version="" at your dockerfile. And it can divide version. e.g version v3.4.0.3 will divide to latest,v3,v3.4,v3.4.0,v3.4.0.3
 # When version include "-", it not divide version and build ony one test image
 # It have enable multiPlatform, you add more platform at platform: linux/amd64...
@@ -47,13 +49,16 @@ jobs:
         fetch-depth: 2
 
     - name: Prepare tags and files for Docker build
+      id: convert_version 
       run: |
         APP=${{ matrix.app }}
         TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
         echo $APP version is $TAG
         if [[ "$TAG" == *"-"* ]]; then
           TAGS="$TAG"
+          echo "CHANNEL=dev" >> $GITHUB_ENV
         else
+          echo "CHANNEL=release" >> $GITHUB_ENV
           IFS='.' read -ra PARTS <<< "$TAG"
           TAGS="latest"
           TAG_PART=""
@@ -96,12 +101,35 @@ jobs:
         path: ${{env.DIRECTORY}}
       if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
-    - name: Download media-latest.zip from Websoft9 artifact  
-      if: env.MEDIA_FROM == 'artifact'  
+    - name: Download media-latest.zip from Websoft9 artifact    
       run: |  
         curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
+      if: env.MEDIA_FROM == 'artifact'
+    
+      # release media step1
+    - name: Create more files
+        run: |
+          version_core=$(grep 'ARG MEDIA_VERSION' "docker/apphub/Dockerfile" | cut -d'"' -f2 | xargs)
+          cp ${{env.DIRECTORY}}/media.zip media/media-latest.zip
+          cp media/media-latest.zip media/media-$version_core.zip
+          jq --arg version "$version_core" '.Version = $version' media/media.json > media/temp.json && mv media/temp.json media/media.json
+      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+    
+      # release media step2
+    - name: Upload To Azure Blob
+      uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+      with:
+        connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
+        container_name: ${{ steps.convert_version.outputs.CHANNEL }}
+        source_folder: media/
+        destination_folder: ./websoft9/plugin/media
+        delete_if_exists: true
+        fail_if_source_empty: true
+    if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
     
     ##------------ special task for apphub end----------------------#
+
+
 
     - name: Build & push Docker image
       uses: mr-smithers-excellent/docker-build-push@v6
