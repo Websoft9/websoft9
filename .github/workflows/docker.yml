@@ -32,6 +32,7 @@ jobs:
           workflow-name: release.yml
           repo: docker-libaray
           owner: websoft9
+          ref: main
           token: ${{github.token}}
 
       - id: set-matrix
