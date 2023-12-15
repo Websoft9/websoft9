@@ -21,18 +21,18 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 2
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
 
-    - id: set-matrix
-      run: |
-        git diff --name-only HEAD^ HEAD
-        changed_files=$(git diff --name-only HEAD^ HEAD)
-        app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
-        app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
-        echo "::set-output name=matrix::{\"app\": $app_list_json}"
+      - id: set-matrix
+        run: |
+          git diff --name-only HEAD^ HEAD
+          changed_files=$(git diff --name-only HEAD^ HEAD)
+          app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
+          app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
+          echo "::set-output name=matrix::{\"app\": $app_list_json}"
 
   build:
     needs: setup
@@ -43,112 +43,112 @@ jobs:
     strategy:
       matrix: ${{fromJson(needs.setup.outputs.matrix)}}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 2
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
 
-    - name: Prepare tags and files for Docker build
-      id: convert_version 
-      run: |
-        APP=${{ matrix.app }}
-        TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
-        echo $APP version is $TAG
-        if [[ "$TAG" == *"-"* ]]; then
-          TAGS="$TAG"
-          echo "CHANNEL=dev" >> $GITHUB_ENV
-        else
-          echo "CHANNEL=release" >> $GITHUB_ENV
-          IFS='.' read -ra PARTS <<< "$TAG"
-          TAGS="latest"
-          TAG_PART=""
-          for i in "${!PARTS[@]}"; do 
-            if [ "$i" -eq 0 ]; then 
-              TAG_PART="${PARTS[$i]}"
-            else 
-              TAG_PART="${TAG_PART}.${PARTS[$i]}"
-            fi
-            TAGS="${TAGS},${TAG_PART}"
-          done
-        fi
-        echo "Building and pushing Docker image for $APP with tags: $TAGS"
-        echo "TAGS=$TAGS" >> $GITHUB_ENV
-        echo "APP=$APP" >> $GITHUB_ENV
-        echo "DOCKERFILE=docker/$APP/Dockerfile" >> $GITHUB_ENV
-        echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
-        echo "README=docker/$APP/README.md" >> $GITHUB_ENV
-     
-    ##------------ special task for apphub begin----------------------#
-    - name: Trigger media.yml workflow
-      uses: mathze/workflow-dispatch-action@v1.1.0
-      id: startAndWaitWorkflow
-      with:
-        workflow-name: media.yml
-        token: ${{github.token}}
-        run-id: dummy
-        wait-interval: PT10S
-      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+      - name: Prepare tags and files for Docker build
+        id: convert_version 
+        run: |
+          APP=${{ matrix.app }}
+          TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
+          echo $APP version is $TAG
+          if [[ "$TAG" == *"-"* ]]; then
+            TAGS="$TAG"
+            echo "CHANNEL=dev" >> $GITHUB_ENV
+          else
+            echo "CHANNEL=release" >> $GITHUB_ENV
+            IFS='.' read -ra PARTS <<< "$TAG"
+            TAGS="latest"
+            TAG_PART=""
+            for i in "${!PARTS[@]}"; do 
+              if [ "$i" -eq 0 ]; then 
+                TAG_PART="${PARTS[$i]}"
+              else 
+                TAG_PART="${TAG_PART}.${PARTS[$i]}"
+              fi
+              TAGS="${TAGS},${TAG_PART}"
+            done
+          fi
+          echo "Building and pushing Docker image for $APP with tags: $TAGS"
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
+          echo "APP=$APP" >> $GITHUB_ENV
+          echo "DOCKERFILE=docker/$APP/Dockerfile" >> $GITHUB_ENV
+          echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
+          echo "README=docker/$APP/README.md" >> $GITHUB_ENV
+      
+      ##------------ special task for apphub begin----------------------#
+      - name: Trigger media.yml workflow
+        uses: mathze/workflow-dispatch-action@v1.1.0
+        id: startAndWaitWorkflow
+        with:
+          workflow-name: media.yml
+          token: ${{github.token}}
+          run-id: dummy
+          wait-interval: PT10S
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
-    - name: Reuse workflow run id
-      run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
-      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+      - name: Reuse workflow run id
+        run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
-    - name: Download media.zip from artifacts
-      uses: Legit-Labs/action-download-artifact@v2
-      with:
-        workflow: media.yml
-        name: media
-        path: ${{env.DIRECTORY}}
-      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+      - name: Download media.zip from artifacts
+        uses: Legit-Labs/action-download-artifact@v2
+        with:
+          workflow: media.yml
+          name: media
+          path: ${{env.DIRECTORY}}
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
-    - name: Download media-latest.zip from Websoft9 artifact    
-      run: |  
-        curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
-      if: env.MEDIA_FROM == 'artifact'
-    
-      # release media step1
-    - name: Create more files
-      run: |
-        version_core=$(grep 'ARG MEDIA_VERSION' "docker/apphub/Dockerfile" | cut -d'"' -f2 | xargs)
-        cp ${{env.DIRECTORY}}/media.zip media/media-latest.zip
-        cp media/media-latest.zip media/media-$version_core.zip
-        jq --arg version "$version_core" '.Version = $version' media/media.json > media/temp.json && mv media/temp.json media/media.json
-      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
-    
-      # release media step2
-    - name: Upload To Azure Blob
-      uses: LanceMcCarthy/Action-AzureBlobUpload@v2
-      with:
-        connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
-        container_name: ${{ steps.convert_version.outputs.CHANNEL }}
-        source_folder: media/
-        destination_folder: ./websoft9/plugin/media
-        delete_if_exists: true
-        fail_if_source_empty: true
-      if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
-    
-    ##------------ special task for apphub end----------------------#
+      - name: Download media-latest.zip from Websoft9 artifact    
+        run: |  
+          curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
+        if: env.MEDIA_FROM == 'artifact'
+      
+        # release media step1
+      - name: Create more files
+        run: |
+          version_core=$(grep 'ARG MEDIA_VERSION' "docker/apphub/Dockerfile" | cut -d'"' -f2 | xargs)
+          cp ${{env.DIRECTORY}}/media.zip media/media-latest.zip
+          cp media/media-latest.zip media/media-$version_core.zip
+          jq --arg version "$version_core" '.Version = $version' media/media.json > media/temp.json && mv media/temp.json media/media.json
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+      
+        # release media step2
+      - name: Upload To Azure Blob
+        uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+        with:
+          connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
+          container_name: ${{ steps.convert_version.outputs.CHANNEL }}
+          source_folder: media/
+          destination_folder: ./websoft9/plugin/media
+          delete_if_exists: true
+          fail_if_source_empty: true
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
+      
+      ##------------ special task for apphub end----------------------#
 
 
 
-    - name: Build & push Docker image
-      uses: mr-smithers-excellent/docker-build-push@v6
-      with:
-        image: websoft9dev/${{env.APP}}
-        tags: ${{env.TAGS}}
-        registry: docker.io
-        directory: ${{env.DIRECTORY}}
-        dockerfile: ${{env.DOCKERFILE}}
-        multiPlatform: true
-        platform: linux/amd64
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build & push Docker image
+        uses: mr-smithers-excellent/docker-build-push@v6
+        with:
+          image: websoft9dev/${{env.APP}}
+          tags: ${{env.TAGS}}
+          registry: docker.io
+          directory: ${{env.DIRECTORY}}
+          dockerfile: ${{env.DOCKERFILE}}
+          multiPlatform: true
+          platform: linux/amd64
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Docker Hub Description
-      uses: peter-evans/dockerhub-description@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        repository: websoft9dev/${{env.APP}}
-        readme-filepath: ${{env.README}}
-      if: needs.setup.outputs.matrix != ''
+      - name: Docker Hub Description
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: websoft9dev/${{env.APP}}
+          readme-filepath: ${{env.README}}
+        if: needs.setup.outputs.matrix != ''
