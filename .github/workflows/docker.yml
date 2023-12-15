@@ -31,7 +31,7 @@ jobs:
         with:
           repository: websoft9/docker-library
           event-type: custom_event
-          token: ${{github.token}}
+          token: ${{secrets.MYGITHUB_ADMIN_TOKEN}}
 
       - id: set-matrix
         run: |
