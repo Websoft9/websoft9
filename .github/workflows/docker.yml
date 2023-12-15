@@ -108,11 +108,11 @@ jobs:
     
       # release media step1
     - name: Create more files
-        run: |
-          version_core=$(grep 'ARG MEDIA_VERSION' "docker/apphub/Dockerfile" | cut -d'"' -f2 | xargs)
-          cp ${{env.DIRECTORY}}/media.zip media/media-latest.zip
-          cp media/media-latest.zip media/media-$version_core.zip
-          jq --arg version "$version_core" '.Version = $version' media/media.json > media/temp.json && mv media/temp.json media/media.json
+      run: |
+        version_core=$(grep 'ARG MEDIA_VERSION' "docker/apphub/Dockerfile" | cut -d'"' -f2 | xargs)
+        cp ${{env.DIRECTORY}}/media.zip media/media-latest.zip
+        cp media/media-latest.zip media/media-$version_core.zip
+        jq --arg version "$version_core" '.Version = $version' media/media.json > media/temp.json && mv media/temp.json media/media.json
       if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
     
       # release media step2
