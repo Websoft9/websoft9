@@ -61,4 +61,5 @@ VOLUME /websoft9/apphub/logs
 VOLUME /websoft9/apphub/src/config
 
 EXPOSE 8080
+EXPOSE 8081
 ENTRYPOINT ["/websoft9/script/entrypoint.sh"]
