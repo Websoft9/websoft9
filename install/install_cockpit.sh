@@ -172,6 +172,7 @@ Set_Repository() {
 Restart_Cockpit(){
     echo "$echo_prefix_cockpit Restart Cockpit"
     sudo systemctl daemon-reload
+    sudo systemctl enable cockpit 2> /dev/null
     sudo systemctl restart cockpit.socket 2> /dev/null
     sudo systemctl restart cockpit || exit 1
 }
