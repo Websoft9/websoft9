@@ -54,8 +54,10 @@ class Logger(metaclass=SingletonMeta):
         log_folder = os.path.join(os.getcwd(), "logs")
         os.makedirs(log_folder, exist_ok=True)
 
-        current_time = datetime.now().strftime('%Y_%m_%d')        
-        log_file = os.path.join(log_folder, f"{log_type}_{current_time}.log")
+        # current_time = datetime.now().strftime('%Y_%m_%d')        
+        # log_file = os.path.join(log_folder, f"{log_type}_{current_time}.log")
+
+        log_file = os.path.join(log_folder, f"apphub_{log_type}.log")
 
         file_handler = TimedRotatingFileHandler(
             filename=log_file,

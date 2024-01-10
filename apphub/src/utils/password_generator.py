@@ -47,3 +47,36 @@ class PasswordGenerator:
         """
         characters = string.ascii_lowercase + string.digits
         return ''.join(random.choice(characters) for _ in range(length))
+    
+    @staticmethod
+    def generate_random_string_with_rules(min_length:int=8):
+        """
+        Generate a random string with at least two uppercase letters, and a mix of lowercase letters and digits.
+
+        Args:
+            min_length (int, optional): Minimum length of the string. Defaults to 8.
+
+        Returns:
+            str: A random string with the specified rules.
+        """
+        # At least two uppercase letters
+        uppercase_chars = ''.join(random.choices(string.ascii_uppercase, k=2))
+
+        # At least one lowercase letter
+        lowercase_char = random.choice(string.ascii_lowercase)
+
+        # At least one digit
+        digit_char = random.choice(string.digits)
+
+        # Ensure the total length is met, subtract 3 for the mandatory characters
+        remaining_length = max(min_length - 3, 1)  # Ensure there's room for additional characters
+
+        # The rest can be a mix of uppercase, lowercase, and digits
+        other_chars = ''.join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=remaining_length))
+
+        # Combine and shuffle
+        password_list = list(uppercase_chars + lowercase_char + digit_char + other_chars)
+        random.shuffle(password_list)
+
+        # Convert list to string
+        return ''.join(password_list)

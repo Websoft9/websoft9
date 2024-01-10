@@ -401,6 +401,12 @@ class AppManger:
             envHelper.set_value("W9_APP_NAME", app_name)
             envHelper.set_value("W9_DIST", "community")
             envHelper.set_value("W9_VERSION", app_version)
+
+            # Verify if a rcode needs to be set
+            is_set_rcode = envHelper.get_value("W9_RCODE")
+            if is_set_rcode is not None:
+                # Set the rcode to env file
+                envHelper.set_value("W9_RCODE", PasswordGenerator.generate_random_string_with_rules(12))
             
             # Verify if a password needs to be set
             is_set_password = envHelper.get_value("W9_POWER_PASSWORD")

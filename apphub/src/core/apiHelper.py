@@ -1,7 +1,5 @@
 import requests
 
-from src.core.logger import logger
-
 class APIHelper:
     """
     Helper class for making API calls
