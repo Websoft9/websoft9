@@ -2,6 +2,7 @@
 
 # Websoft9 microservices containers(git,deployment,proxy)  have credential info inside the container 
 # send_credentials.sh: copy credential from these container, and save it into apphub container by apphub cli, it will retry 20 times in every 3 seconds interval
+# If the account information is not set successfully after 20 retries, it will not be set again
 
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 deployment_username="admin"
