@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Websoft9 microservices container(git,deployment,proxy)  have credential info inside the container 
+# Websoft9 microservices containers(git,deployment,proxy)  have credential info inside the container 
 # send_credentials.sh: copy credential from these container, and save it into apphub by apphub cli, it will retry 20 times in every 3 seconds interval
 
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
