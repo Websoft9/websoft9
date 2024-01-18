@@ -7,7 +7,7 @@ count=1
 response=""
 cred_path="/data/gitea/credential"
 admin_username="websoft9"
-admin_email="help@websoft9.com"
+admin_email="admin@mydomain.com"
 
 while [ "$response" != "200" ]; do
   response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000)
