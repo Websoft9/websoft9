@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set +e 
-username="help@websoft9.com"
+username="admin@mydomain.com"
 password=$(openssl rand -base64 16 | tr -d '/+' | cut -c1-16)
 token=""
 cred_path="/data/credential"
