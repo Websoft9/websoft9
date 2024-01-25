@@ -47,7 +47,7 @@ jobs:
                RESPONSE=$(curl -X POST \
                  -H "Content-Type: application/json" \
                  -H "Authorization: Bearer $ACCESS_TOKEN" \
-                 -d '{"query":"query($locale: String,$skip: Int){productCollection(locale:$locale,where:{appStore:true,production:true},limit: '$LIMIT', skip: $skip) {total items {sys {id} key hot trademark summary overview websiteurl description screenshots distribution vcpu memory storage logo {imageurl} catalogCollection(limit:15) {items {key title catalogCollection(limit:5){items{key title}}}}}}}", "variables":{"locale":"'$LOCALE'", "skip":'$SKIP'}}' \
+                 -d '{"query":"query($locale: String,$skip: Int){productCollection(locale:$locale,where:{appStore:true,production:true},limit: '$LIMIT', skip: $skip) {total items {sys {id} key hot trademark summary overview websiteurl description screenshots distribution vcpu memory storage logo {imageurl} catalogCollection(limit:15) {items {key title catalogCollection(limit:5){items{key title position}}}}}}}", "variables":{"locale":"'$LOCALE'", "skip":'$SKIP'}}' \
                  https://graphql.contentful.com/content/v1/spaces/ffrhttfighww)
                ITEMS+=($(echo $RESPONSE | jq '.data.productCollection.items[]'))
                TOTAL=$(echo $RESPONSE | jq '.data.productCollection.total')
