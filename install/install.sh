@@ -460,27 +460,27 @@ install_systemd() {
 
 
 #--------------- main-----------------------------------------
-check_ports $http_port $https_port $port
-install_tools
-download_source
+check_ports $http_port $https_port $port | tee -a  $path/install.log
+install_tools | tee -a  $path/install.log
+download_source | tee -a  $path/install.log
 
-bash $install_path/install/install_docker.sh
+bash $install_path/install/install_docker.sh | tee -a  $path/install.log
 if [ $? -ne 0 ]; then
     echo "install_docker failed with error $?. Exiting."
     exit 1
 fi
 
-install_backends
+install_backends | tee -a  $path/install.log
 
-install_systemd
+install_systemd | tee -a  $path/install.log
 
-bash $install_path/install/install_cockpit.sh
+bash $install_path/install/install_cockpit.sh | tee -a  $path/install.log
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
 fi
 
-bash $install_path/install/install_plugins.sh
+bash $install_path/install/install_plugins.sh | tee -a  $path/install.log
 if [ $? -ne 0 ]; then
     echo "install_plugins failed with error $?. Exiting."
     exit 1
