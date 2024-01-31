@@ -130,31 +130,17 @@ Print_Version(){
     sudo /usr/libexec/cockpit-ws --version 2>/dev/null || sudo /usr/lib/cockpit-ws --version 2>/dev/null || /usr/lib/cockpit/cockpit-ws --version 2>/dev/null
 }
 
-Install_PackageKit(){
-    echo "$echo_prefix_cockpit Install PackageKit(pkcon) and Cockpit repository"
+Disable_PackageKit(){
+    
+    echo "$echo_prefix_cockpit disable PackageKit(pkcon)"
 
     if command -v pkcon &> /dev/null; then
         echo "pkcon is at your system ..."
-
-    elif command -v yum &> /dev/null; then
-        if [ "$(cat /etc/redhat-release)" = "Redhat7" ]; then
-            sudo subscription-manager repos --enable rhel-7-server-extras-rpms
-        fi
-        sudo yum install PackageKit -y
-
-    elif command -v dnf &> /dev/null; then
-        sudo dnf install PackageKit -y
-
-    elif command -v apt &> /dev/null; then
-        sudo apt update
-        sudo apt install packagekit -y
-
-    else
-        echo "PackageKit not found, Cockpit cannot be installed"
-        exit 1
+        sudo  systemctl stop packagekit
+        sudo  systemctl disable packagekit
+ 
     fi
 }
-
 
 Set_Repository() {
     echo "$echo_prefix_cockpit Set Cockpit deb repository"
@@ -398,7 +384,7 @@ Test_Cockpit
 
 # release package memory
 if systemctl cat packagekit > /dev/null 2>&1; then
-  sudo systemctl restart packagekit
+  Disable_PackageKit
 else
   echo "no packagekit"
 fi
