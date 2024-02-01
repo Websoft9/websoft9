@@ -153,6 +153,12 @@ else
 fi
 echo Install from url: $artifact_url
 
+if [ -d "$install_path" ]; then
+    echo "Directory $install_path already exists and installation will cover it."
+else
+    sudo mkdir -p "$install_path"
+fi
+    
 # Define common functions
 
 Wait_apt() {
@@ -243,11 +249,6 @@ download_source() {
     echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
     
     find . -type f -name "websoft9*.zip*" -exec rm -f {} \;
-    if [ -d "$install_path" ]; then
-        echo "Directory $install_path already exists and installation will cover it."
-    else
-        sudo mkdir -p "$install_path"
-    fi
 
     wget "$artifact_url/$source_zip"
     if [ $? -ne 0 ]; then
@@ -460,7 +461,7 @@ install_systemd() {
 
 
 #--------------- main-----------------------------------------
-log_path="$path/install.log"
+log_path="$install_path/install.log"
 check_ports $http_port $https_port $port | tee -a  $log_path
 install_tools | tee -a  $log_path
 download_source | tee -a  $log_path
