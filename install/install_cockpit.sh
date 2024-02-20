@@ -136,8 +136,8 @@ Disable_PackageKit(){
 
     if command -v pkcon &> /dev/null; then
         echo "pkcon is at your system ..."
-        sudo  systemctl stop packagekit
-        sudo  systemctl disable packagekit
+        sudo systemctl stop packagekit
+        sudo systemctl mask packagekit
  
     fi
 }
