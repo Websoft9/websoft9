@@ -1,5 +1,4 @@
-#!/bin/execlineb -P
-s6-oneshot-runner
+#!/bin/bash
 
 [[ -f ./setup ]] && source ./setup
 pushd /root >/dev/null
