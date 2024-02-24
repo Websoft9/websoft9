@@ -36,7 +36,7 @@ You can see the sceenshoots below:
 
 # Installation
 
-You should have root privileges user to install or upgrade or uninstall Websoft9, if you use no-root user you can `sudo su` for it
+Need root privileges user to install Websoft9, if you use no-root user you can `sudo su` for it
 
 ## Install & Upgrade
 
