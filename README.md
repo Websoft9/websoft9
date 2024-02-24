@@ -5,7 +5,7 @@
 
 # What is Websoft9?
 
-Websoft9 is web-based PaaS platform for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.
+[Websoft9](https://github.com/Websoft9/websoft9) is web-based PaaS platform for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.
 
 Websoft9 help you running multiple applications in a single server, that means we believe Microservices on single machine is reasonable. On the contrary, it becomes more and more valuable as computing power increases
 
