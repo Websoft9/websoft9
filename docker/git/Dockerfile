@@ -1,4 +1,4 @@
-# modify time: 202402231805, you can modify here to trigger Docker Build action
+# modify time: 202402251424, you can modify here to trigger Docker Build action
 # Dockerfile refer to: https://github.com/go-gitea/gitea/blob/main/Dockerfile
 FROM gitea/gitea:1.20.4
 
