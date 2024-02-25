@@ -1,5 +1,5 @@
 #!/bin/bash
 
 [[ -f ./setup ]] && source ./setup
-exec s6-svc -D /etc/s6/user
+pushd /root > /dev/null
 popd
