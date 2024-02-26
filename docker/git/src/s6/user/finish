@@ -1,3 +1,9 @@
 #!/bin/bash
 
-exit 125
+cred_path="/data/gitea/credential"
+if [ -e "$cred_path" ]; then
+  echo "File $cred_path exists. disable /etc/s6/user"
+  exit 125
+else
+  exit 0
+fi
