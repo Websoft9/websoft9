@@ -10,13 +10,14 @@ admin_username="websoft9"
 admin_email="admin@mydomain.com"
 
 while [ "$response" != "200" ]; do
+  sleep 3
   response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000)
   if [ "$response" = "200" ]; then
     echo "gitea is runing"
     break
   fi
   count=$((count+1))
-  if [ $count -gt 10 ]; then
+  if [ $count -gt 60 ]; then
     echo "gitea is not runing"
     break
   fi
