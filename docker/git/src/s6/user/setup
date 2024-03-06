@@ -11,7 +11,7 @@ admin_email="admin@mydomain.com"
 
 while [ "$response" != "200" ]; do
   sleep 3
-  response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000)
+  response=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000 || echo "Service not available")
   if [ "$response" = "200" ]; then
     echo "gitea is runing"
     break
