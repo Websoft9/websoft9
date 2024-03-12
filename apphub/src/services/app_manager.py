@@ -75,8 +75,15 @@ class AppManger:
                     settings = {k: v for k, v in env_data.items() if k.startswith("W9_") and k.endswith("_SET")}
                     item["settings"] = settings
                     item["is_web_app"] = "W9_URL" in env_data
-                            
-            return data
+
+            # Get the initial_apps from config.ini
+            initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
+            if not initial_apps:
+                return data
+            else:
+                app_keys = initial_apps.split(",")
+                return [item for item in data if item.get("key") in app_keys]
+            
         except (CustomException,Exception) as e:
             logger.error(f"Get available apps error:{e}")
             raise CustomException()
