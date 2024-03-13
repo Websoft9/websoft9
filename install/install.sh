@@ -28,6 +28,11 @@ export PATH
 #
 #  $ sudo bash install.sh --path "/data/websoft9/source"
 #
+# --apps <wordpress,gitlab>
+# Use the --apps option to set Websoft9 appstore dispaly. default is null and display all applicaionts. If you set it, appstore only display the defined, for example:
+#
+#   $ sudo bash install.sh --apps "wordpress,gitlab"
+#
 # --devto
 # Use the --devto option to developer mode, devto is the developer code path, for example:
 #
@@ -40,6 +45,7 @@ export PATH
 version="latest"
 channel="release"
 path="/data/websoft9/source"
+apps=""
 
 # 获取参数值
 while [[ $# -gt 0 ]]; do
@@ -78,6 +84,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             path="$1"
+            shift
+            ;;
+        --apps)
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --apps"
+                exit 1
+            fi
+            apps="$1"
             shift
             ;;
         --devto)
@@ -121,6 +136,7 @@ echo "--version: $version"
 echo "--port: $port"
 echo "--channel: $channel"
 echo "--path: $path"
+echo "--apps: $apps"
 echo "--devto: $devto"
 
 echo -e "\nYour OS: "
@@ -134,6 +150,7 @@ export https_port=443
 export install_path=$path
 export channel
 export version
+export apps
 export systemd_path="/opt/websoft9/systemd"
 export source_zip="websoft9-$version.zip"
 export source_unzip="websoft9"
@@ -420,6 +437,7 @@ install_backends() {
 
     if [ "$execute_mode" = "install" ]; then
         sudo docker exec -i websoft9-apphub apphub setconfig --section domain --key wildcard_domain --value ""
+        sudo docker exec -i websoft9-apphub apphub setconfig --section initial_apps --key keys --value $apps
     fi 
 }
 
