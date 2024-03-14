@@ -23,8 +23,24 @@ check_ports() {
 function get_volume_path() {
     local container_name="$1"
     local volume_name="$2"
-    local mounts=$(docker inspect -f '{{ json .Mounts }}' "$container_name" | jq -r '.[] | select(.Name == "'$volume_name'") | .Source')
-    echo "$mounts"
+    local retries=0
+    local max_retries=5
+    local mounts
+
+    while [ $retries -lt $max_retries ]; do
+        mounts=$(docker inspect -f '{{ json .Mounts }}' "$container_name" | jq -r ".[] | select(.Name == \"$volume_name\") | .Source")
+
+        if [[ "$mounts" == *"/"* ]]; then
+            echo "$mounts"
+            return 0
+        fi
+
+        ((retries++))
+        sleep 5
+    done
+
+    echo "Cannot get volume path"
+    exit 1
 }
 
 volume_path=$(get_volume_path "$container_name" "$volume_name")
