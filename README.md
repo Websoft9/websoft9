@@ -23,7 +23,7 @@ You can see the sceenshoots below:
 
 
 
-We are building a testing server and welcome everyone to use it:
+Below is demo server, please **give stars** if you like it:
 ```
 Demo URL: http://t.demo.goweb.cc:9000/
 user: demo
