@@ -21,6 +21,12 @@ You can see the sceenshoots below:
 | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | ![image](https://github.com/Websoft9/websoft9/assets/16741975/7bed3744-1e9f-429e-8678-3714c8c262e2) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/a0923c69-2792-4cde-bfaf-bc018b61aee9) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/901efd1c-31a0-4b31-b79c-fc2d441bb679) |
 
+```
+Demo URL: http://t.demo.goweb.cc:9000/
+user: demo
+password: 4[qseJ&q53HM%P3p
+```
+
 ## Features
 
 - Applications listing
