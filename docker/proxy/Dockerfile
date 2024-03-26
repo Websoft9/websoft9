@@ -1,11 +1,11 @@
-# modify time: 202403130838, you can modify here to trigger Docker Build action
+# modify time: 202403261348, you can modify here to trigger Docker Build action
 # from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
-FROM jc21/nginx-proxy-manager:2.10.4
+FROM jc21/nginx-proxy-manager:2.11.1
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="2.10.4"
+LABEL version="2.11.1"
 
 RUN apt-get update && apt-get install --no-install-recommends -y curl jq && rm -rf /var/lib/apt/lists/*
 COPY ./config/initproxy.conf /etc/
