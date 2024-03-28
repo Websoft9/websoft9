@@ -27,7 +27,7 @@ Below is demo server, please **give stars** if you like it:
 ```
 Demo URL: http://t.demo.goweb.cc:9000/
 user: demo
-password: 4[qseJ&q53HM%P3p
+password: websoft9
 ```
 
 ## Features
