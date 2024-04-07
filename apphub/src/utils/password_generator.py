@@ -10,7 +10,7 @@ class PasswordGenerator:
         lowercase_letters = string.ascii_lowercase      # all lowercase letters
         uppercase_letters = string.ascii_uppercase      # all uppercase letters
         digits = string.digits                          # all digits
-        special_symbols = "!@#$"                        # all special symbols
+        special_symbols = "!#"                        # all special symbols
 
         # get 4 random characters from each category
         password = [
