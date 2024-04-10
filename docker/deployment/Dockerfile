@@ -16,7 +16,7 @@ RUN chmod +x /endpoint
 # Dockerfile refer to: https://github.com/portainer/portainer/blob/develop/build/linux/Dockerfile
 FROM portainer/portainer-ce:2.20.1
 LABEL maintainer="websoft9<help@websoft9.com>"
-LABEL version="2.20.1-rc1"
+LABEL version="2.20.1"
 COPY --from=builder /init_portainer /
 COPY --from=builder /endpoint /
 

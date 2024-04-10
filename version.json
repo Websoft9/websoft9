@@ -1,7 +1,7 @@
 {
-  "version": "2.0.9",
+  "version": "2.1.0-rc1",
   "plugins": {
-    "portainer": "0.0.9",
+    "portainer": "0.1.0",
     "nginx": "0.0.7",
     "gitea": "0.0.5",
     "myapps": "0.1.7",
