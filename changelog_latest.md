@@ -1,2 +1,5 @@
-1. update portainer to 2.20.1
-2. portainer plugin update
+enhancement:
+update Portainer to 2.20.1 #460
+
+bug:
+all app container exec error on portainer #464
