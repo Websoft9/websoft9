@@ -7,7 +7,22 @@ If you're planning to implement a new feature or change the api please [create a
 
 ##  Not Sure Architecture?
 
-It's important to figure out the design [architecture of Websoft9](docs/architecture.md)
+It's important to figure out the design [Architecture of Websoft9](docs/architecture.md)
+
+## Code of Conduct{#conduct}
+
+This project use [Code of Conduct](https://code.fb.com/codeofconduct), you should read it carefully.
+
+## Consistency convention
+
+In the process of your participation, we hope that everyone has a good habit of abiding by the agreement, including:
+
+- Create Issue based on template
+- Select tags not create tags
+- Complete the smallest unit independent task at one time
+- Meaningful remarks when commit your code, you should select from: docs, test, fix, install, misc and so on
+- Although the project has automated tests, I still hope that you can test without problems before submitting
+- Following the branch management strategy, the core team maintains two branches: main and dev
 
 ## Fork
 
@@ -20,7 +35,6 @@ This repository have these branchs:
 * **Contributor's branch**: Develpoer can fork main branch as their delelopment branch anytime 
 * **main branch**: The only branch that accepts PR from Contributors's branch 
 * **production branch**: For version release and don't permit modify directly, only merge PR from **main branch**
-
 
 Flow: Contributor's branch → main branch → production branch
 
