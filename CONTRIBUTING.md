@@ -18,7 +18,7 @@ This project use [Code of Conduct](https://code.fb.com/codeofconduct), you shoul
 In the process of your participation, we hope that everyone has a good habit of abiding by the agreement, including:
 
 - Create Issue based on template
-- Select tags not create tags
+- Select tags instead of creating tags
 - Complete the smallest unit independent task at one time
 - Meaningful remarks when commit your code, you should select from: docs, test, fix, install, misc and so on
 - Although the project has automated tests, I still hope that you can test without problems before submitting
@@ -30,10 +30,10 @@ Contributor only allow to fork [main branch](https://github.com/Websoft9/websoft
 
 ## Branch
 
-This repository have these branchs:  
+This repository have these branches:  
 
-* **Contributor's branch**: Develpoer can fork main branch as their delelopment branch anytime 
-* **main branch**: The only branch that accepts PR from Contributors's branch 
+* **Contributor's branch**: Developer can fork main branch as their development branch anytime 
+* **main branch**: The only branch that accepts PR from Contributors' branch 
 * **production branch**: For version release and don't permit modify directly, only merge PR from **main branch**
 
 Flow: Contributor's branch → main branch → production branch
@@ -72,7 +72,7 @@ Websoft9 use below [Artifact](https://jfrog.com/devops-tools/article/what-is-a-s
 
 ### Tags
 
-- Type tags: Bug, enhancement, Documetation
+- Type tags: Bug, enhancement, Documentation
 - Stages Tags: PRD, Dev, QA(include deployment), Documentation
 
 ### WorkFlow
