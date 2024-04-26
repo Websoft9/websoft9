@@ -23,6 +23,7 @@ API_KEY_NAME = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def verify_key(request: Request, api_key_header: str = Security(api_key_header)):
+    # logger.access("request.url.path: "+request.url.path)
     """
     Verify API Key
     """

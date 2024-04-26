@@ -133,6 +133,34 @@ def check_endpointId(endpointId:int, portainerManager):
                 details="EndpointId Not Found"
             )
 
+def check_apps_number(endpointId:int):
+    """
+    Check the apps number is exceed the maximum number of apps
+
+    Args:
+        endpointId (int): Endpoint Id
+    """
+    # 在这里导入是为避免和app_manager的循环导入，导致代码报错
+    from src.services.app_manager import AppManger
+
+    # Get the max_apps from config
+    max_apps = ConfigManager("system.ini").get_value("max_apps", "key")
+    if max_apps:
+        # Get all apps from the endpoint
+        appInstallApps = AppManger().get_apps(endpointId)
+
+        # Get the official and  status is 1(Active) or 3(Installing) apps
+        app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 3)]
+
+        logger.access(f"app_official:{len(app_official)}")
+        if len(app_official) >= int(max_apps):
+            logger.error(f"Exceed the maximum number of apps")
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Exceed the maximum number of apps"
+            )
+
 def install_validate(appInstall:appInstall,endpointId:int):
     """
     before install app, check the appInstall is valid
@@ -166,6 +194,9 @@ def install_validate(appInstall:appInstall,endpointId:int):
 
         # Check the endpointId is exists
         check_endpointId(endpointId, portainerManager)
+
+        # Check the apps number is exceed the maximum number of apps
+        check_apps_number(endpointId)
     except CustomException as e:
         raise e
     except Exception as e:

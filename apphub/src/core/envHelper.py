@@ -1,5 +1,6 @@
 from dotenv import set_key, unset_key, dotenv_values
 import os
+import re
 from src.core.logger import logger
 from src.core.exception import CustomException
 
@@ -19,8 +20,22 @@ class EnvHelper:
 
     def get_value(self, key):
         try:
+            # values = dotenv_values(self.dotenv_path)
+            # return values.get(key)
+            
             values = dotenv_values(self.dotenv_path)
-            return values.get(key)
+
+            def resolve_value(value):
+                # This pattern matches 'key' that starts with a '$' and is followed by an alphanumeric string or underscore
+                pattern = r'\$\{?(\w+)\}?'
+                
+                # While there are variables to resolve in the value
+                while re.search(pattern, value):
+                    value = re.sub(pattern, lambda match: resolve_value(values.get(match.group(1), '')), value)
+                
+                return value
+
+            return resolve_value(values.get(key, ''))
         except Exception as e:
             logger.error(f"Error getting {key} from {self.dotenv_path}: {e}")
             raise CustomException()

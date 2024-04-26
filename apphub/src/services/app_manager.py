@@ -9,7 +9,7 @@ from src.core.envHelper import EnvHelper
 from src.core.exception import CustomException
 from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
-from src.services.common_check import check_endpointId
+from src.services.common_check import check_apps_number, check_endpointId
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
@@ -546,6 +546,17 @@ class AppManger:
             pull_image (bool): Whether to pull the image when redeploying the app.
             endpointId (int, optional): The endpoint id. Defaults to None.
         """
+        # Get the appInstallApps
+        appInstallApps = AppManger().get_apps(endpointId)
+
+        # Get all apps that are official and active
+        app_official = [app for app in appInstallApps if app.app_official == True and app.status == 1 ]
+
+        # if app_id is active,can not check the apps number
+        if not any(app.app_id == app_id for app in app_official):
+            # Chenck the apps number
+            check_apps_number(endpointId)
+
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
