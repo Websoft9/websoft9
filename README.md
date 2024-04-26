@@ -5,9 +5,9 @@
 
 # What is Websoft9?
 
-[Websoft9](https://github.com/Websoft9/websoft9) is web-based PaaS platform for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.
+[Websoft9](https://github.com/Websoft9/websoft9) is web-based PaaS/Linux Panel for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.
 
-Websoft9 help you running multiple applications in a single server, that means we believe Microservices on single machine is reasonable. On the contrary, it becomes more and more valuable as computing power increases
+Websoft9 help you to run multiple applications in a single server, that means we believe Microservices on single machine is reasonable. On the contrary, it becomes more and more valuable as computing power increases
 
 Although the Cloud Native emphasizes high availability and clustering, but most of the time, applications do not need to implement complex clusters or K8S.
 
@@ -15,11 +15,20 @@ Websoft9's [architecture](https://github.com/Websoft9/websoft9/blob/main/docs/ar
 
 ## Demos
 
-You can see the sceenshoots below:
+You can see the screenshots below:
 
 | ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/e842575b-60bc-4b0d-a57b-28c26b16196a) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/c598412a-9529-4286-ba03-6234d6da99b9) |
 | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | ![image](https://github.com/Websoft9/websoft9/assets/16741975/7bed3744-1e9f-429e-8678-3714c8c262e2) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/a0923c69-2792-4cde-bfaf-bc018b61aee9) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/901efd1c-31a0-4b31-b79c-fc2d441bb679) |
+
+
+
+Below is demo server, please **give stars** if you like it:
+```
+Demo URL: http://t.demo.goweb.cc:9000/
+user: demo
+password: websoft9
+```
 
 ## Features
 
@@ -70,4 +79,4 @@ Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a c
 
 # License
 
-Websoft9 is licensed under the [LGPL-3.0](/License.md), and additional Terms: It is not allowed to publish free or paid image based on this repository in any Cloud platform's Marketplace without authorization
+Websoft9 is licensed under the [LGPL-3.0](/LICENSE.md), and additional Terms: It is not allowed to publish free or paid image based on this repository in any Cloud platform's Marketplace without authorization
