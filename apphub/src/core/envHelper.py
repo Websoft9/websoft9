@@ -35,7 +35,7 @@ class EnvHelper:
                 
                 return value
 
-            return resolve_value(values.get(key, ''))
+            return resolve_value(values.get(key))
         except Exception as e:
             logger.error(f"Error getting {key} from {self.dotenv_path}: {e}")
             raise CustomException()
