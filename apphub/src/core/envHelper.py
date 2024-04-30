@@ -34,6 +34,9 @@ class EnvHelper:
                     value = re.sub(pattern, lambda match: resolve_value(values.get(match.group(1), '')), value)
                 
                 return value
+            
+            if key not in values:
+                return None
 
             return resolve_value(values.get(key))
         except Exception as e:
