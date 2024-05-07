@@ -43,6 +43,7 @@ EOF
 
 
 migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.ini"
+migrate_ini "/websoft9/apphub/src/config/system.ini" "/websoft9/config/system.ini"
 
 if [ $? -eq 0 ]; then
     echo "Success to update config.ini"
