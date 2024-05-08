@@ -1,12 +1,12 @@
 {
-  "version": "2.1.3",
+  "version": "2.1.4-rc1",
   "plugins": {
-    "portainer": "0.1.0",
-    "nginx": "0.0.7",
-    "gitea": "0.0.5",
-    "myapps": "0.1.8",
-    "appstore": "0.1.6",
-    "settings": "0.0.9",
+    "portainer": "0.1.1",
+    "nginx": "0.0.8",
+    "gitea": "0.0.6",
+    "myapps": "0.1.9",
+    "appstore": "0.1.7",
+    "settings": "0.1.0",
     "navigator": "0.5.10"
   },
   "OS": {
