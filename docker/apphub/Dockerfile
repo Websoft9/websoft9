@@ -5,7 +5,7 @@
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.0.9-rc2"
+LABEL version="0.0.9"
 
 WORKDIR  /websoft9
 
