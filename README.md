@@ -77,15 +77,10 @@ Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a c
 - Documentation for application templates based on Docker maintainers is in the [docker-library](https://github.com/Websoft9/docker-library).
 - [Articles promoting Websoft9](https://github.com/Websoft9/websoft9/issues/327)
 
-# Contact
+# Get Involved
 
-- [WeChat Group](https://libs.websoft9.com/Websoft9/feature/icon-userchatgroup-websoft9.png)
-
-- [Websoft9 Support Mail](mailto:help@websoft9.com)
-
-- [Linkedin](https://www.linkedin.com/company/websoft9)
-
-- [Blog](https://weibo.com/chendelin1982)
+- Social Media: [Linkedin](https://www.linkedin.com/company/websoft9), [Weibo](https://weibo.com/chendelin1982)
+- Chat Group: [WeChat Group](https://libs.websoft9.com/Websoft9/feature/icon-userchatgroup-websoft9.png)
 
 # License
 
