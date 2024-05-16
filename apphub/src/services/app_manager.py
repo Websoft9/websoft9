@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import random
+import ipaddress
 from datetime import datetime
 from src.core.config import ConfigManager
 from src.core.envHelper import EnvHelper
@@ -421,10 +422,23 @@ class AppManger:
                 # Set the password to env file
                 envHelper.set_value("W9_POWER_PASSWORD", PasswordGenerator.generate_strong_password())
 
+             # Set the settings to env file
+            if settings:
+                for key, value in settings.items():
+                    envHelper.set_value(key, value)
+
             # Verify the app is web app
             is_web_app = envHelper.get_value("W9_URL")
-            if is_web_app is not None:
+            url_with_port = envHelper.get_value("W9_URL_WITH_PORT")
+            if is_web_app is not None and url_with_port is not None:
+                try:
+                    ipaddress.ip_address(domain_names[0])
+                    envHelper.set_value("W9_URL", domain_names[0] + ":" + envHelper.get_value("W9_HTTP_PORT_SET"))
+                except ValueError:
+                    envHelper.set_value("W9_URL", domain_names[0])
+            elif url_with_port is None:
                 envHelper.set_value("W9_URL", domain_names[0])
+            
                 # validate is bind ip(proxy_enabled is false)
                 # if not proxy_enabled:
                 #     envHelper.set_value("W9_URL", domain_names[0])
@@ -433,12 +447,7 @@ class AppManger:
                 #     replace_domain_name = replace_domain_name.replace(replace_domain_name.split(".")[0], app_id, 1)
                 #     domain_names[0] = replace_domain_name
                 #     envHelper.set_value("W9_URL", domain_names[0])
-
-            # Set the settings to env file
-            if settings:
-                for key, value in settings.items():
-                    envHelper.set_value(key, value)
-           
+                     
             # Commit and push to remote repo
             self._init_local_repo_and_push_to_remote(app_tmp_dir_path,repo_url)
         except CustomException as e:
