@@ -131,3 +131,24 @@ class GiteaManager:
         if response.status_code != 204:
             logger.error(f"Remove repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
+        
+    def get_file_raw_from_repo(self, repo_name: str, file_path: str):
+        """
+        Get a file from a repository
+
+        Args:
+            repo_name (str): Repository name
+            file_path (str): File path
+
+        Returns:
+            dict: File content
+        """
+        response = self.gitea.get_file_raw_from_repo(repo_name, file_path)
+        if response.status_code == 200:
+            return response.text
+        elif response.status_code == 404:
+            return None
+        else:
+            logger.error(f"Get file:{file_path} content from repo:{repo_name} error:{response.status_code}:{response.text}")
+            raise CustomException()
+

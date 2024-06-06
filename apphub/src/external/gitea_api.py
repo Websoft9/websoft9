@@ -104,6 +104,21 @@ class GiteaAPI:
             path=f"repos/{self.owner}/{repo_name}/contents/{file_path}",
             params={"ref": "main"}
         )
+    
+    def get_file_raw_from_repo(self, repo_name: str, file_path: str):
+        """
+        Get file raw from repository
+
+        Args:
+            repo_name (str): Repository name
+            file_path (str): File path
+
+        Returns:
+            Response: Response from Gitea API
+        """
+        return self.api.get(
+            path=f"repos/{self.owner}/{repo_name}/raw/{file_path}"
+        )
 
     def update_file_content_in_repo(self, repo_name: str, file_path: str, content: str, sha: str):
         """

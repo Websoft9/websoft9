@@ -995,13 +995,19 @@ class AppManger:
                             # redeploy app
                             self.redeploy_app(app_id,False)
 
-                # Get the forward scheme form env file: http or https
-                proxy_host = proxyManager.create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
+
+                # Get the nginx proxy config
+                advanced_config = GiteaManager().get_file_raw_from_repo(app_id, "src/nginx-proxy.conf")
+                if advanced_config:
+                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, advanced_config, forward_scheme=forward_scheme)
+                else:
+                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, forward_scheme=forward_scheme)
+
                 if proxy_host:
-                    logger.access(f"Created domains:{domain_names} for app: [{app_id}]")
+                    logger.access(f"Created domains: {domain_names} for app: [{app_id}]")
                     return proxy_host
                 else:
-                    logger.error(f"Create app:{app_id} proxy error")
+                    logger.error(f"Failed to create proxy host for app: [{app_id}]")
                     raise CustomException()
             else:
                 logger.error(f"Get app:{app_id} forward_port error")
