@@ -1,10 +1,10 @@
 ### enhancement:
-- some application root_url need set as url:port #483
-- Doc url in the app store and myapps should be updated to the next version #484
-- add a WeChat communication group to share via QR code #486
-- nextcloud set https at private cloud, access always waiting #492
+- bind domain can not add nginx config file #501
+- Create proxy error #480
 
 ### appstore:
-- [complete docker-compose.yml for [semaphore]](https://github.com/Websoft9/docker-library/issues/610)
-- [joomla port error](https://github.com/Websoft9/docker-library/issues/611)
-- [Discourse run failed](https://github.com/Websoft9/docker-library/issues/615)
+- [complete docker compose for [Kong]](https://github.com/Websoft9/docker-library/issues/621)
+- [Unable to access domain name [espocrm]](https://github.com/Websoft9/docker-library/issues/619)
+- [complete docker compose for [Bytebase] ](https://github.com/Websoft9/docker-library/issues/618)
+- [provide html demo for [apache, nginx, caddy]](https://github.com/Websoft9/docker-library/issues/617)
+- [2.4.58 not support for [apache]](https://github.com/Websoft9/docker-library/issues/616)
