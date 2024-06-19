@@ -428,11 +428,36 @@ install_backends() {
         echo "No containers to delete."
     fi
 
+    DOCKER_CONFIG_FILE="/etc/docker/daemon.json"
+    MIRROR_ADDRESS="https://dockerregistry.test2.websoft9.cn"
     sudo docker compose -f $composefile pull
+    if [ $? -eq 0 ]; then
+        echo "Docker Compose pull succeeded"
+    else
+
+        if [ ! -f "$DOCKER_CONFIG_FILE" ]; then
+            echo "{}" > "$DOCKER_CONFIG_FILE"
+        fi
+
+        if command -v jq >/dev/null 2>&1; then
+            jq ".\"registry-mirrors\" = [\"$MIRROR_ADDRESS\"]" "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
+        else
+            echo "jq not installed!"
+            exit 1
+        fi
+
+        sudo systemctl daemon-reload
+        sudo systemctl restart docker
+    fi
     sudo docker compose -p websoft9 -f $composefile up -d --build
     if [ $? -ne 0 ]; then
         echo "Failed to start docker services."
         exit 1
+    fi
+
+    if jq -e 'has("registry-mirrors")' "$DOCKER_CONFIG_FILE" > /dev/null; then
+        jq 'del(.["registry-mirrors"])' "$DOCKER_CONFIG_FILE" > "${DOCKER_CONFIG_FILE}.tmp" && mv "${DOCKER_CONFIG_FILE}.tmp" "$DOCKER_CONFIG_FILE"
+        systemctl restart docker
     fi
 
     if [ "$execute_mode" = "install" ]; then
@@ -440,7 +465,6 @@ install_backends() {
         sudo docker exec -i websoft9-apphub apphub setconfig --section initial_apps --key keys --value $apps
     fi 
 }
-
 
 install_systemd() {
     echo -e "\n\n-------- Systemd --------"

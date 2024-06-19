@@ -134,23 +134,7 @@ Install_Docker(){
         
         sudo systemctl enable docker
         sudo systemctl restart docker
-        
-        DOCKER_CONFIG_FILE="/etc/docker/daemon.json"
-        MIRROR_ADDRESS="http://119.8.39.15:5000"
 
-        if [ ! -f "$DOCKER_CONFIG_FILE" ]; then
-            echo "{}" > "$DOCKER_CONFIG_FILE"
-        fi
-
-        if command -v jq >/dev/null 2>&1; then
-            jq ".\"registry-mirrors\" = [\"$MIRROR_ADDRESS\"]" "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
-        else
-            echo "jq not installed!"
-            exit 1
-        fi
-
-        sudo systemctl daemon-reload
-        sudo systemctl restart docker
     fi
 
 }
