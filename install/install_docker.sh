@@ -60,47 +60,83 @@ Install_Docker(){
     if [ "$mirror" = "Official" ]; then
         mirror=""
     fi
+    
+    curl -fsSL --max-time 5 https://get.docker.com -o /dev/null
 
-    # For redhat family
-    if [[ -f /etc/redhat-release ]] || command -v amazon-linux-extras >/dev/null 2>&1; then
-        # For CentOS, Fedora, or RHEL(only s390x)
-        if [[ $(cat /etc/redhat-release) =~ "Red Hat" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
+    if [ $? -eq 0 ]; then
+        # For redhat family
+        if [[ -f /etc/redhat-release ]] || command -v amazon-linux-extras >/dev/null 2>&1; then
+            # For CentOS, Fedora, or RHEL(only s390x)
+            if [[ $(cat /etc/redhat-release) =~ "Red Hat" ]] && [[ $(uname -m) == "s390x" ]] || [[ $(cat /etc/redhat-release) =~ "CentOS" ]] || [[ $(cat /etc/redhat-release) =~ "Fedora" ]]; then
+                curl -fsSL https://get.docker.com -o get-docker.sh
+                timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
+            else
+                # For other distributions(Redhat and Rocky linux ...)
+                dnf --version >/dev/null 2>&1
+                dnf_status=$?
+                yum --version >/dev/null 2>&1
+                yum_status=$?
+
+                if [ $dnf_status -eq 0 ]; then
+                    sudo dnf install dnf-utils -y > /dev/null
+                    sudo dnf config-manager --add-repo $repo_url
+                    timeout $timeout sudo dnf install $docker_packages -y
+                elif [ $yum_status -eq 0 ]; then
+                    sudo yum install yum-utils -y > /dev/null
+                    sudo yum-config-manager --add-repo $repo_url
+                    if command -v amazon-linux-extras >/dev/null 2>&1; then
+                        wget -O /etc/yum.repos.d/CentOS7-Base.repo https://websoft9.github.io/stackhub/apps/roles/role_common/files/CentOS7-Base.repo        
+                        sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
+                        timeout $timeout sudo yum install $docker_packages --disablerepo='amzn2-extras,amzn2-core' -y
+                    else
+                        timeout $timeout sudo yum install $docker_packages -y
+                    fi
+                    
+                else
+                    echo "None of the required package managers are installed."
+                fi                
+            fi
+        fi
+        
+        # For Ubuntu, Debian, or Raspbian
+        if type apt >/dev/null 2>&1; then
+            # Wait for apt to be unlocked
             curl -fsSL https://get.docker.com -o get-docker.sh
             timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
-        else
-            # For other distributions(Redhat and Rocky linux ...)
-            dnf --version >/dev/null 2>&1
-            dnf_status=$?
-            yum --version >/dev/null 2>&1
-            yum_status=$?
-
-            if [ $dnf_status -eq 0 ]; then
-                sudo dnf install dnf-utils -y > /dev/null
-                sudo dnf config-manager --add-repo $repo_url
-                timeout $timeout sudo dnf install $docker_packages -y
-            elif [ $yum_status -eq 0 ]; then
-                sudo yum install yum-utils -y > /dev/null
-                sudo yum-config-manager --add-repo $repo_url
-                if command -v amazon-linux-extras >/dev/null 2>&1; then
-                    wget -O /etc/yum.repos.d/CentOS7-Base.repo https://websoft9.github.io/stackhub/apps/roles/role_common/files/CentOS7-Base.repo        
-                    sudo sed -i "s/\$releasever/7/g" /etc/yum.repos.d/docker-ce.repo
-                    timeout $timeout sudo yum install $docker_packages --disablerepo='amzn2-extras,amzn2-core' -y
-                else
-                    timeout $timeout sudo yum install $docker_packages -y
-                fi
-                
-            else
-                echo "None of the required package managers are installed."
-            fi                
         fi
+    else
+        echo "can not install by installation script, use special way to install docker"
+        dnf --version >/dev/null 2>&1
+        dnf_status=$?
+        yum --version >/dev/null 2>&1
+        yum_status=$?
+        apt --version >/dev/null 2>&1
+        apt_status=$?
+
+        if [ $dnf_status -eq 0 ]; then
+            sudo dnf install yum-utils -y
+            sudo dnf config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+            sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        elif [ $yum_status -eq 0 ]; then
+            sudo yum install yum-utils -y
+            sudo yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+            sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        elif [ $apt_status -eq 0 ]; then
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates curl gnupg lsb-release
+            curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        else
+            echo "don't know package tool"
+        fi
+        
+        sudo systemctl enable docker
+        sudo systemctl restart docker
+
     fi
-    
-    # For Ubuntu, Debian, or Raspbian
-    if type apt >/dev/null 2>&1; then
-        # Wait for apt to be unlocked
-        curl -fsSL https://get.docker.com -o get-docker.sh
-		timeout $timeout sh get-docker.sh --channel stable --mirror $mirror
-    fi
+
 }
 
 Upgrade_Docker(){
