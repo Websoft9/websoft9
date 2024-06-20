@@ -429,7 +429,7 @@ install_backends() {
     fi
 
     DOCKER_CONFIG_FILE="/etc/docker/daemon.json"
-    MIRROR_ADDRESS="https://dockerregistry.test2.websoft9.cn"
+    MIRROR_ADDRESS="https://registry.test2.websoft9.cn"
     sudo docker compose -f $composefile pull
     if [ $? -eq 0 ]; then
         echo "Docker Compose pull succeeded"
