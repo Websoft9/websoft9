@@ -33,6 +33,11 @@ export PATH
 #
 #   $ sudo bash install.sh --apps "wordpress,gitlab"
 #
+# --mirrors <https://docker.rainbond.cc,https://registry.inner.websoft9.cn>
+# Use the --mirrors option to set docker image mirrors when can not pull image from docker-hub, for example:
+#
+#   $ sudo bash install.sh --mirrors "https://docker.rainbond.cc,https://registry.inner.websoft9.cn"
+#
 # --devto
 # Use the --devto option to developer mode, devto is the developer code path, for example:
 #
@@ -46,6 +51,7 @@ version="latest"
 channel="release"
 path="/data/websoft9/source"
 apps=""
+mirrors="https://docker.rainbond.cc,https://registry.inner.websoft9.cn"
 
 # 获取参数值
 while [[ $# -gt 0 ]]; do
@@ -95,6 +101,15 @@ while [[ $# -gt 0 ]]; do
             apps="$1"
             shift
             ;;
+        --mirrors)
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --mirrors"
+                exit 1
+            fi
+            mirrors="$1"
+            shift
+            ;;
         --devto)
             shift
             if [[ $1 == --* ]]; then
@@ -137,6 +152,7 @@ echo "--port: $port"
 echo "--channel: $channel"
 echo "--path: $path"
 echo "--apps: $apps"
+echo "--mirrors: $mirrors"
 echo "--devto: $devto"
 
 echo -e "\nYour OS: "
@@ -151,6 +167,7 @@ export install_path=$path
 export channel
 export version
 export apps
+export mirrors
 export systemd_path="/opt/websoft9/systemd"
 export source_zip="websoft9-$version.zip"
 export source_unzip="websoft9"
@@ -429,23 +446,25 @@ install_backends() {
     fi
 
     DOCKER_CONFIG_FILE="/etc/docker/daemon.json"
-    MIRROR_ADDRESS="https://registry.test2.websoft9.cn"
-    sudo docker compose -f $composefile pull
+    MIRROR_ADDRESS=$mirrors
+    timeout 10s sudo docker compose -f $composefile pull
     if [ $? -eq 0 ]; then
         echo "Docker Compose pull succeeded"
     else
-
+        echo "Can not pull images from docker hub, set mirrors..."
         if [ ! -f "$DOCKER_CONFIG_FILE" ]; then
-            echo "{}" > "$DOCKER_CONFIG_FILE"
+            echo "{}" | sudo tee "$DOCKER_CONFIG_FILE" > /dev/null
         fi
 
         if command -v jq >/dev/null 2>&1; then
-            jq ".\"registry-mirrors\" = [\"$MIRROR_ADDRESS\"]" "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
+            MIRROR_ARRAY=$(echo $MIRROR_ADDRESS | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+            #jq --arg mirrors "$MIRROR_ARRAY" '.["registry-mirrors"] = ($mirrors | fromjson)' "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && sudo mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
+            jq ".\"registry-mirrors\" = $MIRROR_ARRAY" "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && sudo mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
+
         else
             echo "jq not installed!"
             exit 1
         fi
-
         sudo systemctl daemon-reload
         sudo systemctl restart docker
     fi
@@ -455,14 +474,17 @@ install_backends() {
         exit 1
     fi
 
-    if jq -e 'has("registry-mirrors")' "$DOCKER_CONFIG_FILE" > /dev/null; then
-        jq 'del(.["registry-mirrors"])' "$DOCKER_CONFIG_FILE" > "${DOCKER_CONFIG_FILE}.tmp" && mv "${DOCKER_CONFIG_FILE}.tmp" "$DOCKER_CONFIG_FILE"
-        systemctl restart docker
+    if jq -e '.["registry-mirrors"]' "$DOCKER_CONFIG_FILE" > /dev/null; then
+        jq 'del(.["registry-mirrors"])' "$DOCKER_CONFIG_FILE" > "${DOCKER_CONFIG_FILE}.tmp" && sudo mv "${DOCKER_CONFIG_FILE}.tmp" "$DOCKER_CONFIG_FILE"
+        sudo systemctl daemon-reload
+        sudo systemctl restart docker
     fi
 
     if [ "$execute_mode" = "install" ]; then
         sudo docker exec -i websoft9-apphub apphub setconfig --section domain --key wildcard_domain --value ""
-        sudo docker exec -i websoft9-apphub apphub setconfig --section initial_apps --key keys --value $apps
+        if [ -n "$apps" ]; then
+            sudo docker exec -i websoft9-apphub apphub setconfig --section initial_apps --key keys --value "$apps"
+        fi
     fi 
 }
 
