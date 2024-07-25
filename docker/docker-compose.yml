@@ -25,11 +25,7 @@ services:
       - /data/compose:/data/compose
       - /var/run/docker.sock:/var/run/docker.sock
       #- /run/podman/podman.sock:/var/run/docker.sock
-    healthcheck:
-      test: ["CMD", "/endpoint"]
-      interval: 10s
-      timeout: 30s
-      retries: 4
+    command: ["--hide-label", "owner=websoft9"]
     labels:
       - "owner=websoft9"
       - "com.docker.compose.w9_http.port=9000"

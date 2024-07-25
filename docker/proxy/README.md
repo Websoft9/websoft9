@@ -1,7 +1,6 @@
 # Readme
 
-From official Nginx Proxy Manager image, and: 
+From official Nginx Proxy Manager image, and:
 
-- add init_proxy.conf to image
-- init install wizard and modify user and password
-- lock the line of BoltDB at Portainer where envrionment=1 
+- Copy the initproxy.conf file to the nginx directory to initialize the custom configuration
+- Initialize username and password through environment variables
