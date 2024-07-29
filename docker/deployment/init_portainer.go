@@ -34,12 +34,19 @@ func main() {
     // 检查初始化标志文件是否存在
     if _, err := os.Stat(initFlagFilePath); err == nil {
         log.Println("Initialization has already been completed by another instance.")
-        startPortainer(os.Args[1:]...)
+        startPortainer()
         return
     }
 
     // 启动 Portainer
-    startPortainer(os.Args[1:]...)
+    // cmd := exec.Command("/portainer")
+    cmd := exec.Command("/portainer", os.Args[1:]...)
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+
+    if err := cmd.Start(); err != nil {
+        log.Fatalf("Failed to start Portainer: %v", err)
+    }
 
     // 等待 Portainer 启动
     waitForPortainer()
@@ -65,10 +72,15 @@ func main() {
             }
         }
     }
+
+    // 等待 Portainer 进程结束
+    if err := cmd.Wait(); err != nil {
+        log.Fatalf("Portainer process exited with error: %v", err)
+    }
 }
 
-func startPortainer(args ...string) {
-    cmd := exec.Command("/portainer", args...)
+func startPortainer() {
+    cmd := exec.Command("/portainer")
     cmd.Stdout = os.Stdout
     cmd.Stderr = os.Stderr
 

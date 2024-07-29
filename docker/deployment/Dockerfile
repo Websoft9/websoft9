@@ -1,4 +1,4 @@
-# modify time: 202404101102, you can modify here to trigger Docker Build action
+# modify time: 202407291102, you can modify here to trigger Docker Build action
 # step1: Build entrypoint execute program init_portainer by golang
 
 FROM golang:latest AS builder
