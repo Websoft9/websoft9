@@ -1,11 +1,11 @@
 {
-  "version": "2.1.10",
+  "version": "2.1.11-rc1",
   "plugins": {
     "portainer": "0.1.1",
     "nginx": "0.0.8",
     "gitea": "0.0.6",
-    "myapps": "0.2.3",
-    "appstore": "0.2.1",
+    "myapps": "0.2.4",
+    "appstore": "0.2.2",
     "settings": "0.1.2",
     "navigator": "0.5.10"
   },

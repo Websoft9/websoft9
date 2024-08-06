@@ -1,10 +1,8 @@
 ### enhancement:
-- websoft9-proxy container delete， cannot work #510
-- websoft9 service can not send credentials to Nginx or portainer reset  #505
+- Nginx how to dynamically apply proxy #516
+- cannot access background for [prestashop] #514
 
 ### appstore:
-- [nextcloud edit office document failed when use domain](https://github.com/Websoft9/docker-library/issues/646)
-- [can not pull image for [knowage]](https://github.com/Websoft9/docker-library/issues/644)
-- [cannot connect db for gitea](https://github.com/Websoft9/docker-library/issues/642)
-- [complete docker-compose.yml for [Kaspersky]](https://github.com/Websoft9/docker-library/issues/640)
-- [complete docker-compose.yml for [Trivy]](https://github.com/Websoft9/docker-library/issues/639)
+- [the container port not need to check when install for [docker]](https://github.com/Websoft9/docker-library/issues/660)
+- [Moodle container always restart](https://github.com/Websoft9/docker-library/issues/656)
+- [find app's docker_url](https://github.com/Websoft9/docker-library/issues/650)
