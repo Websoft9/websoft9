@@ -98,6 +98,15 @@ Install_Docker(){
             fi
         fi
         
+        if  [[ $(cat /etc/os-release) =~ "Amazon Linux" ]]; then
+            sudo dnf install docker -y
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            sudo mkdir -p /usr/local/lib/docker/cli-plugins/
+            sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
+            sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+        fi
+        
         # For Ubuntu, Debian, or Raspbian
         if type apt >/dev/null 2>&1; then
             # Wait for apt to be unlocked
