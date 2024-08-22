@@ -334,12 +334,13 @@ Install_Cockpit(){
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
         sudo dpkg --configure -a
+        sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y "deb http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse"
         apt-get update -y >/dev/null
         apt-get --fix-broken install
         for pkg in $cockpit_packages
         do
             echo "Installing $pkg"
-            sudo apt-get install -u -y "$pkg" > /dev/null || echo "$pkg failed to install"
+            sudo apt-get install -t jammy-backports -y "$pkg" > /dev/null || echo "$pkg failed to install"
         done
     else
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
