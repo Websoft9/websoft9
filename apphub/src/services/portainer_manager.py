@@ -274,7 +274,15 @@ class PortainerManager:
         if response.status_code == 200:
             try:
                 volumes = response.json().get("Volumes", [])
-                volumes_info = [volume for volume in volumes if volume.get("Labels", {}).get("com.docker.compose.project") == stack_name]
+                # volumes_info = [volume for volume in volumes if volume.get("Labels", {}).get("com.docker.compose.project") == stack_name]
+                volumes_info = [
+                    volume for volume in volumes 
+                    if (
+                        isinstance(volume, dict) and 
+                        volume.get("Labels") and 
+                        volume.get("Labels", {}).get("com.docker.compose.project") == stack_name
+                    )
+                ]
             except Exception as e:
                 logger.error(f"Get volumes by stack name:{stack_name} error: {e}")
                 raise CustomException()
