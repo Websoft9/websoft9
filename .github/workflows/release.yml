@@ -118,14 +118,20 @@ jobs:
             fi
           done
 
-      - name: Upload Websoft9 API to Azure
-        uses: bacongobbler/azure-blob-storage-upload@main
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
         with:
-          source_dir: apphub/apidocs
-          container_name: $web
-          connection_string: ${{ secrets.Azure_blob }}
-          extra_args: '--destination-path ./apidocs'
-          overwrite: true
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: eb79f13320db531d8cf1f3720966b695
+          projectName: doc-websoft9-com
+          directory: apphub/apidocs
+          # Optional: Enable this if you want to have GitHub Deployments triggered
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: Switch what branch you are publishing to.
+          # By default this will be the branch which triggered this workflow
+          branch: main
+          # Optional: Change the working directory
+          workingDirectory: ./apidocs
 
   pages:
     name: Build Github Pages
