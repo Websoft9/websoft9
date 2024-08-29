@@ -80,7 +80,7 @@ Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a c
 # Get Involved
 
 - Social Media: [Linkedin](https://www.linkedin.com/company/websoft9), [Weibo](https://weibo.com/chendelin1982)
-- Chat Group: [WeChat Group](https://libs.websoft9.com/Websoft9/feature/icon-userchatgroup-websoft9.png)
+- Chat Group: [Slack](https://websoft9-hq.slack.com/), [WeChat Group](https://libs.websoft9.com/Websoft9/feature/icon-userchatgroup-websoft9.png)
 
 # License
 
