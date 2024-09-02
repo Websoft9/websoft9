@@ -124,7 +124,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: eb79f13320db531d8cf1f3720966b695
           projectName: doc-websoft9-com
-          directory: ./websoft9/apphub/apidocs
+          directory: apphub/apidocs
           # Optional: Enable this if you want to have GitHub Deployments triggered
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           # Optional: Switch what branch you are publishing to.
