@@ -60,15 +60,15 @@ jobs:
           cp CHANGELOG.md artifacts
           cp artifacts/websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts/websoft9-latest.zip
 
-      - name: Upload To Azure Blob
-        uses: LanceMcCarthy/Action-AzureBlobUpload@v2
+      - name: Upload To cloudflare r2
+        uses: ryand56/r2-upload-action@latest
         with:
-          connection_string: ${{ secrets.AZURE_STORAGE_ARTIFACT }}
-          container_name: ${{ steps.convert_version.outputs.CHANNEL }}
-          source_folder: artifacts/
-          destination_folder: ./websoft9
-          delete_if_exists: true
-          fail_if_source_empty: true
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: artifacts
+          destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/websoft9
 
       - name: Create Github Release
         uses: softprops/action-gh-release@v1
