@@ -1,16 +1,16 @@
 # This file can running at actions
 # MEDIA_VERSION and LIBRARY_VERSION will trigger its release
-# modify time: 202409020940, you can modify here to trigger Docker Build action
+# modify time: 202409031517, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.1.1"
+LABEL version="0.1.2-rc1"
 
 WORKDIR  /websoft9
 
-ARG MEDIA_VERSION="0.1.0"
-ARG LIBRARY_VERSION="0.7.0"
+ARG MEDIA_VERSION="0.1.1"
+ARG LIBRARY_VERSION="0.7.1"
 ARG WEBSOFT9_REPO="https://github.com/Websoft9/websoft9"
 ARG WEBSOFT9_ARTIFACT="https://w9artifact.blob.core.windows.net/release/websoft9"
 ARG LIBRARY_REPO="https://github.com/Websoft9/docker-library"
