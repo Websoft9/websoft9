@@ -131,7 +131,7 @@ jobs:
           r2-access-key-id: ${{ secrets.CLOUDFLARE_SECRET_ID }}
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
           r2-bucket: artifact
-          source-dir: artifacts
+          source-dir: media
           destination-dir: ./${{ env.CHANNEL }}/websoft9/plugin/media
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
       
