@@ -3,7 +3,9 @@ name: Release to Github and Artifact
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - dev
+      - main
     paths:
       - "version.json"
 
