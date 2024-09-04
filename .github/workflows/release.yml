@@ -133,7 +133,7 @@ jobs:
           curl -X POST "https://api.cloudflare.com/client/v4/accounts/eb79f13320db531d8cf1f3720966b695/pages/projects/doc-websoft9-com/deployments" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             -F "file=@apidocs.zip" \
-            -F "branch=dev"
+            -F "development=dev"
             
       # - name: Publish to Cloudflare Pages
       #   uses: cloudflare/pages-action@v1
