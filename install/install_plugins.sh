@@ -44,7 +44,7 @@ echo "Your installation parameters are as follows: "
 echo "--channel: $channel"
 echo "--install_path: $install_path"
 
-artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9/plugin"
+artifact_url="https://artifact.websoft9.com/$channel/websoft9/plugin"
 echo_prefix_plugins=$'\n[Plugins] - '
 
 versions_local_file="$install_path/version.json"

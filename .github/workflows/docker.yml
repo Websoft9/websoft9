@@ -102,7 +102,7 @@ jobs:
 
       - name: Download media-latest.zip from Websoft9 artifact    
         run: |  
-          curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
+          curl -o media.zip https://artifact.websoft9.com/release/websoft9/plugin/media/media-latest.zip
         if: env.MEDIA_FROM == 'artifact'
 
         # release docker-library

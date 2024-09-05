@@ -1,6 +1,6 @@
 # This file can running at actions
 # MEDIA_VERSION and LIBRARY_VERSION will trigger its release
-# modify time: 202409031549, you can modify here to trigger Docker Build action
+# modify time: 202409050857, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
@@ -12,12 +12,12 @@ WORKDIR  /websoft9
 ARG MEDIA_VERSION="0.1.1"
 ARG LIBRARY_VERSION="0.7.1"
 ARG WEBSOFT9_REPO="https://github.com/Websoft9/websoft9"
-ARG WEBSOFT9_ARTIFACT="https://w9artifact.blob.core.windows.net/release/websoft9"
+ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
 ARG LIBRARY_REPO="https://github.com/Websoft9/docker-library"
 ARG SOURCE_GITHUB_PAGES="https://websoft9.github.io/websoft9"
 
 # If you build this image on local, need download media.zip from WEBSOFT9_ARTIFACT to docker/apphub directory like below
-# RUN curl -o media.zip https://w9artifact.blob.core.windows.net/release/websoft9/plugin/media/media-latest.zip
+# RUN curl -o media.zip https://artifact.websoft9.com/release/websoft9/plugin/media/media-latest.zip
 COPY media.zip /websoft9
 
 RUN apt update && apt install -y --no-install-recommends curl git jq cron iproute2 supervisor rsync wget unzip zip && \

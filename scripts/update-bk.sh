@@ -8,7 +8,7 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/websoft9/issues"' ERR
 
-urls="https://w9artifact.blob.core.windows.net/release/websoft9"
+urls="https://artifact.websoft9.com/release/websoft9"
 
 CheckEnv(){
 echo "------------------ Welcome to update websoft9's appstore, it will take 1-3 minutes -----------------"

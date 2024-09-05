@@ -48,7 +48,7 @@ if [ -z "$package_name" ] || [ -z "$sync_to" ]; then
 fi
 
 # Define the artifact URL as a global variable
-artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9/plugin"
+artifact_url="https://artifact.websoft9.com/$channel/websoft9/plugin"
 
 upgrade_zip() {
 

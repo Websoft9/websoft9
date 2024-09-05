@@ -107,7 +107,7 @@ export source_github_pages="https://websoft9.github.io/websoft9"
 export tools_yum="git curl wget epel-release yum-utils jq bc unzip inotify-tools"
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
-export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
+export artifact_url="https://artifact.websoft9.com/$channel/websoft9"
 echo Install from url: $artifact_url
 
 # Define common functions

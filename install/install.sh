@@ -177,7 +177,7 @@ export repo_tools_yum="epel-release"
 export tools_yum="git curl wget yum-utils jq bc unzip inotify-tools"
 export tools_apt="git curl wget jq bc unzip inotify-tools"
 export docker_network="websoft9"
-export artifact_url="https://w9artifact.blob.core.windows.net/$channel/websoft9"
+export artifact_url="https://artifact.websoft9.com/$channel/websoft9"
 # export OS release environments
 if [ -f /etc/os-release ]; then
     . /etc/os-release

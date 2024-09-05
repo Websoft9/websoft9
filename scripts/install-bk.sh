@@ -8,10 +8,10 @@ function  error_exit {
 }
 trap 'error_exit "Please push issue to: https://github.com/Websoft9/stackhub/issues"' ERR
 
-urls="https://w9artifact.blob.core.windows.net/release/websoft9"
+urls="https://artifact.websoft9.com/release/websoft9"
 if [[ "$1" == "dev" ]]; then
     echo "update by dev artifacts"
-    urls="https://w9artifact.blob.core.windows.net/dev/websoft9"
+    urls="https://artifact.websoft9.com/dev/websoft9"
 fi
 
 function get_os_type() {
