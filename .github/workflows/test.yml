@@ -1,5 +1,5 @@
 
-name: Deploy to Cloudflare Pages
+name: Deploy to Cloudflare Pages(For Test)
 
 on:
   workflow_dispatch:
