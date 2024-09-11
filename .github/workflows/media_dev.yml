@@ -5,6 +5,8 @@ name: Build Media-Dev for Apphub
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [media_dev_event]
 
 jobs:
   build:
