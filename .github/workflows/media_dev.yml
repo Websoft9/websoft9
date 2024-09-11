@@ -70,9 +70,21 @@ jobs:
         run: |
           rsync -av json logos screenshots media
           zip -r media-dev.zip media/
-    
-      - name: Upload media-dev.zip to artifacts
-        uses: actions/upload-artifact@v3
+          mkdir media-dev
+          mv media-dev.zip  media-dev/
+
+      - name: Upload To cloudflare r2
+        uses: ryand56/r2-upload-action@latest
         with:
-          name: media
-          path: media-dev.zip
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: media-dev
+          destination-dir: ./dev/websoft9/plugin/media
+    
+      # - name: Upload media-dev.zip to artifacts
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: media
+      #     path: media-dev.zip
