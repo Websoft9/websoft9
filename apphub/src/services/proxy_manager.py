@@ -48,7 +48,6 @@ class ProxyManager:
         # Try to get token from keyring
         try:
             jwt_token = keyring.get_password(service_name, token_name)
-            print(jwt_token)
         except Exception as e:
             jwt_token = None
 
