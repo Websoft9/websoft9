@@ -1,11 +1,11 @@
 # This file can running at actions
 # MEDIA_VERSION and LIBRARY_VERSION will trigger its release
-# modify time: 202410141200, you can modify here to trigger Docker Build action
+# modify time: 202410151112, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.1.3"
+LABEL version="0.1.4-rc1"
 
 WORKDIR  /websoft9
 
@@ -48,7 +48,8 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
 
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-RUN chmod +r /etc/supervisor/conf.d/supervisord.conf
+COPY config/logging_config.yaml /etc/supervisor/conf.d/logging_config.yaml
+RUN chmod +r /etc/supervisor/conf.d/supervisord.conf /etc/supervisor/conf.d/logging_config.yaml
 
 # cron
 COPY config/cron /etc/cron.d/cron
