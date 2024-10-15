@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "start to migrate config.ini"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - start to migrate config.ini"
 
 migrate_ini() {
 
@@ -46,7 +46,7 @@ migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.in
 migrate_ini "/websoft9/apphub/src/config/system.ini" "/websoft9/config/system.ini"
 
 if [ $? -eq 0 ]; then
-    echo "Success to update config.ini"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Success to update config.ini"
 else
-    echo "Fail to update config.ini, skip it"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ERROR - Fail to update config.ini, skip it"
 fi

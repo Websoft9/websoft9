@@ -26,7 +26,7 @@ for ((i=0; i<$try_times; i++)); do
 done
 
 if [[ -n "$username" ]]; then
-    echo "git config --global user.name $username"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - git config --global user.name $username"
     git config --global user.name "$username"
 else
     echo "username is null, git config username failed"
@@ -35,7 +35,7 @@ fi
 
 regex="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 if [[ $email =~ $regex ]]; then
-    echo "git config --global user.email $email"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - git config --global user.email $email"
     git config --global user.email "$email"
 else
     echo "Not have correct email, git config email failed"
