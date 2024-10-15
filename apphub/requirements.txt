@@ -7,3 +7,4 @@ GitPython
 PyJWT
 click
 python-dotenv
+PyYAML

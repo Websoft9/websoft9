@@ -69,6 +69,8 @@ class Logger(metaclass=SingletonMeta):
         file_handler.setFormatter(formatter)
         file_handler.setLevel(logging.DEBUG)
 
+        #logger.propagate = False
+
         logger.addHandler(file_handler)
         return logger
 

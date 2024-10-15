@@ -152,7 +152,6 @@ def check_apps_number(endpointId:int):
         # Get the official and  status is 1(Active) or 3(Installing) apps
         app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 3)]
 
-        logger.access(f"app_official:{len(app_official)}")
         if len(app_official) >= int(max_apps):
             logger.error(f"Exceed the maximum number of apps")
             raise CustomException(
