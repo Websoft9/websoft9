@@ -51,7 +51,7 @@ version="latest"
 channel="release"
 path="/data/websoft9/source"
 apps=""
-mirrors="https://docker.rainbond.cc,https://registry.inner.websoft9.cn"
+mirrors="https://dockerhub.websoft9.com"
 
 # 获取参数值
 while [[ $# -gt 0 ]]; do
@@ -472,12 +472,6 @@ install_backends() {
     if [ $? -ne 0 ]; then
         echo "Failed to start docker services."
         exit 1
-    fi
-
-    if jq -e '.["registry-mirrors"]' "$DOCKER_CONFIG_FILE" > /dev/null; then
-        jq 'del(.["registry-mirrors"])' "$DOCKER_CONFIG_FILE" > "${DOCKER_CONFIG_FILE}.tmp" && sudo mv "${DOCKER_CONFIG_FILE}.tmp" "$DOCKER_CONFIG_FILE"
-        sudo systemctl daemon-reload
-        sudo systemctl restart docker
     fi
 
     if [ "$execute_mode" = "install" ]; then
