@@ -22,7 +22,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          environment: production
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v4
