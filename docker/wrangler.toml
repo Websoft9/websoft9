@@ -7,4 +7,4 @@ route = ""
 zone_id = "652bba094db1170101e2513f340ad090"
 
 [build.upload]
-main = "cloudflare.js"
+main = "docker/cloudflare.js"
