@@ -3,9 +3,7 @@ addEventListener('fetch', event => {
   })
   
   // This data source from: https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
-  const backends = [
-    'https://docker.rainbond.cc'
-  ]
+  const backends = []
   async function handleRequest(request) {
     // 随机选择一个后端服务器
     const backend = backends[Math.floor(Math.random() * backends.length)]
