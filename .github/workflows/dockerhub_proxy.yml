@@ -12,11 +12,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # - name: Build cloudflare.js for Dockerhub proxy
-      #   run: |
-      #     cd docker
-      #     curl -o https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
-      #     echo "Insert proxy lists to cloudflare.js"
+      - name: Build cloudflare.js for Dockerhub proxy
+        run: |
+          cd docker
+          curl -o https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
+          echo "Insert proxy lists to cloudflare.js"
+
+      - name: Extract URLs from Markdown and update cloudflare.js
+        run: |
+          # Extract URLs from the downloaded Markdown file
+          urls=$(grep -Eo 'https://[a-zA-Z0-9./?=_-]*' docker/dockerhub-proxy.md | tr '\n' ',' | sed 's/,$//')
+          
+          # Create the new backends array
+          new_backends="const backends = [${urls}]"
+          
+          # Update cloudflare.js with the new backends array
+          sed -i "s|const backends = \[.*\]|${new_backends}|" docker/cloudflare.js
 
       - name: Set compatibility date
         id: set-date
