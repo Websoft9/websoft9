@@ -22,7 +22,7 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: wrangler deploy docker/cloudflare.js
+          command: deploy docker/cloudflare.js
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v4
