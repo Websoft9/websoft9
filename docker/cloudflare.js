@@ -10,6 +10,7 @@ addEventListener('fetch', event => {
     'https://a.ussh.net',
     'https://docker.zhai.cm'
   ]
+  var test = "test"
   
   async function handleRequest(request) {
     // 随机选择一个后端服务器
