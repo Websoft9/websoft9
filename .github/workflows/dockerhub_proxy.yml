@@ -18,7 +18,7 @@ jobs:
           curl -o dockerhub-proxy.md https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
   
           # 提取 Markdown 文件中的 URL
-          urls=$(grep -Eo 'https://[a-zA-Z0-9./?=_-]*' dockerhub-proxy.md | tr '\n' ',' | sed 's/,$//')
+          urls=$(grep -Eo 'https://[a-zA-Z0-9./?=_-]*' dockerhub-proxy.md | sed 's/^/"/; s/$/"/' | tr '\n' ',' | sed 's/,$//')
   
           # 创建新的 backends 数组
           new_backends="const backends = [${urls}]"
