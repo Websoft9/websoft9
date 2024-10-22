@@ -23,7 +23,7 @@ jobs:
         with:
           apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy docker/cloudflare.js --name test
+          command: deploy docker/cloudflare.js --name test --compatibility-date $(date +%Y-%m-%d)
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v4
