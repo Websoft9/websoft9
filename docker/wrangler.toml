@@ -1,10 +1,13 @@
 name = "test"
 type = "javascript"
-
 account_id = "eb79f13320db531d8cf1f3720966b695"
-workers_dev = true
-route = ""
-zone_id = "652bba094db1170101e2513f340ad090"
 
 [build.upload]
 main = "docker/cloudflare.js"
+
+[env.production]
+name = "test"
+account_id = "eb79f13320db531d8cf1f3720966b695"
+workers_dev = false
+route = ""
+zone_id = "652bba094db1170101e2513f340ad090"
