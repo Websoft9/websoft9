@@ -18,12 +18,16 @@ jobs:
       #     curl -o https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
       #     echo "Insert proxy lists to cloudflare.js"
 
+      - name: Set compatibility date
+        id: set-date
+        run: echo "COMPATIBILITY_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+
       - name: Deploy to cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy docker/cloudflare.js --name test --compatibility-date $(date +%Y-%m-%d)
+          command: deploy docker/cloudflare.js --name test --compatibility-date ${{ env.COMPATIBILITY_DATE }}
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v4
