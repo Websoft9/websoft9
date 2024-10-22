@@ -12,17 +12,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build cloudflare.js for Dockerhub proxy
-        run: |
-          cd docker
-          curl -o https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
-          echo "Insert proxy lists to cloudflare.js"
+      # - name: Build cloudflare.js for Dockerhub proxy
+      #   run: |
+      #     cd docker
+      #     curl -o https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
+      #     echo "Insert proxy lists to cloudflare.js"
 
       - name: Deploy to cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          preCommands: cd docker
+          environment: production
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v4
