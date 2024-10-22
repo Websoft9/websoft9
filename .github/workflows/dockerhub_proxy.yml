@@ -21,7 +21,7 @@ jobs:
       - name: Deploy to cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy docker/cloudflare.js --name test
 
