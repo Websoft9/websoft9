@@ -8,3 +8,4 @@ apphub/swagger-ui
 apphub/apphub.egg-info
 cli/__pycache__
 source
+node_modules
