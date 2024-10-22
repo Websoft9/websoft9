@@ -4,15 +4,13 @@ addEventListener('fetch', event => {
   
   // This data source from: https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
   const backends = [
-    'https://docker.rainbond.cc',
-    'https://docker.1panel.dev',
-    'https://docker.fxxk.dedyn.io',
-    'https://a.ussh.net',
-    'https://docker.zhai.cm'
+    'https://docker.rainbond.cc'
   ]
   var test = "test"
   
   async function handleRequest(request) {
+    //打印
+    print(test)
     // 随机选择一个后端服务器
     const backend = backends[Math.floor(Math.random() * backends.length)]
     
