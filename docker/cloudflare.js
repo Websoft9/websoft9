@@ -6,11 +6,7 @@ addEventListener('fetch', event => {
   const backends = [
     'https://docker.rainbond.cc'
   ]
-  var test = "test"
-  
   async function handleRequest(request) {
-    //打印
-    print(test)
     // 随机选择一个后端服务器
     const backend = backends[Math.floor(Math.random() * backends.length)]
     
