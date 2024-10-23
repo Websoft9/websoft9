@@ -296,7 +296,7 @@ download_source_and_checkimage() {
         exit 1
     fi
 
-    bash /tmp/$source_zip/install/install_docker.sh
+    bash /tmp/$source_unzip/install/install_docker.sh
     if [ $? -ne 0 ]; then
         echo "install_docker failed with error $?. Exiting."
         exit 1
