@@ -3,5 +3,6 @@
     "log-opts": {
       "max-size": "10m",
       "max-file": "5"
-    }
+    },
+    "registry-mirrors": ["https://dockerhub.websoft9.com"]
 }

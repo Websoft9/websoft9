@@ -276,9 +276,7 @@ install_tools(){
     fi
 }
 
-
-
-download_source() {
+download_source_and_checkimage() {
     echo_prefix_source=$'\n[Download Source] - '
     echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
     
@@ -289,7 +287,49 @@ download_source() {
         echo "Failed to download source package."
         exit 1
     fi
+    
+    ## unzip and check image
+    rm -rf /tmp/$source_unzip
+    sudo unzip -o "$source_zip" -d /tmp > /dev/null
+    if [ $? -ne 0 ]; then
+        echo "Failed to unzip source package."
+        exit 1
+    fi
+    
+    cd /tmp/$source_unzip/docker
+    docker-compose pull
+    if [ $? -ne 0 ]; then
+    
+        echo "Can not pull images from docker hub, set mirrors...."
 
+        if [ -f "/etc/docker/daemon.json" ]; then
+            if grep -q "registry-mirrors" "/etc/docker/daemon.json"; then
+                mv /etc/docker/daemon.json /etc/docker/daemon.json.bak
+                cp daemon.json /etc/docker/daemon.json
+            else
+                rm -f /etc/docker/daemon.json
+                cp daemon.json /etc/docker/daemon.json
+            fi
+        else
+            cp daemon.json /etc/docker/daemon.json
+        fi
+
+        sudo systemctl daemon-reload
+        sudo systemctl restart docker
+
+        # pull image by new mirrors
+        docker compose pull
+        if [ $? -ne 0 ]; then
+            echo "image pull failed again, exit install"
+            exit 1
+        else
+            echo "image pull success by new mirrors"
+        fi
+    else
+        echo "image pull success"
+    fi
+
+    rm -rf /tmp/$source_unzip
     sudo unzip -o "$source_zip" -d "$install_path" > /dev/null
     if [ $? -ne 0 ]; then
         echo "Failed to unzip source package."
@@ -305,8 +345,6 @@ download_source() {
     rm -rf "$source_zip" "$install_path/$source_unzip"
 
 }
-
-
 
 check_ports() {
     local ports=("$@")
@@ -331,61 +369,8 @@ check_ports() {
     echo "All ports are available"
 }
 
-merge_json_files() {
-    local target_path="/etc/docker/daemon.json"
-
-    python3 - <<EOF 2>/dev/null
-import json
-import urllib.request
-import os
-
-def merge_json_files(file1, file2):
-    print("Merge from local file... ")
-    with open(file1, 'r') as f1, open(file2, 'r') as f2:
-        data1 = json.load(f1)
-        data2 = json.load(f2)
-
-    merged_data = {**data1, **data2}
-
-    with open(file1, 'w') as f:
-        json.dump(merged_data, f, indent=4)
-
-def download_and_merge(url, file_path):
-    print("Download daemon.json from url and merge... ")
-    with urllib.request.urlopen(url) as response:
-        data = json.loads(response.read().decode())
-
-    with open(file_path, 'r') as f:
-        local_data = json.load(f)
-
-    merged_data = {**local_data, **data}
-
-    with open(file_path, 'w') as f:
-        json.dump(merged_data, f, indent=4)
-
-# Create target file if it does not exist
-if not os.path.exists("${target_path}"):
-    os.makedirs(os.path.dirname("${target_path}"), exist_ok=True)
-    with open("${target_path}", 'w') as f:
-        json.dump({}, f)
-
-if os.path.exists("${install_path}/docker/daemon.json"):
-    merge_json_files("${target_path}", "${install_path}/docker/daemon.json")
-elif urllib.request.urlopen("${source_github_pages}/docker/daemon.json").getcode() == 200:
-    download_and_merge("${source_github_pages}/docker/daemon.json", "${target_path}")
-else:
-    print("No target daemon.json file need to merged")
-EOF
-
-    if [ $? -ne 0 ]; then
-        echo "merge daemon.json failed, but install continue running"
-    fi
-}
-
-
 set_docker(){
     echo "Set Docker for Websoft9 backend service..."
-    merge_json_files
     if ! systemctl is-active --quiet firewalld; then
         echo "firewalld is not running"  
     else
@@ -444,31 +429,8 @@ install_backends() {
     else
         echo "No containers to delete."
     fi
-
-    DOCKER_CONFIG_FILE="/etc/docker/daemon.json"
-    MIRROR_ADDRESS=$mirrors
-    timeout 10s sudo docker compose -f $composefile pull
-    if [ $? -eq 0 ]; then
-        echo "Docker Compose pull succeeded"
-    else
-        echo "Can not pull images from docker hub, set mirrors..."
-        if [ ! -f "$DOCKER_CONFIG_FILE" ]; then
-            echo "{}" | sudo tee "$DOCKER_CONFIG_FILE" > /dev/null
-        fi
-
-        if command -v jq >/dev/null 2>&1; then
-            MIRROR_ARRAY=$(echo $MIRROR_ADDRESS | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
-            #jq --arg mirrors "$MIRROR_ARRAY" '.["registry-mirrors"] = ($mirrors | fromjson)' "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && sudo mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
-            jq ".\"registry-mirrors\" = $MIRROR_ARRAY" "$DOCKER_CONFIG_FILE" > "$DOCKER_CONFIG_FILE.tmp" && sudo mv "$DOCKER_CONFIG_FILE.tmp" "$DOCKER_CONFIG_FILE"
-
-        else
-            echo "jq not installed!"
-            exit 1
-        fi
-        sudo systemctl daemon-reload
-        sudo systemctl restart docker
-    fi
-    sudo docker compose -p websoft9 -f $composefile up -d --build
+    
+    sudo docker compose -p websoft9 -f $composefile up -d
     if [ $? -ne 0 ]; then
         echo "Failed to start docker services."
         exit 1
@@ -517,18 +479,18 @@ install_systemd() {
     fi
 }
 
-
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $port | tee -a  $log_path
 install_tools | tee -a  $log_path
-download_source | tee -a  $log_path
 
 bash $install_path/install/install_docker.sh | tee -a  $log_path
 if [ $? -ne 0 ]; then
     echo "install_docker failed with error $?. Exiting."
     exit 1
 fi
+
+download_source_and_checkimage | tee -a  $log_path
 
 install_backends | tee -a  $log_path
 
