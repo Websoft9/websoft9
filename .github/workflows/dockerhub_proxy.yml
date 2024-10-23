@@ -12,20 +12,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download Markdown file and update cloudflare.js
+      - name: Download _worker.js
         run: |
-          cd docker
-          curl -o dockerhub-proxy.md https://raw.githubusercontent.com/Websoft9/doc.websoft9.com/refs/heads/main/docs/reference/_include/dockerhub-proxy.md
+          curl -o _worker.js https://raw.githubusercontent.com/cmliu/CF-Workers-docker.io/main/_worker.js
   
-          # 提取 Markdown 文件中的 URL
-          urls=$(grep -Eo 'https://[a-zA-Z0-9./?=_-]*' dockerhub-proxy.md | sed 's/^/"/; s/$/"/' | tr '\n' ',' | sed 's/,$//')
-  
-          # 创建新的 backends 数组
-          new_backends="const backends = [${urls}]"
-  
-          # 更新 cloudflare.js 文件中的 backends 数组
-          sed -i "s|var backends = \[.*\]|${new_backends}|" cloudflare.js
-
       - name: Set compatibility date
         id: set-date
         run: echo "COMPATIBILITY_DATE=$(date +%Y-%m-%d)" >> $GITHUB_ENV
@@ -35,4 +25,4 @@ jobs:
         with:
           apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy docker/cloudflare.js --name dockerhub --compatibility-date ${{ env.COMPATIBILITY_DATE }}
+          command: deploy _worker.js --name dockerhub --compatibility-date ${{ env.COMPATIBILITY_DATE }}
