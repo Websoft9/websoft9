@@ -281,23 +281,23 @@ download_source_and_checkimage() {
     echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
     
     find . -type f -name "websoft9*.zip*" -exec rm -f {} \;
+    rm -rf /tmp/$source_unzip
 
-    wget "$artifact_url/$source_zip"
+    wget -P /tmp "$artifact_url/$source_zip"
     if [ $? -ne 0 ]; then
         echo "Failed to download source package."
         exit 1
     fi
     
     ## unzip and check image
-    rm -rf /tmp/$source_unzip
-    sudo unzip -o "$source_zip" -d /tmp > /dev/null
+    sudo unzip -o "/tmp/$source_zip" -d /tmp > /dev/null
     if [ $? -ne 0 ]; then
         echo "Failed to unzip source package."
         exit 1
     fi
     
     cd /tmp/$source_unzip/docker
-    docker-compose pull
+    docker compose pull
     if [ $? -ne 0 ]; then
     
         echo "Can not pull images from docker hub, set mirrors...."
@@ -330,7 +330,7 @@ download_source_and_checkimage() {
     fi
 
     rm -rf /tmp/$source_unzip
-    sudo unzip -o "$source_zip" -d "$install_path" > /dev/null
+    sudo unzip -o "/tmp/$source_zip" -d "$install_path" > /dev/null
     if [ $? -ne 0 ]; then
         echo "Failed to unzip source package."
         exit 1
@@ -342,7 +342,7 @@ download_source_and_checkimage() {
         exit 1
     fi
 
-    rm -rf "$source_zip" "$install_path/$source_unzip"
+    rm -rf "/tmp/$source_zip" "$install_path/$source_unzip"
 
 }
 
@@ -442,6 +442,11 @@ install_backends() {
             sudo docker exec -i websoft9-apphub apphub setconfig --section initial_apps --key keys --value "$apps"
         fi
     fi 
+    
+    if [ -f "/etc/docker/daemon.json.bak" ]; then
+        rm -rf /etc/docker/daemon.json
+        mv /etc/docker/daemon.json.bak /etc/docker/daemon.json
+    fi
 }
 
 install_systemd() {
