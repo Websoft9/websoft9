@@ -295,6 +295,12 @@ download_source_and_checkimage() {
         echo "Failed to unzip source package."
         exit 1
     fi
+
+    bash /tmp/$source_zip/install/install_docker.sh
+    if [ $? -ne 0 ]; then
+        echo "install_docker failed with error $?. Exiting."
+        exit 1
+    fi
     
     cd /tmp/$source_unzip/docker
     docker compose pull
@@ -488,12 +494,6 @@ install_systemd() {
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $port | tee -a  $log_path
 install_tools | tee -a  $log_path
-
-bash $install_path/install/install_docker.sh | tee -a  $log_path
-if [ $? -ne 0 ]; then
-    echo "install_docker failed with error $?. Exiting."
-    exit 1
-fi
 
 download_source_and_checkimage | tee -a  $log_path
 
