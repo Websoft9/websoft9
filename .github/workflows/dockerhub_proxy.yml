@@ -24,7 +24,7 @@ jobs:
           new_backends="const backends = [${urls}]"
   
           # 更新 cloudflare.js 文件中的 backends 数组
-          sed -i "s|const backends = \[.*\]|${new_backends}|" cloudflare.js
+          sed -i "s|var backends = \[.*\]|${new_backends}|" cloudflare.js
 
       - name: Set compatibility date
         id: set-date
@@ -36,8 +36,3 @@ jobs:
           apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy docker/cloudflare.js --name test --compatibility-date ${{ env.COMPATIBILITY_DATE }}
-
-      # - name: Commit and push changes
-      #   uses: stefanzweifel/git-auto-commit-action@v4
-      #   with:
-      #     commit_message: update cloudflare.js
