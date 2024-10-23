@@ -14,7 +14,7 @@ jobs:
 
       - name: Download _worker.js
         run: |
-          curl -o _worker.js https://github.com/cmliu/CF-Workers-docker.io/blob/main/_worker.js
+          curl -o _worker.js https://raw.githubusercontent.com/cmliu/CF-Workers-docker.io/main/_worker.js
   
       - name: Set compatibility date
         id: set-date
