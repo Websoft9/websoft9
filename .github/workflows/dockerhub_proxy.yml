@@ -35,4 +35,4 @@ jobs:
         with:
           apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy docker/cloudflare.js --name test --compatibility-date ${{ env.COMPATIBILITY_DATE }}
+          command: deploy docker/cloudflare.js --name dockerhub --compatibility-date ${{ env.COMPATIBILITY_DATE }}
