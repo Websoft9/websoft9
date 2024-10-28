@@ -1,13 +1,19 @@
 import sys
 import os
+import uuid
 import json
+import shutil
+import requests
+import subprocess
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import click
+from dotenv import dotenv_values, set_key,unset_key
 from src.services.apikey_manager import APIKeyManager
 from src.services.settings_manager import SettingsManager
 from src.core.exception import CustomException
+from src.core.config import ConfigManager
 
 @click.group()
 def cli():
@@ -65,6 +71,114 @@ def getconfig(section, key):
         raise click.ClickException(e.details)
     except Exception as e:
         raise click.ClickException(str(e))
+    
+@cli.command()
+@click.option('--appid',required=True, help='The App Id')
+@click.option('--github_token', required=True, help='The Github Token')
+def commit(appid, github_token):
+    """Commit the app to the Github"""
+    try:
+        # 从配置文件读取gitea的用户名和密码
+        gitea_user = ConfigManager().get_value("gitea", "user_name")
+        gitea_pwd = ConfigManager().get_value("gitea", "user_pwd")
+    
+        # 将/tmp目录作为工作目录，如果不存在则创建，如果存在则清空
+        work_dir = "/tmp/git"
+        if os.path.exists(work_dir):
+            shutil.rmtree(work_dir)
+        os.makedirs(work_dir)
+        os.chdir(work_dir)
+
+        # 执行git clone命令：将gitea仓库克隆到本地
+        gitea_repo_url = f"http://{gitea_user}:{gitea_pwd}@websoft9-git:3000/websoft9/{appid}.git"
+        subprocess.run(["git", "clone", gitea_repo_url], check=True)
+
+        # 执行git clone命令：将github仓库克隆到本地(dev分支)
+        github_repo_url = f"https://github.com/Websoft9/docker-library.git"
+        subprocess.run(["git", "clone", "--branch", "dev", github_repo_url], check=True)
+
+        # 解析gitea_repo_url下载的目录下的.env文件
+        gitea_env_path = os.path.join(work_dir, appid, '.env')
+        gitea_env_vars = dotenv_values(gitea_env_path)
+        w9_app_name = gitea_env_vars.get('W9_APP_NAME')
+
+        if not w9_app_name:
+            raise click.ClickException("W9_APP_NAME not found in Gitea .env file")
+        
+        # 解析github_repo_url下载的目录下的/apps/W9_APP_NAME目录下的.env文件
+        github_env_path = os.path.join(work_dir, 'docker-library', 'apps', w9_app_name, '.env')
+        github_env_vars = dotenv_values(github_env_path)
+
+        # 需要复制的变量
+        env_vars_to_copy = ['W9_URL', 'W9_ID', 'W9_POWER_PASSWORD', 'W9_VERSION']
+        port_set_vars = {key: value for key, value in github_env_vars.items() if key.endswith('PORT_SET')}
+
+        # 将这些值去替换gitea_repo_url目录下.env中对应项的值
+        for key in env_vars_to_copy:
+            if key in github_env_vars:
+                set_key(gitea_env_path, key, github_env_vars[key])
+
+        for key, value in port_set_vars.items():
+            set_key(gitea_env_path, key, value)
+
+        # 删除W9_APP_NAME
+        unset_key(gitea_env_path, 'W9_APP_NAME')
+
+        # 将整个gitea目录覆盖到docker-library/apps/w9_app_name目录
+        gitea_repo_dir = os.path.join(work_dir, appid)
+        github_app_dir = os.path.join(work_dir, 'docker-library', 'apps', w9_app_name)
+        if os.path.exists(github_app_dir):
+            shutil.rmtree(github_app_dir)
+        shutil.copytree(gitea_repo_dir, github_app_dir)
+
+        # 切换到docker-library目录
+        os.chdir(os.path.join(work_dir, 'docker-library'))
+
+        # 创建一个新的分支
+        new_branch_name = f"update-{w9_app_name}-{uuid.uuid4().hex[:8]}"
+        subprocess.run(["git", "checkout", "-b", new_branch_name], check=True)
+
+        # 将修改提交到新的分支
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(["git", "commit", "-m", f"Update {w9_app_name}"], check=True)
+
+        # 推送新的分支到 GitHub
+        # subprocess.run(["git", "push", "origin", new_branch_name], check=True)
+
+        # 推送新的分支到 GitHub
+        github_push_url = f"https://{github_token}:x-oauth-basic@github.com/websoft9/docker-library.git"
+        subprocess.run(["git", "push", github_push_url, new_branch_name], check=True)
+
+        # 创建 Pull Request 使用 GitHub API
+        pr_data = {
+            "title": f"Update {w9_app_name}",
+            "head": new_branch_name,
+            "base": "dev",
+            "body": "Automated update"
+        }
+
+        response = requests.post(
+            f"https://api.github.com/repos/websoft9/docker-library/pulls",
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json"
+            },
+            data=json.dumps(pr_data)
+        )
+
+        if response.status_code != 201:
+            raise click.ClickException(f"Failed to create Pull Request: {response.json()}")
+
+        click.echo(f"Pull Request created: {response.json().get('html_url')}")
+
+    except subprocess.CalledProcessError as e:
+        raise click.ClickException(f"Command failed: {e}")
+    except Exception as e:
+        raise click.ClickException(str(e))
+    finally:
+        # 删除工作目录
+        if os.path.exists(work_dir):
+            shutil.rmtree(work_dir)
 
 if __name__ == "__main__":
     cli()

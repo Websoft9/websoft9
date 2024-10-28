@@ -1,3 +1,5 @@
+# setup command: pip install -e .
+
 from setuptools import find_packages, setup
 
 setup(
