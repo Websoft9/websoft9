@@ -110,7 +110,7 @@ def commit(appid, github_token):
         github_env_vars = dotenv_values(github_env_path)
 
         # 需要复制的变量
-        env_vars_to_copy = ['W9_URL', 'W9_ID', 'W9_POWER_PASSWORD', 'W9_VERSION']
+        env_vars_to_copy = ['W9_URL', 'W9_ID']
         port_set_vars = {key: value for key, value in github_env_vars.items() if key.endswith('PORT_SET')}
 
         # 将这些值去替换gitea_repo_url目录下.env中对应项的值
