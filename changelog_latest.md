@@ -1,7 +1,6 @@
 ### enhancement:
-- websoft9-apphub service logs unfriendly #518
+- fix update Websoft9 at install.sh #539
+- Build and push js file to CloudFlare worker #538
+- Create dockerhub proxy URL based on Cloudflare #536
+- add Dockerfile build function for apphub #534
 
-### appstore:
-- [cannot pull image for jetty](https://github.com/Websoft9/docker-library/issues/712)
-- [tomee pull tomee9 image error](https://github.com/Websoft9/docker-library/issues/702)
-- [some errors of flowise on AWS ubuntu](https://github.com/Websoft9/docker-library/issues/693)
