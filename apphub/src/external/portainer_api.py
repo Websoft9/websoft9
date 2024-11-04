@@ -216,6 +216,10 @@ class PortainerAPI:
                 "repositoryAuthentication": True,
                 "RepositoryUsername": usr_name,
                 "RepositoryPassword": usr_password,
+                "env":[{
+                    "name": "DEPLOY_TIME",
+                    "value": "-"+datetime.now().strftime("%Y%m%d%H%M%S")
+                }]
             },
         )
 
