@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import threading
 
@@ -372,7 +373,10 @@ class PortainerAPI:
             path=f"stacks/{stackID}/git/redeploy", 
             params={"endpointId": endpointId},
             json={
-                "env":[],
+                "env":[{
+                    "name": "DEPLOY_TIME",
+                    "value": "-"+datetime.now().strftime("%Y%m%d%H%M%S")
+                }],
                 "prune":False,
                 "RepositoryReferenceName":"",
                 "RepositoryAuthentication":True,
