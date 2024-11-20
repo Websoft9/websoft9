@@ -7,7 +7,6 @@ FROM jc21/nginx-proxy-manager:2.11.3
 LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="2.11.3-rc1"
 
-user root
 RUN mkdir /data/nginx/custom
 COPY ./config/http.conf /data/nginx/custom/http.conf
 COPY ./config/initproxy.conf /data/nginx/default_host/initproxy.conf
