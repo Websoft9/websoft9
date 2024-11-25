@@ -15,6 +15,11 @@ You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-tem
 - Softwares: cloud-init, agent of Cloud provider, virtio, NVMe, 
 - Other config: https://github.com/Websoft9/mcloud/blob/master/ansible/roles/desktop/tasks/image.yml
 - Applicaitons: Desktop, Docker/Podman, Java
+- Other repository
+  ```
+  yum install -y oraclelinux-developer-release-e* oracle-nodejs-release-e* oracle-epel-release-e*; fi
+  python3 and pip at OracleLinux7?
+  ```
 
 ## Upgrade Oracle Linux
 
