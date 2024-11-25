@@ -2,7 +2,7 @@
 
 ## How to create VM image?
 
-You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-templates.html) from official website, don't allowed to build image from ISO by KVM/VMVare/VirtualBox
+You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-templates.html) from official website, don't try to build image from ISO manual setup by KVM/VMVare/VirtualBox
 
 ## Cloud image requirements
 
