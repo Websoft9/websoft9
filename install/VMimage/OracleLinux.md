@@ -20,6 +20,8 @@ You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-tem
 
 You can use [leapp](https://docs.oracle.com/en/learn/ol-linux-leapp) to upgrade major version, e.g Oracle Linux8 > Oracle Linux9
 
-## Test tools
+## Test your Cloud private image
+
+Some Cloud provider have tools for your image testing:  
 
 - [阿里云 sersi](https://help.aliyun.com/zh/ecs/user-guide/check-whether-an-image-meets-the-import-requirements)
