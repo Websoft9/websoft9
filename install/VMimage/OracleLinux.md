@@ -1,6 +1,10 @@
 # Oracle Linux
 
-## Requirement
+## How to create VM image?
+
+You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-templates.html) from official website, don't allowed to build image from ISO by KVM/VMVare/VirtualBox
+
+## Cloud image requirements
 
 - Kernel: Unbreakable Enterprise Kernel (UEK)/Red Hat Compatible Kernel(RHCK)
 - OS disk automaticlly resize
@@ -12,7 +16,7 @@
 - Other config: https://github.com/Websoft9/mcloud/blob/master/ansible/roles/desktop/tasks/image.yml
 - Applicaitons: Desktop, Docker/Podman, Java
 
-## Upgrade
+## Upgrade Oracle Linux
 
 You can use [leapp](https://docs.oracle.com/en/learn/ol-linux-leapp) to upgrade major version, e.g Oracle Linux8 > Oracle Linux9
 
