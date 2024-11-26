@@ -6,7 +6,9 @@ You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-tem
 
 ## Cloud image requirements
 
-- Kernel: Unbreakable Enterprise Kernel (UEK)(√)/Red Hat Compatible Kernel(RHCK)
+- Kernel:
+  - Unbreakable Enterprise Kernel (UEK)(√)
+  - Red Hat Compatible Kernel(RHCK)
 - OS disk automaticlly resize
 - User can user password or key both for create VM or reset password
 - OS start methond on Cloud: UEFI-Preferred
