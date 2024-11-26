@@ -12,7 +12,7 @@ You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-tem
 - OS disk automaticlly resize
 - User can user password or key both for create VM or reset password
 - OS start methond on Cloud: UEFI-Preferred
-- Disk partition: LVM(√)
+- Logic Disk partition: LVM
 - File system type: xfs(√)、[btrfs](https://blogs.oracle.com/linux/post/btrfs-on-oracle-linuxefficiently-backup-and-recover-systems) 
 - Softwares: cloud-init, agent of Cloud provider, virtio, NVMe
 - Other config: https://github.com/Websoft9/mcloud/blob/master/ansible/roles/desktop/tasks/image.yml
