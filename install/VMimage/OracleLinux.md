@@ -6,15 +6,15 @@ You should download [Oracle Linux image](https://yum.oracle.com/oracle-linux-tem
 
 ## Cloud image requirements
 
-- Kernel: Unbreakable Enterprise Kernel (UEK)/Red Hat Compatible Kernel(RHCK)
+- Kernel: Unbreakable Enterprise Kernel (UEK)(√)/Red Hat Compatible Kernel(RHCK)
 - OS disk automaticlly resize
 - User can user password or key both for create VM or reset password
-- OS start methond on Cloud: BIOS/UEFI/UEFI-Preferred
-- Disk partition: LVM/?
-- File system type: FAT32、EXT2、EXT3、EXT4、UFS、[btrfs](https://blogs.oracle.com/linux/post/btrfs-on-oracle-linuxefficiently-backup-and-recover-systems)
+- OS start methond on Cloud: UEFI-Preferred
+- Disk partition: LVM(√)
+- File system type: xfs(√)、[btrfs](https://blogs.oracle.com/linux/post/btrfs-on-oracle-linuxefficiently-backup-and-recover-systems) 
 - Softwares: cloud-init, agent of Cloud provider, virtio, NVMe
 - Other config: https://github.com/Websoft9/mcloud/blob/master/ansible/roles/desktop/tasks/image.yml
-- Applicaitons: Desktop, Docker/Podman, Java
+- Applicaitons: Desktop or Docker/Podman
 - Other repository
   ```
   yum install -y oraclelinux-developer-release-e* oracle-nodejs-release-e* oracle-epel-release-e*; fi
