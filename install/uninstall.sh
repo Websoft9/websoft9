@@ -13,12 +13,15 @@ echo -e "\n---Remove Websoft9 backend service containers---"
 sudo docker compose -p websoft9 down -v
 
 echo -e "\n---Remove Websoft9 systemd service---"
-sudo systemctl disable websoft9
-sudo systemctl stop websoft9
-rm -rf /lib/systemd/system/websoft9.service
+if systemctl list-units --full --all | grep -Fq websoft9.service; then
+    sudo systemctl disable websoft9
+    sudo systemctl stop websoft9
+    rm -rf /lib/systemd/system/websoft9.service
+else
+    echo "websoft9.service does not exist."
+fi
 
 remove_cockpit() {
-    
     echo -e "\n---Remove Cockpit---"
     sudo systemctl stop cockpit.socket cockpit
     sudo systemctl disable cockpit.socket cockpit
@@ -33,27 +36,24 @@ remove_cockpit() {
     apt_status=$?
 
     if [ $dnf_status -eq 0 ]; then
-        for pkg in $cockpit_packages
-        do
+        for pkg in $cockpit_packages; do
             echo "Uninstalling $pkg"
             sudo dnf remove -y "$pkg" > /dev/null || echo "$pkg failed to uninstall"
         done
     elif [ $yum_status -eq 0 ]; then
-        for pkg in $cockpit_packages
-        do
+        for pkg in $cockpit_packages; do
             echo "Uninstalling $pkg"
             sudo yum remove -y "$pkg" > /dev/null || echo "$pkg failed to uninstall"
         done
     elif [ $apt_status -eq 0 ]; then
         export DEBIAN_FRONTEND=noninteractive
-        for pkg in $cockpit_packages
-        do
+        for pkg in $cockpit_packages; do
             echo "Uninstalling $pkg"
             sudo apt-get remove -y "$pkg" > /dev/null || echo "$pkg failed to uninstall"
         done
     else
-        echo "Neither apt,dnf nor yum found. Please install one of them and try again."
-    end
+        echo "Neither apt, dnf nor yum found. Please install one of them and try again."
+    fi  # 修正这里，使用 fi 而不是 end
 
     sudo rm -rf /etc/cockpit/*
 }
