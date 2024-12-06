@@ -9,8 +9,9 @@ LABEL version="2.11.3-rc1"
 
 COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
+RUN mkdir -p /etc/websoft9
 COPY ./config/http.conf /data/nginx/custom/http.conf
-COPY ./config/initproxy.conf /data/nginx/default_host/initproxy.conf
+COPY ./config/initproxy.conf /etc/websoft9/initproxy.conf
 COPY ./init_nginx.sh /app/init_nginx.sh
 RUN chmod +x /app/init_nginx.sh
 
