@@ -31,7 +31,7 @@ type Credentials struct {
 }
 
 func main() {
-    
+    // 检查初始化标志文件是否存在
     initFlagExists := fileExists(initFlagFilePath)
     credentialFileExists := fileExists(credentialFilePath)
 
@@ -80,6 +80,13 @@ func main() {
     if err := cmd.Wait(); err != nil {
         log.Fatalf("Portainer process exited with error: %v", err)
     }
+}
+
+func fileExists(filePath string) bool {
+    if _, err := os.Stat(filePath); err == nil {
+        return true
+    }
+    return false
 }
 
 func startPortainer() {
