@@ -31,9 +31,12 @@ type Credentials struct {
 }
 
 func main() {
-    // 检查初始化标志文件是否存在
-    if _, err := os.Stat(initFlagFilePath); err == nil {
-        log.Println("Initialization has already been completed by another instance.")
+    
+    initFlagExists := fileExists(initFlagFilePath)
+    credentialFileExists := fileExists(credentialFilePath)
+
+    if initFlagExists || credentialFileExists {
+        log.Println("Initialization has already been completed by another instance or credentials are present.")
         startPortainer()
         return
     }
