@@ -54,9 +54,9 @@ for i in ${!containers[@]}; do
         ((counter++))
     done
     if [[ $success == true ]]; then
-        echo "Successfully retrieved credentials for $container"
+        echo "Successfully get credentials from $container"
     else
-        echo "Failed to retrieve credentials for $container after $max_retries attempts"
+        echo "Failed to get credentials from $container after $max_retries attempts"
     fi
 done
 
@@ -68,10 +68,10 @@ for ((i=0; i<$length; i++)); do
     container=${containers[$i]}
     section=${sections[$i]}
     if [[ -n ${passwords[$container]} ]]; then
-        echo "$container start to set password"
+        echo "Sync credentials of $container to websoft9-apphub"
         docker exec -i websoft9-apphub apphub setconfig --section $section --key user_name --value ${usernames[$container]}
         docker exec -i websoft9-apphub apphub setconfig --section $section --key user_pwd --value ${passwords[$container]}
     else
-        echo "Password for $container is not set or empty. Skipping..."
+        echo "Password of $container is not set or empty. Skipping..."
     fi
 done
