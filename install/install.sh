@@ -43,12 +43,18 @@ export PATH
 #
 #  $ sudo bash install.sh --devto "/data/dev/mycode"
 #
+# --execute_mode
+# Use the --execute_mode option to execute mode, execute_mode is auto/install/upgrade, for example:
+#
+#  $ sudo bash install.sh --execute_mode "upgrade"
+#
 # ==============================================================================
 
 
 # 设置参数的默认值
 version="latest"
 channel="release"
+execute_mode="auto"
 path="/data/websoft9/source"
 apps=""
 mirrors="https://dockerhub.websoft9.com"
@@ -119,12 +125,27 @@ while [[ $# -gt 0 ]]; do
             devto="$1"
             shift
             ;;
+        --execute_mode)
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --execute_mode"
+                exit 1
+            fi
+            execute_mode="$1"
+            shift
+            ;;
         *)
             echo "Unknown parameter: $1"
             exit 1
             ;;
     esac
 done
+
+# check it is root user or have sudo changed to root user,if not  exit 1
+if [ $(id -u) -ne 0 ]; then
+    echo "You must be the root user to run this script."
+    exit 1
+fi
 
 if [ -n "$port" ]; then
     export port
@@ -136,13 +157,17 @@ fi
 starttime=$(date +%s)
 
 # Check is install or upgrade
-if systemctl cat websoft9 >/dev/null 2>&1 && systemctl cat cockpit >/dev/null 2>&1 && sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^websoft9-apphub'; then
-    echo "execute_mode=upgrade"
-    export execute_mode="upgrade"
-else
-    echo "execute_mode=install"
-    export execute_mode="install"
+# execute_mode is auto, install or upgrade
+if [ "$execute_mode" = "auto" ]; then
+    if sudo systemctl cat websoft9 >/dev/null 2>&1 && sudo systemctl cat cockpit >/dev/null 2>&1 && sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^websoft9-apphub'; then
+        echo "execute_mode=upgrade"
+        export execute_mode="upgrade"
+    else
+        echo "execute_mode=install"
+        export execute_mode="install"
+    fi
 fi
+
 
 # 输出参数值
 echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
@@ -154,6 +179,7 @@ echo "--path: $path"
 echo "--apps: $apps"
 echo "--mirrors: $mirrors"
 echo "--devto: $devto"
+echo "--execute_mode: $execute_mode"
 
 echo -e "\nYour OS: "
 cat /etc/os-release | head -n 3  2>/dev/null
