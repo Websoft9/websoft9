@@ -43,8 +43,9 @@ export PATH
 #
 #  $ sudo bash install.sh --devto "/data/dev/mycode"
 #
-# --execute_mode
-# Use the --execute_mode option to execute mode, execute_mode is auto/install/upgrade, for example:
+# --execute_mode <auto|install|upgrade>
+# Use the --execute_mode option to tell script is install Websoft9 or Ugrade Websoff9. The default value is auto 
+# and script will automaticlly check it need install or upgrade, for example:
 #
 #  $ sudo bash install.sh --execute_mode "upgrade"
 #
@@ -156,8 +157,7 @@ fi
 
 starttime=$(date +%s)
 
-# Check is install or upgrade
-# execute_mode is auto, install or upgrade
+# Automaticlly check the $execute_mode to install or upgrade if is auto
 if [ "$execute_mode" = "auto" ]; then
     if sudo systemctl cat websoft9 >/dev/null 2>&1 && sudo systemctl cat cockpit >/dev/null 2>&1 && sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^websoft9-apphub'; then
         echo "execute_mode=upgrade"
