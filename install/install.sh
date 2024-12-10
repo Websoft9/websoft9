@@ -324,10 +324,6 @@ download_source_and_checkimage() {
     
     # install docker
     bash /tmp/$source_unzip/install/install_docker.sh
-    if [ $? -ne 0 ]; then
-        echo "install_docker failed with error $?. Exiting."
-        exit 1
-    fi
 
     cd /tmp/$source_unzip/docker
     docker compose pull
