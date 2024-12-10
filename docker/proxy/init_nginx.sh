@@ -4,7 +4,7 @@
 credential_path="/data/credential"
 
 # Migrating initproxy.conf file
-
+if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
 cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
 [ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
 
