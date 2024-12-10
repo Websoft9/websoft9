@@ -1,4 +1,4 @@
-# modify time: 202412101505, you can modify here to trigger Docker Build action
+# modify time: 202412101506, you can modify here to trigger Docker Build action
 # from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
@@ -11,7 +11,7 @@ COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
 RUN mkdir -p /etc/websoft9
 COPY ./config/http.conf /data/nginx/custom/http.conf
-COPY ./config/initproxy.conf /data/nginx/default_host/initproxy.conf
+COPY ./config/initproxy.conf /data/nginx/websoft999999/initproxy.conf
 COPY ./init_nginx.sh /app/init_nginx.sh
 RUN chmod +x /app/init_nginx.sh
 
