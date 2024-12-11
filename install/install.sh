@@ -522,13 +522,13 @@ download_source_and_checkimage | tee -a  $log_path
 
 install_backends | tee -a  $log_path
 
-install_systemd | tee -a  $log_path
-
 bash $install_path/install/install_cockpit.sh | tee -a  $log_path
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
 fi
+
+install_systemd | tee -a  $log_path
 
 bash $install_path/install/install_plugins.sh | tee -a  $log_path
 if [ $? -ne 0 ]; then
