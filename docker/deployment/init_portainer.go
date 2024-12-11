@@ -22,7 +22,9 @@ const (
     retryDelay         = 5 * time.Second
     charset            = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$()_"
     credentialFilePath = "/data/credential"
-    initFlagFilePath   = "/data/init.flag"
+    initCheckURL       = portainerURL + "/users/admin/check"
+    waitTimeout        = 60 * time.Second
+    waitInterval       = 2 * time.Second
 )
 
 type Credentials struct {
@@ -31,28 +33,21 @@ type Credentials struct {
 }
 
 func main() {
-    // 检查初始化标志文件是否存在
-    initFlagExists := fileExists(initFlagFilePath)
-    credentialFileExists := fileExists(credentialFilePath)
+    // 启动并等待 Portainer 启动
+    cmd, err := startAndWaitForPortainer(os.Args[1:]...)
+    if err != nil {
+        log.Fatalf("Failed to start and wait for Portainer: %v", err)
+    }
 
-    if initFlagExists || credentialFileExists {
-        log.Println("Initialization has already been completed by another instance or credentials are present.")
-        startPortainer()
+    // 检查是否已经初始化
+    if isPortainerInitialized() {
+        log.Println("Portainer is already initialized.")
+        // 等待 Portainer 进程结束
+        if err := cmd.Wait(); err != nil {
+            log.Fatalf("Portainer process exited with error: %v", err)
+        }
         return
     }
-
-    // 启动 Portainer
-    // cmd := exec.Command("/portainer")
-    cmd := exec.Command("/portainer", os.Args[1:]...)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-
-    if err := cmd.Start(); err != nil {
-        log.Fatalf("Failed to start Portainer: %v", err)
-    }
-
-    // 等待 Portainer 启动
-    waitForPortainer()
 
     // 初始化 Portainer
     adminUsername := "admin"
@@ -68,10 +63,6 @@ func main() {
                 log.Fatalf("Failed to initialize local endpoint: %v", err)
             } else {
                 fmt.Println("Portainer initialization completed successfully.")
-                // 创建初始化标志文件
-                if err := ioutil.WriteFile(initFlagFilePath, []byte("initialized"), 0644); err != nil {
-                    log.Fatalf("Failed to create initialization flag file: %v", err)
-                }
             }
         }
     }
@@ -82,46 +73,31 @@ func main() {
     }
 }
 
-func fileExists(filePath string) bool {
-    if _, err := os.Stat(filePath); err == nil {
-        return true
-    }
-    return false
-}
-
-func startPortainer() {
-    cmd := exec.Command("/portainer")
+func startAndWaitForPortainer(args ...string) (*exec.Cmd, error) {
+    cmd := exec.Command("/portainer", args...)
     cmd.Stdout = os.Stdout
     cmd.Stderr = os.Stderr
 
     if err := cmd.Start(); err != nil {
-        log.Fatalf("Failed to start Portainer: %v", err)
+        return nil, fmt.Errorf("failed to start Portainer: %w", err)
     }
 
-    // 等待 Portainer 进程结束
-    if err := cmd.Wait(); err != nil {
-        log.Fatalf("Portainer process exited with error: %v", err)
-    }
-}
-
-func waitForPortainer() {
-    timeout := time.Duration(60) * time.Second
-    start := time.Now()
+    timeout := time.After(waitTimeout)
+    ticker := time.NewTicker(waitInterval)
+    defer ticker.Stop()
 
     for {
-        resp, err := http.Get(portainerURL + "/system/status")
-        if err == nil && resp.StatusCode == http.StatusOK {
-            fmt.Println("Portainer is up!")
-            break
+        select {
+        case <-timeout:
+            return nil, fmt.Errorf("timeout waiting for Portainer")
+        case <-ticker.C:
+            resp, err := http.Get(portainerURL + "/system/status")
+            if err == nil && resp.StatusCode == http.StatusOK {
+                fmt.Println("Portainer is up……!")
+                return cmd, nil
+            }
+            fmt.Println("Waiting for Portainer...")
         }
-
-        if time.Since(start) > timeout {
-            fmt.Println("Timeout waiting for Portainer")
-            os.Exit(1)
-        }
-
-        fmt.Println("Waiting for Portainer...")
-        time.Sleep(2 * time.Second)
     }
 }
 
@@ -234,15 +210,7 @@ func writeCredentialsToFile(password string) error {
 func retryRequest(method, url, contentType string, body *bytes.Buffer) (*http.Response, error) {
     client := &http.Client{}
     for i := 0; i < maxRetries; i++ {
-        var req *http.Request
-        var err error
-
-        if body != nil {
-            req, err = http.NewRequest(method, url, bytes.NewBuffer(body.Bytes()))
-        } else {
-            req, err = http.NewRequest(method, url, nil)
-        }
-
+        req, err := http.NewRequest(method, url, body)
         if err != nil {
             return nil, fmt.Errorf("error creating request: %w", err)
         }
@@ -257,4 +225,23 @@ func retryRequest(method, url, contentType string, body *bytes.Buffer) (*http.Re
         time.Sleep(retryDelay)
     }
     return nil, fmt.Errorf("max retries reached")
+}
+
+func isPortainerInitialized() bool {
+    resp, err := http.Get(initCheckURL)
+    if err != nil {
+        log.Fatalf("Failed to check Portainer initialization status: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode == http.StatusNoContent {
+        return true
+    }
+
+    if resp.StatusCode == http.StatusNotFound {
+        return false
+    }
+
+    log.Fatalf("Unexpected response status: %d", resp.StatusCode)
+    return false
 }
