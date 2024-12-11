@@ -484,7 +484,7 @@ install_systemd() {
     echo "$echo_prefix_systemd Install Systemd service"
 
     if [ ! -d "$systemd_path" ]; then
-    sudo mkdir -p "$systemd_path"
+        sudo mkdir -p "$systemd_path"
     fi
 
     sudo cp -r $install_path/systemd/script/* "$systemd_path"
@@ -506,7 +506,7 @@ install_systemd() {
         exit 1
     fi
 
-    sudo systemctl start websoft9
+    sudo systemctl restart websoft9
     if [ $? -ne 0 ]; then
         echo "Failed to start Systemd service."
         exit 1
