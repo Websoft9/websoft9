@@ -10,14 +10,15 @@
     <link rel="icon" href="favicon.ico" />
     <!-- Title Page-->
     <title>Websoft9 Applications Hosting Platform</title>
+
     <script>
-        function redirectToPort() {
-            const currentUrl = window.location.href;
-            const url = new URL(currentUrl);
-            const newUrl = `${url.protocol}//${url.hostname}:9000`;
-            window.location.href = newUrl;
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const domain = window.location.hostname;
+            const linkElement = document.getElementById('myLink');
+            linkElement.href = `http://${domain}:9000`; 
+        });
     </script>
+    
      <!-- english tags-->
      <meta name="description" content="Websoft9 is a Self-Hosting Applications platform that can deploy multiple applications in your own cloud infrastructure.">
      <meta name="keywords" content="Cloud computing, runtime environment, Docker, auto-deployment, Self-Hosting, install WordPress, Panel, PaaS, Iac, GitOps">
@@ -28,7 +29,8 @@
     <link rel="stylesheet" href="assets/bootstrap.min.css">
     <style>
         .logo {
-            width: 50px; /* 设置 logo 的宽度 */
+            width: 100px;
+            margin-left: 20px;
         }
 
         .header {
@@ -97,8 +99,8 @@
         <div class="container" style="display: flex;">
             <div class="sub-block" style="flex: 1; padding: 20px;">
                 <h1 class="welcome-title">Welcome to Websoft9 Applications Hosting Platform</h1>
-                <h>Web-based GitOps platform/Linux Panel for running 200+ hot open source application on your own server. It based on Docker Compose, not need to study any more</p>
-                    <a href="#" class="btn btn-custom" onclick="redirectToPort(); return false;">Access Websoft9 Console</a>
+                <p>GitOps-driven, multi-application hosting for cloud servers and home servers, one-click deployment of 200+ open source apps.</p>
+                    <a id="myLink" class="btn btn-custom" >Access Websoft9 Console</a>
             </div>
             <div class="image-block" style="flex: 1; padding: 20px;">
                 <img src="assets/websoft9-appstore.png" alt="Description of image" style="width: 100%; height: auto;">
