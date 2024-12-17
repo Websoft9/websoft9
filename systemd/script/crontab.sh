@@ -58,12 +58,19 @@ set_Firewalld(){
     firewall-cmd --reload 2>/dev/nul
 }
 
-# when websoft9 restart, sync cockpit port
+# when websoft9 restart, sync cockpit port and ssl
 on_change
+cp -r /etc/cockpit/ws-certs.d/* /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl/
 
 # monitor /lib/systemd/system/cockpit.socket and config.ini, make sure config.ini port is the same with cockpit.socket
 inotifywait -e modify,attrib -m $FILES | while read PATH EVENT FILE; do
     echo "Set cockpit port by config.ini..."
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
     on_change
+done
+
+# monitor /etc/cockpit/ws-certs.d and copy files to /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl
+inotifywait -e create,modify,delete -m /etc/cockpit/ws-certs.d | while read PATH EVENT FILE; do
+    echo "Copying files from /etc/cockpit/ws-certs.d to /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl..."
+    cp -r /etc/cockpit/ws-certs.d/* /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl/
 done
