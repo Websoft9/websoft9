@@ -6,7 +6,11 @@ export PATH
 
 set -e
 
-bash /websoft9/script/migration.sh
+# execute migration script when container create
+if [ -f /websoft9/migration_flag ]; then
+    bash /websoft9/script/migration.sh
+    rm -f /websoft9/migration_flag
+fi
 
 try_times=5
 supervisord

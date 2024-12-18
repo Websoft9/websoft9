@@ -4,6 +4,10 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 cockpit_port="9000"
 container_name="websoft9-apphub"
 volume_name="websoft9_apphub_config"
+volume_path=$(get_volume_path "$container_name" "$volume_name")
+config_path="$volume_path/config.ini"
+cockpit_service_path="/lib/systemd/system/cockpit.socket"
+FILES="$cockpit_service_path $config_path"
 
 # get volume from container
 function get_volume_path() {
@@ -29,13 +33,8 @@ function get_volume_path() {
     exit 1
 }
 
-volume_path=$(get_volume_path "$container_name" "$volume_name")
-config_path="$volume_path/config.ini"
-cockpit_service_path="/lib/systemd/system/cockpit.socket"
-FILES="$cockpit_service_path $config_path"
-
-# 监控文件发生变动时需要做的事情
-on_change() {
+# sync cockpit port from config.ini
+sync_cockpit_port_fromconfig() {
     set +e
     cockpit_port=$(docker exec -i websoft9-apphub apphub getconfig --section cockpit --key port)
     listen_stream=$(grep -Po 'ListenStream=\K[0-9]*' /lib/systemd/system/cockpit.socket)
@@ -58,19 +57,24 @@ set_Firewalld(){
     firewall-cmd --reload 2>/dev/nul
 }
 
-# when websoft9 restart, sync cockpit port and ssl
-on_change
-cp -r /etc/cockpit/ws-certs.d/* /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl/
+force_sync(){
+    echo "Force sync cockpit port and certs"
+    sync_cockpit_port_fromconfig
+    cp -r /etc/cockpit/ws-certs.d/* /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl/
+}
+
+# when websoft9 restart, force sync cockpit port and certs
+force_sync
 
 # monitor /lib/systemd/system/cockpit.socket and config.ini, make sure config.ini port is the same with cockpit.socket
 inotifywait -e modify,attrib -m $FILES | while read PATH EVENT FILE; do
     echo "Set cockpit port by config.ini..."
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
-    on_change
+    sync_cockpit_port_fromconfig
 done
 
 # monitor /etc/cockpit/ws-certs.d and copy files to /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl
-inotifywait -e create,modify,delete -m /etc/cockpit/ws-certs.d | while read PATH EVENT FILE; do
+inotifywait -e create,modify,delete,attrib -m /etc/cockpit/ws-certs.d | while read PATH EVENT FILE; do
     echo "Copying files from /etc/cockpit/ws-certs.d to /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl..."
     cp -r /etc/cockpit/ws-certs.d/* /var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl/
 done

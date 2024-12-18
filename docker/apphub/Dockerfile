@@ -1,6 +1,6 @@
 # This file can running at actions
 # MEDIA_VERSION and LIBRARY_VERSION will trigger its release
-# modify time: 202412171516, you can modify here to trigger Docker Build action
+# modify time: 202412181615, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
@@ -45,6 +45,9 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     rm -rf apphub/docs apphub/tests library.zip media.zip redoc.standalone.js swagger-ui w9library w9media w9source && \
     apt clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/man /usr/share/doc /usr/share/doc-base
+
+# Create a file named migration_flag
+RUN touch /websoft9/migration_flag
 
 # supervisor
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

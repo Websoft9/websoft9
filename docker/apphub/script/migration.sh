@@ -41,9 +41,16 @@ with open(target_ini, 'w') as f:
 EOF
 }
 
+# special migration
+post_migration(){
+    config_file="/websoft9/apphub/src/config/config.ini"
+    listen_port=$(grep -Po '^\s*listen_port\s*=\s*\K[0-9]+' "$config_file")
+    apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
+}
 
 migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.ini"
 migrate_ini "/websoft9/apphub/src/config/system.ini" "/websoft9/config/system.ini"
+post_migration
 
 if [ $? -eq 0 ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Success to update config.ini"
