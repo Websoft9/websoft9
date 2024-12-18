@@ -43,7 +43,8 @@ EOF
 
 # special migration
 post_migration(){
-    config_file="/websoft9/apphub/src/config/config.ini"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
+    config_file="/websoft9/config/config.ini"
     listen_port=$(grep -Po '^\s*listen_port\s*=\s*\K[0-9]+' "$config_file")
     apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
 }

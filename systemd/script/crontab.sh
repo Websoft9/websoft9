@@ -4,10 +4,6 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 cockpit_port="9000"
 container_name="websoft9-apphub"
 volume_name="websoft9_apphub_config"
-volume_path=$(get_volume_path "$container_name" "$volume_name")
-config_path="$volume_path/config.ini"
-cockpit_service_path="/lib/systemd/system/cockpit.socket"
-FILES="$cockpit_service_path $config_path"
 
 # get volume from container
 function get_volume_path() {
@@ -32,6 +28,10 @@ function get_volume_path() {
     echo "Cannot get volume path"
     exit 1
 }
+volume_path=$(get_volume_path "$container_name" "$volume_name")
+config_path="$volume_path/config.ini"
+cockpit_service_path="/lib/systemd/system/cockpit.socket"
+FILES="$cockpit_service_path $config_path"
 
 # sync cockpit port from config.ini
 sync_cockpit_port_fromconfig() {
