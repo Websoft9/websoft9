@@ -68,16 +68,23 @@ force_sync(){
 # when websoft9 restart, force sync cockpit port and certs
 force_sync
 
-# monitor cockpit.socket and config.ini, make sure port at config.ins sync to cockpit.socket
-inotifywait -e modify,attrib -m $FILES | while read PATH EVENT FILE; do
-    echo "Reset cockpit port when config.ini changed"
-    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
-    sync_cockpit_port
-done
+(
+	# monitor cockpit.socket and config.ini, make sure port at config.ins sync to cockpit.socket
+	inotifywait -e modify,attrib -m $FILES | while read PATH EVENT FILE; do
+		echo "Reset cockpit port when config.ini changed"
+		export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+		sync_cockpit_port
+	done
+) &
 
-# monitor cockpit ssl path and sync to NPM ssl path if changed
-inotifywait -e create,modify,delete,attrib -m $cockpit_ssl_path | while read PATH EVENT FILE; do
-    echo "Sync CA files from cockipt to NPM when changed"
-    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
-    cp -r "${cockpit_ssl_path}"* $npm_ssl_path
-done
+(
+	# monitor cockpit ssl path and sync to NPM ssl path if changed
+	inotifywait -e create,modify,delete,attrib -m $cockpit_ssl_path | while read PATH EVENT FILE; do
+		echo "Sync CA files from cockipt to NPM when changed"
+		export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
+		cp -r "${cockpit_ssl_path}"* $npm_ssl_path
+	done
+) &
+
+# Wait for background processes to finish
+wait
