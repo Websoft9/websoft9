@@ -1,11 +1,11 @@
 # This file can running at actions
 # MEDIA_VERSION and LIBRARY_VERSION will trigger its release
-# modify time: 202412181705, you can modify here to trigger Docker Build action
+# modify time: 202412211221, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.1.7-rc1"
+LABEL version="0.1.7"
 
 WORKDIR  /websoft9
 

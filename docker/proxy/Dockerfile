@@ -1,11 +1,11 @@
-# modify time: 202412211215, you can modify here to trigger Docker Build action
+# modify time: 202412211783, you can modify here to trigger Docker Build action
 # from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
 FROM jc21/nginx-proxy-manager:2.11.3
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="2.11.3-rc9"
+LABEL version="2.11.3"
 
 COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
