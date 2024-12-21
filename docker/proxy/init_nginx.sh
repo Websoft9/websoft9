@@ -8,6 +8,13 @@ if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
 cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
 [ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
 
+# Deploy Websoft9 landing pages
+if [ ! -d /data/nginx/default_www/landing ]; then
+    mkdir -p /data/nginx/default_www/ 
+    cp -r /etc/websoft9/landing /data/nginx/default_www/
+else
+    echo "/data/nginx/default_www/landing already exists."
+fi
 
 # If credential file then create it and init credential for NPM
 # Reload NPM docker image Environments
