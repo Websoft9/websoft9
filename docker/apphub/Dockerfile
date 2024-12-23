@@ -1,11 +1,11 @@
 # This file can running at actions
 # MEDIA_VERSION and LIBRARY_VERSION will trigger its release
-# modify time: 202412211221, you can modify here to trigger Docker Build action
+# modify time: 202412231521, you can modify here to trigger Docker Build action
 
 
 FROM python:3.10-slim-bullseye
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="0.1.7"
+LABEL version="0.1.8"
 
 WORKDIR  /websoft9
 
@@ -39,6 +39,7 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     cp -r ./w9source/apphub/src/config ./config && \
     cp -r ./w9source/docker/apphub/script ./script && \
     curl -o ./script/update_zip.sh $SOURCE_GITHUB_PAGES/scripts/update_zip.sh && \
+    curl -o /websoft9/version.json $SOURCE_GITHUB_PAGES/version.json && \
     pip install --no-cache-dir --upgrade -r apphub/requirements.txt && \
     pip install -e ./apphub && \
     # Clean cache and install files
