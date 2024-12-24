@@ -302,6 +302,35 @@ install_tools(){
     fi
 }
 
+download_artifact() {
+    local artifact_url="$1"
+    local source_zip="$2"
+    local max_attempts="$3"
+    
+    for ((i=1; i<=max_attempts; i++)); do
+        wget -P /tmp "$artifact_url/$source_zip"
+        if [ $? -eq 0 ]; then
+            echo "Downloaded successfully using wget on attempt $i."
+            return 0
+        else
+            echo "Attempt $i failed using wget."
+        fi
+    done
+
+    for ((i=1; i<=max_attempts; i++)); do
+        curl -o /tmp/"$source_zip" "$artifact_url/$source_zip"
+        if [ $? -eq 0 ]; then
+            echo "Downloaded successfully using curl on attempt $i."
+            return 0 
+        else
+            echo "Attempt $i failed using curl."
+        fi
+    done
+
+    echo "Failed to download source package after $((max_attempts * 2)) attempts."
+    return 1
+}
+
 download_source_and_checkimage() {
     echo_prefix_source=$'\n[Download Source] - '
     echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
@@ -309,7 +338,7 @@ download_source_and_checkimage() {
     find . -type f -name "websoft9*.zip*" -exec rm -f {} \;
     rm -rf /tmp/$source_unzip
 
-    wget -P /tmp "$artifact_url/$source_zip"
+    download_artifact "$artifact_url" "$source_zip" 10
     if [ $? -ne 0 ]; then
         echo "Failed to download source package."
         exit 1
