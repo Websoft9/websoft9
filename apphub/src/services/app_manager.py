@@ -599,6 +599,24 @@ class AppManger:
             portainerManager.redeploy_stack(stack_id,endpointId,pull_image,user_name,user_pwd)
             logger.access(f"Redeployed app: [{app_id}]")
 
+            app_info = self.get_app_by_id(app_id,endpointId)
+            forward_ports = [domain.get("forward_port") for domain in app_info.domain_names]
+
+            proxy_ids = [domain.get("id") for domain in app_info.domain_names]
+
+            if forward_ports:
+                http_port = app_info.env.get("W9_HTTP_PORT")
+                https_port = app_info.env.get("W9_HTTPS_PORT")
+
+                forward_port = http_port if http_port else https_port
+
+                forward_ports_str = [str(port) for port in forward_ports]
+
+                if not all(port == forward_port for port in forward_ports_str):
+                    for proxy_id in proxy_ids:
+                        ProxyManager().update_proxy_port_by_app(proxy_id, forward_port)
+                        logger.access(f"Updated proxy port: {forward_port} for app: {app_id}")
+
     def uninstall_app(self,app_id:str,purge_data:bool,endpointId:int = None):
         """
         Uninstall app
