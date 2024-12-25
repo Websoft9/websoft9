@@ -62,7 +62,6 @@ Need root privileges user to install Websoft9, if you use no-root user you can `
 # Install by default
 wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh
 
-
 # Install Websoft9 with parameters
 wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
 ```
