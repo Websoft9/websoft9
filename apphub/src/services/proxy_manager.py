@@ -205,6 +205,44 @@ class ProxyManager:
             logger.error(f"Update proxy host:{proxy_id} error:{e}")
             raise CustomException()
 
+    def update_proxy_port_by_app(self, proxy_id: int, forward_port: int):
+        """
+        Update a proxy host's forward port
+
+        Args:
+            proxy_id (int): Proxy id
+            forward_port (int): Forward port
+
+        Returns:
+            dict: Proxy host
+        """
+        # Get proxy host by id
+        req_json = self.get_proxy_host_by_id(proxy_id)
+        try:
+            if req_json is None:
+                raise CustomException(
+                    status_code=400,
+                    message=f"Invalid Request",
+                    details=f"Proxy host:{proxy_id} not found"
+                )
+            # update forward_port
+            req_json["forward_port"] = forward_port
+            # delete useless keys from req_json(because the req_json is from get_proxy_host_by_id and update_proxy_host need less keys)
+            keys_to_delete = ["id", "created_on", "modified_on", "owner_user_id", "enabled", "certificate", "owner", "access_list", "use_default_location", "ipv6"]
+            for key in keys_to_delete:
+                req_json.pop(key, None)
+
+            response = self.nginx.update_proxy_host(proxy_id=proxy_id, json=req_json)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                self._handler_nginx_error(response)
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Update proxy host:{proxy_id} error:{e}")
+            raise CustomException()
+
     def get_proxy_host_by_app(self,app_id:str):
         """
         Get proxy host by app
