@@ -11,7 +11,7 @@ name: Build image to DockerHub
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]  # Include dev branch
     paths:
       - "docker/*/Dockerfile"
 
@@ -38,8 +38,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     env:
-      # You can set it to choice where download from 
-      MEDIA_FROM: "source"
+      MEDIA_FROM: "source"  # You can set it to choice where download from 
     strategy:
       matrix: ${{fromJson(needs.setup.outputs.matrix)}}
     steps:
@@ -53,23 +52,31 @@ jobs:
           APP=${{ matrix.app }}
           TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
           echo $APP version is $TAG
-          if [[ "$TAG" == *"-"* ]]; then
-            TAGS="$TAG"
+          
+          # Determine the channel based on the branch and TAG
+          if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
             echo "CHANNEL=dev" >> $GITHUB_ENV
+            TAGS="$TAG"  # Use the TAG directly for dev
           else
-            echo "CHANNEL=release" >> $GITHUB_ENV
-            IFS='.' read -ra PARTS <<< "$TAG"
-            TAGS="latest"
-            TAG_PART=""
-            for i in "${!PARTS[@]}"; do 
-              if [ "$i" -eq 0 ]; then 
-                TAG_PART="${PARTS[$i]}"
-              else 
-                TAG_PART="${TAG_PART}.${PARTS[$i]}"
-              fi
-              TAGS="${TAGS},${TAG_PART}"
-            done
+            if [[ "$TAG" == *"-"* ]]; then
+              echo "CHANNEL=rc" >> $GITHUB_ENV
+              TAGS="$TAG"
+            else
+              echo "CHANNEL=release" >> $GITHUB_ENV
+              IFS='.' read -ra PARTS <<< "$TAG"
+              TAGS="latest"
+              TAG_PART=""
+              for i in "${!PARTS[@]}"; do 
+                if [ "$i" -eq 0 ]; then 
+                  TAG_PART="${PARTS[$i]}"
+                else 
+                  TAG_PART="${TAG_PART}.${PARTS[$i]}"
+                fi
+                TAGS="${TAGS},${TAG_PART}"
+              done
+            fi
           fi
+          
           echo "Building and pushing Docker image for $APP with tags: $TAGS"
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "APP=$APP" >> $GITHUB_ENV
@@ -112,6 +119,7 @@ jobs:
           repository: websoft9/docker-library
           event-type: custom_event
           token: ${{secrets.MYGITHUB_ADMIN_TOKEN}}
+          ref: ${{ github.ref }}
         if: env.APP == 'apphub'
       
         # release media step1
