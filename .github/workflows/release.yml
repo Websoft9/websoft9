@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - dev
     paths:
       - "version.json"
 
@@ -24,9 +25,13 @@ jobs:
           version_core=${version%%-*}
           echo "VERSION=$version" >> $GITHUB_OUTPUT
           echo "VERSION_CORE=$version_core" >> $GITHUB_OUTPUT
-          if [[ $version == *-* ]]; then
-            echo "rc release version"
+          
+          if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
+            echo "dev branch detected"
             echo "CHANNEL=dev" >> $GITHUB_OUTPUT
+          elif [[ $version == *-* ]]; then
+            echo "rc release version"
+            echo "CHANNEL=rc" >> $GITHUB_OUTPUT
           else
             echo "release version"
             echo "CHANNEL=release" >> $GITHUB_OUTPUT
@@ -71,6 +76,7 @@ jobs:
           destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/websoft9
 
       - name: Create Github Release
+        if: github.ref == 'refs/heads/main'  # 仅在 main 分支上触发
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -84,6 +90,7 @@ jobs:
 
   pages:
     name: Build Github Pages
+    if: github.ref == 'refs/heads/main'  # 仅在 main 分支上触发
     permissions:
       contents: read
       pages: write
