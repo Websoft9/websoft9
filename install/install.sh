@@ -18,7 +18,7 @@ export PATH
 #
 #   $ sudo bash install.sh --port 9001
 #
-# --channel <release|dev>
+# --channel <release|rc|dev>
 # Use the --channel option to install a release(production) or dev distribution. default is release, for example:
 #
 #  $ sudo bash install.sh --channel release
