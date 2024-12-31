@@ -119,7 +119,6 @@ jobs:
           repository: websoft9/docker-library
           event-type: custom_event
           token: ${{secrets.MYGITHUB_ADMIN_TOKEN}}
-          client-payload: '{"branch": "${{ github.ref }}"}' 
         if: env.APP == 'apphub'
       
         # release media step1
