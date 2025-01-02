@@ -429,15 +429,17 @@ class AppManger:
 
             # Verify the app is web app
             is_web_app = envHelper.get_value("W9_URL")
-            url_with_port = envHelper.get_value("W9_URL_WITH_PORT")
+            # url_with_port = envHelper.get_value("W9_URL_WITH_PORT")
+            w9_url_with_replace = envHelper.get_value("W9_URL_REPLACE")
 
             if is_web_app is not None:
-                if url_with_port is None:
+                if w9_url_with_replace is None:
                     envHelper.set_value("W9_URL", domain_names[0])
                 else:
                     try:
                         ipaddress.ip_address(domain_names[0])
-                        envHelper.set_value("W9_URL", domain_names[0] + ":" + envHelper.get_value("W9_HTTP_PORT_SET"))
+                        #envHelper.set_value("W9_URL", domain_names[0] + ":" + envHelper.get_value("W9_HTTP_PORT_SET"))
+                        envHelper.set_value("W9_URL", domain_names[0] + ":" + (envHelper.get_value("W9_HTTP_PORT_SET") or envHelper.get_value("W9_HTTPS_PORT_SET")))
                     except ValueError:
                         envHelper.set_value("W9_URL", domain_names[0])
 
@@ -1100,7 +1102,7 @@ class AppManger:
                     # Get the w9_url and w9_url_replace
                     w9_url_replace = next((element.get("w9_url_replace") for element in app_info.domain_names if element.get("id") == proxy_id), None)
                     w9_url = next((element.get("w9_url") for element in app_info.domain_names if element.get("id") == proxy_id), None)
-                    
+
                     # validate w9_url_replace is true
                     if w9_url_replace:
                         domain_names = host.get("domain_names",None)
@@ -1111,7 +1113,8 @@ class AppManger:
                             if w9_url in domain_names:
                                 new_w9_url = None
                                 if len(app_proxys) == 1 and app_proxys[0].get("id") == proxy_id:
-                                    new_w9_url = client_host
+                                    # 如果w9_url_with_port存在，并且值为: true
+                                        new_w9_url = client_host+":"+ (app_info.env.get("W9_HTTP_PORT_SET") or app_info.env.get("W9_HTTPS_PORT_SET"))
                                 elif len(app_proxys) > 1:
                                     # Get the first proxy_host
                                     proxy_host = next((proxy for proxy in app_proxys if proxy.get("id") != proxy_id), None)
