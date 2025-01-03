@@ -106,6 +106,13 @@ install_docker_custom() {
       sudo mkdir -p /usr/local/lib/docker/cli-plugins/
       sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
       sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    elif [ "$lsb_dist" = "openeuler" ]; then
+      sudo dnf update -y
+      sudo dnf -y install dnf-plugins-core
+      sudo dnf config-manager --add-repo=https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+      sudo sed -i 's+$releasever+8+'  /etc/yum.repos.d/docker-ce.repo
+      sudo dnf makecache
+      sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     else
       repos=("${repos_base[@]/%//${lsb_dist}/docker-ce.repo}")
       sudo dnf remove -y podman || sudo yum remove -y podman
