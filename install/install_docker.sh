@@ -114,6 +114,11 @@ install_docker_custom() {
       sudo dnf makecache
       sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     else
+      if [ "$lsb_dist" = "ol" ] &&  grep -q 'VERSION_ID="7' /etc/os-release; then
+        echo "[Websoft9] - Detected Oracle Linux 7. Executing specific installation steps."
+        sudo yum install -y oraclelinux-developer-release-el7
+        sudo yum-config-manager --enable ol7_preview
+      fi
       repos=("${repos_base[@]/%//${lsb_dist}/docker-ce.repo}")
       sudo dnf remove -y podman || sudo yum remove -y podman
 
