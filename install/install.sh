@@ -308,7 +308,7 @@ download_artifact() {
     local max_attempts="$3"
     
     for ((i=1; i<=max_attempts; i++)); do
-        wget -P /tmp "$artifact_url/$source_zip"
+        wget --timeout=4 --read-timeout=30 -P /tmp "$artifact_url/$source_zip"
         if [ $? -eq 0 ]; then
             echo "Downloaded successfully using wget on attempt $i."
             return 0
