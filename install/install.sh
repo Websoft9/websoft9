@@ -242,6 +242,24 @@ install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
 
+    if [ "$ID" = "rhel" ] || [ "$ID" = "ol" ]; then
+        RHEL_VERSION=${VERSION_ID%%.*}
+        sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-${RHEL_VERSION}.noarch.rpm >/dev/null
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi 
+    elif [ "$ID" = "centos" ] || [ "$ID" = "rocky" ]; then
+        sudo yum install -y "$repo_tools_yum" >/dev/null
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi 
+    elif [ "$ID" = "amzn" ]; then
+        sudo amazon-linux-extras install epel -y >/dev/null
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi 
+    fi
+
     dnf --version >/dev/null 2>&1
     dnf_status=$?
     yum --version >/dev/null 2>&1
