@@ -20,6 +20,6 @@ jobs:
           workflow: media.yml
           name: media
           path: ${{ env.DIRECTORY }}
-          github_token: ${{ secrets.ZJ_ADMIN_TOKEN }}
-          run_id: ${{ env.RUN_ID }}  # 使用固定的 run-id
+          github_token: ${{ secrets.W9TEST }}
+          run_id: ${{ env.RUN_ID }}   
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
