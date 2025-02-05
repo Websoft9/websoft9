@@ -104,7 +104,7 @@ jobs:
         with:
           name: media
           path: ${{env.DIRECTORY}}
-          run_id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
+          run-id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
       # - name: Download media.zip from artifacts
       #   uses: Legit-Labs/action-download-artifact@v2
