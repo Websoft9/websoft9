@@ -105,7 +105,8 @@ jobs:
           workflow: media.yml
           name: media
           path: ${{env.DIRECTORY}}
-          token: ${{ secrets.ACCESS_TOKEN }}
+          github_token: ${{ secrets.ACCESS_TOKEN }}
+          run_id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
       - name: Download media-latest.zip from Websoft9 artifact    
