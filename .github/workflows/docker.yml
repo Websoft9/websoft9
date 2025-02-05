@@ -98,23 +98,16 @@ jobs:
       - name: Reuse workflow run id
         run: "echo ${{ steps.startAndWaitWorkflow.outputs.run-id }}"
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
-        
+
       - name: Download media.zip from artifacts
-        uses: actions/download-artifact@v4
+        uses: Legit-Labs/action-download-artifact@v2
         with:
+          workflow: media.yml
           name: media
           path: ${{env.DIRECTORY}}
-          run-id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
+          github_token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }}
+          run_id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
-      # - name: Download media.zip from artifacts
-      #   uses: Legit-Labs/action-download-artifact@v2
-      #   with:
-      #     workflow: media.yml
-      #     name: media
-      #     path: ${{env.DIRECTORY}}
-      #     github_token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }}
-      #     run_id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
-      #   if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
       - name: Download media-latest.zip from Websoft9 artifact    
         run: |  
