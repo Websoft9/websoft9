@@ -1,0 +1,25 @@
+name: Manual Download Media Artifact
+
+on:
+  workflow_dispatch:  
+
+jobs:
+  download_media:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment variables
+        run: |
+          echo "APP=apphub" >> $GITHUB_ENV
+          echo "MEDIA_FROM=source" >> $GITHUB_ENV
+          echo "DIRECTORY=./media" >> $GITHUB_ENV  # 设置下载路径，可以根据需要修改
+          echo "RUN_ID=13157174018" >> $GITHUB_ENV  # 固定传入的 run-id，请替换为实际的 run-id
+
+      - name: Download media.zip from artifacts
+        uses: Legit-Labs/action-download-artifact@v2
+        with:
+          workflow: media.yml
+          name: media
+          path: ${{ env.DIRECTORY }}
+          github_token: ${{ secrets.ZJ_ADMIN_TOKEN }}
+          run_id: ${{ env.RUN_ID }}  # 使用固定的 run-id
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
