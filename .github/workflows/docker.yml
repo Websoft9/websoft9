@@ -105,7 +105,7 @@ jobs:
           workflow: media.yml
           name: media
           path: ${{env.DIRECTORY}}
-          github_token: ${{ secrets.ACCESS_TOKEN }}
+          github_token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }}
           run_id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
