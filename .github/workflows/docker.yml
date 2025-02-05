@@ -100,12 +100,12 @@ jobs:
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
       - name: Download media.zip from artifacts
-        uses: Legit-Labs/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v8
         with:
           workflow: media.yml
           name: media
           path: ${{env.DIRECTORY}}
-          github_token: ${{ secrets.ZJ_ADMIN_TOKEN }}
+          github_token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }}
           run_id: ${{ steps.startAndWaitWorkflow.outputs.run-id }}
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
 
