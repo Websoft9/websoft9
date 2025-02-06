@@ -536,14 +536,99 @@ install_systemd() {
     fi
 }
 
+check_tools() {
+    tools=(git curl wget jq bc unzip inotifywait)
+    for tool in "${tools[@]}"; do
+        if ! command -v "$tool" &> /dev/null; then
+            echo "Installation failed: $tool is not installed."
+            exit 1
+        fi
+    done
+    echo "All tools are installed."
+}
+
+check_websoft9_artifact() {
+    if [ ! -f "$path/version.json" ]; then
+        echo "Installation failed: websoft9 artifact download or unzip failed."
+        exit 1
+    fi
+    echo "Websoft9 artifact successfully unzipped."
+}
+
+check_docker() {
+
+    if ! command -v docker &> /dev/null; then
+        echo "Installation failed: Docker is not installed."
+        exit 1
+    fi
+
+    if ! docker compose version &> /dev/null; then
+        echo "Installation failed: Docker Compose is not installed."
+        exit 1
+    fi
+
+    echo "Docker and Docker Compose are installed and running."
+}
+
+check_websoft9_images() {
+    if ! docker images | grep -q websoft9; then
+        echo "Installation failed: No websoft9 images found in Docker."
+        exit 1
+    fi
+    echo "websoft9 images are present in Docker."
+}
+
+check_websoft9_project() {
+    if ! docker compose ls | grep -q websoft9; then
+        echo "Installation failed: No websoft9 project found in Docker Compose."
+        exit 1
+    fi
+    echo "websoft9 project are present in Docker Compose."
+}
+
+check_service() {
+    
+    local service_name="$1"
+    if ! systemctl list-units --type=service | grep -q "$service_name"; then
+        echo "Installation failed: $service_name service is not installed."
+        exit 1
+    fi
+
+    echo "$service_name service is installed and running."
+}
+
+check_plugins() {
+    local plugins=("appstore" "myapps" "gitea" "navigator" "nginx" "portainer" "settings")
+    local base_path="/usr/share/cockpit"
+
+    for plugin in "${plugins[@]}"; do
+        if [ ! -d "$base_path/$plugin" ]; then
+            echo "Installation failed: $plugin is missing in $base_path."
+            exit 1
+        fi
+    done
+
+    echo "All required plugins are install successfully."
+}
+
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $port | tee -a  $log_path
 install_tools | tee -a  $log_path
 
+check_tools
+
 download_source_and_checkimage | tee -a  $log_path
 
+check_websoft9_artifact
+
+check_docker
+
+check_websoft9_images
+
 install_backends | tee -a  $log_path
+
+check_websoft9_project
 
 bash $install_path/install/install_cockpit.sh | tee -a  $log_path
 if [ $? -ne 0 ]; then
@@ -551,13 +636,19 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+check_service cockpit
+
 install_systemd | tee -a  $log_path
+
+check_service websoft9
 
 bash $install_path/install/install_plugins.sh | tee -a  $log_path
 if [ $? -ne 0 ]; then
     echo "install_plugins failed with error $?. Exiting."
     exit 1
 fi
+
+check_plugins
 
 echo "Restart Docker for Firewalld..."
 if [ "$execute_mode" = "install" ]; then
