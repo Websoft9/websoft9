@@ -112,8 +112,6 @@ jobs:
           # Upload entire repository
           path: '.'
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }}
-          publish_dir: .
+      # - name: Deploy to GitHub Pages
+      #   id: deployment
+      #   uses: actions/deploy-pages@v4
