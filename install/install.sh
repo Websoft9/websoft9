@@ -242,7 +242,7 @@ install_tools(){
     echo_prefix_tools=$'\n[Tools] - '
     echo "$echo_prefix_tools Starting install necessary tool..."
 
-    if [ "$ID" = "centos" ] || [ "$ID" = "rocky" ]; then
+    if [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "oracle" ] || [ "$ID" = "almalinux" ]; then
         sudo yum install -y "$repo_tools_yum" >/dev/null
         if [ $? -ne 0 ]; then
             exit 1
