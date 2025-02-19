@@ -537,7 +537,7 @@ install_systemd() {
 }
 
 check_tools() {
-    tools=(git curl wget jq bc unzip inotifywait)
+    tools=(git curl wget jq bc unzip)
     for tool in "${tools[@]}"; do
         if ! command -v "$tool" &> /dev/null; then
             echo "Installation failed: $tool is not installed."
