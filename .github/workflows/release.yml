@@ -63,6 +63,7 @@ jobs:
           cp install/install.sh artifacts
           cp version.json artifacts
           cp CHANGELOG.md artifacts
+          cp mirrors.json artifacts
           cp artifacts/websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts/websoft9-latest.zip
 
       - name: Upload To cloudflare r2
