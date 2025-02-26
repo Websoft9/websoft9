@@ -49,6 +49,11 @@ export PATH
 #
 #  $ sudo bash install.sh --execute_mode "upgrade"
 #
+# --proxy <http://proxy.example.com:8080>
+# Use the --proxy option to set a proxy for downloading resources, for example:
+#
+#   $ sudo bash install.sh --proxy "http://proxy.example.com:8080"
+#
 # ==============================================================================
 
 
@@ -59,6 +64,7 @@ execute_mode="auto"
 path="/data/websoft9/source"
 apps=""
 mirrors="https://dockerhub.websoft9.com"
+proxy=""
 
 # 获取参数值
 while [[ $# -gt 0 ]]; do
@@ -135,6 +141,15 @@ while [[ $# -gt 0 ]]; do
             execute_mode="$1"
             shift
             ;;
+        --proxy)
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --proxy"
+                exit 1
+            fi
+            proxy="$1"
+            shift
+            ;;
         *)
             echo "Unknown parameter: $1"
             exit 1
@@ -154,6 +169,10 @@ else
     export port=9000
 fi
 
+if [ -n "$proxy" ]; then
+    export http_proxy="$proxy"
+    export https_proxy="$proxy"
+fi
 
 starttime=$(date +%s)
 
@@ -180,6 +199,7 @@ echo "--apps: $apps"
 echo "--mirrors: $mirrors"
 echo "--devto: $devto"
 echo "--execute_mode: $execute_mode"
+echo "--proxy: $proxy"
 
 echo -e "\nYour OS: "
 cat /etc/os-release | head -n 3  2>/dev/null
