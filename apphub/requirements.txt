@@ -8,3 +8,6 @@ PyJWT
 click
 python-dotenv
 PyYAML
+docker
+tenacity
+aiodocker

@@ -4,6 +4,13 @@ import os
 import shutil
 import random
 import ipaddress
+import yaml
+import time
+import docker
+import requests
+import asyncio
+import aiodocker
+from typing import Tuple
 from datetime import datetime
 from src.core.config import ConfigManager
 from src.core.envHelper import EnvHelper
@@ -16,9 +23,13 @@ from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
 from src.core.logger import logger
 from src.services.proxy_manager import ProxyManager
+from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
-from src.services.app_status import appInstalling, appInstallingError,start_app_installation,remove_app_installation,modify_app_information,remove_app_from_errors_by_app_id
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+from src.services.app_status import appInstalling, appInstallingError,start_app_installation,remove_app_installation,modify_app_information,remove_app_from_errors_by_app_id,add_installing_logs,remove_installation_logs
+
 
 class AppManger:
     def get_catalog_apps(self,locale:str):
@@ -157,6 +168,7 @@ class AppManger:
                         app_name = app.get("app_name", None),
                         app_official = app.get("app_official", None),
                         error = app.get("error", None),
+                        logs = app.get("logs", None)
                     )
                 if app_response.app_id in not_stacks:
                     # If app_id is in not_stacks, remove the corresponding AppResponse from apps_info
@@ -174,6 +186,7 @@ class AppManger:
                         app_name = app.get("app_name", None),
                         app_official = app.get("app_official", None),
                         error = app.get("error", None),
+                        logs = None
                     )
                 apps_info.append(app_response)
 
@@ -357,6 +370,7 @@ class AppManger:
         
         # add app to appInstalling
         app_uuid = start_app_installation(app_id, app_name)
+        add_installing_logs(app_uuid, "Initializing installation","")
 
         # Install app - Step 1 : create repo in gitea
         try:
@@ -364,10 +378,12 @@ class AppManger:
         except CustomException as e:
             # modify app status: error
             modify_app_information(app_uuid,e.details)
+            remove_installation_logs(app_uuid)
             raise
         except Exception as e:
             # modify app status: error
             modify_app_information(app_uuid,"Create repo error")
+            remove_installation_logs(app_uuid)
             logger.error(f"Create repo error:{e}")
             raise CustomException()
 
@@ -422,7 +438,7 @@ class AppManger:
                 # Set the password to env file
                 envHelper.set_value("W9_POWER_PASSWORD", PasswordGenerator.generate_strong_password())
 
-             # Set the settings to env file
+            # Set the settings to env file
             if settings:
                 for key, value in settings.items():
                     envHelper.set_value(key, value)
@@ -449,9 +465,7 @@ class AppManger:
             #         envHelper.set_value("W9_URL", domain_names[0] + ":" + envHelper.get_value("W9_HTTP_PORT_SET"))
             #     except ValueError:
             #         envHelper.set_value("W9_URL", domain_names[0])
-            # elif url_with_port is None:
-            #     envHelper.set_value("W9_URL", domain_names[0])
-                     
+                    
             # Commit and push to remote repo
             self._init_local_repo_and_push_to_remote(app_tmp_dir_path,repo_url)
         except CustomException as e:
@@ -459,17 +473,33 @@ class AppManger:
             giteaManager.remove_repo(app_id)
             # modify app status: error
             modify_app_information(app_uuid,e.details)
+            remove_installation_logs(app_uuid)
             raise
         except Exception as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # modify app status: error
             modify_app_information(app_uuid,"Initialize repo error")
+            remove_installation_logs(app_uuid)
             logger.error(f"Initialize repo error:{e}")
             raise CustomException()
-        
-        # Install app - Step 3 : create stack in portainer
+
+        # Install app - Step 3 : pull docker image
         try:
+            add_installing_logs(app_uuid,"Pulling docker image","")
+            self.pull_images_from_yml(app_tmp_dir_path,app_uuid)
+        except Exception as e:
+            # Rollback: remove repo in gitea
+            giteaManager.remove_repo(app_id)
+            # modify app status: error
+            modify_app_information(app_uuid, "Pull docker image error")
+            remove_installation_logs(app_uuid)
+            logger.error(f"Pull docker image error: {e}")
+            raise CustomException()
+
+        # Install app - Step 4 : create stack in portainer
+        try:
+            add_installing_logs(app_uuid,"Starting the services","")
             # Get gitea user_name and user_pwd
             user_name = ConfigManager().get_value("gitea","user_name")
             user_pwd = ConfigManager().get_value("gitea","user_pwd")
@@ -486,6 +516,7 @@ class AppManger:
             portainerManager.remove_vloumes(app_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,e.details)
+            remove_installation_logs(app_uuid)
             raise
         except Exception as e:
             # Rollback: remove repo in gitea
@@ -494,11 +525,13 @@ class AppManger:
             portainerManager.remove_vloumes(app_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,"Create stack error")
+            remove_installation_logs(app_uuid)
             logger.error(f"Create stack error:{e}")
             raise CustomException()
-        
-        # Install app - Step 4 : create proxy in nginx proxy manager
+            
+        # Install app - Step 5 : create proxy in nginx proxy manager
         try:
+            add_installing_logs(app_uuid,"Configuring the domain","")
             # check the app is web app
             if is_web_app is not None :
                 if proxy_enabled and domain_names:
@@ -530,6 +563,7 @@ class AppManger:
             portainerManager.remove_stack_and_volumes(stack_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,e.details)
+            remove_installation_logs(app_uuid)
             raise
         except Exception as e:
             # Rollback-1: remove repo in gitea
@@ -538,6 +572,7 @@ class AppManger:
             portainerManager.remove_stack_and_volumes(stack_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,"Create proxy error")
+            remove_installation_logs(app_uuid)
             logger.error(f"Create proxy error:{e}")
             raise CustomException()
 
@@ -548,9 +583,11 @@ class AppManger:
         shutil.rmtree(app_tmp_dir_path)
 
         logger.access(f"Installed app: [{app_id}]")
-        # return result
+        add_installing_logs(app_uuid,"Installation complete","")
+        # 等待1秒
+        time.sleep(1)
 
-    def redeploy_app(self,app_id:str,pull_image:bool,endpointId:int = None):
+    async def redeploy_app(self,app_id:str,pull_image:bool,endpointId:int = None,queue: asyncio.Queue = None):
         """
         Redeploy app
 
@@ -559,6 +596,11 @@ class AppManger:
             pull_image (bool): Whether to pull the image when redeploying the app.
             endpointId (int, optional): The endpoint id. Defaults to None.
         """
+        async def send_log(message: str):
+            if queue:
+                await queue.put(message)
+                
+        await send_log("Initializing Redeployment")
         # Get the appInstallApps
         appInstallApps = AppManger().get_apps(endpointId)
 
@@ -574,11 +616,12 @@ class AppManger:
         
         # Check the endpointId is exists.
         if endpointId:
-              check_endpointId(endpointId, portainerManager)
+            check_endpointId(endpointId, portainerManager)
         else:
             endpointId = portainerManager.get_local_endpoint_id()
         
         # validate the app_id is exists in portainer
+        await send_log("Verify Application Status")
         is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
         if not is_stack_exists:
             raise CustomException(
@@ -597,9 +640,117 @@ class AppManger:
         else:
             user_name = ConfigManager().get_value("gitea","user_name")
             user_pwd = ConfigManager().get_value("gitea","user_pwd")
+
+            app_tmp_dir = f"/tmp/{app_id}"
+            # if the app_tmp_dir exists, remove it
+            if os.path.exists(app_tmp_dir):
+                shutil.rmtree(app_tmp_dir)
+
+            # instantiate a GitManager object
+            gitManager =GitManager(app_tmp_dir) 
+
+            # 从app中获取 gitConfig属性的URL属性值
+            remote_url = [app.gitConfig.get("URL") for app in app_official if app.app_id == app_id][0]
+
+            # Initialize a local git repository from a directory
+            gitManager.clone_remote_repo_to_local(remote_url,user_name,user_pwd)
+            
+            env_file_path = os.path.join(app_tmp_dir, '.env')
+            env_helper = EnvHelper(env_file_path)
+            yml_files = [os.path.join(app_tmp_dir, f) for f in os.listdir(app_tmp_dir) if f.endswith('.yml')]
+
+            if not yml_files:
+                raise CustomException("No yml files found in the directory")
+
+            # Initialize Docker client with host's Docker socket
+            docker_client = aiodocker.Docker()
+
+            async def docker_pull_image(image):
+                success = False  # 标志位，跟踪是否成功拉取镜像
+                try:
+                    # Try pulling the image directly first
+                    await send_log(f"Pulling image: {image}")
+                    pull_result = docker_client.images.pull(image, stream=True)
+                    async for line in pull_result:
+                        await send_log(line)
+                    success = True  # 成功拉取镜像
+                    return
+                # except docker.errors.APIError as e:
+                #     pass
+                except Exception as e:
+                    await send_log(f"Failed to pull image: {image}")
+                    pass
+
+                 # Get image accelerators
+                image_accelerators = self.download_image_accelerators()
+
+                # If direct pull fails, try using accelerators
+                for accelerator in image_accelerators:
+                    try:
+                        # Replace the image name with the accelerator URL
+                        accelerated_image = f"{accelerator}/{image}"
+                        await send_log(f"Pulling image: {accelerated_image}")
+                        pull_result = docker_client.images.pull(accelerated_image, stream=True)
+                        async for line in pull_result:
+                            await send_log(line)
+                        
+                        # Tag the image back to its original name
+                        await docker_client.images.tag(accelerated_image, image)
+                        # Remove the accelerated image tag
+                        await docker_client.images.delete(accelerated_image)
+                        success = True  # 成功拉取镜像
+                        break
+                    except docker.errors.APIError as e:
+                        logger.error(f"Failed to pull image from {accelerator}: {e}")
+                
+                # If all attempts fail, raise an exception
+                if not success:
+                    raise CustomException(f"Failed to pull image: {image}")
+
+            tasks = []
+            for yml_file in yml_files:
+                with open(yml_file, 'r') as file:
+                    compose_content = yaml.safe_load(file)
+                    services = compose_content.get('services', {})
+                    for service in services.values():
+                        image = service.get('image')
+                        if image:
+                            # Replace environment variables in the image string
+                            image = self._replace_env_variables(image, env_helper)
+                            if pull_image: 
+                                tasks.append(docker_pull_image(image)) #强制拉取镜像
+                            try:
+                                # Check if the image already exists
+                                await docker_client.images.get(image)
+                                continue
+                            except aiodocker.exceptions.DockerError:
+                                tasks.append(docker_pull_image(image))
+
+            await asyncio.gather(*tasks)
+
+            docker_client.close()
+
+            await send_log("Redeploying stack")
             # redeploy stack
-            portainerManager.redeploy_stack(stack_id,endpointId,pull_image,user_name,user_pwd)
-            logger.access(f"Redeployed app: [{app_id}]")
+
+            # portainerManager.redeploy_stack(stack_id,endpointId,pull_image,user_name,user_pwd)
+            try:
+                await AsyncWrapper.run_sync(
+                    portainerManager.redeploy_stack,
+                    stack_id,
+                    endpointId,
+                    False,      #强制设置不拉取镜像，而是通过Websoft9的逻辑来拉取镜像
+                    user_name,
+                    user_pwd,
+                    timeout=60  # 自定义超时
+                )
+            except CustomException as e:
+                await send_log(f"Redeploy stack error: {e}")
+                raise e
+            
+            # Remove the tmp dir
+            shutil.rmtree(app_tmp_dir)
+
 
             app_info = self.get_app_by_id(app_id,endpointId)
             forward_ports = [domain.get("forward_port") for domain in app_info.domain_names]
@@ -618,6 +769,13 @@ class AppManger:
                     for proxy_id in proxy_ids:
                         ProxyManager().update_proxy_port_by_app(proxy_id, forward_port)
                         logger.access(f"Updated proxy port: {forward_port} for app: {app_id}")
+            
+            await send_log("Redeployment complete")
+            # 等待1秒
+            time.sleep(5)
+            #await send_log(None)
+            logger.access(f"Redeployed app: [{app_id}]")
+            
 
     def uninstall_app(self,app_id:str,purge_data:bool,endpointId:int = None):
         """
@@ -1250,3 +1408,99 @@ class AppManger:
         except Exception as e:
             logger.error(f"Update the git repo env file error:{e}")
             raise CustomException()
+
+    def _replace_env_variables(self, text: str, env_helper: EnvHelper) -> str:
+        """
+        Replace environment variables in the given text using values from env_helper.
+
+        Args:
+            text (str): The text containing environment variables.
+            env_helper (EnvHelper): The EnvHelper instance to get environment variable values.
+
+        Returns:
+            str: The text with environment variables replaced.
+        """
+        for key, value in env_helper.get_all_values().items():
+            text = text.replace(f"${{{key}}}", value)
+            text = text.replace(f"${key}", value)
+        return text
+
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
+    def download_image_accelerators(self):
+        try:
+            url = ConfigManager("config.ini").get_value("docker_mirror", "url")
+            response = requests.get(url)
+            if response.status_code != 200:
+                logger.error(f"Failed to download image accelerators: {response.text}")
+                raise CustomException("Failed to download image accelerators")
+            return response.json().get("mirrors", [])
+        except Exception as e:
+            logger.error(f"Failed to download image accelerators: {e}")
+            return []
+
+    def pull_images_from_yml(self, app_tmp_dir_path, app_uuid):
+        logger.access(f"Pulling images from yml files in {app_tmp_dir_path}")
+        env_file_path = os.path.join(app_tmp_dir_path, '.env')
+        env_helper = EnvHelper(env_file_path)
+        yml_files = [os.path.join(app_tmp_dir_path, f) for f in os.listdir(app_tmp_dir_path) if f.endswith('.yml')]
+
+        if not yml_files:
+            raise CustomException("No yml files found in the directory")
+
+        # Get image accelerators
+        image_accelerators = self.download_image_accelerators()
+
+        # Initialize Docker client with host's Docker socket
+        docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+
+        def pull_image(image):
+            try:
+                logger.access(f"Pulling image: {image}")
+                # Try pulling the image directly first
+                for line in docker_client.api.pull(image, stream=True, decode=True):
+                    add_installing_logs(app_uuid,"Pulling docker image",line)
+
+                return
+            except docker.errors.APIError as e:
+                # Nothing to do
+                pass
+            except Exception as e:
+                pass
+
+            # If direct pull fails, try using accelerators
+            for accelerator in image_accelerators:
+                try:
+                    # Replace the image name with the accelerator URL
+                    accelerated_image = f"{accelerator}/{image}"
+                    logger.access(f"Pulling image from {accelerator}: {accelerated_image}")
+                    for line in docker_client.api.pull(accelerated_image, stream=True, decode=True):
+                        add_installing_logs(app_uuid,"Pulling docker image",line)
+                    
+                    # Tag the image back to its original name
+                    docker_client.api.tag(accelerated_image, image)
+                    # Remove the accelerated image tag
+                    docker_client.api.remove_image(accelerated_image)
+                    return
+                except docker.errors.APIError as e:
+                    logger.error(f"Failed to pull image from {accelerator}: {e}")
+            
+            # If all attempts fail, raise an exception
+            raise CustomException(f"Failed to pull image: {image}")
+
+        for yml_file in yml_files:
+            with open(yml_file, 'r') as file:
+                compose_content = yaml.safe_load(file)
+                services = compose_content.get('services', {})
+                for service in services.values():
+                    image = service.get('image')
+                    if image:
+                        # Replace environment variables in the image string
+                        image = self._replace_env_variables(image, env_helper)
+                        try:
+                            # Check if the image already exists
+                            logger.access(f"Checking if image exists: {image}")
+                            docker_client.images.get(image)
+                            continue
+                        except docker.errors.ImageNotFound:
+                            logger.access(f"Image not found: {image}")
+                            pull_image(image)

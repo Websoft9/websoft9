@@ -1,4 +1,13 @@
+import asyncio
+import datetime
+from http.client import HTTPException
+import json
+import time
+from typing import Any, Dict
 from fastapi import APIRouter, Query,Path
+from fastapi.responses import StreamingResponse
+from src.core import logger
+from src.core.exception import CustomException
 from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
 from src.schemas.appInstall import appInstall
@@ -82,20 +91,35 @@ def get_app_by_id(
         500: {"model": ErrorResponse},
     }
 )
-def apps_install(
+async def apps_install(
     appInstall: appInstall,
     endpointId: int = Query(None, description="Endpoint ID to install app on,if not set, install on the local endpoint"),
 ):
     # install validate
     install_validate(appInstall,endpointId)
+
     # install app
     Thread(target=AppManger().install_app, args=(appInstall, endpointId)).start()
+    
     # return success
     return ErrorResponse(
         status_code=200,
         message="Success",
         details="The app is installing and can be viewed through 'My Apps.'",
     )
+
+    # async def log_generator(queue: asyncio.Queue):
+    #     while True:
+    #         message = await queue.get()
+    #         if message is None:
+    #             break
+    #         yield f"{message}\n"
+
+    # queue = asyncio.Queue()
+    # app_manager = AppManger()
+    # asyncio.create_task(app_manager.install_app(appInstall, endpointId, queue))
+    # return StreamingResponse(log_generator(queue), media_type="text/plain",status_code=200)
+
 
 @router.post(
     "/apps/{app_id}/start",
@@ -156,19 +180,109 @@ def app_restart(
     summary="Redeploy App",
     response_model_exclude_defaults=True, 
     description="Redeploy an app on an endpoint",
-    status_code=204,
+    # status_code=200,
     responses={
-        204: {"description": "App redeploy successfully"},
+        200: {"description": "Success"},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
     },
 )
-def app_redeploy(
+async def app_redeploy(
     app_id: str = Path(..., description="App ID to redeploy"),
     endpointId: int = Query(None, description="Endpoint ID to redeploy app on. If not set, redeploy on the local endpoint"),
     pullImage: bool = Query(..., description="Whether to pull the image when redeploying the app"),
 ):
-    AppManger().redeploy_app(app_id, pullImage,endpointId)
+
+    async def log_generator(queue: asyncio.Queue):
+        error_occurred = False
+        try:
+            while True:
+                item = await queue.get()
+                
+                # 构建基础消息结构
+                log_entry: Dict[str, Any] = {
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "type": "log",
+                    "data": None
+                }
+
+                # 处理不同消息类型
+                if isinstance(item, dict):
+                    if item.get("type") == "error":
+                        log_entry.update({
+                            "type": "error",
+                            "code": item.get("code", 500),
+                            "message": item.get("message", "Unknown error"),
+                            "details": item.get("details")
+                        })
+                        error_occurred = True
+                    elif item.get("type") == "end":
+                        log_entry["type"] = "end"
+                    else:
+                        log_entry["data"] = item
+                elif isinstance(item, CustomException):
+                    log_entry.update({
+                        "type": "error",
+                        "code": item.status_code,
+                        "message": item.message,
+                        "details": item.details
+                    })
+                    error_occurred = True
+                else:
+                    log_entry["data"] = str(item)
+
+                # 序列化并发送
+                yield json.dumps(log_entry) + "\n"
+
+                # 错误或结束信号后终止
+                if error_occurred or log_entry["type"] == "end":
+                    break
+        finally:
+            # 记录最终状态
+            final_status = {
+                "status": "failed" if error_occurred else "success",
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            yield json.dumps(final_status) + "\n"
+
+    async def task_wrapper():
+        try:
+            # 成功执行后发送明确的结束标记
+            await app_manager.redeploy_app(
+                app_id, 
+                pullImage, 
+                endpointId, 
+                queue=queue
+            )
+            await queue.put({"type": "end"})
+        except CustomException as e:
+            # 标准化错误格式
+            await queue.put({
+                "type": "error",
+                "code": e.status_code,
+                "message": e.message,
+                "details": e.details,
+                "timestamp": datetime.datetime.now().isoformat()  # 添加时间戳
+            })
+        except Exception as e:
+            # 处理未预期的异常类型
+            await queue.put({
+                "type": "error",
+                "code": 500,
+                "message": "Internal Server Error",
+                "details": f"{type(e).__name__}: {str(e)}",
+                "timestamp": datetime.datetime.now().isoformat()
+            })
+        finally:
+            # 确保流结束
+            await queue.put({"type": "end"})  # 冗余保障
+
+    queue = asyncio.Queue(maxsize=100)
+    app_manager = AppManger()
+
+    asyncio.create_task(task_wrapper())
+    #asyncio.create_task(app_manager.redeploy_app(app_id, pullImage,endpointId,queue))
+    return StreamingResponse(log_generator(queue), media_type="text/plain")
 
 
 @router.delete(

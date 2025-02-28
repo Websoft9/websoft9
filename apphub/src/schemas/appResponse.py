@@ -1,4 +1,3 @@
-from pydantic import BaseModel
 from typing import List, Any
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -19,3 +18,4 @@ class AppResponse(BaseModel):
     containers: List[dict]  = Field([], description="Containers")
     volumes: List[dict] = Field([], description="Volumes")
     error:Optional[str] = Field(None,description="Error message",example="Internal Server Error")
+    logs: Optional[List[Any]] = Field(default_factory=list, description="Logs", example=["Simple log message", {"status": "Installing...", "id": "db01ae396f16"}])

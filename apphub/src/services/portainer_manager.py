@@ -125,24 +125,48 @@ class PortainerManager:
                 details=message
             )
         
-    def redeploy_stack(self, stack_id: int, endpoint_id: int,pull_image:bool,user_name:str,user_password:str):
-        response = self.portainer.redeploy_stack(stack_id, endpoint_id,pull_image,user_name,user_password)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            message = response.text
-            if message:
-                try:
-                    response_details = json.loads(message)
-                    message = response_details.get('details', 'unknown error')
-                except json.JSONDecodeError:
-                    pass 
-            logger.error(f"Redeploy stack:{stack_id} error: {response.status_code}:{response.text}")
+    # def redeploy_stack(self, stack_id: int, endpoint_id: int,pull_image:bool,user_name:str,user_password:str):
+    #     response = self.portainer.redeploy_stack(stack_id, endpoint_id,pull_image,user_name,user_password)
+    #     if response.status_code == 200:
+    #         return response.json()
+    #     else:
+    #         message = response.text
+    #         if message:
+    #             try:
+    #                 response_details = json.loads(message)
+    #                 message = response_details.get('details', 'unknown error')
+    #             except json.JSONDecodeError:
+    #                 pass 
+    #         logger.error(f"Redeploy stack:{stack_id} error: {response.status_code}:{response.text}")
+    #         raise CustomException(
+    #             status_code=400,
+    #             message="Invalid Request",
+    #             details=message
+    #         )
+
+    def redeploy_stack(self, stack_id: int, endpoint_id: int, pull_image: bool, user_name: str, user_password: str):
+        try:
+            response = self.portainer.redeploy_stack(stack_id, endpoint_id, pull_image, user_name, user_password)   
+             # 检查状态码
+            if response.status_code == 200:
+                return  
+            # 根据状态码处理异常
+            logger.error(f"Redeploy stack: {stack_id} error: {response.status_code}: {response.text}")
+            
+            # 抛出 CustomException，统一处理非 200 状态码
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=message
+                details=f"Error"
             )
+        except Exception as e:
+            logger.error(f"Redeploy stack: {stack_id} error: {e}")
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"{e}"
+            )
+       
     
     def get_stacks(self, endpoint_id: int):
         """

@@ -93,3 +93,35 @@ class GitManager:
             logger.error(f"Failed to push from 'main' branch in git repository at {self.local_path} to remote '{remote_url}': {str(e)}")
             raise CustomException()  
         
+    def clone_remote_repo_to_local(self,remote_url:str,user_name:str,user_pwd:str):
+        """
+        Clone a remote git repository to a local path.
+
+        Args:
+            remote_url (str): The URL of the remote origin.
+            user_name (str): The user name to use when authenticating with the remote origin.
+            user_pwd (str): The password to use when authenticating with the remote origin.
+
+        Raises:
+            CustomException: If there is an error cloning the remote git repository to the local path.
+        """
+        try:
+            # Parse the remote URL.
+            parsed = urlparse(remote_url)
+
+            # Get the network location.
+            auth_netloc = f"{user_name}:{user_pwd}@{parsed.netloc}"
+
+            # Create a new ParseResult with the updated network location
+            auth_parsed = parsed._replace(netloc=auth_netloc)
+            auth_repo_url = urlunparse(auth_parsed)
+        except Exception as e:
+            logger.error(f"Failed to parse remote URL {remote_url}: {str(e)}")
+            raise CustomException()
+        
+        # Clone the remote repository to the local path.
+        try:
+            Repo.clone_from(auth_repo_url, self.local_path)
+        except GitCommandError as e:
+            logger.error(f"Failed to clone remote repository from {remote_url} to {self.local_path}: {str(e)}")
+            raise CustomException()
