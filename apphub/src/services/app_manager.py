@@ -1454,16 +1454,17 @@ class AppManger:
         docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
 
         def pull_image(image):
+            success = False  # 标志位，跟踪是否成功拉取镜像
             try:
                 logger.access(f"Pulling image: {image}")
                 # Try pulling the image directly first
                 for line in docker_client.api.pull(image, stream=True, decode=True):
                     add_installing_logs(app_uuid,"Pulling docker image",line)
-
+                success = True  # 成功拉取镜像
                 return
-            except docker.errors.APIError as e:
-                # Nothing to do
-                pass
+            # except docker.errors.APIError as e:
+            #     # Nothing to do
+            #     pass
             except Exception as e:
                 pass
 
@@ -1480,12 +1481,13 @@ class AppManger:
                     docker_client.api.tag(accelerated_image, image)
                     # Remove the accelerated image tag
                     docker_client.api.remove_image(accelerated_image)
+                    success = True  # 成功拉取镜像
                     return
                 except docker.errors.APIError as e:
                     logger.error(f"Failed to pull image from {accelerator}: {e}")
             
-            # If all attempts fail, raise an exception
-            raise CustomException(f"Failed to pull image: {image}")
+                if not success:
+                    raise CustomException(f"Failed to pull image: {image}")
 
         for yml_file in yml_files:
             with open(yml_file, 'r') as file:
