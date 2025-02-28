@@ -1,8 +1,9 @@
 ### enhancement:
-- Upgrade access to the Websoft9 platform from HTTP to HTTPS #566
-- cockpit upgrade，port change to 9090 when linux upgrage #556
-- upgrade error at CentOS Stream #554
-- Optimize install_docker.sh #547
-- Nginxproxymanage add named volume nginx_custom #527
-- Nginx how to dynamically apply proxy #516
+
+- how to set proxy when install websoft9 by install.sh #595
+- Add funtion on apphub cli #591
+- Try to remove the warning of https access Websoft9 console #588
+- Can not copy ssh config file to destination directory on OracleLinux8.10 #582
+- The installation script can not install websoft9 on OracleLinux7.9 #581
+- websoft9 cannot login on Safari browse #578
 
