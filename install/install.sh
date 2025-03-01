@@ -63,7 +63,7 @@ channel="release"
 execute_mode="auto"
 path="/data/websoft9/source"
 apps=""
-mirrors="https://dockerhub.websoft9.com"
+mirrors=""
 proxy=""
 
 # 获取参数值
@@ -396,6 +396,12 @@ download_source_and_checkimage() {
             exit 1
         else
             echo "image pull success by new mirrors"
+            rm -f /etc/docker/daemon.json
+            if [ -f /etc/docker/daemon.json.bak ]; then
+                mv /etc/docker/daemon.json.bak /etc/docker/daemon.json
+            fi
+            sudo systemctl daemon-reload
+            sudo systemctl restart docker
         fi
     else
         echo "image pull success"

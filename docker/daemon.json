@@ -4,5 +4,5 @@
       "max-size": "10m",
       "max-file": "5"
     },
-    "registry-mirrors": ["https://dockerhub.websoft9.com"]
+    "registry-mirrors": ["https://registry.inner.websoft9.cn"]
 }
