@@ -4,5 +4,5 @@
       "max-size": "10m",
       "max-file": "5"
     },
-    "registry-mirrors": ["https://registry.inner.websoft9.cn"]
+    "registry-mirrors": ["https://docker.1ms.run","https://registry.inner.websoft9.cn"]
 }
