@@ -657,7 +657,8 @@ class AppManger:
             
             env_file_path = os.path.join(app_tmp_dir, '.env')
             env_helper = EnvHelper(env_file_path)
-            yml_files = [os.path.join(app_tmp_dir, f) for f in os.listdir(app_tmp_dir) if f.endswith('.yml')]
+            #yml_files = [os.path.join(app_tmp_dir, f) for f in os.listdir(app_tmp_dir) if f.endswith('.yml')]
+            yml_files = [os.path.join(app_tmp_dir, f) for f in os.listdir(app_tmp_dir) if f == 'docker-compose.yml']
 
             if not yml_files:
                 raise CustomException("No yml files found in the directory")
@@ -1439,16 +1440,17 @@ class AppManger:
             return []
 
     def pull_images_from_yml(self, app_tmp_dir_path, app_uuid):
-        logger.access(f"Pulling images from yml files in {app_tmp_dir_path}")
         env_file_path = os.path.join(app_tmp_dir_path, '.env')
         env_helper = EnvHelper(env_file_path)
-        yml_files = [os.path.join(app_tmp_dir_path, f) for f in os.listdir(app_tmp_dir_path) if f.endswith('.yml')]
+        #yml_files = [os.path.join(app_tmp_dir_path, f) for f in os.listdir(app_tmp_dir_path) if f.endswith('.yml')]
+        yml_files = [os.path.join(app_tmp_dir_path, f) for f in os.listdir(app_tmp_dir_path) if f == 'docker-compose.yml']
 
         if not yml_files:
             raise CustomException("No yml files found in the directory")
 
         # Get image accelerators
         image_accelerators = self.download_image_accelerators()
+        logger.access(f"Image accelerators: {image_accelerators}")
 
         # Initialize Docker client with host's Docker socket
         docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
@@ -1462,9 +1464,6 @@ class AppManger:
                     add_installing_logs(app_uuid,"Pulling docker image",line)
                 success = True  # 成功拉取镜像
                 return
-            # except docker.errors.APIError as e:
-            #     # Nothing to do
-            #     pass
             except Exception as e:
                 pass
 
@@ -1486,8 +1485,8 @@ class AppManger:
                 except docker.errors.APIError as e:
                     logger.error(f"Failed to pull image from {accelerator}: {e}")
             
-                if not success:
-                    raise CustomException(f"Failed to pull image: {image}")
+            if not success:
+                raise CustomException(f"Failed to pull image: {image}")
 
         for yml_file in yml_files:
             with open(yml_file, 'r') as file:
