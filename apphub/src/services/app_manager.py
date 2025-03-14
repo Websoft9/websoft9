@@ -668,8 +668,11 @@ class AppManger:
 
             async def docker_pull_image(image):
                 success = False  # 标志位，跟踪是否成功拉取镜像
+                if ":" not in image:  # 若镜像名不包含标签
+                    image = f"{image}:latest"  # 自动追加最新标签
                 try:
                     # Try pulling the image directly first
+
                     await send_log(f"Pulling image: {image}")
                     pull_result = docker_client.images.pull(image, stream=True)
                     async for line in pull_result:
