@@ -1,6 +1,7 @@
 ### enhancement:
 
-- Pull extra images When install apps #599
-- How test docker image mirror URL list and update it #594
-- Websoft9 Console loading slowly #586
+- add a tag for todo application #601
+- Using AI to create enterprise knowledge base #600
+
+
 
