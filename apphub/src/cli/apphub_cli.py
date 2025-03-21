@@ -180,5 +180,29 @@ def commit(appid, github_token):
         if os.path.exists(work_dir):
             shutil.rmtree(work_dir)
 
+@cli.command()
+@click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
+def upgrade(target):
+    """Upgrade apps"""
+    try:
+        if target == 'apps':
+            # 执行升级 apps 的命令
+            subprocess.run(
+                ["bash", "/websoft9/script/update_zip.sh", "--channel", "release", "--package_name", "media-latest.zip", "--sync_to", "/websoft9/media"],
+                check=True
+            )
+
+            subprocess.run(
+                ["bash", "/websoft9/script/update_zip.sh", "--channel", "release", "--package_name", "library-latest.zip", "--sync_to", "/websoft9/library"],
+                check=True
+            )
+            click.echo("Updated successfully.")
+        else:
+            click.echo(f"Unknown upgrade target: {target}")
+    except subprocess.CalledProcessError as e:
+        raise click.ClickException(f"Upgrade command failed: {e}")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
 if __name__ == "__main__":
     cli()
