@@ -182,27 +182,60 @@ def commit(appid, github_token):
 
 @cli.command()
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
-def upgrade(target):
+@click.option('--dev', is_flag=True, help='Upgrade using dev environment')
+def upgrade(target, dev):
     """Upgrade apps"""
     try:
         if target == 'apps':
-            # 执行升级 apps 的命令
-            subprocess.run(
-                ["bash", "/websoft9/script/update_zip.sh", "--channel", "release", "--package_name", "media-latest.zip", "--sync_to", "/websoft9/media"],
-                check=True
-            )
+            # 根据是否传入 --dev 参数设置 channel 和 package_name
+            channel = "dev" if dev else "release"
+            media_package = "media-dev.zip" if dev else "media-latest.zip"
+            library_package = "library-dev.zip" if dev else "library-latest.zip"
 
-            subprocess.run(
-                ["bash", "/websoft9/script/update_zip.sh", "--channel", "release", "--package_name", "library-latest.zip", "--sync_to", "/websoft9/library"],
-                check=True
-            )
-            click.echo("Updated successfully.")
+            # 执行升级 media 的命令
+            if dev:
+                subprocess.run(
+                    [
+                        "bash", "/websoft9/script/update_zip.sh",
+                        "--channel", channel, "--package_name", media_package, "--sync_to", "/websoft9/media"
+                    ],
+                    check=True
+                )
+            else:
+                subprocess.run(
+                    [
+                        "bash", "/websoft9/script/update_zip.sh",
+                        "--channel", channel, "--package_name", media_package, "--sync_to", "/websoft9/media"
+                    ],
+                    check=True
+                )
+            click.echo(f"Media resources ({channel}) updated successfully.")
+
+            # 执行升级 library 的命令
+            if dev:
+                subprocess.run(
+                    [
+                        "bash", "/websoft9/script/update_zip.sh",
+                        "--channel", channel, "--package_name", library_package, "--sync_to", "/websoft9/library"
+                    ],
+                    check=True
+                )
+            else:
+                subprocess.run(
+                    [
+                        "bash", "/websoft9/script/update_zip.sh",
+                        "--channel", channel, "--package_name", library_package, "--sync_to", "/websoft9/library"
+                    ],
+                    check=True
+                )
+            click.echo(f"Library resources ({channel}) updated successfully.")
         else:
             click.echo(f"Unknown upgrade target: {target}")
     except subprocess.CalledProcessError as e:
         raise click.ClickException(f"Upgrade command failed: {e}")
     except Exception as e:
         raise click.ClickException(str(e))
+
 
 if __name__ == "__main__":
     cli()
