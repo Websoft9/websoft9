@@ -21,23 +21,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install awscli
 
-      - name: Configure AWS CLI
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_SECRET_ID  }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
-          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-          aws configure set default.region auto
-          aws configure set default.output json
-
       - name: Download directory from Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_SECRET_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 
         run: |
-          aws s3 sync s3://libs/Websoft9/logo ./r2_imgs --endpoint-url="https://eb79f13320db531d8cf1f3720966b695.r2.cloudflarestorage.com"
-
-        
-      - id: push
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "test r2 imgs download"
+          aws s3 sync s3://libs/Websoft9/logo ./r2_imgs --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
