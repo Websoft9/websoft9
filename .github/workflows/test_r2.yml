@@ -4,24 +4,35 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  download:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Sync via Wrangler
-      run: |
-        npm install -g wrangler
-    
-        echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" > .env
-        wrangler r2 object list libs --prefix "Websoft9/logo/" | jq -r '.objects[].key' > objects.json
-    
-        mkdir -p downloaded-images
-        cat objects.json | jq -r '.objects[].key' | while read key; do
-          mkdir -p "downloaded-images/$(dirname "$key")"
-          wrangler r2 object download libs "$key" --file "downloaded-images/$key"
-        done
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Configure AWS CLI
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_SECRET_ID  }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set default.region auto
+          aws configure set default.output json
+
+      - name: Download directory from Cloudflare R2
+        run: |
+          aws s3 sync s3://libs/websoft9/logo ./r2_imgs --endpoint-url=https://$ACCOUNT_ID.r2.cloudflarestorage.com
+
         
-    - id: push
-      uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        commit_message: "push the contenful backup file"
+      - id: push
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "push the contenful backup file"
