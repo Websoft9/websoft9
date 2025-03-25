@@ -24,6 +24,16 @@ jobs:
       - name: Install GNU Parallel
         run: sudo apt-get install -y parallel
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'  
+
+      - name: Install AWS CLI via pip
+        run: |
+          python -m pip install --upgrade pip
+          pip install awscli
+
       - name: Fetch catalog data from contentful graphql
         run: |
           mkdir -p $DATA_DIR
@@ -57,14 +67,22 @@ jobs:
              echo ${ITEMS[@]} | jq -s '.' > $DATA_DIR/product_${LOCALE:0:2}.json
            done
 
-      - name: Install and configure Aliyun ossutil
-        run: |
-          wget http://gosspublic.alicdn.com/ossutil/1.7.6/ossutil64
-          chmod 755 ossutil64
-          ./ossutil64 config -e ${{ secrets.OSS_ENDPOINT }} -i ${{ secrets.OSS_ACCESS_KEY_ID }} -k ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+      # - name: Install and configure Aliyun ossutil
+      #   run: |
+      #     wget http://gosspublic.alicdn.com/ossutil/1.7.6/ossutil64
+      #     chmod 755 ossutil64
+      #     ./ossutil64 config -e ${{ secrets.OSS_ENDPOINT }} -i ${{ secrets.OSS_ACCESS_KEY_ID }} -k ${{ secrets.OSS_ACCESS_KEY_SECRET }}
 
-      - name: Download logos from oss
-        run: ./ossutil64 cp oss://libs-websoft9-com/Websoft9/logo/product/ $APPSTORE_LOGO_DIR -r --update
+      # - name: Download logos from oss
+      #   run: ./ossutil64 cp oss://libs-websoft9-com/Websoft9/logo/product/ $APPSTORE_LOGO_DIR -r --update
+
+      - name: Download directory from Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_SECRET_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 
+        run: |
+          aws s3 sync s3://libs/Websoft9/logo/product $APPSTORE_LOGO_DIR --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
 
       - name: Create Zip Archive
         run: |
