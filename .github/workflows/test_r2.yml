@@ -10,11 +10,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'  
 
-      - name: Install AWS CLI
+      - name: Install AWS CLI via pip
         run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
+          python -m pip install --upgrade pip
+          pip install awscli
 
       - name: Configure AWS CLI
         env:
