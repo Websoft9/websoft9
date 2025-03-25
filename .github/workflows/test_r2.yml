@@ -34,10 +34,10 @@ jobs:
 
       - name: Download directory from Cloudflare R2
         run: |
-          aws s3 sync s3://libs/websoft9/logo ./r2_imgs --endpoint-url=https://$ACCOUNT_ID.r2.cloudflarestorage.com
+          aws s3 sync s3://libs/websoft9/logo ./r2_imgs --endpoint-url="https://$ACCOUNT_ID.r2.cloudflarestorage.com"
 
         
       - id: push
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: "push the contenful backup file"
+          commit_message: "test r2 imgs download"
