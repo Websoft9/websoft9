@@ -1,0 +1,27 @@
+name: Download Media Form R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Sync via Wrangler
+      run: |
+        npm install -g wrangler
+    
+        echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" > .env
+        wrangler r2 object list libs --prefix "Websoft9/logo/" | jq -r '.objects[].key' > objects.json
+    
+        mkdir -p downloaded-images
+        cat objects.json | jq -r '.objects[].key' | while read key; do
+          mkdir -p "downloaded-images/$(dirname "$key")"
+          wrangler r2 object download libs "$key" --file "downloaded-images/$key"
+        done
+        
+    - id: push
+      uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: "push the contenful backup file"
