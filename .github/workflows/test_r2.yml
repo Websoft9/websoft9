@@ -34,7 +34,7 @@ jobs:
 
       - name: Download directory from Cloudflare R2
         run: |
-          aws s3 sync s3://libs/websoft9/logo ./r2_imgs --endpoint-url="https://$ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws s3 sync s3://libs/websoft9/logo ./r2_imgs --endpoint-url="https://${{ env.ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
         
       - id: push
