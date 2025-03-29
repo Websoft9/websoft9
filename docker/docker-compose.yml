@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   apphub:
     image: websoft9dev/apphub:$APPHUB_VERSION
