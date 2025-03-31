@@ -31,4 +31,4 @@ jobs:
           contentful merge export --te dev --se master --output-file merge.js
           contentful space migration --space-id ffrhttfighww --environment-id dev --yes merge.js
           contentful-merge create --cda-token $CDN_TOKEN --space ffrhttfighww --source master --target dev --output-file data.json
-          contentful-merge apply --cma-token $CONTENTFUL_TOKEN --space ffrhttfighww --environment dev --file data.json
+          contentful-merge apply --cma-token $CONTENTFUL_TOKEN --space ffrhttfighww --environment dev --yes --file data.json
