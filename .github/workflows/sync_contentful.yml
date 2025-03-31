@@ -25,3 +25,4 @@ jobs:
         run: |
           contentful login --management-token $CONTENTFUL_TOKEN
           contentful space list
+          contentful merge show --te dev --se master
