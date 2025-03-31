@@ -28,4 +28,4 @@ jobs:
           contentful space use --space-id ffrhttfighww
           contentful merge show --te dev --se master
           contentful merge export --te dev --se master --output-file merge.js
-          contentful space migration --space ffrhttfighww --environment dev merge.js
+          contentful space migration --space-id ffrhttfighww --environment-id dev merge.js
