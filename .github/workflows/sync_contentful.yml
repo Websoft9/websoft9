@@ -1,0 +1,27 @@
+name: Sync Contentful Environment(master->dev)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync-contentful:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4  # 拉取仓库代码（需访问 models 目录）
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20  # 必须安装 Node.js（contentful-merge 是 npm 包）
+
+      - name: Install Dependencies
+        run: |
+          npm install -g contentful-cli contentful-merge  # 全局安装必要工具
+
+      - name: Merge Content Types
+        env:
+          CONTENTFUL_TOKEN: ${{ secrets.CONTENTFUL_TOKEN }}
+        run: |
+          contentful login --management-token $CONTENTFUL_TOKEN
+          contentful space list
