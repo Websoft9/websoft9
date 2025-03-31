@@ -27,3 +27,4 @@ jobs:
           contentful space list
           contentful space use --space-id ffrhttfighww
           contentful merge show --te dev --se master
+          contentful merge export --te dev --se master
