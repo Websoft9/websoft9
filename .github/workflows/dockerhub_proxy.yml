@@ -23,6 +23,6 @@ jobs:
       - name: Deploy to cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
-          apiToken: ${{ secrets.EDIT_CLOUDFLARE_WORKERS }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy _worker.js --name dockerhub --compatibility-date ${{ env.COMPATIBILITY_DATE }}
