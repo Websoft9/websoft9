@@ -95,7 +95,7 @@ jobs:
           destination-dir: ./dev/websoft9/plugin/media
     
       - name: Upload media-dev.zip to artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: media
           path: media-dev.zip
