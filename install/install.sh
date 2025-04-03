@@ -264,9 +264,6 @@ install_tools(){
 
     if [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "ol" ] || [ "$ID" = "almalinux" ]; then
         sudo yum install -y "$repo_tools_yum" >/dev/null
-        if [ $? -ne 0 ]; then
-            exit 1
-        fi 
     elif [ "$ID" = "amzn" ]; then
         sudo amazon-linux-extras install epel -y >/dev/null
         if [ $? -ne 0 ]; then
