@@ -45,7 +45,7 @@ jobs:
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer $ACCESS_TOKEN" \
               -d '{"query":"query($locale: String){catalog(id: \"2Yp0TY3kBHgG6VDjsHZNpK\",locale:$locale) {linkedFrom(allowedLocales:[\"en-US\"]) {catalogCollection(limit:20) {items {key position title linkedFrom(allowedLocales:[\"en-US\"]) {catalogCollection(limit:20) {items {key title position}}}}}}}}","variables":{"locale":"'$LOCALE'"}}' \
-              https://graphql.contentful.com/content/v1/spaces/ffrhttfighww/environments/dev | \
+              https://graphql.contentful.com/content/v1/spaces/ffrhttfighww | \
               jq '.data.catalog.linkedFrom.catalogCollection.items' > $DATA_DIR/catalog_${LOCALE:0:2}.json
           done
 
@@ -60,7 +60,7 @@ jobs:
                  -H "Content-Type: application/json" \
                  -H "Authorization: Bearer $ACCESS_TOKEN" \
                  -d '{"query":"query($locale: String,$skip: Int){productCollection(locale:$locale,where:{appStore:true},limit: '$LIMIT', skip: $skip) {total items {sys {id} key hot trademark summary overview websiteurl description screenshots distribution vcpu memory production storage logo {imageurl} catalogCollection(limit:15) {items {key title catalogCollection(limit:5){items{key title position}}}}}}}", "variables":{"locale":"'$LOCALE'", "skip":'$SKIP'}}' \
-                 https://graphql.contentful.com/content/v1/spaces/ffrhttfighww/environments/dev)
+                 https://graphql.contentful.com/content/v1/spaces/ffrhttfighww)
                ITEMS+=($(echo $RESPONSE | jq '.data.productCollection.items[]'))
                TOTAL=$(echo $RESPONSE | jq '.data.productCollection.total')
                SKIP=$((SKIP + LIMIT))
