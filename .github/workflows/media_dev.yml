@@ -73,7 +73,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           repository: websoft9/docker-library
-          name: ${{ github.event.client_payload.artifact_name }}
+          name: library-dev.zip
           token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }} 
           path: ./downloaded-artifacts
 
