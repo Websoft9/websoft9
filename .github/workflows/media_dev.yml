@@ -68,6 +68,14 @@ jobs:
              echo ${ITEMS[@]} | jq -r '.screenshots[]?.value' | sed 's/"//g' | parallel -j 10 "wget -t 0 -N {} -P $SCREENSHOT_DIR/${LOCALE:0:2} || echo {} >> $SCREENSHOT_DIR/Error.log"
              echo ${ITEMS[@]} | jq -s '.' > $DATA_DIR/product_${LOCALE:0:2}.json
            done
+           
+      - name: Download Artifact from Source Repo
+        uses: actions/download-artifact@v3
+        with:
+          repository: websoft9/docker-library
+          name: ${{ github.event.client_payload.artifact_name }}
+          token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }} 
+          path: ./downloaded-artifacts
 
       - name: Download directory from Cloudflare R2
         env:
