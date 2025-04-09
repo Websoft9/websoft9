@@ -21,7 +21,7 @@ jobs:
       CI: false
 
     steps:
-      - uses: actions/checkout@v3    
+      - uses: actions/checkout@v3
 
       - name: Install GNU Parallel
         run: sudo apt-get install -y parallel
@@ -29,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'  
+          python-version: "3.x"
 
       - name: Install AWS CLI via pip
         run: |
@@ -68,13 +68,62 @@ jobs:
              echo ${ITEMS[@]} | jq -r '.screenshots[]?.value' | sed 's/"//g' | parallel -j 10 "wget -t 0 -N {} -P $SCREENSHOT_DIR/${LOCALE:0:2} || echo {} >> $SCREENSHOT_DIR/Error.log"
              echo ${ITEMS[@]} | jq -s '.' > $DATA_DIR/product_${LOCALE:0:2}.json
            done
-           
+
+      - name: Download library-dev.zip from Websoft9 artifact
+        run: |
+          for i in {1..5}; do
+            curl -o library-dev.zip https://artifact.websoft9.com/dev/websoft9/plugin/library/library-dev.zip && break || sleep 1
+          done
+          if [ -f library-dev.zip ]; then
+            unzip -o library-dev.zip -d ./library-dev/
+          else
+            echo "library-dev.zip download failed"
+            exit 1
+          fi
+
+      - name: Merge product version data
+        run: |
+          IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
+          for LOCALE in "${LOCALE_ARRAY[@]}"; do
+            PRODUCT_FILE="$DATA_DIR/product_${LOCALE:0:2}.json"
+            LIBRARY_APPS_DIR="./library-dev/apps"
+
+            if [ -f "$PRODUCT_FILE" ]; then
+              for APP_DIR in "$LIBRARY_APPS_DIR"/*; do
+                if [ -d "$APP_DIR" ]; then
+                  APP_NAME=$(basename "$APP_DIR")
+                  VARIABLES_FILE="$APP_DIR/variables.json"
+
+                  if [ -f "$VARIABLES_FILE" ]; then
+                    EDITIONS=$(jq -c '.edition' "$VARIABLES_FILE")
+                    jq --argjson editions "$EDITIONS" --arg app_name "$APP_NAME" '
+                      map(
+                        if .key == $app_name then
+                          .distribution = ($editions | map({dist: .dist, version: .version[]}))
+                        else
+                          .
+                        end
+                      )
+                    ' "$PRODUCT_FILE" > "${PRODUCT_FILE}.tmp" && mv "${PRODUCT_FILE}.tmp" "$PRODUCT_FILE"
+                  fi
+                fi
+              done
+            else
+              echo "Product file $PRODUCT_FILE not found."
+            fi
+          done
+          
+      - name: Upload library-dev.zip to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: media
+          path: ${{ env.appname }}
 
       - name: Download directory from Cloudflare R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }} 
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           aws s3 sync s3://libs/Websoft9/logo/product $APPSTORE_LOGO_DIR --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
 
@@ -85,18 +134,18 @@ jobs:
           mkdir media-dev
           mv media-dev.zip  media-dev/
 
-      - name: Upload To cloudflare r2
-        uses: ryand56/r2-upload-action@latest
-        with:
-          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
-          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
-          r2-bucket: artifact
-          source-dir: media-dev
-          destination-dir: ./dev/websoft9/plugin/media
-    
-      - name: Upload media-dev.zip to artifacts
+      - name: Upload library-dev.zip to artifacts
         uses: actions/upload-artifact@v4
         with:
           name: media
-          path: media-dev.zip
+          path: media/
+
+      # - name: Upload To cloudflare r2
+      #   uses: ryand56/r2-upload-action@latest
+      #   with:
+      #     r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      #     r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+      #     r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+      #     r2-bucket: artifact
+      #     source-dir: media-dev
+      #     destination-dir: ./dev/websoft9/plugin/media
