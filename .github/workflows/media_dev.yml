@@ -112,12 +112,6 @@ jobs:
               echo "Product file $PRODUCT_FILE not found."
             fi
           done
-          
-      - name: Upload library-dev.zip to artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: media
-          path: ${{ env.appname }}
 
       - name: Download directory from Cloudflare R2
         env:
