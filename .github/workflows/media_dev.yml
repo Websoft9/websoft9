@@ -69,13 +69,6 @@ jobs:
              echo ${ITEMS[@]} | jq -s '.' > $DATA_DIR/product_${LOCALE:0:2}.json
            done
            
-      - name: Download Artifact from Source Repo
-        uses: actions/download-artifact@v3
-        with:
-          repository: websoft9/docker-library
-          name: library-dev.zip
-          token: ${{ secrets.MYGITHUB_ADMIN_TOKEN }} 
-          path: ./downloaded-artifacts
 
       - name: Download directory from Cloudflare R2
         env:
