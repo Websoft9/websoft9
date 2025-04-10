@@ -143,7 +143,14 @@ jobs:
           source-dir: media
           destination-dir: ./${{ env.CHANNEL }}/websoft9/plugin/media
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'
-      
+
+      - name: Purge Cloudflare Cache
+        uses: jakejarvis/cloudflare-purge-action@master
+        env:
+          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PURGE_URLS: '["https://artifact.websoft9.com/${{ env.CHANNEL }}/websoft9/plugin/media/media-latest.zip"]'
+        if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'      
       ##------------ special task for apphub end----------------------#
 
 

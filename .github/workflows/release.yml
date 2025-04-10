@@ -76,6 +76,13 @@ jobs:
           source-dir: artifacts
           destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/websoft9
 
+      - name: Purge Cloudflare Cache
+        uses: jakejarvis/cloudflare-purge-action@master
+        env:
+          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/websoft9/websoft9-latest.zip"]'
+          
       - name: Create Github Release
         if: github.ref == 'refs/heads/main'  # 仅在 main 分支上触发
         uses: softprops/action-gh-release@v1
