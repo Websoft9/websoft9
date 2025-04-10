@@ -77,17 +77,6 @@ jobs:
         run: |
           aws s3 cp s3://artifact/dev/websoft9/plugin/library/library-dev.zip ./ --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
           unzip -o library-dev.zip -d ./library-dev/
-
-        # run: |
-        #   for i in {1..5}; do
-        #     curl -o library-dev.zip https://artifact.websoft9.com/dev/websoft9/plugin/library/library-dev.zip && break || sleep 1
-        #   done
-        #   if [ -f library-dev.zip ]; then
-        #     unzip -o library-dev.zip -d ./library-dev/
-        #   else
-        #     echo "library-dev.zip download failed"
-        #     exit 1
-        #   fi
     
       - name: Merge product version data
         run: |
@@ -107,7 +96,7 @@ jobs:
                     jq --argjson editions "$EDITIONS" --arg app_name "$APP_NAME" '
                       map(
                         if .key == $app_name then
-                          .distribution = ($editions | map({key: .dist, value: .version[]}))
+                          .distribution = ($editions | map({key: .dist, value: .version}))
                         else
                           .
                         end
