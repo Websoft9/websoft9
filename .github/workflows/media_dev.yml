@@ -125,11 +125,11 @@ jobs:
           mkdir media-dev
           mv media-dev.zip  media-dev/
 
-      - name: Upload library-dev.zip to artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: media
-          path: media/
+      # - name: Upload library-dev.zip to artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: media
+      #     path: media/
 
       - name: Upload To cloudflare r2
         uses: ryand56/r2-upload-action@latest
@@ -140,3 +140,21 @@ jobs:
           r2-bucket: artifact
           source-dir: media-dev
           destination-dir: ./dev/websoft9/plugin/media
+
+      - name: Purge Cloudflare Cache
+        uses: jakejarvis/cloudflare-purge-action@master
+        with:
+          zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          
+          # 按需选择清除模式（三选一）：
+          # 1. 清除指定文件列表
+          files: |
+            https://artifact.websoft9.com/dev/websoft9/plugin/media/media-dev.zip
+          
+          # 2. 清除目录前缀（所有以该路径开头的文件）
+          # prefixes: |
+          #   https://your-domain.com/dev/websoft9/plugin/media/
+          
+          # 3. 清除全部缓存（慎用）
+          # purge_everything: true
