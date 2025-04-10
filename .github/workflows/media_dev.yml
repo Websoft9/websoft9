@@ -73,8 +73,9 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          aws s3 cp s3://artifact/dev/websoft9/plugin/library/library-dev.zip ./
+          aws s3 cp s3://artifact/dev/websoft9/plugin/library/library-dev.zip ./ --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
           unzip -o library-dev.zip -d ./library-dev/
 
         # run: |
