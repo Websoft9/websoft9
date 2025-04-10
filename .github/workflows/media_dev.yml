@@ -91,7 +91,7 @@ jobs:
             if [ -f "$PRODUCT_FILE" ]; then
               for APP_DIR in "$LIBRARY_APPS_DIR"/*; do
                 if [ -d "$APP_DIR" ]; then
-                  APP_NAME=$(basename "$APP_DIR")
+                  APP_NAME=$(basename "$APP_DIR") # 获取子文件夹名称
                   VARIABLES_FILE="$APP_DIR/variables.json"
 
                   if [ -f "$VARIABLES_FILE" ]; then
