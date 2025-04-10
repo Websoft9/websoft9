@@ -86,7 +86,7 @@ jobs:
           IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
           for LOCALE in "${LOCALE_ARRAY[@]}"; do
             PRODUCT_FILE="$DATA_DIR/product_${LOCALE:0:2}.json"
-            LIBRARY_APPS_DIR="./library-dev/apps"
+            LIBRARY_APPS_DIR="./library-dev/library/apps"
 
             if [ -f "$PRODUCT_FILE" ]; then
               for APP_DIR in "$LIBRARY_APPS_DIR"/*; do
