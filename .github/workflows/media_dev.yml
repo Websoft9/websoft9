@@ -80,7 +80,6 @@ jobs:
             echo "library-dev.zip download failed"
             exit 1
           fi
-
       - name: Merge product version data
         run: |
           IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
@@ -95,11 +94,17 @@ jobs:
                   VARIABLES_FILE="$APP_DIR/variables.json"
 
                   if [ -f "$VARIABLES_FILE" ]; then
+                    # 提取 edition 数据
                     EDITIONS=$(jq -c '.edition' "$VARIABLES_FILE")
+                    
+                    # 更新 distribution 字段的值
                     jq --argjson editions "$EDITIONS" --arg app_name "$APP_NAME" '
                       map(
                         if .key == $app_name then
-                          .distribution = ($editions | map({dist: .dist, version: .version[]}))
+                          .distribution |= map(
+                            .key as $dist_key |
+                            ($editions[] | select(.dist == $dist_key) | .version) // .value
+                          )
                         else
                           .
                         end
@@ -112,6 +117,37 @@ jobs:
               echo "Product file $PRODUCT_FILE not found."
             fi
           done
+      # - name: Merge product version data
+      #   run: |
+      #     IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
+      #     for LOCALE in "${LOCALE_ARRAY[@]}"; do
+      #       PRODUCT_FILE="$DATA_DIR/product_${LOCALE:0:2}.json"
+      #       LIBRARY_APPS_DIR="./library-dev/apps"
+
+      #       if [ -f "$PRODUCT_FILE" ]; then
+      #         for APP_DIR in "$LIBRARY_APPS_DIR"/*; do
+      #           if [ -d "$APP_DIR" ]; then
+      #             APP_NAME=$(basename "$APP_DIR")
+      #             VARIABLES_FILE="$APP_DIR/variables.json"
+
+      #             if [ -f "$VARIABLES_FILE" ]; then
+      #               EDITIONS=$(jq -c '.edition' "$VARIABLES_FILE")
+      #               jq --argjson editions "$EDITIONS" --arg app_name "$APP_NAME" '
+      #                 map(
+      #                   if .key == $app_name then
+      #                     .distribution = ($editions | map({dist: .dist, version: .version[]}))
+      #                   else
+      #                     .
+      #                   end
+      #                 )
+      #               ' "$PRODUCT_FILE" > "${PRODUCT_FILE}.tmp" && mv "${PRODUCT_FILE}.tmp" "$PRODUCT_FILE"
+      #             fi
+      #           fi
+      #         done
+      #       else
+      #         echo "Product file $PRODUCT_FILE not found."
+      #       fi
+      #     done
 
       - name: Download directory from Cloudflare R2
         env:
