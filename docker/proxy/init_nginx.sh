@@ -2,6 +2,7 @@
 
 # Define variables
 credential_path="/data/credential"
+INNER_GATEWAY_PORT=${INNER_GATEWAY_PORT:-80}
 
 # Migrating initproxy.conf file
 if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
