@@ -3,6 +3,8 @@ services:
     image: websoft9dev/apphub:$APPHUB_VERSION
     container_name: websoft9-apphub
     restart: always
+    env_file:
+      - .env
     volumes:
       - apphub_logs:/websoft9/apphub/logs
       - apphub_config:/websoft9/apphub/src/config
