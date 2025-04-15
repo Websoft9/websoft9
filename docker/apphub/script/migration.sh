@@ -43,8 +43,6 @@ EOF
 # Special migration
 post_migration(){
     echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - test"
-    echo $INNER_GATEWAY_PORT
     #config_file="/websoft9/config/config.ini"
     #listen_port=$(grep -Po '^\s*listen_port\s*=\s*\K[0-9]+' "$config_file")
     listen_port=${INNER_GATEWAY_PORT:-80}
