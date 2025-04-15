@@ -46,7 +46,8 @@ post_migration(){
     #config_file="/websoft9/config/config.ini"
     #listen_port=$(grep -Po '^\s*listen_port\s*=\s*\K[0-9]+' "$config_file")
     listen_port=${INNER_GATEWAY_PORT:-80}
-    apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
+    sed -i "s/{{INNER_GATEWAY_PORT}}/$INNER_GATEWAY_PORT/g" /websoft9/apphub/src/config/config.ini
+    # apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
 }
 
 migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.ini"
