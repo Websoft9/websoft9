@@ -5,7 +5,11 @@ credential_path="/data/credential"
 
 # Migrating initproxy.conf file
 if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
-cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
+
+#替换占位符并复制配置文件
+sed "s/{{INNER_GATEWAY_PORT}}/$INNER_GATEWAY_PORT/g" /etc/websoft9/initproxy.conf > /tmp/initproxy.conf
+cp -f /tmp/initproxy.conf /data/nginx/default_host/initproxy.conf
+
 [ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
 
 # Deploy Websoft9 landing pages
