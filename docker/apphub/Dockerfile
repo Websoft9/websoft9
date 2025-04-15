@@ -31,7 +31,8 @@ RUN apt update && apt install -y --no-install-recommends curl git jq cron iprout
     git clone --depth=1 https://github.com/swagger-api/swagger-ui.git && \
     wget https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js && \
     cp redoc.standalone.js swagger-ui/dist && \
-    git clone --depth=1 $WEBSOFT9_REPO ./w9source && \
+    #git clone --depth=1 $WEBSOFT9_REPO ./w9source && \
+    git clone --depth=1 --branch dev $WEBSOFT9_REPO ./w9source && \
     cp -r ./w9media ./media && \
     cp -r ./w9library ./library && \
     cp -r ./w9source/apphub ./apphub && \
