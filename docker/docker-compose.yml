@@ -56,6 +56,8 @@ services:
     image: websoft9dev/proxy:$PROXY_VERSION
     container_name: websoft9-proxy
     restart: always
+    env_file:
+      - .env
     ports:
       - "80:80"
       - "443:443"
