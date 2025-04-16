@@ -61,6 +61,7 @@ export PATH
 version="latest"
 channel="release"
 execute_mode="auto"
+inner_gataway_port=80
 path="/data/websoft9/source"
 apps=""
 mirrors=""
@@ -634,6 +635,41 @@ check_plugins() {
     echo "All required plugins are install successfully."
 }
 
+save_custom_configs(){
+    
+}
+save_custom_configs() {
+    
+    if [ "$execute_mode" != "upgrade" ]; then
+        return 0
+    fi
+
+    local gateway_port
+    gateway_port=$(docker inspect websoft9-proxy 2>/dev/null | jq -r '.[0].Config.Env | map(split("=")) | map({(.[0]): .[1]}) | add | .INNER_GATEWAY_PORT // ""')
+
+    if [ -n "$gateway_port" ]; then
+        export inner_gateway_port="$gateway_port"
+        echo "Exported INNER_GATEWAY_PORT: $inner_gateway_port"
+    fi
+}
+
+migrate_custom_configs() {
+
+    if [ "$execute_mode" != "upgrade" ]; then
+        return 0
+    fi
+
+    local env_file="${install_path}/docker/.env"
+    if [ ! -f "$env_file" ]; then
+        return 0
+    fi
+
+    if grep -q "^INNER_GATEWAY_PORT=" "$env_file" && [ -n "$inner_gateway_port" ]; then
+        sed -i "s|^INNER_GATEWAY_PORT=.*|INNER_GATEWAY_PORT=${inner_gateway_port}|" "$env_file"
+        echo "Updated INNER_GATEWAY_PORT in .env to ${inner_gateway_port}"
+    fi
+}
+
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $port | tee -a  $log_path
@@ -641,7 +677,11 @@ install_tools | tee -a  $log_path
 
 check_tools
 
+save_custom_configs
+
 download_source_and_checkimage | tee -a  $log_path
+
+migrate_custom_configs
 
 check_websoft9_artifact
 
