@@ -635,9 +635,6 @@ check_plugins() {
     echo "All required plugins are install successfully."
 }
 
-save_custom_configs(){
-    
-}
 save_custom_configs() {
     
     if [ "$execute_mode" != "upgrade" ]; then
