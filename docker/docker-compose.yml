@@ -61,7 +61,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      # - "${INNER_GATEWAY_PORT}:${INNER_GATEWAY_PORT}"
+      - "${INNER_GATEWAY_PORT}:${INNER_GATEWAY_PORT}"
     volumes:
       - nginx_data:/data
       - nginx_letsencrypt:/etc/letsencrypt
