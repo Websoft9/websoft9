@@ -441,7 +441,7 @@ check_ports() {
         fi
 
     done
-
+    sudo docker start websoft9-proxy
     echo "All ports are available"
 }
 
@@ -642,7 +642,7 @@ save_custom_configs() {
     fi
 
     local gateway_port
-    gateway_port=$(docker exec websoft9-proxy sh -c 'echo $INNER_GATEWAY_PORT')
+    gateway_port=$(docker exec -i websoft9-proxy sh -c 'echo $INNER_GATEWAY_PORT')
 
     if [ -n "$gateway_port" ]; then
         export inner_gateway_port="$gateway_port"
