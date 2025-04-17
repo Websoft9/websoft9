@@ -441,7 +441,7 @@ check_ports() {
         fi
 
     done
-    sudo docker start websoft9-proxy
+    sudo docker start websoft9-proxy  2>/dev/null || echo "docker start websoft9-proxy not need "
     echo "All ports are available"
 }
 
