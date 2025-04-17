@@ -642,7 +642,7 @@ save_custom_configs() {
     fi
 
     local gateway_port
-    gateway_port=$(docker inspect websoft9-proxy 2>/dev/null | jq -r '.[0].Config.Env | map(split("=")) | map({(.[0]): .[1]}) | add | .INNER_GATEWAY_PORT // ""')
+    gateway_port=$(docker exec websoft9-proxy sh -c 'echo $INNER_GATEWAY_PORT')
 
     if [ -n "$gateway_port" ]; then
         export inner_gateway_port="$gateway_port"
