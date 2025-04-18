@@ -716,7 +716,11 @@ class AppManger:
                 with open(yml_file, 'r') as file:
                     compose_content = yaml.safe_load(file)
                     services = compose_content.get('services', {})
-                    for service in services.values():
+                    # for service in services.values():
+                    for service_name, service in services.items():
+                        if 'build' in service:
+                            logger.access(f"Service '{service_name}' has build configuration, skipping image pull.")
+                            continue
                         image = service.get('image')
                         if image:
                             # Replace environment variables in the image string
@@ -1453,7 +1457,6 @@ class AppManger:
 
         # Get image accelerators
         image_accelerators = self.download_image_accelerators()
-        logger.access(f"Image accelerators: {image_accelerators}")
 
         # Initialize Docker client with host's Docker socket
         docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
@@ -1495,7 +1498,11 @@ class AppManger:
             with open(yml_file, 'r') as file:
                 compose_content = yaml.safe_load(file)
                 services = compose_content.get('services', {})
-                for service in services.values():
+                # for service in services.values():
+                for service_name, service in services.items():
+                    if 'build' in service:
+                        logger.access(f"Service '{service_name}' has build configuration, skipping image pull.")
+                        continue
                     image = service.get('image')
                     if image:
                         # Replace environment variables in the image string
