@@ -34,7 +34,7 @@ You can see the screenshots below:
 
 Below is demo server, please **give stars** if you like it:
 ```
-Demo URL: http://t.demo.goweb.cc:9000/
+Demo URL: http://demo.goweb.cc:9000/
 user: demo
 password: websoft9
 ```
