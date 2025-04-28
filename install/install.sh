@@ -667,9 +667,41 @@ migrate_custom_configs() {
     fi
 }
 
+check_hardware() {
+
+    local mode="$1"
+    local required_space
+    local available_space
+
+    # Get available space from root filesystem (1K blocks)
+    available_space=$(df -P / | awk 'NR==2 {print $4}')
+
+    if [ "$mode" != "install" ] && [ "$mode" != "upgrade" ]; then
+        echo "Error: Invalid argument. Usage: $0 install|upgrade"
+        exit 1
+    fi
+
+    if [ "$mode" = "install" ]; then
+        required_space=3145728  # 3GB = 3 * 1024 * 1024KB
+    else
+        required_space=1048576   # 1GB = 1 * 1024 * 1024KB
+    fi
+
+    # Perform space check
+    if [ "$available_space" -lt "$required_space" ]; then
+        echo "Error: Insufficient disk space on root partition!"
+        exit 1
+    fi
+
+    echo "Disk space check passed. Continuing operation..."
+}
+
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $port | tee -a  $log_path
+
+check_hardware $execute_mode
+
 install_tools | tee -a  $log_path
 
 check_tools
