@@ -1,7 +1,7 @@
 ### enhancement:
 
-- port check failed from URL demo.goweb.cc:9000 access Websoft9 Console #610
-- rebuild application seems can not support Control startup #607
+- Check the disk When install or upgrade websoft9  #617
+- when application use host network bridge, Myapps error #613
 
 
 
