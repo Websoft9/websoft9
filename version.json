@@ -4,8 +4,8 @@
     "portainer": "0.1.3",
     "nginx": "0.1.0",
     "gitea": "0.0.8",
-    "myapps": "0.2.11",
-    "appstore": "0.2.11",
+    "myapps": "0.2.12",
+    "appstore": "0.2.12",
     "settings": "0.1.5",
     "navigator": "0.5.10"
   },
