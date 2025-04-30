@@ -125,7 +125,7 @@ main() {
   openssl req -x509 -newkey rsa:4096 -nodes \
       -keyout "$KEY_FILE" \
       -out "$CERT_FILE" \
-      -days 365 \
+      -days 3650 \
       -subj "/CN=Websoft9 Universal Certificate" \
       -addext "basicConstraints=critical,CA:TRUE" \
       -addext "keyUsage=digitalSignature,keyEncipherment" \
