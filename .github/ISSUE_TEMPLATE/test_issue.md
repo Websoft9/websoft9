@@ -13,22 +13,22 @@ assignees: ''
 
 ## Test Content
 
--[] Verify on websoft9's menu all 4 containers are running:  
+- [ ] Verify on websoft9's menu all 4 containers are running:  
     `websoft9-apphub | websoft9-git | websoft9-proxy | websoft9-deployment`
     
--[] Check health status by container's log
+- [ ] Check health status by container's log
 
--[] Check the main funtion(install a app,uninstall a app) when a fresh Installation
+- [ ] Check the main funtion(install a app,uninstall a app) when a fresh Installation
 
--[] Check the main funtion(install a app,uninstall a app) when upgrade websoft9
+- [ ] Check the main funtion(install a app,uninstall a app) when upgrade websoft9
 
--[] Check the release issue content by websoft9
+- [ ] Check the release issue content by websoft9
 
--[] Other test: anomaly testing
+- [ ] Other test: anomaly testing
 
 ## Test Result
 
--[] Passed
+- [ ] Passed
 
--[] Failed
+- [ ] Failed
  - If it fails, add evidence (image or logs) to the relevant release issue
