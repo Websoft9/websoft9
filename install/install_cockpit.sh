@@ -348,7 +348,9 @@ Install_Cockpit(){
 
     Set_Firewalld
     Set_Selinux
-    Set_Cockpit
+    if [ "$execute_mode" = "install" ]; then
+        Set_Cockpit
+    fi
     Edit_Menu
     Restart_Cockpit
 }
