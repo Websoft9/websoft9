@@ -1,7 +1,7 @@
 ### enhancement:
 
-- Check the disk When install or upgrade websoft9  #617
-- when application use host network bridge, Myapps error #613
+- Add installed websoft9's version and latest version on settting page  #624
+- Websoft9 upgrade is unstable, can not save user's port #618
 
 
 
