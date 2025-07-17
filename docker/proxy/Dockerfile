@@ -2,10 +2,10 @@
 # from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
-FROM jc21/nginx-proxy-manager:2.11.3
+FROM jc21/nginx-proxy-manager:2.12.6
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="2.11.3"
+LABEL version="2.12.6"
 
 COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
