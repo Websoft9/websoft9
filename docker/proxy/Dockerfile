@@ -1,5 +1,5 @@
 # modify time: 202504301144, you can modify here to trigger Docker Build action
-# from docker-compose-test.yml: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
+# from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
 # Build ModSecurity module and Nginx dynamic module
@@ -70,6 +70,7 @@ COPY --from=builder /output/ngx_http_modsecurity_module.so /etc/nginx/modules/ng
 
 # Modify Nginx configuration to load ModSecurity module
 RUN mkdir -p /etc/modsec/rules
+RUN mkdir -p /etc/modsec/log
 RUN sed -i '1iload_module /etc/nginx/modules/ngx_http_modsecurity_module.so;' /etc/nginx/nginx.conf && \
     sed -i '/http {/a \    include /etc/modsec/nginx_modsecurity.conf;' /etc/nginx/nginx.conf
 RUN touch /etc/modsec/nginx_modsecurity.conf
