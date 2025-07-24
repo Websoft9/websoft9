@@ -89,7 +89,7 @@ echo "install_path:$install_path"
 related_containers=("websoft9-apphub")
 echo_prefix_cockpit=$'\n[Cockpit] - '
 # package cockpit depends_on [cockpit-bridge,cockpit-ws,cockpit-system], but update cockpit the depends don't update 
-cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-networkmanager cockpit-session-recording cockpit-sosreport"
+cockpit_packages="pcp-zeroconf cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-networkmanager cockpit-session-recording cockpit-sosreport"
 menu_overrides_github_page_url="https://websoft9.github.io/websoft9/cockpit/menu_override"
 cockpit_config_github_page_url="https://websoft9.github.io/websoft9/cockpit/cockpit.conf"
 cockpit_menu_overrides=()
@@ -345,6 +345,8 @@ Install_Cockpit(){
     else
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
     fi
+    
+    sudo systemctl enable --now pmcd pmlogger 
 
     Set_Firewalld
     Set_Selinux
