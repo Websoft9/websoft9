@@ -1,0 +1,51 @@
+# Search engine crawlers and other bots
+# crawler
+# https://80legs.com/
+80legs
+# SEO
+# https://ahrefs.com/robot
+AhrefsBot
+# site ripper
+# http://www.softbytelabs.com/en/BlackWidow/
+black widow
+blackwidow
+# security crawler
+# User-Agent: Censys: Mozilla/5.0 (compatible; CensysInspect/1.1; +https://about.censys.io/)
+CensysInspect
+# SEO
+# advertising targeting
+# https://www.grapeshot.com/crawler/
+grapeFX
+GrapeshotCrawler/2.0
+# User-Agent: Krzana bot
+# https://krzana.com/
+Krzana bot
+# misbehaving spider
+Lingewoud-550-Spyder
+# SEO
+# http://www.majestic12.co.uk/projects/dsearch/mj12bot.php
+MJ12bot
+# news service
+Owlin bot
+# people database
+# https://pipl.com/bot/
+PiplBot
+# crawler
+# 2006
+prowebwalker
+# generic crawler
+pymills-spider/
+# SEO
+# https://moz.com/help/guides/moz-procedures/what-is-rogerbot
+rogerbot
+# SEO
+# http://www.searchmetrics.com/searchmetricsbot/
+SearchmetricsBot
+# SEO
+# https://www.semrush.com/bot/
+SemrushBot
+# SEO
+# User-Agent: Mozilla/5.0 (compatible; seoscanners.net/1; +spider@seoscanners.net)
+seoscanners.net
+# https://www.wappalyzer.com/
+Wappalyzer
