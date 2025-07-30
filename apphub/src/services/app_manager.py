@@ -10,6 +10,7 @@ import docker
 import requests
 import asyncio
 import aiodocker
+import asyncio
 from typing import Tuple
 from datetime import datetime
 from src.core.config import ConfigManager
@@ -27,6 +28,7 @@ from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
 from tenacity import retry, stop_after_attempt, wait_fixed
+from src.utils.async_utils import AsyncWrapper
 
 from src.services.app_status import appInstalling, appInstallingError,start_app_installation,remove_app_installation,modify_app_information,remove_app_from_errors_by_app_id,add_installing_logs,remove_installation_logs
 
@@ -1170,7 +1172,8 @@ class AppManger:
                         # update the env file
                             self._update_gitea_env_file(app_id,w9_url,domain_names[0])           
                             # redeploy app
-                            self.redeploy_app(app_id,False)
+                            #self.redeploy_app(app_id,False)
+                            asyncio.run(self.redeploy_app(app_id, False))
                     else:
                         combined_domain_names = []
                         for item in all_domain_names:
@@ -1181,8 +1184,8 @@ class AppManger:
                             # update the env file
                             self._update_gitea_env_file(app_id,w9_url,domain_names[0])           
                             # redeploy app
-                            self.redeploy_app(app_id,False)
-
+                            #self.redeploy_app(app_id,False)
+                            asyncio.run(self.redeploy_app(app_id, False))
 
                 # Get the nginx proxy config
                 advanced_config = GiteaManager().get_file_raw_from_repo(app_id, "src/nginx-proxy.conf")
@@ -1272,6 +1275,7 @@ class AppManger:
                     # validate w9_url_replace is true
                     if w9_url_replace:
                         domain_names = host.get("domain_names",None)
+                        logger.access(f"domain_names:{domain_names}")
                         if domain_names:
                             # Get the all proxys by app_id
                             app_proxys =  self.get_proxys_by_app(app_id)
@@ -1295,7 +1299,7 @@ class AppManger:
                                 self._update_gitea_env_file(app_id,w9_url,new_w9_url)
 
                                 # redeploy app
-                                self.redeploy_app(app_id,False)
+                                asyncio.run(self.redeploy_app(app_id,False))
                     # Remove proxy
                     proxyManager.remove_proxy_host_by_id(proxy_id)
                     logger.access(f"Removed domains:{host['domain_names']} for app: [{app_id}]")
@@ -1350,8 +1354,9 @@ class AppManger:
                         if w9_url not in domain_names:
                             # update the env file
                             self._update_gitea_env_file(app_id,w9_url,domain_names[0])
-                            # redeploy app
-                            self.redeploy_app(app_id,False)
+                            # redeploy app                            
+                            #self.redeploy_app(app_id,False)
+                            asyncio.run(self.redeploy_app(app_id,False))
 
         # Update proxy
         result = proxyManager.update_proxy_by_app(proxy_id,domain_names)
@@ -1401,7 +1406,7 @@ class AppManger:
             if git_env_file_sha and git_env_file_content:
                 # Get the env file content
                 env_file_content = base64.b64decode(git_env_file_content).decode("utf-8")
-                # Modify the env file content
+                # Modify the env file content               
                 env_file_content = env_file_content.replace(key,value)
                 # base64 encode for env_file_content
                 env_file_content = base64.b64encode(env_file_content.encode("utf-8")).decode("utf-8")
