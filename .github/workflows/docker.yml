@@ -71,7 +71,9 @@ jobs:
             if [[ "$TAG" == *"-"* ]]; then
               echo "CHANNEL=rc" >> $GITHUB_ENV
               if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
-                BASE_TAGS="$TAG"
+                # Extract base version without suffix (e.g., 2.12.6-rc4 -> 2.12.6)
+                BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
+                BASE_TAGS="$BASE_VERSION"
                 WAF_TAGS="$TAG-waf"
               else
                 BASE_TAGS="$TAG"
@@ -81,7 +83,7 @@ jobs:
               echo "CHANNEL=release" >> $GITHUB_ENV
               IFS='.' read -ra PARTS <<< "$TAG"
               if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
-                # Generate base version tags
+                # Generate base version tags (without WAF)
                 BASE_TAGS="latest"
                 TAG_PART=""
                 for i in "${!PARTS[@]}"; do 
@@ -132,12 +134,21 @@ jobs:
       - name: Create base Dockerfile (without ModSecurity)
         run: |
           if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
+            # Extract base version for Dockerfile.base
+            if [[ "$TAG" == *"-"* ]]; then
+              # For RC versions like 2.12.6-rc4, use base version 2.12.6
+              BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
+            else
+              # For release versions like 2.12.6, use the same version
+              BASE_VERSION="$TAG"
+            fi
+            
             # Create a base version by creating a simplified Dockerfile
-            cat > docker/$APP/Dockerfile.base << 'EOF'
+            cat > docker/$APP/Dockerfile.base << EOF
           FROM jc21/nginx-proxy-manager:2.12.6
           
           LABEL maintainer="Websoft9<help@websoft9.com>"
-          LABEL version="2.12.6"
+          LABEL version="$BASE_VERSION"
           
           COPY README.md /data/nginx/README.md
           RUN mkdir /data/nginx/custom

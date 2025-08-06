@@ -42,7 +42,7 @@ RUN git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git && \
 FROM jc21/nginx-proxy-manager:2.12.6
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="2.12.6-rc3"
+LABEL version="2.12.6-rc5"
 
 COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
