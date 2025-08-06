@@ -74,9 +74,9 @@ jobs:
           echo $APP version is $TAG
 
           if [[ "$SUFFIX" != "" ]]; then
-            if [[ "$GITHUB_REF" == *"refs/heads/dev"* ]]; then
+            if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
+              echo "CHANNEL=dev" >> $GITHUB_ENV
               if [[ "$TAG" == *"-"* ]]; then
-                # Handle RC versions in dev branch too
                 BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
                 RC_PART=$(echo "$TAG" | cut -d'-' -f2-)
                 TAGS="$BASE_VERSION$SUFFIX-$RC_PART"
@@ -85,10 +85,12 @@ jobs:
               fi
             else
               if [[ "$TAG" == *"-"* ]]; then
+                echo "CHANNEL=rc" >> $GITHUB_ENV
                 BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
                 RC_PART=$(echo "$TAG" | cut -d'-' -f2-)
                 TAGS="$BASE_VERSION$SUFFIX-$RC_PART"
               else
+                echo "CHANNEL=release" >> $GITHUB_ENV
                 IFS='.' read -ra PARTS <<< "$TAG"
                 TAG_PART=""
                 for i in "${!PARTS[@]}"; do 
@@ -102,7 +104,6 @@ jobs:
               fi
             fi
           else
-
             # Determine the channel based on the branch and TAG
             if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
               echo "CHANNEL=dev" >> $GITHUB_ENV
