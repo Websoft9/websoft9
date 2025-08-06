@@ -53,136 +53,36 @@ jobs:
           TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
           echo $APP version is $TAG
           
-          # Check if Dockerfile contains ModSecurity
-          HAS_MODSECURITY=$(grep -c "ModSecurity\|modsecurity" "docker/$APP/Dockerfile" || echo "0")
-          echo "ModSecurity found: $HAS_MODSECURITY"
-          
           # Determine the channel based on the branch and TAG
           if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
             echo "CHANNEL=dev" >> $GITHUB_ENV
-            if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
-              BASE_TAGS="$TAG"
-              WAF_TAGS="$TAG-waf"
-            else
-              BASE_TAGS="$TAG"
-              WAF_TAGS=""
-            fi
+            TAGS="$TAG"  # Use the TAG directly for dev
           else
             if [[ "$TAG" == *"-"* ]]; then
               echo "CHANNEL=rc" >> $GITHUB_ENV
-              if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
-                # Extract base version without suffix (e.g., 2.12.6-rc4 -> 2.12.6)
-                BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
-                BASE_TAGS="$BASE_VERSION"
-                WAF_TAGS="$TAG-waf"
-              else
-                BASE_TAGS="$TAG"
-                WAF_TAGS=""
-              fi
+              TAGS="$TAG"
             else
               echo "CHANNEL=release" >> $GITHUB_ENV
               IFS='.' read -ra PARTS <<< "$TAG"
-              if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
-                # Generate base version tags (without WAF)
-                BASE_TAGS="latest"
-                TAG_PART=""
-                for i in "${!PARTS[@]}"; do 
-                  if [ "$i" -eq 0 ]; then 
-                    TAG_PART="${PARTS[$i]}"
-                  else 
-                    TAG_PART="${TAG_PART}.${PARTS[$i]}"
-                  fi
-                  BASE_TAGS="${BASE_TAGS},${TAG_PART}"
-                done
-                # Generate WAF version tags
-                WAF_TAGS="latest-waf"
-                TAG_PART=""
-                for i in "${!PARTS[@]}"; do 
-                  if [ "$i" -eq 0 ]; then 
-                    TAG_PART="${PARTS[$i]}"
-                  else 
-                    TAG_PART="${TAG_PART}.${PARTS[$i]}"
-                  fi
-                  WAF_TAGS="${WAF_TAGS},${TAG_PART}-waf"
-                done
-              else
-                # Regular versioning for non-ModSecurity images
-                BASE_TAGS="latest"
-                TAG_PART=""
-                for i in "${!PARTS[@]}"; do 
-                  if [ "$i" -eq 0 ]; then 
-                    TAG_PART="${PARTS[$i]}"
-                  else 
-                    TAG_PART="${TAG_PART}.${PARTS[$i]}"
-                  fi
-                  BASE_TAGS="${BASE_TAGS},${TAG_PART}"
-                done
-                WAF_TAGS=""
-              fi
+              TAGS="latest"
+              TAG_PART=""
+              for i in "${!PARTS[@]}"; do 
+                if [ "$i" -eq 0 ]; then 
+                  TAG_PART="${PARTS[$i]}"
+                else 
+                  TAG_PART="${TAG_PART}.${PARTS[$i]}"
+                fi
+                TAGS="${TAGS},${TAG_PART}"
+              done
             fi
           fi
           
-          echo "BASE_TAGS=$BASE_TAGS" >> $GITHUB_ENV
-          echo "WAF_TAGS=$WAF_TAGS" >> $GITHUB_ENV
+          echo "Building and pushing Docker image for $APP with tags: $TAGS"
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "APP=$APP" >> $GITHUB_ENV
-          echo "HAS_MODSECURITY=$HAS_MODSECURITY" >> $GITHUB_ENV
           echo "DOCKERFILE=docker/$APP/Dockerfile" >> $GITHUB_ENV
-          echo "DOCKERFILE_BASE=docker/$APP/Dockerfile.base" >> $GITHUB_ENV
           echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
           echo "README=docker/$APP/README.md" >> $GITHUB_ENV
-
-      - name: Create base Dockerfile (without ModSecurity)
-        run: |
-          if [[ "$HAS_MODSECURITY" -gt "0" ]]; then
-            # Extract base version for Dockerfile.base
-            if [[ "$TAG" == *"-"* ]]; then
-              # For RC versions like 2.12.6-rc4, use base version 2.12.6
-              BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
-            else
-              # For release versions like 2.12.6, use the same version
-              BASE_VERSION="$TAG"
-            fi
-            
-            # Create a base version by creating a simplified Dockerfile
-            cat > docker/$APP/Dockerfile.base << EOF
-          FROM jc21/nginx-proxy-manager:2.12.6
-          
-          LABEL maintainer="Websoft9<help@websoft9.com>"
-          LABEL version="$BASE_VERSION"
-          
-          COPY README.md /data/nginx/README.md
-          RUN mkdir /data/nginx/custom
-          RUN mkdir -p /etc/websoft9
-          COPY ./config/http.conf /data/nginx/custom/http.conf
-          COPY ./config/landing/ /etc/websoft9/landing
-          COPY ./config/initproxy.conf /etc/websoft9/initproxy.conf
-          COPY ./init_nginx.sh /app/init_nginx.sh
-          RUN chmod +x /app/init_nginx.sh
-          
-          # Fix nginx startup issue with ip_ranges loading failure
-          RUN export add_ip_data="const ipDataFile={[CLOUDFRONT_URL]:'ip-ranges.json',[CLOUDFARE_V4_URL]:'ips-v4',[CLOUDFARE_V6_URL]:'ips-v6'}[url];logger.info(ipDataFile);if(ipDataFile){return fs.readFile(__dirname+'/../lib/ipData/'+ipDataFile,'utf8',(error,data)=>{if(error){logger.error('fetch '+ipDataFile+' error');reject(error);return}logger.info('fetch '+ipDataFile+' success');resolve(data)})}" && \
-              sed -i "s#url);#&${add_ip_data}#g" /app/internal/ip_ranges.js && \
-              mkdir -p /app/lib/ipData && cd /app/lib/ipData && \
-              curl -O https://ip-ranges.amazonaws.com/ip-ranges.json && \
-              curl -O https://www.cloudflare.com/ips-v4 && \
-              curl -O https://www.cloudflare.com/ips-v6
-          
-          # Add unified websockets support for all nginx proxies
-          RUN proxy_line=("proxy_set_header Upgrade \$http_upgrade;" "proxy_set_header Connection upgrade;") && \
-              proxy_path="/etc/nginx/conf.d/include/proxy.conf" && \
-              length=${#proxy_line[@]} && \
-              for ((i=0; i<$length; i++)); do \
-              if ! grep -Fxq "${proxy_line[$i]}" $proxy_path; then \
-              echo "${proxy_line[$i]}" >> $proxy_path; \
-              fi; \
-              done
-          
-          WORKDIR /app
-          ENTRYPOINT ["/app/init_nginx.sh"]
-          EOF
-            echo "Created base Dockerfile without ModSecurity"
-          fi
-        if: env.HAS_MODSECURITY > 0
       
       ##------------ special task for apphub begin----------------------#
       - name: Trigger media.yml workflow
@@ -255,25 +155,11 @@ jobs:
 
 
 
-      - name: Build & push Docker image (Base version)
+      - name: Build & push Docker image
         uses: mr-smithers-excellent/docker-build-push@v6
         with:
           image: websoft9dev/${{env.APP}}
-          tags: ${{env.BASE_TAGS}}
-          registry: docker.io
-          directory: ${{env.DIRECTORY}}
-          dockerfile: ${{env.DOCKERFILE_BASE}}
-          multiPlatform: true
-          platform: linux/amd64
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-        if: env.HAS_MODSECURITY > 0
-
-      - name: Build & push Docker image (Regular version)
-        uses: mr-smithers-excellent/docker-build-push@v6
-        with:
-          image: websoft9dev/${{env.APP}}
-          tags: ${{env.BASE_TAGS}}
+          tags: ${{env.TAGS}}
           registry: docker.io
           directory: ${{env.DIRECTORY}}
           dockerfile: ${{env.DOCKERFILE}}
@@ -281,21 +167,6 @@ jobs:
           platform: linux/amd64
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-        if: env.HAS_MODSECURITY == 0
-
-      - name: Build & push Docker image (WAF version)
-        uses: mr-smithers-excellent/docker-build-push@v6
-        with:
-          image: websoft9dev/${{env.APP}}
-          tags: ${{env.WAF_TAGS}}
-          registry: docker.io
-          directory: ${{env.DIRECTORY}}
-          dockerfile: ${{env.DOCKERFILE}}
-          multiPlatform: true
-          platform: linux/amd64
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-        if: env.WAF_TAGS != ''
 
       - name: Docker Hub Description
         uses: peter-evans/dockerhub-description@v3
