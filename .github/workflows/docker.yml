@@ -31,8 +31,26 @@ jobs:
           git diff --name-only HEAD^ HEAD
           changed_files=$(git diff --name-only HEAD^ HEAD)
           app_list=$(echo "$changed_files" | grep -E 'docker/.*/(Dockerfile)' | awk -F'/' '{print $2}' | sort | uniq)
-          app_list_json=$(echo $app_list | jq -R -s -c 'split(" ")')
-          echo "::set-output name=matrix::{\"app\": $app_list_json}"
+
+          matrix_items=()
+          for app in $app_list; do
+            if [[ "$app" = "proxy" ]]; then
+              # two versions for proxy app
+              matrix_items+=("{\"app\":\"proxy\",\"modsecurity\":true,\"suffix\":\"-waf\"}")
+              matrix_items+=("{\"app\":\"proxy\",\"modsecurity\":false,\"suffix\":\"\"}")
+            else
+              # other apps keep the original logic
+              matrix_items+=("{\"app\":\"$app\",\"modsecurity\":null,\"suffix\":\"\"}")
+            fi
+          done
+
+          if [ ${#matrix_items[@]} -eq 0 ]; then
+            echo "::set-output name=matrix::{\"include\":[]}"
+          else
+            matrix_json="[$(IFS=','; echo "${matrix_items[*]}")]"
+            echo "Matrix: $matrix_json"
+            echo "::set-output name=matrix::{\"include\": $matrix_json}"
+          fi
 
   build:
     needs: setup
@@ -50,39 +68,72 @@ jobs:
       - name: Prepare tags and files for Docker build
         run: |
           APP=${{ matrix.app }}
+          SUFFIX=${{ matrix.suffix }}
+          MODSECURITY=${{ matrix.modsecurity }}
           TAG=$(grep 'LABEL version' "docker/$APP/Dockerfile" | cut -d'"' -f2 | xargs)
           echo $APP version is $TAG
-          
-          # Determine the channel based on the branch and TAG
-          if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
-            echo "CHANNEL=dev" >> $GITHUB_ENV
-            TAGS="$TAG"  # Use the TAG directly for dev
-          else
-            if [[ "$TAG" == *"-"* ]]; then
-              echo "CHANNEL=rc" >> $GITHUB_ENV
-              TAGS="$TAG"
+
+          if [[ "$SUFFIX" != "" ]]; then
+            if [[ "$GITHUB_REF" == *"refs/heads/dev"* ]]; then
+              if [[ "$TAG" == *"-"* ]]; then
+                # Handle RC versions in dev branch too
+                BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
+                RC_PART=$(echo "$TAG" | cut -d'-' -f2-)
+                TAGS="$BASE_VERSION$SUFFIX-$RC_PART"
+              else
+                TAGS="$TAG$SUFFIX"
+              fi
             else
-              echo "CHANNEL=release" >> $GITHUB_ENV
-              IFS='.' read -ra PARTS <<< "$TAG"
-              TAGS="latest"
-              TAG_PART=""
-              for i in "${!PARTS[@]}"; do 
-                if [ "$i" -eq 0 ]; then 
-                  TAG_PART="${PARTS[$i]}"
-                else 
-                  TAG_PART="${TAG_PART}.${PARTS[$i]}"
-                fi
-                TAGS="${TAGS},${TAG_PART}"
-              done
+              if [[ "$TAG" == *"-"* ]]; then
+                BASE_VERSION=$(echo "$TAG" | cut -d'-' -f1)
+                RC_PART=$(echo "$TAG" | cut -d'-' -f2-)
+                TAGS="$BASE_VERSION$SUFFIX-$RC_PART"
+              else
+                IFS='.' read -ra PARTS <<< "$TAG"
+                TAG_PART=""
+                for i in "${!PARTS[@]}"; do 
+                  if [ "$i" -eq 0 ]; then 
+                    TAG_PART="${PARTS[$i]}"
+                  else 
+                    TAG_PART="${TAG_PART}.${PARTS[$i]}"
+                  fi
+                  TAGS="${TAGS},${TAG_PART}$SUFFIX"
+                done
+              fi
+            fi
+          else
+
+            # Determine the channel based on the branch and TAG
+            if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
+              echo "CHANNEL=dev" >> $GITHUB_ENV
+              TAGS="$TAG"  # Use the TAG directly for dev
+            else
+              if [[ "$TAG" == *"-"* ]]; then
+                echo "CHANNEL=rc" >> $GITHUB_ENV
+                TAGS="$TAG"
+              else
+                echo "CHANNEL=release" >> $GITHUB_ENV
+                IFS='.' read -ra PARTS <<< "$TAG"
+                TAGS="latest"
+                TAG_PART=""
+                for i in "${!PARTS[@]}"; do 
+                  if [ "$i" -eq 0 ]; then 
+                    TAG_PART="${PARTS[$i]}"
+                  else 
+                    TAG_PART="${TAG_PART}.${PARTS[$i]}"
+                  fi
+                  TAGS="${TAGS},${TAG_PART}"
+                done
+              fi
             fi
           fi
-          
           echo "Building and pushing Docker image for $APP with tags: $TAGS"
           echo "TAGS=$TAGS" >> $GITHUB_ENV
           echo "APP=$APP" >> $GITHUB_ENV
           echo "DOCKERFILE=docker/$APP/Dockerfile" >> $GITHUB_ENV
           echo "DIRECTORY=docker/$APP" >> $GITHUB_ENV
           echo "README=docker/$APP/README.md" >> $GITHUB_ENV
+          echo "MODSECURITY=$MODSECURITY" >> $GITHUB_ENV
       
       ##------------ special task for apphub begin----------------------#
       - name: Trigger media.yml workflow
@@ -152,8 +203,17 @@ jobs:
           PURGE_URLS: '["https://artifact.websoft9.com/${{ env.CHANNEL }}/websoft9/plugin/media/media-latest.zip"]'
         if: env.APP == 'apphub' && env.MEDIA_FROM == 'source'      
       ##------------ special task for apphub end----------------------#
-
-
+      
+      - name: Prepare build args
+        run: |
+          if [[ "${{ env.APP }}" == "proxy" ]]; then
+              if [[ "${{ env.MODSECURITY }}" == "true" ]]; then
+                BUILD_ARGS="ENABLE_MODSECURITY=true"
+              elif [[ "${{ env.MODSECURITY }}" == "false" ]]; then
+                BUILD_ARGS="ENABLE_MODSECURITY=false"
+              fi
+          fi
+          echo "BUILD_ARGS=$BUILD_ARGS" >> $GITHUB_ENV
 
       - name: Build & push Docker image
         uses: mr-smithers-excellent/docker-build-push@v6
@@ -163,6 +223,7 @@ jobs:
           registry: docker.io
           directory: ${{env.DIRECTORY}}
           dockerfile: ${{env.DOCKERFILE}}
+          buildArgs: ${{env.BUILD_ARGS}}
           multiPlatform: true
           platform: linux/amd64
           username: ${{ secrets.DOCKER_USERNAME }}
