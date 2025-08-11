@@ -1,6 +1,5 @@
 {
   "locales": {
-    "zh-tw": null,
     "cs-cz": null,
     "de-de": null,
     "es-es": null,
@@ -19,7 +18,8 @@
     "sk-sk": null,
     "sv-se": null,
     "tr-tr": null,
-    "uk-ua": null
+    "uk-ua": null,
+    "zh-tw": null
   },
   "docs": [
     {
