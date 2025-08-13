@@ -4,7 +4,7 @@ export PATH
 
 # Download docker install script
 download_docker_script() {
-  local urls=("https://get.docker.com" "https://getdocker.websoft9.com")
+  local urls=("https://get.docker.com" "https://proxy.websoft9.com/?url=https://get.docker.com")
   local output="get-docker.sh"
   local retries=10
   local timeout=5
