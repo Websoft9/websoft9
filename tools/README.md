@@ -19,4 +19,3 @@ A Cloudflare Worker script that implements a download proxy functionality. This 
 ## Purpose
 
 These tools are designed to solve specific technical challenges and can be used independently of the main Websoft9 project. They serve as utility scripts, proxies, converters, or other specialized functions that might be useful across different projects and environments.
-
