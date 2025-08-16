@@ -34,6 +34,24 @@ from src.services.app_status import appInstalling, appInstallingError,start_app_
 
 
 class AppManger:
+    # 简单的类级缓存
+    _cache = {}
+    _cache_timestamps = {}
+    _cache_ttl = 300  # 5分钟缓存
+    
+    @classmethod
+    def clear_cache(cls):
+        """清除所有缓存"""
+        cls._cache.clear()
+        cls._cache_timestamps.clear()
+    
+    @classmethod 
+    def clear_cache_by_pattern(cls, pattern: str):
+        """根据模式清除缓存"""
+        keys_to_remove = [key for key in cls._cache.keys() if pattern in key]
+        for key in keys_to_remove:
+            cls._cache.pop(key, None)
+            cls._cache_timestamps.pop(key, None)
     def get_catalog_apps(self,locale:str):
         """
         Get catalog apps
@@ -58,45 +76,93 @@ class AppManger:
             logger.error(f"Get app'catalog error:{e}")
             raise CustomException()
 
-    def get_available_apps(self, locale:str):
+    def get_available_apps(self, locale: str):
         """
-        Get available apps
+        Get available apps (Performance Optimized Version)
 
         Args:
             locale (str): The language to get available apps from.
         """
+        # 预先获取初始应用过滤条件，用于缓存key
+        initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
+        
+        # 缓存检查 - 包含配置信息在key中
+        cache_key = f"available_apps_{locale}_{initial_apps or 'all'}"
+        current_time = time.time()
+        
+        # 检查缓存是否存在且未过期
+        if (cache_key in self._cache and 
+            cache_key in self._cache_timestamps and 
+            current_time - self._cache_timestamps[cache_key] < self._cache_ttl):
+            return self._cache[cache_key]
+        
         try:
-            # Get the app media path
-            base_path = ConfigManager("system.ini").get_value("app_media", "path")
+            # 预先读取所有配置，避免重复读取
+            config_manager = ConfigManager("system.ini")
+            base_path = config_manager.get_value("app_media", "path")
+            app_lib_path = config_manager.get_value("docker_library", "path")
+            
             app_media_path = base_path + 'product_' + locale + '.json'
+            
             # check the app media path is exists
             if not os.path.exists(app_media_path):
                 logger.error(f"Get available apps error: {app_media_path} is not exists")
                 raise CustomException()
             
             # Get the app available list
-            with open(app_media_path, "r",encoding='utf-8') as f:
+            with open(app_media_path, "r", encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Iterate over the keys in data
-            app_lib_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            # 使用已获取的配置，避免重复读取
+            app_keys_filter = set(initial_apps.split(",")) if initial_apps else None
+            
+            # 如果有过滤条件，先过滤数据，减少后续处理量
+            if app_keys_filter:
+                data = [item for item in data if item.get("key") in app_keys_filter]
+            
+            # 关键优化：批量收集需要处理的环境文件路径
+            env_files_to_read = []
+            item_key_map = {}  # 建立索引映射
+            
             for item in data:
                 key = item.get("key")
-                env_path =app_lib_path+ f"/{key}/.env"
-                if os.path.exists(env_path):
+                if key:
+                    env_path = f"{app_lib_path}/{key}/.env"
+                    if os.path.exists(env_path):
+                        env_files_to_read.append(env_path)
+                        item_key_map[env_path] = item
+                    else:
+                        # 文件不存在时直接设置默认值
+                        item["settings"] = {}
+                        item["is_web_app"] = False
+            
+            # 批量解析环境变量内容 - 使用EnvHelper的dotenv_values方法
+            for env_path in env_files_to_read:
+                item = item_key_map[env_path]
+                try:
+                    # 使用EnvHelper读取环境变量，自动处理引号等问题
                     env_helper = EnvHelper(env_path)
-                    env_data = env_helper.get_all_values()
-                    settings = {k: v for k, v in env_data.items() if k.startswith("W9_") and k.endswith("_SET")}
+                    all_values = env_helper.get_all_values()
+                    
+                    # 检查是否为web应用
+                    is_web_app = "W9_URL" in all_values
+                    
+                    # 只获取以_SET结尾且以W9_开头的变量
+                    settings = {key: value for key, value in all_values.items() 
+                               if key.endswith("_SET") and key.startswith("W9_")}
+                    
                     item["settings"] = settings
-                    item["is_web_app"] = "W9_URL" in env_data
-
-            # Get the initial_apps from config.ini
-            initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
-            if not initial_apps:
-                return data
-            else:
-                app_keys = initial_apps.split(",")
-                return [item for item in data if item.get("key") in app_keys]
+                    item["is_web_app"] = is_web_app
+                except Exception as e:
+                    logger.warning(f"Failed to process env file {env_path}: {e}")
+                    item["settings"] = {}
+                    item["is_web_app"] = False
+            
+            # 缓存结果
+            self._cache[cache_key] = data
+            self._cache_timestamps[cache_key] = current_time
+            
+            return data
             
         except (CustomException,Exception) as e:
             logger.error(f"Get available apps error:{e}")

@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='apphub',
-    version='0.3',
+    version='0.4',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     install_requires=[

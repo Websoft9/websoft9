@@ -1,3 +1,4 @@
+import configparser
 import sys
 import os
 import uuid
@@ -55,17 +56,51 @@ def setconfig(section, key, value):
         raise click.ClickException(str(e))
 
 @cli.command()
-@click.option('--section',required=True, help='The section name')
+@click.option('--section', help='The section name')
 @click.option('--key', help='The key name')
 def getconfig(section, key):
-    """Get a config value"""
-    try:          
-        if key is None: 
-            value = SettingsManager().read_section(section)
-            value = json.dumps(value)
-            click.echo(f"{value}")
+    """Get a config value or all config as JSON"""
+    try:
+        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/config.ini'))
+        config = configparser.ConfigParser()
+        config.read(config_path, encoding="utf-8")
+        if section is None:
+            # 返回整个配置文件内容
+            all_config = {s: dict(config.items(s)) for s in config.sections()}
+            click.echo(json.dumps(all_config))
+        elif key is None:
+            # 返回指定 section 的内容
+            value = dict(config.items(section)) if section in config.sections() else {}
+            click.echo(json.dumps(value))
         else:
-            value = SettingsManager().read_key(section, key)
+            # 返回指定 section 和 key 的内容
+            value = config.get(section, key) if config.has_option(section, key) else ""
+            click.echo(f"{value}")
+    except CustomException as e:
+        raise click.ClickException(e.details)
+    except Exception as e:
+        raise click.ClickException(str(e))
+    
+@cli.command()
+@click.option('--section', help='The section name')
+@click.option('--key', help='The key name')
+def getsysconfig(section, key):
+    """Get a system config value or all system config as JSON"""
+    try:
+        system_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/system.ini'))
+        config = configparser.ConfigParser()
+        config.read(system_config_path, encoding="utf-8")
+        if section is None:
+            # 返回整个 system.ini 文件内容
+            all_config = {s: dict(config.items(s)) for s in config.sections()}
+            click.echo(json.dumps(all_config))
+        elif key is None:
+            # 返回指定 section 的内容
+            value = dict(config.items(section)) if section in config.sections() else {}
+            click.echo(json.dumps(value))
+        else:
+            # 返回指定 section 和 key 的内容
+            value = config.get(section, key) if config.has_option(section, key) else ""
             click.echo(f"{value}")
     except CustomException as e:
         raise click.ClickException(e.details)
@@ -236,6 +271,23 @@ def upgrade(target, dev):
     except Exception as e:
         raise click.ClickException(str(e))
 
+@cli.command()
+def getallconfig():
+    """Get all config.ini and system.ini data as JSON"""
+    try:
+        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/config.ini'))
+        system_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/system.ini'))
+        config = configparser.ConfigParser()
+        system_config = configparser.ConfigParser()
+        config.read(config_path, encoding="utf-8")
+        system_config.read(system_config_path, encoding="utf-8")
+        result = {
+            "config": {s: dict(config.items(s)) for s in config.sections()},
+            "system": {s: dict(system_config.items(s)) for s in system_config.sections()}
+        }
+        click.echo(json.dumps(result))
+    except Exception as e:
+        raise click.ClickException(str(e))
 
 if __name__ == "__main__":
     cli()

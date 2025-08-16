@@ -1,0 +1,26 @@
+{
+    "wphosting": {
+        "starter": {
+            "plan_name": "starter",
+            "max_apps": 2,
+            "initial_apps": [
+                "wordpress"
+            ]
+        },
+        "professional": {
+            "plan_name": "professional",
+            "max_apps": 5,
+            "initial_apps": [
+                "wordpress"
+            ]
+        },
+        "enterprise": {
+            "plan_name": "enterprise",
+            "max_apps": 10000,
+            "initial_apps": [
+                "wordpress",
+                "varnish"
+            ]
+        }
+    }
+}
