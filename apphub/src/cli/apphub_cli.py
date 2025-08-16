@@ -55,6 +55,26 @@ def setconfig(section, key, value):
     except Exception as e:
         raise click.ClickException(str(e))
 
+# 新增 setsysconfig 方法
+@cli.command()
+@click.option('--section', required=True, help='The section name')
+@click.option('--key', required=True, help='The key name')
+@click.option('--value', required=True, help='The value of the key')
+def setsysconfig(section, key, value):
+    """Set a system config value"""
+    try:
+        system_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/system.ini'))
+        config = configparser.ConfigParser()
+        config.read(system_config_path, encoding="utf-8")
+        if not config.has_section(section):
+            config.add_section(section)
+        config.set(section, key, value)
+        with open(system_config_path, 'w', encoding="utf-8") as configfile:
+            config.write(configfile)
+        click.echo(f"Set [{section}] {key}={value} in system.ini successfully.")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
 @cli.command()
 @click.option('--section', help='The section name')
 @click.option('--key', help='The key name')
