@@ -4,6 +4,7 @@ class NginxProxyManagerSetting(BaseModel):
     base_url: HttpUrl = Field(..., title="The base url for nginx proxy manager")
     user_name: str = Field(..., title="The user name for nginx proxy manager")
     user_pwd: str = Field(..., title="The user password for nginx proxy manager")
+    listen_port: int = Field(..., title="The listen port for nginx proxy manager")
 
 class GiteaSetting(BaseModel):
     base_url: HttpUrl = Field(..., title="The base url for gitea")
