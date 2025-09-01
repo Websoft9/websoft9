@@ -65,9 +65,14 @@ RUN mkdir -p /etc/websoft9
 COPY ./config/http.conf /data/nginx/custom/http.conf
 COPY ./config/landing/ /etc/websoft9/landing
 COPY ./config/initproxy.conf /etc/websoft9/initproxy.conf
+
+COPY ./config/stream.conf /etc/websoft9/stream.conf
+COPY ./config/custom_var.conf /etc/websoft9/custom_var.conf
+COPY ./config/custom_port.conf /etc/websoft9/custom_port.conf
+COPY ./config/custom_ssl.conf /etc/websoft9/custom_ssl.conf
+
 COPY ./init_nginx.sh /app/init_nginx.sh
 RUN chmod +x /app/init_nginx.sh
-
 
 # Install runtime dependencies if ModSecurity is enabled
 RUN if [ "$ENABLE_MODSECURITY" = "true" ]; then \

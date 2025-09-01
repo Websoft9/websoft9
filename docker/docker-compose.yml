@@ -59,13 +59,14 @@ services:
     env_file:
       - .env
     ports:
-      - "80:80"
-      - "443:443"
-      - "${INNER_GATEWAY_PORT}:${INNER_GATEWAY_PORT}"
+      - "$APP_HTTP_GATEWAY:80"
+      - "$APP_HTTPS_GATEWAY:443"
+      - "$CONSOLE_PORT:$CONSOLE_PORT"
     volumes:
       - nginx_data:/data
       - nginx_letsencrypt:/etc/letsencrypt
       - nginx_modsec:/etc/modsec
+      - nginx_var:/etc/custom
     labels:
       - "owner=websoft9"
       - "com.docker.compose.w9_http.port=80"
@@ -85,3 +86,4 @@ volumes:
   nginx_data:
   nginx_letsencrypt:
   nginx_modsec:
+  nginx_var:
