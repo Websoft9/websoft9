@@ -57,7 +57,7 @@ ARG ENABLE_MODSECURITY
 
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="2.12.6"
+LABEL version="2.12.6-rc6"
 
 COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
