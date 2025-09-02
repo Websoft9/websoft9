@@ -5,6 +5,9 @@ class NginxProxyManagerSetting(BaseModel):
     user_name: str = Field(..., title="The user name for nginx proxy manager")
     user_pwd: str = Field(..., title="The user password for nginx proxy manager")
     listen_port: int = Field(..., title="The listen port for nginx proxy manager")
+    docker0_ip: str = Field(..., title="The docker0 IP for nginx proxy manager")
+    ssl_cert: str = Field(..., title="The SSL certificate path for nginx proxy manager")
+    ssl_key: str = Field(..., title="The SSL key path for nginx proxy manager")
 
 class GiteaSetting(BaseModel):
     base_url: HttpUrl = Field(..., title="The base url for gitea")

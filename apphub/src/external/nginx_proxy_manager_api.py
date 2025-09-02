@@ -142,3 +142,14 @@ class NginxProxyManagerAPI:
             Response: Response from Nginx Proxy Manager API
         """
         return self.api.delete(path=f"nginx/proxy-hosts/{proxy_id}")
+
+    def get_certificates(self):
+        """
+        get all certificates
+
+        Returns:
+            Response: Response from Nginx Proxy Manager API
+        """
+        return self.api.get(
+            path="nginx/certificates", params={"expand": "owner,proxy_hosts,dead_hosts,redirection_hosts"}
+        )
