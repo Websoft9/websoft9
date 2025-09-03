@@ -16,6 +16,8 @@ export PATH
 
 ############################################################
 # Below vars export from install.sh
+#  $docker0_ip
+#  $console_port
 #  $install_path
 ############################################################
 
@@ -26,12 +28,10 @@ cockpit_exist() {
     return $?
 }
 
-# 检查端口是否被占用
 is_port_used() {
     ss -tln | awk '{print $4}' | grep -q ":$1\$"
 }
 
-# 查找可用端口，从 start_port 开始
 find_free_port() {
     local port=$1
     while is_port_used $port; do
@@ -40,7 +40,6 @@ find_free_port() {
     echo $port
 }
 
-# 默认端口
 DEFAULT_PORT=9090
 
 if cockpit_exist; then
@@ -52,7 +51,6 @@ if cockpit_exist; then
         echo "$cockpit_now_port at cockpit.socket"
     fi
 
-    # 如果端口不为 DEFAULT_PORT，则尝试 DEFAULT_PORT，如果被占用就 +1
     if [ "$cockpit_now_port" -ne $DEFAULT_PORT ]; then
         cockpit_now_port=$(find_free_port $DEFAULT_PORT)
         echo "cockpit port set to $cockpit_now_port"
@@ -63,7 +61,6 @@ else
     echo "cockpit not exist, using port $cockpit_now_port"
 fi
 
-# 最终端口
 cockpit_port=$cockpit_now_port
 
 
@@ -204,6 +201,7 @@ Set_Cockpit(){
         echo "Download config from URL $cockpit_config_github_page_url"
         curl -sSL $cockpit_config_github_page_url | sudo tee /etc/cockpit/cockpit.conf > /dev/null
     fi
+    sed  -i "s|172.17.0.1:9000|$docker0_ip:$console_port|g" /etc/cockpit/cockpit.conf
 
 
     echo "Change cockpit default port to $cockpit_port ..." 
