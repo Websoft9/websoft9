@@ -43,7 +43,7 @@ EOF
 # Special migration
 post_migration(){
     echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
-    listen_port=${INNER_GATEWAY_PORT:-80}
+    listen_port=${CONSOLE_PORT:-9000}
     apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
 }
 
