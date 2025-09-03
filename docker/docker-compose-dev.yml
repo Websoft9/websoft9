@@ -69,9 +69,9 @@ services:
     container_name: websoft9-proxy
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
-      - "9001-9999:81"
+      - "$APP_HTTP_GATEWAY:80"
+      - "$APP_HTTPS_GATEWAY:443"
+      - "$CONSOLE_PORT:$CONSOLE_PORT"
     volumes:
       - nginx_data:/data
       - nginx_letsencrypt:/etc/letsencrypt

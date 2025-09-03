@@ -256,6 +256,8 @@ cat /etc/os-release | head -n 3  2>/dev/null
 # Define global vars
 # export var can send it to subprocess
 
+export docker0_ip
+export console_port
 export http_port=80
 export https_port=443
 export install_path=$path
