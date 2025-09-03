@@ -42,6 +42,39 @@ fi
 export INITIAL_ADMIN_EMAIL
 export INITIAL_ADMIN_PASSWORD
 
+SSL_DIR="/data/custom_ssl"
+CERT_FILE="$SSL_DIR/websoft9-self-signed.cert"
+KEY_FILE="$SSL_DIR/websoft9-self-signed.key"
+
+# 确保目录存在
+mkdir -p "$SSL_DIR"
+
+# 如果证书和私钥都存在且非空，则跳过生成
+if [ -s "$CERT_FILE" ] && [ -s "$KEY_FILE" ]; then
+    echo "Default certificate and key already exist, skipping generation."
+else
+    echo "Generating self-signed certificate..."
+    openssl req -x509 -newkey rsa:4096 -nodes \
+        -keyout "$KEY_FILE" \
+        -out "$CERT_FILE" \
+        -days 3650 \
+        -subj "/CN=Websoft9 Universal Certificate" \
+        -addext "basicConstraints=critical,CA:TRUE" \
+        -addext "keyUsage=digitalSignature,keyEncipherment" \
+        -addext "extendedKeyUsage=serverAuth" \
+        -addext "subjectAltName=DNS:*,IP:0.0.0.0" 2>/dev/null || {
+            echo "Failed to generate certificate"
+            exit 1
+        }
+
+    echo "✅ Certificate extension information:"
+    openssl x509 -in "$CERT_FILE" -text -noout | grep -E 'DNS|IP|Usage' || true
+
+    # 严格权限控制
+    chmod 644 "$CERT_FILE"
+    chmod 600 "$KEY_FILE"
+fi
+
 # 主执行函数
 main() {
     echo "Start the NPM main process..."
@@ -50,14 +83,6 @@ main() {
 
 # 后台初始化任务
 {
-  # 初始化标记检查
-  INIT_FLAG="/data/.initialized"
-  if [ -f "$INIT_FLAG" ]; then
-      echo "Initialization detected, skipping certificate configuration."
-      exit 0
-  fi
-
-
   # 等待API就绪并获取JWT
   MAX_RETRY=30
   RETRY_INTERVAL=2
@@ -91,6 +116,29 @@ main() {
 
   echo "Authentication successful, service is ready"
 
+  # 查询现有证书，检查是否已存在 websoft9-inner 证书
+  echo "Checking for existing websoft9-inner certificate..."
+  CERT_LIST_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "http://localhost:81/api/nginx/certificates?expand=owner,proxy_hosts,dead_hosts,redirection_hosts" \
+    -H "Authorization: Bearer $JWT")
+
+  HTTP_STATUS_LIST=${CERT_LIST_RESPONSE##*HTTP_STATUS:}
+  RESPONSE_BODY_LIST=${CERT_LIST_RESPONSE/HTTP_STATUS:*/}
+
+  if [[ "$HTTP_STATUS_LIST" != "200" ]]; then
+      echo "Failed to query certificates [HTTP $HTTP_STATUS_LIST], response: $RESPONSE_BODY_LIST"
+      exit 1
+  fi
+
+  # 检查是否存在 nice_name 为 websoft9-inner 且 provider 为 other 的证书
+  EXISTING_CERT=$(echo "$RESPONSE_BODY_LIST" | jq -r '.[] | select(.nice_name == "websoft9-inner" and .provider == "other") | .id')
+
+  if [ -n "$EXISTING_CERT" ] && [ "$EXISTING_CERT" != "null" ]; then
+      echo "Certificate 'websoft9-inner' already exists with ID: $EXISTING_CERT, skipping certificate creation and upload."
+      exit 0
+  fi
+
+  echo "Certificate 'websoft9-inner' not found, creating new certificate..."
+
   #创建证书记录
   CERT_JSON='{"nice_name":"websoft9-inner","provider":"other"}'
   CERT_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "http://localhost:81/api/nginx/certificates" \
@@ -115,31 +163,6 @@ main() {
       echo "Certificate creation failed [HTTP $HTTP_STATUS] Response content: $RESPONSE_BODY"
       exit 1
   fi
-
-  #上传自定义证书
-  SSL_DIR="/data/custom_ssl"
-  CERT_FILE="$SSL_DIR/websoft9-self-signed.cert"
-  KEY_FILE="$SSL_DIR/websoft9-self-signed.key"
-
-  mkdir -p "$SSL_DIR"
-  echo "Generating self-signed certificate..."
-  openssl req -x509 -newkey rsa:4096 -nodes \
-      -keyout "$KEY_FILE" \
-      -out "$CERT_FILE" \
-      -days 3650 \
-      -subj "/CN=Websoft9 Universal Certificate" \
-      -addext "basicConstraints=critical,CA:TRUE" \
-      -addext "keyUsage=digitalSignature,keyEncipherment" \
-      -addext "extendedKeyUsage=serverAuth" \
-      -addext "subjectAltName=DNS:*,IP:0.0.0.0" 2>/dev/null
-
-  echo "✅ Certificate extension information:"
-  openssl x509 -in "$CERT_FILE" -text -noout | grep -E 'DNS|IP|Usage'
-
-  # 严格权限控制
-  chmod 644 "$CERT_FILE"
-  chmod 600 "$KEY_FILE"
-
 
  # 生成随机边界
   BOUNDARY="boundary$(openssl rand -hex 16)"
@@ -176,14 +199,12 @@ main() {
 
   if [[ "$HTTP_STATUS_UPLOAD" = 20* ]]; then
       echo "Certificate uploaded successfully (HTTP $HTTP_STATUS_UPLOAD)"
+      echo "Certificate 'websoft9-inner' has been created and uploaded successfully."
   else
       echo "Certificate upload failed [HTTP $HTTP_STATUS_UPLOAD]"
       echo "Error details: $(echo "$RESPONSE_BODY_UPLOAD" | jq -r '.detail // .message')"
       exit 1
   fi
-
-  touch "$INIT_FLAG"
-  echo "Initialization complete flag has been created"
 
 }&
 
