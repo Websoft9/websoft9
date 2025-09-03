@@ -42,9 +42,14 @@ EOF
 
 # Special migration
 post_migration(){
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
-    listen_port=${CONSOLE_PORT:-9000}
-    apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
+    if [ -f "./post_migration_init" ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Skip to set listen_port to nginx_proxy_manager"
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
+        listen_port=${CONSOLE_PORT:-9000}
+        apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
+        touch ./post_migration_init
+    fi
 }
 
 migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.ini"
