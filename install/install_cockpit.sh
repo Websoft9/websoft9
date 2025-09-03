@@ -335,7 +335,8 @@ Install_Cockpit(){
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
     fi
     
-    sudo systemctl enable --now pmcd pmlogger 
+    sudo systemctl enable --now pmcd pmlogger
+    docker exec -i websoft9-apphub apphub setconfig --section "cockpit" --key "port" --value "$cockpit_port"
 
     Set_Firewalld
     Set_Selinux
