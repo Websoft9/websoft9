@@ -192,7 +192,7 @@ async def app_redeploy(
     endpointId: int = Query(None, description="Endpoint ID to redeploy app on. If not set, redeploy on the local endpoint"),
     pullImage: bool = Query(..., description="Whether to pull the image when redeploying the app"),
 ):
-
+    
     async def log_generator(queue: asyncio.Queue):
         error_occurred = False
         try:
