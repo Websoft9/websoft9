@@ -6,9 +6,9 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 APPHUB_INI_FILE="/var/lib/docker/volumes/websoft9_apphub_config/_data/config.ini"
 COCKPIT_CONF_FILE="/etc/cockpit/cockpit.conf"
 COCKPIT_SOCKET_FILE="/usr/lib/systemd/system/cockpit.socket"
-NGINX_VAR_FILE="/var/lib/docker/volumes/websoft9_nginx_data/_data/custom_var.conf"
-NGINX_PORT_FILE="/var/lib/docker/volumes/websoft9_nginx_data/_data/custom_port.conf"
-NGINX_SSL_FILE="/var/lib/docker/volumes/websoft9_nginx_data/_data/custom_ssl.conf"
+NGINX_VAR_FILE="/var/lib/docker/volumes/websoft9_nginx_var/_data/custom_var.conf"
+NGINX_PORT_FILE="/var/lib/docker/volumes/websoft9_nginx_var/_data/custom_port.conf"
+NGINX_SSL_FILE="/var/lib/docker/volumes/websoft9_nginx_var/_data/custom_ssl.conf"
 
 # 主要包含：docker0_ip、console_port、cert_path、key_path、cockpit_port
 apphub_ini() {
