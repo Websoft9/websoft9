@@ -689,7 +689,6 @@ check_plugins() {
             exit 1
         fi
     done
-
     echo "All required plugins are install successfully."
 }
 
