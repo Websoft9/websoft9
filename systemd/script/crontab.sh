@@ -144,6 +144,6 @@ while true; do
         if [ -n "$NOW_APPHUB_INI_KEYPATH" ]; then
             nginx_ssl set key_path "$NOW_APPHUB_INI_KEYPATH"
         fi
-        systemctl restart cockpit && systemctl daemon-reload && systemctl restart cockpit.socket && docker exec websoft9-proxy nginx -s reload
+        systemctl daemon-reload &&  systemctl restart cockpit.socket && systemctl restart cockpit && docker exec websoft9-proxy nginx -s reload
     fi
 done

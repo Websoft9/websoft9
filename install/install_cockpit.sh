@@ -336,7 +336,7 @@ Install_Cockpit(){
     fi
     
     sudo systemctl enable --now pmcd pmlogger
-    docker exec -i websoft9-apphub apphub setconfig --section "cockpit" --key "port" --value "$cockpit_port"
+    sudo docker exec -i websoft9-apphub apphub setconfig --section "cockpit" --key "port" --value "$cockpit_port"
 
     Set_Firewalld
     Set_Selinux
