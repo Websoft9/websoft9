@@ -567,6 +567,8 @@ install_backends() {
         echo "Failed to start docker services."
         exit 1
     fi
+    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key listen_port --value "$console_port"
+    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key docker0_ip --value "$docker0_ip"
 
     sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key listen_port --value "$console_port"
     sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key docker0_ip --value "$docker0_ip"
@@ -724,8 +726,8 @@ check_hardware() {
 }
 
 sync_cockpit(){
-    echo "sync Cockpit config file..." 
-    systemctl stop cockpit
+    echo "sync Cockpit config file..."
+    systemctl stop cockpit && systemctl stop cockpit.socket
     grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf && grep -q "Origins" /etc/cockpit/cockpit.conf
     if [ $? -ne 0 ]; then
         echo "ProtocolHeader = X-Forwarded-Proto" >> /etc/cockpit/cockpit.conf
