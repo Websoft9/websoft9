@@ -1,5 +1,5 @@
 {
-  "version": "2.2.4-rc4",
+  "version": "2.2.4-rc5",
   "plugins": {
     "portainer": "0.1.4",
     "nginx": "0.1.0",
