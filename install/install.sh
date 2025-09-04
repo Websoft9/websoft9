@@ -209,10 +209,8 @@ if [ $(id -u) -ne 0 ]; then
     exit 1
 fi
 
-if [ -n "$console_port" ]; then
-    export console_port
-else
-    export console_port=9000
+if [ "$execute_mode" = "update" ]; then
+    export console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
 fi
 
 if [ -n "$proxy" ]; then
@@ -256,6 +254,7 @@ cat /etc/os-release | head -n 3  2>/dev/null
 # Define global vars
 # export var can send it to subprocess
 
+export console_port
 export docker0_ip
 export console_port
 export http_port=80
@@ -568,6 +567,8 @@ install_backends() {
         echo "Failed to start docker services."
         exit 1
     fi
+    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key listen_port --value "$console_port"
+    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key docker0_ip --value "$docker0_ip"
 
     if [ "$execute_mode" = "install" ]; then
         sudo docker exec -i websoft9-apphub apphub setconfig --section domain --key wildcard_domain --value ""
@@ -721,6 +722,15 @@ check_hardware() {
     echo "Disk space check passed. Continuing operation..."
 }
 
+sync_cockpit(){
+    echo "sync Cockpit config file..." 
+    grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf && grep -q "Origins" /etc/cockpit/cockpit.conf
+    if [ $? -ne 0 ]; then
+        echo "ProtocolHeader = X-Forwarded-Proto" >> /etc/cockpit/cockpit.conf
+        echo "Origins = http://$docker0_ip:$listen_port ws://$docker0_ip:$listen_port" >> /etc/cockpit/cockpit.conf
+    fi
+}
+
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $console_port | tee -a  $log_path
@@ -748,6 +758,9 @@ if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
 fi
+if [ "$execute_mode" = "update" ]; then
+    sync_cockpit
+fi
 
 check_service cockpit
 
@@ -772,4 +785,4 @@ endtime=$(date +%s)
 runtime=$((endtime-starttime))
 echo "Script execution time: $runtime seconds"
 echo -e "\n-- Install success! ------" 
-echo "Access Websoft9 console by: http://Internet IP:$(grep ListenStream /lib/systemd/system/cockpit.socket | cut -d= -f2) and using Linux user for login"
+echo "Access Websoft9 console by: http://Internet IP:$(docker exec -i websoft9-apphub apphub getconfig --section "nginx_proxy_manager" --key "listen_port") and using Linux user for login"
