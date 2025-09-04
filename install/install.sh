@@ -723,7 +723,8 @@ check_hardware() {
 }
 
 sync_cockpit(){
-    echo "sync Cockpit config file..." 
+    echo "sync Cockpit config file..."
+    systemctl stop cockpit && systemctl stop cockpit.socket
     grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf && grep -q "Origins" /etc/cockpit/cockpit.conf
     if [ $? -ne 0 ]; then
         echo "ProtocolHeader = X-Forwarded-Proto" >> /etc/cockpit/cockpit.conf
