@@ -43,9 +43,11 @@ EOF
 # Special migration
 post_migration(){
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port、docker0_ip to nginx_proxy_manager"
     listen_port=${CONSOLE_PORT:-9000}
+    docker0_ip=${DOCKER0_IP:-172.17.0.1}
     apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
+    apphub setconfig --section nginx_proxy_manager --key docker0_ip  --value "$docker0_ip"
 
 }
 
