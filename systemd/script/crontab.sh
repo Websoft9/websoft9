@@ -6,7 +6,6 @@ APPHUB_INI_FILE="/var/lib/docker/volumes/websoft9_apphub_config/_data/config.ini
 COCKPIT_CONF_FILE="/etc/cockpit/cockpit.conf"
 COCKPIT_SOCKET_FILE="/usr/lib/systemd/system/cockpit.socket"
 NGINX_VAR_FILE="/var/lib/docker/volumes/websoft9_nginx_var/_data/custom_var.conf"
-NGINX_PORT_FILE="/var/lib/docker/volumes/websoft9_nginx_var/_data/custom_port.conf"
 NGINX_SSL_FILE="/var/lib/docker/volumes/websoft9_nginx_var/_data/custom_ssl.conf"
 
 # 主要包含：docker0_ip、console_port、cert_path、key_path、cockpit_port
@@ -22,23 +21,19 @@ apphub_ini() {
     fi
 }
 
-# 主要包含：docker0_ip、console_port
+# 主要包含：docker0_ip
 cockpit_conf() {
     local action="$1"
     shift
     if [ "$action" == "get" ]; then
-        # 用法: cockpit_conf get docker0_ip|console_port
+        # 用法: cockpit_conf get docker0_ip
         if [ "$1" == "docker0_ip" ]; then
             sed -nE "s|Origins = http://([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) ws://([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+)|\1|p" "$COCKPIT_CONF_FILE"
-        elif [ "$1" == "console_port" ]; then
-            sed -nE "s|Origins = http://([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) ws://([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+)|\2|p" "$COCKPIT_CONF_FILE"
         fi
     elif [ "$action" == "set" ]; then
-        # 用法: cockpit_conf set docker0_ip|console_port new
+        # 用法: cockpit_conf set docker0_ip new
         if [ "$1" == "docker0_ip" ]; then
             sed -i -E "/^Origins = / s|(http://)[^:]+(:[0-9]+)( ws://)[^:]+(:[0-9]+)|\1$2\2\3$2\4|g" "$COCKPIT_CONF_FILE"
-        elif [ "$1" == "console_port" ]; then
-            sed -i -E "/^Origins = / s|(http://[^:]+:)[0-9]+( ws://[^:]+:)[0-9]+|\1$2\2$2|g" "$COCKPIT_CONF_FILE"
         fi
     fi
 }
@@ -56,7 +51,7 @@ cockpit_socket() {
     fi
 }
 
-# 主要包含：docker0_ip、console_port、cert_path、key_path、cockpit_port
+# 主要包含：cockpit_port
 nginx_var() {
     local action="$1"
     shift
@@ -69,18 +64,6 @@ nginx_var() {
     fi
 }
 
-# 主要包含：console_port
-nginx_port() {
-    local action="$1"
-    shift
-    if [ "$action" == "get" ]; then
-        # 用法: nginx_port get
-        sed -nE "s|listen ([^;]+);|\1|p" "$NGINX_PORT_FILE"
-    elif [ "$action" == "set" ]; then
-        # 用法: nginx_port set new
-        sed -i -E "/^listen/ s|(listen )[^;]+;|\1$1;|g" "$NGINX_PORT_FILE"
-    fi
-}
 
 # 主要包含：cert_path、key_path
 nginx_ssl() {
@@ -116,20 +99,12 @@ while true; do
         fi
     else
         NOW_APPHUB_INI_DOCKER0IP=$(apphub_ini get nginx_proxy_manager docker0_ip)
-        NOW_APPHUB_INI_CONSOLEPORT=$(apphub_ini get nginx_proxy_manager listen_port)
         NOW_APPHUB_INI_CERTPATH=$(apphub_ini get nginx_proxy_manager ssl_cert)
         NOW_APPHUB_INI_KEYPATH=$(apphub_ini get nginx_proxy_manager ssl_key)
         NOW_APPHUB_INI_COCKPITPORT=$(apphub_ini get cockpit port)
         # docker0_ip
         if [ -n "$NOW_APPHUB_INI_DOCKER0IP" ]; then
             cockpit_conf set docker0_ip "$NOW_APPHUB_INI_DOCKER0IP"
-            nginx_var set docker0_ip "$NOW_APPHUB_INI_DOCKER0IP"
-        fi
-        # console_port
-        if [ -n "$NOW_APPHUB_INI_CONSOLEPORT" ]; then
-            cockpit_conf set console_port "$NOW_APPHUB_INI_CONSOLEPORT"
-            nginx_var set console_port "$NOW_APPHUB_INI_CONSOLEPORT"
-            nginx_port set "$NOW_APPHUB_INI_CONSOLEPORT"
         fi
         # cockpit_port
         if [ -n "$NOW_APPHUB_INI_COCKPITPORT" ]; then
