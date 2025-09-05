@@ -68,7 +68,6 @@ COPY ./config/initproxy.conf /etc/websoft9/initproxy.conf
 
 COPY ./config/stream.conf /etc/websoft9/stream.conf
 COPY ./config/custom_var.conf /etc/websoft9/custom_var.conf
-COPY ./config/custom_port.conf /etc/websoft9/custom_port.conf
 COPY ./config/custom_ssl.conf /etc/websoft9/custom_ssl.conf
 
 COPY ./init_nginx.sh /app/init_nginx.sh

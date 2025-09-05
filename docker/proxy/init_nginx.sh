@@ -3,19 +3,22 @@
 # Define variables
 credential_path="/data/credential"
 
+DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
+
 # Migrating initproxy.conf file
 if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
 cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
 [ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
 
+sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /data/nginx/default_host/initproxy.conf
+
 # Copy stream.conf
 if [ ! -d /data/nginx/stream ]; then mkdir -p /data/nginx/stream; fi
 cp -f /etc/websoft9/stream.conf /data/nginx/stream/stream.conf
 
-# Copy custom_var.conf custom_port.conf custom_ssl.conf
+# Copy custom_var.conf custom_ssl.conf
 if [ ! -d /etc/custom ]; then mkdir -p /etc/custom; fi
 cp -f /etc/websoft9/custom_var.conf /etc/custom/custom_var.conf
-cp -f /etc/websoft9/custom_port.conf /etc/custom/custom_port.conf
 cp -f /etc/websoft9/custom_ssl.conf /etc/custom/custom_ssl.conf
 
 # Deploy Websoft9 landing pages

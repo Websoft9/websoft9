@@ -61,7 +61,7 @@ services:
     ports:
       - "$APP_HTTP_GATEWAY:80"
       - "$APP_HTTPS_GATEWAY:443"
-      - "$CONSOLE_PORT:$CONSOLE_PORT"
+      - "$CONSOLE_PORT:9000"
     volumes:
       - nginx_data:/data
       - nginx_letsencrypt:/etc/letsencrypt
