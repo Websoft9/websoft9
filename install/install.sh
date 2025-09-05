@@ -209,7 +209,7 @@ if [ $(id -u) -ne 0 ]; then
     exit 1
 fi
 
-if [ "$execute_mode" = "update" ]; then
+if [ "$execute_mode" = "upgrade" ]; then
     export console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
 fi
 
