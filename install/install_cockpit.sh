@@ -342,6 +342,9 @@ Install_Cockpit(){
     Set_Selinux
     if [ "$execute_mode" = "install" ]; then
         Set_Cockpit
+    else
+        echo "Change cockpit default port to $cockpit_port ..." 
+        sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
     fi
     Edit_Menu
     Restart_Cockpit

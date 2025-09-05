@@ -723,8 +723,8 @@ check_hardware() {
     echo "Disk space check passed. Continuing operation..."
 }
 
-sync_cockpit(){
-    echo "sync Cockpit config file..." 
+update_prestart(){
+    echo "--------sync Cockpit config file---------------" 
     sudo systemctl stop cockpit.socket && sudo systemctl stop cockpit && sudo systemctl stop websoft9
     grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf && grep -q "Origins" /etc/cockpit/cockpit.conf
     if [ $? -ne 0 ]; then
@@ -751,6 +751,10 @@ check_docker
 
 check_websoft9_images
 
+if [ "$execute_mode" = "upgrade" ]; then
+    update_prestart
+fi
+
 install_backends | tee -a  $log_path
 
 check_websoft9_project
@@ -759,9 +763,6 @@ bash $install_path/install/install_cockpit.sh | tee -a  $log_path
 if [ $? -ne 0 ]; then
     echo "install_cockpit failed with error $?. Exiting."
     exit 1
-fi
-if [ "$execute_mode" = "update" ]; then
-    sync_cockpit
 fi
 
 check_service cockpit
