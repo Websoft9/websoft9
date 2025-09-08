@@ -201,7 +201,7 @@ Set_Cockpit(){
         echo "Download config from URL $cockpit_config_github_page_url"
         curl -sSL $cockpit_config_github_page_url | sudo tee /etc/cockpit/cockpit.conf > /dev/null
     fi
-    sed  -i "s|172.17.0.1:9000|$docker0_ip:$console_port|g" /etc/cockpit/cockpit.conf
+    sed  -i "s|172.17.0.1|$docker0_ip|g" /etc/cockpit/cockpit.conf
 
 
     echo "Change cockpit default port to $cockpit_port ..." 
@@ -343,6 +343,14 @@ Install_Cockpit(){
     if [ "$execute_mode" = "install" ]; then
         Set_Cockpit
     else
+        grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf
+        if [ $? -ne 0 ]; then
+            echo "ProtocolHeader = X-Forwarded-Proto" >> /etc/cockpit/cockpit.conf
+        fi
+        grep -q "Origins" /etc/cockpit/cockpit.conf
+        if [ $? -ne 0 ]; then
+            echo "Origins = http://$docker0_ip:9000 ws://$docker0_ip:9000" >> /etc/cockpit/cockpit.conf
+        fi
         echo "Change cockpit default port to $cockpit_port ..." 
         sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
     fi

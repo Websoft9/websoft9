@@ -76,7 +76,7 @@ export PATH
 version="latest"
 channel="release"
 execute_mode="auto"
-console_port=9000
+console_port=""
 docker0_ip=172.17.0.1
 app_http_gateway=80
 app_https_gateway=443
@@ -209,10 +209,6 @@ if [ $(id -u) -ne 0 ]; then
     exit 1
 fi
 
-if [ "$execute_mode" = "upgrade" ]; then
-    export console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
-fi
-
 if [ -n "$proxy" ]; then
     export http_proxy="$proxy"
     export https_proxy="$proxy"
@@ -228,6 +224,14 @@ if [ "$execute_mode" = "auto" ]; then
     else
         echo "execute_mode=install"
         export execute_mode="install"
+    fi
+fi
+
+if [ -z "$console_port" ]; then
+    if [ "$execute_mode" = "upgrade" ]; then
+        console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
+    else
+        console_port=9000
     fi
 fi
 
@@ -256,7 +260,6 @@ cat /etc/os-release | head -n 3  2>/dev/null
 
 export console_port
 export docker0_ip
-export console_port
 export http_port=80
 export https_port=443
 export install_path=$path
@@ -346,8 +349,8 @@ install_tools(){
         done
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
-        echo "Waiting for other software managers to finish..."
-        sleep 5
+            echo "Waiting for other software managers to finish..."
+            sleep 5
         done
         sudo apt-get update -y 1>/dev/null 2>&1
         for package in $tools_apt; do 
@@ -724,13 +727,8 @@ check_hardware() {
 }
 
 update_prestart(){
-    echo "--------sync Cockpit config file---------------" 
+    echo "--------stop Cockpit and Websoft9---------------" 
     sudo systemctl stop cockpit.socket && sudo systemctl stop cockpit && sudo systemctl stop websoft9
-    grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf && grep -q "Origins" /etc/cockpit/cockpit.conf
-    if [ $? -ne 0 ]; then
-        echo "ProtocolHeader = X-Forwarded-Proto" >> /etc/cockpit/cockpit.conf
-        echo "Origins = http://$docker0_ip:$listen_port ws://$docker0_ip:$listen_port" >> /etc/cockpit/cockpit.conf
-    fi
 }
 
 #--------------- main-----------------------------------------
