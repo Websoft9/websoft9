@@ -86,39 +86,49 @@ nginx_ssl() {
     fi
 }
 
+
+# 同步apphub，初始化时同步一次，后续监控
+sync_apphub() {
+    NOW_APPHUB_INI_DOCKER0IP=$(apphub_ini get nginx_proxy_manager docker0_ip)
+    NOW_APPHUB_INI_CERTPATH=$(apphub_ini get nginx_proxy_manager ssl_cert)
+    NOW_APPHUB_INI_KEYPATH=$(apphub_ini get nginx_proxy_manager ssl_key)
+    NOW_APPHUB_INI_COCKPITPORT=$(apphub_ini get cockpit port)
+    # docker0_ip
+    if [ -n "$NOW_APPHUB_INI_DOCKER0IP" ]; then
+        cockpit_conf set docker0_ip "$NOW_APPHUB_INI_DOCKER0IP"
+    fi
+    # cockpit_port
+    if [ -n "$NOW_APPHUB_INI_COCKPITPORT" ]; then
+        cockpit_socket set "$NOW_APPHUB_INI_COCKPITPORT"
+        nginx_var set cockpit_port "$NOW_APPHUB_INI_COCKPITPORT"
+    fi
+    # cert_path
+    if [ -n "$NOW_APPHUB_INI_CERTPATH" ]; then
+        nginx_ssl set cert_path "$NOW_APPHUB_INI_CERTPATH"
+    fi
+    # key_path
+    if [ -n "$NOW_APPHUB_INI_KEYPATH" ]; then
+        nginx_ssl set key_path "$NOW_APPHUB_INI_KEYPATH"
+    fi
+
+}
+
+sync_apphub
+sudo systemctl daemon-reload &&  sudo systemctl restart cockpit.socket && sleep 2 && sudo systemctl restart cockpit && sudo docker exec websoft9-proxy nginx -s reload
+
 # 持续监控
 while true; do
-    changed_file=$(inotifywait -e modify,attrib --format "%w%f" "$APPHUB_INI_FILE" "$COCKPIT_SOCKET_FILE" "$NGINX_VAR_FILE" "$NGINX_PORT_FILE" "$NGINX_SSL_FILE" 2>/dev/null)
+    changed_file=$(inotifywait -e modify,attrib --format "%w%f" "$APPHUB_INI_FILE" "$COCKPIT_SOCKET_FILE" "$NGINX_VAR_FILE" "$NGINX_SSL_FILE" 2>/dev/null)
 
     if [ "$changed_file" == "$COCKPIT_SOCKET_FILE" ]; then
         NOW_COCKPIT_SOCKET_COCKPITPORT=$(cockpit_socket get)
         if [ -n "$NOW_COCKPIT_SOCKET_COCKPITPORT" ]; then
             apphub_ini set cockpit port "$NOW_COCKPIT_SOCKET_COCKPITPORT"
             nginx_var set cockpit_port "$NOW_COCKPIT_SOCKET_COCKPITPORT"
-            systemctl daemon-reload && systemctl restart cockpit.socket && docker exec websoft9-proxy nginx -s reload
         fi
     else
-        NOW_APPHUB_INI_DOCKER0IP=$(apphub_ini get nginx_proxy_manager docker0_ip)
-        NOW_APPHUB_INI_CERTPATH=$(apphub_ini get nginx_proxy_manager ssl_cert)
-        NOW_APPHUB_INI_KEYPATH=$(apphub_ini get nginx_proxy_manager ssl_key)
-        NOW_APPHUB_INI_COCKPITPORT=$(apphub_ini get cockpit port)
-        # docker0_ip
-        if [ -n "$NOW_APPHUB_INI_DOCKER0IP" ]; then
-            cockpit_conf set docker0_ip "$NOW_APPHUB_INI_DOCKER0IP"
-        fi
-        # cockpit_port
-        if [ -n "$NOW_APPHUB_INI_COCKPITPORT" ]; then
-            cockpit_socket set "$NOW_APPHUB_INI_COCKPITPORT"
-            nginx_var set cockpit_port "$NOW_APPHUB_INI_COCKPITPORT"
-        fi
-        # cert_path
-        if [ -n "$NOW_APPHUB_INI_CERTPATH" ]; then
-            nginx_ssl set cert_path "$NOW_APPHUB_INI_CERTPATH"
-        fi
-        # key_path
-        if [ -n "$NOW_APPHUB_INI_KEYPATH" ]; then
-            nginx_ssl set key_path "$NOW_APPHUB_INI_KEYPATH"
-        fi
-        sudo systemctl daemon-reload &&  sudo systemctl restart cockpit.socket && sudo systemctl restart cockpit && sudo docker exec websoft9-proxy nginx -s reload
+        sync_apphub
     fi
+
+    sudo systemctl daemon-reload &&  sudo systemctl restart cockpit.socket && sleep 2 && sudo systemctl restart cockpit && sudo docker exec websoft9-proxy nginx -s reload
 done
