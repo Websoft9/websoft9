@@ -1,0 +1,92 @@
+name: Release to Github and Artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - hotfix
+    paths:
+      - "version.json"
+
+jobs:
+  upload_artifact:
+    name: upload_artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        name: Check out code
+
+      - name: Version convert
+        id: convert_version      
+        run: |
+          version=$(jq -r '.version' version.json)
+          version_core=${version%%-*}
+          echo "VERSION=$version" >> $GITHUB_OUTPUT
+          echo "VERSION_CORE=$version_core" >> $GITHUB_OUTPUT          
+
+          if [[ $version == *-* ]]; then
+            echo "rc release version"
+            echo "CHANNEL=rc" >> $GITHUB_OUTPUT
+          else
+            echo "release version"
+            echo "CHANNEL=release" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Update CHANGELOG.md
+        id: update_data
+        run: |                 
+          changelog=$(cat changelog_latest.md)
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT 
+          echo "$changelog" >> $GITHUB_OUTPUT 
+          echo "EOF" >> $GITHUB_OUTPUT
+          current_date=$(date +%Y-%m-%d)
+          printf "## ${{ steps.convert_version.outputs.VERSION }} release on $current_date\n$changelog\n$(cat CHANGELOG.md)" > temp.txt
+          mv temp.txt CHANGELOG.md
+
+      - name: Create Zip Archive
+        run: |                 
+          mkdir websoft9 artifacts
+          cp -r docker websoft9
+          cp -r cockpit websoft9
+          cp -r scripts websoft9
+          cp -r install websoft9
+          cp -r systemd websoft9
+          cp *.md websoft9
+          cp version.json websoft9
+          zip -r websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip websoft9
+          cp websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts
+          cp install/install.sh artifacts
+          cp version.json artifacts
+          cp CHANGELOG.md artifacts
+          cp mirrors.json artifacts
+          cp artifacts/websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts/websoft9-latest.zip
+
+      - name: Upload To cloudflare r2
+        uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: artifacts
+          destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/websoft9
+
+      - name: Purge Cloudflare Cache
+        uses: jakejarvis/cloudflare-purge-action@master
+        env:
+          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/websoft9/websoft9-latest.zip"]'
+          
+      - name: Create Github Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            version.json
+            CHANGELOG.md
+          tag_name: ${{ steps.convert_version.outputs.VERSION }}
+          name: ${{ steps.convert_version.outputs.VERSION }}
+          body: ${{ steps.update_data.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
