@@ -94,8 +94,6 @@ class ProxyManager:
         Args:
             response (Response): Response
         """
-        logger.access(f"Nginx error handler called with status: {response.status_code}")
-        logger.access(f"Nginx error response text: {response.text}")
         # If status_code is 500, raise CustomException
         if response.status_code == 500:
             logger.error(f"Nginx Proxy Manager API Error:{response.status_code}:{response.text}")
@@ -105,7 +103,6 @@ class ProxyManager:
             response_dict = json.loads(response.text)
             error_dict = response_dict.get('error', {})
             details = error_dict.get('message','Unknown Error')
-            logger.access(f"Extracted error details: {details}")
             raise CustomException(
                 status_code=400,
                 message=f"Invalid Request",
@@ -336,16 +333,4 @@ class ProxyManager:
         except Exception as e:
             logger.error(f"Get proxy host by id:{proxy_id} error:{e}")
             raise CustomException()
-
-    def get_all_certificates(self):
-        """
-        Get all certificates
-
-        Returns:
-            list[dict]: Certificates
-        """
-        response = self.nginx.get_certificates()
-        if response.status_code == 200:
-            return response.json()
-        else:
-            self._handler_nginx_error(response)
+        

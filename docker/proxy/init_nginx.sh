@@ -2,28 +2,24 @@
 
 # Define variables
 credential_path="/data/credential"
-
-DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
+INNER_GATEWAY_PORT=${INNER_GATEWAY_PORT:-80}
 
 # Migrating initproxy.conf file
 if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
-cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
+
+#替换占位符并复制配置文件
+sed "s/{{INNER_GATEWAY_PORT}}/$INNER_GATEWAY_PORT/g" /etc/websoft9/initproxy.conf > /tmp/initproxy.conf
+cp -f /tmp/initproxy.conf /data/nginx/default_host/initproxy.conf
+
 [ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
 
-sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /data/nginx/default_host/initproxy.conf
-
-# Copy stream.conf
-if [ ! -d /data/nginx/stream ]; then mkdir -p /data/nginx/stream; fi
-cp -f /etc/websoft9/stream.conf /data/nginx/stream/stream.conf
-
-# Copy custom_var.conf custom_ssl.conf
-if [ ! -d /etc/custom ]; then mkdir -p /etc/custom; fi
-cp -f /etc/websoft9/custom_var.conf /etc/custom/custom_var.conf
-cp -f /etc/websoft9/custom_ssl.conf /etc/custom/custom_ssl.conf
-
 # Deploy Websoft9 landing pages
-rm -rf /var/www/html/index.html
-cp -rf /etc/websoft9/landing/* /var/www/html/
+if [ ! -d /data/nginx/default_www/landing ]; then
+    mkdir -p /data/nginx/default_www/ 
+    cp -r /etc/websoft9/landing /data/nginx/default_www/
+else
+    echo "/data/nginx/default_www/landing already exists."
+fi
 
 # If credential file then create it and init credential for NPM
 # Reload NPM docker image Environments
@@ -45,55 +41,30 @@ fi
 export INITIAL_ADMIN_EMAIL
 export INITIAL_ADMIN_PASSWORD
 
-SSL_DIR="/data/custom_ssl"
-CERT_FILE="$SSL_DIR/websoft9-self-signed.cert"
-KEY_FILE="$SSL_DIR/websoft9-self-signed.key"
-
-# 确保目录存在
-mkdir -p "$SSL_DIR"
-
-# 如果证书和私钥都存在且非空，则跳过生成
-if [ -s "$CERT_FILE" ] && [ -s "$KEY_FILE" ]; then
-    echo "Default certificate and key already exist, skipping generation."
-else
-    echo "Generating self-signed certificate..."
-    openssl req -x509 -newkey rsa:4096 -nodes \
-        -keyout "$KEY_FILE" \
-        -out "$CERT_FILE" \
-        -days 3650 \
-        -subj "/CN=Websoft9 Universal Certificate" \
-        -addext "basicConstraints=critical,CA:TRUE" \
-        -addext "keyUsage=digitalSignature,keyEncipherment" \
-        -addext "extendedKeyUsage=serverAuth" \
-        -addext "subjectAltName=DNS:*,IP:0.0.0.0" 2>/dev/null || {
-            echo "Failed to generate certificate"
-            exit 1
-        }
-
-    echo "✅ Certificate extension information:"
-    openssl x509 -in "$CERT_FILE" -text -noout | grep -E 'DNS|IP|Usage' || true
-
-    # 严格权限控制
-    chmod 644 "$CERT_FILE"
-    chmod 600 "$KEY_FILE"
-fi
-
 # 主执行函数
 main() {
-    echo "Start the NPM main process..."
+    echo "启动NPM主进程..."
     exec /init "$@"
 }
 
 # 后台初始化任务
 {
+  # 初始化标记检查
+  INIT_FLAG="/data/.initialized"
+  if [ -f "$INIT_FLAG" ]; then
+      echo "⏩ 检测到已初始化，跳过证书配置"
+      exit 0
+  fi
+
+
   # 等待API就绪并获取JWT
   MAX_RETRY=30
   RETRY_INTERVAL=2
   JWT=""
 
   for ((i=1; i<=MAX_RETRY; i++)); do
-      echo "Attempting to obtain access token (Attempt $i)..."
-
+      echo "尝试获取访问令牌（第 $i 次）..."
+      
       JWT_RESPONSE=$(timeout 5 curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "http://localhost:81/api/tokens" \
           -H "Content-Type: application/json" \
           -d "{\"identity\":\"$INITIAL_ADMIN_EMAIL\", \"secret\":\"$INITIAL_ADMIN_PASSWORD\", \"scope\":\"user\"}")
@@ -104,43 +75,20 @@ main() {
       if [ "$HTTP_STATUS" -eq 200 ]; then
           JWT=$(jq -r '.token' <<< "$RESPONSE_BODY")
           [ -n "$JWT" ] && break
-          echo "Access token is empty, continuing to retry..."
+          echo "⚠️ 令牌为空，继续重试..."
       elif [ "$HTTP_STATUS" -ge 400 ] && [ "$HTTP_STATUS" -lt 500 ]; then
-          echo "Authentication failed [HTTP $HTTP_STATUS] Please check your username and password"
+          echo "❌ 认证失败 [HTTP $HTTP_STATUS] 请检查账号密码"
           exit 1
       else
-          echo "Service unavailable [HTTP $HTTP_STATUS], waiting to retry..."
+          echo "⚠️ 服务暂不可用 [HTTP $HTTP_STATUS]，等待重试..."
       fi
       
       sleep $RETRY_INTERVAL
   done
 
-  [ -z "$JWT" ] && { echo "Failed to obtain access token, please ensure the service is running"; exit 1; }
+  [ -z "$JWT" ] && { echo "❌ 获取访问令牌失败，请确认服务已正常启动"; exit 1; }
 
-  echo "Authentication successful, service is ready"
-
-  # 查询现有证书，检查是否已存在 websoft9-inner 证书
-  echo "Checking for existing websoft9-inner certificate..."
-  CERT_LIST_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "http://localhost:81/api/nginx/certificates?expand=owner,proxy_hosts,dead_hosts,redirection_hosts" \
-    -H "Authorization: Bearer $JWT")
-
-  HTTP_STATUS_LIST=${CERT_LIST_RESPONSE##*HTTP_STATUS:}
-  RESPONSE_BODY_LIST=${CERT_LIST_RESPONSE/HTTP_STATUS:*/}
-
-  if [[ "$HTTP_STATUS_LIST" != "200" ]]; then
-      echo "Failed to query certificates [HTTP $HTTP_STATUS_LIST], response: $RESPONSE_BODY_LIST"
-      exit 1
-  fi
-
-  # 检查是否存在 nice_name 为 websoft9-inner 且 provider 为 other 的证书
-  EXISTING_CERT=$(echo "$RESPONSE_BODY_LIST" | jq -r '.[] | select(.nice_name == "websoft9-inner" and .provider == "other") | .id')
-
-  if [ -n "$EXISTING_CERT" ] && [ "$EXISTING_CERT" != "null" ]; then
-      echo "Certificate 'websoft9-inner' already exists with ID: $EXISTING_CERT, skipping certificate creation and upload."
-      exit 0
-  fi
-
-  echo "Certificate 'websoft9-inner' not found, creating new certificate..."
+  echo "✅ 认证成功，服务已就绪"
 
   #创建证书记录
   CERT_JSON='{"nice_name":"websoft9-inner","provider":"other"}'
@@ -157,15 +105,40 @@ main() {
   if [[ $HTTP_STATUS = 20* ]]; then  # 匹配200/201等2xx状态码
       CERT_ID=$(jq -r '.id' <<< "$RESPONSE_BODY")
       if [[ $CERT_ID =~ ^[0-9]+$ ]]; then
-          echo "Certificate created successfully with ID: $CERT_ID"
+          echo "🔄 证书创建成功，ID: $CERT_ID"
       else
-          echo "Certificate ID extraction failed, response content: $RESPONSE_BODY"
+          echo "❌ 证书ID提取异常，响应内容：$RESPONSE_BODY"
           exit 1
       fi
   else
-      echo "Certificate creation failed [HTTP $HTTP_STATUS] Response content: $RESPONSE_BODY"
+      echo "❌ 证书创建失败 [HTTP $HTTP_STATUS] 响应内容：$RESPONSE_BODY"
       exit 1
   fi
+
+  #上传自定义证书
+  SSL_DIR="/data/custom_ssl"
+  CERT_FILE="$SSL_DIR/websoft9-self-signed.cert"
+  KEY_FILE="$SSL_DIR/websoft9-self-signed.key"
+
+  mkdir -p "$SSL_DIR"
+  echo "🔄 强制生成新的自签名证书（有效期1年）..."
+  openssl req -x509 -newkey rsa:4096 -nodes \
+      -keyout "$KEY_FILE" \
+      -out "$CERT_FILE" \
+      -days 3650 \
+      -subj "/CN=Websoft9 Universal Certificate" \
+      -addext "basicConstraints=critical,CA:TRUE" \
+      -addext "keyUsage=digitalSignature,keyEncipherment" \
+      -addext "extendedKeyUsage=serverAuth" \
+      -addext "subjectAltName=DNS:*,IP:0.0.0.0" 2>/dev/null
+
+  echo "✅ 证书扩展信息："
+  openssl x509 -in "$CERT_FILE" -text -noout | grep -E 'DNS|IP|Usage'
+
+  # 严格权限控制
+  chmod 644 "$CERT_FILE"
+  chmod 600 "$KEY_FILE"
+
 
  # 生成随机边界
   BOUNDARY="boundary$(openssl rand -hex 16)"
@@ -201,13 +174,15 @@ main() {
   RESPONSE_BODY_UPLOAD=${UPLOAD_RESPONSE/HTTP_STATUS:*/}
 
   if [[ "$HTTP_STATUS_UPLOAD" = 20* ]]; then
-      echo "Certificate uploaded successfully (HTTP $HTTP_STATUS_UPLOAD)"
-      echo "Certificate 'websoft9-inner' has been created and uploaded successfully."
+      echo "✅ 证书上传成功（HTTP $HTTP_STATUS_UPLOAD）"
   else
-      echo "Certificate upload failed [HTTP $HTTP_STATUS_UPLOAD]"
-      echo "Error details: $(echo "$RESPONSE_BODY_UPLOAD" | jq -r '.detail // .message')"
+      echo "❌ 证书上传失败 [HTTP $HTTP_STATUS_UPLOAD]"
+      echo "错误详情：$(echo "$RESPONSE_BODY_UPLOAD" | jq -r '.detail // .message')"
       exit 1
   fi
+
+  touch "$INIT_FLAG"
+  echo "🏁 初始化完成标记已创建"
 
 }&
 

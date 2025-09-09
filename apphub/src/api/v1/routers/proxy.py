@@ -6,8 +6,6 @@ from src.schemas.domainNames import DomainNames
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.proxyHosts import ProxyHost
 from src.services.app_manager import AppManger
-from src.services.proxy_manager import ProxyManager
-from src.core.logger import logger
 
 router = APIRouter()
 
@@ -27,19 +25,6 @@ def get_proxys(
     ):
     return AppManger().get_proxys_by_app(app_id,endpointId)
 
-@router.get(
-            "/proxys/ssl/certificates",
-            summary="Get SSL Certificates",
-            description="Get all ssl certificates",
-            responses={
-                200: {"model": list[dict]},
-                400: {"model": ErrorResponse},
-                500: {"model": ErrorResponse},
-            }
-        )
-def get_certificates():
-    return ProxyManager().get_all_certificates()
-
 @router.post(
             "/proxys/{app_id}",
             summary="Create Proxy",
@@ -55,7 +40,6 @@ def create_proxys(
     app_id: str = Path(..., description="App ID to create proxys from"),
     endpointId: int = Query(None, description="Endpoint ID to create proxys from. If not set, create proxys from the local endpoint"),
 ):
-    
     return AppManger().create_proxy_by_app(app_id,domain_names.domain_names,endpointId)
     
 @router.put(
@@ -111,5 +95,3 @@ def delete_proxys_by_id(
     client_host = request.headers.get("Host")
     # client_host = request.client.host
     AppManger().remove_proxy_by_id(proxy_id,client_host)
-
-

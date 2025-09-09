@@ -1,4 +1,4 @@
-# modify time: 202509040940, you can modify here to trigger Docker Build action
+# modify time: 202508161718, you can modify here to trigger Docker Build action
 # from Dockerfile: https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/Dockerfile
 # from image: https://hub.docker.com/r/jc21/nginx-proxy-manager
 
@@ -57,7 +57,7 @@ ARG ENABLE_MODSECURITY
 
 
 LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="2.12.6-rc7"
+LABEL version="2.12.6"
 
 COPY README.md /data/nginx/README.md
 RUN mkdir /data/nginx/custom
@@ -65,13 +65,9 @@ RUN mkdir -p /etc/websoft9
 COPY ./config/http.conf /data/nginx/custom/http.conf
 COPY ./config/landing/ /etc/websoft9/landing
 COPY ./config/initproxy.conf /etc/websoft9/initproxy.conf
-
-COPY ./config/stream.conf /etc/websoft9/stream.conf
-COPY ./config/custom_var.conf /etc/websoft9/custom_var.conf
-COPY ./config/custom_ssl.conf /etc/websoft9/custom_ssl.conf
-
 COPY ./init_nginx.sh /app/init_nginx.sh
 RUN chmod +x /app/init_nginx.sh
+
 
 # Install runtime dependencies if ModSecurity is enabled
 RUN if [ "$ENABLE_MODSECURITY" = "true" ]; then \

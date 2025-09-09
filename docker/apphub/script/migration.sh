@@ -42,13 +42,9 @@ EOF
 
 # Special migration
 post_migration(){
-
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port、docker0_ip to nginx_proxy_manager"
-    listen_port=${CONSOLE_PORT:-9000}
-    docker0_ip=${DOCKER0_IP:-172.17.0.1}
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO - Set listen_port to nginx_proxy_manager"
+    listen_port=${INNER_GATEWAY_PORT:-80}
     apphub setconfig --section nginx_proxy_manager --key listen_port  --value "$listen_port"
-    apphub setconfig --section nginx_proxy_manager --key docker0_ip  --value "$docker0_ip"
-
 }
 
 migrate_ini "/websoft9/apphub/src/config/config.ini" "/websoft9/config/config.ini"

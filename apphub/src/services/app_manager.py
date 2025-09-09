@@ -680,9 +680,6 @@ class AppManger:
             # Chenck the apps number
             check_apps_number(endpointId)
 
-        #fix bug(上面排除了状态为Inactive的，导致状态为Inactive的不能重建，这里重新加入)
-        app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 2)]
-
         portainerManager = PortainerManager()
         
         # Check the endpointId is exists.
@@ -690,7 +687,7 @@ class AppManger:
             check_endpointId(endpointId, portainerManager)
         else:
             endpointId = portainerManager.get_local_endpoint_id()
-
+        
         # validate the app_id is exists in portainer
         await send_log("Verify Application Status")
         is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
@@ -702,7 +699,6 @@ class AppManger:
             )
         # Get stack_id
         stack_id = portainerManager.get_stack_by_name(app_id,endpointId).get("Id",None)
-       
         if stack_id is None:
             raise CustomException(
                 status_code=400,

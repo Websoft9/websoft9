@@ -13,25 +13,10 @@ export PATH
 #
 #  $ sudo bash install.sh --version "0.8.25"
 #
-# --console_port <9000>
-# Use the --console_port option to set Websoft9 cosole port. default is 9000, for example:
+# --port <9000>
+# Use the --port option to set Websoft9 cosole port. default is 9000, for example:
 #
-#   $ sudo bash install.sh --console_port 9001
-#
-# --docker0_ip <172.17.0.1>
-# Use the --docker0_ip option to set Websoft9 docker0_ip. default is 172.17.0.1, for example:
-#
-#   $ sudo bash install.sh --docker0_ip 172.17.0.1
-#
-# --app_http_gateway <80>
-# Use the --app_http_gateway option to set Websoft9 app_http_gateway. default is 80, for example:
-#
-#   $ sudo bash install.sh --app_http_gateway 80
-#
-# --app_https_gateway <443>
-# Use the --app_https_gateway option to set Websoft9 app_https_gateway. default is 443, for example:
-#
-#   $ sudo bash install.sh --app_https_gateway 443
+#   $ sudo bash install.sh --port 9001
 #
 # --channel <release|rc|dev>
 # Use the --channel option to install a release(production) or dev distribution. default is release, for example:
@@ -76,10 +61,7 @@ export PATH
 version="latest"
 channel="release"
 execute_mode="auto"
-console_port=""
-docker0_ip=172.17.0.1
-app_http_gateway=80
-app_https_gateway=443
+inner_gataway_port=80
 path="/data/websoft9/source"
 apps=""
 mirrors=""
@@ -97,13 +79,13 @@ while [[ $# -gt 0 ]]; do
             version="$1"
             shift
             ;;
-        --console_port)
+        --port)
             shift
             if [[ $1 == --* ]]; then
-                echo "Missing value for --console_port"
+                echo "Missing value for --port"
                 exit 1
             fi
-            console_port="$1"
+            port="$1"
             shift
             ;;
         --channel)
@@ -169,33 +151,6 @@ while [[ $# -gt 0 ]]; do
             proxy="$1"
             shift
             ;;
-        --docker0_ip)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --docker0_ip"
-                exit 1
-            fi
-            docker0_ip="$1"
-            shift
-            ;;
-        --app_http_gateway)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --app_http_gateway"
-                exit 1
-            fi
-            app_http_gateway="$1"
-            shift
-            ;;
-        --app_https_gateway)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --app_https_gateway"
-                exit 1
-            fi
-            app_https_gateway="$1"
-            shift
-            ;;
         *)
             echo "Unknown parameter: $1"
             exit 1
@@ -207,6 +162,12 @@ done
 if [ $(id -u) -ne 0 ]; then
     echo "You must be the root user to run this script."
     exit 1
+fi
+
+if [ -n "$port" ]; then
+    export port
+else
+    export port=9000
 fi
 
 if [ -n "$proxy" ]; then
@@ -227,23 +188,12 @@ if [ "$execute_mode" = "auto" ]; then
     fi
 fi
 
-if [ -z "$console_port" ]; then
-    if [ "$execute_mode" = "upgrade" ]; then
-        console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
-    else
-        console_port=9000
-    fi
-fi
-
 
 # 输出参数值
 echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
 echo -e "\nYour installation parameters are as follows: "
 echo "--version: $version"
-echo "--console_port: $console_port"
-echo "--docker0_ip: $docker0_ip"
-echo "--app_http_gateway: $app_http_gateway"
-echo "--app_https_gateway: $app_https_gateway"
+echo "--port: $port"
 echo "--channel: $channel"
 echo "--path: $path"
 echo "--apps: $apps"
@@ -258,8 +208,6 @@ cat /etc/os-release | head -n 3  2>/dev/null
 # Define global vars
 # export var can send it to subprocess
 
-export console_port
-export docker0_ip
 export http_port=80
 export https_port=443
 export install_path=$path
@@ -349,8 +297,8 @@ install_tools(){
         done
     elif [ $apt_status -eq 0 ]; then
         while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
-            echo "Waiting for other software managers to finish..."
-            sleep 5
+        echo "Waiting for other software managers to finish..."
+        sleep 5
         done
         sudo apt-get update -y 1>/dev/null 2>&1
         for package in $tools_apt; do 
@@ -545,7 +493,6 @@ install_backends() {
     else
         composefile=docker-compose.yml
     fi
-    env_file=.env
 
     container_names=$(docker ps -a --format "{{.Names}}" --filter "name=websoft9")
     sudo docker compose -p websoft9 -f $composefile down
@@ -558,21 +505,12 @@ install_backends() {
     else
         echo "No containers to delete."
     fi
-
-    # adjust DCOKER0_IP/CONSOLE_PORT/APP_HTTP_GATEWAY/APP_HTTPS_GATEWAY in .env
-    sed -i "s|^DOCKER0_IP=.*$|DOCKER0_IP=$docker0_ip|g" $env_file
-    sed -i "s|^APP_HTTP_GATEWAY=.*$|APP_HTTP_GATEWAY=$app_http_gateway|g" $env_file
-    sed -i "s|^APP_HTTPS_GATEWAY=.*$|APP_HTTPS_GATEWAY=$app_https_gateway|g" $env_file
-    sed -i "s|^CONSOLE_PORT=.*$|CONSOLE_PORT=$console_port|g" $env_file
     
     sudo docker compose -p websoft9 -f $composefile up -d
     if [ $? -ne 0 ]; then
         echo "Failed to start docker services."
         exit 1
     fi
-
-    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key listen_port --value "$console_port"
-    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key docker0_ip --value "$docker0_ip"
 
     if [ "$execute_mode" = "install" ]; then
         sudo docker exec -i websoft9-apphub apphub setconfig --section domain --key wildcard_domain --value ""
@@ -697,6 +635,38 @@ check_plugins() {
     echo "All required plugins are install successfully."
 }
 
+save_custom_configs() {
+    
+    if [ "$execute_mode" != "upgrade" ]; then
+        return 0
+    fi
+
+    local gateway_port
+    gateway_port=$(docker exec -i websoft9-proxy sh -c 'echo $INNER_GATEWAY_PORT')
+
+    if [ -n "$gateway_port" ]; then
+        export inner_gateway_port="$gateway_port"
+        echo "Exported INNER_GATEWAY_PORT: $inner_gateway_port"
+    fi
+}
+
+migrate_custom_configs() {
+
+    if [ "$execute_mode" != "upgrade" ]; then
+        return 0
+    fi
+
+    local env_file="${install_path}/docker/.env"
+    if [ ! -f "$env_file" ]; then
+        return 0
+    fi
+
+    if grep -q "^INNER_GATEWAY_PORT=" "$env_file" && [ -n "$inner_gateway_port" ]; then
+        sed -i "s|^INNER_GATEWAY_PORT=.*|INNER_GATEWAY_PORT=${inner_gateway_port}|" "$env_file"
+        echo "Updated INNER_GATEWAY_PORT in .env to ${inner_gateway_port}"
+    fi
+}
+
 check_hardware() {
 
     local mode="$1"
@@ -726,14 +696,9 @@ check_hardware() {
     echo "Disk space check passed. Continuing operation..."
 }
 
-update_prestart(){
-    echo "--------stop Cockpit and Websoft9---------------" 
-    sudo systemctl stop cockpit.socket && sudo systemctl stop cockpit && sudo systemctl stop websoft9
-}
-
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
-check_ports $http_port $https_port $console_port | tee -a  $log_path
+check_ports $http_port $https_port $port | tee -a  $log_path
 
 check_hardware $execute_mode
 
@@ -741,17 +706,17 @@ install_tools | tee -a  $log_path
 
 check_tools
 
+save_custom_configs
+
 download_source_and_checkimage | tee -a  $log_path
+
+migrate_custom_configs
 
 check_websoft9_artifact
 
 check_docker
 
 check_websoft9_images
-
-if [ "$execute_mode" = "upgrade" ]; then
-    update_prestart
-fi
 
 install_backends | tee -a  $log_path
 
@@ -786,4 +751,4 @@ endtime=$(date +%s)
 runtime=$((endtime-starttime))
 echo "Script execution time: $runtime seconds"
 echo -e "\n-- Install success! ------" 
-echo "Access Websoft9 console by: http://Internet IP:$(docker exec -i websoft9-apphub apphub getconfig --section "nginx_proxy_manager" --key "listen_port") and using Linux user for login"
+echo "Access Websoft9 console by: http://Internet IP:$(grep ListenStream /lib/systemd/system/cockpit.socket | cut -d= -f2) and using Linux user for login"

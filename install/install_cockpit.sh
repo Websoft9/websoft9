@@ -14,54 +14,66 @@ export PATH
 ## Ubuntu have backports at file /etc/apt/sources.list by default
 ## Cockpit application: https://cockpit-project.org/applications
 
+# Command-line options
+# ==========================================================
+#
+# --port <9000>
+# Use the --port option to set Websoft9 cosole port. default is 9000, for example:
+#
+#   $ sudo sh install_cockpit.sh --port 9001
+
 ############################################################
 # Below vars export from install.sh
-#  $docker0_ip
-#  $console_port
+#  $port
 #  $install_path
 ############################################################
 
 echo -e "\n\n-------- Cockpit --------"
 
+# 获取参数值
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --port)
+            shift
+            if [[ $1 == --* ]]; then
+                echo "Missing value for --port"
+                exit 1
+            fi
+            port="$1"
+            shift
+            ;;
+        *)
+            echo "Unknown parameter: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Port priority: --port > ListenStream= > 9000
+
 cockpit_exist() {
-    systemctl list-unit-files | grep -q "cockpit.service"
-    return $?
+  systemctl list-unit-files | grep -q "cockpit.service"
+  return $?
 }
-
-is_port_used() {
-    ss -tln | awk '{print $4}' | grep -q ":$1\$"
-}
-
-find_free_port() {
-    local port=$1
-    while is_port_used $port; do
-        port=$((port+1))
-    done
-    echo $port
-}
-
-DEFAULT_PORT=9090
 
 if cockpit_exist; then
     cockpit_now_port=$(grep -oP "(?<=^ListenStream=).*" "/lib/systemd/system/cockpit.socket")
     if [ -z "${cockpit_now_port// }" ]; then
-        echo "cockpit port is null, set it to $DEFAULT_PORT"
-        cockpit_now_port=$DEFAULT_PORT
+        echo "cockpit port is null,set it to 9000"
+        cockpit_now_port=9000
     else
         echo "$cockpit_now_port at cockpit.socket"
     fi
 
-    if [ "$cockpit_now_port" -ne $DEFAULT_PORT ]; then
-        cockpit_now_port=$(find_free_port $DEFAULT_PORT)
-        echo "cockpit port set to $cockpit_now_port"
-    fi
-
 else
-    cockpit_now_port=$(find_free_port $DEFAULT_PORT)
-    echo "cockpit not exist, using port $cockpit_now_port"
+    cockpit_now_port=9000
 fi
 
-cockpit_port=$cockpit_now_port
+if [ -n "$port" ]; then
+    cockpit_port=$port
+else
+    cockpit_port=$cockpit_now_port
+fi
 
 
 if [ -n "$install_path" ]; then
@@ -201,7 +213,6 @@ Set_Cockpit(){
         echo "Download config from URL $cockpit_config_github_page_url"
         curl -sSL $cockpit_config_github_page_url | sudo tee /etc/cockpit/cockpit.conf > /dev/null
     fi
-    sed  -i "s|172.17.0.1|$docker0_ip|g" /etc/cockpit/cockpit.conf
 
 
     echo "Change cockpit default port to $cockpit_port ..." 
@@ -335,24 +346,12 @@ Install_Cockpit(){
         echo "Neither apt,dnf nor yum found. Please install one of them and try again."
     fi
     
-    sudo systemctl enable --now pmcd pmlogger
-    sudo docker exec -i websoft9-apphub apphub setconfig --section "cockpit" --key "port" --value "$cockpit_port"
+    sudo systemctl enable --now pmcd pmlogger 
 
     Set_Firewalld
     Set_Selinux
     if [ "$execute_mode" = "install" ]; then
         Set_Cockpit
-    else
-        grep -q "ProtocolHeader" /etc/cockpit/cockpit.conf
-        if [ $? -ne 0 ]; then
-            echo "ProtocolHeader = X-Forwarded-Proto" >> /etc/cockpit/cockpit.conf
-        fi
-        grep -q "Origins" /etc/cockpit/cockpit.conf
-        if [ $? -ne 0 ]; then
-            echo "Origins = http://$docker0_ip:9000 ws://$docker0_ip:9000" >> /etc/cockpit/cockpit.conf
-        fi
-        echo "Change cockpit default port to $cockpit_port ..." 
-        sed -i "s/ListenStream=[0-9]*/ListenStream=${cockpit_port}/" /lib/systemd/system/cockpit.socket
     fi
     Edit_Menu
     Restart_Cockpit
