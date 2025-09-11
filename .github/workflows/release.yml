@@ -10,6 +10,35 @@ on:
       - "version.json"
 
 jobs:
+  create_new_branch:
+    name: create_new_branch
+    if: github.ref == 'refs/heads/main' # only run on main branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        name: Check out code
+
+      - name: Check version format
+        id: check_version
+        run: |
+          version=$(jq -r '.version' version.json)
+          if [[ $version == *-* ]]; then
+            echo "Version $version contains suffix, skipping branch creation"
+            echo "should_create_branch=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $version is a release version, will create branch"
+            echo "should_create_branch=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create new branch and push
+        if: steps.check_version.outputs.should_create_branch == 'true'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          current_datetime=$(date +%Y%m%d-%H%M%S)
+          git checkout -b hotfix-$current_datetime
+          git push origin hotfix-$current_datetime
+          
   upload_artifact:
     name: upload_artifact
     runs-on: ubuntu-latest
