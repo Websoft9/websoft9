@@ -1,0 +1,35 @@
+name: Release Webhook
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "version.json"
+
+jobs:
+    send_webhook:
+        name: Send Webhook
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check out code
+              uses: actions/checkout@v4
+              
+            - name: Send POST request
+              run: |
+                version=$(jq -r '.version' version.json)
+
+                if [[ $version == *-* ]]; then
+                    version=${version%%-*}
+                    version="${version}（预发布）"
+                fi
+
+                changelog=$(cat changelog_latest.md | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+
+                curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${{ secrets.WIXIN_ROBOT_KEY }}' \
+                -H 'Content-Type: application/json' \
+                -d "{
+                    \"msgtype\": \"markdown\",
+                    \"markdown\": {
+                    \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 最新版本：<font color=\\\"comment\\\">${version}</font>\\n> 更新内容：\\n${changelog}\\n>\"
+                    }
+                }"
