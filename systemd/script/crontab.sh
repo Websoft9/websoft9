@@ -113,8 +113,15 @@ sync_apphub() {
 
 }
 
+reload_config(){
+    sudo systemctl daemon-reload
+    sudo systemctl restart cockpit.socket 2> /dev/null
+    sudo systemctl restart cockpit || exit 1
+    sudo docker exec websoft9-proxy nginx -s reload || exit 1
+}
+
 sync_apphub
-sudo systemctl daemon-reload &&  sudo systemctl restart cockpit.socket && sleep 2 && sudo systemctl restart cockpit && sudo docker exec websoft9-proxy nginx -s reload
+reload_config
 
 # 持续监控
 while true; do
@@ -129,6 +136,5 @@ while true; do
     else
         sync_apphub
     fi
-
-    sudo systemctl daemon-reload &&  sudo systemctl restart cockpit.socket && sleep 2 && sudo systemctl restart cockpit && sudo docker exec websoft9-proxy nginx -s reload
+    reload_config
 done
