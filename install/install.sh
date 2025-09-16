@@ -229,7 +229,12 @@ fi
 
 if [ -z "$console_port" ]; then
     if [ "$execute_mode" = "upgrade" ]; then
-        console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
+        grep -q "Origins" /etc/cockpit/cockpit.conf
+        if [ $? -ne 0 ]; then
+            console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
+        else
+            console_port=9000
+        fi
     else
         console_port=9000
     fi
