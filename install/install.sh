@@ -739,6 +739,10 @@ update_prestart(){
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $console_port | tee -a  $log_path
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo "Port conflict!"
+    exit 1
+fi
 
 check_hardware $execute_mode
 
