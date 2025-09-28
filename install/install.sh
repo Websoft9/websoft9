@@ -18,10 +18,6 @@ export PATH
 #
 #   $ sudo bash install.sh --console_port 9001
 #
-# --docker0_ip <172.17.0.1>
-# Use the --docker0_ip option to set Websoft9 docker0_ip. default is 172.17.0.1, for example:
-#
-#   $ sudo bash install.sh --docker0_ip 172.17.0.1
 #
 # --app_http_gateway <80>
 # Use the --app_http_gateway option to set Websoft9 app_http_gateway. default is 80, for example:
@@ -77,7 +73,6 @@ version="latest"
 channel="release"
 execute_mode="auto"
 console_port=""
-docker0_ip=172.17.0.1
 app_http_gateway=80
 app_https_gateway=443
 path="/data/websoft9/source"
@@ -169,15 +164,6 @@ while [[ $# -gt 0 ]]; do
             proxy="$1"
             shift
             ;;
-        --docker0_ip)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --docker0_ip"
-                exit 1
-            fi
-            docker0_ip="$1"
-            shift
-            ;;
         --app_http_gateway)
             shift
             if [[ $1 == --* ]]; then
@@ -246,7 +232,6 @@ echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
 echo -e "\nYour installation parameters are as follows: "
 echo "--version: $version"
 echo "--console_port: $console_port"
-echo "--docker0_ip: $docker0_ip"
 echo "--app_http_gateway: $app_http_gateway"
 echo "--app_https_gateway: $app_https_gateway"
 echo "--channel: $channel"
@@ -264,7 +249,6 @@ cat /etc/os-release | head -n 3  2>/dev/null
 # export var can send it to subprocess
 
 export console_port
-export docker0_ip
 export http_port=80
 export https_port=443
 export install_path=$path
@@ -755,6 +739,14 @@ download_source_and_checkimage | tee -a  $log_path
 check_websoft9_artifact
 
 check_docker
+docker0_ip=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null)
+if [ -n "$docker0_ip" ]; then
+    export docker0_ip
+    echo "Docker0 IP: $docker0_ip"
+else
+    echo "Warning: docker0 interface not found"
+    exit 1
+fi
 
 check_websoft9_images
 
