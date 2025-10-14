@@ -306,6 +306,37 @@ install_tools(){
 
     if [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "ol" ] || [ "$ID" = "almalinux" ]; then
         sudo yum install -y "$repo_tools_yum" >/dev/null
+    elif [ "$ID" = "rhel" ]; then
+        # 检查订阅状态，如果没有订阅则使用替代方案
+        if ! subscription-manager status &>/dev/null; then
+            echo "Setting up EPEL repository for Red Hat system..."
+    
+            local version_id=$(rpm -E %rhel)
+            
+            case $version_id in
+                9)
+                    # RHEL 9 / CentOS 9 / Rocky Linux 9
+                    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+                    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
+                    ;;
+                8)
+                    # RHEL 8 / CentOS 8 / Rocky Linux 8
+                    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+                    ;;
+                7)
+                    # RHEL 7 / CentOS 7
+                    yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+                    ;;
+                *)
+                    echo "Unsupported RHEL version: $version_id"
+                    return 1
+                    ;;
+            esac
+            
+            # 启用 EPEL 仓库
+            dnf config-manager --set-enabled epel epel-next 2>/dev/null || true
+            echo "EPEL repository configured successfully"
+        fi
     elif [ "$ID" = "amzn" ]; then
         sudo amazon-linux-extras install epel -y >/dev/null
         if [ $? -ne 0 ]; then
