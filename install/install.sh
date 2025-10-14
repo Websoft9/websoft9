@@ -307,9 +307,9 @@ install_tools(){
     if [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "ol" ] || [ "$ID" = "almalinux" ]; then
         sudo yum install -y "$repo_tools_yum" >/dev/null
     elif [ "$ID" = "rhel" ]; then
-        # 检查订阅状态，如果没有订阅则使用替代方案
+        # Check the subscription status, and use an alternative if there is no subscription.
         if ! subscription-manager status &>/dev/null; then
-            echo "Setting up EPEL repository for Red Hat system..."
+            echo "Setting up EPEL repository for Red Hat 9 system..."
     
             local version_id=$(rpm -E %rhel)
             
@@ -321,7 +321,7 @@ install_tools(){
                     ;;
             esac
             
-            # 启用 EPEL 仓库
+            # Enable EPEL repository
             dnf config-manager --set-enabled epel epel-next 2>/dev/null || true
             echo "EPEL repository configured successfully"
         fi
