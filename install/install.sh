@@ -319,18 +319,6 @@ install_tools(){
                     dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
                     dnf install -y https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
                     ;;
-                8)
-                    # RHEL 8 / CentOS 8 / Rocky Linux 8
-                    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-                    ;;
-                7)
-                    # RHEL 7 / CentOS 7
-                    yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-                    ;;
-                *)
-                    echo "Unsupported RHEL version: $version_id"
-                    return 1
-                    ;;
             esac
             
             # 启用 EPEL 仓库
