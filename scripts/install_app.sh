@@ -147,7 +147,7 @@ install_app(){
   proxy_enabled=$(get_proxy_enabled "$domain_names")
   filename="/tmp/library/apps/${appname}/.env"
   settings=$(get_settings "${filename}")
-  api_url="localhost/api/apps/install"
+  api_url="localhost:8080/api/apps/install"
   api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
   request_param=$(jq -n \
                     --arg app_name "$appname" \
@@ -169,20 +169,20 @@ install_app(){
                       "settings": $settings
                     }')
 
-  response=$(curl -s -w "\n%{http_code}" -X POST "$api_url" \
-                  -H "Content-Type: application/json" \
-                  -H "x-api-key: $api_key" \
-                  -d "$request_param")
+  response=$(sudo docker exec -i websoft9-apphub sh -c "curl -s -w '\n%{http_code}' -X POST '$api_url' \
+        -H 'Content-Type: application/json' \
+        -H 'x-api-key: $api_key' \
+        -d '$request_param'")
   echo "$response"
   
 }
 
 app_list(){
-  api_url="localhost/api/apps"
+  api_url="localhost:8080/api/apps"
   api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
-  response=$(curl -s -w "\n%{http_code}" -X GET "$api_url" \
-                  -H "Content-Type: application/json" \
-                  -H "x-api-key: $api_key")
+  response=$(sudo docker exec websoft9-apphub sh -c "curl -s -w '\n%{http_code}' -X GET '$api_url' \
+        -H 'Content-Type: application/json' \
+        -H 'x-api-key: $api_key'")
   echo "$response"
 }
 
