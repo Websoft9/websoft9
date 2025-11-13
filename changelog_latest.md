@@ -1,6 +1,6 @@
 ### enhancement:
 
-- install_app.sh cannot install the application properly #666
+- update portainer and gitea to latest #669
 
 
 
