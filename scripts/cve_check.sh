@@ -451,14 +451,6 @@ REQUIREMENTS:
     - Sufficient disk space in /tmp for reports
     - curl/wget must be available for Trivy installation
 
-NETWORK ISSUES:
-    如果遇到网络问题无法从 GitHub 下载 Trivy:
-    1. 自动尝试 Websoft9 备用源: https://artifact.websoft9.com/cloud_data/trivy/install.sh
-    2. 运行备用安装脚本: ./install_trivy_backup.sh
-    3. 手动下载并安装 Trivy 二进制文件
-    4. 使用企业代理或内网镜像
-    5. 联系系统管理员协助
-
 REPORTS:
     - JSON reports: ${REPORT_DIR}/
     - HTML reports: ${REPORT_DIR}/ (if supported)
