@@ -38,141 +38,44 @@ print_status() {
     echo -e "${color}[$(date '+%H:%M:%S')] ${message}${NC}"
 }
 
-# Check if Trivy is installed
+# Check if Trivy Docker image is available
 check_trivy() {
-    print_status "${BLUE}" "Checking Trivy installation..."
-    if ! command -v trivy &> /dev/null; then
-        print_status "${YELLOW}" "Trivy is not installed, attempting to install automatically..."
-        print_status "${BLUE}" "Installing Trivy using multiple installation methods..."
-        
-        # Method 1: Try official script from GitHub with backup source
-        print_status "${BLUE}" "Trying GitHub installation script..."
-        
-        # Try GitHub first
-        if curl -sfL --connect-timeout 10 --max-time 30 https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin; then
-            print_status "${GREEN}" "Trivy installed successfully via GitHub"
-            log "Trivy installation completed successfully via GitHub"
-        # If GitHub fails, try Websoft9 backup source
-        elif curl -sfL --connect-timeout 10 --max-time 30 https://artifact.websoft9.com/cloud_data/install.sh | sh -s -- -b /usr/local/bin; then
-            print_status "${GREEN}" "Trivy installed successfully via Websoft9 backup source"
-            log "Trivy installation completed successfully via Websoft9 backup source"
-        else
-            print_status "${YELLOW}" "Both GitHub and backup installation failed, trying alternative methods..."
-        fi
-        
-        # Verify installation after any successful installation method
-        if command -v trivy &> /dev/null; then
-            local trivy_version=$(trivy --version | head -n1)
-            print_status "${GREEN}" "Trivy found: ${trivy_version}"
-            log "Trivy installation verification passed: ${trivy_version}"
-        else
-            # If Trivy is still not found, try alternative installation methods
-            print_status "${YELLOW}" "Trivy not found after initial installation attempts, trying alternative methods..."
-            
-            # Method 2: Try using package manager based on OS
-            if command -v apt-get &> /dev/null; then
-                print_status "${BLUE}" "Trying APT package manager installation..."
-                if sudo apt-get update && sudo apt-get install -y wget apt-transport-https gnupg lsb-release; then
-                    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-                    echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-                    sudo apt-get update && sudo apt-get install -y trivy
-                    if command -v trivy &> /dev/null; then
-                        print_status "${GREEN}" "Trivy installed successfully via APT"
-                        log "Trivy installation completed successfully via APT"
-                        local trivy_version=$(trivy --version | head -n1)
-                        print_status "${GREEN}" "Trivy found: ${trivy_version}"
-                        log "Trivy installation verification passed: ${trivy_version}"
-                        return 0
-                    fi
-                fi
-            elif command -v yum &> /dev/null; then
-                print_status "${BLUE}" "Trying YUM package manager installation..."
-                if sudo yum install -y wget; then
-                    sudo wget -O /etc/yum.repos.d/trivy.repo https://aquasecurity.github.io/trivy-repo/rpm/releases/trivy.repo
-                    sudo yum -y update && sudo yum -y install trivy
-                    if command -v trivy &> /dev/null; then
-                        print_status "${GREEN}" "Trivy installed successfully via YUM"
-                        log "Trivy installation completed successfully via YUM"
-                        local trivy_version=$(trivy --version | head -n1)
-                        print_status "${GREEN}" "Trivy found: ${trivy_version}"
-                        log "Trivy installation verification passed: ${trivy_version}"
-                        return 0
-                    fi
-                fi
-            elif command -v dnf &> /dev/null; then
-                print_status "${BLUE}" "Trying DNF package manager installation..."
-                if sudo dnf install -y wget; then
-                    sudo wget -O /etc/yum.repos.d/trivy.repo https://aquasecurity.github.io/trivy-repo/rpm/releases/trivy.repo
-                    sudo dnf -y update && sudo dnf -y install trivy
-                    if command -v trivy &> /dev/null; then
-                        print_status "${GREEN}" "Trivy installed successfully via DNF"
-                        log "Trivy installation completed successfully via DNF"
-                        local trivy_version=$(trivy --version | head -n1)
-                        print_status "${GREEN}" "Trivy found: ${trivy_version}"
-                        log "Trivy installation verification passed: ${trivy_version}"
-                        return 0
-                    fi
-                fi
-            fi
-            
-            # Method 3: Direct binary download
-            print_status "${BLUE}" "Trying direct binary download..."
-            local arch=$(uname -m)
-            local os=$(uname -s | tr '[:upper:]' '[:lower:]')
-            
-            case $arch in
-                x86_64) arch="64bit" ;;
-                aarch64) arch="ARM64" ;;
-                armv7l) arch="ARM" ;;
-                *) arch="64bit" ;;
-            esac
-            
-            local trivy_version="v0.47.0"  # 使用稳定版本
-            local download_url="https://github.com/aquasecurity/trivy/releases/download/${trivy_version}/trivy_${trivy_version#v}_${os}-${arch}.tar.gz"
-            
-            print_status "${BLUE}" "Downloading Trivy binary from: ${download_url}"
-            
-            if wget -O /tmp/trivy.tar.gz "${download_url}" || curl -L -o /tmp/trivy.tar.gz "${download_url}"; then
-                cd /tmp && tar zxvf trivy.tar.gz
-                if [ -f trivy ]; then
-                    sudo mv trivy /usr/local/bin/
-                    sudo chmod +x /usr/local/bin/trivy
-                    if command -v trivy &> /dev/null; then
-                        print_status "${GREEN}" "Trivy installed successfully via direct download"
-                        log "Trivy installation completed successfully via direct download"
-                        local trivy_version=$(trivy --version | head -n1)
-                        print_status "${GREEN}" "Trivy found: ${trivy_version}"
-                        log "Trivy installation verification passed: ${trivy_version}"
-                        return 0
-                    fi
-                fi
-            fi
-            
-            # Method 4: 提示手动安装
-            print_status "${RED}" "ERROR: All automatic installation methods failed"
-            print_status "${YELLOW}" "请手动安装 Trivy，可以尝试以下方法："
-            print_status "${YELLOW}" ""
-            print_status "${YELLOW}" "方法1: 使用国内镜像下载 (如果有的话)"
-            print_status "${YELLOW}" "方法2: 手动下载二进制文件"
-            print_status "${YELLOW}" "  wget https://github.com/aquasecurity/trivy/releases/download/v0.47.0/trivy_0.47.0_Linux-64bit.tar.gz"
-            print_status "${YELLOW}" "  tar zxvf trivy_0.47.0_Linux-64bit.tar.gz"
-            print_status "${YELLOW}" "  sudo mv trivy /usr/local/bin/"
-            print_status "${YELLOW}" "  sudo chmod +x /usr/local/bin/trivy"
-            print_status "${YELLOW}" ""
-            print_status "${YELLOW}" "方法3: 使用Docker运行 (如果网络允许)"
-            print_status "${YELLOW}" "  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \\"
-            print_status "${YELLOW}" "    -v $PWD:/workspace aquasec/trivy image your-image"
-            print_status "${YELLOW}" ""
-            print_status "${YELLOW}" "方法4: 联系系统管理员协助安装"
-            print_status "${YELLOW}" ""
-            print_status "${YELLOW}" "安装完成后重新运行此脚本"
-            exit 1
-        fi
-    else
-        local trivy_version=$(trivy --version | head -n1)
-        print_status "${GREEN}" "Trivy found: ${trivy_version}"
-        log "Trivy installation check passed: ${trivy_version}"
+    print_status "${BLUE}" "Checking Trivy Docker image..."
+    
+    # Check if Docker is available first
+    if ! command -v docker &> /dev/null; then
+        print_status "${RED}" "ERROR: Docker is not installed or not in PATH"
+        exit 1
     fi
+    
+    # Try to pull the latest Trivy image
+    print_status "${BLUE}" "Pulling Trivy Docker image (aquasec/trivy:latest)..."
+    if docker pull aquasec/trivy:latest; then
+        print_status "${GREEN}" "Trivy Docker image pulled successfully"
+        log "Trivy Docker image pull completed successfully"
+        
+        # Get Trivy version from container
+        local trivy_version=$(docker run --rm aquasec/trivy:latest --version 2>/dev/null | head -n1)
+        print_status "${GREEN}" "Trivy version: ${trivy_version}"
+        log "Trivy version: ${trivy_version}"
+    else
+        print_status "${RED}" "ERROR: Failed to pull Trivy Docker image"
+        print_status "${YELLOW}" "Please check your Docker installation and network connectivity"
+        log "Error: Failed to pull Trivy Docker image"
+        exit 1
+    fi
+}
+
+# Run Trivy command using Docker container
+run_trivy() {
+    local trivy_cmd="$@"
+    
+    docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v "${REPORT_DIR}:${REPORT_DIR}" \
+        -v /:/host:ro \
+        aquasec/trivy:latest \
+        ${trivy_cmd}
 }
 
 # Check if Docker is running
@@ -190,7 +93,7 @@ check_docker() {
 # Update Trivy database
 update_trivy_db() {
     print_status "${BLUE}" "Updating Trivy vulnerability database..."
-    if trivy image --download-db-only; then
+    if run_trivy image --download-db-only; then
         print_status "${GREEN}" "Trivy database updated successfully"
         log "Trivy database update completed"
     else
@@ -206,17 +109,23 @@ scan_filesystem() {
     
     log "Starting filesystem vulnerability scan"
     
-    local skip_dirs="**/.rustup/**,**/hostedtoolcache/**,**/.cache/**,**/tmp/**,**/var/cache/**,**/usr/share/doc/**"
-    local skip_files="**/*.html,**/*.pdf,**/*.doc,**/*.docx"
+    # Skip large directories that don't need scanning
+    # Include Docker directories to avoid overlay filesystem issues
+    local skip_dirs="**/.rustup/**,**/hostedtoolcache/**,**/.cache/**,**/tmp/**,**/var/cache/**,**/usr/share/doc/**,**/node_modules/**,**/.git/**,**/venv/**,**/__pycache__/**,**/var/lib/docker/**,**/var/lib/containerd/**,**/proc/**,**/sys/**,**/dev/**,**/run/**"
+    
+    # Skip large file types to avoid high memory consumption
+    local skip_files="**/*.html,**/*.pdf,**/*.doc,**/*.docx,**/*.ppt,**/*.pptx,**/*.xls,**/*.xlsx,**/*.zip,**/*.tar,**/*.tar.gz,**/*.tgz,**/*.tar.bz2,**/*.rar,**/*.7z,**/*.iso,**/*.img,**/*.dmg,**/*.exe,**/*.dll,**/*.so,**/*.dylib,**/*.bin,**/*.dat,**/*.db,**/*.sqlite,**/*.sqlite3,**/*.log,**/*.mp4,**/*.avi,**/*.mkv,**/*.mov,**/*.mp3,**/*.wav,**/*.flac,**/*.jpg,**/*.jpeg,**/*.png,**/*.gif,**/*.bmp,**/*.svg,**/*.ico,**/*.woff,**/*.woff2,**/*.ttf,**/*.eot,**/*.otf"
 
-    # Scan the root filesystem
-    if trivy fs \
+    # Scan the root filesystem using Docker container
+    # Mount the host root filesystem to /host in the container
+    # Use --scanners vuln to focus on vulnerability scanning only
+    if run_trivy fs \
         --timeout 3600s \
         --skip-dirs "${skip_dirs}" \
         --skip-files "${skip_files}" \
-        --offline-scan \
+        --scanners vuln \
         --format json \
-        --output "${fs_report}" /; then
+        --output "${fs_report}" /host; then
         print_status "${GREEN}" "Filesystem scan completed"
         
         # Parse and display critical vulnerabilities
@@ -280,7 +189,8 @@ scan_docker_images() {
         local image_report="${REPORT_DIR}/image_$(echo "${image}" | tr '/:' '_')_${TIMESTAMP}.json"
         
         # Scan for CRITICAL and HIGH vulnerabilities only to speed up the process
-        if trivy image --format json --severity CRITICAL,HIGH,MEDIUM --output "${image_report}" "${image}" 2>/dev/null; then
+        # Use Docker container to scan Docker images
+        if run_trivy image --format json --severity CRITICAL,HIGH,MEDIUM --output "${image_report}" "${image}" 2>/dev/null; then
             
             # Parse vulnerabilities
             local critical_count=$(jq '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL") | .VulnerabilityID' "${image_report}" 2>/dev/null | wc -l)
@@ -360,8 +270,8 @@ generate_report() {
     echo "}" >> "${REPORT_FILE}"
     
     # Generate HTML report if possible
-    if command -v trivy &> /dev/null; then
-        trivy convert --format template --template "@contrib/html.tpl" --output "${HTML_REPORT}" "${REPORT_FILE}" 2>/dev/null || true
+    if docker image inspect aquasec/trivy:latest &> /dev/null; then
+        run_trivy convert --format template --template "@contrib/html.tpl" --output "${HTML_REPORT}" "${REPORT_FILE}" 2>/dev/null || true
     fi
     
     print_status "${GREEN}" "Reports generated:"
@@ -454,11 +364,11 @@ OPTIONS:
     -v, --version       Show script version
 
 REQUIREMENTS:
-    - Trivy will be automatically installed if not present
-    - Docker must be running (for image scans)
+    - Docker must be installed and running
+    - Docker image aquasec/trivy will be pulled automatically
     - jq must be installed for JSON processing
     - Sufficient disk space in /tmp for reports
-    - curl/wget must be available for Trivy installation
+    - Access to Docker socket (/var/run/docker.sock)
 
 REPORTS:
     - JSON reports: ${REPORT_DIR}/
@@ -474,7 +384,8 @@ EXIT CODES:
 EXAMPLES:
     ${SCRIPT_NAME}                     # Run full scan
     ${SCRIPT_NAME} --help              # Show this help
-    ./install_trivy_backup.sh          # Manual Trivy installation with backup sources
+    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+        -v /tmp:/tmp aquasec/trivy image <image-name>  # Manual scan example
 
 For more information, visit: https://www.websoft9.com/
 
