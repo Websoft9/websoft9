@@ -1,361 +1,739 @@
 # GitHub Copilot Instructions for Websoft9
 
-## 项目概述
+## Project Overview
 
-Websoft9 是一个基于容器化的应用管理平台，旨在简化企业应用的部署、管理和维护。该项目由 Cockpit 系统管理界面和四个核心容器服务组成，为用户提供完整的应用生命周期管理解决方案。
+Websoft9 is a containerized application management platform consisting of:
+- **Cockpit**: Web-based system management interface
+- **Four Core Containers**:
+  - **AppHub**: Custom-built application hub (Python + FastAPI) - our main service
+  - **Gitea**: Git repository service
+  - **Portainer**: Docker container management UI
+  - **Nginx Proxy Manager**: Reverse proxy and SSL management
 
-### 核心架构组件
+## Tech Stack
 
-1. **Cockpit** - 系统管理界面，提供 Web 控制台
-2. **AppHub** - 自研应用管理服务 (Python + FastAPI)
-3. **Deployment** - 基于 Portainer 的容器部署管理
-4. **Git** - 基于 Gitea 的代码仓库服务
-5. **Proxy** - 基于 Nginx 的反向代理和网关服务
+### AppHub Service (Primary Development Focus)
+- **Language**: Python 3.11+
+- **Framework**: FastAPI
+- **Async**: asyncio-based for non-blocking operations
+- **Validation**: Pydantic models
+- **Database**: SQLite (with option for PostgreSQL)
+- **Docker**: Containerized deployment
 
-## 技术栈
+### Infrastructure
+- **Orchestration**: Docker Compose
+- **Proxy**: Nginx-based reverse proxy
+- **System Management**: Cockpit
+- **Version Control**: Gitea (self-hosted)
+- **Container Management**: Portainer
 
-### 主要技术
-- **后端**: Python 3.11+, FastAPI, Docker, Docker Compose
-- **前端**: HTML5, JavaScript, Bootstrap, CSS3
-- **数据库**: SQLite, PostgreSQL (可选)
-- **容器**: Docker, Docker Compose
-- **代理**: Nginx, 反向代理配置
-- **系统**: Linux (主要支持 Ubuntu, CentOS, Debian)
+## Code Standards
 
-### 开发工具
-- **API文档**: FastAPI 自动生成的 OpenAPI/Swagger
-- **日志**: Python logging, 结构化日志
-- **测试**: pytest (Python 测试框架)
-- **构建**: Docker 多阶段构建
+### Python/FastAPI Best Practices
 
-## 项目结构
+1. **Follow PEP 8** - Use consistent Python style
+2. **Type Hints**: Always use type annotations
+3. **Async First**: Prefer `async/await` for I/O operations
+4. **Pydantic Models**: Use for request/response validation
+5. **Dependency Injection**: Leverage FastAPI's `Depends()`
 
-```
-websoft9/
-├── apphub/                     # 主要应用服务 (Python FastAPI)
-│   ├── src/                    # 源代码目录
-│   │   ├── api/v1/            # API 路由定义
-│   │   ├── core/              # 核心业务逻辑
-│   │   ├── schemas/           # Pydantic 模型定义
-│   │   └── main.py            # FastAPI 应用入口
-│   ├── requirements.txt        # Python 依赖
-│   └── README.md              # 服务文档
-├── docker/                    # Docker 容器配置
-│   ├── docker-compose.yml     # 主要服务编排
-│   ├── proxy/config/          # Nginx 代理配置
-│   └── .env                   # 环境变量配置
-├── cockpit/                   # Cockpit 系统管理配置
-├── scripts/                   # 自动化脚本
-├── tools/                     # 工具和实用程序
-└── docs/                      # 项目文档
-```
-
-## 开发指南
-
-### 代码规范
-
-#### Python 代码规范
-- **使用 Python 3.11+ 特性**，包括类型提示和异步编程
-- **遵循 PEP 8** 代码风格标准
-- **使用 FastAPI 最佳实践**:
-  - 路径操作函数使用类型提示
-  - 使用 Pydantic 模型进行数据验证
-  - 实现适当的错误处理和状态码
-- **异步编程**: 优先使用 `async/await` 模式
-- **日志记录**: 使用结构化日志，包含适当的日志级别
+### Example Code Pattern
 
 ```python
-# ✅ 好的示例
-from fastapi import FastAPI, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
-class ItemRequest(BaseModel):
+# Pydantic Schema
+class AppCreate(BaseModel):
     name: str
-    description: str | None = None
+    description: Optional[str] = None
+    image: str
 
-@app.post("/api/v1/items", response_model=ItemResponse)
-async def create_item(item: ItemRequest) -> ItemResponse:
-    """创建新项目"""
+class AppResponse(BaseModel):
+    id: str
+    name: str
+    status: str
+
+# Router
+router = APIRouter(prefix="/api/v1/apps", tags=["applications"])
+
+@router.post("/", response_model=AppResponse, status_code=status.HTTP_201_CREATED)
+async def create_application(
+    app: AppCreate,
+    current_user: dict = Depends(get_current_user)
+) -> AppResponse:
+    """
+    Create a new application instance
+    
+    Args:
+        app: Application configuration
+        current_user: Authenticated user from dependency
+        
+    Returns:
+        AppResponse with created application details
+        
+    Raises:
+        HTTPException: If creation fails
+    """
     try:
-        # 业务逻辑
-        result = await item_service.create(item)
-        logger.info(f"Item created: {result.id}")
+        result = await app_service.create(app, current_user)
+        logger.info(f"Application created: {result.id}")
         return result
     except ValueError as e:
-        logger.error(f"Invalid item data: {e}")
+        logger.error(f"Invalid application config: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid item data"
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.exception(f"Failed to create application: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
         )
 ```
 
-#### Docker 和配置规范
-- **容器命名**: 使用 `websoft9-{service}` 格式
-- **网络**: 所有服务使用 `websoft9` 网络
-- **卷管理**: 使用命名卷进行数据持久化
-- **环境变量**: 敏感配置使用 `.env` 文件
+## Project Structure
 
-#### API 设计规范
-- **RESTful 设计**: 遵循 REST API 设计原则
-- **版本控制**: API 路径包含版本号 (`/api/v1/`)
-- **响应格式**: 统一的 JSON 响应格式
-- **错误处理**: 使用标准 HTTP 状态码和错误消息
-
-### 常见开发任务
-
-#### 添加新的 API 端点
-1. 在 `apphub/src/api/v1/routers/` 中创建新路由文件
-2. 定义 Pydantic 模型在 `schemas/` 目录
-3. 实现业务逻辑在 `core/` 目录
-4. 添加适当的错误处理和日志记录
-5. 更新 API 文档
-
-#### 修改 Nginx 配置
-1. 编辑 `docker/proxy/config/initproxy.conf`
-2. 测试配置: `docker exec websoft9-proxy nginx -t`
-3. 重新加载: `docker exec websoft9-proxy nginx -s reload`
-
-#### 容器服务管理
-```bash
-# 重启所有服务
-docker-compose -f docker/docker-compose.yml restart
-
-# 重启特定服务
-docker-compose -f docker/docker-compose.yml restart apphub
-
-# 查看日志
-docker logs websoft9-apphub --tail 50 -f
-
-# 进入容器调试
-docker exec -it websoft9-apphub bash
+```
+websoft9/
+├── apphub/                      # Main FastAPI application
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── v1/             # API version 1 routes
+│   │   │       ├── routers/    # Endpoint definitions
+│   │   │       └── deps.py     # Dependencies (auth, db, etc.)
+│   │   ├── core/               # Business logic & services
+│   │   ├── schemas/            # Pydantic models
+│   │   ├── models/             # Database models
+│   │   ├── db/                 # Database utilities
+│   │   └── main.py             # FastAPI app entry point
+│   ├── tests/                  # pytest test suite
+│   ├── requirements.txt
+│   └── Dockerfile
+├── docker/
+│   ├── docker-compose.yml      # Service orchestration
+│   ├── .env                    # Environment variables
+│   └── proxy/
+│       └── config/             # Nginx configurations
+├── cockpit/                    # Cockpit configurations
+├── scripts/                    # Automation scripts
+└── docs/                       # Documentation
 ```
 
-## 开发工作流
+## Development Guidelines
 
-### 本地开发环境设置
+### Adding New API Endpoints
+
+1. **Define Schema** in `apphub/src/schemas/`
+   ```python
+   # apphub/src/schemas/deployment.py
+   from pydantic import BaseModel, Field
+   
+   class DeploymentCreate(BaseModel):
+       app_id: str = Field(..., description="Application ID")
+       config: dict = Field(default_factory=dict)
+   ```
+
+2. **Implement Service Logic** in `apphub/src/core/`
+   ```python
+   # apphub/src/core/deployment_service.py
+   async def deploy_application(app_id: str, config: dict) -> dict:
+       # Business logic here
+       pass
+   ```
+
+3. **Create Router** in `apphub/src/api/v1/routers/`
+   ```python
+   # apphub/src/api/v1/routers/deployments.py
+   from fastapi import APIRouter
+   
+   router = APIRouter(prefix="/deployments", tags=["deployments"])
+   
+   @router.post("/")
+   async def create_deployment(...):
+       pass
+   ```
+
+4. **Add Tests** in `tests/`
+   ```python
+   # tests/test_deployments.py
+   import pytest
+   from httpx import AsyncClient
+   
+   @pytest.mark.asyncio
+   async def test_create_deployment(client: AsyncClient):
+       response = await client.post("/api/v1/deployments", json={...})
+       assert response.status_code == 201
+   ```
+
+### Docker Container Management
+
+When working with Docker operations in AppHub:
+
+```python
+import docker
+from docker.errors import NotFound, APIError
+
+async def restart_container(container_name: str) -> dict:
+    """Restart a Docker container"""
+    try:
+        client = docker.from_env()
+        container = client.containers.get(container_name)
+        container.restart()
+        return {"status": "success", "container": container_name}
+    except NotFound:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Container {container_name} not found"
+        )
+    except APIError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Docker API error: {str(e)}"
+        )
+```
+
+### Error Handling Pattern
+
+Always use structured error handling:
+
+```python
+try:
+    result = await service.perform_operation()
+    return result
+except ValueError as e:
+    # Client error - bad input
+    logger.warning(f"Invalid input: {e}")
+    raise HTTPException(status_code=400, detail=str(e))
+except PermissionError as e:
+    # Authorization error
+    logger.warning(f"Permission denied: {e}")
+    raise HTTPException(status_code=403, detail="Permission denied")
+except NotFoundError as e:
+    # Resource not found
+    raise HTTPException(status_code=404, detail=str(e))
+except Exception as e:
+    # Unexpected server error
+    logger.exception(f"Unexpected error: {e}")
+    raise HTTPException(status_code=500, detail="Internal server error")
+```
+
+### Logging Standards
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Info: normal operations
+logger.info(f"Application {app_id} started successfully")
+
+# Warning: recoverable issues
+logger.warning(f"Deprecated API endpoint called: {endpoint}")
+
+# Error: operation failures
+logger.error(f"Failed to connect to database: {error}")
+
+# Exception: with full stack trace
+logger.exception(f"Unexpected error in {function_name}")
+```
+
+## Testing Guidelines
+
+### Test Structure
+
+```python
+import pytest
+from httpx import AsyncClient
+from fastapi.testclient import TestClient
+
+@pytest.fixture
+async def client():
+    """Async HTTP client fixture"""
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
+
+@pytest.mark.asyncio
+async def test_get_application(client: AsyncClient):
+    """Test retrieving an application"""
+    response = await client.get("/api/v1/apps/test-app")
+    assert response.status_code == 200
+    assert response.json()["name"] == "test-app"
+
+@pytest.mark.asyncio
+async def test_create_application_invalid(client: AsyncClient):
+    """Test creating application with invalid data"""
+    response = await client.post("/api/v1/apps", json={"invalid": "data"})
+    assert response.status_code == 422
+```
+
+### Running Tests
+
 ```bash
-# 1. 克隆项目
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=apphub --cov-report=html
+
+# Run specific test file
+pytest tests/test_apps.py
+
+# Run with verbose output
+pytest -v
+```
+
+## Docker & Container Guidelines
+
+### Dockerfile Best Practices
+
+```dockerfile
+# Use specific Python version
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies separately for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Use non-root user
+RUN useradd -m appuser
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Run application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### Docker Compose Service Definition
+
+```yaml
+services:
+  apphub:
+    build: ./apphub
+    container_name: websoft9-apphub
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
+    volumes:
+      - apphub-data:/app/data
+    networks:
+      - websoft9
+    depends_on:
+      - proxy
+```
+
+### Container Communication
+
+All Websoft9 services communicate via the `websoft9` Docker network:
+
+```python
+# Accessing other services from AppHub
+GITEA_URL = "http://websoft9-gitea:3000"
+PORTAINER_URL = "http://websoft9-portainer:9000"
+PROXY_URL = "http://websoft9-proxy:80"
+```
+
+## Security Best Practices
+
+### 1. Never Hardcode Secrets
+
+```python
+# ❌ BAD
+API_KEY = "hardcoded-secret-key"
+
+# ✅ GOOD
+import os
+API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    raise ValueError("API_KEY environment variable not set")
+```
+
+### 2. Input Validation
+
+```python
+from pydantic import BaseModel, validator, Field
+
+class AppConfig(BaseModel):
+    name: str = Field(..., min_length=3, max_length=50)
+    port: int = Field(..., ge=1024, le=65535)
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v.replace('-', '').replace('_', '').isalnum():
+            raise ValueError('Name must be alphanumeric')
+        return v
+```
+
+### 3. Authentication & Authorization
+
+```python
+from fastapi import Depends, Header, HTTPException
+
+async def verify_api_key(x_api_key: str = Header(...)) -> str:
+    """Verify API key from request header"""
+    stored_key = os.getenv("API_KEY")
+    if x_api_key != stored_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key"
+        )
+    return x_api_key
+
+@router.get("/protected")
+async def protected_route(api_key: str = Depends(verify_api_key)):
+    return {"message": "Access granted"}
+```
+
+### 4. CORS Configuration
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://yourdomain.com"],  # Specific origins only
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+```
+
+## Working with External Services
+
+### Gitea Integration
+
+```python
+import httpx
+
+class GiteaClient:
+    def __init__(self, base_url: str, token: str):
+        self.base_url = base_url
+        self.headers = {"Authorization": f"token {token}"}
+    
+    async def create_repository(self, name: str, private: bool = False):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/api/v1/user/repos",
+                headers=self.headers,
+                json={"name": name, "private": private}
+            )
+            response.raise_for_status()
+            return response.json()
+```
+
+### Portainer Integration
+
+```python
+class PortainerClient:
+    def __init__(self, base_url: str, api_key: str):
+        self.base_url = base_url
+        self.headers = {"X-API-Key": api_key}
+    
+    async def list_containers(self, endpoint_id: int = 1):
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/api/endpoints/{endpoint_id}/docker/containers/json",
+                headers=self.headers
+            )
+            return response.json()
+```
+
+## Common Development Tasks
+
+### Starting Development Environment
+
+```bash
+# Clone repository
 git clone https://github.com/websoft9/websoft9.git
 cd websoft9
 
-# 2. 设置 Python 环境 (AppHub)
-cd apphub
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# Start all services
+docker-compose -f docker/docker-compose.yml up -d
 
-# 3. 启动开发服务器
-cd src
-uvicorn main:app --reload --host 0.0.0.0 --port 8080
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f apphub
 
-# 4. 启动完整环境
-cd ../docker
-docker-compose up -d
+# Stop services
+docker-compose -f docker/docker-compose.yml down
 ```
 
-### 调试和测试
+### Local AppHub Development
 
-#### AppHub (FastAPI) 调试
-- **API 文档**: 访问 `http://localhost:8080/api/docs`
-- **日志调试**: 使用 `logger.debug()` 添加调试信息
-- **交互式调试**: 使用 `pytest` 运行测试
+```bash
+# Navigate to apphub
+cd apphub
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -r requirements-dev.txt  # Development dependencies
+
+# Run locally
+cd src
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Access API docs
+# http://localhost:8000/docs (Swagger UI)
+# http://localhost:8000/redoc (ReDoc)
+```
+
+### Debugging
 
 ```python
-# 在代码中添加调试断点
+# Add breakpoint in code
 import pdb; pdb.set_trace()
 
-# 或者使用现代调试器
+# Or use ipdb for better experience
 import ipdb; ipdb.set_trace()
+
+# Use logging for production debugging
+logger.debug(f"Variable value: {variable}")
 ```
 
-#### 容器服务调试
-```bash
-# 检查容器状态
-docker ps -a
+## AI-Assisted Development Tips
 
-# 查看服务健康状态
-docker-compose ps
+### Effective Prompts for GitHub Copilot
 
-# 进入容器调试
-docker exec -it websoft9-apphub /bin/bash
-```
+1. **Be Specific with Context**
+   ```python
+   # Create a FastAPI endpoint for Websoft9 AppHub that retrieves application status
+   # Should check Docker container status and return JSON response
+   # Include error handling for container not found
+   ```
 
-### 部署和发布
+2. **Provide Type Hints**
+   ```python
+   async def get_app_status(app_id: str) -> dict:
+       # Copilot will generate better code with type hints
+   ```
 
-#### 构建和测试
-```bash
-# 构建 Docker 镜像
-docker build -t websoft9dev/apphub:latest apphub/
+3. **Use Descriptive Function Names**
+   ```python
+   # Good: Copilot understands intent
+   async def deploy_application_to_docker_container(config: DeploymentConfig):
+       
+   # Less effective
+   async def deploy(c):
+   ```
 
-# 运行集成测试
-docker-compose -f docker/docker-compose.yml up -d
-# 运行测试套件
-pytest apphub/tests/
-```
+### Code Generation Examples
 
-## AI 辅助开发建议
+When asking Copilot to generate code:
 
-### 使用 GitHub Copilot 时的最佳实践
-
-#### 1. 上下文提供
-为 Copilot 提供清晰的上下文信息：
 ```python
-# 为 Websoft9 AppHub 创建一个新的 API 端点
-# 用于管理应用部署状态，支持启动、停止、重启操作
-# 需要包含权限验证和错误处理
-```
+# Prompt: "Create an async function to backup Websoft9 application data"
+# Expected pattern:
 
-#### 2. 类型提示和文档字符串
-```python
-async def deploy_application(
-    app_id: str, 
-    deployment_config: DeploymentConfig
-) -> DeploymentResult:
+async def backup_application_data(
+    app_id: str,
+    backup_path: str,
+    include_logs: bool = True
+) -> dict:
     """
-    部署应用到 Websoft9 平台
+    Backup application data to specified path
     
     Args:
-        app_id: 应用唯一标识符
-        deployment_config: 部署配置信息
-    
-    Returns:
-        DeploymentResult: 部署结果和状态信息
+        app_id: Application identifier
+        backup_path: Destination path for backup
+        include_logs: Whether to include log files
         
-    Raises:
-        HTTPException: 当部署失败时
+    Returns:
+        dict: Backup metadata including path, size, timestamp
     """
+    # Implementation...
 ```
 
-#### 3. 常用代码模式
+## Performance Optimization
 
-##### FastAPI 路由模式
+### Async Operations
+
 ```python
-# Websoft9 标准 API 路由模式
-@router.get("/apps/{app_id}/status")
-async def get_app_status(
-    app_id: str = Path(..., description="应用ID"),
-    current_user: User = Depends(get_current_user)
-) -> AppStatus:
-    """获取应用状态"""
+import asyncio
+
+# ✅ GOOD: Concurrent operations
+async def fetch_all_data():
+    results = await asyncio.gather(
+        fetch_apps(),
+        fetch_containers(),
+        fetch_repositories()
+    )
+    return results
+
+# ❌ BAD: Sequential operations
+async def fetch_all_data():
+    apps = await fetch_apps()
+    containers = await fetch_containers()
+    repos = await fetch_repositories()
+    return [apps, containers, repos]
 ```
 
-##### 错误处理模式
+### Database Queries
+
 ```python
-# Websoft9 标准错误处理
-try:
-    result = await service.operation()
-    return result
-except ServiceError as e:
-    logger.error(f"Service error: {e}")
-    raise HTTPException(status_code=500, detail="Internal service error")
-except ValueError as e:
-    logger.warning(f"Invalid input: {e}")
-    raise HTTPException(status_code=400, detail=str(e))
+# Use connection pooling
+from databases import Database
+
+database = Database(DATABASE_URL, min_size=5, max_size=20)
+
+# Batch operations when possible
+async def get_multiple_apps(app_ids: list[str]):
+    query = "SELECT * FROM apps WHERE id = ANY(:ids)"
+    return await database.fetch_all(query=query, values={"ids": app_ids})
 ```
 
-##### Docker 操作模式
+### Caching
+
 ```python
-# Websoft9 Docker 容器操作模式
-import docker
-client = docker.from_env()
+from functools import lru_cache
+from datetime import datetime, timedelta
 
-try:
-    container = client.containers.get(container_name)
-    container.restart()
-    logger.info(f"Container {container_name} restarted successfully")
-except docker.errors.NotFound:
-    raise HTTPException(status_code=404, detail="Container not found")
+# Simple in-memory cache
+_cache = {}
+
+async def get_system_info(force_refresh: bool = False):
+    cache_key = "system_info"
+    
+    if not force_refresh and cache_key in _cache:
+        cached_data, timestamp = _cache[cache_key]
+        if datetime.now() - timestamp < timedelta(minutes=5):
+            return cached_data
+    
+    # Fetch fresh data
+    data = await fetch_system_info()
+    _cache[cache_key] = (data, datetime.now())
+    return data
 ```
 
-### 提示词建议
+## Commit & PR Guidelines
 
-#### 针对 Websoft9 的特定提示
-- "为 Websoft9 AppHub 创建一个管理 Docker 容器的 API"
-- "实现 Websoft9 应用生命周期管理功能"
-- "为 Websoft9 代理服务添加新的路由配置"
-- "创建 Websoft9 应用部署的状态监控功能"
+### Commit Message Format
 
-#### 最佳提示格式
+Follow Conventional Commits:
+
 ```
-# 上下文: 在 Websoft9 AppHub (FastAPI) 中
-# 任务: 创建应用备份管理 API
-# 要求: 
-# - 支持创建、删除、恢复备份
-# - 包含进度跟踪
-# - 异步操作
-# - 完整的错误处理
-# - 符合 Websoft9 代码规范
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
 ```
 
-## 常见问题和解决方案
+Types:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
 
-### 开发常见问题
+Examples:
+```
+feat(apphub): add application backup endpoint
 
-#### Q: API 认证失败
-A: 检查 `x-api-key` 请求头是否正确设置，确认 API 密钥配置：
-```python
-# 在 AppHub 中验证 API 密钥
-API_KEY = ConfigManager().get_value("api_key", "key")
+Implement POST /api/v1/apps/{id}/backup endpoint that creates
+a backup of application data and configuration.
+
+Closes #123
+
+fix(proxy): resolve CORS issue for Portainer access
+
+Update Nginx configuration to properly set Origin headers
+for Portainer container access.
+
+Fixes #456
 ```
 
-#### Q: 容器间通信问题
-A: 确保所有容器在同一 Docker 网络 (`websoft9`)：
-```yaml
-networks:
-  default:
-    name: websoft9
-    external: true
+### Pull Request Template
+
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+
+## Checklist
+- [ ] Code follows project style guidelines
+- [ ] Self-review completed
+- [ ] Comments added for complex logic
+- [ ] Documentation updated
+- [ ] No new warnings generated
 ```
 
-#### Q: 代理配置不生效
-A: 检查 Nginx 配置并重新加载：
+## Troubleshooting
+
+### Common Issues
+
+**Issue**: Container communication fails
 ```bash
-docker exec websoft9-proxy nginx -t
-docker exec websoft9-proxy nginx -s reload
+# Check network
+docker network inspect websoft9
+
+# Verify container is on network
+docker inspect websoft9-apphub | grep NetworkMode
 ```
 
-### 性能优化建议
+**Issue**: Port already in use
+```bash
+# Find process using port
+lsof -i :8000  # Linux/Mac
+netstat -ano | findstr :8000  # Windows
 
-1. **异步编程**: 在 FastAPI 中使用异步操作
-2. **连接池**: 配置数据库连接池
-3. **缓存策略**: 实现适当的缓存机制
-4. **日志优化**: 避免过多的调试日志在生产环境
-
-### 安全考虑
-
-1. **API 密钥管理**: 使用环境变量存储敏感信息
-2. **输入验证**: 使用 Pydantic 模型验证输入
-3. **CORS 配置**: 正确配置跨域资源共享
-4. **容器安全**: 使用非 root 用户运行服务
-
-## 贡献指南
-
-### 提交代码前检查清单
-- [ ] 代码遵循项目规范
-- [ ] 添加了适当的类型提示
-- [ ] 包含单元测试
-- [ ] 更新了相关文档
-- [ ] 通过了所有测试
-- [ ] 适当的日志记录
-
-### Git 提交格式
-```
-<type>(<scope>): <description>
-
-feat(apphub): add application backup API
-fix(proxy): resolve CORS issue for deployment service
-docs(readme): update installation instructions
+# Stop conflicting service or change port in docker-compose.yml
 ```
 
-### 代码审查关注点
-1. **安全性**: API 权限验证，输入验证
-2. **性能**: 异步操作，数据库查询优化
-3. **可维护性**: 代码清晰度，注释完整性
-4. **测试覆盖率**: 关键业务逻辑的测试
+**Issue**: Database connection fails
+```python
+# Add connection retry logic
+import asyncio
+
+async def connect_with_retry(max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            await database.connect()
+            return
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(2 ** attempt)
+```
+
+## Resources
+
+- FastAPI Documentation: https://fastapi.tiangolo.com/
+- Pydantic Documentation: https://docs.pydantic.dev/
+- Docker Documentation: https://docs.docker.com/
+- Python asyncio: https://docs.python.org/3/library/asyncio.html
+- Websoft9 Project: https://github.com/websoft9/websoft9
 
 ---
 
-这份指南将帮助您和 AI 助手更有效地协作开发 Websoft9 项目。请根据项目发展持续更新此文档。
+**Last Updated**: 2025-01-17
+
+This guide is maintained by the Websoft9 development team. For questions or suggestions, please open an issue on GitHub.
