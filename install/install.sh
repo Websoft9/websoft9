@@ -739,6 +739,26 @@ update_prestart(){
     sudo systemctl stop cockpit.socket && sudo systemctl stop cockpit && sudo systemctl stop websoft9
 }
 
+# Configure Docker service with custom environment variables
+configure_docker_service() {
+  echo "[Websoft9] - Configuring Docker service with custom environment variables"
+
+  # Create systemd drop-in directory
+  sudo mkdir -p /etc/systemd/system/docker.service.d
+
+  # Create configuration file with custom environment variable
+  sudo tee /etc/systemd/system/docker.service.d/custom-environment.conf <<-'EOF'
+[Service]
+Environment=DOCKER_MIN_API_VERSION=1.24
+EOF
+
+  # Reload systemd and restart Docker service
+  sudo systemctl daemon-reload
+  sudo systemctl restart docker
+
+  echo "[Websoft9] - Docker service configured with DOCKER_MIN_API_VERSION=1.24"
+}
+
 #--------------- main-----------------------------------------
 log_path="$install_path/install.log"
 check_ports $http_port $https_port $console_port | tee -a  $log_path
@@ -754,6 +774,9 @@ install_tools | tee -a  $log_path
 check_tools
 
 download_source_and_checkimage | tee -a  $log_path
+
+# configure docker service
+configure_docker_service
 
 check_websoft9_artifact
 
