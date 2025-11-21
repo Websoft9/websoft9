@@ -189,10 +189,12 @@ install_docker_official() {
       lsb_dist=$(echo "$output" | grep "ERROR: Unsupported distribution" | awk -F"'" '{print $2}')
       echo "[Websoft9] - Detected unsupported distribution: $lsb_dist. Executing custom operation."
       install_docker_custom "$lsb_dist"
+      configure_docker_service
       exit 1
     elif echo "$output" | grep -q "ERROR"; then
       echo "[Websoft9] - Docker installation failed with command: $cmd"
       install_docker_custom "$lsb_dist"
+      configure_docker_service
       exit 1
     elif command_exists docker && docker compose version >/dev/null 2>&1; then
       echo "[Websoft9] - Docker installation succeeded with command: $cmd"
@@ -204,6 +206,7 @@ install_docker_official() {
   
   echo "[Websoft9] - Docker installation failed after use official script. Attempting custom installation."
   install_docker_custom "$lsb_dist"
+  configure_docker_service
   exit 1
 }
 
