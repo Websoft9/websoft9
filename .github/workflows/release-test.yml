@@ -1,0 +1,110 @@
+name: Release Deployment and Security Scan
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy-and-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Determine release type and set channel
+      id: release_type
+      run: |
+        if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
+          echo "channel=rc" >> $GITHUB_OUTPUT
+          echo "release_type=RC" >> $GITHUB_OUTPUT
+        else
+          echo "channel=release" >> $GITHUB_OUTPUT
+          echo "release_type=Official" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Display release info
+      run: |
+        echo "Processing ${{ steps.release_type.outputs.release_type }} Release"
+        echo "Release Tag: ${{ github.event.release.tag_name }}"
+        echo "Install Channel: ${{ steps.release_type.outputs.channel }}"
+        
+    - name: Download and run install script with sudo
+      run: |
+        wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh
+        sudo bash install.sh --channel ${{ steps.release_type.outputs.channel }}
+    
+    - name: Wait for services to initialize
+      run: |
+        echo "Waiting 30 seconds for all services to fully start..."
+        sleep 30
+    
+    - name: Check Cockpit accessibility (Port 9000)
+      run: |
+        echo "Checking if Cockpit is accessible on port 9000..."
+        if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:9000 > /dev/null 2>&1 || \
+           curl -f -s -k -o /dev/null http://localhost:9000 > /dev/null 2>&1; then
+          echo "✅ Cockpit is accessible on port 9000"
+        else
+          echo "❌ ERROR: Cockpit access failed on port 9000"
+          exit 1
+        fi
+    
+    - name: Check container status
+      run: |
+        echo "Checking status of critical containers..."
+        containers=("websoft9-apphub" "websoft9-proxy" "websoft9-git" "websoft9-deployment")
+        failed_containers=()
+        
+        for container in "${containers[@]}"; do
+          if docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
+            status=$(docker inspect --format='{{.State.Status}}' ${container})
+            health=$(docker inspect --format='{{.State.Health.Status}}' ${container} 2>/dev/null || echo "no-healthcheck")
+            
+            if [ "$status" = "running" ]; then
+              if [ "$health" = "healthy" ] || [ "$health" = "no-healthcheck" ]; then
+                echo "✅ ${container}: status=${status}, health=${health}"
+              else
+                echo "⚠️  ${container}: status=${status}, health=${health} (unhealthy)"
+                failed_containers+=("${container}:health=${health}")
+              fi
+            else
+              echo "❌ ${container}: status=${status}"
+              failed_containers+=("${container}:status=${status}")
+            fi
+          else
+            echo "❌ ${container}: NOT FOUND"
+            failed_containers+=("${container}:not-found")
+          fi
+        done
+        
+        if [ ${#failed_containers[@]} -gt 0 ]; then
+          echo ""
+          echo "========================================="
+          echo "ERROR: The following containers have issues:"
+          for item in "${failed_containers[@]}"; do
+            echo "  - $item"
+          done
+          echo "========================================="
+          exit 1
+        else
+          echo ""
+          echo "✅ All containers are running normally"
+        fi
+    
+    - name: Display container logs on failure
+      if: failure()
+      run: |
+        echo "========================================="
+        echo "Container logs for debugging:"
+        echo "========================================="
+        containers=("websoft9-apphub" "websoft9-proxy" "websoft9-git" "websoft9-deployment")
+        for container in "${containers[@]}"; do
+          if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
+            echo ""
+            echo "--- Logs for ${container} ---"
+            docker logs --tail 50 ${container} || echo "Failed to get logs for ${container}"
+          fi
+        done
+      
+      
