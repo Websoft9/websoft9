@@ -5,6 +5,7 @@ After=network.target docker.service
 
 [Service]
 WorkingDirectory=/opt/websoft9/systemd
+ExecStartPre=/bin/bash /opt/websoft9/systemd/update_issue.sh
 ExecStart=/bin/bash /opt/websoft9/systemd/start_up.sh
 Restart=on-failure
 Type=simple
