@@ -1,8 +1,14 @@
-name: Release Deployment and Security Scan
+name: Auto Test - Release Deployment
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to test'
+        required: true
+        type: string
 
 jobs:
   deploy-and-scan:
@@ -106,5 +112,3 @@ jobs:
             docker logs --tail 50 ${container} || echo "Failed to get logs for ${container}"
           fi
         done
-      
-      
