@@ -27,7 +27,7 @@ Get  Support: https://www.websoft9.com
 
 --------------------------------------------------
 Hostname: \n
-OS： \s \v \n  \r \m
+OS: \s \v \n  \r \m
 CPU core: CPU_CORES_PLACEHOLDER
 Memory usage: MEMORY_USAGE_PLACEHOLDER
 Disk: DISK_SIZE_PLACEHOLDER, DISK_USAGE_PLACEHOLDER usage
@@ -39,7 +39,7 @@ URL: http://IP_ADDRESS_PLACEHOLDER:9000
 Username: websoft9
 
 
-Latest starting time: \t 
+Latest starting time: \d \t
 
 \l
 EOF
