@@ -1,6 +1,7 @@
 ### enhancement:
 
-- update portainer and gitea to latest #669
+- update /etc/issue with websoft9 content #674
+
 
 
 
