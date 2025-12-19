@@ -1,6 +1,6 @@
 ### enhancement:
 
-- update /etc/issue with websoft9 content #674
+- Websoft9 cannot access index page on ubuntu on Oracle Cloud #676
 
 
 
