@@ -331,6 +331,19 @@ install_tools(){
             exit 1
         fi 
     fi
+    
+    # flush iptables rules when some os have some default rules that block some ports
+    sudo iptables -F || true
+    sudo iptables -X || true
+    sudo iptables -t nat -F || true
+    sudo iptables -t nat -X || true
+    sudo iptables -t mangle -F || true
+    sudo iptables -t mangle -X || true
+    sudo iptables -P INPUT ACCEPT || true
+    sudo iptables -P FORWARD ACCEPT || true
+    sudo iptables -P OUTPUT ACCEPT || true
+    sudo iptables-save > /etc/iptables/rules.v4 || true
+    sudo ip6tables-save > /etc/iptables/rules.v6 || true
 
     dnf --version >/dev/null 2>&1
     dnf_status=$?
