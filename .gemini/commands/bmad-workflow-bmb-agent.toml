@@ -1,0 +1,4 @@
+description = "BMAD BMB Workflow: agent"
+prompt = """
+IT IS CRITICAL THAT YOU FOLLOW THIS COMMAND: LOAD the FULL @_bmad/bmb/workflows/agent/workflow.md, READ its entire contents and follow its directions exactly!
+"""

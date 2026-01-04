@@ -1,0 +1,47 @@
+# workflow-status Workflow Rule
+
+This rule defines the workflow-status workflow.
+
+## Workflow Description
+
+Lightweight status checker - answers "what should I do now?" for any game dev agent. Reads YAML status file for workflow tracking. Use workflow-init for new projects.
+
+## Workflow Definition
+
+# Workflow Status - Master Router and Status Tracker for BMGD
+name: workflow-status
+description: 'Lightweight status checker - answers "what should I do now?" for any game dev agent. Reads YAML status file for workflow tracking. Use workflow-init for new projects.'
+author: "BMad"
+
+# Critical variables from config
+config_source: "{project-root}/_bmad/bmgd/config.yaml"
+output_folder: "{config_source}:output_folder"
+user_name: "{config_source}:user_name"
+communication_language: "{config_source}:communication_language"
+document_output_language: "{config_source}:document_output_language"
+game_dev_experience: "{config_source}:game_dev_experience"
+date: system-generated
+
+# Workflow components
+installed_path: "{project-root}/_bmad/bmgd/workflows/workflow-status"
+instructions: "{installed_path}/instructions.md"
+
+# Template for status file creation (used by workflow-init)
+template: "{installed_path}/workflow-status-template.yaml"
+
+# Path definitions for project types
+path_files: "{installed_path}/paths/"
+
+# Output configuration - reads existing status
+default_output_file: "{output_folder}/bmgd-workflow-status.yaml"
+
+standalone: true
+
+
+## Usage
+
+Reference this workflow with `@workflow-workflow-status` to execute the guided workflow.
+
+## Module
+
+Part of the BMAD BMGD module.
