@@ -9,3 +9,25 @@ apphub/apphub.egg-info
 cli/__pycache__
 source
 node_modules
+
+# AI Assistant Tools
+.agent/
+.augment/
+.claude/
+.clinerules/
+.crush/
+.cursor/
+.gemini/
+.iflow/
+.kilocodemodes
+.kiro/
+.opencode/
+.qwen/
+.roo/
+.rovodev/
+.trae/
+.windsurf/
+
+# BMAD Development Framework
+_bmad/
+_bmad-output/
