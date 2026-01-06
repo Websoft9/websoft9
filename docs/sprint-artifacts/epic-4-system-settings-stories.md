@@ -1,393 +1,528 @@
-# Epic 4: 系统设置管理 - User Stories
+# Epic 4: System Settings Management - User Stories
 
-**Epic ID:** epic-4  
-**Epic Title:** 系统设置管理  
-**Status:** In Development  
-**Priority:** P0
-
----
-
-## Story 4-1: 获取所有系统设置
-
-**Story ID:** 4-1-get-all-settings  
-**Title:** 获取所有配置节的设置信息  
-**Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 1 day
-
-### User Story
-
-**As a** Websoft9 管理员  
-**I want to** 查看所有系统配置  
-**So that** 我可以了解当前的系统设置
-
-### Acceptance Criteria
-
-- [x] AC1: GET `/api/v1/settings` 返回所有配置
-- [x] AC2: 返回 `AppSettings` 模型
-- [x] AC3: 包含所有配置节（portainer, nginx_proxy_manager, gitea, apphub）
-- [x] AC4: 敏感信息脱敏（密码显示为 ******）
-- [x] AC5: 响应时间 < 100ms
-
-### Tasks
-
-- [x] 实现 `/settings` GET 路由
-  - [x] 调用 `SettingsManager.read_all()`
-- [x] 实现 `SettingsManager.read_all()` 方法
-  - [x] 读取所有 INI 配置节
-  - [x] 解析为字典格式
-  - [x] 脱敏敏感字段（password）
-  - [x] 返回 AppSettings 模型
-- [x] 定义 `AppSettings` Pydantic 模型
-  - [x] portainer: dict
-  - [x] nginx_proxy_manager: dict
-  - [x] gitea: dict
-  - [x] apphub: dict
-- [x] 实现敏感信息脱敏逻辑
-  - [x] 识别 password, secret, key 字段
-  - [x] 替换为 "******"
-- [x] 编写测试
-
-### File List
-
-- `apphub/src/api/v1/routers/settings.py`
-- `apphub/src/services/settings_manager.py`
-- `apphub/src/schemas/appSettings.py`
-- `tests/test_settings_get.py`
+**Epic:** [System Settings Management Epic](../epics/system-settings-epic.md)  
+**Total Stories:** 8  
+**Total Estimated Effort:** 15 days  
+**Priority Distribution:** P0 (4), P1 (3), P2 (1)
 
 ---
 
-## Story 4-2: 获取指定配置节
+## Story 1: Configuration Read API
 
-**Story ID:** 4-2-get-section  
-**Title:** 获取特定配置节的设置  
+**Story ID:** SETTINGS-001  
 **Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 0.5 day
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 管理员  
-**I want to** 只查看某个服务的配置  
-**So that** 我可以快速定位需要的设置
+**As a** Websoft9 administrator  
+**I want to** retrieve system configuration settings  
+**So that** I can view current system parameters and troubleshoot issues
 
 ### Acceptance Criteria
 
-- [x] AC1: GET `/api/v1/settings/{section}` 返回指定配置节
-- [x] AC2: section 可以是: portainer, nginx_proxy_manager, gitea, apphub
-- [x] AC3: 配置节不存在返回 404
-- [x] AC4: 敏感信息脱敏
-- [x] AC5: 响应时间 < 50ms
+✅ Configuration retrieval in < 100ms  
+✅ Sensitive values masked (passwords, tokens)  
+✅ Support retrieving all settings or specific sections  
+✅ JSON response format  
+✅ Proper error handling for missing config files
 
-### Tasks
+### Technical Tasks
 
-- [x] 实现 `/settings/{section}` GET 路由
-  - [x] Path 参数: section
-  - [x] 调用 `SettingsManager.read_section()`
-- [x] 实现 `read_section()` 方法
-  - [x] 验证 section 存在
-  - [x] 读取该配置节
-  - [x] 脱敏处理
-  - [x] 返回配置字典
-- [x] 错误处理
-  - [x] section 不存在
-- [x] 编写测试
+- [ ] Implement `/api/v1/settings` GET endpoint
+- [ ] Implement `/api/v1/settings/{section}` GET endpoint
+- [ ] Create ConfigManager class with INI file parsing
+- [ ] Add sensitive value masking logic
+- [ ] Handle missing config files gracefully
+- [ ] Write configuration read tests
 
-### File List
+### API Specification
 
-- `apphub/src/api/v1/routers/settings.py`
-- `apphub/src/services/settings_manager.py`
-- `tests/test_settings_get_section.py`
+```http
+GET /api/v1/settings
+X-API-Key: <key>
 
----
-
-## Story 4-3: 更新配置项
-
-**Story ID:** 4-3-update-setting  
-**Title:** 更新指定配置节的单个配置项  
-**Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 2 days
-
-### User Story
-
-**As a** Websoft9 管理员  
-**I want to** 修改系统配置  
-**So that** 我可以调整服务参数
-
-### Acceptance Criteria
-
-- [x] AC1: PUT `/api/v1/settings/{section}?key=xx&value=yy` 更新配置
-- [x] AC2: 配置立即写入 INI 文件
-- [x] AC3: 返回更新后的配置
-- [x] AC4: 配置格式验证
-- [x] AC5: section 或 key 不存在返回 404
-- [x] AC6: 敏感配置（如密码）加密存储
-
-### Tasks
-
-- [x] 实现 `/settings/{section}` PUT 路由
-  - [x] Path 参数: section
-  - [x] Query 参数: key, value
-  - [x] 调用 `SettingsManager.write_section()`
-- [x] 实现 `write_section()` 方法
-  - [x] 验证 section 存在
-  - [x] 验证 key 有效
-  - [x] 验证 value 格式
-  - [x] 敏感值加密（如果是密码）
-  - [x] 写入 INI 文件
-  - [x] 返回更新后的配置
-- [x] 实现配置验证逻辑
-  - [x] URL 格式验证
-  - [x] 端口号验证（1-65535）
-  - [x] Email 格式验证
-- [x] 实现敏感值加密存储
-  - [x] 使用 Fernet 加密
-  - [x] 密钥管理
-- [x] 编写测试
-  - [x] 测试更新成功
-  - [x] 测试格式验证
-  - [x] 测试敏感值加密
+Response:
+{
+  "code": 200,
+  "data": {
+    "portainer": {
+      "url": "http://portainer:9000",
+      "username": "admin",
+      "password": "******"
+    },
+    "nginx_proxy_manager": {
+      "url": "http://nginx-proxy-manager:81",
+      "admin_email": "admin@example.com",
+      "admin_password": "******"
+    },
+    "apphub": {
+      "media_url": "https://websoft9.github.io/docker-library/media.json",
+      "cache_duration": 3600
+    }
+  }
+}
+```
 
 ### Test Scenarios
 
-**场景 1: 成功更新配置**
-```
-Given: section "apphub" 存在
-And: key "media_url" 有效
-When: PUT /api/v1/settings/apphub?key=media_url&value=https://new-url.com
-Then: 返回 200
-And: INI 文件更新
-And: 返回新配置值
-```
-
-**场景 2: 无效的配置值**
-```
-Given: key "port" 期望数字
-When: PUT /api/v1/settings/apphub?key=port&value=invalid
-Then: 返回 400 "Invalid value format"
-```
-
-**场景 3: 密码加密存储**
-```
-Given: key "password"
-When: PUT /api/v1/settings/portainer?key=password&value=secret123
-Then: 返回 200
-And: INI 文件中存储加密值
-And: 读取时可正确解密
-```
-
-### File List
-
-- `apphub/src/api/v1/routers/settings.py`
-- `apphub/src/services/settings_manager.py`
-- `apphub/src/core/config.py`
-- `apphub/src/utils/encryption.py`
-- `tests/test_settings_update.py`
+1. GET all settings returns complete configuration
+2. GET specific section returns only that section
+3. Passwords are masked with "******"
+4. Encrypted values are masked
+5. Missing config file returns appropriate error
+6. Invalid section name returns 404
 
 ---
 
-## Story 4-4: SettingsManager 核心服务实现
+## Story 2: Configuration Update API
 
-**Story ID:** 4-4-settings-manager  
-**Title:** 实现系统设置管理核心服务  
+**Story ID:** SETTINGS-002  
 **Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 2 days
+**Estimated Effort:** 3 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** 开发人员  
-**I want to** 封装配置管理的核心逻辑  
-**So that** 所有模块可以统一使用配置服务
+**As a** Websoft9 administrator  
+**I want to** update system configuration settings  
+**So that** I can modify system behavior without manually editing config files
 
 ### Acceptance Criteria
 
-- [x] AC1: SettingsManager 类封装所有配置操作
-- [x] AC2: 支持 INI 文件的读写
-- [x] AC3: 实现配置缓存机制
-- [x] AC4: 提供配置变更通知
-- [x] AC5: 线程安全的配置操作
+✅ Configuration updates apply immediately  
+✅ Input validation before saving  
+✅ Atomic updates (all or nothing)  
+✅ Configuration backup before update  
+✅ Audit log of all changes  
+✅ Support for query parameter-based updates
 
-### Tasks
+### Technical Tasks
 
-- [x] 创建 `SettingsManager` 类
-  - [x] `__init__()` - 初始化 ConfigParser
-  - [x] `read_all()` - 读取所有配置
-  - [x] `read_section(section)` - 读取配置节
-  - [x] `write_section(section, key, value)` - 写配置
-  - [x] `get_value(section, key)` - 获取单个值
-  - [x] `set_value(section, key, value)` - 设置单个值
-- [x] 实现 INI 文件操作
-  - [x] 使用 ConfigParser 解析
-  - [x] 写入时保持格式
-  - [x] 处理特殊字符
-- [x] 实现配置缓存
-  - [x] 内存缓存配置（避免频繁读文件）
-  - [x] 文件修改时刷新缓存
-  - [x] TTL 机制（5分钟）
-- [x] 实现线程安全
-  - [x] 使用锁保护读写操作
-- [x] 日志记录
-  - [x] 配置读取日志
-  - [x] 配置更新日志
-- [x] 编写单元测试
+- [ ] Implement `/api/v1/settings/{section}?key=xx&value=yy` PUT endpoint
+- [ ] Add configuration validation logic
+- [ ] Implement atomic file write (write to temp, then rename)
+- [ ] Add automatic configuration backup
+- [ ] Implement audit logging
+- [ ] Write configuration update tests
 
-### File List
+### API Specification
 
-- `apphub/src/services/settings_manager.py` - 主类
-- `apphub/src/core/config.py` - 配置路径
-- `tests/test_settings_manager.py` - 单元测试
+```http
+PUT /api/v1/settings/portainer?key=password&value=new_password_123
+X-API-Key: <key>
+
+Response:
+{
+  "code": 200,
+  "message": "Configuration updated successfully",
+  "data": {
+    "section": "portainer",
+    "key": "password",
+    "value": "******",
+    "updated_at": "2026-01-05T10:30:00Z"
+  }
+}
+```
+
+### Test Scenarios
+
+1. Update valid configuration succeeds
+2. Invalid value fails validation
+3. Update creates backup of old config
+4. Audit log records the change
+5. Update with missing section creates section
+6. Concurrent updates handled safely
 
 ---
 
-## Story 4-5: ConfigManager 增强（现有代码改进）
+## Story 3: Configuration Encryption
 
-**Story ID:** 4-5-config-manager-improve  
-**Title:** 改进现有的 ConfigManager 类  
+**Story ID:** SETTINGS-003  
+**Priority:** P0  
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
+
+### User Story
+
+**As a** Websoft9 administrator  
+**I want to** automatically encrypt sensitive configuration values  
+**So that** passwords and secrets are not stored in plaintext
+
+### Acceptance Criteria
+
+✅ Passwords automatically encrypted on write  
+✅ Encrypted values prefixed with "encrypted:"  
+✅ Decryption transparent on read  
+✅ Encryption key stored securely (environment variable)  
+✅ Support for key rotation  
+✅ Fernet encryption standard
+
+### Technical Tasks
+
+- [ ] Integrate Cryptography library (Fernet)
+- [ ] Implement encrypt/decrypt functions
+- [ ] Auto-detect sensitive keys (password, secret, token, key)
+- [ ] Add encryption on config write
+- [ ] Add decryption on config read
+- [ ] Write encryption tests
+
+### Implementation Notes
+
+```python
+from cryptography.fernet import Fernet
+
+class ConfigManager:
+    def __init__(self):
+        self.cipher = Fernet(os.getenv("CONFIG_ENCRYPTION_KEY").encode())
+    
+    def _encrypt_value(self, value: str) -> str:
+        encrypted = self.cipher.encrypt(value.encode()).decode()
+        return f"encrypted:{encrypted}"
+    
+    def _decrypt_value(self, encrypted_value: str) -> str:
+        data = encrypted_value.replace("encrypted:", "")
+        return self.cipher.decrypt(data.encode()).decode()
+```
+
+### Test Scenarios
+
+1. Password saved as encrypted in config file
+2. Encrypted value decrypted correctly on read
+3. Non-encrypted values pass through unchanged
+4. Auto-detection of sensitive keys works
+5. Invalid encryption key fails gracefully
+6. Re-encryption with new key works
+
+---
+
+## Story 4: Configuration Validation
+
+**Story ID:** SETTINGS-004  
 **Priority:** P1  
-**Status:** ready-for-dev  
-**Estimated Effort:** 1 day
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** 开发人员  
-**I want to** 改进现有的配置管理类  
-**So that** 提供更好的配置读取性能和错误处理
+**As a** Websoft9 administrator  
+**I want to** validate configuration values before they are saved  
+**So that** I prevent invalid configurations that could break the system
 
 ### Acceptance Criteria
 
-- [x] AC1: 优化 ConfigManager 的性能
-- [x] AC2: 添加配置验证逻辑
-- [x] AC3: 改进错误处理和日志
-- [x] AC4: 向后兼容现有代码
+✅ URL format validation  
+✅ Port range validation (1-65535)  
+✅ Email format validation  
+✅ Required field validation  
+✅ Clear error messages on validation failure  
+✅ Custom validators for specific fields
 
-### Tasks
+### Technical Tasks
 
-- [x] 审查现有 `ConfigManager` 代码
-- [x] 添加配置缓存
-- [x] 添加配置验证方法
-- [x] 改进错误消息
-- [x] 添加单元测试
-- [x] 更新文档
+- [ ] Create ConfigValidator class
+- [ ] Implement URL validation with regex
+- [ ] Implement port range validation
+- [ ] Implement email validation
+- [ ] Add required field checks
+- [ ] Integrate validators into update flow
+- [ ] Write validation tests
 
-### File List
+### Implementation Notes
 
-- `apphub/src/core/config.py`
-- `tests/test_config_manager.py`
+```python
+class ConfigValidator:
+    @staticmethod
+    def validate_url(url: str) -> Tuple[bool, str]:
+        pattern = r'^https?://[\w\-.]+(:\d+)?(/.*)?$'
+        if re.match(pattern, url):
+            return True, "Valid URL"
+        return False, "Invalid URL format"
+    
+    @staticmethod
+    def validate_port(port: str) -> Tuple[bool, str]:
+        try:
+            port_num = int(port)
+            if 1 <= port_num <= 65535:
+                return True, "Valid port"
+            return False, "Port must be between 1 and 65535"
+        except ValueError:
+            return False, "Port must be a number"
+```
+
+### Test Scenarios
+
+1. Valid URL passes validation
+2. Invalid URL format rejected
+3. Port 80 passes validation
+4. Port 0 fails validation
+5. Port 99999 fails validation
+6. Valid email passes validation
+7. Invalid email rejected
 
 ---
 
-## Story 4-6: 配置变更审计日志（未来增强）
+## Story 5: Configuration Backup & Restore
 
-**Story ID:** 4-6-config-audit  
-**Title:** 记录所有配置变更的审计日志  
+**Story ID:** SETTINGS-005  
+**Priority:** P1  
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
+
+### User Story
+
+**As a** Websoft9 administrator  
+**I want to** backup and restore system configuration  
+**So that** I can recover from configuration errors or migrate settings
+
+### Acceptance Criteria
+
+✅ Automatic backup before each update  
+✅ Manual backup on demand  
+✅ Restore from specific backup version  
+✅ List available backups  
+✅ Backup retention policy (keep last 10)  
+✅ Backup includes timestamp in filename
+
+### Technical Tasks
+
+- [ ] Implement auto-backup on config update
+- [ ] Implement manual backup API endpoint
+- [ ] Implement restore API endpoint
+- [ ] Implement backup listing endpoint
+- [ ] Add backup cleanup (retention policy)
+- [ ] Write backup/restore tests
+
+### API Specification
+
+```http
+POST /api/v1/settings/backup
+X-API-Key: <key>
+
+Response:
+{
+  "code": 200,
+  "data": {
+    "backup_file": "config/backups/config_20260105_103000.ini",
+    "created_at": "2026-01-05T10:30:00Z"
+  }
+}
+
+POST /api/v1/settings/restore
+{
+  "backup_file": "config/backups/config_20260105_103000.ini"
+}
+
+GET /api/v1/settings/backups
+Response:
+{
+  "data": {
+    "backups": [
+      {
+        "file": "config_20260105_103000.ini",
+        "created_at": "2026-01-05T10:30:00Z",
+        "size_bytes": 2048
+      }
+    ]
+  }
+}
+```
+
+### Test Scenarios
+
+1. Manual backup creates timestamped file
+2. Auto-backup runs before config update
+3. Restore replaces current config
+4. Restore creates backup of current config first
+5. Old backups cleaned up per retention policy
+6. List backups returns all available backups
+
+---
+
+## Story 6: Configuration Audit Logging
+
+**Story ID:** SETTINGS-006  
 **Priority:** P2  
-**Status:** backlog  
-**Estimated Effort:** 2 days
+**Estimated Effort:** 1 day  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 管理员  
-**I want to** 查看配置的历史变更记录  
-**So that** 我可以追溯配置修改和问题排查
+**As a** Websoft9 administrator  
+**I want to** see audit logs of all configuration changes  
+**So that** I can track who changed what and when
 
 ### Acceptance Criteria
 
-- [ ] AC1: 所有配置变更记录到审计日志
-- [ ] AC2: 日志包含：时间、用户、配置项、旧值、新值
-- [ ] AC3: 提供审计日志查询 API
-- [ ] AC4: 支持按时间范围过滤
+✅ All config changes logged  
+✅ Log includes: timestamp, section, key, action, user (if available)  
+✅ Log stored securely  
+✅ Log rotation to prevent disk fill  
+✅ Query logs by date range  
+✅ Query logs by section
 
-### Tasks
+### Technical Tasks
 
-- [ ] 实现审计日志记录
-- [ ] 设计审计日志存储（SQLite/PostgreSQL）
-- [ ] 实现审计日志查询 API
-- [ ] 编写测试
+- [ ] Implement audit log writer
+- [ ] Add logging to all config update operations
+- [ ] Implement log query API
+- [ ] Add log rotation (by size or date)
+- [ ] Write audit log tests
 
-### File List
+### Log Format
 
-- `apphub/src/services/config_audit.py`
-- `apphub/src/api/v1/routers/settings.py`
-- `tests/test_config_audit.py`
+```json
+{
+  "timestamp": "2026-01-05T10:30:00Z",
+  "action": "config_change",
+  "section": "portainer",
+  "key": "password",
+  "operation": "update",
+  "user": "admin",
+  "ip_address": "192.168.1.100"
+}
+```
+
+### Test Scenarios
+
+1. Config update creates audit log entry
+2. Query logs by date range works
+3. Query logs by section works
+4. Old logs rotated automatically
+5. Log format is valid JSON
 
 ---
 
-## Story 4-7: 配置备份和恢复（未来增强）
+## Story 7: Multi-Environment Configuration
 
-**Story ID:** 4-7-config-backup  
-**Title:** 支持配置的备份和恢复  
-**Priority:** P2  
-**Status:** backlog  
-**Estimated Effort:** 2 days
+**Story ID:** SETTINGS-007  
+**Priority:** P1  
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 管理员  
-**I want to** 备份和恢复系统配置  
-**So that** 我可以在配置错误时快速恢复
+**As a** Websoft9 developer  
+**I want to** support different configurations for dev/staging/production  
+**So that** I can easily switch between environments
 
 ### Acceptance Criteria
 
-- [ ] AC1: POST `/api/v1/settings/backup` 创建配置备份
-- [ ] AC2: POST `/api/v1/settings/restore` 恢复配置
-- [ ] AC3: 备份包含所有 INI 文件
-- [ ] AC4: 恢复前验证配置格式
+✅ Support for environment-specific config files  
+✅ Environment detection (from ENV variable)  
+✅ Default to production if not specified  
+✅ Override mechanism (env vars override config file)  
+✅ Environment clearly indicated in API responses
 
-### Tasks
+### Technical Tasks
 
-- [ ] 实现配置备份 API
-- [ ] 实现配置恢复 API
-- [ ] 配置验证逻辑
-- [ ] 编写测试
+- [ ] Add environment detection logic
+- [ ] Support config.{env}.ini files
+- [ ] Implement config override from environment variables
+- [ ] Add environment info to API responses
+- [ ] Write multi-environment tests
 
-### File List
+### Configuration Structure
 
-- `apphub/src/api/v1/routers/settings.py`
-- `apphub/src/services/settings_manager.py`
-- `tests/test_config_backup.py`
+```
+config/
+  config.ini             # Default/production
+  config.dev.ini         # Development overrides
+  config.staging.ini     # Staging overrides
+```
+
+### Test Scenarios
+
+1. Production environment uses config.ini
+2. Development environment uses config.dev.ini
+3. Environment variable overrides config file
+4. Missing environment-specific file falls back to default
+5. Environment shown in API response headers
 
 ---
 
-## Story 4-8: 配置导入导出（未来增强）
+## Story 8: Configuration Schema Definition
 
-**Story ID:** 4-8-config-export  
-**Title:** 支持配置的导出和导入（JSON/YAML）  
-**Priority:** P2  
-**Status:** backlog  
-**Estimated Effort:** 2 days
+**Story ID:** SETTINGS-008  
+**Priority:** P0  
+**Estimated Effort:** 1 day  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 管理员  
-**I want to** 导出配置为 JSON 或 YAML  
-**So that** 我可以在多个环境间迁移配置
+**As a** Websoft9 developer  
+**I want to** define expected configuration schema  
+**So that** I can validate configuration completeness and correctness
 
 ### Acceptance Criteria
 
-- [ ] AC1: GET `/api/v1/settings/export` 导出配置为 JSON
-- [ ] AC2: POST `/api/v1/settings/import` 导入配置
-- [ ] AC3: 支持 JSON 和 YAML 格式
-- [ ] AC4: 导入前验证格式
+✅ Schema defines all expected sections and keys  
+✅ Schema includes data types for each field  
+✅ Schema indicates required vs optional fields  
+✅ Validation against schema on startup  
+✅ Schema serves as documentation
 
-### Tasks
+### Technical Tasks
 
-- [ ] 实现导出 API
-- [ ] 实现导入 API
-- [ ] 格式转换（INI ↔ JSON/YAML）
-- [ ] 格式验证
-- [ ] 编写测试
+- [ ] Create configuration schema (JSON Schema or Pydantic)
+- [ ] Implement schema validation on read
+- [ ] Generate documentation from schema
+- [ ] Add schema validation to update flow
+- [ ] Write schema validation tests
 
-### File List
+### Schema Example
 
-- `apphub/src/api/v1/routers/settings.py`
-- `apphub/src/services/settings_manager.py`
-- `apphub/src/utils/format_converter.py`
-- `tests/test_config_export.py`
+```python
+class PortainerConfig(BaseModel):
+    url: HttpUrl
+    username: str
+    password: str
+    
+class NginxProxyManagerConfig(BaseModel):
+    url: HttpUrl
+    admin_email: EmailStr
+    admin_password: str
+    
+class SystemConfig(BaseModel):
+    portainer: PortainerConfig
+    nginx_proxy_manager: NginxProxyManagerConfig
+    apphub: AppHubConfig
+```
+
+### Test Scenarios
+
+1. Valid config passes schema validation
+2. Missing required field fails validation
+3. Invalid data type fails validation
+4. Extra fields allowed (for extensibility)
+5. Schema documentation generated correctly
 
 ---
 
-**Total Stories: 8** (5 ready-for-dev + 3 backlog)  
-**Total Estimated Effort: 14.5 days** (ready stories: 6.5 days)  
-**Epic Status: Ready for Sprint Planning**
+## Summary
+
+This Epic provides comprehensive system configuration management with security (encryption), reliability (validation, backup), and auditability (logging). The focus is on making configuration changes safe and traceable.
+
+**Development Sequence:**
+1. Stories 1, 8 (Read API + Schema foundation)
+2. Story 2 (Update API - core functionality)
+3. Story 3 (Encryption - security critical)
+4. Stories 4, 5 (Validation + Backup - safety features)
+5. Stories 6, 7 (Advanced features)
+
+**Dependencies:**
+- Story 2 depends on Story 1 (need read before write)
+- Story 3 should be implemented with Story 2 (encryption on write)
+- Story 4 should be integrated into Story 2 (validation on update)
+- Story 5 should trigger on Story 2 operations (auto-backup)
+- Story 8 provides foundation for Story 4 (schema for validation)
+
+**Risk Mitigation:**
+- Always backup before updates (Story 5)
+- Validate before saving (Story 4)
+- Encrypt sensitive data (Story 3)
+- Audit all changes (Story 6)
+- Test restore process regularly
+- Monitor for invalid configurations
+- Implement configuration rollback on service failure

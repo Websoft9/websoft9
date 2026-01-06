@@ -1,75 +1,75 @@
-# Epic: 备份与恢复
+# Epic: Backup & Restore
 
-**关联 PRD:** [FR-BACKUP-001](../prd.md#25-备份与恢复)  
-**负责人:** Product Manager  
-**状态:** Planning  
-**优先级:** P1 (重要)  
-**预估工作量:** 3-4 周
-
----
-
-## 1. Epic 概述
-
-### 1.1 业务目标
-
-提供应用数据和系统配置的备份恢复能力，确保数据安全和业务连续性。
-
-### 1.2 核心价值
-
-- 应用数据定期自动备份
-- 支持手动备份和恢复
-- 备份数据加密存储
-- 备份到本地或远程存储（S3）
-- 一键恢复到指定时间点
-- 备份策略灵活配置
-
-### 1.3 验收标准
-
-✅ 应用数据备份完成时间 < 5分钟（10GB）  
-✅ 备份文件加密存储  
-✅ 支持增量备份  
-✅ 恢复成功率 > 98%  
-✅ 备份空间占用 < 原数据 1.5倍  
-✅ 支持远程备份到 S3  
+**Related PRD:** [FR-BACKUP-001]
+**Owner:** Product Manager  
+**Status:** Planning  
+**Priority:** P1 (Important)  
+**Estimated Effort:** 3-4 weeks
 
 ---
 
-## 2. 技术规范
+## 1. Epic Overview
 
-### 2.1 架构设计
+### 1.1 Business Objectives
 
-#### 备份架构
+Provide application data and system configuration backup/restore capabilities to ensure data security and business continuity.
+
+### 1.2 Core Value
+
+- Regular automatic application data backups
+- Support manual backup and restore
+- Encrypted backup data storage
+- Backup to local or remote storage (S3)
+- One-click restore to specific point in time
+- Flexible backup policy configuration
+
+### 1.3 Acceptance Criteria
+
+✅ Application data backup completion time < 5 minutes (10GB)  
+✅ Backup files encrypted storage  
+✅ Support incremental backups  
+✅ Restore success rate > 98%  
+✅ Backup space usage < 1.5x original data  
+✅ Support remote backup to S3  
+
+---
+
+## 2. Technical Specifications
+
+### 2.1 Architecture Design
+
+#### Backup Architecture
 
 ```
-应用数据卷 → 备份引擎 → 压缩加密 → 本地存储 / S3
-                ↓
-        备份元数据记录 (SQLite/PostgreSQL)
+Application Data Volumes → Backup Engine → Compress & Encrypt → Local Storage / S3
+                                ↓
+                    Backup Metadata Records (SQLite/PostgreSQL)
 ```
 
-#### 恢复流程
+#### Restore Workflow
 
 ```
-备份文件 → 验证完整性 → 解密解压 → 恢复到数据卷 → 重启应用
+Backup File → Verify Integrity → Decrypt & Decompress → Restore to Volumes → Restart App
 ```
 
-### 2.2 API 端点
+### 2.2 API Endpoints
 
-| 端点 | 方法 | 说明 | 认证 |
-|------|------|------|------|
-| `/api/v1/backup/snapshots` | GET | 获取快照列表（支持按app_id过滤） | API Key |
-| `/api/v1/backup/{app_id}` | POST | 创建备份快照 | API Key |
-| `/api/v1/backup/snapshots/{snapshot_id}` | DELETE | 删除快照 | API Key |
-| `/api/v1/backup/restore/{app_id}/{snapshot_id}` | POST | 恢复快照 | API Key |
+| Endpoint | Method | Description | Authentication |
+|----------|--------|-------------|----------------|
+| `/api/v1/backup/snapshots` | GET | Get snapshot list (filter by app_id) | API Key |
+| `/api/v1/backup/{app_id}` | POST | Create backup snapshot | API Key |
+| `/api/v1/backup/snapshots/{snapshot_id}` | DELETE | Delete snapshot | API Key |
+| `/api/v1/backup/restore/{app_id}/{snapshot_id}` | POST | Restore snapshot | API Key |
 
-#### 示例：创建备份
+#### Example: Create Backup
 
-**请求:**
+**Request:**
 ```http
 POST /api/v1/backup/wordpress001
 X-API-Key: <key>
 ```
 
-**响应:**
+**Response:**
 ```json
 {
   "code": 200,
@@ -87,32 +87,32 @@ X-API-Key: <key>
 }
 ```
 
-### 2.3 数据模型
+### 2.3 Data Models
 
-#### 备份记录
+#### Backup Record
 
 ```python
 class Backup(BaseModel):
-    backup_id: str                     # 备份唯一标识
-    app_id: str                        # 应用 ID
-    app_name: str                      # 应用名称
+    backup_id: str                     # Unique backup identifier
+    app_id: str                        # Application ID
+    app_name: str                      # Application name
     backup_type: str                   # full, incremental, differential
     description: Optional[str]
-    size_bytes: int                    # 备份大小
-    compressed: bool                   # 是否压缩
-    encrypted: bool                    # 是否加密
+    size_bytes: int                    # Backup size
+    compressed: bool                   # Compressed
+    encrypted: bool                    # Encrypted
     storage_location: str              # local, s3
-    file_path: str                     # 备份文件路径
-    s3_bucket: Optional[str]           # S3 桶名
-    s3_key: Optional[str]              # S3 对象键
-    checksum: str                      # 校验和（SHA256）
+    file_path: str                     # Backup file path
+    s3_bucket: Optional[str]           # S3 bucket name
+    s3_key: Optional[str]              # S3 object key
+    checksum: str                      # Checksum (SHA256)
     status: str                        # pending, in_progress, completed, failed
     created_at: datetime
     completed_at: Optional[datetime]
     error_message: Optional[str]
 ```
 
-#### 备份策略
+#### Backup Schedule
 
 ```python
 class BackupSchedule(BaseModel):
@@ -121,16 +121,16 @@ class BackupSchedule(BaseModel):
     enabled: bool
     frequency: str                     # daily, weekly, monthly
     time: str                          # HH:MM
-    day_of_week: Optional[int]         # 0-6 (周日-周六)
+    day_of_week: Optional[int]         # 0-6 (Sunday-Saturday)
     day_of_month: Optional[int]        # 1-31
-    retention_days: int                # 保留天数
+    retention_days: int                # Retention days
     backup_type: str
     include_database: bool
     include_uploads: bool
     storage_location: str
 ```
 
-### 2.4 核心服务设计
+### 2.4 Core Service Design
 
 #### backup_manager.py
 
@@ -148,16 +148,16 @@ class BackupManager:
     
     def create_backup(self, app_id: str, config: Dict) -> Backup:
         """
-        创建备份流程:
-        1. 停止应用（可选）
-        2. 导出 Docker 数据卷
-        3. 导出数据库（如果需要）
-        4. 压缩文件
-        5. 加密备份（如果需要）
-        6. 计算校验和
-        7. 上传到存储（本地/S3）
-        8. 记录备份元数据
-        9. 重启应用
+        Backup workflow:
+        1. Stop application (optional)
+        2. Export Docker data volumes
+        3. Export database (if needed)
+        4. Compress files
+        5. Encrypt backup (if needed)
+        6. Calculate checksum
+        7. Upload to storage (local/S3)
+        8. Record backup metadata
+        9. Restart application
         """
         backup_id = self._generate_backup_id(app_id)
         backup = Backup(
@@ -169,39 +169,39 @@ class BackupManager:
         )
         
         try:
-            # 1. 获取应用数据卷
+            # 1. Get application data volumes
             volumes = self._get_app_volumes(app_id)
             
-            # 2. 导出数据卷
+            # 2. Export data volumes
             volume_backup_path = self._backup_volumes(app_id, volumes)
             
-            # 3. 导出数据库（如果需要）
+            # 3. Export database (if needed)
             if config.get("include_database"):
                 db_backup_path = self._backup_database(app_id)
                 volume_backup_path.append(db_backup_path)
             
-            # 4. 压缩
+            # 4. Compress
             if config.get("compress", True):
                 compressed_file = self._compress_files(
                     volume_backup_path, 
                     backup_id
                 )
             
-            # 5. 加密
+            # 5. Encrypt
             if config.get("encrypt", True):
                 encrypted_file = self._encrypt_file(compressed_file)
                 final_file = encrypted_file
             else:
                 final_file = compressed_file
             
-            # 6. 计算校验和
+            # 6. Calculate checksum
             checksum = self._calculate_checksum(final_file)
             
-            # 7. 上传到存储
+            # 7. Upload to storage
             if config["storage_location"] == "s3":
                 self._upload_to_s3(final_file, backup_id)
             
-            # 8. 更新备份记录
+            # 8. Update backup record
             backup.status = "completed"
             backup.file_path = final_file
             backup.checksum = checksum
@@ -222,51 +222,51 @@ class BackupManager:
     
     def restore_backup(self, backup_id: str, restore_config: Dict) -> Dict:
         """
-        恢复备份流程:
-        1. 验证备份文件完整性
-        2. 停止应用
-        3. 下载备份文件（如果在 S3）
-        4. 解密备份文件
-        5. 解压缩文件
-        6. 恢复数据卷
-        7. 恢复数据库
-        8. 重启应用
-        9. 验证恢复结果
+        Restore workflow:
+        1. Verify backup file integrity
+        2. Stop application
+        3. Download backup file (if from S3)
+        4. Decrypt backup file
+        5. Decompress file
+        6. Restore data volumes
+        7. Restore database
+        8. Restart application
+        9. Verify restore result
         """
         backup = self._get_backup_metadata(backup_id)
         
         try:
-            # 1. 验证校验和
+            # 1. Verify checksum
             if not self._verify_checksum(backup.file_path, backup.checksum):
                 raise Exception("Backup file corrupted")
             
-            # 2. 停止应用
+            # 2. Stop application
             if restore_config.get("stop_app", True):
                 self._stop_app(backup.app_id)
             
-            # 3. 从 S3 下载（如果需要）
+            # 3. Download from S3 (if needed)
             if backup.storage_location == "s3":
                 local_file = self._download_from_s3(backup.s3_bucket, backup.s3_key)
             else:
                 local_file = backup.file_path
             
-            # 4. 解密
+            # 4. Decrypt
             if backup.encrypted:
                 decrypted_file = self._decrypt_file(local_file)
             else:
                 decrypted_file = local_file
             
-            # 5. 解压
+            # 5. Extract
             extracted_dir = self._extract_archive(decrypted_file)
             
-            # 6. 恢复数据卷
+            # 6. Restore data volumes
             self._restore_volumes(backup.app_id, extracted_dir)
             
-            # 7. 恢复数据库
+            # 7. Restore database
             if restore_config.get("restore_database", True):
                 self._restore_database(backup.app_id, extracted_dir)
             
-            # 8. 重启应用
+            # 8. Restart application
             self._start_app(backup.app_id)
             
             logger.info(f"Restore completed: {backup_id}")
@@ -274,18 +274,18 @@ class BackupManager:
             
         except Exception as e:
             logger.error(f"Restore failed: {e}")
-            # 尝试恢复原应用
+            # Try to restore original application
             self._start_app(backup.app_id)
             raise
     
     def _backup_volumes(self, app_id: str, volumes: List[str]) -> List[str]:
-        """导出 Docker 数据卷"""
+        """Export Docker data volumes"""
         backup_paths = []
         
         for volume in volumes:
             output_file = f"{self.backup_dir}/{app_id}/{volume}.tar"
             
-            # 使用 docker run 导出数据卷
+            # Use docker run to export data volume
             cmd = [
                 "docker", "run", "--rm",
                 "-v", f"{volume}:/volume",
@@ -301,7 +301,7 @@ class BackupManager:
     
     def _backup_database(self, app_id: str) -> str:
         """
-        导出数据库
+        Export database:
         - MySQL: mysqldump
         - PostgreSQL: pg_dump
         - MongoDB: mongodump
@@ -320,7 +320,7 @@ class BackupManager:
             return None
     
     def _compress_files(self, files: List[str], backup_id: str) -> str:
-        """压缩备份文件"""
+        """Compress backup files"""
         output_file = f"{self.backup_dir}/{backup_id}.tar.gz"
         
         with tarfile.open(output_file, "w:gz") as tar:
@@ -330,7 +330,7 @@ class BackupManager:
         return output_file
     
     def _encrypt_file(self, file_path: str) -> str:
-        """加密备份文件"""
+        """Encrypt backup file"""
         encrypted_file = f"{file_path}.enc"
         
         with open(file_path, "rb") as f:
@@ -341,27 +341,13 @@ class BackupManager:
         with open(encrypted_file, "wb") as f:
             f.write(encrypted_data)
         
-        # 删除原文件
+        # Delete original file
         os.remove(file_path)
         
         return encrypted_file
     
-    def _decrypt_file(self, encrypted_file: str) -> str:
-        """解密备份文件"""
-        decrypted_file = encrypted_file.replace(".enc", "")
-        
-        with open(encrypted_file, "rb") as f:
-            encrypted_data = f.read()
-        
-        decrypted_data = self.cipher.decrypt(encrypted_data)
-        
-        with open(decrypted_file, "wb") as f:
-            f.write(decrypted_data)
-        
-        return decrypted_file
-    
     def _calculate_checksum(self, file_path: str) -> str:
-        """计算文件 SHA256 校验和"""
+        """Calculate SHA256 checksum"""
         sha256 = hashlib.sha256()
         
         with open(file_path, "rb") as f:
@@ -369,20 +355,9 @@ class BackupManager:
                 sha256.update(chunk)
         
         return sha256.hexdigest()
-    
-    def _upload_to_s3(self, file_path: str, backup_id: str) -> None:
-        """上传备份到 S3"""
-        import boto3
-        
-        s3_client = boto3.client("s3")
-        bucket = os.getenv("BACKUP_S3_BUCKET")
-        key = f"backups/{backup_id}/{os.path.basename(file_path)}"
-        
-        s3_client.upload_file(file_path, bucket, key)
-        logger.info(f"Uploaded to S3: s3://{bucket}/{key}")
 ```
 
-### 2.5 定时备份
+### 2.5 Scheduled Backups
 
 ```python
 import schedule
@@ -393,7 +368,7 @@ class BackupScheduler:
         self.backup_manager = BackupManager()
     
     def start(self):
-        """启动定时备份服务"""
+        """Start scheduled backup service"""
         schedules = self._load_schedules()
         
         for sched in schedules:
@@ -414,7 +389,7 @@ class BackupScheduler:
             time.sleep(60)
     
     def _run_scheduled_backup(self, sched: BackupSchedule):
-        """执行定时备份"""
+        """Execute scheduled backup"""
         try:
             backup = self.backup_manager.create_backup(
                 sched.app_id,
@@ -426,7 +401,7 @@ class BackupScheduler:
                 }
             )
             
-            # 清理过期备份
+            # Cleanup old backups
             self._cleanup_old_backups(sched.app_id, sched.retention_days)
             
             logger.info(f"Scheduled backup completed: {backup.backup_id}")
@@ -434,7 +409,7 @@ class BackupScheduler:
             logger.error(f"Scheduled backup failed: {e}")
     
     def _cleanup_old_backups(self, app_id: str, retention_days: int):
-        """清理过期备份"""
+        """Clean up old backups"""
         cutoff_date = datetime.now() - timedelta(days=retention_days)
         old_backups = self._get_backups_before(app_id, cutoff_date)
         
@@ -442,7 +417,7 @@ class BackupScheduler:
             self.backup_manager.delete_backup(backup.backup_id)
 ```
 
-### 2.6 配置
+### 2.6 Configuration
 
 ```yaml
 # config/backup.yaml
@@ -473,156 +448,104 @@ backup:
 
 ---
 
-## 3. Stories 拆分
+## 3. Story Breakdown
 
-### Story 1: 备份核心引擎
+### Story 1: Backup Core Engine
+**Priority:** P0 | **Effort:** 5 days
 
-**优先级:** P0  
-**工作量:** 5 天
+### Story 2: Database Backup
+**Priority:** P0 | **Effort:** 3 days
 
-**任务:**
-- 数据卷导出逻辑
-- 文件压缩功能
-- 文件加密功能
-- 校验和计算
-- 编写备份测试
+### Story 3: Backup Restore Functionality
+**Priority:** P0 | **Effort:** 4 days
 
-### Story 2: 数据库备份
+### Story 4: Scheduled Backups
+**Priority:** P1 | **Effort:** 3 days
 
-**优先级:** P0  
-**工作量:** 3 天
+### Story 5: S3 Remote Backup
+**Priority:** P2 | **Effort:** 3 days
 
-**任务:**
-- MySQL 备份集成
-- PostgreSQL 备份集成
-- MongoDB 备份集成
-- 编写数据库备份测试
-
-### Story 3: 备份恢复功能
-
-**优先级:** P0  
-**工作量:** 4 天
-
-**任务:**
-- 备份文件验证
-- 解密解压逻辑
-- 数据卷恢复
-- 数据库恢复
-- 编写恢复测试
-
-### Story 4: 定时备份
-
-**优先级:** P1  
-**工作量:** 3 天
-
-**任务:**
-- 备份计划配置
-- 定时任务调度
-- 自动清理过期备份
-- 编写调度测试
-
-### Story 5: S3 远程备份
-
-**优先级:** P2  
-**工作量:** 3 天
-
-**任务:**
-- S3 SDK 集成
-- 上传/下载逻辑
-- 断点续传支持
-- 编写 S3 测试
-
-### Story 6: 备份管理 API
-
-**优先级:** P1  
-**工作量:** 2 天
-
-**任务:**
-- 备份列表接口
-- 备份删除接口
-- 备份下载接口
-- 编写 API 测试
+### Story 6: Backup Management API
+**Priority:** P1 | **Effort:** 2 days
 
 ---
 
-## 4. 依赖关系
+## 4. Dependencies
 
-### 技术依赖
+### Technical Dependencies
+- **Docker** - Volume management
+- **Cryptography (Fernet)** - File encryption
+- **Boto3** - S3 integration
+- **schedule** - Scheduled tasks
 
-- **Docker** - 数据卷管理
-- **Cryptography (Fernet)** - 文件加密
-- **Boto3** - S3 集成
-- **schedule** - 定时任务
-
-### 模块依赖
-
-- **应用管理** - 获取应用信息
-- **日志模块** - 记录备份操作
+### Module Dependencies
+- **Application Management** - Get application info
+- **Logging Module** - Record backup operations
 
 ---
 
-## 5. 风险与挑战
+## 5. Risks & Challenges
 
-| 风险 | 等级 | 缓解措施 |
-|------|------|----------|
-| 备份过程中应用不可用 | 中 | 支持在线备份（不停机） |
-| 备份文件过大 | 高 | 增量备份，压缩优化 |
-| 恢复失败导致数据丢失 | 高 | 恢复前备份当前状态 |
-| S3 上传失败 | 中 | 本地缓存，断点续传 |
-| 加密密钥丢失 | 高 | 密钥备份方案，密钥恢复流程 |
-
----
-
-## 6. 测试策略
-
-### 单元测试
-- 压缩/解压缩
-- 加密/解密
-- 校验和计算
-
-### 集成测试
-- 完整备份恢复流程
-- 定时备份执行
-- S3 上传下载
-
-### 灾难恢复演练
-- 模拟数据损坏
-- 完整恢复验证
+| Risk | Level | Mitigation |
+|------|-------|------------|
+| Application unavailable during backup | Medium | Support online backup (no downtime) |
+| Large backup files | High | Incremental backups, compression optimization |
+| Restore failures causing data loss | High | Backup current state before restore |
+| S3 upload failures | Medium | Local cache, resumable upload |
+| Encryption key loss | High | Key backup plan, recovery procedures |
 
 ---
 
-## 7. 监控指标
+## 6. Testing Strategy
+
+### Unit Tests
+- Compress/decompress
+- Encrypt/decrypt
+- Checksum calculation
+
+### Integration Tests
+- Complete backup/restore workflow
+- Scheduled backup execution
+- S3 upload/download
+
+### Disaster Recovery Drills
+- Simulate data corruption
+- Complete restore verification
+
+---
+
+## 7. Monitoring Metrics
 
 ```python
-backup_total                           # 备份总数
-backup_success_total                   # 备份成功数
-backup_failed_total                    # 备份失败数
-backup_duration_seconds                # 备份耗时
-restore_total                          # 恢复总数
-restore_success_total                  # 恢复成功数
-backup_size_bytes                      # 备份文件大小
+backup_total                           # Total backups
+backup_success_total                   # Successful backups
+backup_failed_total                    # Failed backups
+backup_duration_seconds                # Backup duration
+restore_total                          # Total restores
+restore_success_total                  # Successful restores
+backup_size_bytes                      # Backup file size
 ```
 
 ---
 
-## 附录
+## Appendix
 
-### A. 错误码定义
+### A. Error Code Definitions
 
-| 错误码 | HTTP | 说明 |
-|--------|------|------|
-| BACKUP_NOT_FOUND | 404 | 备份不存在 |
-| BACKUP_CREATE_FAILED | 500 | 备份创建失败 |
-| BACKUP_CORRUPTED | 500 | 备份文件损坏 |
-| RESTORE_FAILED | 500 | 恢复失败 |
-| BACKUP_QUOTA_EXCEEDED | 507 | 备份空间不足 |
+| Error Code | HTTP | Description |
+|------------|------|-------------|
+| BACKUP_NOT_FOUND | 404 | Backup not found |
+| BACKUP_CREATE_FAILED | 500 | Backup creation failed |
+| BACKUP_CORRUPTED | 500 | Backup file corrupted |
+| RESTORE_FAILED | 500 | Restore failed |
+| BACKUP_QUOTA_EXCEEDED | 507 | Insufficient backup space |
 
-### B. 相关文档
+### B. Related Documentation
 
-- [PRD - 备份与恢复](../prd.md#25-备份与恢复)
-- [Docker 数据卷管理](https://docs.docker.com/storage/volumes/)
+- [PRD - Backup & Restore](../prd.md#25-备份与恢复)
+- [Docker Volume Management](https://docs.docker.com/storage/volumes/)
 
 ---
 
-**文档维护:** PM Agent  
-**最后更新:** 2026-01-05
+**Document Maintainer:** PM Agent  
+**Last Updated:** 2026-01-05

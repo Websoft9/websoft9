@@ -1,67 +1,67 @@
-# Python 编码规范
+# Python Coding Standards
 
-**Websoft9 项目 - Python/FastAPI 最佳实践**
+**Websoft9 Project - Python/FastAPI Best Practices**
 
-**创建日期**: 2026-01-04  
-**维护者**: Winston (Architect Agent)  
-**版本**: 1.0  
-**状态**: Active
-
----
-
-## 目录
-
-1. [命名规范](#1-命名规范)
-2. [项目结构](#2-项目结构)
-3. [代码风格](#3-代码风格)
-4. [错误处理](#4-错误处理)
-5. [异步编程](#5-异步编程)
-6. [注释与文档](#6-注释与文档)
-7. [类型注解](#7-类型注解)
-8. [安全编码](#8-安全编码)
-9. [性能优化](#9-性能优化)
-10. [代码审查清单](#10-代码审查清单)
+**Created**: 2026-01-04  
+**Maintainer**: Winston (Architect Agent)  
+**Version**: 1.0  
+**Status**: Active
 
 ---
 
-## 1. 命名规范
+## Table of Contents
 
-### 1.1 基本原则
+1. [Naming Conventions](#1-naming-conventions)
+2. [Project Structure](#2-project-structure)
+3. [Code Style](#3-code-style)
+4. [Error Handling](#4-error-handling)
+5. [Async Programming](#5-async-programming)
+6. [Comments & Documentation](#6-comments--documentation)
+7. [Type Annotations](#7-type-annotations)
+8. [Security Coding](#8-security-coding)
+9. [Performance Optimization](#9-performance-optimization)
+10. [Code Review Checklist](#10-code-review-checklist)
 
-遵循 [PEP 8](https://peps.python.org/pep-0008/) 规范:
+---
+
+## 1. Naming Conventions
+
+### 1.1 Basic Principles
+
+Follow [PEP 8](https://peps.python.org/pep-0008/) standards:
 
 ```python
-# ✅ 推荐
+# ✅ Recommended
 
-# 模块/包名: lowercase_with_underscores
+# Module/Package names: lowercase_with_underscores
 # apphub/src/core/app_service.py
 # apphub/src/api/v1/routers/app_management.py
 
-# 类名: CapWords (PascalCase)
+# Class names: CapWords (PascalCase)
 class AppService:
     pass
 
 class DockerContainerManager:
     pass
 
-# 函数/方法名: lowercase_with_underscores
+# Function/Method names: lowercase_with_underscores
 def create_application(app_name: str) -> dict:
     pass
 
 async def get_container_status(container_id: str) -> str:
     pass
 
-# 变量名: lowercase_with_underscores
+# Variable names: lowercase_with_underscores
 app_name = "wordpress"
 container_id = "abc123"
 is_running = True
 
-# 常量: UPPERCASE_WITH_UNDERSCORES
+# Constants: UPPERCASE_WITH_UNDERSCORES
 API_VERSION = "v1"
 MAX_RETRY_COUNT = 3
 DEFAULT_PORT = 8080
 
-# 私有属性/方法: _leading_underscore
+# Private attributes/methods: _leading_underscore
 class MyClass:
     def __init__(self):
         self._private_var = None
@@ -69,83 +69,83 @@ class MyClass:
     def _private_method(self):
         pass
 
-# ❌ 避免
+# ❌ Avoid
 
-# 不要使用驼峰命名变量/函数
+# Don't use camelCase for variables/functions
 appName = "wordpress"  # ❌
 def createApplication():  # ❌
     pass
 
-# 不要使用单字符变量名 (除循环计数器外)
+# Don't use single-character variable names (except loop counters)
 a = get_app()  # ❌
 result = get_app()  # ✅
 
-# 不要使用 Python 关键字
+# Don't use Python keywords
 class = "MyClass"  # ❌ SyntaxError
-type = "string"    # ❌ 覆盖内置函数
+type = "string"    # ❌ Shadows built-in function
 ```
 
-### 1.2 领域特定命名
+### 1.2 Domain-Specific Naming
 
 ```python
-# Docker 相关
+# Docker-related
 container_name = "websoft9-wordpress"
 image_name = "wordpress:latest"
 network_name = "websoft9_network"
 
-# 应用相关
-app_name = "wordpress"  # 应用标识
-app_id = "app_123"      # 数据库主键
-app_title = "WordPress" # 显示名称
+# Application-related
+app_name = "wordpress"  # Application identifier
+app_id = "app_123"      # Database primary key
+app_title = "WordPress" # Display name
 
-# API 相关
+# API-related
 api_key = "sk_live_xxxxxxxxxxxx"
 access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 request_id = "550e8400-e29b-41d4-a716-446655440000"
 
-# 文件路径
+# File paths
 app_data_dir = "/websoft9/apphub/data"
 config_file_path = "/etc/websoft9/config.json"
 ```
 
 ---
 
-## 2. 项目结构
+## 2. Project Structure
 
-### 2.1 Websoft9 AppHub 结构
+### 2.1 Websoft9 AppHub Structure
 
 ```
 apphub/
 ├── src/
-│   ├── main.py                    # FastAPI 应用入口
-│   ├── config.py                  # 配置管理
+│   ├── main.py                    # FastAPI application entry
+│   ├── config.py                  # Configuration management
 │   ├── api/
 │   │   └── v1/
-│   │       ├── routers/           # API 路由
+│   │       ├── routers/           # API routes
 │   │       │   ├── apps.py
 │   │       │   ├── proxy.py
 │   │       │   └── settings.py
-│   │       └── deps.py            # 依赖注入
-│   ├── core/                      # 核心业务逻辑
+│   │       └── deps.py            # Dependency injection
+│   ├── core/                      # Core business logic
 │   │   ├── app_service.py
 │   │   ├── docker_service.py
 │   │   └── config_service.py
-│   ├── schemas/                   # Pydantic 模型
+│   ├── schemas/                   # Pydantic models
 │   │   ├── app.py
 │   │   ├── proxy.py
 │   │   └── response.py
-│   ├── models/                    # 数据库模型
+│   ├── models/                    # Database models
 │   │   └── app.py
-│   ├── db/                        # 数据库工具
+│   ├── db/                        # Database utilities
 │   │   ├── base.py
 │   │   └── session.py
-│   ├── utils/                     # 工具函数
+│   ├── utils/                     # Utility functions
 │   │   ├── logger.py
 │   │   ├── docker_utils.py
 │   │   └── file_utils.py
-│   └── exceptions/                # 自定义异常
+│   └── exceptions/                # Custom exceptions
 │       └── app_exceptions.py
-├── tests/                         # 测试代码
+├── tests/                         # Test code
 │   ├── unit/
 │   ├── integration/
 │   └── conftest.py
@@ -154,12 +154,12 @@ apphub/
 └── README.md
 ```
 
-### 2.2 模块组织原则
+### 2.2 Module Organization Principles
 
 ```python
-# ✅ 推荐: 按功能分层
+# ✅ Recommended: Layer by functionality
 
-# apphub/src/api/v1/routers/apps.py (API 层)
+# apphub/src/api/v1/routers/apps.py (API layer)
 from fastapi import APIRouter, Depends
 from core.app_service import AppService
 from schemas.app import AppCreate, AppResponse
@@ -174,58 +174,58 @@ async def create_app(
     return await service.create_app(app)
 
 
-# apphub/src/core/app_service.py (业务逻辑层)
+# apphub/src/core/app_service.py (Business logic layer)
 from typing import List
 from schemas.app import AppCreate, AppResponse
 from db.session import get_db
 
 class AppService:
-    """应用管理服务"""
+    """Application management service"""
     
     async def create_app(self, app: AppCreate) -> AppResponse:
-        """创建应用"""
-        # 业务逻辑实现
+        """Create application"""
+        # Business logic implementation
         pass
 
 
-# apphub/src/schemas/app.py (数据模型层)
+# apphub/src/schemas/app.py (Data model layer)
 from pydantic import BaseModel
 from typing import Optional
 
 class AppCreate(BaseModel):
-    """创建应用请求模型"""
+    """Create application request model"""
     app_name: str
     image: str
     domain: Optional[str] = None
 
 
-# ❌ 避免: 所有代码放在一个文件
-# main.py (2000+ 行代码) ❌
+# ❌ Avoid: All code in one file
+# main.py (2000+ lines of code) ❌
 ```
 
 ---
 
-## 3. 代码风格
+## 3. Code Style
 
-### 3.1 PEP 8 核心规则
+### 3.1 PEP 8 Core Rules
 
 ```python
-# 1. 缩进: 4 个空格 (不要使用 Tab)
+# 1. Indentation: 4 spaces (no tabs)
 def my_function():
     if condition:
         do_something()
 
-# 2. 行长度: 最大 88 字符 (Black 默认)
-# ✅ 推荐
+# 2. Line length: Maximum 88 characters (Black default)
+# ✅ Recommended
 result = some_function_with_long_name(
     argument1,
     argument2,
     argument3
 )
 
-# 3. 空行
-# - 类定义前后 2 个空行
-# - 方法定义之间 1 个空行
+# 3. Blank lines
+# - 2 blank lines before/after class definitions
+# - 1 blank line between method definitions
 class MyClass:
     
     def method1(self):
@@ -239,45 +239,45 @@ class AnotherClass:
     pass
 
 
-# 4. 导入顺序
-# 标准库
+# 4. Import order
+# Standard library
 import os
 import sys
 from typing import List, Optional
 
-# 第三方库
+# Third-party libraries
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import docker
 
-# 本地模块
+# Local modules
 from core.app_service import AppService
 from schemas.app import AppCreate
 ```
 
-### 3.2 使用 Black 格式化
+### 3.2 Using Black Formatter
 
 ```bash
-# 安装 Black
+# Install Black
 pip install black
 
-# 格式化单个文件
+# Format single file
 black apphub/src/main.py
 
-# 格式化整个项目
+# Format entire project
 black apphub/src/
 
-# 检查格式但不修改
+# Check format without modifying
 black --check apphub/src/
 
-# 配置文件: pyproject.toml
+# Configuration file: pyproject.toml
 [tool.black]
 line-length = 88
 target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # 排除目录
+  # Exclude directories
   \.git
   | \.venv
   | build
@@ -286,47 +286,47 @@ extend-exclude = '''
 '''
 ```
 
-### 3.3 字符串格式化
+### 3.3 String Formatting
 
 ```python
-# ✅ 推荐: f-string (Python 3.6+)
+# ✅ Recommended: f-string (Python 3.6+)
 app_name = "wordpress"
-message = f"应用 {app_name} 创建成功"
+message = f"Application {app_name} created successfully"
 
-# 多行 f-string
+# Multi-line f-string
 query = (
     f"SELECT * FROM apps "
     f"WHERE name = '{app_name}' "
     f"AND status = 'running'"
 )
 
-# ❌ 避免: % 格式化 (旧式)
-message = "应用 %s 创建成功" % app_name
+# ❌ Avoid: % formatting (old-style)
+message = "Application %s created successfully" % app_name
 
-# ❌ 避免: .format() (除非需要延迟格式化)
-message = "应用 {} 创建成功".format(app_name)
+# ❌ Avoid: .format() (unless lazy formatting needed)
+message = "Application {} created successfully".format(app_name)
 
-# ⚠️ 日志使用 % 格式化 (性能优化)
+# ⚠️ Use % formatting for logging (performance optimization)
 import logging
 logger = logging.getLogger(__name__)
-logger.info("应用 %s 创建成功", app_name)  # 只在需要时格式化
+logger.info("Application %s created successfully", app_name)  # Format only when needed
 ```
 
-### 3.4 列表/字典推导式
+### 3.4 List/Dict Comprehensions
 
 ```python
-# ✅ 推荐: 简洁的推导式
-# 列表推导
+# ✅ Recommended: Concise comprehensions
+# List comprehension
 running_apps = [app for app in apps if app.status == "running"]
 
-# 字典推导
+# Dict comprehension
 app_dict = {app.name: app.status for app in apps}
 
-# 集合推导
+# Set comprehension
 unique_images = {app.image for app in apps}
 
-# ❌ 避免: 复杂的推导式 (使用传统循环更清晰)
-# 太复杂 ❌
+# ❌ Avoid: Complex comprehensions (use traditional loops for clarity)
+# Too complex ❌
 result = [
     process_data(item.value) 
     for item in data 
@@ -335,7 +335,7 @@ result = [
     if subitem.active
 ]
 
-# 改用传统循环 ✅
+# Use traditional loop instead ✅
 result = []
 for item in data:
     if item.is_valid() and item.value > 0:
@@ -346,9 +346,9 @@ for item in data:
 
 ---
 
-## 4. 错误处理
+## 4. Error Handling
 
-### 4.1 异常处理模式
+### 4.1 Exception Handling Patterns
 
 ```python
 import logging
@@ -356,52 +356,52 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ✅ 推荐: 具体异常优先,记录日志
+# ✅ Recommended: Specific exceptions first, log errors
 async def get_application(app_name: str) -> Optional[dict]:
-    """获取应用信息"""
+    """Get application information"""
     try:
         app = await app_repository.find_by_name(app_name)
         if not app:
-            logger.warning(f"应用 {app_name} 不存在")
+            logger.warning(f"Application {app_name} not found")
             return None
         return app
         
     except ConnectionError as e:
-        logger.error(f"数据库连接失败: {e}")
+        logger.error(f"Database connection failed: {e}")
         raise
         
     except ValueError as e:
-        logger.warning(f"无效的应用名称 {app_name}: {e}")
+        logger.warning(f"Invalid application name {app_name}: {e}")
         raise
         
     except Exception as e:
-        logger.exception(f"获取应用 {app_name} 时发生未知错误: {e}")
+        logger.exception(f"Unknown error while getting application {app_name}: {e}")
         raise
 
 
-# ❌ 避免: 捕获所有异常并忽略
+# ❌ Avoid: Catch all exceptions and ignore
 async def get_application(app_name: str):
     try:
         return await app_repository.find_by_name(app_name)
-    except:  # ❌ 裸 except
-        pass  # ❌ 吞掉异常
+    except:  # ❌ Bare except
+        pass  # ❌ Swallowing exception
 
 
-# ❌ 避免: 不必要的 try-except
+# ❌ Avoid: Unnecessary try-except
 def simple_calculation(a: int, b: int) -> int:
-    try:  # ❌ 简单运算不需要
+    try:  # ❌ Simple operation doesn't need it
         return a + b
     except:
         return 0
 ```
 
-### 4.2 自定义异常
+### 4.2 Custom Exceptions
 
 ```python
 # apphub/src/exceptions/app_exceptions.py
 
 class AppException(Exception):
-    """应用异常基类"""
+    """Base application exception"""
     def __init__(self, message: str, error_code: str = None):
         self.message = message
         self.error_code = error_code
@@ -409,17 +409,17 @@ class AppException(Exception):
 
 
 class AppNotFoundException(AppException):
-    """应用不存在异常"""
+    """Application not found exception"""
     def __init__(self, app_name: str):
         super().__init__(
-            message=f"应用 {app_name} 不存在",
+            message=f"Application {app_name} not found",
             error_code="APP_NOT_FOUND"
         )
         self.app_name = app_name
 
 
 class DockerAPIException(AppException):
-    """Docker API 调用失败"""
+    """Docker API call failed"""
     def __init__(self, message: str, container_id: str = None):
         super().__init__(
             message=message,
@@ -428,7 +428,7 @@ class DockerAPIException(AppException):
         self.container_id = container_id
 
 
-# 使用示例
+# Usage example
 from exceptions.app_exceptions import AppNotFoundException
 
 async def delete_app(app_name: str):
@@ -439,12 +439,12 @@ async def delete_app(app_name: str):
     await docker_service.remove_container(app.container_id)
 ```
 
-### 4.3 上下文管理器
+### 4.3 Context Managers
 
 ```python
 from contextlib import asynccontextmanager
 
-# ✅ 推荐: 使用 with 管理资源
+# ✅ Recommended: Use with to manage resources
 import docker
 
 def manage_containers():
@@ -453,13 +453,13 @@ def manage_containers():
         containers = client.containers.list()
         return containers
     finally:
-        client.close()  # 确保清理
+        client.close()  # Ensure cleanup
 
 
-# 异步上下文管理器
+# Async context manager
 @asynccontextmanager
 async def get_database_session():
-    """数据库会话管理"""
+    """Database session management"""
     session = SessionLocal()
     try:
         yield session
@@ -471,41 +471,41 @@ async def get_database_session():
         await session.close()
 
 
-# 使用
+# Usage
 async def create_app(app_data: dict):
     async with get_database_session() as session:
         app = App(**app_data)
         session.add(app)
-        # 自动 commit/rollback
+        # Auto commit/rollback
 ```
 
 ---
 
-## 5. 异步编程
+## 5. Async Programming
 
-### 5.1 Async/Await 基础
+### 5.1 Async/Await Basics
 
 ```python
 import asyncio
 from typing import List
 
-# ✅ 推荐: 所有 I/O 操作使用 async
+# ✅ Recommended: Use async for all I/O operations
 async def fetch_app_data(app_name: str) -> dict:
-    """异步获取应用数据"""
-    # 异步数据库查询
+    """Asynchronously fetch application data"""
+    # Async database query
     app = await db.fetch_one("SELECT * FROM apps WHERE name = ?", app_name)
     
-    # 异步 HTTP 请求
+    # Async HTTP request
     async with httpx.AsyncClient() as client:
         response = await client.get(f"http://api/status/{app_name}")
     
     return {"app": app, "status": response.json()}
 
 
-# ✅ 并发执行多个任务
+# ✅ Concurrent execution of multiple tasks
 async def get_dashboard_data() -> dict:
-    """并发获取仪表盘数据"""
-    # 同时执行多个异步操作
+    """Concurrently fetch dashboard data"""
+    # Execute multiple async operations simultaneously
     apps, containers, images = await asyncio.gather(
         count_apps(),
         count_containers(),
@@ -519,37 +519,37 @@ async def get_dashboard_data() -> dict:
     }
 
 
-# ❌ 避免: 在异步函数中使用同步 I/O
+# ❌ Avoid: Using sync I/O in async functions
 async def bad_example(app_name: str):
-    # ❌ 阻塞事件循环
+    # ❌ Blocks event loop
     import time
-    time.sleep(5)  # 使用 await asyncio.sleep(5)
+    time.sleep(5)  # Use await asyncio.sleep(5)
     
-    # ❌ 同步 HTTP 请求
+    # ❌ Sync HTTP request
     import requests
-    response = requests.get(url)  # 使用 httpx.AsyncClient
+    response = requests.get(url)  # Use httpx.AsyncClient
     
-    # ❌ 同步文件操作
+    # ❌ Sync file operations
     with open("data.txt") as f:
-        data = f.read()  # 使用 aiofiles
+        data = f.read()  # Use aiofiles
 ```
 
-### 5.2 异步迭代
+### 5.2 Async Iteration
 
 ```python
 from typing import AsyncIterator
 
-# 异步生成器
+# Async generator
 async def stream_logs(container_id: str) -> AsyncIterator[str]:
-    """流式读取容器日志"""
+    """Stream container logs"""
     async for line in docker_client.logs(container_id, stream=True):
         yield line.decode('utf-8')
 
 
-# 使用异步迭代
+# Using async iteration
 @router.get("/containers/{container_id}/logs")
 async def get_container_logs(container_id: str):
-    """流式返回日志"""
+    """Return logs as stream"""
     async def log_generator():
         async for log_line in stream_logs(container_id):
             yield f"data: {log_line}\n\n"
@@ -557,7 +557,7 @@ async def get_container_logs(container_id: str):
     return StreamingResponse(log_generator(), media_type="text/event-stream")
 ```
 
-### 5.3 异步锁
+### 5.3 Async Locks
 
 ```python
 import asyncio
@@ -567,17 +567,17 @@ class AppService:
         self._locks = {}  # app_name -> Lock
     
     async def _get_lock(self, app_name: str) -> asyncio.Lock:
-        """获取应用级别的锁"""
+        """Get application-level lock"""
         if app_name not in self._locks:
             self._locks[app_name] = asyncio.Lock()
         return self._locks[app_name]
     
     async def update_app(self, app_name: str, updates: dict):
-        """并发安全的应用更新"""
+        """Concurrency-safe application update"""
         lock = await self._get_lock(app_name)
         
         async with lock:
-            # 同一应用的更新操作串行化
+            # Serialize update operations for the same app
             app = await self.get_app(app_name)
             app.update(updates)
             await self.save(app)
@@ -585,11 +585,11 @@ class AppService:
 
 ---
 
-## 6. 注释与文档
+## 6. Comments & Documentation
 
-### 6.1 Docstring 规范
+### 6.1 Docstring Standards
 
-使用 Google 风格 Docstring:
+Use Google-style docstrings:
 
 ```python
 def create_application(
@@ -599,31 +599,31 @@ def create_application(
     env_vars: dict = None
 ) -> dict:
     """
-    创建新的容器化应用
+    Create a new containerized application
     
-    该函数会执行以下操作:
-    1. 验证应用名称唯一性
-    2. 拉取 Docker 镜像
-    3. 创建并启动容器
-    4. 配置网络和端口映射
+    This function performs the following operations:
+    1. Validate application name uniqueness
+    2. Pull Docker image
+    3. Create and start container
+    4. Configure network and port mapping
     
     Args:
-        app_name: 应用名称,必须唯一,格式: 小写字母、数字、连字符
-        image: Docker 镜像名称,格式: repository:tag
-        ports: 端口映射列表,范围 1024-65535,默认为空列表
-        env_vars: 环境变量字典,默认为空字典
+        app_name: Application name, must be unique, format: lowercase letters, numbers, hyphens
+        image: Docker image name, format: repository:tag
+        ports: Port mapping list, range 1024-65535, defaults to empty list
+        env_vars: Environment variables dictionary, defaults to empty dict
     
     Returns:
-        包含以下字段的字典:
-        - app_id: 应用唯一标识符
-        - container_id: Docker 容器 ID
-        - status: 应用状态 (running, stopped, error)
-        - created_at: 创建时间戳
+        Dictionary containing the following fields:
+        - app_id: Application unique identifier
+        - container_id: Docker container ID
+        - status: Application status (running, stopped, error)
+        - created_at: Creation timestamp
     
     Raises:
-        AppAlreadyExistsException: 应用名称已存在
-        DockerImageNotFoundException: Docker 镜像不存在
-        DockerAPIException: Docker API 调用失败
+        AppAlreadyExistsException: Application name already exists
+        DockerImageNotFoundException: Docker image not found
+        DockerAPIException: Docker API call failed
     
     Examples:
         >>> create_application(
@@ -640,64 +640,64 @@ def create_application(
         }
     
     Note:
-        - 应用名称创建后不可修改
-        - 端口冲突时自动分配可用端口
-        - 环境变量支持模板替换 ${VAR_NAME}
+        - Application name cannot be modified after creation
+        - Automatically assigns available port if port conflict occurs
+        - Environment variables support template substitution ${VAR_NAME}
     
     See Also:
-        - update_application(): 更新应用配置
-        - delete_application(): 删除应用
+        - update_application(): Update application configuration
+        - delete_application(): Delete application
     """
     pass
 ```
 
-### 6.2 注释最佳实践
+### 6.2 Comment Best Practices
 
 ```python
-# ✅ 推荐: 解释 WHY,而不是 WHAT
+# ✅ Recommended: Explain WHY, not WHAT
 
-# 好注释: 解释原因
-# 使用 asyncio.gather 而不是串行调用,减少 50% 的响应时间
+# Good comment: Explains reason
+# Use asyncio.gather instead of serial calls to reduce response time by 50%
 apps, containers = await asyncio.gather(
     get_apps(),
     get_containers()
 )
 
-# 处理 Docker API 的竞态条件:容器可能在查询后立即被删除
+# Handle Docker API race condition: container may be deleted immediately after query
 try:
     container = docker_client.containers.get(container_id)
 except docker.errors.NotFound:
-    logger.warning(f"容器 {container_id} 已被删除")
+    logger.warning(f"Container {container_id} has been deleted")
     return None
 
 
-# ❌ 避免: 重复代码的注释
+# ❌ Avoid: Comments that repeat code
 
-# 坏注释: 重复代码
-# 创建应用
-app = create_app()  # ❌ 多余
+# Bad comment: Repeats code
+# Create application
+app = create_app()  # ❌ Redundant
 
-# 获取应用名称
-name = app.name  # ❌ 多余
+# Get application name
+name = app.name  # ❌ Redundant
 
 
-# ✅ TODO/FIXME/NOTE 注释
+# ✅ TODO/FIXME/NOTE comments
 
-# TODO(winston): 实现应用自动备份功能 (Issue #123)
-# FIXME: Docker API 在高并发下可能超时,需要添加重试逻辑
-# NOTE: 该方法仅兼容 Docker Engine 20.10+
-# HACK: 临时解决方案,等待 Docker SDK 修复 Bug
-# XXX: 危险操作,修改前务必备份数据
+# TODO(winston): Implement automatic application backup feature (Issue #123)
+# FIXME: Docker API may timeout under high concurrency, need to add retry logic
+# NOTE: This method is only compatible with Docker Engine 20.10+
+# HACK: Temporary workaround, waiting for Docker SDK to fix bug
+# XXX: Dangerous operation, must backup data before modification
 ```
 
-### 6.3 类型注解作为文档
+### 6.3 Type Annotations as Documentation
 
 ```python
 from typing import Optional, List, Dict, Union, TypedDict
 
-# ✅ 使用 TypedDict 定义复杂结构
+# ✅ Use TypedDict to define complex structures
 class AppConfig(TypedDict):
-    """应用配置结构"""
+    """Application configuration structure"""
     app_name: str
     image: str
     ports: List[int]
@@ -707,18 +707,18 @@ class AppConfig(TypedDict):
 
 def configure_app(config: AppConfig) -> bool:
     """
-    配置应用
+    Configure application
     
     Args:
-        config: 应用配置,必须包含 app_name 和 image
+        config: Application configuration, must contain app_name and image
     
     Returns:
-        配置是否成功
+        Whether configuration was successful
     """
     pass
 
 
-# IDE 会提供完整的字段提示
+# IDE will provide complete field hints
 configure_app({
     "app_name": "wordpress",
     "image": "wordpress:latest",
@@ -729,25 +729,25 @@ configure_app({
 
 ---
 
-## 7. 类型注解
+## 7. Type Annotations
 
-### 7.1 函数类型注解
+### 7.1 Function Type Annotations
 
 ```python
 from typing import List, Dict, Optional, Union, Any, Callable
 from pydantic import BaseModel
 
-# ✅ 推荐: 完整的类型注解
+# ✅ Recommended: Complete type annotations
 async def list_applications(
     status: Optional[str] = None,
     page: int = 1,
     page_size: int = 20
 ) -> List[Dict[str, Any]]:
-    """列出应用"""
+    """List applications"""
     pass
 
 
-# 使用 Pydantic 模型
+# Using Pydantic models
 class AppResponse(BaseModel):
     app_name: str
     status: str
@@ -755,39 +755,39 @@ class AppResponse(BaseModel):
 
 
 async def get_application(app_name: str) -> Optional[AppResponse]:
-    """获取应用"""
+    """Get application"""
     pass
 
 
-# 回调函数类型
+# Callback function type
 ProcessCallback = Callable[[str, int], bool]
 
 def process_apps(
     apps: List[str],
     callback: ProcessCallback
 ) -> None:
-    """处理应用列表"""
+    """Process application list"""
     for index, app in enumerate(apps):
         callback(app, index)
 ```
 
-### 7.2 使用 mypy 检查
+### 7.2 Using mypy for Type Checking
 
 ```bash
-# 安装 mypy
+# Install mypy
 pip install mypy
 
-# 检查类型
+# Check types
 mypy apphub/src/
 
-# 配置文件: mypy.ini
+# Configuration file: mypy.ini
 [mypy]
 python_version = 3.11
 warn_return_any = True
 warn_unused_configs = True
 disallow_untyped_defs = True
 
-# 忽略第三方库
+# Ignore third-party libraries
 [mypy-docker.*]
 ignore_missing_imports = True
 
@@ -797,60 +797,60 @@ ignore_missing_imports = True
 
 ---
 
-## 8. 安全编码
+## 8. Security Coding
 
-### 8.1 输入验证
+### 8.1 Input Validation
 
 ```python
 from pydantic import BaseModel, Field, validator
 import re
 
 class AppCreate(BaseModel):
-    """应用创建请求"""
+    """Application creation request"""
     app_name: str = Field(..., min_length=3, max_length=50)
     image: str = Field(..., regex=r'^[a-z0-9._/-]+:[a-z0-9._-]+$')
     
     @validator('app_name')
     def validate_app_name(cls, v):
-        """验证应用名称安全性"""
-        # 仅允许小写字母、数字、连字符
+        """Validate application name security"""
+        # Only allow lowercase letters, numbers, hyphens
         if not re.match(r'^[a-z0-9-]+$', v):
-            raise ValueError('应用名称只能包含小写字母、数字和连字符')
+            raise ValueError('Application name can only contain lowercase letters, numbers and hyphens')
         
-        # 不允许以连字符开头/结尾
+        # Cannot start/end with hyphen
         if v.startswith('-') or v.endswith('-'):
-            raise ValueError('应用名称不能以连字符开头或结尾')
+            raise ValueError('Application name cannot start or end with hyphen')
         
-        # 不允许保留名称
+        # Reserved names not allowed
         reserved_names = ['system', 'admin', 'root', 'test']
         if v in reserved_names:
-            raise ValueError(f'应用名称不能使用保留名称: {reserved_names}')
+            raise ValueError(f'Application name cannot use reserved names: {reserved_names}')
         
         return v
 ```
 
-### 8.2 SQL 注入防护
+### 8.2 SQL Injection Protection
 
 ```python
-# ✅ 推荐: 使用参数化查询
+# ✅ Recommended: Use parameterized queries
 async def get_app_by_name(app_name: str):
     query = "SELECT * FROM apps WHERE name = ?"
     return await db.fetch_one(query, app_name)
 
 
-# ❌ 危险: 字符串拼接
+# ❌ Dangerous: String concatenation
 async def get_app_by_name_unsafe(app_name: str):
-    query = f"SELECT * FROM apps WHERE name = '{app_name}'"  # ❌ SQL 注入风险
+    query = f"SELECT * FROM apps WHERE name = '{app_name}'"  # ❌ SQL injection risk
     return await db.fetch_one(query)
 ```
 
-### 8.3 密钥管理
+### 8.3 Secret Management
 
 ```python
 import os
 from cryptography.fernet import Fernet
 
-# ✅ 推荐: 使用环境变量
+# ✅ Recommended: Use environment variables
 API_KEY = os.getenv("API_KEY")
 if not API_KEY:
     raise ValueError("API_KEY environment variable not set")
@@ -858,13 +858,13 @@ if not API_KEY:
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 
-# ❌ 危险: 硬编码密钥
-API_KEY = "sk_live_1234567890abcdef"  # ❌ 永远不要这样做
+# ❌ Dangerous: Hardcoded secrets
+API_KEY = "sk_live_1234567890abcdef"  # ❌ Never do this
 
 
-# 加密敏感数据
+# Encrypt sensitive data
 class SecretsManager:
-    """密钥管理器"""
+    """Secrets manager"""
     
     def __init__(self):
         key = os.getenv("ENCRYPTION_KEY")
@@ -873,30 +873,30 @@ class SecretsManager:
         self.cipher = Fernet(key.encode())
     
     def encrypt(self, plaintext: str) -> str:
-        """加密数据"""
+        """Encrypt data"""
         return self.cipher.encrypt(plaintext.encode()).decode()
     
     def decrypt(self, ciphertext: str) -> str:
-        """解密数据"""
+        """Decrypt data"""
         return self.cipher.decrypt(ciphertext.encode()).decode()
 
 
-# 使用
+# Usage
 secrets = SecretsManager()
 encrypted_password = secrets.encrypt("my_password")
-# 存储 encrypted_password 到数据库
+# Store encrypted_password in database
 ```
 
-### 8.4 命令注入防护
+### 8.4 Command Injection Protection
 
 ```python
 import subprocess
 import shlex
 
-# ✅ 推荐: 使用列表参数
+# ✅ Recommended: Use list arguments
 def run_docker_command(container_id: str):
-    """安全执行 Docker 命令"""
-    # 参数列表,不会被 shell 解析
+    """Safely execute Docker command"""
+    # Argument list, won't be parsed by shell
     result = subprocess.run(
         ["docker", "inspect", container_id],
         capture_output=True,
@@ -906,20 +906,20 @@ def run_docker_command(container_id: str):
     return result.stdout
 
 
-# ❌ 危险: 使用 shell=True
+# ❌ Dangerous: Using shell=True
 def run_docker_command_unsafe(container_id: str):
-    command = f"docker inspect {container_id}"  # ❌ 命令注入风险
+    command = f"docker inspect {container_id}"  # ❌ Command injection risk
     result = subprocess.run(
         command,
-        shell=True,  # ❌ 危险
+        shell=True,  # ❌ Dangerous
         capture_output=True
     )
     return result.stdout
 
 
-# 如果必须使用 shell,至少转义参数
+# If shell is required, at least escape arguments
 def run_with_shell(container_id: str):
-    safe_id = shlex.quote(container_id)  # 转义特殊字符
+    safe_id = shlex.quote(container_id)  # Escape special characters
     command = f"docker inspect {safe_id}"
     result = subprocess.run(command, shell=True, capture_output=True)
     return result.stdout
@@ -927,32 +927,32 @@ def run_with_shell(container_id: str):
 
 ---
 
-## 9. 性能优化
+## 9. Performance Optimization
 
-### 9.1 缓存策略
+### 9.1 Caching Strategy
 
 ```python
 from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import Optional
 
-# 内存缓存 (简单场景)
+# In-memory cache (simple scenarios)
 @lru_cache(maxsize=128)
 def get_docker_config(config_key: str) -> str:
-    """缓存 Docker 配置"""
+    """Cache Docker configuration"""
     return load_config(config_key)
 
 
-# 带过期时间的缓存
+# Cache with TTL
 class CacheWithTTL:
-    """带 TTL 的缓存"""
+    """Cache with TTL"""
     
     def __init__(self, ttl_seconds: int = 300):
         self._cache = {}
         self._ttl = timedelta(seconds=ttl_seconds)
     
     def get(self, key: str) -> Optional[any]:
-        """获取缓存"""
+        """Get from cache"""
         if key in self._cache:
             value, timestamp = self._cache[key]
             if datetime.now() - timestamp < self._ttl:
@@ -962,15 +962,15 @@ class CacheWithTTL:
         return None
     
     def set(self, key: str, value: any):
-        """设置缓存"""
+        """Set cache"""
         self._cache[key] = (value, datetime.now())
 
 
-# 使用
-app_cache = CacheWithTTL(ttl_seconds=300)  # 5 分钟过期
+# Usage
+app_cache = CacheWithTTL(ttl_seconds=300)  # 5 minutes expiration
 
 async def get_app_status(app_name: str):
-    """获取应用状态 (带缓存)"""
+    """Get application status (with cache)"""
     cached = app_cache.get(app_name)
     if cached:
         return cached
@@ -980,125 +980,125 @@ async def get_app_status(app_name: str):
     return status
 ```
 
-### 9.2 批量操作
+### 9.2 Batch Operations
 
 ```python
-# ✅ 推荐: 批量查询
+# ✅ Recommended: Batch queries
 async def get_apps_status(app_names: List[str]) -> Dict[str, str]:
-    """批量获取应用状态"""
-    # 一次查询所有应用
+    """Batch get application status"""
+    # Query all apps at once
     query = "SELECT name, status FROM apps WHERE name IN (?)"
     results = await db.fetch_all(query, app_names)
     return {row['name']: row['status'] for row in results}
 
 
-# ❌ 避免: N+1 查询
+# ❌ Avoid: N+1 queries
 async def get_apps_status_slow(app_names: List[str]):
-    """慢速方式: 逐个查询"""
+    """Slow way: Query one by one"""
     statuses = {}
-    for name in app_names:  # ❌ N 次数据库查询
+    for name in app_names:  # ❌ N database queries
         status = await get_app_status(name)
         statuses[name] = status
     return statuses
 ```
 
-### 9.3 生成器优化内存
+### 9.3 Generator for Memory Optimization
 
 ```python
 from typing import Iterator
 
-# ✅ 推荐: 使用生成器处理大数据集
+# ✅ Recommended: Use generator for large datasets
 def process_large_log_file(file_path: str) -> Iterator[str]:
-    """逐行处理日志文件"""
+    """Process log file line by line"""
     with open(file_path) as f:
-        for line in f:  # 逐行读取,不占用大量内存
+        for line in f:  # Read line by line, doesn't consume much memory
             if "ERROR" in line:
                 yield line.strip()
 
 
-# ❌ 避免: 一次性加载所有数据
+# ❌ Avoid: Load all data at once
 def process_large_log_file_bad(file_path: str) -> list[str]:
-    """一次性加载所有日志 (内存占用大)"""
+    """Load all logs at once (high memory usage)"""
     with open(file_path) as f:
-        all_lines = f.readlines()  # ❌ 如果文件很大,内存爆炸
+        all_lines = f.readlines()  # ❌ Memory explosion if file is large
     return [line for line in all_lines if "ERROR" in line]
 
 
-# 异步生成器
+# Async generator
 async def stream_container_logs(container_id: str):
-    """流式读取容器日志"""
+    """Stream container logs"""
     async for log in docker_client.logs(container_id, stream=True):
         yield log
 ```
 
 ---
 
-## 10. 代码审查清单
+## 10. Code Review Checklist
 
-### 10.1 提交前检查
+### 10.1 Pre-Commit Checks
 
 ```bash
-# 1. 代码格式化
+# 1. Code formatting
 black apphub/src/
 flake8 apphub/src/
 
-# 2. 类型检查
+# 2. Type checking
 mypy apphub/src/
 
-# 3. 运行测试
+# 3. Run tests
 pytest tests/ --cov=apphub
 
-# 4. 检查安全问题
+# 4. Check security issues
 bandit -r apphub/src/
 
-# 5. 检查依赖漏洞
+# 5. Check dependency vulnerabilities
 safety check
 ```
 
-### 10.2 Code Review 检查清单
+### 10.2 Code Review Checklist
 
-**命名与结构**:
-- [ ] 变量/函数名符合 PEP 8 规范
-- [ ] 类名使用 PascalCase,函数名使用 snake_case
-- [ ] 模块组织合理,职责单一
+**Naming & Structure**:
+- [ ] Variable/function names follow PEP 8
+- [ ] Class names use PascalCase, function names use snake_case
+- [ ] Module organization is reasonable, single responsibility
 
-**代码质量**:
-- [ ] 所有函数都有类型注解
-- [ ] 公共函数都有 Docstring
-- [ ] 没有使用 `# type: ignore` 绕过类型检查
-- [ ] 没有硬编码魔法数字/字符串
+**Code Quality**:
+- [ ] All functions have type annotations
+- [ ] Public functions have docstrings
+- [ ] No `# type: ignore` to bypass type checking
+- [ ] No hardcoded magic numbers/strings
 
-**异步编程**:
-- [ ] I/O 操作使用 async/await
-- [ ] 没有在异步函数中使用同步阻塞调用
-- [ ] 正确使用 asyncio.gather 并发执行
+**Async Programming**:
+- [ ] I/O operations use async/await
+- [ ] No sync blocking calls in async functions
+- [ ] Proper use of asyncio.gather for concurrent execution
 
-**错误处理**:
-- [ ] 捕获具体异常,不使用裸 `except`
-- [ ] 异常被正确记录日志
-- [ ] 资源正确释放 (使用 with/finally)
+**Error Handling**:
+- [ ] Catch specific exceptions, no bare `except`
+- [ ] Exceptions properly logged
+- [ ] Resources properly released (using with/finally)
 
-**安全**:
-- [ ] 没有硬编码密钥/密码
-- [ ] 输入经过验证
-- [ ] SQL 使用参数化查询
-- [ ] 命令执行避免 shell 注入
+**Security**:
+- [ ] No hardcoded secrets/passwords
+- [ ] Input validated
+- [ ] SQL uses parameterized queries
+- [ ] Command execution avoids shell injection
 
-**性能**:
-- [ ] 避免 N+1 查询
-- [ ] 合理使用缓存
-- [ ] 大数据集使用生成器
+**Performance**:
+- [ ] Avoid N+1 queries
+- [ ] Proper use of caching
+- [ ] Use generators for large datasets
 
-**测试**:
-- [ ] 新功能有对应的单元测试
-- [ ] 测试覆盖率 ≥ 80%
-- [ ] 关键逻辑有集成测试
+**Testing**:
+- [ ] New features have corresponding unit tests
+- [ ] Test coverage ≥ 80%
+- [ ] Critical logic has integration tests
 
 ---
 
-## 附录
+## Appendix
 
-### A. 工具配置
+### A. Tool Configuration
 
 **pyproject.toml**:
 ```toml
@@ -1123,18 +1123,18 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 ```
 
-### B. 推荐工具
+### B. Recommended Tools
 
-- **格式化**: Black, isort
-- **Lint**: flake8, pylint
-- **类型检查**: mypy
-- **安全扫描**: bandit, safety
-- **测试**: pytest, pytest-asyncio, pytest-cov
+- **Formatting**: Black, isort
+- **Linting**: flake8, pylint
+- **Type Checking**: mypy
+- **Security Scanning**: bandit, safety
+- **Testing**: pytest, pytest-asyncio, pytest-cov
 
 ---
 
-**文档维护**: Winston (Architect Agent)  
-**审核状态**: Active  
-**下一步**: [testing-standards.md](./testing-standards.md) - 测试规范文档
+**Document Maintainer**: Winston (Architect Agent)  
+**Review Status**: Active  
+**Next Steps**: [testing-standards.md](./testing-standards.md) - Testing Standards Documentation
 
-**相关文档**: [API Design](./api-design.md) | [Testing Standards](./testing-standards.md) | [DevOps Process](./devops-process.md)
+**Related Documentation**: [API Design](./api-design.md) | [Testing Standards](./testing-standards.md) | [DevOps Process](./devops-process.md)

@@ -1,57 +1,57 @@
-# DevOps 流程规范
+# DevOps Process Standards
 
-**Websoft9 项目 - Git 工作流 & Docker 部署流程**
+**Websoft9 Project - Git Workflow & Docker Deployment Process**
 
-**创建日期**: 2026-01-04  
-**维护者**: Winston (Architect Agent)  
-**版本**: 1.0  
-**状态**: Active
-
----
-
-## 目录
-
-1. [Git 工作流](#1-git-工作流)
-2. [分支策略](#2-分支策略)
-3. [代码审查流程](#3-代码审查流程)
-4. [Docker 部署](#4-docker-部署)
-5. [CI/CD 配置](#5-cicd-配置)
-6. [版本发布](#6-版本发布)
-7. [环境管理](#7-环境管理)
-8. [故障排查](#8-故障排查)
+**Created**: 2026-01-04  
+**Maintainer**: Winston (Architect Agent)  
+**Version**: 1.0  
+**Status**: Active
 
 ---
 
-## 1. Git 工作流
+## Table of Contents
 
-### 1.1 开发流程
+1. [Git Workflow](#1-git-workflow)
+2. [Branch Strategy](#2-branch-strategy)
+3. [Code Review Process](#3-code-review-process)
+4. [Docker Deployment](#4-docker-deployment)
+5. [CI/CD Configuration](#5-cicd-configuration)
+6. [Version Release](#6-version-release)
+7. [Environment Management](#7-environment-management)
+8. [Troubleshooting](#8-troubleshooting)
+
+---
+
+## 1. Git Workflow
+
+### 1.1 Development Process
 
 ```mermaid
 graph LR
-    A[创建 Issue] --> B[创建 Feature 分支]
-    B --> C[本地开发]
-    C --> D[提交代码]
-    D --> E[推送到远程]
-    E --> F[创建 PR]
+    A[Create Issue] --> B[Create Feature Branch]
+    B --> C[Local Development]
+    C --> D[Commit Code]
+    D --> E[Push to Remote]
+    E --> F[Create PR]
     F --> G[Code Review]
-    G --> H{审核通过?}
-    H -->|是| I[合并到 dev]
-    H -->|否| C
-    I --> J[删除 Feature 分支]
+    G --> H{Review Passed?}
+    H -->|Yes| I[Merge to dev]
+    H -->|No| C
+    I --> J[Delete Feature Branch]
 ```
 
-### 1.2 工作流步骤
+### 1.2 Workflow Steps
 
 ```bash
-# 1. 从最新的 dev 分支创建 feature 分支
+# 1. Create feature branch from latest dev branch
 git checkout dev
 git pull origin dev
 git checkout -b feature/add-app-backup
 
-# 2. 开发功能
-# 编辑代码...
+# 2. Develop feature
+# Edit code...
 
-# 3. 提交更改
+# 3. Commit changes
 git add .
 git commit -m "feat(apps): add application backup functionality
 
@@ -61,17 +61,17 @@ git commit -m "feat(apps): add application backup functionality
 
 Closes #123"
 
-# 4. 推送到远程
+# 4. Push to remote
 git push origin feature/add-app-backup
 
-# 5. 在 GitHub 创建 Pull Request
-# 标题: feat(apps): add application backup functionality
-# 描述: 参考 PR 模板填写
+# 5. Create Pull Request on GitHub
+# Title: feat(apps): add application backup functionality
+# Description: Fill according to PR template
 
-# 6. Code Review 后合并
-# 合并方式: Squash and merge (推荐)
+# 6. Merge after Code Review
+# Merge method: Squash and merge (recommended)
 
-# 7. 删除本地和远程分支
+# 7. Delete local and remote branch
 git checkout dev
 git pull origin dev
 git branch -d feature/add-app-backup
@@ -80,51 +80,51 @@ git push origin --delete feature/add-app-backup
 
 ---
 
-## 2. 分支策略
+## 2. Branch Strategy
 
-### 2.1 分支模型
+### 2.1 Branch Model
 
-Websoft9 采用 **GitHub Flow** 简化模型:
+Websoft9 adopts a simplified **GitHub Flow** model:
 
 ```
-main (生产环境)
+main (production environment)
  ↑
- └── dev (开发环境)
+ └── dev (development environment)
       ↑
-      ├── feature/xxx (功能开发)
-      ├── bugfix/xxx (Bug 修复)
-      ├── hotfix/xxx (紧急修复)
-      └── release/vX.Y.Z (发布准备)
+      ├── feature/xxx (feature development)
+      ├── bugfix/xxx (bug fixes)
+      ├── hotfix/xxx (critical fixes)
+      └── release/vX.Y.Z (release preparation)
 ```
 
-### 2.2 分支说明
+### 2.2 Branch Descriptions
 
-| 分支类型 | 命名规范 | 生命周期 | 用途 |
-|---------|---------|---------|------|
-| **main** | `main` | 永久 | 生产环境代码,只接受来自 `release/*` 的合并 |
-| **dev** | `dev` | 永久 | 开发环境代码,所有功能首先合并到此 |
-| **feature** | `feature/<issue-id>-<desc>` | 临时 | 新功能开发 |
-| **bugfix** | `bugfix/<issue-id>-<desc>` | 临时 | Bug 修复 |
-| **hotfix** | `hotfix/<issue-id>-<desc>` | 临时 | 生产环境紧急修复 |
-| **release** | `release/v<major>.<minor>.<patch>` | 临时 | 发布准备 |
+| Branch Type | Naming Convention | Lifecycle | Purpose |
+|------------|------------------|-----------|---------|
+| **main** | `main` | Permanent | Production code, only accepts merges from `release/*` |
+| **dev** | `dev` | Permanent | Development code, all features merge here first |
+| **feature** | `feature/<issue-id>-<desc>` | Temporary | New feature development |
+| **bugfix** | `bugfix/<issue-id>-<desc>` | Temporary | Bug fixes |
+| **hotfix** | `hotfix/<issue-id>-<desc>` | Temporary | Production emergency fixes |
+| **release** | `release/v<major>.<minor>.<patch>` | Temporary | Release preparation |
 
-### 2.3 分支创建示例
+### 2.3 Branch Creation Examples
 
 ```bash
-# Feature 分支 (从 dev 创建)
+# Feature branch (created from dev)
 git checkout dev
 git pull origin dev
 git checkout -b feature/123-app-backup
 
-# Bugfix 分支 (从 dev 创建)
+# Bugfix branch (created from dev)
 git checkout -b bugfix/456-fix-port-conflict
 
-# Hotfix 分支 (从 main 创建)
+# Hotfix branch (created from main)
 git checkout main
 git pull origin main
 git checkout -b hotfix/789-critical-security-fix
 
-# Release 分支 (从 dev 创建)
+# Release branch (created from dev)
 git checkout dev
 git pull origin dev
 git checkout -b release/v2.1.0
@@ -132,11 +132,11 @@ git checkout -b release/v2.1.0
 
 ---
 
-## 3. 代码审查流程
+## 3. Code Review Process
 
-### 3.1 Commit Message 规范
+### 3.1 Commit Message Standards
 
-遵循 [Conventional Commits](https://www.conventionalcommits.org/):
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 <type>(<scope>): <subject>
@@ -146,31 +146,31 @@ git checkout -b release/v2.1.0
 <footer>
 ```
 
-**Type (类型)**:
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `docs`: 文档更新
-- `style`: 代码格式 (不影响功能)
-- `refactor`: 代码重构
-- `perf`: 性能优化
-- `test`: 测试相关
-- `chore`: 构建/工具链更新
-- `ci`: CI/CD 配置
-- `revert`: 回滚提交
+**Type**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation update
+- `style`: Code formatting (no functional changes)
+- `refactor`: Code refactoring
+- `perf`: Performance optimization
+- `test`: Testing related
+- `chore`: Build/toolchain updates
+- `ci`: CI/CD configuration
+- `revert`: Revert commit
 
-**Scope (范围)**:
-- `apps`: 应用管理
-- `proxy`: 反向代理
-- `settings`: 系统设置
-- `docker`: Docker 集成
-- `api`: API 相关
-- `db`: 数据库
-- `tests`: 测试
+**Scope**:
+- `apps`: Application management
+- `proxy`: Reverse proxy
+- `settings`: System settings
+- `docker`: Docker integration
+- `api`: API related
+- `db`: Database
+- `tests`: Testing
 
-**示例**:
+**Examples**:
 
 ```bash
-# 功能开发
+# Feature development
 git commit -m "feat(apps): add application backup endpoint
 
 Implement POST /api/v1/apps/{id}/backup endpoint that creates
@@ -178,7 +178,7 @@ a backup of application data and configuration.
 
 Closes #123"
 
-# Bug 修复
+# Bug fix
 git commit -m "fix(proxy): resolve CORS issue for Portainer access
 
 Update Nginx configuration to properly set Origin headers
@@ -186,10 +186,10 @@ for Portainer container access.
 
 Fixes #456"
 
-# 文档更新
+# Documentation update
 git commit -m "docs: update API documentation for backup endpoint"
 
-# 性能优化
+# Performance optimization
 git commit -m "perf(apps): optimize container listing query
 
 Use asyncio.gather for concurrent container status checks,
@@ -198,12 +198,12 @@ reducing response time by 50%.
 Related #789"
 ```
 
-### 3.2 Pull Request 模板
+### 3.2 Pull Request Template
 
 ```markdown
 ## 📝 Description
 
-简要描述此 PR 的变更内容
+Brief description of changes in this PR
 
 ## 🎯 Type of Change
 
@@ -246,108 +246,108 @@ Add screenshots here...
 Any additional information...
 ```
 
-### 3.3 Code Review 检查清单
+### 3.3 Code Review Checklist
 
-**审查者需要检查**:
+**Reviewers need to check**:
 
-**代码质量**:
-- [ ] 代码符合 [Coding Standards](./coding-standards.md)
-- [ ] 函数/类命名清晰,职责单一
-- [ ] 复杂逻辑有注释说明
-- [ ] 没有硬编码魔法数字/字符串
-- [ ] 类型注解完整
+**Code Quality**:
+- [ ] Code follows [Coding Standards](./coding-standards.md)
+- [ ] Clear function/class naming, single responsibility
+- [ ] Complex logic has comments
+- [ ] No hardcoded magic numbers/strings
+- [ ] Complete type annotations
 
-**API 设计**:
-- [ ] API 设计符合 [API Design Standards](./api-design.md)
-- [ ] URL 命名规范 (复数名词)
-- [ ] HTTP 方法使用正确
-- [ ] 错误处理完整
-- [ ] API 文档更新
+**API Design**:
+- [ ] API design follows [API Design Standards](./api-design.md)
+- [ ] URL naming standards (plural nouns)
+- [ ] Correct HTTP method usage
+- [ ] Complete error handling
+- [ ] API documentation updated
 
-**测试**:
-- [ ] 新功能有对应的测试
-- [ ] 测试覆盖率 ≥ 80%
-- [ ] 关键路径有集成测试
-- [ ] 测试命名清晰
+**Testing**:
+- [ ] New features have corresponding tests
+- [ ] Test coverage ≥ 80%
+- [ ] Critical paths have integration tests
+- [ ] Clear test naming
 
-**安全**:
-- [ ] 输入经过验证
-- [ ] 没有 SQL 注入风险
-- [ ] 没有硬编码密钥
-- [ ] 敏感数据已加密
+**Security**:
+- [ ] Input validated
+- [ ] No SQL injection risk
+- [ ] No hardcoded secrets
+- [ ] Sensitive data encrypted
 
-**性能**:
-- [ ] 没有 N+1 查询
-- [ ] I/O 操作使用 async
-- [ ] 合理使用缓存
-- [ ] 避免阻塞事件循环
+**Performance**:
+- [ ] No N+1 queries
+- [ ] I/O operations use async
+- [ ] Proper use of caching
+- [ ] Avoid blocking event loop
 
 ---
 
-## 4. Docker 部署
+## 4. Docker Deployment
 
-### 4.1 本地开发环境
+### 4.1 Local Development Environment
 
 ```bash
-# 启动所有服务
+# Start all services
 cd docker
 docker-compose up -d
 
-# 查看日志
+# View logs
 docker-compose logs -f apphub
 
-# 停止服务
+# Stop services
 docker-compose down
 
-# 重建某个服务
+# Rebuild a service
 docker-compose up -d --build apphub
 
-# 进入容器
+# Enter container
 docker-compose exec apphub bash
 ```
 
-### 4.2 Dockerfile 最佳实践
+### 4.2 Dockerfile Best Practices
 
 ```dockerfile
 # apphub/Dockerfile
 
-# 使用指定版本的基础镜像
+# Use specific version base image
 FROM python:3.11-slim
 
-# 设置工作目录
+# Set working directory
 WORKDIR /app
 
-# 安装系统依赖
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制依赖文件
+# Copy dependency file
 COPY requirements.txt .
 
-# 安装 Python 依赖 (分层缓存优化)
+# Install Python dependencies (layer caching optimization)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制应用代码
+# Copy application code
 COPY src/ ./src/
 
-# 创建非 root 用户
+# Create non-root user
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# 暴露端口
+# Expose port
 EXPOSE 8080
 
-# 健康检查
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8080/api/health')"
 
-# 启动命令
+# Startup command
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
 ```
 
-### 4.3 docker-compose.yml 规范
+### 4.3 docker-compose.yml Standards
 
 ```yaml
 # docker/docker-compose.yml
@@ -419,7 +419,7 @@ volumes:
 
 ---
 
-## 5. CI/CD 配置
+## 5. CI/CD Configuration
 
 ### 5.1 GitHub Actions Workflow
 
@@ -565,45 +565,45 @@ jobs:
 
 ---
 
-## 6. 版本发布
+## 6. Version Release
 
-### 6.1 语义化版本
+### 6.1 Semantic Versioning
 
-遵循 [Semantic Versioning 2.0.0](https://semver.org/):
+Follow [Semantic Versioning 2.0.0](https://semver.org/):
 
 ```
 v<major>.<minor>.<patch>
 
-示例: v2.1.3
+Example: v2.1.3
 ```
 
-- **Major (主版本)**: 不兼容的 API 变更
-- **Minor (次版本)**: 向后兼容的功能新增
-- **Patch (修订号)**: 向后兼容的 Bug 修复
+- **Major (Major version)**: Incompatible API changes
+- **Minor (Minor version)**: Backward-compatible feature additions
+- **Patch (Patch version)**: Backward-compatible bug fixes
 
-### 6.2 发布流程
+### 6.2 Release Process
 
 ```bash
-# 1. 从 dev 创建 release 分支
+# 1. Create release branch from dev
 git checkout dev
 git pull origin dev
 git checkout -b release/v2.1.0
 
-# 2. 更新版本号
-# 编辑 version.json
+# 2. Update version number
+# Edit version.json
 {
   "version": "2.1.0",
   "release_date": "2026-01-04"
 }
 
-# 3. 更新 CHANGELOG
-# 编辑 CHANGELOG.md,添加版本说明
+# 3. Update CHANGELOG
+# Edit CHANGELOG.md, add version notes
 
-# 4. 提交版本变更
+# 4. Commit version changes
 git add version.json CHANGELOG.md
 git commit -m "chore(release): prepare v2.1.0 release"
 
-# 5. 合并到 main 和 dev
+# 5. Merge to main and dev
 git checkout main
 git merge --no-ff release/v2.1.0
 git tag -a v2.1.0 -m "Release version 2.1.0"
@@ -613,15 +613,15 @@ git checkout dev
 git merge --no-ff release/v2.1.0
 git push origin dev
 
-# 6. 删除 release 分支
+# 6. Delete release branch
 git branch -d release/v2.1.0
 
-# 7. 在 GitHub 创建 Release
-# 标题: Websoft9 v2.1.0
-# 内容: 从 CHANGELOG.md 复制
+# 7. Create Release on GitHub
+# Title: Websoft9 v2.1.0
+# Content: Copy from CHANGELOG.md
 ```
 
-### 6.3 CHANGELOG 格式
+### 6.3 CHANGELOG Format
 
 ```markdown
 # Changelog
@@ -634,37 +634,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2026-01-04
 
 ### Added
-- Application backup and restore功能 (#123)
+- Application backup and restore functionality (#123)
 - Bulk application operations API (#145)
 - Redis caching layer for improved performance (#156)
 
 ### Changed
-- 升级 FastAPI 到 0.109.0 (#167)
-- 优化 Docker 容器启动时间 (#178)
+- Upgrade FastAPI to 0.109.0 (#167)
+- Optimize Docker container startup time (#178)
 
 ### Fixed
-- 修复端口冲突检测Bug (#189)
-- 解决应用删除后残留配置文件问题 (#201)
+- Fix port conflict detection bug (#189)
+- Resolve residual configuration files after application deletion (#201)
 
 ### Security
-- 修复 API Key 泄露风险 (CVE-2026-xxxx) (#234)
+- Fix API Key exposure risk (CVE-2026-xxxx) (#234)
 
 ## [2.0.0] - 2025-12-01
 
 ### Added
-- 全新 FastAPI 架构重写
-- 支持 200+ 应用模板
+- Complete rewrite with new FastAPI architecture
+- Support for 200+ application templates
 ...
 ```
 
 ---
 
-## 7. 环境管理
+## 7. Environment Management
 
-### 7.1 环境变量管理
+### 7.1 Environment Variable Management
 
 ```bash
-# .env.example (模板文件,提交到 Git)
+# .env.example (Template file, commit to Git)
 
 # Application
 ENV=production
@@ -689,186 +689,186 @@ LOG_LEVEL=INFO
 LOG_FILE=/var/log/websoft9/apphub.log
 ```
 
-**使用方式**:
+**Usage**:
 
 ```bash
-# 复制模板
+# Copy template
 cp .env.example .env
 
-# 编辑配置 (不要提交 .env 到 Git!)
+# Edit configuration (don't commit .env to Git!)
 vim .env
 
-# 加载环境变量
+# Load environment variables
 source .env
 
-# 或使用 docker-compose 自动加载
+# Or use docker-compose to auto-load
 docker-compose --env-file .env up -d
 ```
 
-### 7.2 环境差异配置
+### 7.2 Environment-Specific Configuration
 
-| 配置项 | 开发环境 | 测试环境 | 生产环境 |
-|--------|---------|---------|---------|
+| Configuration | Development | Testing | Production |
+|--------------|-------------|---------|------------|
 | `ENV` | `development` | `testing` | `production` |
 | `DEBUG` | `true` | `false` | `false` |
 | `LOG_LEVEL` | `DEBUG` | `INFO` | `WARNING` |
-| `CORS` | `*` | 特定域名 | 特定域名 |
-| `数据库` | SQLite | PostgreSQL | PostgreSQL |
-| `缓存` | 本地内存 | Redis | Redis Cluster |
+| `CORS` | `*` | Specific domains | Specific domains |
+| `Database` | SQLite | PostgreSQL | PostgreSQL |
+| `Cache` | Local memory | Redis | Redis Cluster |
 
 ---
 
-## 8. 故障排查
+## 8. Troubleshooting
 
-### 8.1 日志查看
+### 8.1 View Logs
 
 ```bash
-# 查看 AppHub 日志
+# View AppHub logs
 docker-compose logs -f apphub
 
-# 查看最近 100 行
+# View last 100 lines
 docker-compose logs --tail=100 apphub
 
-# 查看特定时间段
+# View specific time period
 docker-compose logs --since="2026-01-04T10:00:00" apphub
 
-# 导出日志
+# Export logs
 docker-compose logs apphub > apphub.log
 ```
 
-### 8.2 常见问题排查
+### 8.2 Common Issue Troubleshooting
 
-**问题 1: 容器启动失败**
+**Issue 1: Container fails to start**
 
 ```bash
-# 检查容器状态
+# Check container status
 docker ps -a
 
-# 查看容器日志
+# View container logs
 docker logs websoft9-apphub
 
-# 检查端口占用
+# Check port usage
 netstat -tulnp | grep 8080
 
-# 检查 Docker 网络
+# Check Docker network
 docker network inspect websoft9_network
 ```
 
-**问题 2: API 响应慢**
+**Issue 2: Slow API response**
 
 ```bash
-# 检查容器资源占用
+# Check container resource usage
 docker stats websoft9-apphub
 
-# 检查数据库连接
+# Check database connection
 docker-compose exec apphub python -c "from db.session import test_connection; test_connection()"
 
-# 查看 Redis 连接
+# View Redis connection
 docker-compose exec redis redis-cli ping
 ```
 
-**问题 3: 数据库错误**
+**Issue 3: Database errors**
 
 ```bash
-# 进入数据库
+# Enter database
 docker-compose exec apphub sqlite3 /app/data/apphub.db
 
-# 检查表结构
+# Check table structure
 .schema apps
 
-# 备份数据库
+# Backup database
 docker-compose exec apphub cp /app/data/apphub.db /app/data/apphub_backup.db
 ```
 
-### 8.3 回滚策略
+### 8.3 Rollback Strategy
 
 ```bash
-# 回滚到上一个版本
+# Rollback to previous version
 git checkout main
 git revert HEAD
 git push origin main
 
-# 或使用 Docker 镜像回滚
+# Or rollback using Docker image
 docker-compose down
 docker pull ghcr.io/websoft9/websoft9:v2.0.0
 docker-compose up -d
 
-# 数据库回滚 (谨慎操作!)
-# 1. 停止服务
+# Database rollback (use with caution!)
+# 1. Stop service
 docker-compose stop apphub
 
-# 2. 恢复备份
+# 2. Restore backup
 docker-compose exec apphub cp /app/data/apphub_backup.db /app/data/apphub.db
 
-# 3. 重启服务
+# 3. Restart service
 docker-compose start apphub
 ```
 
 ---
 
-## 9. 最佳实践总结
+## 9. Best Practices Summary
 
-### 9.1 开发者日常工作流
+### 9.1 Developer Daily Workflow
 
 ```bash
-# 每天开始工作
+# Start of workday
 git checkout dev
 git pull origin dev
 git checkout -b feature/my-feature
 
-# 编码...
-# 运行测试
+# Coding...
+# Run tests
 pytest tests/
 
-# 提交代码
+# Commit code
 git add .
 git commit -m "feat: add new feature"
 
-# 推送并创建 PR
+# Push and create PR
 git push origin feature/my-feature
-# 在 GitHub 创建 PR
+# Create PR on GitHub
 
-# PR 合并后清理
+# After PR merge, cleanup
 git checkout dev
 git pull origin dev
 git branch -d feature/my-feature
 ```
 
-### 9.2 部署检查清单
+### 9.2 Deployment Checklist
 
-**部署前**:
-- [ ] 所有测试通过
-- [ ] Code Review 完成
-- [ ] CHANGELOG 已更新
-- [ ] 数据库迁移脚本准备好
-- [ ] 环境变量配置检查
-- [ ] 备份当前生产环境
+**Pre-deployment**:
+- [ ] All tests pass
+- [ ] Code Review completed
+- [ ] CHANGELOG updated
+- [ ] Database migration scripts ready
+- [ ] Environment variable configuration checked
+- [ ] Current production environment backed up
 
-**部署中**:
-- [ ] 监控系统日志
-- [ ] 验证健康检查
-- [ ] 测试关键 API 端点
-- [ ] 检查性能指标
+**During deployment**:
+- [ ] Monitor system logs
+- [ ] Verify health checks
+- [ ] Test critical API endpoints
+- [ ] Check performance metrics
 
-**部署后**:
-- [ ] 验证所有功能正常
-- [ ] 检查错误日志
-- [ ] 通知团队部署完成
-- [ ] 更新部署文档
+**Post-deployment**:
+- [ ] Verify all features working
+- [ ] Check error logs
+- [ ] Notify team of deployment completion
+- [ ] Update deployment documentation
 
 ---
 
-## 附录
+## Appendix
 
-### A. 工具推荐
+### A. Recommended Tools
 
 - **Git**: GitHub Desktop, GitKraken
 - **Docker**: Docker Desktop, Portainer
 - **CI/CD**: GitHub Actions, GitLab CI
-- **监控**: Grafana, Prometheus
-- **日志**: ELK Stack, Loki
+- **Monitoring**: Grafana, Prometheus
+- **Logging**: ELK Stack, Loki
 
-### B. 参考资源
+### B. Reference Resources
 
 - [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
 - [Conventional Commits](https://www.conventionalcommits.org/)
@@ -878,6 +878,6 @@ git branch -d feature/my-feature
 
 ---
 
-**文档维护**: Winston (Architect Agent)  
-**审核状态**: Active  
-**相关文档**: [API Design](./api-design.md) | [Coding Standards](./coding-standards.md) | [Testing Standards](./testing-standards.md)
+**Document Maintainer**: Winston (Architect Agent)  
+**Review Status**: Active  
+**Related Documentation**: [API Design](./api-design.md) | [Coding Standards](./coding-standards.md) | [Testing Standards](./testing-standards.md)

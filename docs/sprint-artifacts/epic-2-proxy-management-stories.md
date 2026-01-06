@@ -1,433 +1,490 @@
-# Epic 2: 反向代理管理 - User Stories
+# Epic 2: Proxy Management - User Stories
 
-**Epic ID:** epic-2  
-**Epic Title:** 反向代理管理  
-**Status:** In Development  
-**Priority:** P0
-
----
-
-## Story 2-1: 获取应用代理配置列表
-
-**Story ID:** 2-1-get-proxys  
-**Title:** 实现获取应用的代理配置列表功能  
-**Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 1 day
-
-### User Story
-
-**As a** Websoft9 用户  
-**I want to** 查看应用关联的所有代理配置  
-**So that** 我可以了解应用的域名访问配置
-
-### Acceptance Criteria
-
-- [x] AC1: GET `/api/v1/proxys/{app_id}` 返回代理主机列表
-- [x] AC2: 支持 endpointId 参数（默认本地）
-- [x] AC3: 返回 `list[ProxyHost]` 格式
-- [x] AC4: 包含域名、SSL 状态、证书信息
-- [x] AC5: 应用不存在返回 404
-- [x] AC6: 响应时间 < 1秒
-
-### Tasks
-
-- [x] 实现 `/proxys/{app_id}` GET 路由
-  - [x] Path 参数: app_id
-  - [x] Query 参数: endpointId (可选)
-  - [x] 调用 `AppManager.get_proxys_by_app()`
-- [x] 实现 `get_proxys_by_app()` 方法
-  - [x] 验证 app_id 存在
-  - [x] 调用 NPM API 获取 proxy hosts
-  - [x] 过滤出关联该应用的代理
-  - [x] 返回代理列表
-- [x] 定义 `ProxyHost` Pydantic 模型
-  - [x] proxy_id, domain_names
-  - [x] forward_host, forward_port
-  - [x] ssl_enabled, certificate_id
-- [x] 编写测试
-
-### File List
-
-- `apphub/src/api/v1/routers/proxy.py`
-- `apphub/src/services/app_manager.py`
-- `apphub/src/schemas/proxyHosts.py`
-- `tests/test_proxy_list.py`
+**Epic:** [Proxy Management Epic](../epics/proxy-management-epic.md)  
+**Total Stories:** 8  
+**Total Estimated Effort:** 18 days  
+**Priority Distribution:** P0 (3), P1 (3), P2 (2)
 
 ---
 
-## Story 2-2: 创建代理主机
+## Story 1: NPM API Integration
 
-**Story ID:** 2-2-create-proxy  
-**Title:** 为应用创建反向代理配置，支持多域名  
+**Story ID:** PROXY-001  
 **Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 3 days
+**Estimated Effort:** 3 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 用户  
-**I want to** 为应用配置自定义域名访问  
-**So that** 我可以通过友好的域名访问应用
+**As a** Websoft9 developer  
+**I want to** integrate with Nginx Proxy Manager API  
+**So that** I can programmatically manage proxy hosts and SSL certificates
 
 ### Acceptance Criteria
 
-- [x] AC1: POST `/api/v1/proxys/{app_id}` 创建代理配置
-- [x] AC2: 请求体包含 `domain_names` 数组
-- [x] AC3: 自动检测应用容器的 forward_host 和 forward_port
-- [x] AC4: 调用 NPM API 创建 proxy host
-- [x] AC5: 返回创建的 proxy 配置（包含 proxy_id）
-- [x] AC6: 域名格式验证（FQDN 格式）
-- [x] AC7: 域名冲突检测（已被使用）
-- [x] AC8: 创建时间 < 30秒
+✅ Successful token-based authentication with NPM  
+✅ CRUD operations for proxy hosts work reliably  
+✅ Error handling with automatic retry (3 attempts)  
+✅ API response time < 1 second  
+✅ Connection pooling for efficiency
 
-### Tasks
+### Technical Tasks
 
-- [x] 实现 `/proxys/{app_id}` POST 路由
-  - [x] Path 参数: app_id
-  - [x] Body: DomainNames 模型
-  - [x] 调用 `AppManager.create_proxy_by_app()`
-- [x] 实现 `create_proxy_by_app()` 方法
-  - [x] 获取应用容器信息（forward_host, port）
-  - [x] 验证域名格式（FQDN）
-  - [x] 检查域名是否已被使用
-  - [x] 调用 ProxyManager 创建代理
-  - [x] 返回代理配置
-- [x] 实现 ProxyManager.create_proxy_host()
-  - [x] 调用 NPM API
-  - [x] 传递域名、转发配置
-  - [x] 处理 NPM API 错误
-- [x] 定义 `DomainNames` 模型
-  - [x] domain_names: List[str]
-  - [x] 域名格式验证
-- [x] 编写测试
-  - [x] 测试域名验证
-  - [x] 测试域名冲突检测
-  - [x] 测试创建成功流程
-  - [x] 测试 NPM API 失败场景
+- [ ] Implement NPM token authentication
+- [ ] Create NginxProxyManagerAPI class
+- [ ] Implement proxy host CRUD methods
+- [ ] Add error handling and retry logic
+- [ ] Write API integration tests
+- [ ] Document API wrapper usage
+
+### Implementation Notes
+
+```python
+class NginxProxyManagerAPI:
+    def __init__(self):
+        self.base_url = "http://nginx-proxy-manager:81/api"
+        self.token = self.get_token()
+    
+    def get_token(self) -> str:
+        """Authenticate with NPM and get JWT token"""
+        
+    def create_proxy_host(self, config: Dict) -> Dict:
+        """Create a new proxy host"""
+        
+    def update_proxy_host(self, proxy_id: int, config: Dict) -> Dict:
+        """Update existing proxy host"""
+        
+    def delete_proxy_host(self, proxy_id: int) -> None:
+        """Delete proxy host"""
+```
 
 ### Test Scenarios
 
-**场景 1: 成功创建代理**
-```
-Given: app_id "wordpress001" 存在
-And: 域名 "blog.example.com" 未被使用
-When: POST /api/v1/proxys/wordpress001
-  {
-    "domain_names": ["blog.example.com", "www.blog.example.com"]
-  }
-Then: 返回 200，包含 proxy_id
-And: NPM 中创建了 proxy host
-```
-
-**场景 2: 域名格式无效**
-```
-Given: 任何状态
-When: POST /api/v1/proxys/app001
-  {
-    "domain_names": ["invalid domain"]
-  }
-Then: 返回 400 "域名格式无效"
-```
-
-**场景 3: 域名已被使用**
-```
-Given: 域名 "blog.example.com" 已配置给其他应用
-When: POST /api/v1/proxys/app001
-  {
-    "domain_names": ["blog.example.com"]
-  }
-Then: 返回 409 "域名已被使用"
-```
-
-### File List
-
-- `apphub/src/api/v1/routers/proxy.py`
-- `apphub/src/services/app_manager.py`
-- `apphub/src/services/proxy_manager.py`
-- `apphub/src/schemas/domainNames.py`
-- `apphub/src/schemas/proxyHosts.py`
-- `tests/test_proxy_create.py`
+1. Token authentication succeeds with valid credentials
+2. Token authentication fails with invalid credentials
+3. API call retries on network error
+4. API call fails after max retries
+5. Token refresh works on expiration
 
 ---
 
-## Story 2-3: 更新代理配置
+## Story 2: Proxy Host Management
 
-**Story ID:** 2-3-update-proxy  
-**Title:** 更新代理配置的域名列表  
+**Story ID:** PROXY-002  
 **Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 2 days
+**Estimated Effort:** 3 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 用户  
-**I want to** 修改代理的域名配置  
-**So that** 我可以更新或添加新的访问域名
+**As a** Websoft9 user  
+**I want to** create reverse proxy configurations for my applications  
+**So that** I can access applications via custom domain names
 
 ### Acceptance Criteria
 
-- [x] AC1: PUT `/api/v1/proxys/{proxy_id}` 更新代理配置
-- [x] AC2: 请求体包含新的 `domain_names` 列表
-- [x] AC3: 支持 endpointId 参数
-- [x] AC4: 域名格式验证
-- [x] AC5: 返回更新后的代理配置
-- [x] AC6: proxy_id 不存在返回 404
-- [x] AC7: 配置变更生效时间 < 5秒
+✅ Proxy host created in < 30 seconds  
+✅ Support multiple domain names per proxy  
+✅ Automatic domain format validation  
+✅ Check for domain conflicts before creation  
+✅ Support for WebSocket applications
 
-### Tasks
+### Technical Tasks
 
-- [x] 实现 `/proxys/{proxy_id}` PUT 路由
-  - [x] Path 参数: proxy_id (int)
-  - [x] Body: DomainNames
-  - [x] 调用 `AppManager.update_proxy_by_app()`
-- [x] 实现 `update_proxy_by_app()` 方法
-  - [x] 验证 proxy_id 存在
-  - [x] 验证新域名格式
-  - [x] 调用 ProxyManager 更新
-  - [x] 返回更新结果
-- [x] 实现 ProxyManager.update_proxy_host()
-  - [x] 调用 NPM API PUT
-  - [x] 错误处理
-- [x] 编写测试
+- [ ] Implement `/api/v1/proxys/{app_id}` POST endpoint
+- [ ] Add domain name validation (regex)
+- [ ] Check domain uniqueness across all proxies
+- [ ] Persist proxy configuration
+- [ ] Add WebSocket support option
+- [ ] Write functional tests
 
-### File List
+### API Specification
 
-- `apphub/src/api/v1/routers/proxy.py`
-- `apphub/src/services/app_manager.py`
-- `apphub/src/services/proxy_manager.py`
-- `tests/test_proxy_update.py`
+```http
+POST /api/v1/proxys/wordpress001
+X-API-Key: <key>
+Content-Type: application/json
+
+{
+  "domain_names": ["myblog.example.com", "www.myblog.example.com"]
+}
+
+Response:
+{
+  "code": 200,
+  "message": "Proxy host created successfully",
+  "data": {
+    "proxy_id": "123",
+    "domain_names": ["myblog.example.com", "www.myblog.example.com"],
+    "ssl_status": "pending",
+    "created_at": "2026-01-05T10:30:00Z"
+  }
+}
+```
+
+### Test Scenarios
+
+1. Create proxy with single domain succeeds
+2. Create proxy with multiple domains succeeds
+3. Create proxy with invalid domain format fails
+4. Create proxy with duplicate domain fails
+5. Domain validation catches common errors (missing TLD, spaces)
 
 ---
 
-## Story 2-4: 删除代理配置
+## Story 3: Let's Encrypt SSL Certificate Request
 
-**Story ID:** 2-4-delete-proxy  
-**Title:** 删除应用的代理配置  
+**Story ID:** PROXY-003  
 **Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 1 day
+**Estimated Effort:** 4 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 用户  
-**I want to** 删除不需要的代理配置  
-**So that** 我可以停止通过该域名访问应用
+**As a** Websoft9 user  
+**I want to** automatically obtain free SSL certificates for my domains  
+**So that** I can secure my applications with HTTPS without manual certificate management
 
 ### Acceptance Criteria
 
-- [x] AC1: DELETE `/api/v1/proxys/{proxy_id}` 删除代理
-- [x] AC2: 从 NPM 中删除 proxy host 配置
-- [x] AC3: 删除成功返回 204
-- [x] AC4: proxy_id 不存在返回 404
-- [x] AC5: 删除不会影响应用运行（只删除代理）
-- [x] AC6: 特殊处理：检测 client_host 避免删除当前访问的代理
+✅ Certificate request completes in < 2 minutes  
+✅ HTTP-01 challenge verification works automatically  
+✅ Success rate > 95% for properly configured domains  
+✅ Clear error messages for failed requests  
+✅ Automatic force HTTPS after certificate obtained
 
-### Tasks
+### Technical Tasks
 
-- [x] 实现 `/proxys/{proxy_id}` DELETE 路由
-  - [x] Path 参数: proxy_id
-  - [x] 从 Request headers 获取 Host
-  - [x] 调用 `AppManager.remove_proxy_by_id()`
-- [x] 实现 `remove_proxy_by_id()` 方法
-  - [x] 验证 proxy_id 存在
-  - [x] 检查 client_host 是否匹配该代理域名
-  - [x] 如果匹配，阻止删除（防止自己删除自己）
-  - [x] 调用 ProxyManager 删除
-- [x] 实现 ProxyManager.delete_proxy_host()
-  - [x] 调用 NPM API DELETE
-- [x] 编写测试
+- [ ] Integrate Let's Encrypt ACME protocol via NPM
+- [ ] Implement HTTP-01 challenge verification
+- [ ] Add certificate request error handling
+- [ ] Enable force SSL redirect after cert obtained
+- [ ] Add DNS pre-validation check
+- [ ] Write certificate request tests
 
-### File List
+### API Enhancement
 
-- `apphub/src/api/v1/routers/proxy.py`
-- `apphub/src/services/app_manager.py`
-- `apphub/src/services/proxy_manager.py`
-- `tests/test_proxy_delete.py`
+```http
+POST /api/v1/proxys/wordpress001
+{
+  "domain_names": ["myblog.example.com"],
+  "ssl": {
+    "enabled": true,
+    "force": true,
+    "email": "admin@example.com"
+  }
+}
+
+Response:
+{
+  "data": {
+    "proxy_id": "123",
+    "ssl_status": "active",
+    "certificate_expires_at": "2026-04-05T10:30:00Z",
+    "ssl_rating": "A"
+  }
+}
+```
+
+### Test Scenarios
+
+1. Certificate request succeeds for valid domain
+2. Certificate request fails if domain not pointing to server
+3. HTTP-01 challenge verification succeeds
+4. Certificate properly attached to proxy host
+5. Force HTTPS redirect works after certificate obtained
+6. Error message clear when Let's Encrypt rate limit hit
 
 ---
 
-## Story 2-5: 获取 SSL 证书列表
+## Story 4: SSL Certificate Auto-Renewal
 
-**Story ID:** 2-5-list-certificates  
-**Title:** 获取系统中所有 SSL 证书信息  
+**Story ID:** PROXY-004  
 **Priority:** P1  
-**Status:** ready-for-dev  
-**Estimated Effort:** 1 day
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** Websoft9 管理员  
-**I want to** 查看所有 SSL 证书及其过期状态  
-**So that** 我可以监控证书健康状况
+**As a** Websoft9 administrator  
+**I want to** automatically renew SSL certificates before they expire  
+**So that** I don't experience downtime due to expired certificates
 
 ### Acceptance Criteria
 
-- [x] AC1: GET `/api/v1/proxys/ssl/certificates` 返回证书列表
-- [x] AC2: 包含证书 ID、域名、过期时间、状态
-- [x] AC3: 区分 Let's Encrypt 和自定义证书
-- [x] AC4: 标识即将过期的证书（< 30天）
-- [x] AC5: 返回 `list[dict]` 格式
+✅ Daily check for certificates expiring within 30 days  
+✅ Automatic renewal attempt for expiring certificates  
+✅ Notification on renewal failure  
+✅ Renewal success rate > 98%  
+✅ Zero downtime during renewal
 
-### Tasks
+### Technical Tasks
 
-- [x] 实现 `/proxys/ssl/certificates` GET 路由
-  - [x] 调用 `ProxyManager.get_all_certificates()`
-- [x] 实现 `get_all_certificates()` 方法
-  - [x] 调用 NPM API 获取证书
-  - [x] 解析证书信息
-  - [x] 计算过期剩余天数
-  - [x] 标识即将过期证书
-- [x] 编写测试
+- [ ] Implement scheduled task (cron/celery)
+- [ ] Add certificate expiration monitoring
+- [ ] Implement automatic renewal logic
+- [ ] Add failure notification system
+- [ ] Log all renewal attempts
+- [ ] Write renewal simulation tests
 
-### File List
+### Implementation Notes
 
-- `apphub/src/api/v1/routers/proxy.py`
-- `apphub/src/services/proxy_manager.py`
-- `tests/test_ssl_certificates.py`
+```python
+class CertificateRenewalService:
+    async def auto_renew_certificates(self):
+        """Daily task to renew expiring certificates"""
+        certificates = self.npm_api.get_certificates()
+        
+        for cert in certificates:
+            if cert["provider"] != "letsencrypt":
+                continue
+            
+            days_until_expiry = (cert["expires_at"] - datetime.now()).days
+            
+            if days_until_expiry <= 30:
+                logger.info(f"Renewing certificate for {cert['domain_names']}")
+                try:
+                    self.npm_api.renew_certificate(cert["id"])
+                except Exception as e:
+                    logger.error(f"Renewal failed: {e}")
+                    self.send_notification(cert, e)
+```
+
+### Test Scenarios
+
+1. Certificate expiring in 25 days triggers renewal
+2. Certificate expiring in 60 days does not trigger renewal
+3. Renewal failure sends notification
+4. Multiple certificates renewed in same run
+5. Manual certificates (not Let's Encrypt) are skipped
 
 ---
 
-## Story 2-6: NPM API 客户端集成
+## Story 5: Custom SSL Certificate Upload
 
-**Story ID:** 2-6-npm-client  
-**Title:** 实现 Nginx Proxy Manager API 客户端  
+**Story ID:** PROXY-005  
+**Priority:** P1  
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
+
+### User Story
+
+**As a** Websoft9 user  
+**I want to** upload my own SSL certificates  
+**So that** I can use wildcard certificates or certificates from other providers
+
+### Acceptance Criteria
+
+✅ Support PEM format certificate upload  
+✅ Validate certificate format before acceptance  
+✅ Secure storage of private keys  
+✅ Certificate chain validation  
+✅ Display expiration date after upload
+
+### Technical Tasks
+
+- [ ] Implement certificate file upload endpoint
+- [ ] Add PEM format validation
+- [ ] Validate certificate chain completeness
+- [ ] Secure private key storage (encryption)
+- [ ] Parse certificate metadata (expiry, domains)
+- [ ] Write upload validation tests
+
+### API Specification
+
+```http
+POST /api/v1/proxys/ssl/certificates/upload
+X-API-Key: <key>
+Content-Type: multipart/form-data
+
+certificate: <file>
+private_key: <file>
+intermediate_cert: <file> (optional)
+
+Response:
+{
+  "code": 200,
+  "message": "Certificate uploaded successfully",
+  "data": {
+    "certificate_id": "cert_123",
+    "domain_names": ["*.example.com"],
+    "expires_at": "2027-01-01T00:00:00Z",
+    "issuer": "DigiCert Inc"
+  }
+}
+```
+
+### Test Scenarios
+
+1. Valid certificate upload succeeds
+2. Invalid PEM format rejected
+3. Expired certificate rejected
+4. Private key mismatch detected
+5. Wildcard certificate accepted
+
+---
+
+## Story 6: Access Control Lists
+
+**Story ID:** PROXY-006  
+**Priority:** P2  
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
+
+### User Story
+
+**As a** Websoft9 administrator  
+**I want to** restrict access to applications by IP address or authentication  
+**So that** I can control who can access sensitive applications
+
+### Acceptance Criteria
+
+✅ IP whitelist blocks unauthorized IPs  
+✅ IP blacklist blocks specific IPs  
+✅ HTTP Basic Authentication works correctly  
+✅ Access rules apply immediately  
+✅ Rules can be updated without downtime
+
+### Technical Tasks
+
+- [ ] Implement access list configuration API
+- [ ] Add IP whitelist/blacklist support
+- [ ] Add HTTP Basic Authentication support
+- [ ] Integrate with NPM access list feature
+- [ ] Write access control tests
+
+### API Specification
+
+```http
+PUT /api/v1/proxys/123/access-control
+{
+  "whitelist_ips": ["192.168.1.0/24"],
+  "blacklist_ips": ["10.0.0.5"],
+  "basic_auth": {
+    "enabled": true,
+    "username": "admin",
+    "password": "secure123"
+  }
+}
+```
+
+### Test Scenarios
+
+1. Whitelisted IP can access application
+2. Non-whitelisted IP is blocked
+3. Blacklisted IP is always blocked
+4. Basic auth prompts for credentials
+5. Correct credentials grant access
+
+---
+
+## Story 7: Proxy Configuration Update
+
+**Story ID:** PROXY-007  
+**Priority:** P1  
+**Estimated Effort:** 2 days  
+**Status:** ready-for-dev
+
+### User Story
+
+**As a** Websoft9 user  
+**I want to** update existing proxy configurations  
+**So that** I can modify domains or settings without recreating proxies
+
+### Acceptance Criteria
+
+✅ Update domain names without downtime  
+✅ Toggle SSL settings  
+✅ Update access control rules  
+✅ Changes apply in < 5 seconds  
+✅ Configuration history tracked
+
+### Technical Tasks
+
+- [ ] Implement `/api/v1/proxys/{proxy_id}` PUT endpoint
+- [ ] Support partial updates (PATCH semantics)
+- [ ] Validate updated configuration
+- [ ] Track configuration changes (audit log)
+- [ ] Write update tests
+
+### Test Scenarios
+
+1. Update domain names succeeds
+2. Enable SSL on existing proxy works
+3. Disable force HTTPS works
+4. Update with invalid data fails validation
+5. Configuration history records all changes
+
+---
+
+## Story 8: Proxy List and Query
+
+**Story ID:** PROXY-008  
 **Priority:** P0  
-**Status:** ready-for-dev  
-**Estimated Effort:** 3 days
+**Estimated Effort:** 1 day (included in Story 2)  
+**Status:** ready-for-dev
 
 ### User Story
 
-**As a** 开发人员  
-**I want to** 封装 NPM API 调用逻辑  
-**So that** 其他模块可以方便地使用代理管理功能
+**As a** Websoft9 user  
+**I want to** view all proxy configurations for an application  
+**So that** I can see what domains are configured
 
 ### Acceptance Criteria
 
-- [x] AC1: 实现 Token 认证机制
-- [x] AC2: 封装 CRUD 操作方法
-- [x] AC3: 实现错误处理和重试
-- [x] AC4: 支持配置管理（URL、凭据）
-- [x] AC5: 记录 API 调用日志
+✅ List all proxies for specific application  
+✅ Show SSL status for each proxy  
+✅ Display certificate expiration dates  
+✅ Fast query response (< 500ms)
 
-### Tasks
+### Technical Tasks
 
-- [x] 创建 `ProxyManager` 类
-  - [x] 初始化：加载配置、获取 token
-  - [x] `get_token()` - NPM 认证
-  - [x] `get_all_certificates()` - 获取证书列表
-  - [x] `create_proxy_host()` - 创建代理
-  - [x] `update_proxy_host()` - 更新代理
-  - [x] `delete_proxy_host()` - 删除代理
-  - [x] `get_proxy_hosts()` - 获取代理列表
-- [x] 实现 HTTP 客户端封装
-  - [x] 使用 requests 或 httpx
-  - [x] 添加 Authorization header
-  - [x] 错误响应处理
-  - [x] 超时控制
-  - [x] 重试机制（3次）
-- [x] 配置管理
-  - [x] 从 ConfigManager 读取 NPM 配置
-  - [x] URL、用户名、密码
-- [x] 日志记录
-  - [x] API 请求日志
-  - [x] 错误日志
-- [x] 编写单元测试
-  - [x] Mock NPM API 响应
-  - [x] 测试认证流程
-  - [x] 测试 CRUD 操作
-  - [x] 测试错误处理
+- [ ] Implement `/api/v1/proxys/{app_id}` GET endpoint
+- [ ] Fetch proxy hosts from NPM
+- [ ] Aggregate SSL certificate information
+- [ ] Write query tests
 
-### File List
+### API Specification
 
-- `apphub/src/services/proxy_manager.py` - 主类
-- `apphub/src/core/config.py` - 配置
-- `tests/test_proxy_manager.py` - 单元测试
-- `tests/fixtures/npm_responses.json` - Mock 数据
+```http
+GET /api/v1/proxys/wordpress001
+X-API-Key: <key>
+
+Response:
+{
+  "code": 200,
+  "data": [
+    {
+      "proxy_id": "123",
+      "domain_names": ["myblog.example.com"],
+      "ssl_enabled": true,
+      "ssl_forced": true,
+      "certificate_expires_at": "2026-04-05T10:30:00Z"
+    }
+  ]
+}
+```
 
 ---
 
-## Story 2-7: Let's Encrypt 证书自动申请（未来增强）
+## Summary
 
-**Story ID:** 2-7-letsencrypt-auto  
-**Title:** 创建代理时自动申请 Let's Encrypt 证书  
-**Priority:** P1  
-**Status:** backlog  
-**Estimated Effort:** 4 days
+This Epic provides comprehensive proxy and SSL management capabilities through Nginx Proxy Manager integration. The focus is on automation (auto-SSL, auto-renewal) while providing flexibility for advanced users (custom certificates, access control).
 
-### User Story
+**Development Sequence:**
+1. Story 1 (NPM API foundation)
+2. Stories 2, 8 (Basic proxy CRUD)
+3. Story 3 (SSL automation - highest value)
+4. Story 4 (Auto-renewal - critical for production)
+5. Stories 5, 6, 7 (Advanced features)
 
-**As a** Websoft9 用户  
-**I want to** 创建代理时自动申请 HTTPS 证书  
-**So that** 我可以直接使用 HTTPS 访问应用
+**Dependencies:**
+- All stories depend on Story 1 (NPM API integration)
+- Story 4 depends on Story 3 (SSL certificate management)
+- Stories 6-7 enhance Story 2 (proxy management)
 
-### Acceptance Criteria
-
-- [ ] AC1: 创建代理时可选启用 SSL
-- [ ] AC2: 自动调用 NPM Let's Encrypt 集成
-- [ ] AC3: HTTP-01 挑战自动完成
-- [ ] AC4: 证书申请成功率 > 95%
-- [ ] AC5: 失败时返回详细错误信息
-
-### Tasks
-
-- [ ] 扩展 `create_proxy_host()` 支持 SSL 选项
-- [ ] 实现证书申请逻辑
-- [ ] DNS 预检查（域名是否解析）
-- [ ] 证书申请状态轮询
-- [ ] 错误处理和用户提示
-- [ ] 编写测试（使用 Let's Encrypt Staging）
-
-### File List
-
-- `apphub/src/services/proxy_manager.py`
-- `apphub/src/utils/dns_checker.py`
-- `tests/test_letsencrypt.py`
-
-### Dependencies
-
-- DNS 域名必须解析到服务器
-- 80 端口可访问
-
----
-
-## Story 2-8: SSL 证书自动续期（未来增强）
-
-**Story ID:** 2-8-cert-renewal  
-**Title:** 实现 SSL 证书自动续期服务  
-**Priority:** P1  
-**Status:** backlog  
-**Estimated Effort:** 3 days
-
-### User Story
-
-**As a** Websoft9 管理员  
-**I want to** SSL 证书在过期前自动续期  
-**So that** 我不用手动管理证书生命周期
-
-### Acceptance Criteria
-
-- [ ] AC1: 定时任务每天检查证书
-- [ ] AC2: 过期前 30 天自动续期
-- [ ] AC3: 续期失败发送告警
-- [ ] AC4: 续期成功记录日志
-
-### Tasks
-
-- [ ] 实现定时任务服务
-- [ ] 证书过期检测逻辑
-- [ ] 调用 NPM 续期 API
-- [ ] 告警通知机制
-- [ ] 编写测试
-
-### File List
-
-- `apphub/src/services/cert_renewal_service.py`
-- `apphub/src/tasks/scheduler.py`
-- `tests/test_cert_renewal.py`
-
----
-
-**Total Stories: 8** (6 ready-for-dev + 2 backlog)  
-**Total Estimated Effort: 16 days** (ready stories: 11 days)  
-**Epic Status: Ready for Sprint Planning**
+**Risk Mitigation:**
+- Implement DNS validation before SSL request (Story 3)
+- Add comprehensive error handling for Let's Encrypt rate limits
+- Test renewal process in staging environment before production
+- Monitor certificate expiration with alerts

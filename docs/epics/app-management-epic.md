@@ -1,79 +1,79 @@
-# Epic: 应用管理
+# Epic: Application Management
 
-**关联 PRD:** [FR-APP-001](../prd.md#21-应用管理)  
-**负责人:** Product Manager  
-**状态:** In Development  
-**优先级:** P0 (必需)  
-**预估工作量:** 4-5 周
-
----
-
-## 1. Epic 概述
-
-### 1.1 业务目标
-
-提供完整的容器化应用生命周期管理能力，支持从应用目录浏览、一键安装到运维管理的全流程。
-
-### 1.2 核心价值
-
-- 用户可快速浏览并安装 200+ 开源应用
-- 通过 docker-compose 实现标准化部署
-- 集成 Portainer 实现可视化容器管理
-- 应用状态实时监控和日志查看
-- 简化的运维操作（启动、停止、重启、卸载）
-
-### 1.3 验收标准
-
-✅ 应用目录支持分类浏览（中英文）  
-✅ 应用安装成功率 > 95%  
-✅ 平均安装时间 < 2分钟  
-✅ 应用状态变更响应 < 3秒  
-✅ 卸载应用清理所有相关资源  
-✅ 实时日志查看无延迟 (< 500ms)  
+**Related PRD:** [FR-APP-001]
+**Owner:** Product Manager  
+**Status:** In Development  
+**Priority:** P0 (Required)  
+**Estimated Effort:** 4-5 weeks
 
 ---
 
-## 2. 技术规范
+## 1. Epic Overview
 
-### 2.1 架构设计
+### 1.1 Business Objectives
 
-#### 系统架构
+Provide complete containerized application lifecycle management capabilities, supporting the entire workflow from application catalog browsing, one-click installation, to operations management.
+
+### 1.2 Core Value
+
+- Users can quickly browse and install 200+ open-source applications
+- Standardized deployment through docker-compose
+- Integrated Portainer for visual container management
+- Real-time application status monitoring and log viewing
+- Simplified operations (start, stop, restart, uninstall)
+
+### 1.3 Acceptance Criteria
+
+✅ Application catalog supports category browsing (Chinese/English)  
+✅ Application installation success rate > 95%  
+✅ Average installation time < 2 minutes  
+✅ Application status change response < 3 seconds  
+✅ Uninstall cleans all related resources  
+✅ Real-time log viewing with no delay (< 500ms)  
+
+---
+
+## 2. Technical Specifications
+
+### 2.1 Architecture Design
+
+#### System Architecture
 
 ```
-用户请求 → AppHub API → App Manager Service
+User Request → AppHub API → App Manager Service
                               ↓
                         Portainer API
                               ↓
                         Docker Engine
 ```
 
-#### 数据流
+#### Data Flow
 
 ```
-应用目录 (media.json) → 解析元数据 → API 响应
-安装请求 → 生成 docker-compose → Portainer Stack → Docker 部署
+Application Catalog (media.json) → Parse Metadata → API Response
+Install Request → Generate docker-compose → Portainer Stack → Docker Deployment
 ```
 
-### 2.2 API 端点
+### 2.2 API Endpoints
 
-| 端点 | 方法 | 说明 | 认证 |
-|------|------|------|------|
-| `/api/v1/apps/catalog/{locale}` | GET | 获取应用目录（locale: zh/en） | API Key |
-| `/api/v1/apps/available/{locale}` | GET | 获取可用应用列表（未安装） | API Key |
-| `/api/v1/apps` | GET | 获取已安装应用列表 | API Key |
-| `/api/v1/apps/{app_id}` | GET | 获取应用详情 | API Key |
-| `/api/v1/apps/install` | POST | 安装应用（异步后台执行） | API Key |
-| `/api/v1/apps/{app_id}/start` | POST | 启动应用 | API Key |
-| `/api/v1/apps/{app_id}/stop` | POST | 停止应用 | API Key |
-| `/api/v1/apps/{app_id}/restart` | POST | 重启应用 | API Key |
-| `/api/v1/apps/{app_id}/redeploy` | PUT | 重新部署应用（支持拉取镜像，流式日志） | API Key |
-| `/api/v1/apps/{app_id}/uninstall` | DELETE | 卸载应用（支持清除数据） | API Key |
-| `/api/v1/apps/{app_id}/remove` | DELETE | 移除空应用（状态为inactive） | API Key |
-| `/api/v1/apps/{app_id}/error/remove` | DELETE | 移除错误应用（状态为error） | API Key |
+| Endpoint | Method | Description | Authentication |
+|----------|--------|-------------|----------------|
+| `/api/v1/apps/catalog/{locale}` | GET | Get application catalog (locale: zh/en) | API Key |
+| `/api/v1/apps/available/{locale}` | GET | Get available apps (not installed) | API Key |
+| `/api/v1/apps` | GET | Get installed applications | API Key |
+| `/api/v1/apps/{app_id}` | GET | Get application details | API Key |
+| `/api/v1/apps/install` | POST | Install application (async background) | API Key |
+| `/api/v1/apps/{app_id}/start` | POST | Start application | API Key |
+| `/api/v1/apps/{app_id}/stop` | POST | Stop application | API Key |
+| `/api/v1/apps/{app_id}/restart` | POST | Restart application | API Key |
+| `/api/v1/apps/{app_id}/redeploy` | PUT | Redeploy application (pull images, streaming logs) | API Key |
+| `/api/v1/apps/{app_id}/uninstall` | DELETE | Uninstall application (supports data cleanup) | API Key |
+| `/api/v1/apps/{app_id}/remove` | DELETE | Remove empty app (status: inactive) | API Key |
+| `/api/v1/apps/{app_id}/error/remove` | DELETE | Remove error app (status: error) | API Key |
 
-#### 示例：安装应用
+#### Example: Install Application
 
-**请求:**
+**Request:**
 ```http
 POST /api/v1/apps/install
 X-API-Key: <key>
@@ -91,7 +91,7 @@ Content-Type: application/json
 }
 ```
 
-**响应:**
+**Response:**
 ```json
 {
   "code": 200,
@@ -106,36 +106,36 @@ Content-Type: application/json
 }
 ```
 
-### 2.3 数据模型
+### 2.3 Data Models
 
-#### 应用元数据（media.json）
+#### Application Metadata (media.json)
 
 ```python
 class AppCatalog(BaseModel):
-    key: str                           # 应用唯一标识
-    name: str                          # 应用名称
-    trademark: str                     # 商标名
-    category: str                      # 分类
-    description: str                   # 描述
-    compose_file: str                  # docker-compose.yml 路径
+    key: str                           # Unique application identifier
+    name: str                          # Application name
+    trademark: str                     # Trademark name
+    category: str                      # Category
+    description: str                   # Description
+    compose_file: str                  # docker-compose.yml path
     logo_url: str                      # Logo URL
-    requirements: Dict[str, Any]       # 系统要求
-    default_port: int                  # 默认端口
+    requirements: Dict[str, Any]       # System requirements
+    default_port: int                  # Default port
 ```
 
-#### 已安装应用（从 Portainer）
+#### Installed Application (from Portainer)
 
 ```python
 class InstalledApp(BaseModel):
     app_id: str                        # Stack ID
-    app_name: str                      # 应用名称
+    app_name: str                      # Application name
     status: str                        # running, stopped, error
     created_at: datetime
-    containers: List[Dict]             # 容器列表
-    env_vars: Dict[str, str]           # 环境变量
+    containers: List[Dict]             # Container list
+    env_vars: Dict[str, str]           # Environment variables
 ```
 
-### 2.4 核心服务设计
+### 2.4 Core Service Design
 
 #### app_manager.py
 
@@ -146,46 +146,46 @@ class AppManager:
         self.media = self.load_media_catalog()
     
     def get_catalog_apps(self, locale: str) -> List[AppCatalog]:
-        """获取应用目录"""
+        """Get application catalog"""
         pass
     
     def get_available_apps(self, locale: str) -> List[Dict]:
-        """获取可用应用（未安装）"""
+        """Get available apps (not installed)"""
         installed = self.get_apps()
         all_apps = self.get_catalog_apps(locale)
         return [app for app in all_apps if app.key not in installed]
     
     def install_app(self, app_install: AppInstall) -> Dict:
         """
-        安装应用流程:
-        1. 验证应用是否存在
-        2. 生成 docker-compose.yml
-        3. 通过 Portainer 创建 Stack
-        4. 等待容器启动
-        5. 返回安装结果
+        Application installation workflow:
+        1. Validate application exists
+        2. Generate docker-compose.yml
+        3. Create Stack through Portainer
+        4. Wait for container startup
+        5. Return installation result
         """
         pass
     
     def start_app(self, app_id: str) -> Dict:
-        """启动应用 - 调用 Portainer Stack Start"""
+        """Start application - Call Portainer Stack Start"""
         pass
     
     def stop_app(self, app_id: str) -> Dict:
-        """停止应用 - 调用 Portainer Stack Stop"""
+        """Stop application - Call Portainer Stack Stop"""
         pass
     
     def uninstall_app(self, app_id: str, remove_volumes: bool = False) -> Dict:
         """
-        卸载应用:
-        1. 停止所有容器
-        2. 删除容器
-        3. 删除网络
-        4. 可选删除数据卷
+        Uninstall application:
+        1. Stop all containers
+        2. Delete containers
+        3. Delete networks
+        4. Optionally delete volumes
         """
         pass
 ```
 
-### 2.5 与 Portainer 集成
+### 2.5 Portainer Integration
 
 ```python
 class PortainerAPI:
@@ -195,7 +195,7 @@ class PortainerAPI:
     
     def create_stack(self, stack_name: str, compose_content: str, 
                      endpoint_id: int, env: Dict) -> Dict:
-        """创建 Stack"""
+        """Create Stack"""
         url = f"{self.base_url}/stacks"
         payload = {
             "Name": stack_name,
@@ -206,24 +206,24 @@ class PortainerAPI:
         return response.json()
     
     def start_stack(self, stack_id: int, endpoint_id: int) -> Dict:
-        """启动 Stack"""
+        """Start Stack"""
         url = f"{self.base_url}/stacks/{stack_id}/start"
         response = requests.post(url, params={"endpointId": endpoint_id})
         return response.json()
     
     def delete_stack(self, stack_id: int, endpoint_id: int) -> None:
-        """删除 Stack"""
+        """Delete Stack"""
         url = f"{self.base_url}/stacks/{stack_id}"
         requests.delete(url, params={"endpointId": endpoint_id})
 ```
 
-### 2.6 配置
+### 2.6 Configuration
 
 ```yaml
 # config/app.yaml
 app_management:
   media_url: "https://websoft9.github.io/docker-library/media.json"
-  cache_duration: 3600  # 应用目录缓存时间（秒）
+  cache_duration: 3600  # Application catalog cache duration (seconds)
   
   portainer:
     url: "http://portainer:9000"
@@ -237,185 +237,185 @@ app_management:
   
   limits:
     max_concurrent_installs: 3
-    install_timeout: 300  # 5分钟
+    install_timeout: 300  # 5 minutes
 ```
 
 ---
 
-## 3. Stories 拆分
+## 3. Story Breakdown
 
-### Story 1: 应用目录浏览
+### Story 1: Application Catalog Browsing
 
-**优先级:** P0  
-**工作量:** 2 天
+**Priority:** P0  
+**Effort:** 2 days
 
-**任务:**
-- 实现 `/apps/catalog/{locale}` 端点
-- 从 media.json 加载应用元数据
-- 支持中英文分类
-- 添加缓存机制
-- 编写单元测试
+**Tasks:**
+- Implement `/apps/catalog/{locale}` endpoint
+- Load application metadata from media.json
+- Support Chinese/English categories
+- Add caching mechanism
+- Write unit tests
 
-### Story 2: 应用安装流程
+### Story 2: Application Installation Workflow
 
-**优先级:** P0  
-**工作量:** 4 天
+**Priority:** P0  
+**Effort:** 4 days
 
-**任务:**
-- 实现 `/apps/install` 端点
-- 生成 docker-compose 文件
-- Portainer Stack 创建逻辑
-- 安装参数验证
-- 错误处理和回滚
-- 编写集成测试
+**Tasks:**
+- Implement `/apps/install` endpoint
+- Generate docker-compose files
+- Portainer Stack creation logic
+- Installation parameter validation
+- Error handling and rollback
+- Write integration tests
 
-### Story 3: 应用生命周期管理
+### Story 3: Application Lifecycle Management
 
-**优先级:** P0  
-**工作量:** 3 天
+**Priority:** P0  
+**Effort:** 3 days
 
-**任务:**
-- 实现启动/停止/重启端点
-- Portainer API 集成
-- 状态同步机制
-- 编写功能测试
+**Tasks:**
+- Implement start/stop/restart endpoints
+- Portainer API integration
+- Status synchronization mechanism
+- Write functional tests
 
-### Story 4: 应用卸载
+### Story 4: Application Uninstallation
 
-**优先级:** P0  
-**工作量:** 2 天
+**Priority:** P0  
+**Effort:** 2 days
 
-**任务:**
-- 实现 `/apps/{app_id}/uninstall` 端点
-- 资源清理逻辑（容器、网络、卷）
-- 卸载确认机制
-- 编写清理测试
+**Tasks:**
+- Implement `/apps/{app_id}/uninstall` endpoint
+- Resource cleanup logic (containers, networks, volumes)
+- Uninstall confirmation mechanism
+- Write cleanup tests
 
-### Story 5: 应用日志查看
+### Story 5: Application Log Viewing
 
-**优先级:** P1  
-**工作量:** 2 天
+**Priority:** P1  
+**Effort:** 2 days
 
-**任务:**
-- 实现 `/apps/{app_id}/logs` 端点
-- 实时日志流式传输
-- 日志过滤和搜索
-- 编写日志测试
+**Tasks:**
+- Implement `/apps/{app_id}/logs` endpoint
+- Real-time log streaming
+- Log filtering and search
+- Write log tests
 
-### Story 6: 已安装应用列表
+### Story 6: Installed Applications List
 
-**优先级:** P0  
-**工作量:** 2 天
+**Priority:** P0  
+**Effort:** 2 days
 
-**任务:**
-- 实现 `/apps` 端点
-- 从 Portainer 获取 Stack 列表
-- 状态聚合和格式化
-- 编写查询测试
+**Tasks:**
+- Implement `/apps` endpoint
+- Fetch Stack list from Portainer
+- Status aggregation and formatting
+- Write query tests
 
 ---
 
-## 4. 依赖关系
+## 4. Dependencies
 
-### 技术依赖
+### Technical Dependencies
 
 - **Docker Engine** 20.10+
 - **Portainer** 2.19+
 - **FastAPI** 0.104+
 - **Pydantic** 2.0+
 
-### 模块依赖
+### Module Dependencies
 
-- **配置模块** - 读取系统配置
-- **日志模块** - 记录操作日志
-- **API Key 认证** - 接口安全验证
+- **Configuration Module** - Read system configuration
+- **Logging Module** - Record operation logs
+- **API Key Authentication** - Interface security validation
 
-### 外部依赖
+### External Dependencies
 
-- **media.json** - 应用元数据（GitHub）
-- **Docker Registry** - 镜像仓库
-
----
-
-## 5. 风险与挑战
-
-| 风险 | 等级 | 缓解措施 |
-|------|------|----------|
-| Portainer API 变更 | 中 | 版本锁定，API 变更监控 |
-| 应用安装失败 | 高 | 详细错误日志，自动回滚机制 |
-| 并发安装冲突 | 中 | 队列机制，限制并发数 |
-| Docker 资源不足 | 高 | 安装前资源检查，磁盘空间预警 |
-| 应用目录不可用 | 中 | 本地缓存，降级方案 |
+- **media.json** - Application metadata (GitHub)
+- **Docker Registry** - Image repository
 
 ---
 
-## 6. 测试策略
+## 5. Risks & Challenges
 
-### 单元测试
-
-- 应用元数据解析
-- docker-compose 生成逻辑
-- 参数验证规则
-- API 响应格式化
-
-### 集成测试
-
-- 完整安装流程（选择 → 安装 → 运行）
-- Portainer API 调用
-- 错误场景处理
-- 卸载清理验证
-
-### 性能测试
-
-- 应用目录加载时间 < 2秒
-- 并发安装 3 个应用
-- 1000+ 应用目录响应时间
-
-### 用户验收测试
-
-- 安装 WordPress 并访问
-- 安装 GitLab 并配置
-- 批量安装常用应用组合
+| Risk | Level | Mitigation |
+|------|-------|------------|
+| Portainer API changes | Medium | Version locking, API change monitoring |
+| Application installation failures | High | Detailed error logs, automatic rollback |
+| Concurrent installation conflicts | Medium | Queue mechanism, limit concurrency |
+| Docker resource shortage | High | Pre-installation resource check, disk space alerts |
+| Application catalog unavailable | Medium | Local cache, fallback solution |
 
 ---
 
-## 7. 监控指标
+## 6. Testing Strategy
+
+### Unit Tests
+
+- Application metadata parsing
+- docker-compose generation logic
+- Parameter validation rules
+- API response formatting
+
+### Integration Tests
+
+- Complete installation workflow (select → install → run)
+- Portainer API calls
+- Error scenario handling
+- Uninstall cleanup verification
+
+### Performance Tests
+
+- Application catalog load time < 2 seconds
+- 3 concurrent installations
+- 1000+ application catalog response time
+
+### User Acceptance Tests
+
+- Install WordPress and access
+- Install GitLab and configure
+- Batch install common application combinations
+
+---
+
+## 7. Monitoring Metrics
 
 ```python
-# Prometheus 指标
-app_install_total                      # 应用安装总数
-app_install_success_total              # 安装成功数
-app_install_failed_total               # 安装失败数
-app_install_duration_seconds           # 安装耗时
-app_uninstall_total                    # 卸载总数
-app_running_total                      # 运行中应用数
-app_api_request_duration_seconds       # API 响应时间
+# Prometheus metrics
+app_install_total                      # Total application installations
+app_install_success_total              # Successful installations
+app_install_failed_total               # Failed installations
+app_install_duration_seconds           # Installation duration
+app_uninstall_total                    # Total uninstallations
+app_running_total                      # Running applications
+app_api_request_duration_seconds       # API response time
 ```
 
 ---
 
-## 附录
+## Appendix
 
-### A. 错误码定义
+### A. Error Code Definitions
 
-| 错误码 | HTTP | 说明 |
-|--------|------|------|
-| APP_NOT_FOUND | 404 | 应用不存在 |
-| APP_ALREADY_INSTALLED | 409 | 应用已安装 |
-| APP_INSTALL_FAILED | 500 | 安装失败 |
-| APP_START_FAILED | 500 | 启动失败 |
-| APP_STOP_FAILED | 500 | 停止失败 |
-| APP_INVALID_CONFIG | 400 | 配置参数无效 |
-| PORTAINER_API_ERROR | 502 | Portainer API 错误 |
-| DOCKER_RESOURCE_INSUFFICIENT | 507 | Docker 资源不足 |
+| Error Code | HTTP | Description |
+|------------|------|-------------|
+| APP_NOT_FOUND | 404 | Application not found |
+| APP_ALREADY_INSTALLED | 409 | Application already installed |
+| APP_INSTALL_FAILED | 500 | Installation failed |
+| APP_START_FAILED | 500 | Start failed |
+| APP_STOP_FAILED | 500 | Stop failed |
+| APP_INVALID_CONFIG | 400 | Invalid configuration parameters |
+| PORTAINER_API_ERROR | 502 | Portainer API error |
+| DOCKER_RESOURCE_INSUFFICIENT | 507 | Insufficient Docker resources |
 
-### B. 相关文档
+### B. Related Documentation
 
-- [PRD - 应用管理](../prd.md#21-应用管理)
-- [技术架构文档](../architecture.md)
-- [Portainer API 文档](https://docs.portainer.io/api/docs)
+- [PRD - Application Management](../prd.md#21-应用管理)
+- [Technical Architecture Documentation](../architecture.md)
+- [Portainer API Documentation](https://docs.portainer.io/api/docs)
 
 ---
 
-**文档维护:** PM Agent  
-**最后更新:** 2026-01-05
+**Document Maintainer:** PM Agent  
+**Last Updated:** 2026-01-05
