@@ -1,72 +1,72 @@
-# Epic: 反向代理管理
+# Epic: Reverse Proxy Management
 
-**关联 PRD:** [FR-PROXY-001](../prd.md#22-反向代理与-ssl-管理)  
-**负责人:** Product Manager  
-**状态:** In Development  
-**优先级:** P0 (必需)  
-**预估工作量:** 3-4 周
-
----
-
-## 1. Epic 概述
-
-### 1.1 业务目标
-
-通过 Nginx Proxy Manager 提供应用的反向代理配置和自动化 SSL 证书管理，实现域名访问和 HTTPS 加密。
-
-### 1.2 核心价值
-
-- 应用可通过自定义域名访问
-- 自动申请和续期 Let's Encrypt SSL 证书
-- 支持强制 HTTPS 跳转
-- 提供访问控制（IP 白名单/黑名单）
-- 支持自定义 SSL 证书上传
-- HTTP 基本认证保护
-
-### 1.3 验收标准
-
-✅ 代理主机创建时间 < 30秒  
-✅ Let's Encrypt 证书自动申请成功率 > 95%  
-✅ SSL 证书自动续期（过期前 30 天）  
-✅ SSL Labs 评级 A 或以上  
-✅ 代理配置变更生效时间 < 5秒  
-✅ 支持通配符域名证书
+**Related PRD:** [FR-PROXY-001]
+**Owner:** Product Manager  
+**Status:** In Development  
+**Priority:** P0 (Required)  
+**Estimated Effort:** 3-4 weeks
 
 ---
 
-## 2. 技术规范
+## 1. Epic Overview
 
-### 2.1 架构设计
+### 1.1 Business Objectives
 
-#### 系统架构
+Provide reverse proxy configuration and automated SSL certificate management for applications through Nginx Proxy Manager, enabling domain access and HTTPS encryption.
+
+### 1.2 Core Value
+
+- Applications accessible via custom domain names
+- Automatic Let's Encrypt SSL certificate requests and renewals
+- Support for forced HTTPS redirect
+- Access control (IP whitelist/blacklist)
+- Support for custom SSL certificate upload
+- HTTP Basic Authentication protection
+
+### 1.3 Acceptance Criteria
+
+✅ Proxy host creation time < 30 seconds  
+✅ Let's Encrypt certificate auto-request success rate > 95%  
+✅ SSL certificates auto-renew (30 days before expiration)  
+✅ SSL Labs rating A or higher  
+✅ Proxy configuration changes take effect < 5 seconds  
+✅ Support wildcard domain certificates
+
+---
+
+## 2. Technical Specifications
+
+### 2.1 Architecture Design
+
+#### System Architecture
 
 ```
-用户域名请求 → Nginx Proxy Manager → 后端应用容器
-                       ↓
-                Let's Encrypt (ACME)
+User Domain Request → Nginx Proxy Manager → Backend Application Container
+                              ↓
+                      Let's Encrypt (ACME)
 ```
 
-#### 代理流程
+#### Proxy Workflow
 
 ```
-域名解析 → NPM 反向代理 → Docker Network → 应用容器:端口
-            ↓
-    SSL 证书验证 & 加密
+Domain Resolution → NPM Reverse Proxy → Docker Network → App Container:Port
+                          ↓
+                  SSL Certificate Verification & Encryption
 ```
 
-### 2.2 API 端点
+### 2.2 API Endpoints
 
-| 端点 | 方法 | 说明 | 认证 |
-|------|------|------|------|
-| `/api/v1/proxys/{app_id}` | GET | 获取应用代理配置列表 | API Key |
-| `/api/v1/proxys/{app_id}` | POST | 创建代理主机（支持多域名） | API Key |
-| `/api/v1/proxys/{proxy_id}` | PUT | 更新代理配置（按proxy_id更新） | API Key |
-| `/api/v1/proxys/{proxy_id}` | DELETE | 删除代理（按proxy_id删除） | API Key |
-| `/api/v1/proxys/ssl/certificates` | GET | 获取 SSL 证书列表 | API Key |
+| Endpoint | Method | Description | Authentication |
+|----------|--------|-------------|----------------|
+| `/api/v1/proxys/{app_id}` | GET | Get application proxy configuration list | API Key |
+| `/api/v1/proxys/{app_id}` | POST | Create proxy host (supports multiple domains) | API Key |
+| `/api/v1/proxys/{proxy_id}` | PUT | Update proxy configuration (by proxy_id) | API Key |
+| `/api/v1/proxys/{proxy_id}` | DELETE | Delete proxy (by proxy_id) | API Key |
+| `/api/v1/proxys/ssl/certificates` | GET | Get SSL certificate list | API Key |
 
-#### 示例：创建代理主机
+#### Example: Create Proxy Host
 
-**请求:**
+**Request:**
 ```http
 POST /api/v1/proxys/wordpress001
 X-API-Key: <key>
@@ -77,7 +77,7 @@ Content-Type: application/json
 }
 ```
 
-**响应:**
+**Response:**
 ```json
 {
   "code": 200,
@@ -92,28 +92,28 @@ Content-Type: application/json
 }
 ```
 
-### 2.3 数据模型
+### 2.3 Data Models
 
-#### NPM 代理主机配置
+#### NPM Proxy Host Configuration
 
 ```python
 class ProxyHost(BaseModel):
     proxy_id: int                      # NPM Proxy Host ID
-    app_id: str                        # 关联的应用 ID
-    domain_names: List[str]            # 域名列表
-    forward_host: str                  # 转发目标主机
-    forward_port: int                  # 转发目标端口
-    forward_scheme: str                # http 或 https
-    ssl_enabled: bool                  # 是否启用 SSL
-    ssl_forced: bool                   # 强制 HTTPS
-    certificate_id: Optional[int]      # SSL 证书 ID
-    access_list_id: Optional[int]      # 访问控制列表 ID
-    enable_websocket: bool             # WebSocket 支持
-    http2_support: bool                # HTTP/2 支持
-    hsts_enabled: bool                 # HSTS 启用
+    app_id: str                        # Associated application ID
+    domain_names: List[str]            # Domain name list
+    forward_host: str                  # Forward target host
+    forward_port: int                  # Forward target port
+    forward_scheme: str                # http or https
+    ssl_enabled: bool                  # SSL enabled
+    ssl_forced: bool                   # Force HTTPS
+    certificate_id: Optional[int]      # SSL certificate ID
+    access_list_id: Optional[int]      # Access control list ID
+    enable_websocket: bool             # WebSocket support
+    http2_support: bool                # HTTP/2 support
+    hsts_enabled: bool                 # HSTS enabled
 ```
 
-#### SSL 证书
+#### SSL Certificate
 
 ```python
 class SSLCertificate(BaseModel):
@@ -122,10 +122,10 @@ class SSLCertificate(BaseModel):
     domain_names: List[str]
     expires_at: datetime
     is_valid: bool
-    meta: Dict[str, Any]               # 证书元数据
+    meta: Dict[str, Any]               # Certificate metadata
 ```
 
-### 2.4 核心服务设计
+### 2.4 Core Service Design
 
 #### nginx_proxy_manager.py
 
@@ -136,7 +136,7 @@ class NginxProxyManagerAPI:
         self.token = self.get_token()
     
     def get_token(self) -> str:
-        """获取 NPM API Token"""
+        """Get NPM API Token"""
         response = requests.post(
             f"{self.base_url}/tokens",
             json={
@@ -148,12 +148,12 @@ class NginxProxyManagerAPI:
     
     def create_proxy_host(self, config: Dict) -> Dict:
         """
-        创建代理主机:
-        1. 验证域名格式
-        2. 检查域名是否已被使用
-        3. 创建 Proxy Host
-        4. 如果启用 SSL，申请 Let's Encrypt 证书
-        5. 返回代理配置
+        Create proxy host:
+        1. Validate domain format
+        2. Check if domain already used
+        3. Create Proxy Host
+        4. If SSL enabled, request Let's Encrypt certificate
+        5. Return proxy configuration
         """
         url = f"{self.base_url}/nginx/proxy-hosts"
         headers = {"Authorization": f"Bearer {self.token}"}
@@ -176,21 +176,21 @@ class NginxProxyManagerAPI:
         return response.json()
     
     def update_proxy_host(self, proxy_id: int, config: Dict) -> Dict:
-        """更新代理配置"""
+        """Update proxy configuration"""
         url = f"{self.base_url}/nginx/proxy-hosts/{proxy_id}"
         headers = {"Authorization": f"Bearer {self.token}"}
         response = requests.put(url, json=config, headers=headers)
         return response.json()
     
     def delete_proxy_host(self, proxy_id: int) -> None:
-        """删除代理主机"""
+        """Delete proxy host"""
         url = f"{self.base_url}/nginx/proxy-hosts/{proxy_id}"
         headers = {"Authorization": f"Bearer {self.token}"}
         requests.delete(url, headers=headers)
     
     def request_letsencrypt_cert(self, proxy_id: int, email: str, 
                                   domains: List[str]) -> Dict:
-        """申请 Let's Encrypt 证书"""
+        """Request Let's Encrypt certificate"""
         url = f"{self.base_url}/nginx/certificates"
         headers = {"Authorization": f"Bearer {self.token}"}
         
@@ -206,12 +206,12 @@ class NginxProxyManagerAPI:
         response = requests.post(url, json=payload, headers=headers)
         cert = response.json()
         
-        # 将证书关联到代理主机
+        # Associate certificate with proxy host
         self.update_proxy_host(proxy_id, {"certificate_id": cert["id"]})
         return cert
 ```
 
-### 2.5 Let's Encrypt 证书自动续期
+### 2.5 Let's Encrypt Certificate Auto-Renewal
 
 ```python
 class CertificateRenewalService:
@@ -220,9 +220,9 @@ class CertificateRenewalService:
     
     async def auto_renew_certificates(self):
         """
-        定时任务：自动续期证书
-        - 每天检查一次
-        - 过期前 30 天自动续期
+        Scheduled task: Auto-renew certificates
+        - Daily check
+        - Auto-renew 30 days before expiration
         """
         certificates = self.npm_api.get_certificates()
         
@@ -241,7 +241,7 @@ class CertificateRenewalService:
                     logger.error(f"Certificate renewal failed: {e}")
 ```
 
-### 2.6 配置
+### 2.6 Configuration
 
 ```yaml
 # config/proxy.yaml
@@ -255,7 +255,7 @@ nginx_proxy_manager:
     provider: "letsencrypt"
     auto_renew: true
     renew_before_days: 30
-    challenge_type: "http-01"  # http-01 或 dns-01
+    challenge_type: "http-01"  # http-01 or dns-01
   
   defaults:
     forward_scheme: "http"
@@ -268,180 +268,180 @@ nginx_proxy_manager:
 
 ---
 
-## 3. Stories 拆分
+## 3. Story Breakdown
 
-### Story 1: NPM API 集成
+### Story 1: NPM API Integration
 
-**优先级:** P0  
-**工作量:** 3 天
+**Priority:** P0  
+**Effort:** 3 days
 
-**任务:**
-- 实现 NPM Token 认证
-- 封装代理主机 CRUD 接口
-- 错误处理和重试机制
-- 编写 API 集成测试
+**Tasks:**
+- Implement NPM Token authentication
+- Wrap proxy host CRUD interfaces
+- Error handling and retry mechanism
+- Write API integration tests
 
-### Story 2: 代理主机管理
+### Story 2: Proxy Host Management
 
-**优先级:** P0  
-**工作量:** 3 天
+**Priority:** P0  
+**Effort:** 3 days
 
-**任务:**
-- 实现创建代理主机端点
-- 域名格式验证
-- 代理配置持久化
-- 编写功能测试
+**Tasks:**
+- Implement create proxy host endpoint
+- Domain format validation
+- Proxy configuration persistence
+- Write functional tests
 
-### Story 3: Let's Encrypt 证书申请
+### Story 3: Let's Encrypt Certificate Request
 
-**优先级:** P0  
-**工作量:** 4 天
+**Priority:** P0  
+**Effort:** 4 days
 
-**任务:**
-- 集成 Let's Encrypt ACME 流程
-- HTTP-01 挑战验证
-- 证书申请失败处理
-- 编写证书申请测试
+**Tasks:**
+- Integrate Let's Encrypt ACME workflow
+- HTTP-01 challenge validation
+- Certificate request failure handling
+- Write certificate request tests
 
-### Story 4: SSL 证书自动续期
+### Story 4: SSL Certificate Auto-Renewal
 
-**优先级:** P1  
-**工作量:** 2 天
+**Priority:** P1  
+**Effort:** 2 days
 
-**任务:**
-- 实现定时检查任务
-- 证书过期监控
-- 自动续期逻辑
-- 续期失败告警
-- 编写续期测试
+**Tasks:**
+- Implement scheduled check task
+- Certificate expiration monitoring
+- Auto-renewal logic
+- Renewal failure alerts
+- Write renewal tests
 
-### Story 5: 自定义 SSL 证书上传
+### Story 5: Custom SSL Certificate Upload
 
-**优先级:** P1  
-**工作量:** 2 天
+**Priority:** P1  
+**Effort:** 2 days
 
-**任务:**
-- 证书文件上传接口
-- 证书格式验证（PEM）
-- 私钥安全存储
-- 编写上传测试
+**Tasks:**
+- Certificate file upload interface
+- Certificate format validation (PEM)
+- Private key secure storage
+- Write upload tests
 
-### Story 6: 访问控制列表
+### Story 6: Access Control Lists
 
-**优先级:** P2  
-**工作量:** 2 天
+**Priority:** P2  
+**Effort:** 2 days
 
-**任务:**
-- IP 白名单/黑名单配置
-- HTTP 基本认证
-- 访问控制规则验证
-- 编写访问控制测试
+**Tasks:**
+- IP whitelist/blacklist configuration
+- HTTP Basic Authentication
+- Access control rule validation
+- Write access control tests
 
 ---
 
-## 4. 依赖关系
+## 4. Dependencies
 
-### 技术依赖
+### Technical Dependencies
 
 - **Nginx Proxy Manager** 2.10+
 - **Let's Encrypt** ACME v2
 - **FastAPI** 0.104+
-- **Certbot** (内置于 NPM)
+- **Certbot** (built into NPM)
 
-### 模块依赖
+### Module Dependencies
 
-- **应用管理模块** - 获取应用容器信息
-- **配置模块** - 读取代理配置
-- **日志模块** - 记录证书操作
+- **Application Management Module** - Get application container info
+- **Configuration Module** - Read proxy configuration
+- **Logging Module** - Record certificate operations
 
-### 外部依赖
+### External Dependencies
 
-- **DNS 解析** - 域名必须正确解析到服务器
-- **80/443 端口开放** - Let's Encrypt HTTP-01 验证
-
----
-
-## 5. 风险与挑战
-
-| 风险 | 等级 | 缓解措施 |
-|------|------|----------|
-| Let's Encrypt 速率限制 | 高 | 使用 DNS-01 挑战，避免重复申请 |
-| 证书申请失败 | 高 | 详细错误日志，DNS 预检查 |
-| 域名未解析到服务器 | 中 | 安装前 DNS 验证提示 |
-| NPM API 变更 | 中 | API 版本锁定，变更监控 |
-| 证书续期失败 | 高 | 提前 30 天续期，失败告警 |
+- **DNS Resolution** - Domain must correctly resolve to server
+- **Ports 80/443 Open** - Let's Encrypt HTTP-01 validation
 
 ---
 
-## 6. 测试策略
+## 5. Risks & Challenges
 
-### 单元测试
-
-- 域名格式验证
-- 代理配置生成
-- Token 认证逻辑
-- API 响应解析
-
-### 集成测试
-
-- 完整代理创建流程
-- Let's Encrypt 证书申请（测试环境）
-- 证书续期模拟
-- 代理删除清理
-
-### 手动测试
-
-- 真实域名 SSL 证书申请
-- SSL Labs 评分验证
-- 浏览器 HTTPS 访问
-- 强制 HTTPS 跳转验证
+| Risk | Level | Mitigation |
+|------|-------|------------|
+| Let's Encrypt rate limiting | High | Use DNS-01 challenge, avoid repeated requests |
+| Certificate request failures | High | Detailed error logs, DNS pre-check |
+| Domain not resolving to server | Medium | DNS validation before installation |
+| NPM API changes | Medium | API version locking, change monitoring |
+| Certificate renewal failures | High | Renew 30 days early, failure alerts |
 
 ---
 
-## 7. 监控指标
+## 6. Testing Strategy
+
+### Unit Tests
+
+- Domain format validation
+- Proxy configuration generation
+- Token authentication logic
+- API response parsing
+
+### Integration Tests
+
+- Complete proxy creation workflow
+- Let's Encrypt certificate request (test environment)
+- Certificate renewal simulation
+- Proxy deletion cleanup
+
+### Manual Tests
+
+- Real domain SSL certificate request
+- SSL Labs rating verification
+- Browser HTTPS access
+- Force HTTPS redirect verification
+
+---
+
+## 7. Monitoring Metrics
 
 ```python
-# Prometheus 指标
-proxy_host_total                       # 代理主机总数
-proxy_host_create_success_total        # 创建成功数
-proxy_host_create_failed_total         # 创建失败数
-ssl_certificate_total                  # SSL 证书总数
-ssl_certificate_expiring_soon          # 即将过期证书数
-ssl_certificate_renew_success_total    # 续期成功数
-ssl_certificate_renew_failed_total     # 续期失败数
-proxy_api_request_duration_seconds     # API 响应时间
+# Prometheus metrics
+proxy_host_total                       # Total proxy hosts
+proxy_host_create_success_total        # Successful creations
+proxy_host_create_failed_total         # Failed creations
+ssl_certificate_total                  # Total SSL certificates
+ssl_certificate_expiring_soon          # Certificates expiring soon
+ssl_certificate_renew_success_total    # Successful renewals
+ssl_certificate_renew_failed_total     # Failed renewals
+proxy_api_request_duration_seconds     # API response time
 ```
 
 ---
 
-## 附录
+## Appendix
 
-### A. 错误码定义
+### A. Error Code Definitions
 
-| 错误码 | HTTP | 说明 |
-|--------|------|------|
-| PROXY_DOMAIN_INVALID | 400 | 域名格式无效 |
-| PROXY_DOMAIN_CONFLICT | 409 | 域名已被使用 |
-| PROXY_NOT_FOUND | 404 | 代理配置不存在 |
-| SSL_CERT_REQUEST_FAILED | 500 | SSL 证书申请失败 |
-| SSL_CERT_INVALID | 400 | SSL 证书格式无效 |
-| NPM_API_ERROR | 502 | NPM API 错误 |
-| DNS_RESOLUTION_FAILED | 400 | 域名未解析到服务器 |
+| Error Code | HTTP | Description |
+|------------|------|-------------|
+| PROXY_DOMAIN_INVALID | 400 | Invalid domain format |
+| PROXY_DOMAIN_CONFLICT | 409 | Domain already in use |
+| PROXY_NOT_FOUND | 404 | Proxy configuration not found |
+| SSL_CERT_REQUEST_FAILED | 500 | SSL certificate request failed |
+| SSL_CERT_INVALID | 400 | Invalid SSL certificate format |
+| NPM_API_ERROR | 502 | NPM API error |
+| DNS_RESOLUTION_FAILED | 400 | Domain not resolving to server |
 
-### B. Let's Encrypt 速率限制
+### B. Let's Encrypt Rate Limits
 
-- **每域名证书:** 50 张/周
-- **重复证书:** 5 张/周
-- **失败验证:** 5 次/账户/小时
-- **新账户:** 10 个/IP/3小时
+- **Certificates per domain:** 50/week
+- **Duplicate certificates:** 5/week
+- **Failed validations:** 5/account/hour
+- **New accounts:** 10/IP/3 hours
 
-### C. 相关文档
+### C. Related Documentation
 
-- [PRD - 反向代理与 SSL 管理](../prd.md#22-反向代理与-ssl-管理)
-- [Nginx Proxy Manager 文档](https://nginxproxymanager.com/guide/)
-- [Let's Encrypt 文档](https://letsencrypt.org/docs/)
+- [PRD - Reverse Proxy & SSL Management](../prd.md#22-反向代理与-ssl-管理)
+- [Nginx Proxy Manager Documentation](https://nginxproxymanager.com/guide/)
+- [Let's Encrypt Documentation](https://letsencrypt.org/docs/)
 
 ---
 
-**文档维护:** PM Agent  
-**最后更新:** 2026-01-05
+**Document Maintainer:** PM Agent  
+**Last Updated:** 2026-01-05
