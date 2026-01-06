@@ -58,17 +58,18 @@
 
 | 端点 | 方法 | 说明 | 认证 |
 |------|------|------|------|
-| `/api/v1/apps/catalog/{locale}` | GET | 获取应用目录 | API Key |
-| `/api/v1/apps/available/{locale}` | GET | 获取可用应用列表 | API Key |
+| `/api/v1/apps/catalog/{locale}` | GET | 获取应用目录（locale: zh/en） | API Key |
+| `/api/v1/apps/available/{locale}` | GET | 获取可用应用列表（未安装） | API Key |
 | `/api/v1/apps` | GET | 获取已安装应用列表 | API Key |
 | `/api/v1/apps/{app_id}` | GET | 获取应用详情 | API Key |
-| `/api/v1/apps/install` | POST | 安装应用 | API Key |
+| `/api/v1/apps/install` | POST | 安装应用（异步后台执行） | API Key |
 | `/api/v1/apps/{app_id}/start` | POST | 启动应用 | API Key |
 | `/api/v1/apps/{app_id}/stop` | POST | 停止应用 | API Key |
 | `/api/v1/apps/{app_id}/restart` | POST | 重启应用 | API Key |
-| `/api/v1/apps/{app_id}/redeploy` | POST | 重新部署应用 | API Key |
-| `/api/v1/apps/{app_id}/uninstall` | DELETE | 卸载应用 | API Key |
-| `/api/v1/apps/{app_id}/logs` | GET | 获取应用日志 | API Key |
+| `/api/v1/apps/{app_id}/redeploy` | PUT | 重新部署应用（支持拉取镜像，流式日志） | API Key |
+| `/api/v1/apps/{app_id}/uninstall` | DELETE | 卸载应用（支持清除数据） | API Key |
+| `/api/v1/apps/{app_id}/remove` | DELETE | 移除空应用（状态为inactive） | API Key |
+| `/api/v1/apps/{app_id}/error/remove` | DELETE | 移除错误应用（状态为error） | API Key |
 
 #### 示例：安装应用
 

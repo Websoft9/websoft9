@@ -58,34 +58,22 @@
 
 | 端点 | 方法 | 说明 | 认证 |
 |------|------|------|------|
-| `/api/v1/proxy/{app_id}` | GET | 获取应用代理配置 | API Key |
-| `/api/v1/proxy/{app_id}` | POST | 创建代理主机 | API Key |
-| `/api/v1/proxy/{app_id}` | PUT | 更新代理配置 | API Key |
-| `/api/v1/proxy/{app_id}` | DELETE | 删除代理 | API Key |
-| `/api/v1/proxy/certificates` | GET | 获取 SSL 证书列表 | API Key |
-| `/api/v1/proxy/certificates` | POST | 上传自定义证书 | API Key |
+| `/api/v1/proxys/{app_id}` | GET | 获取应用代理配置列表 | API Key |
+| `/api/v1/proxys/{app_id}` | POST | 创建代理主机（支持多域名） | API Key |
+| `/api/v1/proxys/{proxy_id}` | PUT | 更新代理配置（按proxy_id更新） | API Key |
+| `/api/v1/proxys/{proxy_id}` | DELETE | 删除代理（按proxy_id删除） | API Key |
+| `/api/v1/proxys/ssl/certificates` | GET | 获取 SSL 证书列表 | API Key |
 
 #### 示例：创建代理主机
 
 **请求:**
 ```http
-POST /api/v1/proxy/wordpress001
+POST /api/v1/proxys/wordpress001
 X-API-Key: <key>
 Content-Type: application/json
 
 {
-  "domain_names": ["myblog.example.com", "www.myblog.example.com"],
-  "forward_host": "wordpress001_app_1",
-  "forward_port": 80,
-  "forward_scheme": "http",
-  "ssl_enabled": true,
-  "ssl_forced": true,
-  "letsencrypt_email": "admin@example.com",
-  "access_list_id": null,
-  "enable_websocket": false,
-  "http2_support": true,
-  "hsts_enabled": true,
-  "hsts_subdomains": true
+  "domain_names": ["myblog.example.com", "www.myblog.example.com"]
 }
 ```
 
