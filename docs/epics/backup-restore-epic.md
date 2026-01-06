@@ -56,32 +56,17 @@
 
 | 端点 | 方法 | 说明 | 认证 |
 |------|------|------|------|
-| `/api/v1/backups` | GET | 获取备份列表 | API Key |
-| `/api/v1/backups/{app_id}` | POST | 创建备份 | API Key |
-| `/api/v1/backups/{backup_id}` | GET | 获取备份详情 | API Key |
-| `/api/v1/backups/{backup_id}` | DELETE | 删除备份 | API Key |
-| `/api/v1/backups/{backup_id}/restore` | POST | 恢复备份 | API Key |
-| `/api/v1/backups/schedule` | GET | 获取备份计划 | API Key |
-| `/api/v1/backups/schedule` | PUT | 更新备份计划 | API Key |
-| `/api/v1/backups/download/{backup_id}` | GET | 下载备份文件 | API Key |
+| `/api/v1/backup/snapshots` | GET | 获取快照列表（支持按app_id过滤） | API Key |
+| `/api/v1/backup/{app_id}` | POST | 创建备份快照 | API Key |
+| `/api/v1/backup/snapshots/{snapshot_id}` | DELETE | 删除快照 | API Key |
+| `/api/v1/backup/restore/{app_id}/{snapshot_id}` | POST | 恢复快照 | API Key |
 
 #### 示例：创建备份
 
 **请求:**
 ```http
-POST /api/v1/backups/wordpress001
+POST /api/v1/backup/wordpress001
 X-API-Key: <key>
-Content-Type: application/json
-
-{
-  "backup_type": "full",
-  "description": "手动备份",
-  "include_database": true,
-  "include_uploads": true,
-  "compress": true,
-  "encrypt": true,
-  "storage_location": "local"
-}
 ```
 
 **响应:**

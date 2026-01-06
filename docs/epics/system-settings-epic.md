@@ -58,12 +58,7 @@ API 请求 → Config Manager → 读取 INI 文件 → 解密敏感值 → 返�
 |------|------|------|------|
 | `/api/v1/settings` | GET | 获取所有配置 | API Key |
 | `/api/v1/settings/{section}` | GET | 获取指定配置节 | API Key |
-| `/api/v1/settings` | PUT | 批量更新配置 | API Key |
-| `/api/v1/settings/{section}/{key}` | PUT | 更新单个配置 | API Key |
-| `/api/v1/settings/{section}/{key}` | DELETE | 删除配置项 | API Key |
-| `/api/v1/settings/validate` | POST | 验证配置格式 | API Key |
-| `/api/v1/settings/backup` | POST | 备份配置 | API Key |
-| `/api/v1/settings/restore` | POST | 恢复配置 | API Key |
+| `/api/v1/settings/{section}?key=xx&value=yy` | PUT | 更新单个配置（使用Query参数） | API Key |
 
 #### 示例：获取配置
 
