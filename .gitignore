@@ -29,5 +29,4 @@ node_modules
 .windsurf/
 
 # BMAD Development Framework
-_bmad/
 _bmad-output/
