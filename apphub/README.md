@@ -1,3 +1,72 @@
+# Websoft9 AppHub
+
+[![CI Pipeline](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml/badge.svg)](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Websoft9/websoft9/branch/main/graph/badge.svg)](https://codecov.io/gh/Websoft9/websoft9)
+
+AppHub is the core service of Websoft9 platform, built with FastAPI for managing containerized applications.
+
+## Quick Start
+
+### Installation
+
+```bash
+# Install production dependencies
+pip install -r requirements.txt
+
+# Install development dependencies (for testing and linting)
+pip install -r requirements-dev.txt
+
+# Install package in development mode
+pip install -e .
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=src --cov-report=html
+
+# Run specific test file
+pytest tests/test_basic.py -v
+
+# Run tests with markers
+pytest -m unit  # Run only unit tests
+pytest -m integration  # Run only integration tests
+```
+
+### Code Quality
+
+```bash
+# Format code with black
+black src/
+
+# Sort imports with isort
+isort src/
+
+# Check code style with flake8
+flake8 src/
+
+# Run type checking with mypy
+mypy src/
+
+# Run all linting tools
+black --check src/ && isort --check src/ && flake8 src/
+```
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration. On every push or pull request to `main` or `dev` branches:
+
+- **Lint**: Code style and quality checks (black, isort, flake8, pylint)
+- **Test**: Unit tests with coverage reporting
+- **Build**: Package building and CLI verification
+- **Security Scan**: Docker image vulnerability scanning with Trivy
+- **Integration Test**: End-to-end integration tests (on PRs)
+
+View the CI configuration: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 ## apphub cli
 ```

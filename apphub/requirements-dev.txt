@@ -1,0 +1,26 @@
+# Development and Testing Dependencies for Websoft9 AppHub
+
+# Testing Framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.1.0
+httpx>=0.24.0  # For testing FastAPI async endpoints
+
+# Code Quality
+black>=23.7.0  # Code formatter
+isort>=5.12.0  # Import sorter
+flake8>=6.1.0  # Style guide enforcement
+pylint>=2.17.0  # Code analysis
+mypy>=1.5.0  # Static type checker
+
+# Type stubs for better type checking
+types-PyYAML
+types-requests
+
+# Security
+safety>=2.3.0  # Dependency vulnerability scanner
+
+# Development utilities
+ipython>=8.14.0  # Better Python REPL
+ipdb>=0.13.13  # Debugger

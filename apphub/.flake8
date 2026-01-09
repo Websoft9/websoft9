@@ -1,0 +1,44 @@
+[flake8]
+# Flake8 configuration for Websoft9 AppHub
+
+# Maximum line length
+max-line-length = 127
+
+# Maximum cyclomatic complexity
+max-complexity = 10
+
+# Exclude patterns
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.egg-info,
+    .venv,
+    venv,
+    .pytest_cache,
+    .mypy_cache,
+    htmlcov,
+    apidocs
+
+# Error codes to ignore
+ignore =
+    E203,  # Whitespace before ':'
+    E266,  # Too many leading '#' for block comment
+    E501,  # Line too long (handled by black)
+    W503,  # Line break before binary operator
+    W504,  # Line break after binary operator
+
+# Per-file ignores
+per-file-ignores =
+    __init__.py:F401,F403
+    tests/*:F401,F403,F811
+
+# Show source code for errors
+show-source = True
+
+# Show statistics at the end
+statistics = True
+
+# Count errors
+count = True

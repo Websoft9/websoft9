@@ -3,7 +3,9 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
 [![GitHub last commit](https://img.shields.io/github/last-commit/websoft9/websoft9)](https://github.com/websoft9/websoft9)
 [![GitHub Release Date](https://img.shields.io/github/release-date/websoft9/websoft9)](https://github.com/websoft9/websoft9)
-[![GitHub Repo stars](https://img.shields.io/github/stars/websoft9/websoft9?style=social)](https://github.com/websoft9/websoft9) 
+[![GitHub Repo stars](https://img.shields.io/github/stars/websoft9/websoft9?style=social)](https://github.com/websoft9/websoft9)
+[![CI Pipeline](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml/badge.svg)](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Websoft9/websoft9/branch/main/graph/badge.svg)](https://codecov.io/gh/Websoft9/websoft9) 
 
 **Certified Deployment on Major Cloud Platforms with business support**
 | [![](https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png)](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9)   |  [![](https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png)](https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4)     | [![](https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png)](https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html)     |   [![](https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png)](https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e)    |

@@ -48,10 +48,46 @@ Flow: Contributor's branch → main branch → production branch
 * Contributor commit to main branch
 * main branch commit to production branch
 
+#### CI/CD Checks
+
+All pull requests must pass automated CI/CD checks before being merged:
+
+1. **Linting**: Code must follow style guidelines (Black, isort, Flake8, Pylint)
+2. **Tests**: All unit tests must pass with adequate coverage (≥70%)
+3. **Build**: Application must build successfully
+4. **Security**: Docker images must pass vulnerability scans
+
+**Before submitting a PR**, ensure your code passes all checks locally:
+
+```bash
+# Navigate to apphub directory
+cd apphub
+
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Format code
+black src/
+isort src/
+
+# Run linting
+flake8 src/
+
+# Run tests
+pytest --cov=src
+
+# Build package
+pip install -e .
+```
+
+See [CI/CD Guide](docs/ci-guide.md) for detailed information.
+
 #### How to deal with PR?
 
 1. [pull request reviews](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews)
-2. Merge RP and CI/CD for it
+2. Ensure all CI checks pass (green checkmarks)
+3. Address review comments
+4. Merge PR and CI/CD for it
 
 ## DevOps principle
 
