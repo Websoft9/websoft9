@@ -6,7 +6,7 @@ description: 'Validate complete coverage of all requirements and ensure implemen
 workflow_path: '{project-root}/_bmad/bmm/workflows/3-solutioning/create-epics-and-stories'
 
 # File References
-thisStepFile: '{workflow_path}/steps/step-04-final-validation.md'
+thisStepFile: './step-04-final-validation.md'
 workflowFile: '{workflow_path}/workflow.md'
 outputFile: '{planning_artifacts}/epics.md'
 
@@ -143,3 +143,7 @@ If all validations pass:
 **All validations complete!** [C] Complete Workflow
 
 When C is selected, the workflow is complete and the epics.md is ready for development.
+
+Epics and Stories complete. Read fully and follow: `_bmad/core/tasks/bmad-help.md` with argument `Create Epics and Stories`.
+
+Upon Completion of task output: offer to answer any questions about the Epics and Stories.
