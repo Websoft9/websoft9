@@ -39,7 +39,7 @@ start-cockpit:
 		-v /data/compose:/data/compose \
 		-v cockpit_portainer_data:/portainer_data \
 		-p $(PORT_EFFECTIVE):80 \
-		websoft9dev/cockpit-base:337 || \
+		websoft9/cockpit:latest || \
 	(echo "Container already exists, starting it..." && docker start websoft9-cockpit)
 	@echo "Cockpit started at http://localhost:$(PORT_EFFECTIVE)"
 	@echo "Portainer at http://localhost:$(PORT_EFFECTIVE)/w9deployment/"

@@ -1,20 +1,23 @@
 #!/bin/bash
-# Build script for Cockpit base image
+# Build script for Websoft9 Console (integrated Cockpit + Portainer + Gitea + Apphub)
 
 set -e
 
-COCKPIT_VERSION=${COCKPIT_VERSION:-337}
-IMAGE_NAME="websoft9dev/cockpit-base"
-IMAGE_TAG="${IMAGE_NAME}:${COCKPIT_VERSION}"
+# 切换到项目根目录
+cd "$(dirname "$0")/../.."
+
+CONSOLE_VERSION=${CONSOLE_VERSION:-dev}
+IMAGE_NAME="websoft9/appmanage"
+IMAGE_TAG="${IMAGE_NAME}:${CONSOLE_VERSION}"
 
 echo "==================================="
-echo "Building Cockpit Base Image"
-echo "Version: ${COCKPIT_VERSION}"
+echo "Building Websoft9 Console"
+echo "Version: ${CONSOLE_VERSION}"
 echo "Tag: ${IMAGE_TAG}"
 echo "==================================="
 
-# Build image
-docker build -t "${IMAGE_TAG}" .
+# Build image from project root
+docker build -f docker/cockpit/Dockerfile -t "${IMAGE_TAG}" -t websoft9-console:latest .
 
 # Show image size
 echo ""

@@ -1,0 +1,66 @@
+# Websoft9 Cockpit Base Image
+# 包含所有构建和运行时依赖，用于加速后续构建
+FROM debian:bookworm-slim
+
+LABEL maintainer="Websoft9<help@websoft9.com>"
+LABEL description="Websoft9 Cockpit Base: Debian Bookworm + Cockpit + Build Tools"
+
+# 第一步：安装基础工具和 Cockpit（使用 backports 源）
+# 参考: https://cockpit-project.org/running.html#debian
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    # 切换到清华镜像源加速后续安装
+    sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources && \
+    . /etc/os-release && \
+    echo "deb http://deb.debian.org/debian ${VERSION_CODENAME}-backports main" > /etc/apt/sources.list.d/backports.list && \
+    apt-get update && \
+    # 创建 policy-rc.d 阻止服务在安装时启动（容器构建时没有 systemd）
+    echo -e '#!/bin/sh\nexit 101' > /usr/sbin/policy-rc.d && \
+    chmod +x /usr/sbin/policy-rc.d && \
+    # 创建假的 systemctl 脚本来绕过 PCP 包的 postinst 检查
+    mv /usr/bin/systemctl /usr/bin/systemctl.original 2>/dev/null || true && \
+    echo -e '#!/bin/sh\necho "systemctl is disabled in container build"\nexit 0' > /usr/bin/systemctl && \
+    chmod +x /usr/bin/systemctl && \
+    # 安装 Cockpit（从 backports）
+    apt-get install -y --no-install-recommends -t ${VERSION_CODENAME}-backports \
+        cockpit \
+        cockpit-ws \
+        cockpit-bridge \
+    && \
+    # 安装 PCP (Performance Co-Pilot) 用于性能指标采集
+    # 设置环境变量避免 postinst 脚本尝试启动 systemd 服务
+    SYSTEMCTL_SKIP_REDIRECT=1 apt-get install -y --no-install-recommends \
+        pcp-zeroconf || \
+    # 如果安装失败，强制配置包（忽略 postinst 错误）
+    (dpkg --configure -a --force-depends || true) && \
+    # 恢复原始 systemctl（如果有）
+    rm -f /usr/bin/systemctl && \
+    mv /usr/bin/systemctl.original /usr/bin/systemctl 2>/dev/null || true && \
+    # 安装构建工具（builder 阶段需要）
+    apt-get install -y --no-install-recommends \
+        unzip \
+        python3-venv \
+    && \
+    # 安装运行时工具（最终镜像需要）
+    apt-get install -y --no-install-recommends \
+        supervisor \
+        openssh-server \
+        nginx-light \
+        git \
+        sudo \
+        procps \
+        dbus \
+        python3 \
+        python3-pip \
+        cron \
+        iproute2 \
+        rsync \
+    && \
+    # 删除 policy-rc.d（恢复正常行为）
+    rm -f /usr/sbin/policy-rc.d && \
+    # 清理缓存
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# 预创建一些常用目录
+RUN mkdir -p /etc/cockpit/ws-certs.d /etc/default /run/dbus /run/sshd
