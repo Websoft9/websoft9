@@ -1,0 +1,12 @@
+[Unit]
+Description=Create Cockpit runtime directories
+Before=cockpit.socket
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/bin/mkdir -p /run/cockpit
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

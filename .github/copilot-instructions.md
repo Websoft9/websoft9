@@ -21,7 +21,7 @@
 
 ## BMAD Method Integration
 
-**This project uses BMAD (按需加载 - load on demand):**
+**This project uses BMAD (load on demand):**
 
 - ✅ For **structured work** (features, planning, architecture): Use `*bmad-help` to find the right workflow
 - ✅ For **quick tasks** (bugs, questions, small changes): Chat freely with these guidelines
@@ -34,16 +34,15 @@
 
 **BMAD Configuration:**
 - User: Websoft9 | Language: Chinese (workflow) / English (docs)
-- Output: `specs/planning-artifacts/`, `specs/implementation-artifacts/`, `docs/`
+- Output: `specs/planning-artifacts/`, `specs/implementation-artifacts/`, `specs/`
 
 ---
 
 ## Quick Reference
 
 **Key Documents** (detailed standards and guidelines are there):
-- Product Brief: `specs/planning-artifacts/product-brief.md`
-- Architecture: `docs/architecture.md`
-- Developer Guide: `docs/developer.md`
+- PRD: `specs/planning-artifacts/prd.md`
+- Architecture: `specs/planning-artifacts/architecture.md`
 
 **When In Doubt:**
 1. Does this serve SMBs without DevOps expertise?
