@@ -44,20 +44,16 @@ LABEL maintainer="Websoft9<help@websoft9.com>"
 LABEL version="337"
 LABEL description="Websoft9 Cockpit: Cockpit 337 + Portainer + Gitea + Apphub + Nginx"
 
-# 下载并安装 Cockpit 插件
-ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
-RUN echo "Downloading Cockpit plugins..." && \
-    curl -fsSL -o /tmp/version.json ${WEBSOFT9_ARTIFACT}/version.json && \
-    for plugin in $(python3 -c "import json; data=json.load(open('/tmp/version.json')); print(' '.join(data['plugins'].keys()))"); do \
-        echo "Installing Cockpit plugin: $plugin" && \
-        mkdir -p /tmp/plugin-${plugin} && \
-        curl -fL --progress-bar -o /tmp/${plugin}.zip ${WEBSOFT9_ARTIFACT}/plugin/${plugin}/${plugin}-latest.zip && \
-        unzip -q /tmp/${plugin}.zip -d /tmp/plugin-${plugin} && \
-        mv /tmp/plugin-${plugin}/*/${plugin} /usr/share/cockpit/ 2>/dev/null || mv /tmp/plugin-${plugin}/${plugin} /usr/share/cockpit/ && \
-        rm -rf /tmp/${plugin}.zip /tmp/plugin-${plugin}; \
-    done && \
-    rm /tmp/version.json && \
-    echo "All Cockpit plugins installed"
+# 从本地拷贝 Cockpit 插件（只复制 build 产物）
+RUN mkdir -p /usr/share/cockpit
+COPY plugins/appstore/build /usr/share/cockpit/appstore
+COPY plugins/backup/build /usr/share/cockpit/backup
+COPY plugins/gitea/build /usr/share/cockpit/gitea
+COPY plugins/myapps/build /usr/share/cockpit/myapps
+COPY plugins/navigator/build /usr/share/cockpit/navigator
+COPY plugins/nginx/build /usr/share/cockpit/nginx
+COPY plugins/portainer/build /usr/share/cockpit/portainer
+COPY plugins/settings/build /usr/share/cockpit/settings
 
 # 从 Portainer 镜像复制文件
 COPY --from=portainer /portainer /portainer
@@ -70,6 +66,7 @@ COPY --from=portainer /docker /docker
 COPY --from=builder /gitea /usr/local/bin/gitea
 COPY --from=builder /websoft9 /websoft9
 COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
+COPY --from=builder /usr/local/bin/apphub /usr/local/bin/apphub
 
 # 创建 Gitea 用户和目录
 RUN useradd -r -m -d /var/lib/gitea -s /bin/bash git && \

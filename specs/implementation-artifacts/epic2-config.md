@@ -35,9 +35,10 @@
 - Perfect for all-in-one philosophy
 
 **Components**:
-1. **apphub config.ini** - Single source of truth
-2. **config-sync thread** - Background thread within FastAPI process
-3. **Service init scripts** - Bootstrap configuration on container start
+1. **config.ini** - User-modifiable config (API accessible, credentials, preferences)
+2. **system.ini** - System-level config (API read-only, paths, core settings)
+3. **config-sync thread** - Background thread within FastAPI process
+4. **Service init scripts** - Bootstrap configuration on container start
 
 **Flow**:
 ```
@@ -51,6 +52,38 @@ Manual Update → FastAPI endpoint → writes config.ini → thread auto-detects
 - Launched via FastAPI @app.on_event("startup")
 - Shares same process as uvicorn (no new PID)
 - Automatic cleanup on process exit
+
+**Configuration Architecture**:
+```
+Cockpit Container
+│
+├─ Apphub (Configuration Center)
+│  ├─ config.ini ← User-modifiable (API accessible)
+│  ├─ system.ini ← System-level (API read-only)
+│  ├─ ConfigManager (Read/Write API)
+│  └─ config-sync thread (Watch & Push)
+│        │
+│        ├─ Watch: inotify monitors config.ini changes
+│        ├─ Transform: INI → service-specific format
+│        ├─ Push: Write to service config files
+│        └─ Reload: Trigger service reload (< 5s)
+│
+├─ Services (Config Consumers)
+│  ├─ Gitea: /etc/gitea/app.ini
+│  ├─ Portainer: /portainer_data/config.json
+│  └─ Cockpit: /etc/cockpit/config.json
+│
+└─ Flow: User → API → config.ini → sync thread → service files → reload
+```
+
+**Configuration File Strategy**:
+- **config.ini**: User-facing settings (credentials, URLs, preferences) - Modifiable via API
+- **system.ini**: System settings (paths, core config) - NOT modifiable via API
+- **Stability**: Preserve existing business logic, dual-config approach for backward compatibility
+
+**Init vs Runtime**:
+- **Init** (Story 2.5): First-time setup, generate defaults, write initial config files
+- **Runtime** (Story 2.2): Watch changes, sync to services, trigger reloads
 
 ## Stories
 

@@ -7,7 +7,11 @@ mkdir -p /var/lib/gitea/{custom,data,log,data/gitea-repositories,data/sessions,d
 mkdir -p /websoft9/apphub/logs /websoft9/apphub/src/config
 rm -f /run/dbus/pid /var/run/dbus/pid
 
-# 设置 Gitea 目录权限
+# Run service initialization script
+echo "Running service initialization..."
+/bin/bash "$(dirname "$0")/init-services.sh" || echo "Warning: Service initialization had errors (non-fatal)"
+
+# Set Gitea directory ownership
 chown -R git:git /var/lib/gitea /etc/gitea 2>/dev/null || true
 
 # 初始化 Gitea 管理员账户（仅首次运行）
@@ -47,5 +51,8 @@ echo "Apphub:    http://localhost/w9api/"
 echo "Media:     http://localhost/w9media/"
 echo "Health:    http://localhost/health"
 echo "=================================="
+
+# Run connection tests in background (after supervisord starts services)
+(sleep 30 && /bin/bash "$(dirname "$0")/test-connections.sh") &
 
 exec "$@"

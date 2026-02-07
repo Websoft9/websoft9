@@ -41,11 +41,24 @@ story_location: specs/implementation-artifacts
 
 development_status:
   # Epic 1: 基础架构与构建系统
-  epic-1: backlog
-  1-1-docker-compose-dev: ready-for-dev
-  1-2-dockerfile-optimization: ready-for-dev
-  1-3-ci-cd-pipeline: ready-for-dev
-  1-4-makefile: ready-for-dev
-  1-5-version-management: ready-for-dev
-  1-6-security-scanning: ready-for-dev
-  epic-1-retrospective: optional
+  epic1: backlog
+  1.1-docker-compose-dev: ready-for-dev
+  1.2-dockerfile-optimization: ready-for-dev
+  1.3-ci-cd-pipeline: ready-for-dev
+  1.4-makefile: ready-for-dev
+  1.5-version-management: ready-for-dev
+  1.6-security-scanning: ready-for-dev
+  epic1-retrospective: optional
+
+  # Epic 2: Configuration Management
+  epic2: backlog
+  2.1-configuration-api-enhancement: backlog
+  2.2-config-sync-thread: backlog
+  2.3-service-entrypoint-integration: backlog
+  2.4-environment-variables-management: backlog
+  2.5-service-initialization: ready-for-dev
+  2.6-git-based-version-control: backlog
+  2.7-configuration-validation-engine: backlog
+  2.8-configuration-templates: backlog
+  2.9-change-audit-notification: backlog
+  epic2-retrospective: optional

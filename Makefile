@@ -1,7 +1,10 @@
-.PHONY: help start-cockpit stop-cockpit restart-cockpit logs-cockpit clean-cockpit kill-port
+.PHONY: help start-cockpit stop-cockpit restart-cockpit logs-cockpit clean-cockpit rm kill-port build build-base plugin list-plugins
 
 # Default port for Cockpit
 PORT ?= 9090
+
+# Plugin name
+PLUGIN_NAME ?=
 
 # Support positional port argument, e.g. `make start-cockpit 9091`
 PRIMARY_GOAL := $(firstword $(MAKECMDGOALS))
@@ -17,6 +20,10 @@ help:
 	@echo "Websoft9 Development Commands"
 	@echo "=============================="
 	@echo ""
+	@echo "Docker Build:"
+	@echo "  make build                      - Build Cockpit image"
+	@echo "  make build-base                 - Build base image"
+	@echo ""
 	@echo "Cockpit Management:"
 	@echo "  make start-cockpit 9091         - Start Cockpit container (default: 9090)"
 	@echo "  make start-cockpit PORT=9091    - Start Cockpit container (default: 9090)"
@@ -24,11 +31,27 @@ help:
 	@echo "  make restart-cockpit            - Restart Cockpit container"
 	@echo "  make logs-cockpit               - View Cockpit container logs"
 	@echo "  make clean-cockpit              - Stop and remove Cockpit container"
+	@echo "  make rm                         - Force remove container and volumes"
+	@echo ""
+	@echo "Plugin Development:"
+	@echo "  make plugin gitea               - Build specific plugin (gitea, nginx, portainer, etc.)"
+	@echo "  make list-plugins               - List all available plugins"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make kill-port 9090             - Force kill process using the port"
 	@echo "  make kill-port PORT=9090        - Force kill process using the port"
 	@echo ""
+
+# Docker build commands
+build:
+	@echo "Building Cockpit image..."
+	docker build -f docker/cockpit/Dockerfile -t websoft9/cockpit:latest .
+	@echo "✓ Image built: websoft9/cockpit:latest"
+
+build-base:
+	@echo "Building Cockpit base image..."
+	docker build -f docker/cockpit/Dockerfile.base -t websoft9/cockpit-base:latest .
+	@echo "✓ Base image built: websoft9/cockpit-base:latest"
 
 # Cockpit container management
 start-cockpit:
@@ -62,6 +85,12 @@ clean-cockpit:
 	@docker rm websoft9-cockpit 2>/dev/null || true
 	@echo "Cockpit container removed"
 
+rm:
+	@echo "Force removing Cockpit container and volumes..."
+	@docker rm -f websoft9-cockpit 2>/dev/null || echo "Container not found"
+	@docker volume rm cockpit_portainer_data 2>/dev/null || echo "Volume not found"
+	@echo "✓ Container and volumes removed"
+
 # Force kill process using a port
 kill-port:
 ifeq ($(strip $(PORT_EFFECTIVE)),)
@@ -90,6 +119,56 @@ endif
 		echo "No fuser/lsof/ss available to find the process."; \
 		exit 1; \
 	fi
+
+# Plugin management
+PLUGIN_DIR := plugins
+AVAILABLE_PLUGINS := $(shell ls -d $(PLUGIN_DIR)/*/ 2>/dev/null | xargs -n1 basename)
+
+list-plugins:
+	@echo "Available plugins in $(PLUGIN_DIR)/:"
+	@echo "======================================"
+	@for plugin in $(AVAILABLE_PLUGINS); do \
+		if [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
+			echo "  $$plugin"; \
+		fi; \
+	done
+	@echo ""
+	@echo "Usage: make plugin <plugin-name>"
+	@echo "Example: make plugin gitea"
+
+plugin:
+	@if [ -z "$(filter-out plugin,$(MAKECMDGOALS))" ]; then \
+		echo "Error: Plugin name required"; \
+		echo "Usage: make plugin <plugin-name>"; \
+		echo ""; \
+		echo "Available plugins:"; \
+		make list-plugins | grep "^  " || true; \
+		exit 1; \
+	fi
+	@PLUGIN=$(word 2,$(MAKECMDGOALS)); \
+	if [ ! -d "$(PLUGIN_DIR)/$$PLUGIN" ]; then \
+		echo "Error: Plugin '$$PLUGIN' not found in $(PLUGIN_DIR)/"; \
+		echo ""; \
+		echo "Available plugins:"; \
+		make list-plugins | grep "^  " || true; \
+		exit 1; \
+	fi; \
+	if [ ! -f "$(PLUGIN_DIR)/$$PLUGIN/package.json" ]; then \
+		echo "Error: No package.json found in $(PLUGIN_DIR)/$$PLUGIN/"; \
+		exit 1; \
+	fi; \
+	echo "========================================"; \
+	echo "Building plugin: $$PLUGIN"; \
+	echo "========================================"; \
+	cd $(PLUGIN_DIR)/$$PLUGIN && \
+	echo "Installing/updating dependencies..."; \
+	npm install && \
+	echo "Building plugin..."; \
+	npm run build && \
+	echo ""; \
+	echo "✓ Plugin '$$PLUGIN' built successfully!"; \
+	echo "Build output: $(PLUGIN_DIR)/$$PLUGIN/build/"; \
+	echo "========================================";
 
 # Swallow positional args like `9091`
 %:
