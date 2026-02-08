@@ -1,10 +1,13 @@
-.PHONY: help start-cockpit stop-cockpit restart-cockpit logs-cockpit clean-cockpit rm kill-port build build-base plugin list-plugins
+.PHONY: help dev dev-build dev-down dev-logs test lint format clean release \
+	start-cockpit stop-cockpit restart-cockpit logs-cockpit clean-cockpit rm kill-port \
+	build build-base plugin plugins list-plugins
 
-# Default port for Cockpit
-PORT ?= 9090
-
-# Plugin name
-PLUGIN_NAME ?=
+# Default values
+PORT ?= 9091
+SERVICE ?=
+COMPOSE_FILE := docker/docker-compose-dev.yml
+COMPOSE_CMD := docker compose -f $(COMPOSE_FILE)
+COCKPIT_COMPOSE := docker/cockpit/docker-compose.yml
 
 # Support positional port argument, e.g. `make start-cockpit 9091`
 PRIMARY_GOAL := $(firstword $(MAKECMDGOALS))
@@ -20,27 +23,151 @@ help:
 	@echo "Websoft9 Development Commands"
 	@echo "=============================="
 	@echo ""
-	@echo "Docker Build:"
+	@echo "Development Environment: (TODO - Not Implemented Yet)"
+	@echo "  make dev                        - Start development environment"
+	@echo "  make dev-build                  - Rebuild development images"
+	@echo "  make dev-down                   - Stop and cleanup development environment"
+	@echo "  make dev-logs                   - View development logs (optional: SERVICE=apphub)"
+	@echo ""
+	@echo "Testing & Quality: (TODO - Not Implemented Yet)"
+	@echo "  make test                       - Run all tests"
+	@echo "  make lint                       - Run code linting checks"
+	@echo "  make format                     - Format code"
+	@echo ""
+	@echo "Build & Release:"
 	@echo "  make build                      - Build Cockpit image"
 	@echo "  make build-base                 - Build base image"
+	@echo "  make release                    - Build production images locally"
 	@echo ""
-	@echo "Cockpit Management:"
-	@echo "  make start-cockpit 9091         - Start Cockpit container (default: 9090)"
-	@echo "  make start-cockpit PORT=9091    - Start Cockpit container (default: 9090)"
+	@echo "Container Management:"
+	@echo "  make start-cockpit              - Start Cockpit container (default: 9091)"
+	@echo "  make start-cockpit 9092         - Start Cockpit on custom port"
+	@echo "  make start-cockpit PORT=9092    - Start Cockpit on custom port"
 	@echo "  make stop-cockpit               - Stop Cockpit container"
 	@echo "  make restart-cockpit            - Restart Cockpit container"
 	@echo "  make logs-cockpit               - View Cockpit container logs"
-	@echo "  make clean-cockpit              - Stop and remove Cockpit container"
-	@echo "  make rm                         - Force remove container and volumes"
+	@echo "  make clean-cockpit              - Stop and remove Cockpit container (keeps volumes)"
+	@echo "  make rm                         - Force remove container and all volumes"
 	@echo ""
 	@echo "Plugin Development:"
 	@echo "  make plugin gitea               - Build specific plugin (gitea, nginx, portainer, etc.)"
+	@echo "  make plugins                    - Build all plugins"
+	@echo "  make plugins exclude=plugin1,plugin2  - Build all except specified plugins"
 	@echo "  make list-plugins               - List all available plugins"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  make kill-port 9090             - Force kill process using the port"
-	@echo "  make kill-port PORT=9090        - Force kill process using the port"
+	@echo "  make kill-port 9091             - Force kill process using the port"
+	@echo "  make kill-port PORT=9091        - Force kill process using the port"
+	@echo "  make clean                      - Clean cache and temporary files (requires confirmation)"
 	@echo ""
+
+# Development environment commands
+dev:
+	@echo "Starting development environment..."
+	@if [ ! -f "$(COMPOSE_FILE)" ]; then \
+		echo "Error: $(COMPOSE_FILE) not found"; \
+		exit 1; \
+	fi
+	@$(COMPOSE_CMD) up -d
+	@echo "✓ Development environment started"
+	@echo "Services available:"
+	@$(COMPOSE_CMD) ps
+
+dev-build:
+	@echo "Rebuilding development images..."
+	@if [ ! -f "$(COMPOSE_FILE)" ]; then \
+		echo "Error: $(COMPOSE_FILE) not found"; \
+		exit 1; \
+	fi
+	@$(COMPOSE_CMD) build --no-cache
+	@echo "✓ Development images rebuilt"
+
+dev-down:
+	@echo "Stopping development environment..."
+	@$(COMPOSE_CMD) down
+	@echo "✓ Development environment stopped"
+
+dev-logs:
+ifdef SERVICE
+	@echo "Viewing logs for service: $(SERVICE)"
+	@$(COMPOSE_CMD) logs -f $(SERVICE)
+else
+	@echo "Viewing all development logs (Ctrl+C to exit)..."
+	@$(COMPOSE_CMD) logs -f
+endif
+
+# Testing commands
+test:
+	@echo "Running tests..."
+	@if [ -d "apphub" ] && [ -f "apphub/pytest.ini" ]; then \
+		echo "Running apphub tests..."; \
+		cd apphub && python3 -m pytest -v || echo "Tests failed or pytest not installed"; \
+	else \
+		echo "No tests configured yet"; \
+	fi
+	@echo "✓ Tests completed"
+
+lint:
+	@echo "Running linting checks..."
+	@if command -v pylint >/dev/null 2>&1; then \
+		echo "Running pylint..."; \
+		find . -name "*.py" -not -path "*/venv/*" -not -path "*/.venv/*" -not -path "*/node_modules/*" | xargs pylint --errors-only || true; \
+	else \
+		echo "pylint not installed, skipping..."; \
+	fi
+	@if command -v eslint >/dev/null 2>&1; then \
+		echo "Running eslint..."; \
+		find plugins -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | xargs eslint --quiet || true; \
+	else \
+		echo "eslint not installed, skipping..."; \
+	fi
+	@echo "✓ Linting completed"
+
+format:
+	@echo "Formatting code..."
+	@if command -v black >/dev/null 2>&1; then \
+		echo "Formatting Python code with black..."; \
+		find . -name "*.py" -not -path "*/venv/*" -not -path "*/.venv/*" -not -path "*/node_modules/*" | xargs black || true; \
+	else \
+		echo "black not installed, skipping Python formatting..."; \
+	fi
+	@if command -v prettier >/dev/null 2>&1; then \
+		echo "Formatting JavaScript/TypeScript with prettier..."; \
+		prettier --write "plugins/**/*.{js,jsx,ts,tsx,json,css,md}" 2>/dev/null || true; \
+	else \
+		echo "prettier not installed, skipping JS/TS formatting..."; \
+	fi
+	@echo "✓ Code formatting completed"
+
+clean:
+	@echo "This will remove the following:"
+	@echo "  - Python __pycache__ directories"
+	@echo "  - .pytest_cache directories"
+	@echo "  - node_modules and build directories"
+	@echo "  - .cache directories"
+	@echo ""
+	@read -p "Are you sure you want to continue? [y/N] " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "Cleaning cache and temporary files..."; \
+		find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true; \
+		find . -type d -name "*.pyc" -delete 2>/dev/null || true; \
+		find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true; \
+		find . -type d -name "node_modules" -prune -o -type d -name "build" -exec rm -rf {} + 2>/dev/null || true; \
+		find . -type d -name ".cache" -exec rm -rf {} + 2>/dev/null || true; \
+		echo "✓ Cache cleaned"; \
+	else \
+		echo "Cancelled."; \
+	fi
+
+release:
+	@echo "Building production images locally..."
+	@if [ -f "docker/docker-compose.yml" ]; then \
+		docker compose -f docker/docker-compose.yml build; \
+		echo "✓ Production images built"; \
+	else \
+		echo "Error: docker/docker-compose.yml not found"; \
+		exit 1; \
+	fi
 
 # Docker build commands
 build:
@@ -53,48 +180,53 @@ build-base:
 	docker build -f docker/cockpit/Dockerfile.base -t websoft9/cockpit-base:latest .
 	@echo "✓ Base image built: websoft9/cockpit-base:latest"
 
-# Cockpit container management
+# Container management (using docker compose)
 start-cockpit:
 	@echo "Starting Cockpit container on port $(PORT_EFFECTIVE)..."
-	@docker run -d --name websoft9-cockpit \
-		--restart unless-stopped \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v /data/compose:/data/compose \
-		-v cockpit_portainer_data:/portainer_data \
-		-p $(PORT_EFFECTIVE):80 \
-		websoft9/cockpit:latest || \
-	(echo "Container already exists, starting it..." && docker start websoft9-cockpit)
-	@echo "Cockpit started at http://localhost:$(PORT_EFFECTIVE)"
-	@echo "Portainer at http://localhost:$(PORT_EFFECTIVE)/w9deployment/"
-	@echo "Login: websoft9 / websoft9"
+	@if [ ! -f "$(COCKPIT_COMPOSE)" ]; then \
+		echo "Error: $(COCKPIT_COMPOSE) not found"; \
+		exit 1; \
+	fi
+	@cd docker/cockpit && HTTP_PORT=$(PORT_EFFECTIVE) docker compose up -d
+	@echo "✓ Cockpit started at http://localhost:$(PORT_EFFECTIVE)"
+	@echo "  Portainer at http://localhost:$(PORT_EFFECTIVE)/w9deployment/"
+	@echo "  Login: websoft9 / websoft9"
 
 stop-cockpit:
 	@echo "Stopping Cockpit container..."
-	@docker stop websoft9-cockpit || echo "Container not running"
+	@cd docker/cockpit && docker compose stop || echo "Container not running"
 
 restart-cockpit:
 	@echo "Restarting Cockpit container..."
-	@docker restart websoft9-cockpit || echo "Container not found"
+	@cd docker/cockpit && docker compose restart || echo "Container not found"
 
 logs-cockpit:
-	@docker logs -f websoft9-cockpit
+	@cd docker/cockpit && docker compose logs -f
 
 clean-cockpit:
 	@echo "Removing Cockpit container..."
-	@docker stop websoft9-cockpit 2>/dev/null || true
-	@docker rm websoft9-cockpit 2>/dev/null || true
-	@echo "Cockpit container removed"
+	@if docker ps -a --format '{{.Names}}' | grep -q '^websoft9-cockpit$$'; then \
+		echo "Found container, removing..."; \
+		docker stop websoft9-cockpit 2>/dev/null || true; \
+		docker rm websoft9-cockpit 2>/dev/null || true; \
+	fi
+	@cd docker/cockpit && docker compose down 2>/dev/null || true
+	@echo "✓ Cockpit container removed"
 
 rm:
 	@echo "Force removing Cockpit container and volumes..."
-	@docker rm -f websoft9-cockpit 2>/dev/null || echo "Container not found"
-	@docker volume rm cockpit_portainer_data 2>/dev/null || echo "Volume not found"
+	@if docker ps -a --format '{{.Names}}' | grep -q '^websoft9-cockpit$$'; then \
+		echo "Found container, force removing..."; \
+		docker rm -f websoft9-cockpit 2>/dev/null || true; \
+	fi
+	@cd docker/cockpit && docker compose down -v 2>/dev/null || true
+	@docker volume rm cockpit_portainer_data 2>/dev/null || true
 	@echo "✓ Container and volumes removed"
 
 # Force kill process using a port
 kill-port:
 ifeq ($(strip $(PORT_EFFECTIVE)),)
-	$(error PORT is required. Usage: make kill-port PORT=9090)
+	$(error PORT is required. Usage: make kill-port PORT=9091)
 endif
 	@echo "Killing process on port $(PORT_EFFECTIVE)..."
 	@if command -v fuser >/dev/null 2>&1; then \
@@ -122,18 +254,22 @@ endif
 
 # Plugin management
 PLUGIN_DIR := plugins
-AVAILABLE_PLUGINS := $(shell ls -d $(PLUGIN_DIR)/*/ 2>/dev/null | xargs -n1 basename)
+AVAILABLE_PLUGINS := $(shell find $(PLUGIN_DIR) -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null | sort)
 
 list-plugins:
 	@echo "Available plugins in $(PLUGIN_DIR)/:"
 	@echo "======================================"
 	@for plugin in $(AVAILABLE_PLUGINS); do \
 		if [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
+			echo "  $$plugin [buildable]"; \
+		else \
 			echo "  $$plugin"; \
 		fi; \
 	done
 	@echo ""
-	@echo "Usage: make plugin <plugin-name>"
+	@echo "Usage:"
+	@echo "  make plugin <plugin-name>  - Build specific plugin"
+	@echo "  make plugins               - Build all plugins"
 	@echo "Example: make plugin gitea"
 
 plugin:
@@ -169,6 +305,54 @@ plugin:
 	echo "✓ Plugin '$$PLUGIN' built successfully!"; \
 	echo "Build output: $(PLUGIN_DIR)/$$PLUGIN/build/"; \
 	echo "========================================";
+
+plugins:
+	@echo "========================================"
+	@echo "Building all plugins..."
+	@if [ -n "$(exclude)" ]; then \
+		echo "Excluding: $(exclude)"; \
+	fi
+	@echo "========================================"
+	@SUCCESS=0; FAILED=0; SKIPPED=0; EXCLUDED=0; \
+	EXCLUDE_LIST="$(subst $(,), ,$(exclude))"; \
+	for plugin in $(AVAILABLE_PLUGINS); do \
+		SHOULD_EXCLUDE=0; \
+		for excl in $$EXCLUDE_LIST; do \
+			if [ "$$plugin" = "$$excl" ]; then \
+				SHOULD_EXCLUDE=1; \
+				break; \
+			fi; \
+		done; \
+		if [ $$SHOULD_EXCLUDE -eq 1 ]; then \
+			echo "⊘ Excluding $$plugin"; \
+			EXCLUDED=$$((EXCLUDED + 1)); \
+			continue; \
+		fi; \
+		if [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
+			echo ""; \
+			echo "Building: $$plugin"; \
+			echo "----------------------------------------"; \
+			if cd $(PLUGIN_DIR)/$$plugin && npm install --silent && npm run build --silent; then \
+				echo "✓ $$plugin built successfully"; \
+				SUCCESS=$$((SUCCESS + 1)); \
+			else \
+				echo "✗ $$plugin build failed"; \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+			cd - > /dev/null; \
+		else \
+			echo "⊘ Skipping $$plugin (no package.json)"; \
+			SKIPPED=$$((SKIPPED + 1)); \
+		fi; \
+	done; \
+	echo ""; \
+	echo "========================================"; \
+	echo "Build Summary:"; \
+	echo "  Success:  $$SUCCESS"; \
+	echo "  Failed:   $$FAILED"; \
+	echo "  Skipped:  $$SKIPPED"; \
+	echo "  Excluded: $$EXCLUDED"; \
+	echo "========================================"
 
 # Swallow positional args like `9091`
 %:

@@ -1,41 +1,20 @@
 {
   "tools": {
-    "terminal": null,
-    "services": {
-      "label": "Services",
-      "order": 10,
-      "docs": [
-        {
-          "label": "Managing services",
-          "url": "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/managing_systems_using_the_rhel_8_web_console/managing-services-in-the-web-console_system-management-using-the-rhel-8-web-console"
-        }
-      ],
+    "terminal": {
+      "label": "Terminal",
+      "order": 30,
       "keywords": [
         {
           "matches": [
-            "service",
-            "systemd",
-            "target",
-            "socket",
-            "timer",
-            "path",
-            "unit",
-            "systemctl"
+            "console",
+            "command",
+            "bash",
+            "shell"
           ]
-        },
-        {
-          "matches": [
-            "boot",
-            "mask",
-            "unmask",
-            "restart",
-            "enable",
-            "disable"
-          ],
-          "weight": 1
         }
       ]
     },
+    "services": null,
     "logs": {
       "label": "Logs",
       "order": 20,
@@ -65,9 +44,7 @@
       ]
     }
   },
-  "menu": {
-    "logs": null,
-    "services": null,
+  "dashboard": {
     "index": {
       "label": "Overview",
       "order": -2,
@@ -125,20 +102,13 @@
           "goto": "/metrics"
         }
       ]
-    },
-    "terminal": {
-      "label": "Terminal",
-      "keywords": [
-        {
-          "matches": [
-            "console",
-            "command",
-            "bash",
-            "shell"
-          ]
-        }
-      ]
     }
+  },
+  "menu": {
+    "logs": null,
+    "services": null,
+    "terminal": null,
+    "index": null
   },
   "preload": [
     "index"

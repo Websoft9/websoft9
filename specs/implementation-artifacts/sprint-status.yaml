@@ -40,7 +40,7 @@ tracking_system: file-system
 story_location: specs/implementation-artifacts
 
 development_status:
-  # Epic 1: 基础架构与构建系统
+  # Epic 1: Infrastructure and Build
   epic1: backlog
   1.1-docker-compose-dev: ready-for-dev
   1.2-dockerfile-optimization: ready-for-dev
@@ -62,3 +62,16 @@ development_status:
   2.8-configuration-templates: backlog
   2.9-change-audit-notification: backlog
   epic2-retrospective: optional
+
+  # Epic 3: Cockpit Customization
+  epic3-cockpit: in-progress
+  story3.1-cockpit-menu: ready-for-dev
+  epic3-retrospective: optional
+
+  # Epic 5: Store Plugin - Decoupling from AppHub
+  epic5: in-progress
+  5-1-core-ui: ready-for-dev
+  5-2-media-api: backlog
+  5-3-categories: backlog
+  5-4-build-deploy: backlog
+  epic5-retrospective: optional

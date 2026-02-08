@@ -43,6 +43,7 @@
 **Key Documents** (detailed standards and guidelines are there):
 - PRD: `specs/planning-artifacts/prd.md`
 - Architecture: `specs/planning-artifacts/architecture.md`
+- UI design: `specs/planning-artifacts/coding-decisions#ui.md`
 
 **When In Doubt:**
 1. Does this serve SMBs without DevOps expertise?

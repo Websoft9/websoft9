@@ -1,0 +1,17 @@
+services:
+  cockpit:
+    image: websoft9/cockpit:${IMAGE_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-websoft9-cockpit}
+    restart: ${RESTART_POLICY:-unless-stopped}
+    ports:
+      - "${HTTP_PORT:-9091}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${COMPOSE_DATA_PATH:-/data/compose}:/data/compose
+      - ${PORTAINER_DATA_VOLUME:-cockpit_portainer_data}:/portainer_data
+    environment:
+      - TZ=UTC
+
+volumes:
+  cockpit_portainer_data:
+    external: false

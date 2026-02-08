@@ -1,0 +1,10 @@
+.App {
+  min-height: 100vh;
+  background-color: #fafafa;
+}
+
+.App-header {
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 1rem 0;
+}
