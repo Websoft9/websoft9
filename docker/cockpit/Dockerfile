@@ -50,7 +50,7 @@ COPY plugins/appstore/build /usr/share/cockpit/appstore
 COPY plugins/backup/build /usr/share/cockpit/backup
 COPY plugins/gitea/build /usr/share/cockpit/gitea
 COPY plugins/myapps/build /usr/share/cockpit/myapps
-COPY plugins/navigator/build /usr/share/cockpit/navigator
+COPY plugins/cockpit-files/dist /usr/share/cockpit/cockpit-files
 COPY plugins/nginx/build /usr/share/cockpit/nginx
 COPY plugins/portainer/build /usr/share/cockpit/portainer
 COPY plugins/settings/build /usr/share/cockpit/settings
@@ -102,7 +102,10 @@ RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     ssh-keygen -A
 
-# 创建默认管理员账户（容器内认证用，用于 Cockpit 认证）
+# 环境变量：默认管理员用户名（密码通过运行时环境变量传递）
+ENV ADMIN_USER=websoft9
+
+# 创建默认管理员账户（容器启动时会用环境变量覆盖）
 RUN useradd -m -s /bin/bash -G sudo websoft9 && \
     echo "websoft9:websoft9" | chpasswd && \
     echo "websoft9 ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
