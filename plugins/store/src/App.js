@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Box,
@@ -9,8 +9,11 @@ import {
   Alert
 } from '@mui/material';
 import MediaGrid from './components/MediaGrid';
-import CategoryTabs from './components/CategoryTabs';
-import { fetchCatalog, fetchProducts, extractCategories } from './utils/api';
+import FilterBar from './components/FilterBar';
+import SecondaryCategoryNav from './components/SecondaryCategoryNav';
+import PaginationControls from './components/PaginationControls';
+import { fetchCatalog, fetchProducts } from './utils/api';
+import { locale } from './i18n';
 import './App.css';
 
 // Feature flag: Set to false to use mock data (Story 5.1), true for real API (Story 5.2)
@@ -18,16 +21,22 @@ const USE_REAL_API = true;
 
 function App() {
   const [mediaData, setMediaData] = useState([]);
+  // eslint-disable-next-line no-unused-vars
+  const [catalogData, setCatalogData] = useState([]); // Raw catalog data, kept for reference
+  const [primaryCatalog, setPrimaryCatalog] = useState([]); // Restructured primary categories
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [categories, setCategories] = useState(['all']);
+  
+  // Category state
+  const [primaryCategory, setPrimaryCategory] = useState('all');
+  const [secondaryCategory, setSecondaryCategory] = useState('all');
+  
+  // Search & Pagination state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
 
-  useEffect(() => {
-    fetchMediaData();
-  }, []);
-
-  const fetchMediaData = async () => {
+  const fetchMediaData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -35,16 +44,27 @@ function App() {
       if (USE_REAL_API) {
         // Story 5.2: Load from nginx-served static JSON files
         try {
-          const [catalogData, productsData] = await Promise.all([
+          const [catalogResult, productsResult] = await Promise.all([
             fetchCatalog(),
             fetchProducts()
           ]);
           
-          setMediaData(productsData);
+          setCatalogData(catalogResult);
+          setMediaData(productsResult);
           
-          // Extract unique categories from product data
-          const uniqueCategories = extractCategories(productsData);
-          setCategories(uniqueCategories);
+          // Build primary category structure from catalog data
+          // catalogResult = array of primary categories
+          // Each has linkedFrom.catalogCollection.items = secondary categories
+          const catalogItems = Array.isArray(catalogResult) ? catalogResult : catalogResult.items || [];
+          const primaryCategories = catalogItems.map(primaryCat => ({
+            key: primaryCat.key,
+            title: primaryCat.title,
+            position: primaryCat.position,
+            catalogCollection: {
+              items: primaryCat.linkedFrom?.catalogCollection?.items || []
+            }
+          }));
+          setPrimaryCatalog(primaryCategories);
           
           setLoading(false);
         } catch (apiError) {
@@ -62,7 +82,11 @@ function App() {
       setError(err.message || 'Failed to load applications');
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchMediaData();
+  }, [fetchMediaData]);
 
   const loadMockData = async () => {
     // Story 5.1: Mock data with comprehensive structure
@@ -214,22 +238,88 @@ function App() {
     ];
     
     setMediaData(mockData);
-    
-    // Extract unique categories
-    const uniqueCategories = new Set(['all']);
-    mockData.forEach(item => {
-      const category = item.catalogCollection?.items?.[0]?.title;
-      if (category) {
-        uniqueCategories.add(category);
-      }
-    });
-    
-    setCategories(Array.from(uniqueCategories));
+    setCatalogData([]);
+    setPrimaryCatalog([]); // Mock data doesn't have structured categories
     setLoading(false);
   };
 
-  const handleCategoryChange = (event, newValue) => {
-    setSelectedCategory(newValue);
+  useEffect(() => {
+    fetchMediaData();
+  }, [fetchMediaData]);
+
+  // Filter & search logic
+  const getFilteredData = () => {
+    let filtered = mediaData;
+
+    // Filter by primary category (应用 -> 二级分类数组 -> 一级分类)
+    if (primaryCategory !== 'all') {
+      filtered = filtered.filter(item => {
+        // 获取应用的所有二级分类
+        const secondaryCategories = item.catalogCollection?.items || [];
+        if (secondaryCategories.length === 0) return false;
+        
+        // 检查任意二级分类是否归属于选中的一级分类
+        return secondaryCategories.some(secondaryCat => {
+          const primaryCat = secondaryCat.catalogCollection?.items?.[0];
+          return primaryCat?.key === primaryCategory;
+        });
+      });
+    }
+
+    // Filter by secondary category
+    if (secondaryCategory !== 'all' && primaryCategory !== 'all') {
+      filtered = filtered.filter(item => {
+        const secondaryCategories = item.catalogCollection?.items || [];
+        return secondaryCategories.some(cat => cat.key === secondaryCategory);
+      });
+    }
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item => {
+        const trademark = (item.trademark || '').toLowerCase();
+        const overview = (item.overview || '').toLowerCase();
+        const tags = (item.tags || []).join(' ').toLowerCase();
+        return trademark.includes(query) || overview.includes(query) || tags.includes(query);
+      });
+    }
+
+    return filtered;
+  };
+
+  // Get data filtered by primary category only (for count display)
+  const getFilteredDataByPrimaryOnly = () => {
+    if (primaryCategory === 'all') return mediaData;
+    
+    return mediaData.filter(item => {
+      const secondaryCategories = item.catalogCollection?.items || [];
+      if (secondaryCategories.length === 0) return false;
+      
+      return secondaryCategories.some(secondaryCat => {
+        const primaryCat = secondaryCat.catalogCollection?.items?.[0];
+        return primaryCat?.key === primaryCategory;
+      });
+    });
+  };
+
+  const filteredData = getFilteredData();
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredData.length / pageSize);
+  const paginatedData = filteredData.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [primaryCategory, secondaryCategory, searchQuery, pageSize]);
+
+  const handlePrimaryChange = (newValue) => {
+    setPrimaryCategory(newValue);
+    setSecondaryCategory('all');
   };
 
   const handleItemSelect = (item) => {
@@ -237,20 +327,14 @@ function App() {
     // TODO: Open detail modal in future story
   };
 
-  // Filter data by selected category
-  const filteredData = selectedCategory === 'all' 
-    ? mediaData 
-    : mediaData.filter(item => {
-        const itemCategory = item.catalogCollection?.items?.[0]?.title;
-        return itemCategory === selectedCategory;
-      });
-
+  const isZh = locale === 'zh';
+  
   return (
     <div className="App">
       <AppBar position="static" color="default" elevation={1}>
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Websoft9 Store
+            {isZh ? '应用商店' : 'Application Store'}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -270,23 +354,51 @@ function App() {
 
         {!loading && !error && (
           <>
-            <CategoryTabs
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onCategoryChange={handleCategoryChange}
+            {/* Filter Bar: Primary Category Dropdown + Search Box */}
+            <FilterBar
+              catalogData={primaryCatalog}
+              primaryCategory={primaryCategory}
+              onPrimaryChange={handlePrimaryChange}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              totalCount={mediaData.length}
+              primaryCategoryCount={getFilteredDataByPrimaryOnly().length}
             />
 
+            {/* Secondary Category Navigation (Chips) */}
+            <SecondaryCategoryNav
+              catalogData={primaryCatalog}
+              primaryCategory={primaryCategory}
+              secondaryCategory={secondaryCategory}
+              onSecondaryChange={setSecondaryCategory}
+              primaryCategoryCount={getFilteredDataByPrimaryOnly().length}
+            />
+
+            {/* Media Grid */}
             <MediaGrid
-              items={filteredData}
+              items={paginatedData}
               onItemSelect={handleItemSelect}
             />
 
+            {/* No Results */}
             {filteredData.length === 0 && (
               <Box textAlign="center" py={8}>
                 <Typography variant="h6" color="text.secondary">
-                  No items found in this category
+                  {isZh ? '未找到相关应用' : 'No applications found'}
                 </Typography>
               </Box>
+            )}
+
+            {/* Pagination */}
+            {filteredData.length > 0 && totalPages > 1 && (
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={filteredData.length}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
             )}
           </>
         )}

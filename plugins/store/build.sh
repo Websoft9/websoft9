@@ -13,10 +13,19 @@ if [ ! -d "build" ]; then
     exit 1
 fi
 
-# Deploy to cockpit directory
+# Deploy to cockpit container
 COCKPIT_DIR="/usr/share/cockpit/store"
-sudo mkdir -p $COCKPIT_DIR
-sudo cp -r build/* $COCKPIT_DIR/
+CONTAINER_NAME="websoft9-cockpit"
+
+# Check if container is running
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "Error: ${CONTAINER_NAME} container is not running."
+    exit 1
+fi
+
+# Copy to container
+echo "Deploying to ${CONTAINER_NAME} container..."
+docker cp build/. ${CONTAINER_NAME}:${COCKPIT_DIR}/
 
 echo "Build completed successfully!"
-echo "Plugin deployed to $COCKPIT_DIR"
+echo "Plugin deployed to ${CONTAINER_NAME}:${COCKPIT_DIR}"

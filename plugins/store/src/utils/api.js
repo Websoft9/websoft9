@@ -4,36 +4,14 @@
  * Uses same pattern as appstore: cockpit.spawn to get nginx port
  */
 
-/* global cockpit */
-
-// Cache nginx port
-let cachedNginxPort = null;
-
 /**
- * Get nginx port via cockpit.spawn (same as appstore)
+ * Build base URL for media API
+ * Uses same-origin path (no CORS issues)
+ * Running in Cockpit = same nginx server
  */
-const getNginxPort = async () => {
-  if (cachedNginxPort) return cachedNginxPort;
-  try {
-    const result = await cockpit.spawn(
-      ['/bin/bash', '-c', 'apphub getconfig'],
-      { superuser: 'try' }
-    );
-    const config = JSON.parse(result.trim());
-    cachedNginxPort = config.nginx_proxy_manager?.listen_port || 9000;
-  } catch (e) {
-    cachedNginxPort = 9000;
-  }
-  return cachedNginxPort;
-};
-
-/**
- * Build base URL: protocol://hostname:nginxPort/media
- */
-const getMediaBase = async () => {
-  const port = await getNginxPort();
-  const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:${port}/media`;
+const getMediaBase = () => {
+  // Same origin, relative path
+  return '/w9media';
 };
 
 /**
@@ -94,12 +72,12 @@ const fetchWithRetry = async (url, options = {}, retries = 3) => {
 
 /**
  * Fetch catalog data (categories and grouping)
- * Static JSON file served by nginx: /media/json/catalog_{locale}.json
+ * Static JSON file served by nginx: /media/catalog_{locale}.json
  * @returns {Promise<Array>} Catalog data array
  */
 export const fetchCatalog = async () => {
   const locale = getLocale();
-  const mediaBase = await getMediaBase();
+  const mediaBase = getMediaBase();
   const url = `${mediaBase}/json/catalog_${locale}.json`;
   
   try {
@@ -112,12 +90,12 @@ export const fetchCatalog = async () => {
 
 /**
  * Fetch product data (full app details with media URLs)
- * Static JSON file served by nginx: /media/json/product_{locale}.json
+ * Static JSON file served by nginx: /media/product_{locale}.json
  * @returns {Promise<Array>} Product data array
  */
 export const fetchProducts = async () => {
   const locale = getLocale();
-  const mediaBase = await getMediaBase();
+  const mediaBase = getMediaBase();
   const url = `${mediaBase}/json/product_${locale}.json`;
   
   try {
@@ -135,15 +113,13 @@ export const fetchProducts = async () => {
  * @returns {string} Full URL path
  */
 export const getMediaUrl = (relativePath) => {
-  // Build base from cached port (sync, after first fetch resolves)
-  const port = cachedNginxPort || 9000;
-  const { protocol, hostname } = window.location;
-  const base = `${protocol}//${hostname}:${port}/media`;
+  const base = '/w9media';
 
   if (!relativePath) return `${base}/placeholder.png`;
   if (relativePath.startsWith('http')) return relativePath;
+  if (relativePath.startsWith('/w9media/')) return relativePath;
   if (relativePath.startsWith('/media/')) {
-    return `${protocol}//${hostname}:${port}${relativePath}`;
+    return relativePath.replace('/media/', '/w9media/');
   }
   if (relativePath.startsWith('/')) return `${base}${relativePath}`;
   return `${base}/${relativePath}`;

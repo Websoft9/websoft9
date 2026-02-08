@@ -51,7 +51,7 @@ const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
     >
       <CardActionArea onClick={() => onSelect && onSelect(item)}>
         {/* Image Container with Skeleton */}
-        <Box sx={{ position: 'relative', height: 160, backgroundColor: '#fafafa' }}>
+        <Box sx={{ position: 'relative', height: 120, backgroundColor: '#fafafa' }}>
           {/* Skeleton Screen */}
           {!loaded && !error && (
             <Box
@@ -85,7 +85,7 @@ const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
           {/* Actual Image */}
           <CardMedia
             component="img"
-            height="160"
+            height="120"
             image={logoUrl}
             alt={displayName}
             onLoad={handleLoad}
@@ -93,7 +93,7 @@ const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
             loading={isFirstScreen ? 'eager' : 'lazy'}
             sx={{ 
               objectFit: 'contain', 
-              p: 3, 
+              p: 2, 
               backgroundColor: '#fafafa',
               borderBottom: '1px solid #e0e0e0',
               opacity: loaded || error ? 1 : 0,
@@ -104,15 +104,15 @@ const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
           />
         </Box>
 
-        <CardContent sx={{ flexGrow: 1 }}>
+        <CardContent sx={{ flexGrow: 1, py: 1.5, px: 2 }}>
           <Typography 
             gutterBottom 
             variant="h6" 
             component="div"
             sx={{ 
               fontWeight: 600,
-              fontSize: '1.1rem',
-              mb: 1,
+              fontSize: '1rem',
+              mb: 0.5,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
@@ -125,13 +125,11 @@ const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
             variant="body2" 
             color="text.secondary"
             sx={{ 
-              mb: 2,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
+              mb: 1,
               overflow: 'hidden',
-              minHeight: '40px',
-              lineHeight: 1.5
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: '0.875rem'
             }}
           >
             {description}
@@ -164,7 +162,7 @@ const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
   }
 
   return (
-    <LazyLoad height={300} offset={300} once>
+    <LazyLoad height={240} offset={300} once>
       {cardContent}
     </LazyLoad>
   );

@@ -2,7 +2,7 @@
   "version": "0.1.0",
   "dashboard": {
     "epic5-store": {
-      "label": "Epic5 Store",
+      "label": "Store",
       "path": "index.html",
       "order": 10
     }

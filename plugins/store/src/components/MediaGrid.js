@@ -15,7 +15,7 @@ const MediaGrid = ({ items, onItemSelect }) => {
   }
 
   return (
-    <Grid container spacing={3}>
+    <Grid container spacing={2}>
       {items.map((item, index) => (
         <Grid 
           item 
