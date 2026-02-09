@@ -26,10 +26,12 @@ Migrate `/data/dev/websoft9/plugins/appstore` functionality to new independent `
 
 ## Stories
 
-- [ ] 5.1: Core UI Components & Data Loading
-- [ ] 5.2: Media API Integration
-- [ ] 5.3: Category Management
+- [x] 5.1: Core UI Components & Data Loading
+- [x] 5.2: Media API Integration
+- [x] 5.3: Category Management
 - [ ] 5.4: Build & Deployment Configuration
+- [x] 5.5: Internationalization (i18n) Support
+- [ ] 5.6: Application Detail Modal
 
 ## Dependencies
 

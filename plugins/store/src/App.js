@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Container,
-  Box,
-  AppBar,
-  Toolbar,
-  Typography,
-  CircularProgress,
-  Alert
-} from '@mui/material';
+  Page,
+  PageSection,
+  Card,
+  CardBody,
+  Alert,
+  Spinner,
+  EmptyState,
+  EmptyStateBody
+} from '@patternfly/react-core';
+import { ExclamationCircleIcon } from '@patternfly/react-icons';
 import MediaGrid from './components/MediaGrid';
 import FilterBar from './components/FilterBar';
 import SecondaryCategoryNav from './components/SecondaryCategoryNav';
 import PaginationControls from './components/PaginationControls';
-import { fetchCatalog, fetchProducts } from './utils/api';
-import { locale } from './i18n';
+import AppDetailModal from './components/AppDetailModal';
+import { fetchCatalog, fetchProducts, getProductDetail } from './utils/api';
+import { t, getCurrentLocale } from './i18n';
 import './App.css';
+
+/* global cockpit */
 
 // Feature flag: Set to false to use mock data (Story 5.1), true for real API (Story 5.2)
 const USE_REAL_API = true;
@@ -27,6 +32,10 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Language tracking for Cockpit language changes
+  // eslint-disable-next-line no-unused-vars
+  const [currentLang, setCurrentLang] = useState(getCurrentLocale());
+  
   // Category state
   const [primaryCategory, setPrimaryCategory] = useState('all');
   const [secondaryCategory, setSecondaryCategory] = useState('all');
@@ -35,6 +44,12 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(24);
+  
+  // Modal state (Story 5.6)
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState(null);
 
   const fetchMediaData = useCallback(async () => {
     try {
@@ -69,7 +84,7 @@ function App() {
           setLoading(false);
         } catch (apiError) {
           console.error('API failed, falling back to mock data:', apiError);
-          setError(`API Error: ${apiError.message}. Using mock data as fallback.`);
+          setError(t('store.error.apiError', { message: apiError.message }));
           // Fallback to mock data if API fails
           await loadMockData();
         }
@@ -79,7 +94,7 @@ function App() {
       }
     } catch (err) {
       console.error('Failed to load media data:', err);
-      setError(err.message || 'Failed to load applications');
+      setError(err.message || t('store.error.loadFailed'));
       setLoading(false);
     }
   }, []);
@@ -87,6 +102,29 @@ function App() {
   useEffect(() => {
     fetchMediaData();
   }, [fetchMediaData]);
+
+  // Monitor Cockpit language changes and reload if language switches
+  // Cockpit automatically reloads plugin iframe when user changes language in shell
+  // But we also check periodically in case of race conditions
+  useEffect(() => {
+    const checkLanguage = () => {
+      try {
+        if (typeof cockpit !== 'undefined' && cockpit.language) {
+          const newLang = getCurrentLocale();
+          if (newLang !== currentLang) {
+            window.location.reload();
+          }
+        }
+      } catch (e) {
+        // Ignore errors in dev environment
+      }
+    };
+
+    // Check language every 2 seconds (Cockpit usually reloads iframe automatically)
+    const timer = setInterval(checkLanguage, 2000);
+    
+    return () => clearInterval(timer);
+  }, [currentLang]);
 
   const loadMockData = async () => {
     // Story 5.1: Mock data with comprehensive structure
@@ -247,6 +285,30 @@ function App() {
     fetchMediaData();
   }, [fetchMediaData]);
 
+  // Modal handlers (Story 5.6)
+  const handleCardClick = async (productKey) => {
+    setModalOpen(true);
+    setModalLoading(true);
+    setModalError(null);
+    setSelectedProduct(null);
+
+    try {
+      const productDetail = await getProductDetail(productKey);
+      setSelectedProduct(productDetail);
+    } catch (err) {
+      console.error('Failed to load product detail:', err);
+      setModalError(err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setSelectedProduct(null);
+    setModalError(null);
+  };
+
   // Filter & search logic
   const getFilteredData = () => {
     let filtered = mediaData;
@@ -321,89 +383,138 @@ function App() {
     setPrimaryCategory(newValue);
     setSecondaryCategory('all');
   };
-
-  const handleItemSelect = (item) => {
-    console.log('Selected item:', item);
-    // TODO: Open detail modal in future story
-  };
-
-  const isZh = locale === 'zh';
   
   return (
-    <div className="App">
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            {isZh ? '应用商店' : 'Application Store'}
-          </Typography>
-        </Toolbar>
-      </AppBar>
+    <Page className="pf-m-no-sidebar">
+      {loading && (
+        <PageSection isFilled>
+          <Card>
+            <CardBody>
+              <EmptyState titleText={t('store.title')} headingLevel="h2">
+                <EmptyStateBody>
+                  <Spinner size="lg" /> Loading applications...
+                </EmptyStateBody>
+              </EmptyState>
+            </CardBody>
+          </Card>
+        </PageSection>
+      )}
 
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        {loading && (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-            <CircularProgress />
-          </Box>
-        )}
+      {!loading && (
+        <>
+          {error && (
+            <PageSection>
+              <Alert variant="danger" isInline title="Error">
+                {error}
+              </Alert>
+            </PageSection>
+          )}
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
+          {!error && (
+            <>
+              {/* Header Section: Filter Bar */}
+              <PageSection>
+                <Card>
+                  <CardBody>
+                    <FilterBar
+                      catalogData={primaryCatalog}
+                      primaryCategory={primaryCategory}
+                      onPrimaryChange={handlePrimaryChange}
+                      searchQuery={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      totalCount={mediaData.length}
+                      primaryCategoryCount={getFilteredDataByPrimaryOnly().length}
+                    />
+                    
+                    {/* Secondary Category Navigation (Chips) */}
+                    <SecondaryCategoryNav
+                      catalogData={primaryCatalog}
+                      primaryCategory={primaryCategory}
+                      secondaryCategory={secondaryCategory}
+                      onSecondaryChange={setSecondaryCategory}
+                      primaryCategoryCount={getFilteredDataByPrimaryOnly().length}
+                    />
+                  </CardBody>
+                </Card>
+              </PageSection>
 
-        {!loading && !error && (
-          <>
-            {/* Filter Bar: Primary Category Dropdown + Search Box */}
-            <FilterBar
-              catalogData={primaryCatalog}
-              primaryCategory={primaryCategory}
-              onPrimaryChange={handlePrimaryChange}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              totalCount={mediaData.length}
-              primaryCategoryCount={getFilteredDataByPrimaryOnly().length}
-            />
+              {/* Content Section: Application Grid */}
+              <PageSection isFilled>
+                {filteredData.length === 0 ? (
+                  <Card>
+                    <CardBody>
+                      <EmptyState
+                        icon={ExclamationCircleIcon}
+                        titleText={t('store.noResults')}
+                        headingLevel="h2"
+                      >
+                        <EmptyStateBody>
+                          Try adjusting your filters or search query
+                        </EmptyStateBody>
+                      </EmptyState>
+                    </CardBody>
+                  </Card>
+                ) : (
+                  <>
+                    <MediaGrid
+                      items={paginatedData}
+                      onItemSelect={handleCardClick}
+                    />
 
-            {/* Secondary Category Navigation (Chips) */}
-            <SecondaryCategoryNav
-              catalogData={primaryCatalog}
-              primaryCategory={primaryCategory}
-              secondaryCategory={secondaryCategory}
-              onSecondaryChange={setSecondaryCategory}
-              primaryCategoryCount={getFilteredDataByPrimaryOnly().length}
-            />
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <Card style={{ marginTop: 'var(--pf-t--global--spacer--md)' }}>
+                        <CardBody>
+                          <PaginationControls
+                            page={page}
+                            totalPages={totalPages}
+                            pageSize={pageSize}
+                            totalItems={filteredData.length}
+                            onPageChange={setPage}
+                            onPageSizeChange={setPageSize}
+                          />
+                        </CardBody>
+                      </Card>
+                    )}
+                  </>
+                )}
+              </PageSection>
+            </>
+          )}
+        </>
+      )}
 
-            {/* Media Grid */}
-            <MediaGrid
-              items={paginatedData}
-              onItemSelect={handleItemSelect}
-            />
-
-            {/* No Results */}
-            {filteredData.length === 0 && (
-              <Box textAlign="center" py={8}>
-                <Typography variant="h6" color="text.secondary">
-                  {isZh ? '未找到相关应用' : 'No applications found'}
-                </Typography>
-              </Box>
-            )}
-
-            {/* Pagination */}
-            {filteredData.length > 0 && totalPages > 1 && (
-              <PaginationControls
-                page={page}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                totalItems={filteredData.length}
-                onPageChange={setPage}
-                onPageSizeChange={setPageSize}
-              />
-            )}
-          </>
-        )}
-      </Container>
-    </div>
+      {/* Application Detail Modal (Story 5.6) */}
+      <AppDetailModal
+        open={modalOpen}
+        onClose={handleModalClose}
+        product={selectedProduct}
+        loading={modalLoading}
+        error={modalError}
+        onCategoryClick={(category) => {
+          // Find which primary category contains this secondary category
+          const parentPrimary = primaryCatalog.find(pc => 
+            pc.catalogCollection?.items?.some(sc => sc.key === category.key)
+          );
+          if (parentPrimary) {
+            setPrimaryCategory(parentPrimary.key);
+            setSecondaryCategory(category.key);
+          } else {
+            // If category is a primary category
+            setPrimaryCategory(category.key);
+            setSecondaryCategory('all');
+          }
+        }}
+        onInstall={(product) => {
+          // Future: Navigate to installation page
+          console.log('Install clicked:', product?.key);
+        }}
+        onFavorite={(product) => {
+          // Future: Toggle favorite status
+          console.log('Favorite clicked:', product?.key);
+        }}
+      />
+    </Page>
   );
 }
 

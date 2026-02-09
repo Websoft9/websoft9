@@ -1,13 +1,13 @@
 import React from 'react';
-import { Grid } from '@mui/material';
+import { Gallery } from '@patternfly/react-core';
 import MediaCard from './MediaCard';
 
 /**
- * MediaGrid Component - Responsive grid layout for media cards
- * Extracted pattern from appstore.js grid layout
- * - Desktop: 4 columns (3 cards per row = 33.33% width = 4 in MUI Grid)
- * - Tablet: 2 columns (6 in MUI Grid = 50%)
- * - Mobile: 1 column (12 in MUI Grid = 100%)
+ * MediaGrid Component - PatternFly Gallery layout for application cards
+ * Responsive grid that adapts to screen size:
+ * - Desktop: 4-6 columns
+ * - Tablet: 2-3 columns
+ * - Mobile: 1 column
  */
 const MediaGrid = ({ items, onItemSelect }) => {
   if (!items || items.length === 0) {
@@ -15,24 +15,24 @@ const MediaGrid = ({ items, onItemSelect }) => {
   }
 
   return (
-    <Grid container spacing={2}>
-      {items.map((item, index) => (
-        <Grid 
-          item 
-          xs={12}  // Mobile: 1 column
-          sm={6}   // Tablet: 2 columns
-          md={4}   // Desktop: 3 columns
-          lg={3}   // Large desktop: 4 columns
-          key={item.key || item.id || index}
-        >
-          <MediaCard 
-            item={item} 
-            onSelect={onItemSelect}
-            isFirstScreen={index < 8} // First 8 items load eagerly
-          />
-        </Grid>
+    <Gallery 
+      hasGutter
+      minWidths={{
+        default: '100%',       // Mobile: 1 column
+        sm: '280px',           // Small: 2-3 columns per row
+        md: '250px',           // Medium: 3-4 columns per row
+        lg: '220px',           // Large: 4-5 columns per row
+        xl: '200px'            // Extra large: 5-6 columns per row
+      }}
+    >
+      {items.map((item) => (
+        <MediaCard 
+          key={item.key || item.id}
+          item={item} 
+          onSelect={onItemSelect}
+        />
       ))}
-    </Grid>
+    </Gallery>
   );
 };
 

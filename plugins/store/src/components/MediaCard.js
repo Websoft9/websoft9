@@ -1,170 +1,67 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Card,
-  CardContent,
-  CardMedia,
-  Typography,
-  CardActionArea,
-  Chip,
-  Box
-} from '@mui/material';
-import LazyLoad from 'react-lazyload';
+  CardBody,
+  CardTitle,
+  Label
+} from '@patternfly/react-core';
+import { t } from '../i18n';
 import './MediaCard.css';
 
 /**
- * MediaCard Component - Extracted from appstore.js AppImage pattern
+ * MediaCard Component - PatternFly version
  * Displays application card with logo, name, description, and category
- * Features: skeleton loading, lazy loading, error fallback
+ * Features: native lazy loading, error fallback
  */
-const MediaCard = ({ item, onSelect, isFirstScreen = false }) => {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-
-  const handleLoad = () => {
-    setLoaded(true);
-  };
-
+const MediaCard = ({ item, onSelect }) => {
   const handleError = (e) => {
-    setError(true);
     e.target.src = '/placeholder.png';
   };
 
-  // Extract data from item structure (compatible with both formats)
+  // Extract data from item structure
   const logoUrl = item.logo?.imageurl || item.logo || '/placeholder.png';
-  const displayName = item.trademark || item.name || 'Unknown App';
-  const description = item.overview || item.description || 'No description available';
-  const category = item.catalogCollection?.items?.[0]?.title || item.category || 'General';
+  const displayName = item.trademark || item.name || t('store.card.unknownApp');
+  const summary = item.summary || item.overview || t('store.card.noDescription');
+  const category = item.catalogCollection?.items?.[0]?.title || item.category || t('store.card.defaultCategory');
   const tags = item.tags || [];
 
-  const cardContent = (
-    <Card 
-      sx={{ 
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'all 0.3s ease',
-        '&:hover': {
-          transform: 'translateY(-8px)',
-          boxShadow: 6
-        }
-      }}
-    >
-      <CardActionArea onClick={() => onSelect && onSelect(item)}>
-        {/* Image Container with Skeleton */}
-        <Box sx={{ position: 'relative', height: 120, backgroundColor: '#fafafa' }}>
-          {/* Skeleton Screen */}
-          {!loaded && !error && (
-            <Box
-              className="skeleton-container"
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: loaded ? 0 : 1,
-                transition: 'opacity 0.3s ease',
-                zIndex: 1
-              }}
-            >
-              <Box
-                className="skeleton-box"
-                sx={{
-                  width: 80,
-                  height: 80,
-                  backgroundColor: '#e0e0e0',
-                  borderRadius: '8px'
-                }}
-              />
-            </Box>
-          )}
-
-          {/* Actual Image */}
-          <CardMedia
-            component="img"
-            height="120"
-            image={logoUrl}
-            alt={displayName}
-            onLoad={handleLoad}
-            onError={handleError}
-            loading={isFirstScreen ? 'eager' : 'lazy'}
-            sx={{ 
-              objectFit: 'contain', 
-              p: 2, 
-              backgroundColor: '#fafafa',
-              borderBottom: '1px solid #e0e0e0',
-              opacity: loaded || error ? 1 : 0,
-              transition: 'opacity 0.3s ease',
-              position: 'relative',
-              zIndex: 2
-            }}
-          />
-        </Box>
-
-        <CardContent sx={{ flexGrow: 1, py: 1.5, px: 2 }}>
-          <Typography 
-            gutterBottom 
-            variant="h6" 
-            component="div"
-            sx={{ 
-              fontWeight: 600,
-              fontSize: '1rem',
-              mb: 0.5,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {displayName}
-          </Typography>
-          
-          <Typography 
-            variant="body2" 
-            color="text.secondary"
-            sx={{ 
-              mb: 1,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontSize: '0.875rem'
-            }}
-          >
-            {description}
-          </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Chip 
-              label={category} 
-              size="small" 
-              color="primary"
-              variant="outlined"
-            />
-            {tags && tags.slice(0, 2).map((tag, index) => (
-              <Chip 
-                key={index}
-                label={tag} 
-                size="small" 
-                variant="outlined"
-              />
-            ))}
-          </Box>
-        </CardContent>
-      </CardActionArea>
-    </Card>
-  );
-
-  // Wrap in LazyLoad for off-screen items (performance optimization)
-  if (isFirstScreen) {
-    return cardContent;
-  }
-
   return (
-    <LazyLoad height={240} offset={300} once>
-      {cardContent}
-    </LazyLoad>
+    <Card 
+      isClickable
+      isSelectable
+      onClick={() => onSelect && onSelect(item.key)}
+      className="media-card"
+    >
+      <CardBody>
+        {/* Logo Container */}
+        <div className="media-card-logo">
+          <img 
+            src={logoUrl}
+            alt={displayName}
+            onError={handleError}
+            loading="lazy"
+          />
+        </div>
+
+        {/* Card Title */}
+        <CardTitle className="media-card-title">
+          {displayName}
+        </CardTitle>
+
+        {/* Summary */}
+        <div className="media-card-description">
+          {summary}
+        </div>
+
+        {/* Categories and Tags */}
+        <div className="media-card-labels">
+          <Label color="blue">{category}</Label>
+          {tags && tags.slice(0, 2).map((tag, index) => (
+            <Label key={index} color="grey">{tag}</Label>
+          ))}
+        </div>
+      </CardBody>
+    </Card>
   );
 };
 

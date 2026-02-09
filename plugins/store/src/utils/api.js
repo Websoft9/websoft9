@@ -1,8 +1,10 @@
 /**
- * API Utilities for Store Plugin - Story 5.2
+ * API Utilities for Store Plugin - Story 5.2 & 5.5
  * Loads media data from nginx-served static JSON files
  * Uses same pattern as appstore: cockpit.spawn to get nginx port
  */
+
+import { getCurrentLocale, t } from '../i18n';
 
 /**
  * Build base URL for media API
@@ -12,29 +14,6 @@
 const getMediaBase = () => {
   // Same origin, relative path
   return '/w9media';
-};
-
-/**
- * Detect user's preferred locale
- * Priority: Cockpit language > Browser language > Default 'en'
- * @returns {string} locale code ('en' or 'zh')
- */
-const getLocale = () => {
-  try {
-    // Try Cockpit language first (when running in Cockpit environment)
-    if (window.cockpit && window.cockpit.language) {
-      return window.cockpit.language.startsWith('zh') ? 'zh' : 'en';
-    }
-  } catch (e) {
-    // Cockpit not available (dev environment)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Cockpit not available, using browser language');
-    }
-  }
-  
-  // Fallback to browser language
-  const browserLang = navigator.language || navigator.userLanguage || 'en';
-  return browserLang.startsWith('zh') ? 'zh' : 'en';
 };
 
 /**
@@ -62,9 +41,6 @@ const fetchWithRetry = async (url, options = {}, retries = 3) => {
       
       // Wait before retry (exponential backoff: 1s, 2s, 4s)
       const waitTime = 1000 * Math.pow(2, i);
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`Retry ${i + 1}/${retries} after ${waitTime}ms:`, error.message);
-      }
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
@@ -76,15 +52,15 @@ const fetchWithRetry = async (url, options = {}, retries = 3) => {
  * @returns {Promise<Array>} Catalog data array
  */
 export const fetchCatalog = async () => {
-  const locale = getLocale();
   const mediaBase = getMediaBase();
-  const url = `${mediaBase}/json/catalog_${locale}.json`;
+  const currentLocale = getCurrentLocale();
+  const url = `${mediaBase}/json/catalog_${currentLocale}.json`;
   
   try {
     return await fetchWithRetry(url);
   } catch (error) {
     console.error('Failed to fetch catalog:', error);
-    throw new Error(`Failed to fetch catalog: ${error.message}`);
+    throw new Error(t('store.error.fetchCatalog', { message: error.message }));
   }
 };
 
@@ -94,15 +70,15 @@ export const fetchCatalog = async () => {
  * @returns {Promise<Array>} Product data array
  */
 export const fetchProducts = async () => {
-  const locale = getLocale();
   const mediaBase = getMediaBase();
-  const url = `${mediaBase}/json/product_${locale}.json`;
+  const currentLocale = getCurrentLocale();
+  const url = `${mediaBase}/json/product_${currentLocale}.json`;
   
   try {
     return await fetchWithRetry(url);
   } catch (error) {
     console.error('Failed to fetch products:', error);
-    throw new Error(`Failed to fetch products: ${error.message}`);
+    throw new Error(t('store.error.fetchProducts', { message: error.message }));
   }
 };
 
@@ -179,4 +155,34 @@ export const categorizeMedia = (items) => {
 export const getUniqueCategories = (items) => {
   const categories = new Set(items.map(item => item.category || 'Uncategorized'));
   return ['All', ...Array.from(categories)];
+};
+
+/**
+ * Fetch detailed information for a single product by key
+ * Story 5.6: Application Detail Modal
+ * @param {string} key - Application key (e.g., 'wordpress', 'espocrm')
+ * @returns {Promise<Object>} Product detail object
+ */
+export const getProductDetail = async (key) => {
+  const currentLocale = getCurrentLocale();
+  const url = `${getMediaBase()}/json/product_${currentLocale}.json`;
+  
+  try {
+    const response = await fetchWithRetry(url);
+    
+    // Find the specific product in the products array
+    const products = response.products || response;
+    const product = Array.isArray(products) 
+      ? products.find(p => p.key === key)
+      : null;
+    
+    if (!product) {
+      throw new Error(`Product not found: ${key}`);
+    }
+    
+    return product;
+  } catch (error) {
+    console.error(`Error fetching product detail for ${key}:`, error);
+    throw error;
+  }
 };

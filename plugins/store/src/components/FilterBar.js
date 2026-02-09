@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Box,
-  TextField,
-  InputAdornment,
-  FormControl,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
+  SearchInput,
+  MenuToggle,
   Select,
-  MenuItem,
-  Grid
-} from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import { locale } from '../i18n';
+  SelectList,
+  SelectOption
+} from '@patternfly/react-core';
+import { t } from '../i18n';
 
 /**
  * Filter bar with primary category selector and search box
@@ -23,6 +23,8 @@ const FilterBar = ({
   totalCount,
   primaryCategoryCount
 }) => {
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+
   // Sort primary categories by position
   const sortedCatalog = [...catalogData].sort((a, b) => {
     const posA = a.position ?? 999;
@@ -30,60 +32,69 @@ const FilterBar = ({
     return posA - posB;
   });
 
-  const isZh = locale === 'zh';
-  
+  // Get display text for selected category
+  const getSelectedCategoryLabel = () => {
+    if (primaryCategory === 'all') {
+      return t('store.category.allCategoriesWithCount', { count: totalCount });
+    }
+    const category = sortedCatalog.find(cat => cat.key === primaryCategory);
+    return category ? category.title : t('store.category.allCategories');
+  };
+
+  const handleCategorySelect = (_event, value) => {
+    onPrimaryChange(value);
+    setIsCategoryOpen(false);
+  };
+
+  const handleCategoryToggle = () => {
+    setIsCategoryOpen(!isCategoryOpen);
+  };
+
   return (
-    <Box sx={{ mb: 3 }}>
-      <Grid container spacing={2}>
-        {/* Primary Category Selector */}
-        <Grid item xs={12} sm={4} md={3}>
-          <FormControl fullWidth>
-            <Select
-              value={primaryCategory}
-              onChange={(e) => onPrimaryChange(e.target.value)}
-              displayEmpty
-              sx={{
-                backgroundColor: 'background.paper',
-                '& .MuiSelect-select': {
-                  py: '14.5px'
-                }
-              }}
-            >
-              <MenuItem value="all">
-                {isZh ? '全部分类' : 'All Categories'} ({totalCount})
-              </MenuItem>
+    <Toolbar>
+      <ToolbarContent>
+        {/* Category Selector */}
+        <ToolbarItem>
+          <Select
+            isOpen={isCategoryOpen}
+            selected={primaryCategory}
+            onSelect={handleCategorySelect}
+            onOpenChange={setIsCategoryOpen}
+            toggle={(toggleRef) => (
+              <MenuToggle
+                ref={toggleRef}
+                onClick={handleCategoryToggle}
+                isExpanded={isCategoryOpen}
+                style={{ minWidth: '250px' }}
+              >
+                {getSelectedCategoryLabel()}
+              </MenuToggle>
+            )}
+          >
+            <SelectList>
+              <SelectOption value="all">
+                {t('store.category.allCategoriesWithCount', { count: totalCount })}
+              </SelectOption>
               {sortedCatalog.map((cat) => (
-                <MenuItem key={cat.key} value={cat.key}>
+                <SelectOption key={cat.key} value={cat.key}>
                   {cat.title}
-                </MenuItem>
+                </SelectOption>
               ))}
-            </Select>
-          </FormControl>
-        </Grid>
+            </SelectList>
+          </Select>
+        </ToolbarItem>
 
         {/* Search Box */}
-        <Grid item xs={12} sm={8} md={9}>
-          <TextField
-            fullWidth
-            placeholder={isZh ? '搜索应用...' : 'Search applications...'}
+        <ToolbarItem variant="search-filter" style={{ flex: 1 }}>
+          <SearchInput
+            placeholder={t('store.search.placeholder')}
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: 'background.paper',
-              }
-            }}
+            onChange={(_event, value) => onSearchChange(value)}
+            onClear={() => onSearchChange('')}
           />
-        </Grid>
-      </Grid>
-    </Box>
+        </ToolbarItem>
+      </ToolbarContent>
+    </Toolbar>
   );
 };
 

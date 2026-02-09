@@ -1,10 +1,9 @@
-.App {
-  min-height: 100vh;
-  background-color: #fafafa;
-}
+/* Import PatternFly CSS */
+@import '~@patternfly/patternfly/patternfly.css';
+@import '~@patternfly/patternfly/patternfly-addons.css';
 
-.App-header {
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  padding: 1rem 0;
+/* Store Plugin Styles - Using PatternFly CSS Variables for dark mode support */
+.pf-v6-c-page {
+  background-color: var(--pf-t--global--background--color--primary--default);
+  min-height: 100vh;
 }
