@@ -66,15 +66,17 @@ make clean
    - `make release`: 构建生产镜像
 
 4. **清理工具**
-   - `make clean`: 清理 __pycache__, .pytest_cache, node_modules/build 等缓存
+   - `make clean`: 清理 __pycache__, .pytest_cache, node_modules 等缓存
+   - **保留** `plugins/*/build/` 目录（构建产物需提交到 git）
 
 #### 第二次迭代（优化）
 
 5. **插件管理优化**
    - 插件列表直接从 `plugins/` 目录读取，不依赖 version.json
-   - `make list-plugins`: 列出所有插件，标记哪些可构建
-   - `make plugin <name>`: 构建单个插件
+   - `make list-plugins`: 列出所有插件，标记构建方式（buildable/download script）
+   - `make plugin <name>`: 构建单个插件，自动识别构建方式
    - `make plugins`: 构建所有插件，显示详细的成功/失败统计
+   - **特殊插件处理**: cockpit-files 使用 `download.sh` 脚本下载官方 release
 
 6. **容器管理优化**
    - "Cockpit Management" 重命名为 "Container Management"
@@ -93,15 +95,17 @@ make clean
 **技术决策**:
 - 使用 `find` 命令递归列出插件目录，不依赖外部文件
 - 使用 `ifdef` 条件判断处理可选参数
-- `make clean` 使用 `read -p` 实现交互式确认
+- `make clean` 使用 `read -p` 实现交互式确认，排除 `plugins/*/build/`
+- **插件构建策略**: 检测 cockpit-files 使用 download.sh，其他用 npm build
 - docker-compose 配置使用 `.env` 文件管理环境变量
 - 所有命令添加 `-v` 详细输出或 `|| true` 避免命令失败
 - 使用 `@` 前缀隐藏命令输出，只显示有用信息
 
 **测试结果**:
 - ✅ `make help`: 显示所有命令分类帮助，标记未实现功能
-- ✅ `make list-plugins`: 列出 9 个插件（8 个可构建，1 个无 package.json）
-- ✅ `make clean`: 显示确认提示，支持 y/N 选择
+- ✅ `make list-plugins`: 列出插件，区分 [buildable] 和 [download script]
+- ✅ `make plugin cockpit-files`: 自动调用 download.sh 下载官方 release
+- ✅ `make clean`: 显示确认提示，保留 plugins/*/build/ 目录
 - ✅ 容器管理: 所有命令成功调用 docker-compose
 - ✅ `.env` 和 `docker-compose.yml`: 配置文件创建成功
 - ✅ 参数传递: SERVICE, PORT 变量正常工作
@@ -128,3 +132,8 @@ make clean
 3. 添加人工确认防止误操作，提升安全性
 4. 清晰标记未实现功能，设定正确的用户预期
 5. 完善的文档支持，降低学习成本
+
+**第三次迭代改进** (2026-02-09):
+1. **插件构建策略优化**: 支持多种构建方式（npm/download script）
+2. **cockpit-files 集成**: 自动调用 download.sh 从官方下载 release
+3. **build 目录保留**: `make clean` 保留 plugins/*/build/，符合 GitOps 理念

@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "dashboard": {
+    "services": {
+      "label": "Services",
+      "path": "index.html",
+      "order": 15
+    }
+  },
+  "content-security-policy": "default-src 'unsafe-inline' 'unsafe-eval' *;font-src * data:;style-src 'unsafe-inline' 'unsafe-eval' *;img-src * data:;connect-src *"
+}

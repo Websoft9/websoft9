@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Toolbar,
   ToolbarContent,
   ToolbarItem,
-  SearchInput,
   MenuToggle,
   Select,
   SelectList,
   SelectOption
 } from '@patternfly/react-core';
 import { t } from '../i18n';
+import AutocompleteSearchInput from './AutocompleteSearchInput';
+import { buildSearchIndex } from '../utils/searchUtils';
 
 /**
  * Filter bar with primary category selector and search box
  */
 const FilterBar = ({ 
-  catalogData, 
+  catalogData,
+  mediaData,
   primaryCategory, 
   onPrimaryChange, 
   searchQuery, 
@@ -24,6 +26,14 @@ const FilterBar = ({
   primaryCategoryCount
 }) => {
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [searchIndex, setSearchIndex] = useState([]);
+  
+  // Build search index when mediaData changes
+  useEffect(() => {
+    if (mediaData && Array.isArray(mediaData)) {
+      setSearchIndex(buildSearchIndex(mediaData));
+    }
+  }, [mediaData]);
 
   // Sort primary categories by position
   const sortedCatalog = [...catalogData].sort((a, b) => {
@@ -84,13 +94,14 @@ const FilterBar = ({
           </Select>
         </ToolbarItem>
 
-        {/* Search Box */}
+        {/* Search Box with Autocomplete */}
         <ToolbarItem variant="search-filter" style={{ flex: 1 }}>
-          <SearchInput
+          <AutocompleteSearchInput
+            searchIndex={searchIndex}
             placeholder={t('store.search.placeholder')}
             value={searchQuery}
             onChange={(_event, value) => onSearchChange(value)}
-            onClear={() => onSearchChange('')}
+            onSelect={(text) => onSearchChange(text)}
           />
         </ToolbarItem>
       </ToolbarContent>

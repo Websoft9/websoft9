@@ -32,6 +32,7 @@ Migrate `/data/dev/websoft9/plugins/appstore` functionality to new independent `
 - [ ] 5.4: Build & Deployment Configuration
 - [x] 5.5: Internationalization (i18n) Support
 - [ ] 5.6: Application Detail Modal
+- [ ] 5.7: Search Autocomplete
 
 ## Dependencies
 

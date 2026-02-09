@@ -74,4 +74,5 @@ development_status:
   5-2-media-api: backlog
   5-3-categories: backlog
   5-4-build-deploy: backlog
+  5-7-search-autocomplete: done
   epic5-retrospective: optional

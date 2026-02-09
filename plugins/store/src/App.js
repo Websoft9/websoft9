@@ -418,6 +418,7 @@ function App() {
                   <CardBody>
                     <FilterBar
                       catalogData={primaryCatalog}
+                      mediaData={mediaData}
                       primaryCategory={primaryCategory}
                       onPrimaryChange={handlePrimaryChange}
                       searchQuery={searchQuery}

@@ -143,8 +143,10 @@ clean:
 	@echo "This will remove the following:"
 	@echo "  - Python __pycache__ directories"
 	@echo "  - .pytest_cache directories"
-	@echo "  - node_modules and build directories"
+	@echo "  - node_modules directories"
 	@echo "  - .cache directories"
+	@echo ""
+	@echo "Note: Plugin build directories (plugins/*/build) will be preserved"
 	@echo ""
 	@read -p "Are you sure you want to continue? [y/N] " confirm; \
 	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
@@ -152,9 +154,10 @@ clean:
 		find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true; \
 		find . -type d -name "*.pyc" -delete 2>/dev/null || true; \
 		find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true; \
-		find . -type d -name "node_modules" -prune -o -type d -name "build" -exec rm -rf {} + 2>/dev/null || true; \
+		find . -type d -name "node_modules" -exec rm -rf {} + 2>/dev/null || true; \
+		find . -type d -name "build" ! -path "*/plugins/*/build" -exec rm -rf {} + 2>/dev/null || true; \
 		find . -type d -name ".cache" -exec rm -rf {} + 2>/dev/null || true; \
-		echo "✓ Cache cleaned"; \
+		echo "✓ Cache cleaned (plugins/*/build preserved)"; \
 	else \
 		echo "Cancelled."; \
 	fi
@@ -260,7 +263,9 @@ list-plugins:
 	@echo "Available plugins in $(PLUGIN_DIR)/:"
 	@echo "======================================"
 	@for plugin in $(AVAILABLE_PLUGINS); do \
-		if [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
+		if [ "$$plugin" = "cockpit-files" ]; then \
+			echo "  $$plugin [download script]"; \
+		elif [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
 			echo "  $$plugin [buildable]"; \
 		else \
 			echo "  $$plugin"; \
@@ -289,22 +294,37 @@ plugin:
 		make list-plugins | grep "^  " || true; \
 		exit 1; \
 	fi; \
-	if [ ! -f "$(PLUGIN_DIR)/$$PLUGIN/package.json" ]; then \
+	if [ "$$PLUGIN" = "cockpit-files" ]; then \
+		echo "========================================"; \
+		echo "Building plugin: $$PLUGIN (using download.sh)"; \
+		echo "========================================"; \
+		if [ -x "$(PLUGIN_DIR)/$$PLUGIN/download.sh" ]; then \
+			cd $(PLUGIN_DIR)/$$PLUGIN && ./download.sh && \
+			echo ""; \
+			echo "✓ Plugin '$$PLUGIN' downloaded successfully!"; \
+			echo "Build output: $(PLUGIN_DIR)/$$PLUGIN/build/"; \
+			echo "========================================"; \
+		else \
+			echo "Error: download.sh not found or not executable"; \
+			exit 1; \
+		fi; \
+	elif [ ! -f "$(PLUGIN_DIR)/$$PLUGIN/package.json" ]; then \
 		echo "Error: No package.json found in $(PLUGIN_DIR)/$$PLUGIN/"; \
 		exit 1; \
-	fi; \
-	echo "========================================"; \
-	echo "Building plugin: $$PLUGIN"; \
-	echo "========================================"; \
-	cd $(PLUGIN_DIR)/$$PLUGIN && \
-	echo "Installing/updating dependencies..."; \
-	npm install && \
-	echo "Building plugin..."; \
-	npm run build && \
-	echo ""; \
-	echo "✓ Plugin '$$PLUGIN' built successfully!"; \
-	echo "Build output: $(PLUGIN_DIR)/$$PLUGIN/build/"; \
-	echo "========================================";
+	else \
+		echo "========================================"; \
+		echo "Building plugin: $$PLUGIN"; \
+		echo "========================================"; \
+		cd $(PLUGIN_DIR)/$$PLUGIN && \
+		echo "Installing/updating dependencies..."; \
+		npm install && \
+		echo "Building plugin..."; \
+		npm run build && \
+		echo ""; \
+		echo "✓ Plugin '$$PLUGIN' built successfully!"; \
+		echo "Build output: $(PLUGIN_DIR)/$$PLUGIN/build/"; \
+		echo "========================================"; \
+	fi;
 
 plugins:
 	@echo "========================================"
@@ -328,7 +348,24 @@ plugins:
 			EXCLUDED=$$((EXCLUDED + 1)); \
 			continue; \
 		fi; \
-		if [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
+		if [ "$$plugin" = "cockpit-files" ]; then \
+			echo ""; \
+			echo "Building: $$plugin (using download.sh)"; \
+			echo "----------------------------------------"; \
+			if [ -x "$(PLUGIN_DIR)/$$plugin/download.sh" ]; then \
+				if cd $(PLUGIN_DIR)/$$plugin && ./download.sh; then \
+					echo "✓ $$plugin downloaded successfully"; \
+					SUCCESS=$$((SUCCESS + 1)); \
+				else \
+					echo "✗ $$plugin download failed"; \
+					FAILED=$$((FAILED + 1)); \
+				fi; \
+				cd - > /dev/null; \
+			else \
+				echo "✗ download.sh not found or not executable"; \
+				FAILED=$$((FAILED + 1)); \
+			fi; \
+		elif [ -f "$(PLUGIN_DIR)/$$plugin/package.json" ]; then \
 			echo ""; \
 			echo "Building: $$plugin"; \
 			echo "----------------------------------------"; \

@@ -1,0 +1,10 @@
+/* Base styles for services plugin */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--pf-t--global--font--family-sans-serif);
+}
+
+#root {
+  min-height: 100vh;
+}
