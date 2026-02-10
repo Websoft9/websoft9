@@ -1,89 +1,114 @@
-# Stage 1: 构建阶段（下载 Gitea + Library + 构建 apphub）
+# ===========================
+# Stage 1: 构建阶段
+# ===========================
+# 下载外部组件（Gitea、Media、Library）并构建 apphub
 FROM websoft9/cockpit-base:latest AS builder
+
 WORKDIR /websoft9
+
+# 构建参数（可在构建时通过 --build-arg 覆盖）
 ARG GITEA_VERSION=1.22.6
+ARG PORTAINER_VERSION=2.21.5
 ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
+ARG PIP_INDEX_URL="https://pypi.org/simple"
 
-# 下载外部组件（分步执行，显示进度）
-RUN echo "Downloading Gitea ${GITEA_VERSION}..." && \
-    curl -fL --progress-bar -o /gitea https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-linux-amd64 && \
-    chmod +x /gitea && \
-    echo "Gitea downloaded successfully"
+# 下载外部组件（分步执行以便调试，每层独立缓存）
+# Layer 1: Gitea 二进制文件
+RUN set -eux; \
+    echo "==> Downloading Gitea ${GITEA_VERSION}..."; \
+    curl -fsSL --retry 3 --connect-timeout 10 \
+        -o /gitea https://dl.gitea.com/gitea/${GITEA_VERSION}/gitea-${GITEA_VERSION}-linux-amd64; \
+    chmod +x /gitea; \
+    /gitea --version; \
+    echo "✓ Gitea downloaded successfully"
 
-RUN echo "Downloading Media files..." && \
-    curl -fL --progress-bar -o media.zip ${WEBSOFT9_ARTIFACT}/plugin/media/media-latest.zip && \
-    unzip -q media.zip && rm media.zip && \
-    [ -d "media" ] || mv media-* media 2>/dev/null || true && \
-    echo "Media files ready"
+# Layer 2: Media 静态资源
+RUN set -eux; \
+    echo "==> Downloading Media files..."; \
+    curl -fsSL --retry 3 -o media.zip ${WEBSOFT9_ARTIFACT}/plugin/media/media-latest.zip; \
+    unzip -q media.zip; \
+    rm media.zip; \
+    [ -d "media" ] || mv media-* media 2>/dev/null || true; \
+    echo "✓ Media files ready: $(du -sh media | cut -f1)"
 
-RUN echo "Downloading Library plugin..." && \
-    curl -fL --progress-bar -o library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip && \
-    unzip -q library.zip && rm library.zip && \
-    [ -d "library" ] || mv library-* library 2>/dev/null || true && \
-    echo "Library plugin ready"
+# Layer 3: Library 插件
+RUN set -eux; \
+    echo "==> Downloading Library plugin..."; \
+    curl -fsSL --retry 3 -o library.zip ${WEBSOFT9_ARTIFACT}/plugin/library/library-latest.zip; \
+    unzip -q library.zip; \
+    rm library.zip; \
+    [ -d "library" ] || mv library-* library 2>/dev/null || true; \
+    echo "✓ Library plugin ready: $(du -sh library | cut -f1)"
 
-# 复制本地源码并安装 Python 依赖
-# 先复制 requirements.txt（利用缓存层）
-COPY apphub/requirements.txt ./requirements.txt
-RUN pip3 install --no-cache-dir --break-system-packages --upgrade -r requirements.txt
+# Layer 4: Dashboard 静态文件（Epic 7 产出）
+COPY dashboard/dist ./dashboard
 
-# 再复制完整源码
-COPY apphub ./apphub
-COPY version.json ./version.json
-RUN pip3 install --no-cache-dir --break-system-packages -e ./apphub && \
-    mkdir -p apphub/swagger-ui && \
-    rm -rf apphub/docs apphub/tests /root/.cache
+# ===========================
+# Stage 2: Convex 后端
+# ===========================
+FROM ghcr.io/get-convex/convex-backend:latest AS convex
 
-# Stage 2: 从 Portainer 镜像复制二进制文件
+# ===========================
+# Stage 3: Portainer 二进制
+# ===========================
 FROM portainer/portainer-ce:2.21.5-alpine AS portainer
 
-# Stage 3: 最终镜像
+# ===========================
+# Stage 4: 最终镜像
+# ===========================
 FROM websoft9/cockpit-base:latest
 
-LABEL maintainer="Websoft9<help@websoft9.com>"
-LABEL version="337"
-LABEL description="Websoft9 Cockpit: Cockpit 337 + Portainer + Gitea + Apphub + Nginx"
+# 元数据
+LABEL maintainer="Websoft9<help@websoft9.com>" \
+      org.opencontainers.image.title="Websoft9 Console" \
+      org.opencontainers.image.description="All-in-one container: Cockpit + Portainer + Gitea + Convex BaaS" \
+      org.opencontainers.image.vendor="Websoft9" \
+      org.opencontainers.image.version="338" \
+      org.opencontainers.image.url="https://www.websoft9.com" \
+      org.opencontainers.image.source="https://github.com/websoft9/websoft9"
 
-# 从本地拷贝 Cockpit 插件（只复制 build 产物）
+# 复制 Cockpit 插件（只复制构建产物）
 RUN mkdir -p /usr/share/cockpit
-COPY plugins/appstore/build /usr/share/cockpit/appstore
-COPY plugins/backup/build /usr/share/cockpit/backup
-COPY plugins/gitea/build /usr/share/cockpit/gitea
-COPY plugins/myapps/build /usr/share/cockpit/myapps
-COPY plugins/cockpit-files/dist /usr/share/cockpit/cockpit-files
-COPY plugins/nginx/build /usr/share/cockpit/nginx
-COPY plugins/portainer/build /usr/share/cockpit/portainer
-COPY plugins/settings/build /usr/share/cockpit/settings
+COPY --chown=root:root plugins/cockpit-files/build /usr/share/cockpit/cockpit-files
+COPY --chown=root:root plugins/services/build /usr/share/cockpit/services
+COPY --chown=root:root plugins/store/build /usr/share/cockpit/store
 
-# 从 Portainer 镜像复制文件
-COPY --from=portainer /portainer /portainer
-COPY --from=portainer /public /public
-# Portainer 默认查找 /docker-compose
-COPY --from=portainer /docker-compose /docker-compose
-COPY --from=portainer /docker /docker
 
-# 从构建阶段复制文件
-COPY --from=builder /gitea /usr/local/bin/gitea
-COPY --from=builder /websoft9 /websoft9
-COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
-COPY --from=builder /usr/local/bin/apphub /usr/local/bin/apphub
+# 复制 Convex 后端
+COPY --from=convex --chown=root:root /convex/convex-local-backend /usr/local/bin/convex-backend
 
-# 创建 Gitea 用户和目录
-RUN useradd -r -m -d /var/lib/gitea -s /bin/bash git && \
-    mkdir -p /var/lib/gitea/{custom,data,log} /etc/gitea && \
-    chown -R git:git /var/lib/gitea /etc/gitea && \
-    chmod 750 /var/lib/gitea /etc/gitea
+# 复制 Portainer 组件
+COPY --from=portainer --chown=root:root /portainer /portainer
+COPY --from=portainer --chown=root:root /public /public
+COPY --from=portainer --chown=root:root /docker-compose /docker-compose
+COPY --from=portainer --chown=root:root /docker /docker
 
-# 配置 PCP 目录（pcp 用户已由 pcp-zeroconf 包创建）
-RUN mkdir -p /var/log/pcp/pmlogger /var/lib/pcp/config/pmlogger && \
-    chown -R pcp:pcp /var/log/pcp /var/lib/pcp && \
-    chmod 755 /var/log/pcp/pmlogger
+# 复制构建产物（Gitea + Media + Library + Dashboard）
+COPY --from=builder --chown=root:root /gitea /usr/local/bin/gitea
+COPY --from=builder --chown=root:root /websoft9/media /websoft9/runtime/media
+COPY --from=builder --chown=root:root /websoft9/library /websoft9/runtime/library
+COPY --from=builder --chown=root:root /websoft9/dashboard /usr/share/nginx/html/dashboard
 
-# 创建 docker cli plugins 目录和 compose 符号链接（保持兼容性）
-RUN mkdir -p /usr/lib/docker/cli-plugins /root/.docker/cli-plugins && \
-    ln -sf /docker-compose /usr/lib/docker/cli-plugins/docker-compose && \
-    ln -sf /docker-compose /root/.docker/cli-plugins/docker-compose && \
-    ln -sf /docker-compose /usr/local/bin/docker-compose
+# 系统用户和目录配置（合并以减少层数）
+RUN set -eux; \
+    # 创建 Gitea 用户
+    useradd -r -m -d /websoft9/data/gitea -s /bin/bash git; \
+    # 创建统一目录结构
+    mkdir -p /websoft9/data/baas \
+             /websoft9/data/portainer \
+             /websoft9/data/gitea/{custom,data,log,data/gitea-repositories,data/sessions,data/avatars,data/repo-avatars,data/attachments} \
+             /websoft9/runtime/media \
+             /websoft9/runtime/library \
+             /etc/gitea; \
+    chown -R git:git /websoft9/data/gitea /etc/gitea; \
+    chmod 750 /websoft9/data/gitea /etc/gitea; \
+    # 创建 docker-compose 符号链接（多位置兼容）
+    mkdir -p /usr/lib/docker/cli-plugins /root/.docker/cli-plugins; \
+    ln -sf /docker-compose /usr/lib/docker/cli-plugins/docker-compose; \
+    ln -sf /docker-compose /root/.docker/cli-plugins/docker-compose; \
+    ln -sf /docker-compose /usr/local/bin/docker-compose; \
+    # 验证链接
+    ls -lh /usr/local/bin/docker-compose
 
 # 复制自定义配置
 COPY docker/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
@@ -91,42 +116,52 @@ COPY docker/cockpit/menu_override/*.override.json /etc/cockpit/
 COPY docker/cockpit/nginx.conf /etc/nginx/nginx.conf
 COPY docker/cockpit/gitea.ini /etc/gitea/app.ini
 
-# 创建必要的目录和文件
-RUN mkdir -p /etc/nginx/conf.d /var/log/nginx /data /portainer_data /var/lib/gitea/data && \
-    echo 'LANG=en_US.UTF-8' > /etc/default/locale && \
+# 服务配置（合并多个配置步骤）
+RUN set -eux; \
+    # 创建必要的运行时目录
+    mkdir -p /etc/nginx/conf.d /var/log/nginx /data/compose; \
+    # 设置语言环境
+    echo 'LANG=en_US.UTF-8' > /etc/default/locale; \
     # 禁用 nginx 默认站点
-    rm -f /etc/nginx/sites-enabled/default
+    rm -f /etc/nginx/sites-enabled/default; \
+    # 配置 SSH (仅用于 Cockpit 本地认证)
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config; \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config; \
+    sed -i 's/#ListenAddress 0.0.0.0/ListenAddress 127.0.0.1/' /etc/ssh/sshd_config; \
+    ssh-keygen -A; \
+    # 创建默认管理员账户
+    useradd -m -s /bin/bash -G sudo websoft9; \
+    echo "websoft9:websoft9" | chpasswd; \
+    echo "websoft9 ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/websoft9; \
+    chmod 0440 /etc/sudoers.d/websoft9
 
-# 配置 SSH（仅允许本地连接，用于 Cockpit 认证）
-RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    ssh-keygen -A
+# 环境变量：运行时配置
+ENV ADMIN_USER=websoft9 \
+    ADMIN_PASSWORD=websoft9 \
+    TZ=UTC \
+    LANG=en_US.UTF-8
 
-# 环境变量：默认管理员用户名（密码通过运行时环境变量传递）
-ENV ADMIN_USER=websoft9
+# 复制配置文件和脚本
+COPY --chmod=644 docker/cockpit/supervisord.conf /etc/supervisor/supervisord.conf
+COPY --chmod=755 docker/cockpit/entrypoint.sh /entrypoint.sh
 
-# 创建默认管理员账户（容器启动时会用环境变量覆盖）
-RUN useradd -m -s /bin/bash -G sudo websoft9 && \
-    echo "websoft9:websoft9" | chpasswd && \
-    echo "websoft9 ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Supervisor 配置（覆盖系统默认配置）
-COPY docker/cockpit/supervisord.conf /etc/supervisor/supervisord.conf
-RUN cat /etc/supervisor/supervisord.conf | grep -c "\[program:gitea\]" || (echo "ERROR: supervisord.conf not copied correctly" && exit 1)
-
-# 启动脚本
-COPY docker/cockpit/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# 验证关键配置
+RUN set -eux; \
+    grep -q "\[program:gitea\]" /etc/supervisor/supervisord.conf || { echo "ERROR: supervisord.conf validation failed"; exit 1; }; \
+    test -x /entrypoint.sh || { echo "ERROR: entrypoint.sh not executable"; exit 1; }; \
+    test -x /usr/local/bin/gitea || { echo "ERROR: gitea binary not found"; exit 1; }; \
+    test -x /usr/local/bin/convex-backend || { echo "ERROR: convex-backend not installed"; exit 1; }; \
+    nginx -t || { echo "ERROR: nginx config validation failed"; exit 1; }
 
 # 只暴露 Nginx 端口（所有服务通过路径转发访问）
 EXPOSE 80
 
-# 数据卷
-VOLUME ["/portainer_data", "/var/lib/gitea", "/websoft9/apphub/logs", "/websoft9/apphub/src/config"]
+# 数据卷（统一持久化目录）
+VOLUME ["/websoft9/data"]
 
-# 健康检查（通过 nginx）
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+# 健康检查（检查关键服务）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD supervisorctl -c /etc/supervisor/supervisord.conf status | grep -E 'RUNNING|STARTING' > /dev/null || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]

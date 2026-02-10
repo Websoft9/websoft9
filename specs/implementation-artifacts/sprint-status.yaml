@@ -68,7 +68,7 @@ development_status:
   story3.1-cockpit-menu: ready-for-dev
   epic3-retrospective: optional
 
-  # Epic 5: Store Plugin - Decoupling from AppHub
+  # Epic 5: Dashboard - Store Module
   epic5: in-progress
   5-1-core-ui: ready-for-dev
   5-2-media-api: backlog
@@ -76,3 +76,27 @@ development_status:
   5-4-build-deploy: backlog
   5-7-search-autocomplete: done
   epic5-retrospective: optional
+
+  # Epic 6: Dashboard - Services Module
+  epic6: backlog
+  6.1-service-list-status: backlog
+  6.2-service-control: backlog
+  epic6-retrospective: optional
+
+  # Epic 7: Dashboard - Unified Frontend Framework
+  epic7: in-progress
+  7.1-project-setup: done                 # Vite, React, TypeScript, linting ✅
+  7.2-tanstack-router: backlog            # File-based routing, route tree
+  7.3-design-system: backlog              # shadcn/ui, Tailwind, Dark/Light theme
+  7.4-i18n-setup: backlog                 # react-i18next, language detection
+  7.5-state-management: backlog           # TanStack Query + React Context
+  7.6-layout-components: backlog          # Header, Sidebar, theme/locale switchers
+  7.7-baas-integration: backlog           # Auth, session, API client, TanStack Query hooks
+  7.8-cockpit-integration: backlog        # System operations bridge
+  7.9-error-handling: backlog             # Error boundaries, loading, Suspense
+  7.10-responsive-design: backlog         # Mobile optimization (1024px+)
+  epic7-retrospective: optional
+
+  # Epic 10: Internationalization (i18n)
+  epic10: backlog
+  epic10-retrospective: optional

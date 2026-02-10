@@ -4,8 +4,8 @@
 
 ## 特性
 
-- 基于 Debian Bullseye Slim
-- 包含 Cockpit 完整组件（ws, system, bridge, pcp）
+- 基于 Debian Bookworm Slim
+- 包含 Cockpit 完整组件（ws, bridge）
 - 内置默认管理员账户（websoft9/websoft9）
 - 自定义配置（AllowUnencrypted, LoginTitle, ProtocolHeader）
 - 自定义菜单（隐藏多语言选项，添加文档链接）

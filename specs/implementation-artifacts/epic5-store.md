@@ -1,10 +1,10 @@
-# Epic 5: Store Plugin - Decoupling from AppHub
+# Epic 5: Dashboard - Store Module
 
 ## Overview
 
-**Objective**: Refactor appstore plugin into standalone "store" plugin, decoupled from apphub
+**Objective**: Implement application store module within Dashboard - browse, search, and deploy applications from 300+ app catalog
 
-**Business Value**: Cleaner architecture, independent media data management, easier maintenance
+**Business Value**: Unified app discovery and deployment experience integrated into main Dashboard UI
 
 **Priority**: P1
 
@@ -12,17 +12,20 @@
 
 ## Scope
 
-Migrate `/data/dev/websoft9/plugins/appstore` functionality to new independent `store` plugin:
-- Media data display and categorization
-- Standalone Cockpit plugin architecture
-- No apphub dependencies
+Build Store module as part of Dashboard (Epic 7 framework):
+- Application catalog browsing and search
+- Category-based filtering and navigation
+- Application detail views with metadata
+- One-click deployment integration (calls BaaS deployment API)
+- Media data integration from `/data/dev/websoft9/media`
 
 ## Success Criteria
 
-- Store plugin displays media data independently
-- Category-based filtering works correctly
-- Plugin integrates seamlessly with Cockpit
-- Zero dependencies on apphub codebase
+- Store module integrates seamlessly with Dashboard routing
+- Application catalog displays with categories and search
+- Detail modal shows app metadata (description, ports, volumes)
+- Deploy button triggers BaaS deployment workflow
+- UI follows Dashboard design system (shadcn/ui + Tailwind)
 
 ## Stories
 
@@ -36,11 +39,22 @@ Migrate `/data/dev/websoft9/plugins/appstore` functionality to new independent `
 
 ## Dependencies
 
-- Prerequisites: Cockpit installed, media data available
+- Prerequisites: 
+  - Epic 7 (Dashboard framework) must be completed first
+  - Media data available at `/data/dev/websoft9/media`
+  - BaaS deployment API available
 - Downstream: None
 
 ## Technical Notes
 
-- Technology: React + Material-UI
-- Location: `/data/dev/websoft9/plugins/store`
-- Data Source: `/data/dev/websoft9/media`
+- **Technology**: React components within Dashboard framework
+  - UI: shadcn/ui + Tailwind CSS (from Epic 7)
+  - Routing: TanStack Router (`/store/*` routes)
+  - Data: TanStack Query for API calls and caching
+  - i18n: react-i18next for translations
+- **Location**: `dashboard/src/routes/_app/_auth/store/` (TanStack Router file-based structure)
+- **Data Source**: `/data/dev/websoft9/media` (loaded via BaaS API)
+- **Integration**: 
+  - BaaS deployment API for app installation
+  - Shared Dashboard state (theme, locale from React Context)
+  - TanStack Query for catalog data caching
