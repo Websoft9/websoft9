@@ -1,6 +1,6 @@
-# Websoft9 Cockpit Container - Docker Compose
+# Websoft9 Container - Docker Compose
 
-This guide explains how to run the Websoft9 Cockpit container using docker-compose.
+This guide explains how to run the Websoft9 container using docker-compose.
 
 ## Files
 
@@ -14,25 +14,25 @@ This guide explains how to run the Websoft9 Cockpit container using docker-compo
 From the project root:
 
 ```bash
-# Start Cockpit on default port (9091)
-make start-cockpit
+# Start on default port (9091)
+make start
 
-# Start Cockpit on custom port
-make start-cockpit 9092
+# Start on custom port
+make start 9092
 # or
-make start-cockpit PORT=9092
+make start PORT=9092
 
-# Stop Cockpit
-make stop-cockpit
+# Stop
+make stop
 
-# Restart Cockpit
-make restart-cockpit
+# Restart
+make restart
 
 # View logs
-make logs-cockpit
+make logs
 
 # Remove container
-make clean-cockpit
+make clean-container
 
 # Remove container and volumes
 make rm
@@ -40,7 +40,7 @@ make rm
 
 ### Using Docker Compose Directly
 
-From the `docker/cockpit` directory:
+From the `build` directory:
 
 ```bash
 # Start container
@@ -71,18 +71,17 @@ Edit the `.env` file to customize settings:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CONTAINER_NAME` | `websoft9-cockpit` | Container name |
+| `CONTAINER_NAME` | `websoft9` | Container name |
 | `HTTP_PORT` | `9091` | HTTP port mapping |
 | `IMAGE_TAG` | `latest` | Image tag to use |
-| `COMPOSE_DATA_PATH` | `/data/compose` | Path for compose data |
-| `PORTAINER_DATA_VOLUME` | `cockpit_portainer_data` | Volume name for Portainer data |
+| `WEBSOFT9_DATA_PATH` | `/websoft9/data` | Websoft9 data directory |
 | `RESTART_POLICY` | `unless-stopped` | Container restart policy |
 
 ## Access
 
 After starting the container:
 
-- **Cockpit UI**: http://localhost:9091
+- **Websoft9 UI**: http://localhost:9091
 - **Portainer**: http://localhost:9091/w9deployment/
 - **Default Credentials**: 
   - Username: `websoft9`
@@ -95,18 +94,15 @@ The container uses the following volumes:
 1. **Docker Socket**: `/var/run/docker.sock` (host) → `/var/run/docker.sock` (container)
    - Allows container management from Cockpit/Portainer
 
-2. **Compose Data**: `/data/compose` (host) → `/data/compose` (container)
-   - Stores docker-compose configurations
-
-3. **Portainer Data**: `cockpit_portainer_data` (volume) → `/portainer_data` (container)
-   - Persistent Portainer configuration and data
+2. **Websoft9 Data**: `/websoft9/data` (host) → `/websoft9/data` (container)
+   - Persistent Portainer, Gitea, BaaS data
 
 ## Building Images
 
 From the project root:
 
 ```bash
-# Build main Cockpit image
+# Build main image
 make build
 
 # Build base image
@@ -117,10 +113,10 @@ Or using Docker directly:
 
 ```bash
 # Build base image
-docker build -f docker/cockpit/Dockerfile.base -t websoft9/cockpit-base:latest .
+docker build -f build/Dockerfile.base -t websoft9-base:latest .
 
 # Build main image
-docker build -f docker/cockpit/Dockerfile -t websoft9/cockpit:latest .
+docker build -f build/Dockerfile -t websoft9:latest .
 ```
 
 ## Troubleshooting
@@ -136,7 +132,7 @@ make kill-port 9091
 ### View container logs
 
 ```bash
-make logs-cockpit
+make logs
 ```
 
 ### Reset everything
@@ -161,11 +157,11 @@ Example:
 ```bash
 # Start on custom port from project root
 cd /data/dev/websoft9
-make start-cockpit PORT=9092
+make start PORT=9092
 
 # View logs
-make logs-cockpit
+make logs
 
 # Cleanup
-make clean-cockpit
+make clean-container
 ```

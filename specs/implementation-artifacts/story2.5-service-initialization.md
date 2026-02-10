@@ -33,7 +33,7 @@ so that **the platform is ready for use immediately after deployment**.
 ## Tasks / Subtasks
 
 - [ ] Task 1: Container-Level Service Initialization (AC: 1)
-  - [ ] Create `/data/dev/websoft9/docker/cockpit/init-services.sh` script
+  - [ ] Create `/data/dev/websoft9/build/init-services.sh` script
   - [ ] Ensure config.ini exists (copy from template or generate defaults)
   - [ ] Ensure system.ini exists (copy from template)
   - [ ] Generate secure random passwords (20+ chars) for services if config.ini is empty
@@ -46,7 +46,7 @@ so that **the platform is ready for use immediately after deployment**.
   - [ ] Update entrypoint.sh to call init-services.sh before supervisord
 
 - [ ] Task 2: Connection Testing Suite (AC: 2)
-  - [ ] Create `/data/dev/websoft9/docker/cockpit/test-connections.sh` script
+  - [ ] Create `/data/dev/websoft9/build/test-connections.sh` script
   - [ ] Implement curl-based connectivity tests (cockpit:9090, git:3000, portainer:9000)
   - [ ] Implement retry logic with exponential backoff (sleep 1, 2, 4)
   - [ ] Log results to /websoft9/apphub/logs/init.log
@@ -66,15 +66,15 @@ so that **the platform is ready for use immediately after deployment**.
 ## Dev Notes
 
 ### Architecture Context
-- **Primary Location**: `/data/dev/websoft9/docker/cockpit/entrypoint.sh` (Container init script)
-- **Helper Scripts**: `/data/dev/websoft9/docker/cockpit/init-services.sh` (New - service initialization logic)
+- **Primary Location**: `/data/dev/websoft9/build/entrypoint.sh` (Container init script)
+- **Helper Scripts**: `/data/dev/websoft9/build/init-services.sh` (New - service initialization logic)
 - **Trigger**: Container startup via Docker entrypoint
 - **Pattern**: Sequential initialization in entrypoint.sh
 - **Execution**: Services initialized before supervisord starts
 - **Non-modification Constraint**: DO NOT modify files under `/websoft9/apphub/src/` - initialization happens at container layer
 
 ### Initialization Strategy
-**Container-Level Initialization** (docker/cockpit/):
+**Container-Level Initialization** (build/):
 ```bash
 entrypoint.sh (main entry)
 ├─ 1. Create directories & set permissions
@@ -88,7 +88,7 @@ entrypoint.sh (main entry)
 ```
 
 **Key Points**:
-- Initialization logic in `docker/cockpit/init-services.sh` (NEW file)
+- Initialization logic in `build/init-services.sh` (NEW file)
 - Existing `entrypoint.sh` calls the init script before starting supervisord
 - Config files managed at container level, not in apphub source code
 - Gitea/Portainer init delayed (background, after services start)
@@ -210,7 +210,7 @@ Portainer:
 
 ### File Structure
 ```
-/data/dev/websoft9/docker/cockpit/
+/data/dev/websoft9/build/
 ├── entrypoint.sh              # Main entry (modified to call init scripts)
 ├── init-services.sh           # NEW: Service initialization logic
 ├── test-connections.sh        # NEW: Connection testing script

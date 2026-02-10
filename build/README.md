@@ -1,6 +1,6 @@
-# Cockpit Base Image
+# Websoft9 Base Image
 
-这是 Websoft9 项目的 Cockpit 基础镜像，提供容器化的 Cockpit 服务。
+这是 Websoft9 项目的基础镜像，提供容器化的 Cockpit 服务。
 
 ## 特性
 
@@ -14,19 +14,19 @@
 ## 构建
 
 ```bash
-cd docker/cockpit
-docker build -t websoft9dev/cockpit-base:297 .
+cd build
+docker build -t websoft9-base:latest .
 ```
 
 ## 测试
 
 ```bash
 # 启动容器
-docker run -d --name test-cockpit \
+docker run -d --name websoft9 \
   --privileged \
   -v /run/systemd:/run/systemd:ro \
-  -p 9091:9090 \
-  websoft9dev/cockpit-base:297
+  -p 9091:80 \
+  websoft9-base:latest
 
 # 等待启动
 sleep 5
@@ -37,7 +37,7 @@ sleep 5
 # 密码: websoft9
 
 # 清理
-docker stop test-cockpit && docker rm test-cockpit
+docker stop websoft9 && docker rm websoft9
 ```
 
 ### 用户管理
@@ -49,9 +49,9 @@ docker stop test-cockpit && docker rm test-cockpit
 
 **添加新用户** (通过 Cockpit Web 界面或命令行):
 ```bash
-docker exec test-cockpit useradd -m -s /bin/bash newuser
-docker exec test-cockpit bash -c "echo 'newuser:password' | chpasswd"
-docker exec test-cockpit usermod -aG sudo newuser
+docker exec websoft9 useradd -m -s /bin/bash newuser
+docker exec websoft9 bash -c "echo 'newuser:password' | chpasswd"
+docker exec websoft9 usermod -aG sudo newuser
 ```
 
 ## 版本
@@ -64,7 +64,7 @@ docker exec test-cockpit usermod -aG sudo newuser
 此镜像作为基础镜像，供其他 Websoft9 服务（如 apphub）继承使用：
 
 ```dockerfile
-FROM websoft9dev/cockpit-base:297
+FROM websoft9-base:latest
 # 添加你的应用层...
 ```
 

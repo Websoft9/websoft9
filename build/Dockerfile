@@ -2,7 +2,7 @@
 # Stage 1: 构建阶段
 # ===========================
 # 下载外部组件（Gitea、Media、Library）并构建 apphub
-FROM websoft9/cockpit-base:latest AS builder
+FROM websoft9-base:latest AS builder
 
 WORKDIR /websoft9
 
@@ -56,7 +56,7 @@ FROM portainer/portainer-ce:2.21.5-alpine AS portainer
 # ===========================
 # Stage 4: 最终镜像
 # ===========================
-FROM websoft9/cockpit-base:latest
+FROM websoft9-base:latest
 
 # 元数据
 LABEL maintainer="Websoft9<help@websoft9.com>" \
@@ -111,15 +111,15 @@ RUN set -eux; \
     ls -lh /usr/local/bin/docker-compose
 
 # 复制自定义配置
-COPY docker/cockpit/cockpit.conf /etc/cockpit/cockpit.conf
-COPY docker/cockpit/menu_override/*.override.json /etc/cockpit/
-COPY docker/cockpit/nginx.conf /etc/nginx/nginx.conf
-COPY docker/cockpit/gitea.ini /etc/gitea/app.ini
+COPY build/cockpit.conf /etc/cockpit/cockpit.conf
+COPY build/menu_override/*.override.json /etc/cockpit/
+COPY build/nginx.conf /etc/nginx/nginx.conf
+COPY build/gitea.ini /etc/gitea/app.ini
 
 # 服务配置（合并多个配置步骤）
 RUN set -eux; \
     # 创建必要的运行时目录
-    mkdir -p /etc/nginx/conf.d /var/log/nginx /data/compose; \
+    mkdir -p /etc/nginx/conf.d /var/log/nginx; \
     # 设置语言环境
     echo 'LANG=en_US.UTF-8' > /etc/default/locale; \
     # 禁用 nginx 默认站点
@@ -142,8 +142,8 @@ ENV ADMIN_USER=websoft9 \
     LANG=en_US.UTF-8
 
 # 复制配置文件和脚本
-COPY --chmod=644 docker/cockpit/supervisord.conf /etc/supervisor/supervisord.conf
-COPY --chmod=755 docker/cockpit/entrypoint.sh /entrypoint.sh
+COPY --chmod=644 build/supervisord.conf /etc/supervisor/supervisord.conf
+COPY --chmod=755 build/entrypoint.sh /entrypoint.sh
 
 # 验证关键配置
 RUN set -eux; \

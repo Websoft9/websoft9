@@ -1,5 +1,5 @@
 .PHONY: help dev dev-build dev-down dev-logs test lint format clean release \
-	start-cockpit stop-cockpit restart-cockpit logs-cockpit clean-cockpit rm kill-port \
+	start stop restart logs clean-container rm kill-port \
 	build build-base plugin plugins list-plugins
 
 # Default values
@@ -7,12 +7,12 @@ PORT ?= 9091
 SERVICE ?=
 COMPOSE_FILE := docker/docker-compose-dev.yml
 COMPOSE_CMD := docker compose -f $(COMPOSE_FILE)
-COCKPIT_COMPOSE := docker/cockpit/docker-compose.yml
+BUILD_COMPOSE := build/docker-compose.yml
 
 # Support positional port argument, e.g. `make start-cockpit 9091`
 PRIMARY_GOAL := $(firstword $(MAKECMDGOALS))
 PORT_ARG := $(word 2,$(MAKECMDGOALS))
-ifneq ($(filter start-cockpit kill-port,$(PRIMARY_GOAL)),)
+ifneq ($(filter start kill-port,$(PRIMARY_GOAL)),)
 PORT_EFFECTIVE := $(if $(PORT_ARG),$(PORT_ARG),$(PORT))
 else
 PORT_EFFECTIVE := $(PORT)
@@ -35,18 +35,18 @@ help:
 	@echo "  make format                     - Format code"
 	@echo ""
 	@echo "Build & Release:"
-	@echo "  make build                      - Build Cockpit image"
+	@echo "  make build                      - Build Websoft9 image"
 	@echo "  make build-base                 - Build base image"
 	@echo "  make release                    - Build production images locally"
 	@echo ""
 	@echo "Container Management:"
-	@echo "  make start-cockpit              - Start Cockpit container (default: 9091)"
-	@echo "  make start-cockpit 9092         - Start Cockpit on custom port"
-	@echo "  make start-cockpit PORT=9092    - Start Cockpit on custom port"
-	@echo "  make stop-cockpit               - Stop Cockpit container"
-	@echo "  make restart-cockpit            - Restart Cockpit container"
-	@echo "  make logs-cockpit               - View Cockpit container logs"
-	@echo "  make clean-cockpit              - Stop and remove Cockpit container (keeps volumes)"
+	@echo "  make start                      - Start Websoft9 container (default: 9091)"
+	@echo "  make start 9092                 - Start on custom port"
+	@echo "  make start PORT=9092            - Start on custom port"
+	@echo "  make stop                       - Stop Websoft9 container"
+	@echo "  make restart                    - Restart Websoft9 container"
+	@echo "  make logs                       - View container logs"
+	@echo "  make clean-container            - Stop and remove container (keeps volumes)"
 	@echo "  make rm                         - Force remove container and all volumes"
 	@echo ""
 	@echo "Plugin Development:"
@@ -174,56 +174,55 @@ release:
 
 # Docker build commands
 build:
-	@echo "Building Cockpit image..."
-	docker build -f docker/cockpit/Dockerfile -t websoft9/cockpit:latest .
-	@echo "✓ Image built: websoft9/cockpit:latest"
+	@echo "Building Websoft9 image..."
+	docker build -f build/Dockerfile -t websoft9:latest .
+	@echo "✓ Image built: websoft9:latest"
 
 build-base:
-	@echo "Building Cockpit base image..."
-	docker build -f docker/cockpit/Dockerfile.base -t websoft9/cockpit-base:latest .
-	@echo "✓ Base image built: websoft9/cockpit-base:latest"
+	@echo "Building Websoft9 base image..."
+	docker build -f build/Dockerfile.base -t websoft9-base:latest .
+	@echo "✓ Base image built: websoft9-base:latest"
 
 # Container management (using docker compose)
-start-cockpit:
-	@echo "Starting Cockpit container on port $(PORT_EFFECTIVE)..."
-	@if [ ! -f "$(COCKPIT_COMPOSE)" ]; then \
-		echo "Error: $(COCKPIT_COMPOSE) not found"; \
+start:
+	@echo "Starting Websoft9 container on port $(PORT_EFFECTIVE)..."
+	@if [ ! -f "$(BUILD_COMPOSE)" ]; then \
+		echo "Error: $(BUILD_COMPOSE) not found"; \
 		exit 1; \
 	fi
-	@cd docker/cockpit && HTTP_PORT=$(PORT_EFFECTIVE) docker compose up -d
-	@echo "✓ Cockpit started at http://localhost:$(PORT_EFFECTIVE)"
+	@cd build && HTTP_PORT=$(PORT_EFFECTIVE) docker compose up -d
+	@echo "✓ Websoft9 started at http://localhost:$(PORT_EFFECTIVE)"
 	@echo "  Portainer at http://localhost:$(PORT_EFFECTIVE)/w9deployment/"
 	@echo "  Login: websoft9 / websoft9"
 
-stop-cockpit:
-	@echo "Stopping Cockpit container..."
-	@cd docker/cockpit && docker compose stop || echo "Container not running"
+stop:
+	@echo "Stopping Websoft9 container..."
+	@cd build && docker compose stop || echo "Container not running"
 
-restart-cockpit:
-	@echo "Restarting Cockpit container..."
-	@cd docker/cockpit && docker compose restart || echo "Container not found"
+restart:
+	@echo "Restarting Websoft9 container..."
+	@cd build && docker compose restart || echo "Container not found"
 
-logs-cockpit:
-	@cd docker/cockpit && docker compose logs -f
+logs:
+	@cd build && docker compose logs -f
 
-clean-cockpit:
-	@echo "Removing Cockpit container..."
-	@if docker ps -a --format '{{.Names}}' | grep -q '^websoft9-cockpit$$'; then \
+clean-container:
+	@echo "Removing Websoft9 container..."
+	@if docker ps -a --format '{{.Names}}' | grep -q '^websoft9$$'; then \
 		echo "Found container, removing..."; \
-		docker stop websoft9-cockpit 2>/dev/null || true; \
-		docker rm websoft9-cockpit 2>/dev/null || true; \
+		docker stop websoft9 2>/dev/null || true; \
+		docker rm websoft9 2>/dev/null || true; \
 	fi
-	@cd docker/cockpit && docker compose down 2>/dev/null || true
-	@echo "✓ Cockpit container removed"
+	@cd build && docker compose down 2>/dev/null || true
+	@echo "✓ Websoft9 container removed"
 
 rm:
-	@echo "Force removing Cockpit container and volumes..."
-	@if docker ps -a --format '{{.Names}}' | grep -q '^websoft9-cockpit$$'; then \
+	@echo "Force removing Websoft9 container and volumes..."
+	@if docker ps -a --format '{{.Names}}' | grep -q '^websoft9$$'; then \
 		echo "Found container, force removing..."; \
-		docker rm -f websoft9-cockpit 2>/dev/null || true; \
+		docker rm -f websoft9 2>/dev/null || true; \
 	fi
-	@cd docker/cockpit && docker compose down -v 2>/dev/null || true
-	@docker volume rm cockpit_portainer_data 2>/dev/null || true
+	@cd build && docker compose down -v 2>/dev/null || true
 	@echo "✓ Container and volumes removed"
 
 # Force kill process using a port

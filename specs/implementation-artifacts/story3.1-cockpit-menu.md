@@ -73,7 +73,7 @@ so that only Websoft9-relevant functionality is displayed, providing a cleaner a
 
 **Docker Image Integration**:
 - Override files embedded in image via Dockerfile `COPY` instruction
-- File path: `docker/cockpit/menu_override/*.override.json` → `/etc/cockpit/`
+- File path: `build/menu_override/*.override.json` → `/etc/cockpit/`
 - Configuration baked into image at build time, takes effect at runtime
 
 **Version Compatibility**:
@@ -101,13 +101,13 @@ cockpit/menu_override/           # Source configuration directory
 ├── subscriptions.override.json  # Subscription management (hide)
 └── updates.override.json        # Update management (hide)
 
-docker/cockpit/Dockerfile        # Cockpit image build file
-docker/cockpit/menu_override/    # Another copy of override files (sync with cockpit/menu_override/)
+build/Dockerfile        # Cockpit image build file
+build/menu_override/    # Another copy of override files (sync with cockpit/menu_override/)
 ```
 
 **Important Notes**:
-- `cockpit/menu_override/` and `docker/cockpit/menu_override/` must stay in sync
-- Dockerfile uses `docker/cockpit/menu_override/` path
+- `cockpit/menu_override/` and `build/menu_override/` must stay in sync
+- Dockerfile uses `build/menu_override/` path
 - Image rebuild required for changes to take effect
 
 ### Technical Specifications
@@ -182,7 +182,7 @@ The help menu (top-right "?" icon) is controlled by the `docs` array in `shell.o
 
 ```bash
 # Build image
-cd docker/cockpit
+cd build
 docker build -t websoft9dev/cockpit-base:297-custom .
 
 # Test run
@@ -203,9 +203,9 @@ docker stop test-cockpit && docker rm test-cockpit
 ### References
 
 - [Source: cockpit/README.md#Override the default menus] - 说明了 menu_override 的用途和 shell.override.json 的作用
-- [Source: docker/cockpit/README.md#配置文件] - Dockerfile 中如何集成 override 配置
-- [Source: docker/cockpit/Dockerfile#L90] - `COPY docker/cockpit/menu_override/*.override.json /etc/cockpit/` 复制配置的指令
-- [Source: docker/cockpit/menu_override/shell.override.json] - 帮助菜单和多语言配置示例
+- [Source: build/README.md#配置文件] - Dockerfile 中如何集成 override 配置
+- [Source: build/Dockerfile#L90] - `COPY build/menu_override/*.override.json /etc/cockpit/` 复制配置的指令
+- [Source: build/menu_override/shell.override.json] - 帮助菜单和多语言配置示例
 - [Source: cockpit/test/menu_override.sh] - 测试脚本展示了 override 文件的部署路径
 - [Cockpit Manifest Documentation](https://cockpit-project.org/guide/latest/packages.html) - Cockpit 官方文档关于 manifest 和 override 机制
 - [Cockpit Menu Override Guide](https://cockpit-project.org/guide/latest/cockpit-manifest.html) - Cockpit 菜单覆盖配置指南

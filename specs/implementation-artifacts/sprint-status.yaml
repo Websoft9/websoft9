@@ -86,8 +86,8 @@ development_status:
   # Epic 7: Dashboard - Unified Frontend Framework
   epic7: in-progress
   7.1-project-setup: done                 # Vite, React, TypeScript, linting ✅
-  7.2-tanstack-router: backlog            # File-based routing, route tree
-  7.3-design-system: backlog              # shadcn/ui, Tailwind, Dark/Light theme
+  7.2-tanstack-router: done               # File-based routing, route tree ✅
+  7.3-design-system: done                 # shadcn/ui, Tailwind, Dark/Light theme ✅
   7.4-i18n-setup: backlog                 # react-i18next, language detection
   7.5-state-management: backlog           # TanStack Query + React Context
   7.6-layout-components: backlog          # Header, Sidebar, theme/locale switchers

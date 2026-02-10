@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "$0")/../.."
 
 CONSOLE_VERSION=${CONSOLE_VERSION:-dev}
-IMAGE_NAME="websoft9/appmanage"
+IMAGE_NAME="websoft9"
 IMAGE_TAG="${IMAGE_NAME}:${CONSOLE_VERSION}"
 
 echo "==================================="
@@ -17,16 +17,16 @@ echo "Tag: ${IMAGE_TAG}"
 echo "==================================="
 
 # Build image from project root
-docker build -f docker/cockpit/Dockerfile -t "${IMAGE_TAG}" -t websoft9-console:latest .
+docker build -f build/Dockerfile -t "${IMAGE_TAG}" -t websoft9:latest .
 
 # Show image size
 echo ""
 echo "Image built successfully!"
-docker images | grep cockpit-base
+docker images | grep websoft9
 
 echo ""
 echo "To test the image, run:"
-echo "  docker run -d --name test-cockpit -p 9090:9090 ${IMAGE_TAG}"
+echo "  docker run -d --name websoft9 -p 9091:80 ${IMAGE_TAG}"
 echo ""
 echo "To push to registry, run:"
 echo "  docker push ${IMAGE_TAG}"
