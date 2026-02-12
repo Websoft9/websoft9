@@ -10,8 +10,7 @@
 **Status**: Not Started
 
 ## Stories
-- [x] Story 1.1: Docker Compose Development Environment Standardization
-- [x] Story 1.2: Dockerfile Optimization & Multi-stage Build
+- [ ] Story 1.1: Container Build & Deployment Configuration (Merged: Docker Compose + Dockerfile)
 - [ ] Story 1.3: GitHub Actions CI/CD Pipeline
 - [x] Story 1.4: Makefile Command Integration
 - [ ] Story 1.5: Version Management Standardization
