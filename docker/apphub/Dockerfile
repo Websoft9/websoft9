@@ -10,7 +10,7 @@ LABEL version="0.2.6"
 WORKDIR  /websoft9
 
 ARG MEDIA_VERSION="0.1.1"
-ARG LIBRARY_VERSION="0.7.3"
+ARG LIBRARY_VERSION="0.7.4"
 ARG WEBSOFT9_REPO="https://github.com/Websoft9/websoft9"
 ARG WEBSOFT9_ARTIFACT="https://artifact.websoft9.com/release/websoft9"
 ARG LIBRARY_REPO="https://github.com/Websoft9/docker-library"
