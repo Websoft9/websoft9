@@ -1,0 +1,11 @@
+{
+    "name": "storage",
+    "requires": {
+        "cockpit": "266"
+    },
+    "conditions": [
+        {"path-exists": "/usr/share/dbus-1/system.d/org.freedesktop.UDisks2.conf"}
+    ],
+
+    "menu": null
+}

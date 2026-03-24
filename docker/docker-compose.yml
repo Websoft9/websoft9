@@ -67,6 +67,8 @@ services:
       - nginx_letsencrypt:/etc/letsencrypt
       - nginx_modsec:/etc/modsec
       - nginx_var:/etc/custom
+      # Story 5.2: Mount apphub media for direct static serving (TODO: activate in nginx config)
+      # - /websoft9/media:/websoft9/media:ro
     labels:
       - "owner=websoft9"
       - "com.docker.compose.w9_http.port=80"

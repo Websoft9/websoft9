@@ -1,0 +1,66 @@
+# Websoft9 Cockpit Base Image
+# 包含所有构建和运行时依赖，用于加速后续构建
+FROM ubuntu:24.04
+
+LABEL maintainer="Websoft9<help@websoft9.com>"
+LABEL description="Websoft9 Cockpit Base: Ubuntu 24.04 + Cockpit + Build Tools"
+
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+# 第一步：安装基础工具和 Cockpit
+RUN set -eux; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg locales && \
+    # 配置 locale
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
+    locale-gen && \
+    # 创建 policy-rc.d 阻止服务在容器构建时启动（容器内无 systemd）
+    echo -e '#!/bin/sh\nexit 101' > /usr/sbin/policy-rc.d && \
+    chmod +x /usr/sbin/policy-rc.d
+
+# 第二步：安装 Cockpit
+RUN set -eux; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        cockpit \
+        cockpit-ws \
+        cockpit-bridge
+
+# 第三步：安装构建工具和运行时依赖
+RUN set -eux; \
+    apt-get install -y --no-install-recommends \
+        # 运行时核心组件
+        supervisor \
+        nginx-light \
+        openssh-server \
+        dbus \
+        # 构建工具
+        unzip \
+        # 辅助工具
+        git \
+        sudo \
+        procps \
+        iproute2 \
+        rsync \
+        net-tools \
+        vim-tiny && \
+    # 删除 policy-rc.d 恢复正常行为
+    rm -f /usr/sbin/policy-rc.d && \
+    # 清理缓存和临时文件
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/apt/*
+
+# 第四步：预创建常用目录并设置正确权限
+RUN mkdir -p \
+        /etc/cockpit/ws-certs.d \
+        /etc/default \
+        /run/dbus \
+        /run/sshd \
+        /run/cockpit \
+        /var/log/supervisor \
+        /var/log/nginx && \
+    chmod 755 /run/dbus /run/sshd /run/cockpit

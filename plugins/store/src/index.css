@@ -1,0 +1,15 @@
+body {
+  margin: 0;
+  font-family: var(--pf-t--global--font--family--body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--pf-t--global--background--color--primary--default);
+}
+
+code {
+  font-family: var(--pf-t--global--font--family--monospace);
+}
+
+* {
+  box-sizing: border-box;
+}

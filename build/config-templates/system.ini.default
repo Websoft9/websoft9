@@ -1,0 +1,26 @@
+# Websoft9 System Configuration (NOT API Modifiable)
+# This file contains system-level settings
+# Only modifiable by direct file editing
+
+[paths]
+database_path = /var/lib/apphub/db.sqlite
+log_directory = /websoft9/apphub/logs
+config_directory = /websoft9/apphub/src/config
+temp_directory = /tmp/websoft9
+
+[services]
+git_api_url = http://git:3000
+portainer_api_url = http://portainer:9000
+cockpit_api_url = http://cockpit:9090
+apphub_api_url = http://localhost:8080
+
+[security]
+encryption_key_file = /websoft9/.secrets/master.key
+encryption_algorithm = AES256-CBC
+password_min_length = 20
+
+[initialization]
+retry_count = 3
+retry_delays = 1,2,4
+connection_timeout = 10
+health_check_interval = 5

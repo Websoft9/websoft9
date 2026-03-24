@@ -1,0 +1,58 @@
+/* MediaCard - PatternFly Style with Dark Mode Support */
+.media-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.media-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pf-t--global--box-shadow--lg);
+}
+
+.media-card-logo {
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--pf-t--global--background--color--secondary--default);
+  border-bottom: 1px solid var(--pf-t--global--border--color--default);
+  margin-bottom: var(--pf-t--global--spacer--md);
+  border-radius: var(--pf-t--global--border--radius--small) var(--pf-t--global--border--radius--small) 0 0;
+}
+
+.media-card-logo img {
+  max-width: 80%;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+.media-card-title {
+  font-weight: var(--pf-t--global--font--weight--heading--default);
+  font-size: var(--pf-t--global--font--size--lg);
+  color: var(--pf-t--global--text--color--regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: var(--pf-t--global--spacer--sm);
+}
+
+.media-card-description {
+  font-size: var(--pf-t--global--font--size--sm);
+  color: var(--pf-t--global--text--color--subtle);
+  line-height: 1.5;
+  margin-bottom: var(--pf-t--global--spacer--md);
+  min-height: 3em;
+}
+
+.media-card-labels {
+  display: flex;
+  gap: var(--pf-t--global--spacer--xs);
+  flex-wrap: wrap;
+}
+
+.media-card-labels .pf-v6-c-label {
+  margin: 0;
+}

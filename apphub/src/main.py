@@ -7,6 +7,7 @@ from src.api.v1.routers import app as api_app
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
 from src.api.v1.routers import backup as api_backup
+from src.api.v1.routers import system as api_system
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
@@ -126,3 +127,4 @@ app.include_router(api_app.router,tags=["apps"])
 app.include_router(api_proxy.router,tags=["proxys"])
 app.include_router(api_backup.router,tags=["backup"])
 app.include_router(api_settings.router,tags=["settings"])
+app.include_router(api_system.router,tags=["system"])

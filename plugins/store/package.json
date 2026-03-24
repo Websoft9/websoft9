@@ -1,0 +1,49 @@
+{
+  "name": "store",
+  "version": "0.1.0",
+  "private": true,
+  "homepage": ".",
+  "proxy": "http://localhost:9000",
+  "dependencies": {
+    "@patternfly/patternfly": "^6.4.0",
+    "@patternfly/react-core": "^6.4.1",
+    "@patternfly/react-icons": "^6.4.0",
+    "axios": "^1.3.4",
+    "classnames": "^2.3.1",
+    "customize-cra": "^1.0.0",
+    "react": "^18.2.0",
+    "react-app-rewired": "^2.2.1",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "react-router-dom": "^6.2.2",
+    "react-scripts": "^5.0.0",
+    "sass": "^1.49.9"
+  },
+  "scripts": {
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build && ./build.sh",
+    "test": "react-app-rewired test",
+    "eject": "react-app-rewired eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+  }
+}

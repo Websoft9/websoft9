@@ -6,7 +6,7 @@ description: 'Compile final assessment and polish the readiness report'
 workflow_path: '{project-root}/_bmad/bmm/workflows/3-solutioning/implementation-readiness'
 
 # File References
-thisStepFile: '{workflow_path}/steps/step-06-final-assessment.md'
+thisStepFile: './step-06-final-assessment.md'
 workflowFile: '{workflow_path}/workflow.md'
 outputFile: '{planning_artifacts}/implementation-readiness-report-{{date}}.md'
 ---
@@ -114,6 +114,8 @@ The assessment found [number] issues requiring attention. Review the detailed re
 ## WORKFLOW COMPLETE
 
 The implementation readiness workflow is now complete. The report contains all findings and recommendations for the user to consider.
+
+Implementation Readiness complete. Read fully and follow: `_bmad/core/tasks/bmad-help.md` with argument `implementation readiness`.
 
 ---
 

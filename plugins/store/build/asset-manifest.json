@@ -1,0 +1,21 @@
+{
+  "files": {
+    "main.css": "./static/css/main.6ea96d1e.css",
+    "main.js": "./static/js/main.eaf78e49.js",
+    "static/media/fa-solid-900.woff2": "./static/media/fa-solid-900.c2b7c03209f0d3558e85.woff2",
+    "static/media/RedHatDisplayVF-Italic.woff2": "./static/media/RedHatDisplayVF-Italic.813182e673c38ef5ee4b.woff2",
+    "static/media/RedHatTextVF-Italic.woff2": "./static/media/RedHatTextVF-Italic.078865af129336cde269.woff2",
+    "static/media/RedHatDisplayVF.woff2": "./static/media/RedHatDisplayVF.18ca482120faaa701d8b.woff2",
+    "static/media/RedHatTextVF.woff2": "./static/media/RedHatTextVF.c33624692c8b41e36780.woff2",
+    "static/media/RedHatMonoVF-Italic.woff2": "./static/media/RedHatMonoVF-Italic.6e3027616d8de472723c.woff2",
+    "static/media/RedHatMonoVF.woff2": "./static/media/RedHatMonoVF.e4faf134e53e0f37296b.woff2",
+    "static/media/pf-v6-pficon.woff2": "./static/media/pf-v6-pficon.463d4ddeac4dae277fc4.woff2",
+    "index.html": "./index.html",
+    "main.6ea96d1e.css.map": "./static/css/main.6ea96d1e.css.map",
+    "main.eaf78e49.js.map": "./static/js/main.eaf78e49.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.6ea96d1e.css",
+    "static/js/main.eaf78e49.js"
+  ]
+}

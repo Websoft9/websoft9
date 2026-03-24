@@ -2,12 +2,7 @@
 name: 'step-01b-continue'
 description: 'Resume the product brief workflow from where it was left off, ensuring smooth continuation'
 
-# Path Definitions
-workflow_path: '{project-root}/_bmad/bmm/workflows/1-analysis/create-product-brief'
-
 # File References
-thisStepFile: '{workflow_path}/steps/step-01b-continue.md'
-workflowFile: '{workflow_path}/workflow.md'
 outputFile: '{planning_artifacts}/product-brief-{{project_name}}-{{date}}.md'
 ---
 
@@ -130,7 +125,7 @@ Display: "Ready to continue with Step {nextStepNumber}: {nextStepTitle}?
 
 #### Menu Handling Logic:
 
-- IF C: Load, read entire file, then execute the appropriate next step file based on `lastStep`
+- IF C: Read fully and follow the appropriate next step file based on `lastStep`
 - IF Any other comments or queries: respond and redisplay menu
 
 #### EXECUTION RULES:
@@ -141,7 +136,7 @@ Display: "Ready to continue with Step {nextStepNumber}: {nextStepTitle}?
 
 ## CRITICAL STEP COMPLETION NOTE
 
-ONLY WHEN [C continue option] is selected and [current state confirmed], will you then load and read fully the appropriate next step file to resume the workflow.
+ONLY WHEN [C continue option] is selected and [current state confirmed], will you then read fully and follow the appropriate next step file to resume the workflow.
 
 ---
 

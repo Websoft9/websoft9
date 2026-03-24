@@ -1,0 +1,16 @@
+{
+    "requires": {
+        "cockpit": "318"
+    },
+
+    "tools": {
+        "index": {
+            "label": "File browser",
+            "keywords": [
+                {
+                    "matches": ["files", "explorer", "filesystem"]
+                }
+            ]
+        }
+    }
+}

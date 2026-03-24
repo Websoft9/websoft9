@@ -17,24 +17,10 @@ This brainstorming session focuses on software and product development considera
 
 ### Integration with Project Workflow
 
-Brainstorming results will feed into:
+Brainstorming results might feed into:
 
 - Product Briefs for initial product vision
 - PRDs for detailed requirements
 - Technical Specifications for architecture plans
 - Research Activities for validation needs
 
-### Expected Outcomes
-
-Capture:
-
-1. Problem Statements - Clearly defined user challenges
-2. Solution Concepts - High-level approach descriptions
-3. Feature Priorities - Categorized by importance and feasibility
-4. Technical Considerations - Architecture and implementation thoughts
-5. Next Steps - Actions needed to advance concepts
-6. Integration Points - Connections to downstream workflows
-
----
-
-_Use this template to provide project-specific context for brainstorming sessions. Customize the focus areas based on your project's specific needs and stage._

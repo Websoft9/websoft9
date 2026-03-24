@@ -1,0 +1,33 @@
+/* App-specific styles */
+.services-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--pf-t--global--spacer--md);
+}
+
+.services-title {
+  margin: 0;
+}
+
+.services-table-wrapper {
+  padding: var(--pf-t--global--spacer--md);
+}
+
+/* Status label icons */
+.status-icon {
+  margin-right: var(--pf-t--global--spacer--xs);
+}
+
+/* Alert margin */
+.services-alert {
+  margin-bottom: var(--pf-t--global--spacer--md);
+}
+
+/* Loading center */
+.services-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}

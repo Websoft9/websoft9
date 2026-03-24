@@ -1,0 +1,9 @@
+{
+    "name": "files",
+    "tools": {
+        "index": {
+            "label": "Files",
+            "order": 31
+        }
+    }
+}

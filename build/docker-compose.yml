@@ -1,0 +1,12 @@
+services:
+  websoft9:
+    image: websoft9:${IMAGE_TAG:-latest}
+    container_name: ${CONTAINER_NAME:-websoft9}
+    restart: ${RESTART_POLICY:-unless-stopped}
+    ports:
+      - "${HTTP_PORT:-9091}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${WEBSOFT9_DATA_PATH:-/websoft9/data}:/websoft9/data
+    environment:
+      - TZ=UTC

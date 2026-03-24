@@ -1,0 +1,23 @@
+# Websoft9 User Configuration (API Modifiable)
+# This file is auto-generated during container initialization
+# Modifiable via /api/v1/settings API endpoints
+
+[cockpit]
+admin_user = admin
+# admin_password_encrypted = AES256:xxxxx (auto-generated on first init)
+
+[git]
+admin_user = gitea_admin
+# admin_password_encrypted = AES256:xxxxx (auto-generated on first init)
+# webhook_secret_encrypted = AES256:xxxxx (auto-generated on first init)
+default_repo = websoft9-config
+
+[portainer]
+admin_user = admin
+# admin_password_encrypted = AES256:xxxxx (auto-generated on first init)
+endpoint_name = local
+
+[apphub]
+# api_key_encrypted = AES256:xxxxx (auto-generated on first init)
+log_level = INFO
+enable_debug = false

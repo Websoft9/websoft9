@@ -82,70 +82,13 @@ Update the main workflow status file:
 
 ### 3. Suggest Next Steps
 
-Provide guidance on logical next workflows:
-
-**Typical Next Workflows:**
-
-**Immediate Next Steps:**
-
-1. **Wireframe Generation** - Create detailed wireframes based on UX specification
-2. **Interactive Prototype** - Build clickable prototypes for user testing
-3. **Solution Architecture** - Technical architecture design with UX context
-4. **Figma Design** - High-fidelity visual design implementation
-
-**Visual Design Workflows:**
-
-- Wireframe Generation → Interactive Prototype → Figma Design
-- Component Showcase → AI Frontend Prompt → Design System Implementation
-
-**Development Workflows:**
-
-- Solution Architecture → Epic Creation → Development Sprints
-
-**What would be most valuable to tackle next?**
-
-### 4. Document Quality Check
-
-Perform final validation of the UX design:
-
-**Completeness Check:**
-
-- Does the specification clearly communicate the design vision?
-- Are user journeys thoroughly documented?
-- Are all critical components specified?
-- Are responsive and accessibility requirements comprehensive?
-- Is there clear guidance for implementation?
-
-**Consistency Check:**
-
-- Do all sections align with the emotional goals?
-- Is design system integration clearly defined?
-- Are patterns consistent across all user flows?
-- Does visual direction match established foundation?
+UX Design complete. Read fully and follow: `_bmad/core/tasks/bmad-help.md` with argument `Create UX`.
 
 ### 5. Final Completion Confirmation
 
-Confirm completion with user:
-"**Your UX Design Specification for {{project_name}} is now complete and ready for implementation!**
+Congratulate the user on the completion you both completed together of the UX.
 
-**The specification contains everything needed to:**
 
-- Guide visual designers in creating the final interfaces
-- Inform developers of all UX requirements and patterns
-- Ensure consistency across all user interactions
-- Maintain accessibility and responsive design standards
-- Provide a foundation for user testing and iteration
-
-**Ready to continue with:**
-
-- Wireframe generation for detailed layouts?
-- Interactive prototype for user testing?
-- Solution architecture for technical planning?
-- Visual design implementation?
-
-**Or would you like to review the complete specification first?**
-
-[UX Design Workflow Complete]"
 
 ## SUCCESS METRICS:
 

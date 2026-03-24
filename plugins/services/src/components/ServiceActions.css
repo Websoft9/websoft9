@@ -1,0 +1,16 @@
+/* ServiceActions Component Styles */
+
+.service-actions-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.service-actions-button {
+  padding: 0 !important;
+  min-width: auto !important;
+}
+
+.service-actions-placeholder {
+  color: var(--pf-v5-global--Color--200);
+}

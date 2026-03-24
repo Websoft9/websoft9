@@ -1,0 +1,9 @@
+/* Import PatternFly CSS */
+@import '~@patternfly/patternfly/patternfly.css';
+@import '~@patternfly/patternfly/patternfly-addons.css';
+
+/* Store Plugin Styles - Using PatternFly CSS Variables for dark mode support */
+.pf-v6-c-page {
+  background-color: var(--pf-t--global--background--color--primary--default);
+  min-height: 100vh;
+}
