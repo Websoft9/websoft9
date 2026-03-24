@@ -14,7 +14,7 @@ RUN chmod +x /init_portainer
 # Dockerfile refer to: https://github.com/portainer/portainer/blob/develop/build/linux/Dockerfile
 FROM portainer/portainer-ce:2.39.1
 LABEL maintainer="websoft9<help@websoft9.com>"
-LABEL version="2.39.1-rc1"
+LABEL version="2.39.1"
 COPY --from=builder /init_portainer /
 
 ENTRYPOINT ["/init_portainer"]
