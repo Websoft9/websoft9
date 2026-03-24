@@ -95,14 +95,14 @@ async def custom_swagger_ui_html():
     """
 
 # remove 422 responses
-async def remove_422_responses():
+def remove_422_responses():
     openapi_schema = app.openapi()
     for path, path_item in openapi_schema["paths"].items():
         for method, operation in path_item.items():
             operation["responses"].pop("422", None)
     app.openapi_schema = openapi_schema
 
-app.add_event_handler("startup", remove_422_responses)
+remove_422_responses()
 
 #custom error handler
 @app.exception_handler(CustomException)
