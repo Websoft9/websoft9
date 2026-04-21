@@ -127,6 +127,19 @@ websoft9/
 
 ## Development Guidelines
 
+### Documentation Language Policy
+
+1. **BMAD working documents are bilingual during development**
+    - Files under `_bmad-output/` should maintain an English primary document and a Chinese working copy when the document is actively developed.
+    - The Chinese copy must use the same base name with `_cn` suffix, for example `prd.md` and `prd_cn.md`.
+
+2. **Only English BMAD documents are committed**
+    - When committing BMAD planning or implementation artifacts, commit the English document only.
+    - Chinese `_cn` files are for local development and collaboration, and should not be included in commits unless the user explicitly requests otherwise.
+
+3. **Project documentation remains English-only by default**
+    - Files under `docs/` and other project documentation directories should be written in English only unless the user explicitly requests a bilingual deliverable.
+
 ### Adding New API Endpoints
 
 1. **Define Schema** in `apphub/src/schemas/`

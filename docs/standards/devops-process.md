@@ -12,6 +12,7 @@
 ## Table of Contents
 
 1. [Git Workflow](#1-git-workflow)
+  1. [Documentation Language Policy](#13-documentation-language-policy)
 2. [Branch Strategy](#2-branch-strategy)
 3. [Code Review Process](#3-code-review-process)
 4. [Docker Deployment](#4-docker-deployment)
@@ -77,6 +78,17 @@ git pull origin dev
 git branch -d feature/add-app-backup
 git push origin --delete feature/add-app-backup
 ```
+
+### 1.3 Documentation Language Policy
+
+Websoft9 uses different language rules for development artifacts and project documentation:
+
+- **BMAD development artifacts**: Files under `_bmad-output/` should be maintained in two versions during active development:
+  - English primary document, for example `prd.md`
+  - Chinese working copy with `_cn` suffix, for example `prd_cn.md`
+- **Commit policy for BMAD artifacts**: Only the English version should be committed. Chinese `_cn` files are local working documents unless a maintainer explicitly requests them in version control.
+- **Project documentation**: Files under `docs/` and other long-term project documentation locations should be written in English only by default.
+- **Naming rule**: Chinese BMAD documents must use the same base name as the English file and append `_cn` before the extension.
 
 ---
 

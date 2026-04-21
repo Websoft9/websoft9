@@ -27,3 +27,6 @@ node_modules
 .rovodev/
 .trae/
 .windsurf/
+
+# BMAD bilingual working documents
+_bmad-output/**/*_cn.md
