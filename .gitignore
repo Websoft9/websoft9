@@ -27,6 +27,3 @@ node_modules
 .rovodev/
 .trae/
 .windsurf/
-
-# BMAD Development Framework
-_bmad-output/
