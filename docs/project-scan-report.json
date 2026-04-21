@@ -1,0 +1,77 @@
+{
+    "workflow_version": "1.2.0",
+    "timestamps": {
+        "started": "2026-04-21T00:00:00Z",
+        "last_updated": "2026-04-21T00:00:00Z"
+    },
+    "mode": "initial_scan",
+    "scan_level": "deep",
+    "project_root": "/workspace/websoft9",
+    "project_knowledge": "/workspace/websoft9/docs",
+    "completed_steps": [
+        {
+            "step": "step_1",
+            "status": "completed",
+            "timestamp": "2026-04-21T00:00:00Z",
+            "summary": "将仓库识别为多部分 brownfield 仓库，核心部分包括 apphub 后端、pluings 前端插件集合、docker 与 install 基础设施层。"
+        },
+        {
+            "step": "step_2",
+            "status": "completed",
+            "timestamp": "2026-04-21T00:00:00Z",
+            "summary": "盘点现有 docs 与插件内文档，并纳入用户新增关注点: 容器文件管理、宿主机终端、核心服务状态与运行日志。"
+        },
+        {
+            "step": "step_3",
+            "status": "completed",
+            "timestamp": "2026-04-21T00:00:00Z",
+            "summary": "识别主要技术栈为 FastAPI/Python + 多个基于 React 的 Cockpit 插件 + Docker Compose 多容器编排。"
+        },
+        {
+            "step": "step_4",
+            "status": "completed",
+            "timestamp": "2026-04-21T00:00:00Z",
+            "summary": "完成关键实现基线文档，覆盖当前架构、插件耦合点和 AppHub API。"
+        }
+    ],
+    "current_step": "step_5",
+    "project_types": [
+        {
+            "part_id": "apphub",
+            "project_type_id": "backend",
+            "display_name": "Python FastAPI backend"
+        },
+        {
+            "part_id": "plugins",
+            "project_type_id": "web",
+            "display_name": "Cockpit plugin web frontends"
+        },
+        {
+            "part_id": "infra",
+            "project_type_id": "infra",
+            "display_name": "Docker, install and system integration"
+        }
+    ],
+    "findings": {
+        "project_classification": "多部分 brownfield 仓库，现有实现由 AppHub、Cockpit 插件、外部容器服务和宿主机安装脚本共同组成。",
+        "technology_stack": {
+            "apphub": "Python 3 + FastAPI + configparser + Docker SDK + 外部服务 API 封装",
+            "plugins": "React 18 + CRA/react-app-rewired + MUI/Bootstrap + cockpit.js",
+            "infra": "Docker Compose + systemd + shell install scripts + 定制镜像"
+        },
+        "key_risks": [
+            "Cockpit 同时承担认证、命令执行、文件访问、语言环境和导航桥接职责，去除后存在明显能力空洞。",
+            "当前前端并非单一应用，而是多个插件并列，且大量逻辑直接通过 cockpit.spawn 调宿主机或 docker exec。",
+            "单容器化将触发对 Portainer、Gitea、Nginx Proxy Manager 当前职责的重构或替代。",
+            "现有升级流程以宿主机 root 安装和 systemd 服务为前提，升级兼容不能沿用旧假设。"
+        ]
+    },
+    "outputs_generated": [
+        "docs/index.md",
+        "docs/current-architecture-baseline.md",
+        "docs/ui-plugin-baseline.md",
+        "docs/api-contracts-apphub.md",
+        "docs/project-scan-report.json"
+    ],
+    "resume_instructions": "可从 step_5 继续，进入更细的专题文档或直接转入新 PRD/新架构设计。"
+}
