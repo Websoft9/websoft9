@@ -1,4 +1,5 @@
 ---
+---
 stepsCompleted:
   - step-01-init
   - step-02-discovery
@@ -23,7 +24,7 @@ classification:
   projectContext: brownfield
 ---
 
-# Product Requirements Document - Websoft9 Next
+# Product Requirements Document - Websoft9 Refactor
 
 **Author:** Websoft9
 **Date:** 2026-04-21
@@ -35,444 +36,444 @@ classification:
 
 ### 1.1 PRD Objective
 
-本 PRD 定义 Websoft9 下一代产品重构的目标需求。该重构不是功能增量，而是对产品运行模型的系统性调整，核心变化包括：
+This PRD defines the target requirements for the Websoft9 product refactor. This is not an incremental feature release. It is a systemic adjustment of the product operating model. The key changes are:
 
-- 从 Cockpit 插件式前端切换为 Websoft9 自定义前端。
-- 从当前多容器核心控制面重构为单容器产品运行模型，将当前分散在多个容器中的核心服务收敛到同一产品容器内，以多服务方式运行，而不是采用 Docker in Docker 模式。
-- 从基于宿主机用户与 Cockpit 权限的访问方式，重构为产品内多用户体系。
-- 将文件管理、终端、服务、日志等系统功能收敛为与 Websoft9 产品边界一致的能力。
-- 保留旧版对 Gitea、Portainer、Nginx Proxy Manager 的自动化登录与嵌入式访问体验。
-- 提供旧版本直接升级到新版本的完整升级路径。
+- Replace the Cockpit plugin-based frontend with a Websoft9-owned frontend.
+- Refactor the current multi-container control plane into a single product container model, where the current core services run inside the same product container as multiple services rather than through Docker in Docker.
+- Replace host-user and Cockpit-based access control with a product-native multi-user model.
+- Converge file management, terminal, services, and logs into capabilities that match the Websoft9 product boundary.
+- Preserve the existing automated login and embedded access experience for Gitea, Portainer, and Nginx Proxy Manager.
+- Provide a complete direct upgrade path from the current version to the refactored version.
 
 ### 1.2 Product Context
 
-当前 Websoft9 已在生产环境运行多年，现有实现具备以下特征：
+Websoft9 has already been running in production for many years. The current implementation has the following characteristics:
 
-- AppHub 提供核心业务 API。
-- pluings 目录中的多个 Cockpit 插件承载主界面能力。
-- Portainer、Gitea、Nginx Proxy Manager 等第三方服务承担部分控制面功能。
-- 安装、升级与运行逻辑依赖宿主机 root、systemd、Docker 与 Cockpit。
+- AppHub provides the core business APIs.
+- Multiple Cockpit plugins in the `pluings` directory carry the main UI capabilities.
+- Third-party services such as Portainer, Gitea, and Nginx Proxy Manager provide part of the control plane capabilities.
+- Installation, upgrade, and runtime behavior depend on host root privileges, systemd, Docker, and Cockpit.
 
-本 PRD 面向 brownfield 重构，允许参考旧文档，但不以旧假设为约束。
+This PRD is written for a brownfield refactor. Existing documents may be referenced, but existing assumptions are not treated as design constraints.
 
 ### 1.3 Target Audience
 
-- 产品与架构负责人
-- 前后端开发团队
-- 升级与运维团队
-- QA 与集成验证团队
+- Product and architecture owners
+- Frontend and backend engineering teams
+- Upgrade and operations teams
+- QA and integration validation teams
 
 ## 2. Product Vision
 
-Websoft9 Next 是一个面向开发者与 SMB 的自托管应用管理平台，目标是在保留“应用商店 + 我的应用 + 代理/设置/备份”等核心价值的前提下，摆脱对 Cockpit 的结构性依赖，并收敛出真正属于 Websoft9 自己的产品控制面。
+Websoft9 Refactor is a self-hosted application management platform for developers and SMB teams. Its goal is to preserve the core value of “app store + my apps + proxy/settings/backup” while removing structural dependency on Cockpit and consolidating a true first-party Websoft9 control plane.
 
-新的核心产品原则：
+The core product principles are:
 
-1. Websoft9 前端和控制面是第一方产品能力，不再依附 Cockpit 插件机制。
-2. 系统功能只保留与 Websoft9 产品运行直接相关的范围，不再试图做完整宿主机面板。
-3. 多用户、配置、日志和服务状态由 Websoft9 自己负责，权限体系可分阶段演进。
-4. 与 Gitea、Portainer、Nginx Proxy Manager 的 API 集成、自动登录和完整 UI 接入能力必须保持连续。
-5. 旧版本直接升级到新版本必须是架构设计的一部分，而不是后补脚本。
-6. 单容器目标指 Websoft9 控制面相关能力在单一产品容器内以多服务方式运行，不采用 Docker in Docker 作为实现路径。
+1. The Websoft9 frontend and control plane are first-party product capabilities and no longer depend on the Cockpit plugin mechanism.
+2. System functions are limited to the scope directly related to Websoft9 product operation instead of trying to be a full host management panel.
+3. Users, configuration, logs, and service status are owned by Websoft9, while the permission model may evolve in phases.
+4. API integration, automatic login, and full UI access for Gitea, Portainer, and Nginx Proxy Manager must remain continuous.
+5. Direct upgrade from the current version to the refactored version must be part of the architecture, not a later patch script.
+6. The single-container target means Websoft9 control plane capabilities run as multiple services inside one product container, without using Docker in Docker as the implementation path.
 
 ## 3. Problem Statement
 
 ### 3.1 Current Problems
 
-当前系统存在以下根问题：
+The current system has the following root problems:
 
-1. 前端能力依赖 Cockpit 运行时
-   现有插件大量依赖 cockpit.js 提供语言环境、导航、文件访问和宿主机命令执行，导致 Websoft9 的 UI 无法脱离 Cockpit 独立演进。
+1. **Frontend capability depends on the Cockpit runtime**  
+   Existing plugins heavily depend on `cockpit.js` for locale handling, navigation, file access, and host command execution, which prevents Websoft9 UI from evolving independently.
 
-2. 控制面职责分散
-   AppHub、Portainer、Gitea、Nginx Proxy Manager、Cockpit 共同组成控制面，产品边界不清晰，维护成本高。
+2. **Control-plane responsibilities are fragmented**  
+   AppHub, Portainer, Gitea, Nginx Proxy Manager, and Cockpit together form the control plane. The product boundary is unclear and maintenance cost is high.
 
-3. 用户模型不属于产品自身
-   当前多用户依赖宿主机 Linux 用户和 Cockpit/PAM 机制，不适合容器化产品演进，也难以实现产品级权限控制。
+3. **The user model does not belong to the product itself**  
+   Current multi-user support depends on host Linux users and Cockpit/PAM. This is not suitable for product-level container evolution and makes product-native permissions difficult.
 
-4. 系统管理边界过宽
-   旧模式下文件、终端、服务、日志等能力更偏向宿主机管理，而不是 Websoft9 产品管理。
+4. **System management boundaries are too wide**  
+   In the old model, files, terminal, services, and logs lean toward full host management instead of Websoft9 product management.
 
-5. 升级模型与新目标冲突
-   旧升级流程建立在宿主机 root、systemd、Cockpit 已存在的前提上，与未来自定义前端和单容器目标不一致。
+5. **The current upgrade model conflicts with the target architecture**  
+   The old upgrade process assumes host root, systemd, and Cockpit are already present, which does not align with the future custom frontend and single-container target.
 
 ### 3.2 Impact
 
-- 限制前端产品体验和信息架构持续演进。
-- 增加第三方依赖带来的兼容与安全风险。
-- 放大安装、升级、权限和故障排查成本。
-- 阻碍 Websoft9 形成真正统一的产品能力与开发模型。
+- Limits long-term frontend product experience and information architecture evolution.
+- Increases compatibility and security risk caused by third-party dependencies.
+- Enlarges installation, upgrade, permissions, and troubleshooting cost.
+- Prevents Websoft9 from forming a truly unified product capability model and development model.
 
 ## 4. Goals and Non-Goals
 
 ### 4.1 Goals
 
-1. 交付一个不依赖 Cockpit 的自定义 Websoft9 前端。
-2. 将产品自身运行模型收敛为单容器主运行单元，在同一产品容器内承载 AppHub、Gitea、Nginx Proxy Manager、Portainer 等现有核心控制面能力的服务化运行。
-3. 建立产品内多用户管理和初始化管理员机制。
-4. 保留现有菜单信息架构的主脉络，降低用户升级后的学习和适应成本。
-5. 以容器挂载文件为中心重构文件管理。
-6. 提供可控的宿主机终端接入方案。
-7. 仅展示 Websoft9 核心服务状态和 Websoft9 运行日志。
-8. 保留 Gitea、Portainer、Nginx Proxy Manager 的 API 集成、自动登录和完整 UI 接入能力。
-9. 提供旧版本直接升级到新版本的完整升级能力。
+1. Deliver a custom Websoft9 frontend that does not depend on Cockpit.
+2. Converge the product runtime into a single main product container that carries AppHub, Gitea, Nginx Proxy Manager, Portainer, and other existing core control-plane capabilities as services inside the same container.
+3. Establish product-native multi-user management and administrator initialization.
+4. Preserve the main information architecture from the current menus to reduce the learning cost after upgrade.
+5. Refactor file management around container-mounted files.
+6. Provide a controlled host terminal access solution.
+7. Display only Websoft9 core service status and Websoft9 runtime logs.
+8. Preserve API integration, automatic login, and full UI access for Gitea, Portainer, and Nginx Proxy Manager.
+9. Provide a complete direct upgrade path from the current version to the refactored version.
 
 ### 4.2 Non-Goals
 
-1. 不再把 Websoft9 定位为完整宿主机管理面板。
-2. 不要求在第一阶段完整复刻 Cockpit 所有系统管理能力。
-3. 不要求在第一阶段将 Portainer、Gitea、Nginx Proxy Manager 完全重写为 Websoft9 自研原生模块，但要求继续保留其 API 集成、自动登录和完整 UI 接入能力。
-4. 不以多机集群、Kubernetes 或高可用集群为本次目标。
+1. Websoft9 is no longer positioned as a full host management panel.
+2. Phase 1 does not require full recreation of all Cockpit system management capabilities.
+3. Phase 1 does not require fully rewriting Portainer, Gitea, and Nginx Proxy Manager as native Websoft9 modules, but it does require preserving their API integration, automatic login, and full UI access.
+4. Multi-node orchestration, Kubernetes, or HA cluster support are not goals of this effort.
 
 ## 5. Target Users
 
 ### 5.1 Primary Users
 
-1. SMB IT 团队
-   需要在单机或轻量基础设施中统一部署和管理多个自托管应用。
+1. **SMB IT teams**  
+   Need to deploy and manage multiple self-hosted applications on a single host or lightweight infrastructure.
 
-2. 开发者与技术服务商
-   需要快速部署、管理和运维开源应用，同时希望降低宿主机复杂度。
+2. **Developers and technical service providers**  
+   Need to deploy, manage, and operate open-source applications quickly while reducing host-level complexity.
 
-3. 当前 Websoft9 用户
-   需要从旧版本直接升级到新版本，不希望因重构失去核心工作流。
+3. **Current Websoft9 users**  
+   Need a direct upgrade path from the current version to the refactored version without losing core workflows.
 
 ### 5.2 Admin Persona
 
-系统管理员是新版本中的核心 persona，负责：
+The system administrator is the core persona in the refactored version and is responsible for:
 
-- 初始化系统管理员账户
-- 管理用户、基础设置
-- 维护应用部署、代理、备份和升级
+- Initializing the system administrator account
+- Managing users and base settings
+- Maintaining application deployment, proxy, backup, and upgrade flows
 
 ## 6. Core Functional Requirements
 
 ### 6.0 Home and Overview
 
-#### FR-HOME-001: 产品首页/概览页
+#### FR-HOME-001: Product Home and Overview Page
 
-系统必须提供一个新的首页/概览页，但该页面不再以宿主机资源与宿主机配置为中心，而应以 Websoft9 产品本身的运行状态、关键操作入口和风险提示为中心。
+The system must provide a new home or overview page. This page is no longer centered on host resources and host configuration. It must instead be centered on Websoft9 product status, key operation entry points, and risk notifications.
 
-**概览页的功能特点：**
+**Overview page characteristics:**
 
-- Websoft9 当前版本、升级状态与关键系统提示
-- 已安装应用数量、运行中应用数量、异常应用数量
-- 最近发生的重要任务与事件，例如安装、升级、备份、恢复、失败告警
-- Websoft9 核心服务运行状态摘要
-- 面向首页的摘要型资源信息，例如整体运行是否稳定、是否存在异常波动，但不展开到逐服务诊断细节
-- 常用快捷入口，例如应用商店、我的应用、设置、备份、日志、服务
+- Current Websoft9 version, upgrade state, and key system prompts
+- Number of installed apps, running apps, and abnormal apps
+- Important recent tasks and events such as install, upgrade, backup, restore, and failure alerts
+- Summary of Websoft9 core service runtime status
+- Summary-level resource information for the home page, such as overall stability or abnormal fluctuations, without expanding into service-level diagnostics
+- Common shortcuts such as app store, my apps, settings, backup, logs, and services
 
-**概览页不应作为主要内容承载：**
+**The overview page must not primarily carry:**
 
-- 宿主机全局资源面板
-- 宿主机网络、防火墙、用户、磁盘分区等系统管理信息
-- 与 Websoft9 产品无直接关系的通用服务器监控项
+- Global host resource panels
+- Host network, firewall, users, partitions, and other host-management information
+- Generic server monitoring items unrelated to Websoft9 product operation
 
 **Acceptance Criteria:**
 
-- 用户进入系统后，首页首先反映的是 Websoft9 平台状态，而不是宿主机状态。
-- 首页可快速回答三个问题：平台是否健康、应用是否正常、是否有待处理事项。
-- 首页中的摘要卡片至少覆盖应用状态、任务事件、核心服务状态三类信息，并可跳转到对应模块，例如服务、日志、我的应用、升级或备份页面。
-- 首页强调总览、提醒和导航，不承担逐服务排障与深入分析职责。
-- 若后续确有宿主机摘要信息，也只能作为次要参考信息，而不是首页主视图。
+- After login, the first thing the home page reflects is Websoft9 platform status rather than host status.
+- The home page quickly answers three questions: whether the platform is healthy, whether apps are normal, and whether anything needs attention.
+- Summary cards on the home page cover at least app status, task events, and core service status, and can navigate to the corresponding modules such as services, logs, my apps, upgrade, or backup.
+- The home page focuses on overview, reminders, and navigation rather than service-level troubleshooting.
+- If host summary information is added later, it must remain secondary rather than becoming the primary home view.
 
 ### 6.1 Application Store and Catalog
 
-#### FR-APP-001: 应用商店浏览
+#### FR-APP-001: App Store Browsing
 
-系统必须提供应用商店页面，支持保留现有主信息架构：分类筛选、搜索、卡片列表、应用详情和安装入口。
-
-**Acceptance Criteria:**
-
-- 用户可以按分类、关键词浏览应用。
-- 中英文界面下都能正确显示应用基础信息。
-- 应用详情页可显示描述、镜像/模板信息、安装参数和相关链接。
-
-#### FR-APP-002: 应用安装流程
-
-系统必须支持从应用商店发起应用安装，并显示清晰的任务反馈。
+The system must provide an app store page that preserves the current primary information architecture: category filtering, search, card list, app details, and installation entry.
 
 **Acceptance Criteria:**
 
-- 用户可配置应用名、域名及必要安装参数。
-- 安装过程以任务状态形式反馈，不依赖前端直接执行宿主机命令。
-- 安装成功后应用会出现在“我的应用”中。
+- Users can browse apps by category and keyword.
+- Basic application information is displayed correctly in both Chinese and English UI.
+- The app detail page displays description, image or template information, installation parameters, and related links.
+
+#### FR-APP-002: App Installation Flow
+
+The system must support app installation initiated from the app store and display clear task feedback.
+
+**Acceptance Criteria:**
+
+- Users can configure app name, domain, and required installation parameters.
+- The installation process is shown through task-state feedback rather than frontend-executed host commands.
+- After installation succeeds, the app appears in My Apps.
 
 ### 6.2 My Apps and Lifecycle
 
-#### FR-APP-003: 我的应用列表与详情
+#### FR-APP-003: My Apps List and Detail
 
-系统必须提供“我的应用”页面，用于查看当前已安装应用及其详情。
-
-**Acceptance Criteria:**
-
-- 列表页可展示应用名称、状态、访问入口和基础操作。
-- 详情页至少覆盖概览、访问、容器/运行信息、卷/文件、备份、卸载等核心标签。
-- 界面信息架构应尽量与旧系统保持可识别的一致性。
-- 旧版插件的高频业务路径应在新版前端中保留连续性，重点是应用浏览、安装、管理、设置、备份与访问。
-
-#### FR-APP-004: 生命周期管理
-
-系统必须支持应用的启动、停止、重启、重部署、卸载等操作。
+The system must provide a My Apps page for viewing currently installed applications and their details.
 
 **Acceptance Criteria:**
 
-- 操作可通过统一 API 和任务系统执行。
-- 状态变更在 3 秒内反映到 UI。
-- 卸载时支持卷保留或清理选项。
+- The list page shows application name, status, access entry, and basic actions.
+- The detail page covers at least overview, access, container or runtime information, volumes or files, backup, and uninstall tabs.
+- The information architecture should stay as recognizable as possible compared with the current system.
+- High-frequency business paths from the old plugins must stay continuous in the new frontend, especially app browsing, installation, management, settings, backup, and access.
+
+#### FR-APP-004: Lifecycle Management
+
+The system must support start, stop, restart, redeploy, and uninstall operations for applications.
+
+**Acceptance Criteria:**
+
+- Operations are executed through unified APIs and a task system.
+- State changes are reflected in the UI within 3 seconds.
+- Uninstall supports keeping or cleaning volumes.
 
 ### 6.3 Product-Native Authentication and Users
 
-#### FR-AUTH-001: 初始化管理员
+#### FR-AUTH-001: Administrator Initialization
 
-系统首次启动时必须要求初始化一个 Websoft9 系统管理员账户。
-
-**Acceptance Criteria:**
-
-- 首次启动不存在管理员时，系统进入初始化引导。
-- 初始化后可使用产品账户登录，而不是宿主机用户。
-
-#### FR-AUTH-002: 多用户管理
-
-系统必须提供基础多用户管理能力。
+At first startup, the system must require initialization of a Websoft9 system administrator account.
 
 **Acceptance Criteria:**
 
-- 支持创建、禁用、重置密码和删除用户。
-- 第一阶段只要求实现基础多用户账户体系和登录能力，不强制引入完整 RBAC 或细粒度权限控制。
-- 第一阶段默认由系统管理员承担系统配置与用户管理职责，其他权限模型可延后到后续版本。
+- If no administrator exists, the system enters an initialization flow.
+- After initialization, login uses product accounts rather than host users.
+
+#### FR-AUTH-002: Multi-User Management
+
+The system must provide basic multi-user management capability.
+
+**Acceptance Criteria:**
+
+- Support create, disable, password reset, and delete operations for users.
+- Phase 1 only requires a basic multi-user account system and login capability, without forcing complete RBAC or fine-grained permission control.
+- In Phase 1, the system administrator is responsible for system configuration and user management by default, while other permission models can be deferred to later versions.
 
 ### 6.4 Settings and Configuration
 
-#### FR-SET-001: Websoft9 产品设置
+#### FR-SET-001: Websoft9 Product Settings
 
-系统必须提供与 Websoft9 自身运行相关的设置页。
+The system must provide settings pages related to Websoft9’s own operation.
 
 **Scope includes:**
 
-- 域名与入口配置
-- 证书配置
-- 镜像源与下载配置
-- 系统级 API/内部访问配置
-- 升级与版本信息
+- Domain and entry configuration
+- Certificate configuration
+- Registry mirror and download configuration
+- System-level API and internal access configuration
+- Upgrade and version information
 
 **Acceptance Criteria:**
 
-- 设置更新不依赖前端直接修改宿主机文件。
-- 敏感配置在界面中默认掩码显示。
-- 设置变更至少记录操作人、操作时间、变更项和变更结果。
+- Settings updates do not depend on the frontend directly editing host files.
+- Sensitive configuration is masked by default in the UI.
+- Settings changes record at least operator, operation time, changed item, and result.
 
 ### 6.5 File Management
 
-#### FR-FILE-001: 容器挂载文件管理
+#### FR-FILE-001: Container-Mounted File Management
 
-系统必须提供文件管理页面，但管理对象限定为 Websoft9 管理的应用卷、挂载目录和受控文件空间，而不是宿主机完整文件树。
+The system must provide a file management page, but the managed objects are limited to Websoft9-managed application volumes, mount directories, and controlled file spaces rather than the full host file tree.
 
 **Acceptance Criteria:**
 
-- 如果 Cockpit 现有文件管理模块或其可复用部分能够直接使用，应优先复用，以降低开发复杂度。
-- 用户可以浏览、上传、下载、创建、重命名和删除挂载目录中的文件。
-- 文件视图要明确显示所属应用、卷或挂载点。
-- 文本文件支持基础在线编辑。
-- 文件操作范围必须限制在 Websoft9 管理的挂载目录和受控文件空间内。
+- If the current Cockpit file manager module or reusable parts of it can be used directly, reuse should be preferred to reduce development cost.
+- Users can browse, upload, download, create, rename, and delete files in mounted directories.
+- The file view must clearly show the owning application, volume, or mount point.
+- Text files support basic online editing.
+- File operations must be restricted to Websoft9-managed mounted directories and controlled file spaces.
 
 ### 6.6 Host Terminal Access
 
-#### FR-TERM-001: 宿主机终端桥接
+#### FR-TERM-001: Host Terminal Bridge
 
-系统必须提供宿主机终端能力，但实现方式应通过受控桥接，而不是在前端直接调用宿主机命令。
+The system must provide host terminal capability, but it must be implemented through a controlled bridge rather than direct host command invocation from the frontend.
 
 **Acceptance Criteria:**
 
-- 终端能力至少需要登录态保护。
-- 若终端方案采用 SSH 登录方式，则登录什么用户就继承什么用户的宿主机权限，不在 Websoft9 层面额外设计一套权限体系。
-- 系统可记录会话元数据，例如开始时间、用户、来源。
-- 连接方案必须支持会话建立、断开和失败场景的基本记录。
+- Terminal capability requires at least authenticated session protection.
+- If the terminal solution uses SSH login, the session inherits the host permissions of the logged-in user, and Websoft9 does not introduce an additional permission system at this layer.
+- The system can record session metadata such as start time, user, and source.
+- The connection solution must support basic records for session establishment, disconnection, and failure cases.
 
 **Design Constraint:**
 
-终端具体技术方案可在架构阶段确定，但 PRD 明确要求其为受控桥接能力，而非 Cockpit 的简单替身；更细的权限方案留到执行层面确定。
+The concrete terminal implementation can be determined in the architecture phase, but the PRD explicitly requires a controlled bridge capability rather than a simple Cockpit replacement. Finer-grained permission details are deferred to the execution phase.
 
 ### 6.7 Core Services and Logs
 
-#### FR-OPS-001: 核心服务视图
+#### FR-OPS-001: Core Service View
 
-系统必须提供服务页，但仅展示 Websoft9 核心服务。
+The system must provide a services page, but it only displays Websoft9 core services.
 
-**服务页的功能特点：**
+**Service page characteristics:**
 
-- 面向 Websoft9 核心服务的逐项查看与诊断
-- 强调服务维度的状态、资源使用、日志联动和异常排查
-- 为首页中的摘要卡片提供下钻目标
-
-**Acceptance Criteria:**
-
-- 展示服务名称、运行状态、健康状态、最近更新时间。
-- 支持展示每个核心服务的 CPU、内存、网络、硬盘读写等关键运行指标。
-- 支持图形化展示每个核心服务的关键指标趋势。
-- 支持从服务视图进入对应服务日志查看。
-- 第一阶段范围仅包含 Websoft9 主容器内部的核心服务或主进程组件。
-
-#### FR-OPS-002: Websoft9 运行日志
-
-系统必须提供日志页，但仅展示 Websoft9 自身运行日志。
+- Item-by-item visibility and diagnosis for Websoft9 core services
+- Emphasis on service-level status, resource usage, log linkage, and abnormality troubleshooting
+- Acts as the drill-down destination for the summary cards on the home page
 
 **Acceptance Criteria:**
 
-- 支持按时间范围、级别、关键字过滤。
-- 支持查看 AppHub、后台任务、升级流程等关键日志来源。
+- Display service name, runtime status, health status, and last update time.
+- Support key runtime indicators such as CPU and memory for each core service.
+- Support graphical trend display for key metrics per core service.
+- Support navigation from a service view into the corresponding service logs.
+- Phase 1 scope only includes core services or main process components inside the Websoft9 product container.
+
+#### FR-OPS-002: Websoft9 Runtime Logs
+
+The system must provide a logs page, but only for Websoft9’s own runtime logs.
+
+**Acceptance Criteria:**
+
+- Support filtering by time range, level, and keyword.
+- Support viewing key log sources such as AppHub, background tasks, and upgrade flows.
 
 ### 6.8 Proxy and Access
 
-#### FR-ACCESS-001: 第三方服务集成与访问
+#### FR-ACCESS-001: Third-Party Service Integration and Access
 
-系统必须继续保留旧版对 Gitea、Portainer、Nginx Proxy Manager 的 API 集成、自动登录和完整 UI 接入能力。
-
-**Acceptance Criteria:**
-
-- AppHub 或等价后端层继续集成和调用第三方服务 API，用于承接当前产品内的自动化管理能力。
-- 用户从 Websoft9 进入 Gitea、Portainer、Nginx Proxy Manager 时，默认无需再次手工登录。
-- 第三方服务页面可继续以内嵌页面或等价集成方式展示在 Websoft9 内部，以便用户继续使用其完整功能。
-- 升级到新版本后，原有“从 Websoft9 进入第三方服务”的主工作流保持连续。
-- 第三方服务的 API 集成与 UI 接入属于并行能力，二者需同时保留。
-- 第三方服务若因自身不可用导致接入失败，界面需返回明确错误状态，而不是静默失败。
-
-#### FR-PROXY-001: 应用访问与代理管理
-
-系统必须保留当前“我的应用”中基于 Nginx Proxy Manager API 的应用访问与代理管理工作流。
+The system must continue to preserve API integration, automatic login, and full UI access for Gitea, Portainer, and Nginx Proxy Manager.
 
 **Acceptance Criteria:**
 
-- 支持创建和更新应用访问域名。
-- 支持证书查看和基础证书管理。
-- 与旧版“我的应用”中通过 NPM API 完成的相关能力保持连续，避免额外引入脱离现有工作流的抽象说明。
+- AppHub or an equivalent backend layer continues to integrate and call third-party service APIs to preserve the current in-product automation capability.
+- When users enter Gitea, Portainer, or Nginx Proxy Manager from Websoft9, they do not need to log in manually again by default.
+- Third-party service pages can continue to be shown inside Websoft9 via embedded pages or equivalent integration so users retain full access to their functions.
+- After upgrade, the main workflow of entering third-party services from Websoft9 remains continuous.
+- Third-party API integration and UI access are parallel capabilities and both must be preserved.
+- If third-party service access fails because the service itself is unavailable, the UI must return an explicit error state rather than failing silently.
 
-#### FR-PROXY-002: 内部服务代理与应用代理分层
+#### FR-PROXY-001: App Access and Proxy Management
 
-系统必须明确区分两类代理职责：
-
-- Websoft9 自身内部服务与产品入口代理。
-- 用户应用的域名代理、访问入口与 SSL 管理。
+The system must preserve the current application access and proxy-management workflow in My Apps, which is based on Nginx Proxy Manager APIs.
 
 **Acceptance Criteria:**
 
-- 两类代理在配置模型和运行职责上必须逻辑分离。
-- Nginx Proxy Manager 不再承担 Websoft9 自身内部服务与产品入口代理职责。
-- Websoft9 自身入口与内部服务代理应由产品前端或独立网关承担。
-- 应用域名代理、访问入口与 SSL 管理由独立的 Nginx Proxy Manager 实例或等价独立网关承担。
-- 后续若需要独立拆分部署，配置模型和部署路径不应阻塞。
+- Support creating and updating app access domains.
+- Support certificate viewing and basic certificate management.
+- Stay continuous with the old My Apps capabilities that were implemented through NPM APIs, instead of introducing abstract models disconnected from the current workflow.
+
+#### FR-PROXY-002: Separation of Internal Proxy and App Proxy Responsibilities
+
+The system must clearly distinguish between two proxy responsibilities:
+
+- Proxying for Websoft9’s own internal services and product entry.
+- Domain proxying, access entry, and SSL management for user applications.
+
+**Acceptance Criteria:**
+
+- The two proxy types must be logically separated in both configuration model and runtime responsibility.
+- Nginx Proxy Manager no longer owns Websoft9’s own internal service and product-entry proxy responsibilities.
+- Websoft9’s own entry and internal service proxy should be handled by the product frontend or an independent gateway.
+- App-domain proxying, access entry, and SSL management are handled by an independent Nginx Proxy Manager instance or an equivalent independent gateway.
+- If future deployment requires independent separation, the configuration model and deployment path must not block it.
 
 ### 6.9 Backup and Restore
 
-#### FR-BACKUP-001: 应用备份与恢复
+#### FR-BACKUP-001: Application Backup and Restore
 
-系统必须保留现有备份与恢复主能力。
+The system must preserve the current primary backup and restore capability.
 
 **Acceptance Criteria:**
 
-- 支持发起备份、查看备份列表、删除备份和恢复。
-- 第一阶段重点覆盖卷和应用数据的可恢复性。
+- Support triggering backup, viewing backup lists, deleting backups, and restoring.
+- Phase 1 focuses on recoverability of volumes and application data.
 
 ### 6.10 Direct Upgrade
 
-#### FR-UPGRADE-001: 旧版本直接升级
+#### FR-UPGRADE-001: Direct Upgrade from the Current Version
 
-系统必须支持旧版本 Websoft9 直接升级到新版本。
-
-**Acceptance Criteria:**
-
-- 能识别旧版关键配置和数据位置。
-- 能完整保留并转换核心配置、卷数据、证书和必要元数据，使升级后系统可直接继续使用。
-- MVP 阶段即必须提供面向用户的完整直接升级能力。
-- 对用户而言，升级流程应尽可能简单、收敛、可预期，并以升级成功为默认目标。
-- 升级后不应影响现有系统继续运行，核心业务入口和主要工作流应可直接延续。
-- 升级完成后，至少应保证原有证书、域名入口、应用数据和第三方服务入口继续可用。
-
-#### FR-UPGRADE-002: 升级过程处理策略
-
-系统必须在升级过程中处理旧插件、旧入口或旧依赖的转换关系，但不引入单独长期存在的兼容运行层。
+The system must support direct upgrade from the current version of Websoft9 to the refactored version.
 
 **Acceptance Criteria:**
 
-- 升级过程中有可观测状态和失败回滚/中止策略。
-- 升级过程不应转化为用户侧复杂分支，不应要求用户自行判断哪些数据保留、哪些步骤手工执行。
-- 用户侧升级入口和升级流程应保持单一路径，产品内部自行处理转换细节。
-- 若升级失败，系统必须保持可恢复到升级前或可继续修复的明确状态，不能停留在不可判断的半完成状态。
+- The system can identify key configuration and data locations from the old version.
+- It can preserve and convert core configuration, volume data, certificates, and required metadata so the upgraded system can continue to be used directly.
+- MVP must already provide a complete user-facing direct-upgrade capability.
+- From the user perspective, the upgrade flow should be as simple, converged, and predictable as possible, with success as the default target.
+- The upgrade must not break ongoing system operation. Core business entries and main workflows should continue directly after upgrade.
+- After upgrade, at minimum the existing certificates, domain entries, application data, and third-party service entries remain available.
+
+#### FR-UPGRADE-002: Upgrade Process Handling Strategy
+
+The system must handle the transition of old plugins, old entries, and old dependencies during the upgrade process, but must not introduce a long-lived compatibility runtime layer.
+
+**Acceptance Criteria:**
+
+- The upgrade process has observable status and rollback or abort strategies for failures.
+- The upgrade process must not become a complex user-side branching flow or require users to decide which data to keep and which steps to run manually.
+- The user-facing upgrade entry and process must stay on a single path while the product handles internal conversion details.
+- If upgrade fails, the system must remain in a clear recoverable or repairable state rather than an ambiguous half-finished state.
 
 ## 7. Non-Functional Requirements
 
 ### 7.1 Security
 
-- 产品账户与会话必须独立于宿主机账户。
-- 终端与文件管理至少应建立在已登录用户上下文之上；若终端采用 SSH 登录方式，则宿主机权限由 SSH 登录用户决定，不额外引入 Websoft9 内部权限映射。
-- 敏感配置不得以前端可见明文长期暴露。
+- Product accounts and sessions must be independent from host accounts.
+- Terminal and file management must at least be established within a logged-in user context. If the terminal uses SSH login, host permissions are determined by the SSH user rather than by an internal Websoft9 permission mapping.
+- Sensitive configuration must not remain exposed in plaintext to the frontend.
 
 ### 7.2 Performance
 
-- 主导航与核心页面首屏应在 2 秒内可交互。
-- 应用列表、日志列表、服务列表默认查询应在 3 秒内返回。
+- Primary navigation and first meaningful interaction for core pages should be available within 2 seconds.
+- Default queries for app lists, log lists, and service lists should return within 3 seconds.
 
 ### 7.3 Internationalization
 
-- 第一阶段至少支持中文与英文。
-- 现有插件中的中英文资源需要可复用，但实现不再依赖 cockpit.locale/po.js。
+- Phase 1 must support at least Chinese and English.
+- Existing bilingual resources from the old plugins should be reusable, but the implementation must not depend on `cockpit.locale` or `po.js`.
 
 ### 7.4 Operability
 
-- 核心任务需要有统一状态模型。
-- 升级、安装、备份、恢复等关键任务需要具备失败诊断信息，并可区分执行中、成功、失败和取消等基本状态。
+- Core tasks need a unified status model.
+- Key tasks such as upgrade, install, backup, and restore need diagnostic failure information and must distinguish at least running, success, failure, and canceled states.
 
 ### 7.5 Maintainability
 
-- 新前端应为统一工程或统一 workspace，不再是多个相互孤立的插件项目。
-- 新控制面需收敛对外部管理产品 UI 的依赖边界，并继续支持第三方服务 API 集成、自动登录和完整 UI 接入。
+- The new frontend should be a unified project or unified workspace instead of multiple isolated plugin projects.
+- The new control plane must reduce the UI dependency boundary on external management products while continuing to support third-party API integration, automatic login, and full UI access.
 
 ## 8. MVP Scope
 
 ### 8.1 In Scope for Phase 1
 
-- 自定义前端壳与基础导航
-- 登录与管理员初始化
-- 基础多用户管理
-- 应用商店与我的应用核心工作流
-- 应用生命周期管理
-- Gitea、Portainer、Nginx Proxy Manager API 集成、自动登录和完整 UI 接入
-- 容器挂载文件管理
-- 宿主机终端桥接最小版
-- Websoft9 核心服务状态
-- Websoft9 运行日志
-- 基础代理/证书能力
-- 基础备份/恢复能力
-- 旧版本直接升级完整主路径
+- Custom frontend shell and base navigation
+- Login and administrator initialization
+- Basic multi-user management
+- App store and My Apps core workflows
+- App lifecycle management
+- Gitea, Portainer, and Nginx Proxy Manager API integration, automatic login, and full UI access
+- Container-mounted file management
+- Minimal controlled host terminal bridge
+- Websoft9 core service status
+- Websoft9 runtime logs
+- Basic proxy and certificate capability
+- Basic backup and restore capability
+- Complete direct-upgrade main path from the current version
 
 ### 8.2 Out of Scope for Phase 1
 
-- 全量宿主机管理功能
-- 将 Portainer/Gitea/NPM 在第一阶段完全重写为 Websoft9 原生模块
-- 多节点编排或集群能力
-- 高级审计、细粒度 RBAC、SSO 企业集成
+- Full host-management functionality
+- Fully rewriting Portainer, Gitea, or NPM as native Websoft9 modules in Phase 1
+- Multi-node orchestration or cluster capability
+- Advanced audit, fine-grained RBAC, and enterprise SSO integration
 
 ## 9. Product Risks
 
-1. 终端桥接方案若设计不当，可能成为安全薄弱点。
-2. 单容器目标若同时内聚过多能力，可能带来复杂的多进程与升级维护成本。
-3. 直接升级若缺少明确的处理边界，可能影响旧版本升级成功率和稳定性。
-4. 若前期不能尽快统一前端工程，可能延续旧插件碎片化问题。
+1. If the terminal bridge is designed poorly, it can become a security weak point.
+2. If the single-container target absorbs too many responsibilities at once, it may introduce complex multi-process and upgrade-maintenance cost.
+3. If direct upgrade lacks clear processing boundaries, it may reduce upgrade success rate and stability for current users.
+4. If the frontend engineering model is not unified early, the old plugin fragmentation problem may continue.
 
 ## 10. Open Decisions for Architecture Phase
 
-以下问题必须在 Create Architecture 阶段明确：
+The following questions must be clarified during the Create Architecture phase:
 
-1. 单容器内各核心服务的运行方式、进程编排、服务管理机制，以及哪些现有第三方能力保留为内嵌服务形态。
-2. 宿主机终端桥接采用何种通信与认证模型。
-3. 容器文件管理的资源模型、隔离边界和编辑能力。
-4. 旧版 Gitea、Portainer、Nginx Proxy Manager 的数据、API 集成关系与入口如何在升级过程中完成转换与承接。
-5. 新多用户系统的数据模型、角色体系和初始化流程。
+1. The runtime model, process orchestration, and service management mechanism inside the single container, and which current third-party capabilities remain as embedded-service forms.
+2. The communication and authentication model for the host terminal bridge.
+3. The resource model, isolation boundary, and editing capability of container file management.
+4. How old Gitea, Portainer, and Nginx Proxy Manager data, API integration, and entry points are converted and carried forward during upgrade.
+5. The data model, role model, and initialization flow of the new multi-user system.
 
 ## 11. Success Metrics
 
-- 旧版本用户能够在可控步骤内直接升级，在保留证书等旧数据的同时不影响现有核心工作流继续运行。
-- 新前端能够覆盖现有高频路径：应用浏览、安装、管理、设置、日志、服务。
-- 系统管理员无需依赖宿主机用户即可完成主要产品运维操作。
-- 新版本上线后，不再依赖 Cockpit 作为前端运行底座。
-- 旧版本升级完成后，第三方服务入口、证书和应用访问链路保持可用。
+- Current-version users can complete a direct upgrade through a controlled set of steps, preserving legacy data such as certificates without breaking existing core workflows.
+- The new frontend covers the existing high-frequency paths: app browsing, installation, management, settings, logs, and services.
+- The system administrator can complete major product operations without depending on host users.
+- After release, the new version no longer depends on Cockpit as the frontend runtime base.
+- After upgrading from the old version, third-party service entries, certificates, and application access paths remain available.
