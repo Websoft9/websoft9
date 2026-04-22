@@ -29,7 +29,7 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
     Verify API Key
     """
     # skip docs and openapi endpoints
-    if request.url.path in {"/api/docs", "/api/openapi.json", "/api/redoc"}:
+    if request.url.path in {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/healthz"}:
         return None 
 
     # validate api key is provided
@@ -69,6 +69,10 @@ app = FastAPI(
     )
 
 app.mount("/static", StaticFiles(directory="swagger-ui"), name="static")
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz():
+    return {"status": "ok"}
 
 @app.get("/docs", response_class=HTMLResponse,include_in_schema=False,)
 async def custom_swagger_ui_html():

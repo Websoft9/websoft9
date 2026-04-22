@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Websoft9 UX Design Directions</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+            background: #eef2f6;
+            color: #1f2937;
+        }
+
+        header {
+            padding: 28px 36px 12px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 30px;
+        }
+
+        p {
+            margin: 0;
+            color: #475467;
+            line-height: 1.6;
+        }
+
+        main {
+            padding: 24px 28px 36px;
+            display: grid;
+            gap: 24px;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        }
+
+        .direction {
+            background: white;
+            border-radius: 22px;
+            overflow: hidden;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.10);
+        }
+
+        .hero {
+            padding: 18px 20px;
+            color: white;
+        }
+
+        .frame {
+            background: #f8fafc;
+            padding: 16px;
+        }
+
+        .app {
+            border-radius: 18px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+            background: white;
+            min-height: 360px;
+        }
+
+        .topbar {
+            height: 54px;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .layout {
+            display: grid;
+            min-height: 306px;
+        }
+
+        .nav {
+            padding: 14px 12px;
+            color: #cbd5e1;
+        }
+
+        .nav div {
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+
+        .content {
+            padding: 16px;
+            background: #f8fafc;
+        }
+
+        .grid {
+            display: grid;
+            gap: 12px;
+        }
+
+        .grid.cols-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .grid.cols-2 {
+            grid-template-columns: 1.2fr 1fr;
+        }
+
+        .card {
+            background: white;
+            border-radius: 14px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            padding: 14px;
+            min-height: 88px;
+        }
+
+        .line {
+            height: 10px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            margin-top: 10px;
+        }
+
+        .small {
+            height: 8px;
+        }
+
+        .footer {
+            padding: 16px 20px 20px;
+            color: #475467;
+            line-height: 1.6;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 9px;
+            border-radius: 999px;
+            font-size: 12px;
+            margin-right: 6px;
+            background: #e2e8f0;
+            color: #334155;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Websoft9 设计方向对比</h1>
+        <p>这组方向图用于说明为什么 UX 规格最终选择“稳健控制台”作为推荐方向。它们不是高保真稿，而是信息架构和视觉权重的快速探索。</p>
+    </header>
+    <main>
+        <section class="direction">
+            <div class="hero" style="background:linear-gradient(135deg,#173b63,#2a5f91);">
+                <h2>Direction A · 稳健控制台</h2>
+                <p>推荐方向。平台总览、任务、应用摘要和异常提醒权重平衡。</p>
+            </div>
+            <div class="frame">
+                <div class="app">
+                    <div class="topbar"><strong>Websoft9</strong><span>首页 / 平台总览</span></div>
+                    <div class="layout" style="grid-template-columns: 220px 1fr;">
+                        <div class="nav" style="background:#183a5a;">
+                            <div style="background:rgba(255,255,255,0.12);">首页</div>
+                            <div>应用商店</div>
+                            <div>我的应用</div>
+                            <div>设置</div>
+                            <div>服务</div>
+                            <div>日志</div>
+                            <div>集成</div>
+                        </div>
+                        <div class="content">
+                            <div class="grid cols-3">
+                                <div class="card"></div>
+                                <div class="card"></div>
+                                <div class="card"></div>
+                            </div>
+                            <div class="grid cols-2" style="margin-top:12px;">
+                                <div class="card" style="min-height:160px;"></div>
+                                <div class="card" style="min-height:160px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer">
+                <span class="tag">推荐</span><span class="tag">任务优先</span><span class="tag">升级连续</span>
+                <div>优点：最符合当前 PRD 对首页、服务页、应用页、集成能力分层的要求。缺点：视觉冲击力不如更激进的探索方向。</div>
+            </div>
+        </section>
+
+        <section class="direction">
+            <div class="hero" style="background:linear-gradient(135deg,#3b4454,#667085);">
+                <h2>Direction B · 紧凑运维台</h2>
+                <p>高密度数据面板，强调表格和状态，但容易回到传统系统面板心智。</p>
+            </div>
+            <div class="frame">
+                <div class="app">
+                    <div class="topbar"><strong>Websoft9</strong><span>服务 / 状态</span></div>
+                    <div class="layout" style="grid-template-columns: 180px 1fr;">
+                        <div class="nav" style="background:#374151;">
+                            <div style="background:rgba(255,255,255,0.10);">服务</div>
+                            <div>日志</div>
+                            <div>任务</div>
+                            <div>备份</div>
+                            <div>升级</div>
+                        </div>
+                        <div class="content">
+                            <div class="card" style="min-height:68px;"></div>
+                            <div class="card" style="margin-top:12px;min-height:210px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer">
+                <span class="tag">高密度</span><span class="tag">偏运维</span>
+                <div>优点：适合服务页和日志页。缺点：首页和应用页容易被系统信息吞没，不适合作为整体产品方向。</div>
+            </div>
+        </section>
+
+        <section class="direction">
+            <div class="hero" style="background:linear-gradient(135deg,#0f5132,#1f7a56);">
+                <h2>Direction C · 轻量应用平台</h2>
+                <p>强调应用卡片与增长感，适合应用商店，但对复杂运维任务支撑偏弱。</p>
+            </div>
+            <div class="frame">
+                <div class="app">
+                    <div class="topbar"><strong>Websoft9</strong><span>应用商店</span></div>
+                    <div class="content">
+                        <div class="grid cols-3">
+                            <div class="card">
+                                <div class="line"></div>
+                                <div class="line small"></div>
+                            </div>
+                            <div class="card">
+                                <div class="line"></div>
+                                <div class="line small"></div>
+                            </div>
+                            <div class="card">
+                                <div class="line"></div>
+                                <div class="line small"></div>
+                            </div>
+                            <div class="card">
+                                <div class="line"></div>
+                                <div class="line small"></div>
+                            </div>
+                            <div class="card">
+                                <div class="line"></div>
+                                <div class="line small"></div>
+                            </div>
+                            <div class="card">
+                                <div class="line"></div>
+                                <div class="line small"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer">
+                <span class="tag">应用导向</span><span class="tag">视觉轻</span>
+                <div>优点：应用商店和发现体验更轻快。缺点：设置、升级、服务诊断等高复杂场景不够稳健。</div>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

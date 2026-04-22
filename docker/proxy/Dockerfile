@@ -65,6 +65,8 @@ RUN mkdir -p /etc/websoft9
 COPY ./config/http.conf /data/nginx/custom/http.conf
 COPY ./config/landing/ /etc/websoft9/landing
 COPY ./config/initproxy.conf /etc/websoft9/initproxy.conf
+COPY ./config/platform-gateway-boundary.conf /etc/websoft9/platform-gateway-boundary.conf
+COPY ./config/platform-gateway-routes.conf /etc/websoft9/platform-gateway-routes.conf
 
 COPY ./config/stream.conf /etc/websoft9/stream.conf
 COPY ./config/custom_var.conf /etc/websoft9/custom_var.conf

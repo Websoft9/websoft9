@@ -1,0 +1,12 @@
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background-color: #f5f7fb;
+  color: #18212f;
+}
+
+#root {
+  min-height: 100vh;
+}

@@ -39,8 +39,8 @@ classification:
 This PRD defines the target requirements for the Websoft9 product refactor. This is not an incremental feature release. It is a systemic adjustment of the product operating model. The key changes are:
 
 - Replace the Cockpit plugin-based frontend with a Websoft9-owned frontend.
-- Refactor the current multi-container control plane into a single product container model, where the current core services run inside the same product container as multiple services rather than through Docker in Docker.
-- Replace host-user and Cockpit-based access control with a product-native multi-user model.
+- Preserve the current AppHub-centered backend responsibility model while removing Cockpit from the product path, and converge AppHub, Portainer, Gitea, and Nginx Proxy Manager into a single product container that runs multiple internal services.
+- Introduce only the minimum product-side authentication and session capability required by migrated flows, while deferring broader user, API key, and permission-model redesign.
 - Converge file management, terminal, services, and logs into capabilities that match the Websoft9 product boundary.
 - Preserve the existing automated login and embedded access experience for Gitea, Portainer, and Nginx Proxy Manager.
 - Provide a complete direct upgrade path from the current version to the refactored version.
@@ -74,7 +74,7 @@ The core product principles are:
 3. Users, configuration, logs, and service status are owned by Websoft9, while the permission model may evolve in phases.
 4. API integration, automatic login, and full UI access for Gitea, Portainer, and Nginx Proxy Manager must remain continuous.
 5. Direct upgrade from the current version to the refactored version must be part of the architecture, not a later patch script.
-6. The single-container target means Websoft9 control plane capabilities run as multiple services inside one product container, without using Docker in Docker as the implementation path.
+6. The current refactor track removes Cockpit from the product path and converges AppHub + Portainer + Gitea + Nginx Proxy Manager into one product container with multiple internal services, while preserving their current responsibilities and integration model.
 
 ## 3. Problem Statement
 
@@ -89,13 +89,13 @@ The current system has the following root problems:
    AppHub, Portainer, Gitea, Nginx Proxy Manager, and Cockpit together form the control plane. The product boundary is unclear and maintenance cost is high.
 
 3. **The user model does not belong to the product itself**  
-   Current multi-user support depends on host Linux users and Cockpit/PAM. This is not suitable for product-level container evolution and makes product-native permissions difficult.
+   Current access control depends on host Linux users and Cockpit/PAM. This is not suitable for a product-controlled console and makes scoped product-side authorization difficult.
 
 4. **System management boundaries are too wide**  
    In the old model, files, terminal, services, and logs lean toward full host management instead of Websoft9 product management.
 
 5. **The current upgrade model conflicts with the target architecture**  
-   The old upgrade process assumes host root, systemd, and Cockpit are already present, which does not align with the future custom frontend and single-container target.
+   The old upgrade process assumes host root, systemd, and Cockpit are already present, which does not align with the future custom frontend and the target single-product-container runtime.
 
 ### 3.2 Impact
 
@@ -109,8 +109,8 @@ The current system has the following root problems:
 ### 4.1 Goals
 
 1. Deliver a custom Websoft9 frontend that does not depend on Cockpit.
-2. Converge the product runtime into a single main product container that carries AppHub, Gitea, Nginx Proxy Manager, Portainer, and other existing core control-plane capabilities as services inside the same container.
-3. Establish product-native multi-user management and administrator initialization.
+2. Preserve the current AppHub-centered backend responsibility model while converging AppHub, Portainer, Gitea, and Nginx Proxy Manager into a single product container that runs multiple internal services.
+3. Add the minimum product-side session, operator, and initialization capability required by migrated flows, while deferring broader user and permission redesign.
 4. Preserve the main information architecture from the current menus to reduce the learning cost after upgrade.
 5. Refactor file management around container-mounted files.
 6. Provide a controlled host terminal access solution.
@@ -226,22 +226,22 @@ The system must support start, stop, restart, redeploy, and uninstall operations
 
 #### FR-AUTH-001: Administrator Initialization
 
-At first startup, the system must require initialization of a Websoft9 system administrator account.
+If a migrated flow requires product-side login, the system must support initialization of a Websoft9 administrator or operator account.
 
 **Acceptance Criteria:**
 
-- If no administrator exists, the system enters an initialization flow.
-- After initialization, login uses product accounts rather than host users.
+- If the selected Phase 1 authentication model requires a product-side operator account, the system enters an initialization flow when no operator exists.
+- Any product-side login introduced in Phase 1 must not depend on host users or Cockpit sessions.
 
 #### FR-AUTH-002: Multi-User Management
 
-The system must provide basic multi-user management capability.
+The system may provide basic product-side user management capability, but it is not a universal Phase 1 blocker.
 
 **Acceptance Criteria:**
 
-- Support create, disable, password reset, and delete operations for users.
-- Phase 1 only requires a basic multi-user account system and login capability, without forcing complete RBAC or fine-grained permission control.
-- In Phase 1, the system administrator is responsible for system configuration and user management by default, while other permission models can be deferred to later versions.
+- If product-side users are introduced in Phase 1, support create, disable, password reset, and delete operations for those users.
+- Phase 1 does not require complete RBAC or fine-grained permission control.
+- Broader multi-user governance can be deferred until after the core migration path is stable.
 
 ### 6.4 Settings and Configuration
 
@@ -358,10 +358,10 @@ The system must clearly distinguish between two proxy responsibilities:
 **Acceptance Criteria:**
 
 - The two proxy types must be logically separated in both configuration model and runtime responsibility.
-- Nginx Proxy Manager no longer owns Websoft9’s own internal service and product-entry proxy responsibilities.
-- Websoft9’s own entry and internal service proxy should be handled by the product frontend or an independent gateway.
-- App-domain proxying, access entry, and SSL management are handled by an independent Nginx Proxy Manager instance or an equivalent independent gateway.
-- If future deployment requires independent separation, the configuration model and deployment path must not block it.
+- Websoft9’s own entry and internal service proxy responsibilities must be separated from user app-domain proxy responsibilities.
+- Websoft9’s own entry and internal service proxy can be handled by the product gateway layer in the retained backbone and do not have to require a new standalone gateway component in Phase 1.
+- App-domain proxying, access entry, and SSL management remain centered on Nginx Proxy Manager or an equivalent app-access layer.
+- If future deployment requires physical separation, the configuration model and deployment path must not block it.
 
 ### 6.9 Backup and Restore
 
@@ -404,7 +404,7 @@ The system must handle the transition of old plugins, old entries, and old depen
 
 ### 7.1 Security
 
-- Product accounts and sessions must be independent from host accounts.
+- If Phase 1 introduces product accounts and sessions, they must be independent from host accounts.
 - Terminal and file management must at least be established within a logged-in user context. If the terminal uses SSH login, host permissions are determined by the SSH user rather than by an internal Websoft9 permission mapping.
 - Sensitive configuration must not remain exposed in plaintext to the frontend.
 
@@ -433,8 +433,7 @@ The system must handle the transition of old plugins, old entries, and old depen
 ### 8.1 In Scope for Phase 1
 
 - Custom frontend shell and base navigation
-- Login and administrator initialization
-- Basic multi-user management
+- The minimum login or operator initialization capability required by migrated flows
 - App store and My Apps core workflows
 - App lifecycle management
 - Gitea, Portainer, and Nginx Proxy Manager API integration, automatic login, and full UI access
@@ -451,12 +450,12 @@ The system must handle the transition of old plugins, old entries, and old depen
 - Full host-management functionality
 - Fully rewriting Portainer, Gitea, or NPM as native Websoft9 modules in Phase 1
 - Multi-node orchestration or cluster capability
-- Advanced audit, fine-grained RBAC, and enterprise SSO integration
+- Broad user-model redesign, advanced audit, fine-grained RBAC, and enterprise SSO integration
 
 ## 9. Product Risks
 
 1. If the terminal bridge is designed poorly, it can become a security weak point.
-2. If the single-container target absorbs too many responsibilities at once, it may introduce complex multi-process and upgrade-maintenance cost.
+2. If the single-container convergence is implemented without clear process supervision, data isolation, and upgrade boundaries, it may introduce unnecessary maintenance cost and operational fragility.
 3. If direct upgrade lacks clear processing boundaries, it may reduce upgrade success rate and stability for current users.
 4. If the frontend engineering model is not unified early, the old plugin fragmentation problem may continue.
 
@@ -464,16 +463,16 @@ The system must handle the transition of old plugins, old entries, and old depen
 
 The following questions must be clarified during the Create Architecture phase:
 
-1. The runtime model, process orchestration, and service management mechanism inside the single container, and which current third-party capabilities remain as embedded-service forms.
+1. The exact extension boundary between current AppHub services and newly added migration-critical capabilities inside the single product container.
 2. The communication and authentication model for the host terminal bridge.
 3. The resource model, isolation boundary, and editing capability of container file management.
 4. How old Gitea, Portainer, and Nginx Proxy Manager data, API integration, and entry points are converted and carried forward during upgrade.
-5. The data model, role model, and initialization flow of the new multi-user system.
+5. The minimum Phase 1 authentication, initialization, and permission scope required by migrated flows, and which broader user-model concerns remain deferred.
 
 ## 11. Success Metrics
 
 - Current-version users can complete a direct upgrade through a controlled set of steps, preserving legacy data such as certificates without breaking existing core workflows.
 - The new frontend covers the existing high-frequency paths: app browsing, installation, management, settings, logs, and services.
-- The system administrator can complete major product operations without depending on host users.
+- Authorized operators can complete major product operations through Websoft9 without depending on Cockpit-era host-user workflows.
 - After release, the new version no longer depends on Cockpit as the frontend runtime base.
 - After upgrading from the old version, third-party service entries, certificates, and application access paths remain available.

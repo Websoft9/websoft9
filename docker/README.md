@@ -26,3 +26,13 @@ The folder **apphub, deployment, git, proxy** stored development files, and used
 - Optimize dockerfile
 - Release version
 - Build docker image by Githuh action
+
+## Runtime Skeleton
+
+Current delivery still uses multiple containers through `docker-compose.yml`, but Story 1.3 defines the convergence contract for the next runtime phase.
+
+- The single-container target contract now lives in `docker/deployment/single-container-runtime-skeleton.yaml`.
+- The bootstrap phase skeleton now lives in `scripts/platform-entrypoint.sh`.
+- The canonical health-entry skeleton is `scripts/platform-healthcheck.sh`.
+- AppHub API and media are the required readiness processes; Gitea, Portainer, and Nginx Proxy Manager are explicit degraded-capable supporting processes until strict health is requested.
+- The runtime contract keeps native service runtimes instead of collapsing the platform into one binary.

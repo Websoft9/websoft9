@@ -39,6 +39,8 @@ This install script have below related resources:
 - Systemd: Install and upgrade websoft9.serivce
 - Set Firewalld: let 80,443 and Cockpit port allowed, Cockpit and Docker service with firewalld
 
+Current installer behavior still targets the existing multi-container deployment. The single-container multi-process runtime defined in Story 1.3 is a contract for upcoming delivery changes, not a silent installer behavior change in this story.
+
 The install script should adhere to the following principles:
 
 1. Not allowed to modify the source code of the application.

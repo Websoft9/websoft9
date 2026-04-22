@@ -1,0 +1,35 @@
+# Websoft9 Product Container
+
+This directory contains the converged single-container build assets introduced for Story 1.4 and hardened for the Story 1.5 runtime split.
+
+The product container keeps Nginx Proxy Manager as the PID 1 runtime because its native s6 overlay requires that ownership. A dedicated platform-gateway nginx process, plus AppHub, Gitea, and Portainer, are started under an embedded supervisord layer that is attached as an additional s6 service.
+
+Key runtime assets:
+
+- `Dockerfile`: builds the converged image without relying on `docker/apphub/media.zip`
+- `runtime-asset-boundaries.yaml`: canonical asset-boundary manifest for backup, restore, and migration planning
+- `supervisord.conf`: supervises AppHub, media, Gitea, Portainer, and cron
+- `gateway/`: image-managed config for the dedicated platform-gateway process that serves product-origin ingress on 8889/8890 inside the container
+- `s6/`: adds the `websoft9-supervisor` service into the NPM base image's s6 service graph
+- `proxy/`, `deployment/`, `apphub/`, and `scripts/`: product-localized build inputs so the converged image no longer copies runtime assets directly from legacy docker sibling directories
+
+Inside the running container:
+
+- `platform-entrypoint.sh` owns runtime bootstrap and status-file updates
+- `platform-service-control.sh` provides per-service start, stop, restart, and status operations
+- `platform-healthcheck.sh` distinguishes ready, degraded, and failed states
+- `platform-start-gateway.sh` starts the dedicated platform-gateway nginx process under supervisord using `/usr/sbin/nginx` and image-managed gateway config under `/etc/websoft9/platform-gateway`
+
+Proxy responsibility split for Story 1.5:
+
+- Product entry on `/` now serves the built console SPA from `/etc/websoft9/console`, and the dedicated `platform-gateway` nginx process under supervisord continues to own internal ports `8889/8890` plus reserved prefixes such as `/api/`, `/media/`, `/w9deployment/`, `/w9proxy/`, `/w9git/`, and `/w9gateway/healthz`.
+- User application domains remain under Nginx Proxy Manager `proxy_host` configs and keep NPM as the app-access owner in MVP.
+- The single-container delivery model still holds, but platform ingress is no longer served by the NPM default-host runtime or cockpit-era fallback pages; the gateway process now owns product-origin routing explicitly.
+
+Recoverability boundary split for Story 1.6:
+
+- Stable mounted service assets are `/data/gitea`, `/data/portainer`, `/data/nginx-proxy-manager`, `/etc/letsencrypt`, `/etc/modsec`, `/etc/custom`, and `/var/log/websoft9`.
+- Copy-forward assets that should not be shadowed by empty Docker volumes are `/websoft9/library` and `/websoft9/media`.
+- Ephemeral runtime state such as `/run/websoft9` remains rebuildable and is not treated as a backup source of truth.
+- The machine-readable source of truth for these boundaries is `/etc/websoft9/runtime-asset-boundaries.yaml` inside the built image.
+- The base NPM image still exposes a legacy `/data` volume. Treat that inherited root as compatibility-only and use the service-owned subpaths above as the real backup and migration boundaries.

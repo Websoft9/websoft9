@@ -1,0 +1,5 @@
+#!/command/with-contenv bash
+
+set -euo pipefail
+
+exec /websoft9/script/platform-entrypoint.sh

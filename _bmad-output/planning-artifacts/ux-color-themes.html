@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Websoft9 UX Color Themes</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+            background: #eef3f7;
+            color: #1d2939;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: linear-gradient(180deg, #f7fafc, #e8eef5);
+        }
+
+        header {
+            padding: 32px 40px 20px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 30px;
+        }
+
+        p {
+            margin: 0;
+            color: #475467;
+            line-height: 1.6;
+        }
+
+        main {
+            padding: 24px 32px 40px;
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        }
+
+        .theme {
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+            background: #fff;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+        }
+
+        .hero {
+            padding: 20px;
+            color: #fff;
+        }
+
+        .swatches {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            height: 76px;
+        }
+
+        .swatch {
+            display: flex;
+            align-items: end;
+            justify-content: center;
+            padding: 8px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.92);
+        }
+
+        .content {
+            padding: 18px 20px 22px;
+        }
+
+        .panel {
+            border-radius: 14px;
+            padding: 14px;
+            margin-top: 14px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .bar {
+            height: 10px;
+            border-radius: 999px;
+            margin-top: 12px;
+            background: rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }
+
+        .bar>span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+        }
+
+        .meta {
+            font-size: 13px;
+            color: #475467;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Websoft9 颜色主题探索</h1>
+        <p>用于 UX 阶段快速比较平台控制台的语义颜色方向。默认推荐方案是 Theme A，因为它最符合“稳健控制台”的产品气质。</p>
+    </header>
+    <main>
+        <section class="theme">
+            <div class="hero" style="background: linear-gradient(135deg, #163a5f, #245b88);">
+                <h2>Theme A · 稳健控制台</h2>
+                <p>深蓝灰主色，青绿色成功态，适合平台总览与高密度运维界面。</p>
+            </div>
+            <div class="swatches">
+                <div class="swatch" style="background:#163a5f;">#163A5F</div>
+                <div class="swatch" style="background:#245b88;">#245B88</div>
+                <div class="swatch" style="background:#1f9d8b;">#1F9D8B</div>
+                <div class="swatch" style="background:#d97706;">#D97706</div>
+                <div class="swatch" style="background:#c2410c;">#C2410C</div>
+            </div>
+            <div class="content">
+                <span class="badge" style="background:#e0ecf7;color:#163a5f;">首页总览</span>
+                <span class="badge" style="background:#d8f3ee;color:#136b5f;">运行正常</span>
+                <span class="badge" style="background:#fff1d6;color:#9a6700;">需要关注</span>
+                <div class="panel">
+                    平台状态稳定，最近 24 小时内没有阻断性失败。<div class="bar"><span style="width:74%;background:#1f9d8b;"></span></div>
+                    <div class="meta">适配：首页、服务页、任务时间线、应用详情头部。</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="theme">
+            <div class="hero" style="background: linear-gradient(135deg, #324054, #4a5568);">
+                <h2>Theme B · 中性专业</h2>
+                <p>偏灰中性色与低饱和强调色，适合强调稳定与企业感。</p>
+            </div>
+            <div class="swatches">
+                <div class="swatch" style="background:#324054;">#324054</div>
+                <div class="swatch" style="background:#4a5568;">#4A5568</div>
+                <div class="swatch" style="background:#0f766e;">#0F766E</div>
+                <div class="swatch" style="background:#ca8a04;">#CA8A04</div>
+                <div class="swatch" style="background:#b91c1c;">#B91C1C</div>
+            </div>
+            <div class="content">
+                <span class="badge" style="background:#e7edf3;color:#324054;">设置中心</span>
+                <span class="badge" style="background:#dff7f4;color:#115e59;">已同步</span>
+                <span class="badge" style="background:#fef3c7;color:#92400e;">待确认</span>
+                <div class="panel">
+                    配置变更已保存，但仍有 2 个代理项需要证书确认。<div class="bar"><span style="width:58%;background:#ca8a04;"></span></div>
+                    <div class="meta">适配：设置、备份、升级确认页。</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="theme">
+            <div class="hero" style="background: linear-gradient(135deg, #123b2f, #19604b);">
+                <h2>Theme C · 平台增长感</h2>
+                <p>偏绿色主色，传达轻量平台与应用活跃感，但控制台感略弱。</p>
+            </div>
+            <div class="swatches">
+                <div class="swatch" style="background:#123b2f;">#123B2F</div>
+                <div class="swatch" style="background:#19604b;">#19604B</div>
+                <div class="swatch" style="background:#2563eb;">#2563EB</div>
+                <div class="swatch" style="background:#d97706;">#D97706</div>
+                <div class="swatch" style="background:#dc2626;">#DC2626</div>
+            </div>
+            <div class="content">
+                <span class="badge" style="background:#d7f4ea;color:#14532d;">应用可用</span>
+                <span class="badge" style="background:#dbeafe;color:#1d4ed8;">新部署</span>
+                <span class="badge" style="background:#fee2e2;color:#b91c1c;">异常</span>
+                <div class="panel">
+                    适合强调“平台在运转”，但需要更强中性色压住整体层级。<div class="bar"><span style="width:67%;background:#2563eb;"></span>
+                    </div>
+                    <div class="meta">适配：应用商店、营销型总览，不建议作为唯一默认主题。</div>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

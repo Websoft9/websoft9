@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+mode="${1:---readiness}"
+timeout_seconds="${WEBSOFT9_HEALTHCHECK_TIMEOUT:-2}"
+runtime_layout="${WEBSOFT9_RUNTIME_LAYOUT:-single-container-target}"
+
+case "$runtime_layout" in
+  legacy-multi-container)
+    portainer_default_marker="/data/credential"
+    npm_default_marker="/data/credential"
+    npm_default_cert_marker="/data/custom_ssl/websoft9-self-signed.cert"
+    ;;
+  single-container-target)
+    portainer_default_marker="/data/portainer/credential"
+    npm_default_marker="/data/nginx-proxy-manager/credential.json"
+    npm_default_cert_marker="/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert"
+    ;;
+  *)
+    echo "unsupported runtime layout: $runtime_layout" >&2
+    exit 1
+    ;;
+esac
+
+portainer_marker="${WEBSOFT9_PORTAINER_BOOTSTRAP_MARKER:-$portainer_default_marker}"
+npm_marker="${WEBSOFT9_NPM_BOOTSTRAP_MARKER:-$npm_default_marker}"
+npm_cert_marker="${WEBSOFT9_NPM_CERT_MARKER:-$npm_default_cert_marker}"
+
+required_checks=(
+  "apphub-api|${WEBSOFT9_APPHUB_HEALTH_URL:-http://127.0.0.1:8080/api/healthz}"
+  "apphub-media|${WEBSOFT9_MEDIA_HEALTH_URL:-http://127.0.0.1:8081/healthz}"
+)
+
+supporting_checks=(
+  "gitea|${WEBSOFT9_GITEA_HEALTH_URL:-http://127.0.0.1:3000/}"
+  "portainer|${WEBSOFT9_PORTAINER_HEALTH_URL:-https://127.0.0.1:9443/api/system/status}"
+  "nginx-proxy-manager|${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/}"
+)
+
+check_url() {
+  local name="$1"
+  local url="$2"
+  local status_code
+  local curl_args=(--silent --show-error --max-time "$timeout_seconds" --output /dev/null --write-out '%{http_code}')
+
+  if [[ "$url" == https://* ]]; then
+    curl_args+=(--insecure)
+  fi
+
+  status_code="$(curl "${curl_args[@]}" "$url" || true)"
+
+  if [[ "$status_code" != "000" && "$status_code" -lt 500 ]]; then
+    echo "ready:${name}:${url}"
+    return 0
+  fi
+
+  echo "failed:${name}:${url}:${status_code}"
+  return 1
+}
+
+check_file() {
+  local name="$1"
+  local path="$2"
+
+  if [[ -f "$path" ]]; then
+    echo "ready:${name}:${path}"
+    return 0
+  fi
+
+  echo "failed:${name}:${path}:missing"
+  return 1
+}
+
+check_supervisor() {
+  local supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
+  local socket_path="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
+  local pidfile_path="${WEBSOFT9_SUPERVISOR_PIDFILE:-/run/supervisord.pid}"
+
+  if [[ -S "$socket_path" ]] && supervisorctl -c "$supervisor_config" status >/dev/null 2>&1; then
+    echo "ready:runtime-supervisor:supervisord"
+    return 0
+  fi
+
+  if [[ -f "$pidfile_path" ]] && kill -0 "$(cat "$pidfile_path")" >/dev/null 2>&1; then
+    echo "ready:runtime-supervisor:supervisord"
+    return 0
+  fi
+
+  echo "failed:runtime-supervisor:supervisord:missing"
+  return 1
+}
+
+required_failures=()
+degraded_services=()
+
+if ! check_supervisor; then
+  required_failures+=("runtime-supervisor")
+fi
+
+for check in "${required_checks[@]}"; do
+  IFS='|' read -r name url <<<"$check"
+  if ! check_url "$name" "$url"; then
+    required_failures+=("$name")
+  fi
+done
+
+for check in "${supporting_checks[@]}"; do
+  IFS='|' read -r name url <<<"$check"
+  if ! check_url "$name" "$url"; then
+    degraded_services+=("$name")
+  fi
+done
+
+if ! check_file "portainer-bootstrap" "$portainer_marker"; then
+  degraded_services+=("portainer-bootstrap")
+fi
+
+if ! check_file "npm-bootstrap" "$npm_marker"; then
+  degraded_services+=("nginx-proxy-manager-bootstrap")
+fi
+
+if ! check_file "npm-certificate" "$npm_cert_marker"; then
+  degraded_services+=("nginx-proxy-manager-certificate")
+fi
+
+if [[ ${#required_failures[@]} -gt 0 ]]; then
+  echo "status=unready required_failures=${required_failures[*]}"
+  exit 1
+fi
+
+if [[ "$mode" == "--strict" && ${#degraded_services[@]} -gt 0 ]]; then
+  echo "status=degraded degraded_services=${degraded_services[*]}"
+  exit 1
+fi
+
+if [[ ${#degraded_services[@]} -gt 0 ]]; then
+  echo "status=ready-with-degradation degraded_services=${degraded_services[*]}"
+  exit 0
+fi
+
+echo "status=ready"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define variables
-credential_path="/data/credential"
+credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential}"
 
 DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
 
@@ -11,6 +11,20 @@ cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
 [ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
 
 sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /data/nginx/default_host/initproxy.conf
+sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /etc/websoft9/platform-gateway-routes.conf
+
+if [ "${WEBSOFT9_RUNTIME_LAYOUT:-}" = "single-container-target" ]; then
+    sed -i 's#http://websoft9-deployment:9000#http://127.0.0.1:9000#g' /data/nginx/default_host/initproxy.conf
+    sed -i 's#http://websoft9-proxy:81#http://127.0.0.1:81#g' /data/nginx/default_host/initproxy.conf
+    sed -i 's#http://websoft9-git:3000#http://127.0.0.1:3000#g' /data/nginx/default_host/initproxy.conf
+    sed -i 's#http://websoft9-apphub:8080#http://127.0.0.1:8080#g' /data/nginx/default_host/initproxy.conf
+    sed -i 's#http://websoft9-apphub:8081#http://127.0.0.1:8081#g' /data/nginx/default_host/initproxy.conf
+    sed -i 's#http://websoft9-deployment:9000#http://127.0.0.1:9000#g' /etc/websoft9/platform-gateway-routes.conf
+    sed -i 's#http://websoft9-proxy:81#http://127.0.0.1:81#g' /etc/websoft9/platform-gateway-routes.conf
+    sed -i 's#http://websoft9-git:3000#http://127.0.0.1:3000#g' /etc/websoft9/platform-gateway-routes.conf
+    sed -i 's#http://websoft9-apphub:8080#http://127.0.0.1:8080#g' /etc/websoft9/platform-gateway-routes.conf
+    sed -i 's#http://websoft9-apphub:8081#http://127.0.0.1:8081#g' /etc/websoft9/platform-gateway-routes.conf
+fi
 
 # Copy stream.conf
 if [ ! -d /data/nginx/stream ]; then mkdir -p /data/nginx/stream; fi
@@ -20,6 +34,9 @@ cp -f /etc/websoft9/stream.conf /data/nginx/stream/stream.conf
 if [ ! -d /etc/custom ]; then mkdir -p /etc/custom; fi
 cp -f /etc/websoft9/custom_var.conf /etc/custom/custom_var.conf
 cp -f /etc/websoft9/custom_ssl.conf /etc/custom/custom_ssl.conf
+
+SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
+sed -i "s#/data/custom_ssl#${SSL_DIR}#g" /etc/custom/custom_ssl.conf
 
 # Deploy Websoft9 landing pages
 rm -rf /var/www/html/index.html
@@ -45,7 +62,6 @@ fi
 export INITIAL_ADMIN_EMAIL
 export INITIAL_ADMIN_PASSWORD
 
-SSL_DIR="/data/custom_ssl"
 CERT_FILE="$SSL_DIR/websoft9-self-signed.cert"
 KEY_FILE="$SSL_DIR/websoft9-self-signed.key"
 

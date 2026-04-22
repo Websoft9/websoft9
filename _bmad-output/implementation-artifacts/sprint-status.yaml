@@ -1,0 +1,80 @@
+# generated: 2026-04-22T00:00:00Z
+# last_updated: 2026-04-22T00:00:00Z
+# project: websoft9
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /workspace/websoft9/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-04-22T00:00:00Z
+last_updated: 2026-04-22T03:43:44Z
+project: websoft9
+project_key: NOKEY
+tracking_system: file-system
+story_location: /workspace/websoft9/_bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: done
+  1-1-bootstrap-the-unified-console-workspace: done
+  1-2-establish-bilingual-app-entry-and-base-shell-routing: done
+  1-3-define-the-single-container-multi-process-runtime-skeleton: done
+  1-4-start-core-services-inside-one-product-container: done
+  1-5-separate-platform-gateway-and-application-proxy-responsibilities: done
+  1-6-solidify-single-container-data-config-and-recoverability-boundaries: done
+  epic-1-retrospective: done
+
+  epic-2: backlog
+  2-1-establish-integration-workspace-entry-cards: backlog
+  2-2-deliver-gitea-embedded-workspace-and-session-continuity: backlog
+  2-3-deliver-portainer-embedded-workspace-and-session-continuity: backlog
+  2-4-deliver-npm-embedded-workspace-and-session-continuity: backlog
+  2-5-handle-integration-failures-and-degraded-states-consistently: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-build-the-app-store-list-and-filters-page: backlog
+  3-2-build-the-app-detail-and-install-parameters-page: backlog
+  3-3-build-the-installation-task-loop: backlog
+  3-4-build-the-my-apps-list-and-detail-shell: backlog
+  3-5-build-lifecycle-actions-and-the-application-detail-header: backlog
+  3-6-build-application-access-proxy-and-certificate-management: backlog
+  3-7-build-product-settings-and-the-sensitive-configuration-baseline: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-build-the-home-overview-and-global-task-feedback-baseline: backlog
+  4-2-build-minimal-product-side-login-and-administrator-initialization: backlog
+  4-3-build-the-basic-user-management-entry: backlog
+  4-4-build-the-backup-list-and-restore-loop: backlog
+  4-5-build-the-controlled-file-management-workspace: backlog
+  4-6-build-the-controlled-terminal-bridge-and-session-audit: backlog
+  4-7-build-the-core-services-view-and-log-drilldown: backlog
+  4-8-build-the-websoft9-runtime-logs-page: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-build-the-upgrade-precheck-and-migration-summary: backlog
+  5-2-build-single-path-upgrade-execution-and-failure-handling: backlog
+  5-3-build-post-upgrade-continuity-confirmation-and-repair-entry: backlog
+  epic-5-retrospective: optional

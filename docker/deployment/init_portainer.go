@@ -3,6 +3,7 @@ package main
 import (
     "bytes"
     "crypto/rand"
+    "crypto/tls"
     "encoding/json"
     "fmt"
     "io/ioutil"
@@ -12,19 +13,19 @@ import (
     "net/url"
     "os"
     "os/exec"
+    "path/filepath"
     "strings"
     "time"
 )
 
 const (
-    portainerURL       = "http://localhost:9000/api"
-    maxRetries         = 5
-    retryDelay         = 5 * time.Second
-    charset            = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$()_"
-    credentialFilePath = "/data/credential"
-    initCheckURL       = portainerURL + "/users/admin/check"
-    waitTimeout        = 60 * time.Second
-    waitInterval       = 2 * time.Second
+    portainerURL = "https://127.0.0.1:9443/api"
+    maxRetries   = 5
+    retryDelay   = 5 * time.Second
+    charset      = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$()_"
+    initCheckURL = portainerURL + "/users/admin/check"
+    waitTimeout  = 60 * time.Second
+    waitInterval = 2 * time.Second
 )
 
 type Credentials struct {
@@ -73,6 +74,13 @@ func main() {
     }
 }
 
+func credentialFilePath() string {
+    if path := os.Getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH"); path != "" {
+        return path
+    }
+    return "/data/credential"
+}
+
 func startAndWaitForPortainer(args ...string) (*exec.Cmd, error) {
     cmd := exec.Command("/portainer", args...)
     cmd.Stdout = os.Stdout
@@ -91,10 +99,14 @@ func startAndWaitForPortainer(args ...string) (*exec.Cmd, error) {
         case <-timeout:
             return nil, fmt.Errorf("timeout waiting for Portainer")
         case <-ticker.C:
-            resp, err := http.Get(portainerURL + "/system/status")
+            resp, err := portainerHTTPClient().Get(portainerURL + "/system/status")
             if err == nil && resp.StatusCode == http.StatusOK {
+                resp.Body.Close()
                 fmt.Println("Portainer is up……!")
                 return cmd, nil
+            }
+            if resp != nil {
+                resp.Body.Close()
             }
             fmt.Println("Waiting for Portainer...")
         }
@@ -177,7 +189,7 @@ func initializeLocalEndpoint(username, password string) error {
     req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
     req.Header.Set("Authorization", "Bearer "+jwtToken)
 
-    client := &http.Client{}
+    client := portainerHTTPClient()
     resp, err = client.Do(req)
     if err != nil {
         return fmt.Errorf("error creating endpoint in Portainer API: %w", err)
@@ -199,7 +211,12 @@ func initializeLocalEndpoint(username, password string) error {
 }
 
 func writeCredentialsToFile(password string) error {
-    err := ioutil.WriteFile(credentialFilePath, []byte(password), 0755)
+    path := credentialFilePath()
+    if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+        return fmt.Errorf("error creating credential directory: %w", err)
+    }
+
+    err := ioutil.WriteFile(path, []byte(password), 0600)
     if err != nil {
         return fmt.Errorf("error writing password to file: %w", err)
     }
@@ -208,9 +225,9 @@ func writeCredentialsToFile(password string) error {
 }
 
 func retryRequest(method, url, contentType string, body *bytes.Buffer) (*http.Response, error) {
-    client := &http.Client{}
+    client := portainerHTTPClient()
     for i := 0; i < maxRetries; i++ {
-        req, err := http.NewRequest(method, url, body)
+        req, err := http.NewRequest(method, url, bytes.NewReader(body.Bytes()))
         if err != nil {
             return nil, fmt.Errorf("error creating request: %w", err)
         }
@@ -228,7 +245,7 @@ func retryRequest(method, url, contentType string, body *bytes.Buffer) (*http.Re
 }
 
 func isPortainerInitialized() bool {
-    resp, err := http.Get(initCheckURL)
+    resp, err := portainerHTTPClient().Get(initCheckURL)
     if err != nil {
         log.Fatalf("Failed to check Portainer initialization status: %v", err)
     }
@@ -244,4 +261,12 @@ func isPortainerInitialized() bool {
 
     log.Fatalf("Unexpected response status: %d", resp.StatusCode)
     return false
+}
+
+func portainerHTTPClient() *http.Client {
+    transport := &http.Transport{
+        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+    }
+
+    return &http.Client{Transport: transport}
 }

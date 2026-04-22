@@ -29,6 +29,7 @@ class JWTManager:
             {
                 "Content-Type": "application/json",
             },
+            verify=False,
         )
         token_response = api.post(
             path="auth",
@@ -81,6 +82,7 @@ class PortainerAPI:
                 "Content-Type": "application/json",
                 # "Authorization": f"Bearer {JWTManager.get_token()}",
             },
+            verify=False,
         )
 
     def auto_refresh_token(func):

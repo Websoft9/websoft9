@@ -14,7 +14,7 @@ class APIHelper:
         put(path: str, params: dict = None, json: dict = None, headers: dict = None) -> Response: Update a resource
         delete(path: str, headers: dict = None) -> Response: Delete a resource
     """
-    def __init__(self, base_url, headers=None):
+    def __init__(self, base_url, headers=None, verify=True):
         """
         Initialize the APIHelper instance.
 
@@ -24,6 +24,7 @@ class APIHelper:
         """
         self.base_url = base_url
         self.headers = headers
+        self.verify = verify
 
     def get(self, path, params=None, headers=None):
         """
@@ -38,7 +39,7 @@ class APIHelper:
             Response: Response from API
         """
         url = f"{self.base_url}/{path}"
-        return requests.get(url, params=params, headers=self._merge_headers(headers))
+        return requests.get(url, params=params, headers=self._merge_headers(headers), verify=self.verify)
 
     def post(self, path, params=None, json=None, headers=None):
         """
@@ -54,7 +55,7 @@ class APIHelper:
             Response: Response from API
         """
         url = f"{self.base_url}/{path}"
-        return requests.post(url, params=params, json=json, headers=self._merge_headers(headers))
+        return requests.post(url, params=params, json=json, headers=self._merge_headers(headers), verify=self.verify)
 
     def put(self, path, params=None, json=None, headers=None):
         """
@@ -70,7 +71,7 @@ class APIHelper:
             Response: Response from API
         """
         url = f"{self.base_url}/{path}"
-        return requests.put(url, params=params, json=json, headers=self._merge_headers(headers))
+        return requests.put(url, params=params, json=json, headers=self._merge_headers(headers), verify=self.verify)
 
     def delete(self, path,params=None, headers=None):
         """
@@ -84,7 +85,7 @@ class APIHelper:
             Response: Response from API
         """
         url = f"{self.base_url}/{path}"
-        return  requests.delete(url, params=params, headers=self._merge_headers(headers))
+        return requests.delete(url, params=params, headers=self._merge_headers(headers), verify=self.verify)
 
     def _merge_headers(self, headers):
         """

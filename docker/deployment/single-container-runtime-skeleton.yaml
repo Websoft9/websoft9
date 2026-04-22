@@ -1,0 +1,186 @@
+model_version: 2026-04-22
+story: 1.3
+delivery_model:
+  current_state: multi-container docker compose deployment
+  target_state: single product container with supervised multi-process runtime
+  current_services:
+    - apphub
+    - deployment-portainer
+    - git-gitea
+    - proxy-nginx-proxy-manager
+  target_services:
+    - apphub-api
+    - apphub-media
+    - gitea
+    - portainer
+    - nginx-proxy-manager
+runtime_owner:
+  supervisor:
+    owner: websoft9 product runtime
+    implementation_target: supervisord
+    config_target: /etc/supervisor/conf.d/websoft9-platform.conf
+  bootstrap:
+    entrypoint_source: scripts/platform-entrypoint.sh
+    entrypoint_target: /websoft9/script/platform-entrypoint.sh
+    healthcheck_source: scripts/platform-healthcheck.sh
+    healthcheck_target: /websoft9/script/platform-healthcheck.sh
+process_contracts:
+  - name: runtime-supervisor
+    required_for_readiness: true
+    startup_order: 10
+    failure_policy: fail-container
+    purpose: Own child process lifecycle and emit unified container logs.
+    config_locations:
+      - /etc/supervisor/conf.d/websoft9-platform.conf
+    log_locations:
+      - current: /var/log/supervisord.log
+        target: /var/log/websoft9/supervisord.log
+  - name: apphub-api
+    required_for_readiness: true
+    startup_order: 20
+    runtime: python-uvicorn
+    native_runtime_kept: true
+    loopback_endpoint: http://127.0.0.1:8080/api/healthz
+    readiness_expectation: The dedicated health endpoint proves the API process is accepting product traffic on the converged runtime.
+    failure_policy: fail-container
+    bootstrap_steps:
+      - supervisor starts the uvicorn process
+      - platform entrypoint waits for API responses
+      - git identity is written after config becomes readable
+      - API key file is created if missing
+    config_locations:
+      - /websoft9/apphub/src/config
+    data_locations:
+      - /websoft9/library
+      - /websoft9/media
+    log_locations:
+      - /websoft9/apphub/logs
+  - name: apphub-media
+    required_for_readiness: true
+    startup_order: 30
+    runtime: python-uvicorn
+    native_runtime_kept: true
+    loopback_endpoint: http://127.0.0.1:8081/healthz
+    readiness_expectation: The dedicated media health endpoint proves the static service is alive without depending on image content under the mounted media path.
+    failure_policy: fail-container
+    config_locations:
+      - /websoft9/apphub/src/config
+    log_locations:
+      - /websoft9/apphub/logs
+  - name: gitea
+    required_for_readiness: false
+    startup_order: 40
+    runtime: native gitea web process
+    native_runtime_kept: true
+    loopback_endpoint: http://127.0.0.1:3000/
+    readiness_expectation: The native HTTP listener responds on loopback after the gitea web process starts.
+    failure_policy: degraded-platform
+    config_locations:
+      - current: /data/gitea/conf
+        target: /data/gitea/conf
+    data_locations:
+      - current: /data
+        target: /data/gitea
+    log_locations:
+      - target: /var/log/websoft9/gitea
+  - name: portainer
+    required_for_readiness: false
+    startup_order: 50
+    runtime: native portainer-ce process
+    native_runtime_kept: true
+    loopback_endpoint: https://127.0.0.1:9443/api/system/status
+    readiness_expectation: The internal HTTPS control plane responds on `/api/system/status` and the Portainer bootstrap marker exists after local endpoint initialization completes.
+    failure_policy: degraded-platform
+    bootstrap_steps:
+      - native portainer process reaches the internal HTTPS `/api/system/status` endpoint
+      - admin initialization runs through init_portainer
+      - local docker endpoint is created
+      - credential bootstrap marker is written under /data/portainer/credential in the converged container
+    config_locations:
+      - current: /data
+        target: /data/portainer
+    data_locations:
+      - current: /data
+        target: /data/portainer
+      - current_conflict: /data/credential
+        target: /data/portainer/credential
+    log_locations:
+      - target: /var/log/websoft9/portainer
+  - name: nginx-proxy-manager
+    required_for_readiness: false
+    startup_order: 60
+    runtime: native nginx proxy manager stack
+    native_runtime_kept: true
+    loopback_endpoint: http://127.0.0.1:81
+    readiness_expectation: Admin/UI port responds on loopback and the NPM bootstrap marker exists after credential and certificate initialization completes.
+    failure_policy: degraded-platform
+    bootstrap_steps:
+      - init script seeds landing pages and proxy defaults
+      - admin credentials are created or restored
+      - main process starts and the admin API becomes reachable on port 81
+      - default inner certificate is present under the current isolated /data/custom_ssl path and moves to /data/nginx-proxy-manager/custom_ssl in the converged container
+    config_locations:
+      - current: /data
+        target: /data/nginx-proxy-manager
+      - current: /etc/letsencrypt
+        target: /etc/letsencrypt
+      - current: /etc/modsec
+        target: /etc/modsec
+      - current: /etc/custom
+        target: /etc/custom
+    data_locations:
+      - current: /data
+        target: /data/nginx-proxy-manager
+      - current_conflict: /data/credential
+        target: /data/nginx-proxy-manager/credential.json
+    log_locations:
+      - target: /var/log/websoft9/nginx-proxy-manager
+startup_contract:
+  required_sequence:
+    - runtime-supervisor
+    - apphub-api
+    - apphub-media
+    - gitea
+    - portainer
+    - nginx-proxy-manager
+  bootstrap_phases:
+    - name: core-bootstrap
+      completion_rule: supervisord is running, AppHub API serves /api/healthz, and the media process responds on /healthz.
+    - name: workspace-bootstrap
+      completion_rule: Gitea listener is reachable, Portainer has created its local endpoint credential marker, and NPM has created both its credential and certificate markers.
+  degraded_state_rule: Support workspace processes may be unavailable without failing the container if AppHub core remains ready.
+  strict_failure_rule: If runtime-supervisor, apphub-api, or apphub-media cannot become ready, the product container must exit non-zero.
+health_contract:
+  canonical_entry:
+    command: /websoft9/script/platform-healthcheck.sh --readiness
+    meaning: Container is ready when supervisord and AppHub core are healthy; supporting workspaces may still be degraded. The default layout is the single-container target.
+  strict_entry:
+    command: /websoft9/script/platform-healthcheck.sh --strict
+    meaning: All declared supporting processes are reachable and no degraded state remains.
+  legacy_reference_entry:
+    command: WEBSOFT9_RUNTIME_LAYOUT=legacy-multi-container /websoft9/script/platform-healthcheck.sh --strict
+    meaning: Use only for comparing the target skeleton against today's isolated multi-container paths during implementation.
+boundaries:
+  config:
+    - /websoft9/apphub/src/config
+    - /data/gitea/conf
+    - /data/portainer
+    - /data/nginx-proxy-manager
+    - /etc/letsencrypt
+    - /etc/modsec
+    - /etc/custom
+  data:
+    - /websoft9/library
+    - /websoft9/media
+    - /data/gitea
+    - /data/portainer
+    - /data/nginx-proxy-manager
+    - /data/nginx-proxy-manager/custom_ssl
+  logs:
+    - /websoft9/apphub/logs
+    - /var/log/supervisord.log
+    - /var/log/websoft9
+notes:
+  - This contract does not merge services into one binary; each service keeps its native runtime.
+  - Story 1.4 should implement startup behavior against this skeleton instead of reopening topology choices.
+  - Current multi-container images reuse broad `/data` roots and conflicting `/data/credential` paths in isolation; the single-container target must split those into service-owned subpaths.
