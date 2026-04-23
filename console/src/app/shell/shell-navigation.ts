@@ -1,19 +1,39 @@
 export const shellNavigationItems = [
     {
-        segment: 'app-store',
+        segment: 'dashboard',
+        pageKey: 'dashboard',
+    },
+    {
+        segment: 'appstore',
         pageKey: 'appStore',
     },
     {
-        segment: 'my-apps',
+        segment: 'myapps',
         pageKey: 'myApps',
     },
     {
-        segment: 'operations',
-        pageKey: 'operations',
+        segment: 'containers',
+        pageKey: 'containers',
     },
     {
-        segment: 'integrations',
-        pageKey: 'integrations',
+        segment: 'gateway',
+        pageKey: 'gateway',
+    },
+    {
+        segment: 'repository',
+        pageKey: 'repository',
+    },
+    {
+        segment: 'services',
+        pageKey: 'services',
+    },
+    {
+        segment: 'logs',
+        pageKey: 'logs',
+    },
+    {
+        segment: 'users',
+        pageKey: 'users',
     },
     {
         segment: 'settings',

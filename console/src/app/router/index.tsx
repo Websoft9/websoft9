@@ -1,11 +1,41 @@
-import { Navigate, createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
 
 import { AppRouteBoundary } from './app-route-boundary'
 import { ShellPlaceholderPage } from '../pages/shell-placeholder-page'
 import { AppShell } from '../shell/app-shell'
 import { shellNavigationItems } from '../shell/shell-navigation'
+import { IntegrationsPage } from '../../features/integrations/integrations-page'
+import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
 
 export function createAppRouter() {
+    const shellRoutes: RouteObject[] = shellNavigationItems.map((item) => {
+        if (item.segment === 'containers') {
+            return {
+                path: item.segment,
+                element: <IntegrationWorkspacePage integrationKey="portainer" />,
+            }
+        }
+
+        if (item.segment === 'gateway') {
+            return {
+                path: item.segment,
+                element: <IntegrationWorkspacePage integrationKey="npm" />,
+            }
+        }
+
+        if (item.segment === 'repository') {
+            return {
+                path: item.segment,
+                element: <IntegrationWorkspacePage integrationKey="gitea" />,
+            }
+        }
+
+        return {
+            path: item.segment,
+            element: <ShellPlaceholderPage pageKey={item.pageKey} />,
+        }
+    })
+
     return createBrowserRouter([
         {
             path: '/',
@@ -16,12 +46,17 @@ export function createAppRouter() {
                     children: [
                         {
                             index: true,
-                            element: <Navigate replace to="app-store" />,
+                            element: <Navigate replace to="dashboard" />,
                         },
-                        ...shellNavigationItems.map((item) => ({
-                            path: item.segment,
-                            element: <ShellPlaceholderPage pageKey={item.pageKey} />,
-                        })),
+                        {
+                            path: 'integrations',
+                            element: <IntegrationsPage />,
+                        },
+                        {
+                            path: 'integrations/:integrationKey',
+                            element: <IntegrationWorkspacePage showCatalogLink />,
+                        },
+                        ...shellRoutes,
                     ],
                 },
             ],

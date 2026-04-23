@@ -32,6 +32,7 @@ so that later features can land under one consistent application boundary.
 - Architecture assigns `console/src/shared/i18n` to internationalization ownership.
 - UX requires continuity for existing users and explicitly bilingual operation.
 - The new console must replace Cockpit-provided locale plumbing with product-owned i18n resources.
+- This story establishes only the reusable shell baseline. Feature-specific information architecture, entry-page layout, and service-facing visual alignment belong to the downstream feature stories rather than this baseline story.
 
 ## Implementation Guardrails
 
@@ -71,6 +72,7 @@ so that later features can land under one consistent application boundary.
 - A shell route baseline exists.
 - English and Chinese shell resource files exist.
 - The next frontend stories can add feature pages without rebuilding the app entry.
+- The visual layout and styling of a concrete feature surface is intentionally deferred to the owning feature story.
 
 ## Source Notes
 

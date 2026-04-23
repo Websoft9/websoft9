@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-04-22T03:43:44Z
+last_updated: 2026-04-22T05:20:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -44,12 +44,12 @@ development_status:
   1-6-solidify-single-container-data-config-and-recoverability-boundaries: done
   epic-1-retrospective: done
 
-  epic-2: backlog
-  2-1-establish-integration-workspace-entry-cards: backlog
-  2-2-deliver-gitea-embedded-workspace-and-session-continuity: backlog
-  2-3-deliver-portainer-embedded-workspace-and-session-continuity: backlog
-  2-4-deliver-npm-embedded-workspace-and-session-continuity: backlog
-  2-5-handle-integration-failures-and-degraded-states-consistently: backlog
+  epic-2: in-progress
+  2-1-establish-integration-workspace-entry-cards: done
+  2-2-deliver-gitea-embedded-workspace-and-session-continuity: in-progress
+  2-3-deliver-portainer-embedded-workspace-and-session-continuity: in-progress
+  2-4-deliver-npm-embedded-workspace-and-session-continuity: in-progress
+  2-5-handle-integration-failures-and-degraded-states-consistently: in-progress
   epic-2-retrospective: optional
 
   epic-3: backlog

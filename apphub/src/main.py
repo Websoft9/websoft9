@@ -4,6 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from src.api.v1.routers import app as api_app
+from src.api.v1.routers import integrations as api_integrations
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
 from src.api.v1.routers import backup as api_backup
@@ -30,6 +31,9 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
     """
     # skip docs and openapi endpoints
     if request.url.path in {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/healthz"}:
+        return None
+
+    if request.url.path.startswith("/api/integrations/"):
         return None 
 
     # validate api key is provided
@@ -134,6 +138,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 app.include_router(api_app.router,tags=["apps"])
+app.include_router(api_integrations.router,tags=["integrations"])
 app.include_router(api_proxy.router,tags=["proxys"])
 app.include_router(api_backup.router,tags=["backup"])
 app.include_router(api_settings.router,tags=["settings"])

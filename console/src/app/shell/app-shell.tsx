@@ -1,158 +1,272 @@
 import {
-    AppBar,
+    Avatar,
     Box,
     Button,
-    Container,
     List,
     ListItemButton,
-    ListItemText,
-    Paper,
+    Menu,
+    MenuItem,
     Stack,
-    Toolbar,
     Typography,
 } from '@mui/material'
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { supportedLocales } from '../../shared/i18n/i18n'
 import { shellNavigationItems } from './shell-navigation'
 
+const navigationSections = [
+    {
+        key: 'system',
+        segments: ['dashboard', 'appstore', 'myapps', 'containers', 'gateway', 'repository'],
+    },
+    {
+        key: 'tools',
+        segments: ['services', 'logs'],
+    },
+    {
+        key: 'access',
+        segments: ['users', 'settings'],
+    },
+] as const
+
 export function AppShell() {
     const { t, i18n } = useTranslation('shell')
+    const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
+    const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
+
+    const resolvedLocale = i18n.resolvedLanguage ?? supportedLocales[0]
 
     return (
         <Box
             sx={{
                 minHeight: '100vh',
-                background:
-                    'radial-gradient(circle at top left, rgba(23,103,209,0.14), transparent 36%), radial-gradient(circle at top right, rgba(15,140,114,0.12), transparent 28%), linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%)',
+                backgroundColor: '#e8edf4',
             }}
         >
-            <AppBar
-                color="transparent"
-                elevation={0}
-                position="sticky"
-                sx={{ backdropFilter: 'blur(14px)', borderBottom: '1px solid', borderColor: 'divider' }}
+            <Box
+                sx={{
+                    height: 76,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    px: { xs: 2, md: 3 },
+                    backgroundColor: '#f7f9fc',
+                    borderBottom: '1px solid rgba(15, 23, 42, 0.05)',
+                }}
             >
-                <Toolbar sx={{ gap: 2, justifyContent: 'space-between', px: { xs: 2, md: 4 } }}>
-                    <Stack spacing={0.25}>
-                        <Typography variant="overline">{t('brand.kicker')}</Typography>
-                        <Typography variant="h6">{t('brand.title')}</Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1}>
-                        {supportedLocales.map((locale) => {
-                            const selected = i18n.resolvedLanguage === locale
-
-                            return (
-                                <Button
-                                    key={locale}
-                                    color={selected ? 'secondary' : 'inherit'}
-                                    onClick={() => {
-                                        void i18n.changeLanguage(locale)
-                                    }}
-                                    size="small"
-                                    variant={selected ? 'contained' : 'text'}
-                                >
-                                    {t(`locales.${locale}`)}
-                                </Button>
-                            )
-                        })}
-                    </Stack>
-                </Toolbar>
-            </AppBar>
-
-            <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gap: 3,
-                        alignItems: 'start',
-                        gridTemplateColumns: { xs: '1fr', lg: '280px minmax(0, 1fr)' },
-                    }}
-                >
-                    <Paper
-                        elevation={0}
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                    <Box
+                        aria-label={t('brand.logoAriaLabel')}
                         sx={{
-                            borderRadius: 4,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            p: 2,
-                            position: { lg: 'sticky' },
-                            top: { lg: 96 },
+                            width: 34,
+                            height: 34,
+                            borderRadius: 1.5,
+                            border: '1px solid rgba(15, 23, 42, 0.1)',
+                            backgroundColor: '#ffffff',
+                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)',
+                        }}
+                    />
+                    <Typography sx={{ fontSize: 28, fontWeight: 500, lineHeight: 1.1 }}>
+                        {t('brand.title')}
+                    </Typography>
+                </Stack>
+
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                    <Button
+                        color="inherit"
+                        onClick={(event) => {
+                            setLocaleMenuAnchor(event.currentTarget)
+                        }}
+                        sx={{
+                            borderRadius: 1.5,
+                            border: '1px solid rgba(15, 23, 42, 0.08)',
+                            px: 1.25,
+                            py: 0.625,
+                            textTransform: 'none',
                         }}
                     >
-                        <Stack spacing={2}>
-                            <Box>
-                                <Typography variant="subtitle2">{t('navigation.title')}</Typography>
-                                <Typography color="text.secondary" sx={{ mt: 0.75 }} variant="body2">
-                                    {t('navigation.description')}
-                                </Typography>
-                            </Box>
-                            <List disablePadding>
-                                {shellNavigationItems.map((item) => (
-                                    <ListItemButton
-                                        component={NavLink}
-                                        key={item.segment}
-                                        sx={{
-                                            borderRadius: 3,
-                                            mb: 0.75,
-                                            '&.active': {
-                                                backgroundColor: 'primary.main',
-                                                color: 'primary.contrastText',
-                                            },
-                                        }}
-                                        to={`/${item.segment}`}
-                                    >
-                                        <ListItemText
-                                            primary={t(`nav.${item.pageKey}.label`)}
-                                            secondary={t(`nav.${item.pageKey}.hint`)}
-                                            slotProps={{
-                                                secondary: {
-                                                    sx: {
-                                                        color: 'inherit',
-                                                        opacity: 0.74,
-                                                    },
-                                                },
-                                            }}
-                                        />
-                                    </ListItemButton>
-                                ))}
-                            </List>
+                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                            <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+                                {t('localeSwitcher.label')}
+                            </Typography>
+                            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                                {t(`locales.${resolvedLocale}`)}
+                            </Typography>
                         </Stack>
-                    </Paper>
+                    </Button>
 
-                    <Stack spacing={2.5}>
-                        <Paper
-                            elevation={0}
-                            sx={{
-                                borderRadius: 4,
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                p: { xs: 3, md: 4 },
-                                overflow: 'hidden',
-                                position: 'relative',
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    background:
-                                        'linear-gradient(120deg, rgba(23,103,209,0.10) 0%, rgba(15,140,114,0.08) 36%, transparent 72%)',
-                                }}
-                            />
-                            <Stack spacing={1.5} sx={{ position: 'relative' }}>
-                                <Typography variant="overline">{t('hero.kicker')}</Typography>
-                                <Typography variant="h3">{t('hero.title')}</Typography>
-                                <Typography color="text.secondary" sx={{ maxWidth: 720 }} variant="body1">
-                                    {t('hero.description')}
+                    <Button
+                        color="inherit"
+                        onClick={(event) => {
+                            setUserMenuAnchor(event.currentTarget)
+                        }}
+                        sx={{
+                            borderRadius: 1.5,
+                            border: '1px solid rgba(15, 23, 42, 0.08)',
+                            px: 0.875,
+                            py: 0.5,
+                            textTransform: 'none',
+                        }}
+                    >
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <Avatar sx={{ width: 30, height: 30, bgcolor: '#d7e3f4', color: '#24446b', fontSize: 13 }}>U</Avatar>
+                            <Stack spacing={0} sx={{ alignItems: 'flex-start' }}>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1 }}>
+                                    {t('user.name')}
+                                </Typography>
+                                <Typography color="text.secondary" sx={{ fontSize: 11, lineHeight: 1.1 }}>
+                                    {t('user.role')}
                                 </Typography>
                             </Stack>
-                        </Paper>
-                        <Outlet />
+                        </Stack>
+                    </Button>
+                </Stack>
+            </Box>
+
+            <Menu
+                anchorEl={localeMenuAnchor}
+                onClose={() => {
+                    setLocaleMenuAnchor(null)
+                }}
+                open={Boolean(localeMenuAnchor)}
+            >
+                {supportedLocales.map((locale) => (
+                    <MenuItem
+                        key={locale}
+                        onClick={() => {
+                            void i18n.changeLanguage(locale)
+                            setLocaleMenuAnchor(null)
+                        }}
+                        selected={resolvedLocale === locale}
+                    >
+                        {t(`locales.${locale}`)}
+                    </MenuItem>
+                ))}
+            </Menu>
+
+            <Menu
+                anchorEl={userMenuAnchor}
+                onClose={() => {
+                    setUserMenuAnchor(null)
+                }}
+                open={Boolean(userMenuAnchor)}
+            >
+                <MenuItem
+                    onClick={() => {
+                        setUserMenuAnchor(null)
+                    }}
+                >
+                    {t('user.menu.profile')}
+                </MenuItem>
+                <MenuItem
+                    onClick={() => {
+                        setUserMenuAnchor(null)
+                    }}
+                >
+                    {t('user.menu.preferences')}
+                </MenuItem>
+                <MenuItem
+                    onClick={() => {
+                        setUserMenuAnchor(null)
+                    }}
+                >
+                    {t('user.menu.signOut')}
+                </MenuItem>
+            </Menu>
+
+            <Box
+                sx={{
+                    display: 'grid',
+                    minHeight: 'calc(100vh - 76px)',
+                    gridTemplateColumns: { xs: '1fr', lg: '238px minmax(0, 1fr)' },
+                }}
+            >
+                <Box
+                    component="aside"
+                    sx={{
+                        backgroundColor: '#f6f8fb',
+                        borderRight: { lg: '1px solid rgba(15, 23, 42, 0.04)' },
+                        borderBottom: { xs: '1px solid rgba(15, 23, 42, 0.04)', lg: 'none' },
+                        px: 1.5,
+                        py: 1.75,
+                    }}
+                >
+                    <Stack spacing={2.25} sx={{ pl: 1.25 }}>
+                        {navigationSections.map((section) => (
+                            <Stack key={section.key} spacing={0.875}>
+                                <Typography
+                                    color="text.secondary"
+                                    sx={{
+                                        px: 1.5,
+                                        pt: 0.25,
+                                        fontSize: 14,
+                                        fontWeight: 700,
+                                        letterSpacing: 0,
+                                        lineHeight: 1.3,
+                                    }}
+                                >
+                                    {t(`navigation.sections.${section.key}`)}
+                                </Typography>
+                                <List disablePadding>
+                                    {section.segments.map((segment) => {
+                                        const item = shellNavigationItems.find((entry) => entry.segment === segment)
+
+                                        if (!item) {
+                                            return null
+                                        }
+
+                                        return (
+                                            <ListItemButton
+                                                component={NavLink}
+                                                key={item.segment}
+                                                sx={{
+                                                    minHeight: 40,
+                                                    borderRadius: 1.5,
+                                                    mb: 0.625,
+                                                    px: 1.5,
+                                                    py: 0.625,
+                                                    color: '#2d3748',
+                                                    transition: 'background-color 120ms ease, color 120ms ease',
+                                                    '&.active': {
+                                                        backgroundColor: '#ffffff',
+                                                        color: '#1f2937',
+                                                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                                                        '& .MuiTypography-root': {
+                                                            fontWeight: 600,
+                                                        },
+                                                    },
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(255,255,255,0.62)',
+                                                    },
+                                                }}
+                                                to={`/${item.segment}`}
+                                            >
+                                                <Typography sx={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35 }} variant="body2">
+                                                    {t(`nav.${item.pageKey}.label`)}
+                                                </Typography>
+                                            </ListItemButton>
+                                        )
+                                    })}
+                                </List>
+                            </Stack>
+                        ))}
                     </Stack>
                 </Box>
-            </Container>
+
+                <Box
+                    component="main"
+                    sx={{
+                        minWidth: 0,
+                        backgroundColor: '#ffffff',
+                        px: { xs: 2, md: 3 },
+                        py: { xs: 2, md: 2.5 },
+                    }}
+                >
+                    <Outlet />
+                </Box>
+            </Box>
         </Box>
     )
 }
