@@ -25,6 +25,27 @@ set_system_config() {
   apphub setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
+write_apphub_gateway_auth() {
+  local api_key=""
+  local gateway_dir="/etc/websoft9/platform-gateway"
+  local gateway_auth_file="$gateway_dir/apphub-auth.conf"
+
+  mkdir -p "$gateway_dir"
+
+  api_key="$(apphub getconfig --section api_key --key key 2>/dev/null || true)"
+
+  if [[ -n "$api_key" ]]; then
+    cat >"$gateway_auth_file" <<EOF
+proxy_set_header x-api-key "$api_key";
+EOF
+    return
+  fi
+
+  cat >"$gateway_auth_file" <<'EOF'
+# AppHub API key is not available yet.
+EOF
+}
+
 sync_base() {
   set_config gitea base_url "${WEBSOFT9_GITEA_API_URL:-http://127.0.0.1:3001/api/v1}"
   set_config portainer base_url "${WEBSOFT9_PORTAINER_API_URL:-https://127.0.0.1:9443/api}"
@@ -33,6 +54,7 @@ sync_base() {
   set_config nginx_proxy_manager ssl_key "${WEBSOFT9_NPM_SSL_KEY_PATH:-/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key}"
   set_system_config docker_library path "${WEBSOFT9_LIBRARY_PATH:-/websoft9/library/apps}"
   set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
+  write_apphub_gateway_auth
 }
 
 sync_credentials() {
@@ -55,6 +77,8 @@ sync_credentials() {
     set_config nginx_proxy_manager user_name "$(jq -r '.username' "$npm_credential_path")"
     set_config nginx_proxy_manager user_pwd "$(jq -r '.password' "$npm_credential_path")"
   fi
+
+  write_apphub_gateway_auth
 }
 
 case "$mode" in

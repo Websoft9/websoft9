@@ -48,6 +48,62 @@ class SettingsManager:
             logger.error(e)
             raise CustomException()
 
+    def read_summary(self) -> dict:
+        self.config.read(self.config_file_path)
+        version_payload = self._read_version_payload()
+
+        return {
+            "groups": [
+                {
+                    "id": "domain",
+                    "items": [
+                        self._build_item("domain", "wildcard_domain", self._get_value("domain", "wildcard_domain"), editable=True),
+                    ],
+                },
+                {
+                    "id": "certificate",
+                    "items": [
+                        self._build_item("nginx_proxy_manager", "ssl_cert", self._get_value("nginx_proxy_manager", "ssl_cert"), masked=True),
+                        self._build_item("nginx_proxy_manager", "ssl_key", self._get_value("nginx_proxy_manager", "ssl_key"), sensitive=True, masked=True),
+                    ],
+                },
+                {
+                    "id": "mirror",
+                    "items": [
+                        self._build_item("docker_mirror", "url", self._get_value("docker_mirror", "url"), editable=True),
+                    ],
+                },
+                {
+                    "id": "internal_access",
+                    "items": [
+                        self._build_item("nginx_proxy_manager", "base_url", self._get_value("nginx_proxy_manager", "base_url"), editable=True),
+                        self._build_item("portainer", "base_url", self._get_value("portainer", "base_url"), editable=True),
+                        self._build_item("gitea", "base_url", self._get_value("gitea", "base_url"), editable=True),
+                        self._build_item("cockpit", "port", self._get_value("cockpit", "port"), editable=True),
+                        self._build_item("api_key", "key", self._get_value("api_key", "key"), sensitive=True, masked=True),
+                    ],
+                },
+                {
+                    "id": "upgrade",
+                    "items": [
+                        self._build_item("upgrade", "target", "apps"),
+                        self._build_item("upgrade", "release_channel", "release"),
+                        self._build_item("upgrade", "dev_channel", "dev"),
+                    ],
+                },
+                {
+                    "id": "version",
+                    "items": [
+                        self._build_item("version", "product", str(version_payload.get("version", "-"))),
+                        *[
+                            self._build_item("version_plugins", key, str(value))
+                            for key, value in (version_payload.get("plugins") or {}).items()
+                        ],
+                    ],
+                },
+            ],
+        }
+
     def write_all(self, data: AppSettings):
         """
         Write all the settings to the config file
@@ -164,3 +220,35 @@ class SettingsManager:
         except Exception as e:
             logger.error("Error in write_section:"+str(e))
             raise CustomException()
+
+    def _get_value(self, section: str, key: str) -> str:
+        return self.config.get(section, key, fallback="")
+
+    def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False) -> dict:
+        display_value = value
+        if masked:
+            display_value = self._mask_value(value)
+
+        return {
+            "group": section,
+            "key": key,
+            "value": display_value,
+            "sensitive": sensitive,
+            "masked": masked,
+            "editable": editable,
+        }
+
+    def _mask_value(self, value: str) -> str:
+        if not value:
+            return "Not configured"
+        if len(value) <= 6:
+            return "*" * len(value)
+        return f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
+
+    def _read_version_payload(self) -> dict:
+        candidate_path = os.path.abspath(os.path.join(os.path.dirname(self.config_file_path), "../../../version.json"))
+        if not os.path.exists(candidate_path):
+            return {}
+
+        with open(candidate_path, "r", encoding="utf-8") as file:
+            return json.load(file)

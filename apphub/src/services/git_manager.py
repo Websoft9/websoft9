@@ -2,6 +2,7 @@ import os
 from git import Repo, GitCommandError
 from src.core.exception import CustomException
 from src.core.logger import logger
+from src.core.config import ConfigManager
 from urllib.parse import urlparse, urlunparse
 
 class GitManager:
@@ -40,6 +41,10 @@ class GitManager:
         
         # Add all files to the index and commit.
         try:
+            config_writer = repo.config_writer()
+            config_writer.set_value('user', 'name', ConfigManager().get_value('gitea', 'user_name'))
+            config_writer.set_value('user', 'email', ConfigManager().get_value('gitea', 'user_email'))
+            config_writer.release()
             repo.git.add('.')
             repo.git.commit('-m', 'Initial commit')
         except GitCommandError as e:

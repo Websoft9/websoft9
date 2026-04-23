@@ -4,6 +4,7 @@ from typing import Optional
 
 class AppResponse(BaseModel):
     app_id: str=Field("", description="App ID",example="wordpress")
+    tracking_id: Optional[str]=Field(None, description="Tracking ID for transient install tasks", example="d290f1ee-6c54-4b01-90e6-d701748f0851")
     endpointId: int=Field(-1, description="Endpoint ID(-1:Not install on app store)",example=1)
     app_name: Optional[str]=Field(None, description="App name",example="wordpress")
     app_dist: Optional[str]=Field(None, description="App dist",example="community")

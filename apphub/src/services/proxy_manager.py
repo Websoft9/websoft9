@@ -111,6 +111,25 @@ class ProxyManager:
                 message=f"Invalid Request",
                 details=details
             )
+
+    @staticmethod
+    def to_proxy_host_response(proxy_host: dict | None):
+        if proxy_host is None:
+            return None
+
+        certificate = proxy_host.get("certificate") or {}
+        certificate_name = certificate.get("nice_name")
+        if certificate_name is None:
+            domain_names = certificate.get("domain_names") or []
+            if domain_names:
+                certificate_name = ", ".join(domain_names)
+
+        return {
+            "proxy_id": proxy_host.get("proxy_id") or proxy_host.get("id"),
+            "domain_names": proxy_host.get("domain_names", []),
+            "certificate_id": proxy_host.get("certificate_id") or certificate.get("id"),
+            "certificate_name": certificate_name,
+        }
         
     def check_proxy_host_exists(self,domain_names: list[str]):
         """
@@ -144,7 +163,7 @@ class ProxyManager:
             logger.error(f"Check proxy host:{domain_names} exists error:{e}")
             raise CustomException()
 
-    def create_proxy_by_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http"):
+    def create_proxy_by_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http",certificate_id: int | None = None):
         """
         Create a proxy host
 
@@ -164,13 +183,14 @@ class ProxyManager:
                 forward_host=forward_host,
                 forward_port=forward_port,
                 advanced_config=advanced_config,
+                certificate_id=certificate_id,
         )
         if response.status_code != 201:
             self._handler_nginx_error(response)
         else:
             return response.json()
 
-    def update_proxy_by_app(self,proxy_id:int,domain_names: list[str]):
+    def update_proxy_by_app(self,proxy_id:int,domain_names: list[str],certificate_id: int | None = None):
         """
         Update a proxy host
 
@@ -192,6 +212,7 @@ class ProxyManager:
                 )
             # update domain_names
             req_json["domain_names"] = domain_names
+            req_json["certificate_id"] = certificate_id or 0
             # delete useless keys from req_json(because the req_json is from get_proxy_host_by_id and update_proxy_host need less keys)
             keys_to_delete = ["id","created_on","modified_on","owner_user_id","enabled","certificate","owner","access_list","use_default_location","ipv6"]
             for key in keys_to_delete:

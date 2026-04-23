@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query,Path
 from src.schemas.appSettings import AppSettings
 from src.schemas.errorResponse import ErrorResponse
+from src.schemas.settingsSummary import SettingsSummaryResponse
 
 from src.services.settings_manager import SettingsManager
 
@@ -17,6 +18,18 @@ router = APIRouter()
         )
 def get_settings():
     return SettingsManager().read_all()
+
+@router.get("/settings/summary",
+            summary="Get masked settings summary",
+            description="Get native console settings summary with masked sensitive values",
+            responses={
+                200: {"model": SettingsSummaryResponse},
+                400: {"model": ErrorResponse},
+                500: {"model": ErrorResponse},
+            }
+        )
+def get_settings_summary():
+    return SettingsManager().read_summary()
 
 @router.get(
             "/settings/{section}",

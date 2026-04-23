@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-04-23T04:25:00Z
+last_updated: 2026-04-23T23:30:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -52,14 +52,14 @@ development_status:
   2-5-handle-integration-failures-and-degraded-states-consistently: done
   epic-2-retrospective: done
 
-  epic-3: in-progress
+  epic-3: done
   3-1-build-the-app-store-list-and-filters-page: done
-  3-2-build-the-app-detail-and-install-parameters-page: backlog
-  3-3-build-the-installation-task-loop: backlog
-  3-4-build-the-my-apps-list-and-detail-shell: backlog
-  3-5-build-lifecycle-actions-and-the-application-detail-header: backlog
-  3-6-build-application-access-proxy-and-certificate-management: backlog
-  3-7-build-product-settings-and-the-sensitive-configuration-baseline: backlog
+  3-2-build-the-app-detail-and-install-parameters-page: done
+  3-3-build-the-installation-task-loop: done
+  3-4-build-the-my-apps-list-and-detail-shell: done
+  3-5-build-lifecycle-actions-and-the-application-detail-header: done
+  3-6-build-application-access-proxy-and-certificate-management: done
+  3-7-build-product-settings-and-the-sensitive-configuration-baseline: done
   epic-3-retrospective: optional
 
   epic-4: backlog

@@ -82,6 +82,13 @@ type InstallError = Error & {
     statusCode?: number
 }
 
+type InstallTaskAcceptedResponse = {
+    app_id: string
+    tracking_id: string
+    message: string
+    details: string
+}
+
 async function installApp(
     app: AppStoreApp,
     appId: string,
@@ -126,7 +133,7 @@ async function installApp(
         throw error
     }
 
-    return response.json().catch(() => null)
+    return response.json().catch(() => null) as Promise<InstallTaskAcceptedResponse | null>
 }
 
 function AppLogo({ app }: { app: AppStoreApp }) {
@@ -572,7 +579,7 @@ export function AppStorePage() {
                             : [currentHostname]
                 : [currentHostname]
 
-            await installApp(
+            const installResult = await installApp(
                 selectedApp,
                 normalizedAppId,
                 selectedVersion,
@@ -580,9 +587,16 @@ export function AppStorePage() {
                 domainNames.length > 0 ? domainNames : [currentHostname],
                 proxyEnabled,
             )
-            setInstallFeedback({ severity: 'success', message: t('appStorePage.install.feedback.success') })
             setSelectedApp(null)
             setIsInstallMode(false)
+            const nextSearchParams = new URLSearchParams()
+            if (installResult?.app_id) {
+                nextSearchParams.set('trackedAppId', installResult.app_id)
+            }
+            if (installResult?.tracking_id) {
+                nextSearchParams.set('trackingId', installResult.tracking_id)
+            }
+            navigate(nextSearchParams.size > 0 ? `/myapps?${nextSearchParams.toString()}` : '/myapps', { replace: true })
         } catch (submitError) {
             const message = submitError instanceof Error ? submitError.message : t('appStorePage.install.feedback.error')
             setInstallError(message)

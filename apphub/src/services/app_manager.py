@@ -168,6 +168,11 @@ class AppManger:
             logger.error(f"Get available apps error:{e}")
             raise CustomException()
 
+    def create_installation_tracking(self, app_install: appInstall) -> Tuple[str, str]:
+        tracked_app_id = app_install.app_id + "_" + PasswordGenerator.generate_random_string(5)
+        tracking_id = start_app_installation(tracked_app_id, app_install.app_name)
+        return tracked_app_id, tracking_id
+
     def get_apps(self,endpointId:int = None):
         """
         Get apps
@@ -232,6 +237,7 @@ class AppManger:
             for app_uuid,app in appInstalling.items(): 
                 app_response = AppResponse(
                         app_id = app.get("app_id", None),
+                        tracking_id = app.get("tracking_id", app_uuid),
                         status = app.get("status", None),
                         app_name = app.get("app_name", None),
                         app_official = app.get("app_official", None),
@@ -250,6 +256,7 @@ class AppManger:
             for app_uuid,app in list(appInstallingError.items()):
                 app_response = AppResponse(
                         app_id = app.get("app_id", None),
+                        tracking_id = app.get("tracking_id", app_uuid),
                         status = app.get("status", None),
                         app_name = app.get("app_name", None),
                         app_official = app.get("app_official", None),
@@ -408,7 +415,7 @@ class AppManger:
             logger.error(f"Get app by app_id:{app_id} error:{e}")
             raise CustomException()
     
-    def install_app(self,appInstall: appInstall, endpointId: int = None):
+    def install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None):
         """
         Install app
 
@@ -423,7 +430,7 @@ class AppManger:
         # Get the info from appInstall
         app_name = appInstall.app_name
         app_version = appInstall.edition.version
-        app_id = appInstall.app_id
+        app_id = tracked_app_id or appInstall.app_id
         proxy_enabled = appInstall.proxy_enabled
         domain_names = appInstall.domain_names
         settings = appInstall.settings
@@ -433,11 +440,8 @@ class AppManger:
             # Get the local endpointId
             endpointId = portainerManager.get_local_endpoint_id()
 
-        # generate app_id  
-        app_id = app_id + "_" + PasswordGenerator.generate_random_string(5)
-        
-        # add app to appInstalling
-        app_uuid = start_app_installation(app_id, app_name)
+        # add app to appInstalling when the request did not pre-register tracking
+        app_uuid = tracking_id or start_app_installation(app_id, app_name)
         add_installing_logs(app_uuid, "Initializing installation","")
 
         # Install app - Step 1 : create repo in gitea
@@ -1179,7 +1183,7 @@ class AppManger:
         # Get the proxys
         return proxyManager.get_proxy_host_by_app(app_id)
 
-    def create_proxy_by_app(self,app_id:str,domain_names:list[str],endpointId:int = None):
+    def create_proxy_by_app(self,app_id:str,domain_names:list[str],endpointId:int = None,certificate_id:int | None = None):
         """
         Create proxy by app_id
 
@@ -1260,9 +1264,9 @@ class AppManger:
                 # Get the nginx proxy config
                 advanced_config = GiteaManager().get_file_raw_from_repo(app_id, "src/nginx-proxy.conf")
                 if advanced_config:
-                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, advanced_config, forward_scheme=forward_scheme)
+                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, advanced_config, forward_scheme=forward_scheme, certificate_id=certificate_id)
                 else:
-                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, forward_scheme=forward_scheme)
+                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, forward_scheme=forward_scheme, certificate_id=certificate_id)
 
                 if proxy_host:
                     logger.access(f"Created domains: {domain_names} for app: [{app_id}]")
@@ -1379,7 +1383,7 @@ class AppManger:
             logger.error(f"Remove proxy error:{e}")
             raise CustomException()
 
-    def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None):
+    def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None,certificate_id:int | None = None):
         """
         Update proxy by app_id
 
@@ -1429,7 +1433,7 @@ class AppManger:
                             asyncio.run(self.redeploy_app(app_id,False))
 
         # Update proxy
-        result = proxyManager.update_proxy_by_app(proxy_id,domain_names)
+        result = proxyManager.update_proxy_by_app(proxy_id,domain_names,certificate_id)
         logger.access(f"Updated domains:{domain_names} for app: [{host['forward_host']}]")
         return result
 

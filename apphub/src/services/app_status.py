@@ -6,13 +6,14 @@ appInstallingError = {}         # app install error
 MAX_SUB_LOGS = 30  # 每个阶段的最大子日志数量
 
 # Add app to appInstalling
-def start_app_installation(app_id, app_name):
-    app_uuid = str(uuid.uuid4())
+def start_app_installation(app_id, app_name, app_uuid=None):
+    app_uuid = app_uuid or str(uuid.uuid4())
     app = {
         "app_id": app_id,
         "app_name": app_name,
         "app_official": True,
         "status": 3,  # installing
+        "tracking_id": app_uuid,
         "logs": []
     }
     appInstalling[app_uuid] = app

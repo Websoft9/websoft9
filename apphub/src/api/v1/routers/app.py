@@ -10,6 +10,7 @@ from src.core import logger
 from src.core.exception import CustomException
 from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
+from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
 from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
@@ -85,10 +86,11 @@ def get_app_by_id(
 @router.post(
     "/apps/install",
     summary="Install App",
+    response_model=AppInstallAcceptedResponse,
     response_model_exclude_defaults=True, 
     description="Install an app on an endpoint",
     responses={
-        200: {"description": "Success"},
+        200: {"model": AppInstallAcceptedResponse},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
     }
@@ -100,14 +102,18 @@ async def apps_install(
     # install validate
     install_validate(appInstall,endpointId)
 
+    app_manager = AppManger()
+    tracked_app_id, tracking_id = app_manager.create_installation_tracking(appInstall)
+
     # install app
-    Thread(target=AppManger().install_app, args=(appInstall, endpointId)).start()
+    Thread(target=app_manager.install_app, args=(appInstall, endpointId, tracked_app_id, tracking_id), daemon=True).start()
     
     # return success
-    return ErrorResponse(
-        status_code=200,
+    return AppInstallAcceptedResponse(
         message="Success",
         details="The app is installing and can be viewed through 'My Apps.'",
+        app_id=tracked_app_id,
+        tracking_id=tracking_id,
     )
 
     # async def log_generator(queue: asyncio.Queue):

@@ -1,12 +1,15 @@
-import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { Navigate, Outlet, createBrowserRouter, type RouteObject } from 'react-router-dom'
 
 import { AppRouteBoundary } from './app-route-boundary'
 import { ShellPlaceholderPage } from '../pages/shell-placeholder-page'
 import { AppShell } from '../shell/app-shell'
 import { shellNavigationItems } from '../shell/shell-navigation'
 import { AppStorePage } from '../../features/app-store/app-store-page'
+import { MyAppDetailPage } from '../../features/my-apps/my-app-detail-page'
+import { MyAppsPage } from '../../features/my-apps/my-apps-page'
 import { IntegrationsPage } from '../../features/integrations/integrations-page'
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
+import { SettingsPage } from '../../features/settings/settings-page'
 
 export function createAppRouter() {
     const shellRoutes: RouteObject[] = shellNavigationItems.map((item) => {
@@ -35,6 +38,30 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <AppStorePage />,
+            }
+        }
+
+        if (item.segment === 'myapps') {
+            return {
+                path: item.segment,
+                element: <Outlet />,
+                children: [
+                    {
+                        index: true,
+                        element: <MyAppsPage />,
+                    },
+                    {
+                        path: ':appId',
+                        element: <MyAppDetailPage />,
+                    },
+                ],
+            }
+        }
+
+        if (item.segment === 'settings') {
+            return {
+                path: item.segment,
+                element: <SettingsPage />,
             }
         }
 

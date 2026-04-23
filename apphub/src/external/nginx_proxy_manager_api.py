@@ -76,6 +76,7 @@ class NginxProxyManagerAPI:
         forward_host: str,
         forward_port: int,
         advanced_config: str,
+        certificate_id: int | None = None,
     ):
         """
         Create a new proxy host
@@ -98,7 +99,7 @@ class NginxProxyManagerAPI:
                 "forward_host": forward_host,
                 "forward_port": forward_port,
                 "access_list_id": "0",
-                "certificate_id": 0,
+                "certificate_id": certificate_id or 0,
                 "meta": {"letsencrypt_agree": False, "dns_challenge": False},
                 "advanced_config": advanced_config,
                 "block_exploits": False,

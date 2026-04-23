@@ -31,6 +31,7 @@
 
 - 用途: 获取已安装应用列表。
 - 实现特点: 当前主要依赖 Portainer 栈和容器数据汇总，同时合并内存中的安装中与失败状态。
+- 当前过渡契约: 对于安装中或安装失败的瞬态项，响应会带出 `tracking_id`、`status`、`logs`、`error`，供产品内 My Apps 页面持续跟踪安装反馈。
 
 ### GET /apps/{app_id}
 
@@ -40,7 +41,8 @@
 ### POST /apps/install
 
 - 用途: 安装应用。
-- 当前特点: 校验后在后台线程里调用安装，不是显式任务系统。
+- 当前特点: 校验后仍在线程中异步调用安装，不是完整显式任务系统。
+- 当前过渡契约: 成功受理后会立即返回 `app_id` 与 `tracking_id`，前端可据此从 App Store 自然切到 My Apps 跟踪安装中、失败和最终落库后的应用状态。
 
 ### POST /apps/{app_id}/start
 ### POST /apps/{app_id}/stop
@@ -59,24 +61,33 @@
 ### GET /proxys/{app_id}
 
 - 用途: 查询应用对应代理。
+- 当前特点: 通过 AppHub 统一代理 Nginx Proxy Manager API，已可作为 My Apps access tab 的应用级代理读取面。
 
 ### GET /proxys/ssl/certificates
 
 - 用途: 获取 SSL 证书列表。
+- 当前特点: 现阶段主要提供基础证书库存状态，用于产品内访问配置页展示“可用证书”基线。
 
 ### POST /proxys/{app_id}
 
 - 用途: 基于域名列表为应用创建代理。
+- 当前特点: 兼容同步调用仍可用；新增 `async_task=true` 后，接口会返回代理任务受理结果，供原生 access tab 轮询统一任务状态。
 
 ### PUT /proxys/{proxy_id}
 
 - 用途: 更新代理域名列表。
+- 当前特点: 兼容同步调用仍可用；新增 `async_task=true` 后，接口会返回代理任务受理结果，并支持证书绑定字段一并提交。
+
+### GET /proxys/tasks/{task_id}
+
+- 用途: 查询代理变更任务状态。
+- 当前特点: 为 My Apps access tab 提供统一任务轮询面，任务完成后返回规范化的 `proxy_id`、域名和证书绑定状态。
 
 ### DELETE /proxys/{proxy_id}
 
 - 用途: 删除代理。
 
-当前代理能力本质上是对 Nginx Proxy Manager 的 API 封装。
+当前代理能力本质上是对 Nginx Proxy Manager 的 API 封装，已经足够支撑 access tab 的第一版读写闭环，但后续仍需补齐任务反馈与更细的证书绑定语义。
 
 ## 5. 备份接口
 
@@ -103,6 +114,11 @@
 - 用途: 获取全部设置。
 - 当前数据结构包含 nginx_proxy_manager、gitea、portainer、api_key、domain、cockpit 等节。
 
+### GET /settings/summary
+
+- 用途: 获取原生设置页摘要。
+- 当前特点: 按域名、证书、镜像源、内部访问、升级和版本分组返回数据，并默认掩码敏感字段，避免前端长期持有明文秘密值。
+
 ### GET /settings/{section}
 
 - 用途: 获取某个设置节。
@@ -125,7 +141,8 @@
 
 - 认证层，需要从单 API Key 升级到用户、会话、权限体系。
 - 设置层，需要脱离 ini 文件和敏感凭据明文管理。
-- 任务层，需要把线程和临时内存状态升级为标准任务系统。
+- 任务层，虽然当前已经补上 `tracking_id` 与 My Apps 过渡反馈闭环，但仍需要把线程和临时内存状态升级为标准任务系统与 SSE 推送模型。
+- 访问代理层，当前已具备 AppHub 统一代理的读写接口，可支撑 My Apps access tab 的域名与基础证书状态管理，但代理变更尚未进入统一任务模型。
 - 资源模型，需要从“第三方服务代理”逐步改为“产品自己的资源与控制平面”。
 
 ## 8. 对新前端的意义
@@ -135,5 +152,6 @@
 最现实的路径是:
 
 1. 先复用现有应用、代理、备份、设置接口中稳定部分。
-2. 新增用户认证、权限、日志、服务、文件管理、终端桥接等新 API。
-3. 再逐步削弱对 Portainer、Gitea、NPM 当前接口和凭据桥接的依赖。
+2. 在应用域先沿用当前 `app_id + tracking_id + /api/apps` 的过渡反馈模型，为后续 SSE 任务流、My Apps 详情和生命周期动作提供连续性基线。
+3. 新增用户认证、权限、日志、服务、文件管理、终端桥接等新 API。
+4. 再逐步削弱对 Portainer、Gitea、NPM 当前接口和凭据桥接的依赖。
