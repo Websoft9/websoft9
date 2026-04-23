@@ -30,9 +30,92 @@ type IntegrationWorkspaceContentProps = {
     showCatalogLink: boolean
 }
 
+const embeddedShellStyles: Record<IntegrationKey, string> = {
+    gitea: `
+        body,
+        .full.height,
+        #page-body {
+            background: #ffffff !important;
+        }
+
+        .page-footer {
+            background: transparent !important;
+            border-top: 1px solid rgba(15, 23, 42, 0.06) !important;
+            box-shadow: none !important;
+            padding: 12px 24px !important;
+            color: #64748b !important;
+        }
+
+        .page-footer a {
+            color: #64748b !important;
+        }
+    `,
+    npm: `
+        body,
+        .page,
+        .page-wrapper,
+        .page-body {
+            background: #ffffff !important;
+        }
+
+        footer,
+        .footer,
+        .page-footer {
+            background: transparent !important;
+            border-top: 1px solid rgba(15, 23, 42, 0.06) !important;
+            box-shadow: none !important;
+            margin-top: 24px !important;
+            padding: 12px 24px !important;
+            color: #64748b !important;
+        }
+
+        footer a,
+        .footer a,
+        .page-footer a {
+            color: #64748b !important;
+        }
+    `,
+    portainer: `
+        body,
+        #content-wrapper,
+        .page-content,
+        .page-wrapper {
+            background: #ffffff !important;
+        }
+    `,
+}
+
+function applyEmbeddedShellStyle(frame: HTMLIFrameElement, integrationKey: IntegrationKey) {
+    const styleText = embeddedShellStyles[integrationKey]
+    if (!styleText) {
+        return
+    }
+
+    try {
+        const doc = frame.contentDocument
+        if (!doc?.head) {
+            return
+        }
+
+        const styleId = 'websoft9-embedded-shell-style'
+        let style = doc.getElementById(styleId) as HTMLStyleElement | null
+
+        if (!style) {
+            style = doc.createElement('style')
+            style.id = styleId
+            doc.head.appendChild(style)
+        }
+
+        style.textContent = styleText
+    } catch {
+        // Embedded integrations are expected to remain same-origin under product-owned paths.
+    }
+}
+
 function IntegrationWorkspaceContent({ definition, showCatalogLink }: IntegrationWorkspaceContentProps) {
     const { t } = useTranslation('shell')
     const { refresh, snapshots } = useIntegrationStatuses()
+    const directWorkspaceViewportHeight = 'calc(100vh - 76px)'
 
     const snapshot = snapshots[definition.key]
     const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt)
@@ -41,6 +124,65 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
         ? t(`integrations.states.${snapshot.status}.detailWithCode`, { statusCode: snapshot.httpStatus })
         : t(`integrations.states.${snapshot.status}.detail`)
     const alertSeverity = snapshot.status === 'available' ? 'success' : snapshot.status === 'loading' ? 'info' : 'warning'
+    const isDirectWorkspace = definition.key === 'gitea' || definition.key === 'npm' || definition.key === 'portainer'
+    const renderDirectWorkspace = isDirectWorkspace && shouldRenderFrame
+
+    if (isDirectWorkspace) {
+        return (
+            <Box
+                sx={{
+                    height: directWorkspaceViewportHeight,
+                    mx: -3,
+                    my: -2.5,
+                    backgroundColor: '#fff',
+                }}
+            >
+                {renderDirectWorkspace ? (
+                    <Box
+                        component="iframe"
+                        src={definition.workspacePath}
+                        onLoad={(event) => {
+                            applyEmbeddedShellStyle(event.currentTarget, definition.key)
+                        }}
+                        sx={{
+                            width: '100%',
+                            height: directWorkspaceViewportHeight,
+                            border: 0,
+                            display: 'block',
+                        }}
+                        title={t(`integrations.catalog.${definition.key}.title`)}
+                    />
+                ) : (
+                    <Stack
+                        spacing={1.25}
+                        sx={{
+                            height: directWorkspaceViewportHeight,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            px: 3,
+                            textAlign: 'center',
+                        }}
+                    >
+                        {sessionState === 'error' ? (
+                            <>
+                                <Chip color="warning" label={t('integrations.workspace.sessionBootstrapFailed')} />
+                                <Typography color="text.secondary" variant="body2">
+                                    {errorMessage ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
+                                </Typography>
+                            </>
+                        ) : (
+                            <>
+                                <Chip color="info" label={t('integrations.workspace.bootstrappingSession')} />
+                                <Typography color="text.secondary" variant="body2">
+                                    {t('integrations.workspace.bootstrappingSessionDetail')}
+                                </Typography>
+                            </>
+                        )}
+                    </Stack>
+                )}
+            </Box>
+        )
+    }
 
     return (
         <Stack spacing={2}>
@@ -130,6 +272,9 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                     <Box
                         component="iframe"
                         src={definition.workspacePath}
+                        onLoad={(event) => {
+                            applyEmbeddedShellStyle(event.currentTarget, definition.key)
+                        }}
                         sx={{
                             width: '100%',
                             minHeight: 720,

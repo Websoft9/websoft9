@@ -16,15 +16,15 @@ export type IntegrationDefinition = {
 
 export const integrationDefinitions: IntegrationDefinition[] = [
     {
-        authMarkers: ['/user/login', 'name="user_name"', 'content="Gitea"'],
+        authMarkers: ['Sign In - Gitea', 'name="user_name"', 'name="_csrf"'],
         authPaths: ['/user/login'],
         diagnosticsPath: '/w9git/',
         entrySegment: 'repository',
         key: 'gitea',
         pageKey: 'gitea',
         probePath: '/w9git/',
-        workspacePath: '/w9git/',
-        directPath: '/w9git/',
+        workspacePath: '/w9git/explore/repos',
+        directPath: '/w9git/explore/repos',
     },
     {
         authMarkers: ['#/auth', '/api/auth', 'Portainer'],
@@ -45,8 +45,8 @@ export const integrationDefinitions: IntegrationDefinition[] = [
         key: 'npm',
         pageKey: 'npm',
         probePath: '/w9proxy/',
-        workspacePath: '/w9proxy/',
-        directPath: '/w9proxy/',
+        workspacePath: '/w9proxy/nginx/proxy-hosts',
+        directPath: '/w9proxy/nginx/proxy-hosts',
     },
 ] as const
 

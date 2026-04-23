@@ -2,7 +2,7 @@
 
 ## Status
 
-in-progress
+done
 
 ## Story
 
@@ -115,3 +115,4 @@ so that I understand whether the problem is availability, configuration, or sess
 
 - 2026-04-22: Implemented the shared integration failure taxonomy, diagnostics entry points, and bilingual recovery UX for Story 2.5.
 - 2026-04-22: Confirmed the shared failure contract remains intact after promoting Epic 2 workspaces to first-class shell navigation entries.
+- 2026-04-23: Story status moved to done after the Gitea, Portainer, and NPM workspace flows were revalidated against the shared failure and recovery contract.

@@ -32,7 +32,7 @@ sync_base() {
   set_config nginx_proxy_manager ssl_cert "${WEBSOFT9_NPM_CERT_MARKER:-/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert}"
   set_config nginx_proxy_manager ssl_key "${WEBSOFT9_NPM_SSL_KEY_PATH:-/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key}"
   set_system_config docker_library path "${WEBSOFT9_LIBRARY_PATH:-/websoft9/library/apps}"
-  set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media}"
+  set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
 }
 
 sync_credentials() {

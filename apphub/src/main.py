@@ -34,7 +34,19 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
         return None
 
     if request.url.path.startswith("/api/integrations/"):
+        return None
+
+    if request.url.path.startswith("/api/apps/catalog/"):
+        return None
+
+    if request.url.path.startswith("/api/apps/available/"):
         return None 
+
+    if request.url.path == "/api/apps/install":
+        return None
+
+    if request.url.path == "/api/settings/domain":
+        return None
 
     # validate api key is provided
     if api_key_header is None:

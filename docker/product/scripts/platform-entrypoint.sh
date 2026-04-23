@@ -84,6 +84,10 @@ sync_runtime_config() {
   /websoft9/script/platform-sync-config.sh --mode "$mode"
 }
 
+ensure_runtime_assets() {
+  /websoft9/script/platform-sync-runtime-assets.py
+}
+
 update_runtime_status() {
   local output
 
@@ -178,6 +182,7 @@ main() {
 
   log "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
+  ensure_runtime_assets
   sync_runtime_config base
   start_supervisor
   start_apphub_core

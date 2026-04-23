@@ -21,8 +21,9 @@ router = APIRouter()
 
 @router.get(
         "/apps/catalog/{locale}",
-        summary="List Catalogs",
-        description="List all app's catalogs",
+    summary="List Catalogs (Compatibility)",
+    description="Compatibility fallback for App Store catalog browsing. Product-origin shells should prefer static /media/json/catalog_{locale}.json and use this endpoint only when the static catalog is unavailable.",
+    deprecated=True,
         responses={
         200: {"model": list[AppCatalogResponse]},
         400: {"model": ErrorResponse},
@@ -36,8 +37,9 @@ def get_catalog_apps(
 
 @router.get(
         "/apps/available/{locale}",
-        summary="List Available Apps",
-        description="List all available apps",
+    summary="List Available Apps (Compatibility)",
+    description="Compatibility fallback for App Store browse data. Product-origin shells should prefer static /media/json/product_{locale}.json plus /media/json/app-store-install-metadata.json and call this endpoint only when static payloads are unavailable.",
+    deprecated=True,
         responses={
         200: {"model": list[AppAvailableResponse]},
         400: {"model": ErrorResponse},

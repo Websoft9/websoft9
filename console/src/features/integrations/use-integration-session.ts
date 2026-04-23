@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { IntegrationKey, IntegrationStatus } from './integration-model'
 
@@ -11,9 +12,11 @@ type IntegrationSessionResult = {
 }
 
 export function useIntegrationSession(integrationKey: IntegrationKey, integrationStatus: IntegrationStatus, refreshToken: string | null) {
+    const { i18n } = useTranslation('shell')
     const [result, setResult] = useState<IntegrationSessionResult | null>(null)
     const canBootstrap = integrationStatus === 'available' || integrationStatus === 'session-error'
-    const requestKey = `${integrationKey}:${integrationStatus}:${refreshToken ?? 'initial'}`
+    const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const requestKey = `${integrationKey}:${integrationStatus}:${refreshToken ?? 'initial'}:${locale}`
 
     useEffect(() => {
         if (!canBootstrap) {
@@ -25,6 +28,9 @@ export function useIntegrationSession(integrationKey: IntegrationKey, integratio
         void fetch(`/api/integrations/${integrationKey}/session`, {
             method: 'POST',
             credentials: 'include',
+            headers: {
+                'X-Websoft9-Locale': locale,
+            },
             signal: abortController.signal,
         })
             .then(async (response) => {
@@ -54,7 +60,7 @@ export function useIntegrationSession(integrationKey: IntegrationKey, integratio
         return () => {
             abortController.abort()
         }
-    }, [canBootstrap, integrationKey, requestKey])
+    }, [canBootstrap, integrationKey, locale, requestKey])
 
     const currentResult = result?.requestKey === requestKey ? result : null
 

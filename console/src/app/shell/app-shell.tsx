@@ -19,15 +19,11 @@ import { shellNavigationItems } from './shell-navigation'
 const navigationSections = [
     {
         key: 'system',
-        segments: ['dashboard', 'appstore', 'myapps', 'containers', 'gateway', 'repository'],
+        segments: ['dashboard', 'appstore', 'myapps', 'containers', 'gateway', 'repository', 'files', 'terminal'],
     },
     {
         key: 'tools',
-        segments: ['services', 'logs'],
-    },
-    {
-        key: 'access',
-        segments: ['users', 'settings'],
+        segments: ['services', 'logs', 'users', 'settings'],
     },
 ] as const
 

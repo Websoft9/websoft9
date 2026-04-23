@@ -43,38 +43,55 @@ func main() {
         log.Fatalf("Failed to start and wait for Portainer: %v", err)
     }
 
-    // 检查是否已经初始化
-    if isPortainerInitialized() {
-        log.Println("Portainer is already initialized.")
-        // 等待 Portainer 进程结束
-        if err := cmd.Wait(); err != nil {
-            log.Fatalf("Portainer process exited with error: %v", err)
-        }
-        return
+    adminUsername := "admin"
+    initialized := isPortainerInitialized()
+    adminPassword, err := resolveAdminPassword(initialized)
+    if err != nil {
+        log.Fatalf("Failed to resolve Portainer admin credentials: %v", err)
     }
 
-    // 初始化 Portainer
-    adminUsername := "admin"
-    adminPassword := generateRandomPassword(12)
-
-    if err := initializePortainerUser(adminUsername, adminPassword); err != nil {
-        log.Fatalf("Failed to initialize Portainer user: %v", err)
+    // 检查是否已经初始化
+    if initialized {
+        log.Println("Portainer is already initialized.")
     } else {
-        if err := writeCredentialsToFile(adminPassword); err != nil {
-            log.Fatalf("Failed to write credentials to file: %v", err)
+        if err := initializePortainerUser(adminUsername, adminPassword); err != nil {
+            log.Fatalf("Failed to initialize Portainer user: %v", err)
         } else {
-            if err := initializeLocalEndpoint(adminUsername, adminPassword); err != nil {
-                log.Fatalf("Failed to initialize local endpoint: %v", err)
-            } else {
-                fmt.Println("Portainer initialization completed successfully.")
+            if err := writeCredentialsToFile(adminPassword); err != nil {
+                log.Fatalf("Failed to write credentials to file: %v", err)
             }
         }
     }
+
+    if err := ensureLocalEndpoint(adminUsername, adminPassword); err != nil {
+        log.Fatalf("Failed to ensure local endpoint: %v", err)
+    }
+
+    fmt.Println("Portainer initialization completed successfully.")
 
     // 等待 Portainer 进程结束
     if err := cmd.Wait(); err != nil {
         log.Fatalf("Portainer process exited with error: %v", err)
     }
+}
+
+func resolveAdminPassword(initialized bool) (string, error) {
+    path := credentialFilePath()
+    if initialized {
+        content, err := ioutil.ReadFile(path)
+        if err != nil {
+            return "", fmt.Errorf("error reading existing credential file %s: %w", path, err)
+        }
+
+        password := strings.TrimSpace(string(content))
+        if password == "" {
+            return "", fmt.Errorf("existing credential file %s is empty", path)
+        }
+
+        return password, nil
+    }
+
+    return generateRandomPassword(12), nil
 }
 
 func credentialFilePath() string {
@@ -157,6 +174,13 @@ func initializePortainerUser(username, password string) error {
 }
 
 func initializeLocalEndpoint(username, password string) error {
+    if hasEndpoints, err := hasExistingEndpoint(username, password); err != nil {
+        return err
+    } else if hasEndpoints {
+        fmt.Println("Portainer endpoint already exists.")
+        return nil
+    }
+
     authBody := Credentials{Username: username, Password: password}
     jsonBody, err := json.Marshal(authBody)
     if err != nil {
@@ -217,6 +241,86 @@ func initializeLocalEndpoint(username, password string) error {
     }
 
     return nil
+}
+
+func ensureLocalEndpoint(username, password string) error {
+    if _, err := os.Stat("/var/run/docker.sock"); err != nil {
+        return fmt.Errorf("docker socket is unavailable at /var/run/docker.sock; Portainer cannot auto-create the local environment: %w", err)
+    }
+
+    return initializeLocalEndpoint(username, password)
+}
+
+func hasExistingEndpoint(username, password string) (bool, error) {
+    jwtToken, err := authenticatePortainer(username, password)
+    if err != nil {
+        return false, err
+    }
+
+    req, err := http.NewRequest("GET", portainerURL+"/endpoints", nil)
+    if err != nil {
+        return false, fmt.Errorf("error creating endpoints list request: %w", err)
+    }
+    req.Header.Set("Authorization", "Bearer "+jwtToken)
+
+    resp, err := portainerHTTPClient().Do(req)
+    if err != nil {
+        return false, fmt.Errorf("error listing endpoints from Portainer API: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, _ := ioutil.ReadAll(resp.Body)
+        return false, fmt.Errorf("unexpected response status while listing endpoints: %d, body: %s", resp.StatusCode, body)
+    }
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return false, fmt.Errorf("error reading endpoints list response: %w", err)
+    }
+
+    var endpoints []map[string]interface{}
+    if err := json.Unmarshal(body, &endpoints); err != nil {
+        return false, fmt.Errorf("error parsing endpoints list response: %w", err)
+    }
+
+    return len(endpoints) > 0, nil
+}
+
+func authenticatePortainer(username, password string) (string, error) {
+    authBody := Credentials{Username: username, Password: password}
+    jsonBody, err := json.Marshal(authBody)
+    if err != nil {
+        return "", fmt.Errorf("error marshaling auth body: %w", err)
+    }
+
+    resp, err := retryRequest("POST", portainerURL+"/auth", "application/json", bytes.NewBuffer(jsonBody))
+    if err != nil {
+        return "", fmt.Errorf("error authenticating with Portainer API: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, _ := ioutil.ReadAll(resp.Body)
+        return "", fmt.Errorf("unexpected auth response status: %d, body: %s", resp.StatusCode, body)
+    }
+
+    var authResult map[string]string
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        return "", fmt.Errorf("error reading authentication response: %w", err)
+    }
+
+    if err := json.Unmarshal(body, &authResult); err != nil {
+        return "", fmt.Errorf("error parsing authentication response: %w", err)
+    }
+
+    jwtToken := authResult["jwt"]
+    if jwtToken == "" {
+        return "", fmt.Errorf("portainer authentication returned an empty jwt")
+    }
+
+    return jwtToken, nil
 }
 
 func writeCredentialsToFile(password string) error {

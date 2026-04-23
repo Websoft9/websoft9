@@ -84,6 +84,7 @@ COPY docker/product/scripts/platform-service-control.sh /websoft9/script/platfor
 COPY docker/product/scripts/platform-start-gateway.sh /websoft9/script/platform-start-gateway.sh
 COPY docker/product/scripts/platform-start-gitea.sh /websoft9/script/platform-start-gitea.sh
 COPY docker/product/scripts/platform-sync-config.sh /websoft9/script/platform-sync-config.sh
+COPY docker/product/scripts/platform-sync-runtime-assets.py /websoft9/script/platform-sync-runtime-assets.py
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \
     printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisorctl "$@"' > /usr/local/bin/supervisorctl && \
@@ -97,6 +98,7 @@ RUN chmod +x /app/init_nginx.sh \
     /websoft9/script/platform-start-gateway.sh \
     /websoft9/script/platform-start-gitea.sh \
     /websoft9/script/platform-sync-config.sh \
+    /websoft9/script/platform-sync-runtime-assets.py \
     /etc/s6-overlay/s6-rc.d/websoft9-supervisor/run && \
     mkdir -p /etc/websoft9 \
     /etc/websoft9/console \

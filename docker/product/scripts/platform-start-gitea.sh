@@ -9,7 +9,10 @@ credential_path="${WEBSOFT9_GITEA_CREDENTIAL_PATH:-$data_dir/credential}"
 admin_user="${WEBSOFT9_GITEA_ADMIN_USER:-websoft9}"
 admin_email="${WEBSOFT9_GITEA_ADMIN_EMAIL:-admin@mydomain.com}"
 gitea_port="${WEBSOFT9_GITEA_HTTP_PORT:-3001}"
-root_url="${WEBSOFT9_GITEA_ROOT_URL:-http://127.0.0.1:${gitea_port}/}"
+platform_public_origin="${WEBSOFT9_PLATFORM_PUBLIC_ORIGIN:-http://127.0.0.1:${WEBSOFT9_PLATFORM_HTTP_PORT:-9000}}"
+root_url="${WEBSOFT9_GITEA_ROOT_URL:-${platform_public_origin%/}/w9git/}"
+local_root_url="${WEBSOFT9_GITEA_LOCAL_ROOT_URL:-http://127.0.0.1:${gitea_port}/}"
+static_url_prefix="${WEBSOFT9_GITEA_STATIC_URL_PREFIX:-/w9git}"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') [platform-start-gitea] $*"
@@ -17,6 +20,18 @@ log() {
 
 random_secret() {
   openssl rand -hex 24
+}
+
+ensure_config_value() {
+  local key="$1"
+  local value="$2"
+
+  if grep -Eq "^${key} = " "$config_file"; then
+    sed -i "s#^${key} = .*#${key} = ${value}#" "$config_file"
+    return
+  fi
+
+  sed -i "/^\[server\]/a ${key} = ${value}" "$config_file"
 }
 
 load_or_create_credentials() {
@@ -46,6 +61,8 @@ APP_DATA_PATH = $data_dir/data
 DOMAIN = 127.0.0.1
 HTTP_PORT = $gitea_port
 ROOT_URL = $root_url
+LOCAL_ROOT_URL = $local_root_url
+STATIC_URL_PREFIX = $static_url_prefix
 DISABLE_SSH = true
 SSH_DOMAIN = 127.0.0.1
 
@@ -72,6 +89,16 @@ PATH = $data_dir/git/lfs
 [log]
 ROOT_PATH = $data_dir/log
 EOF
+}
+
+reconcile_config() {
+  ensure_config_value "DOMAIN" "127.0.0.1"
+  ensure_config_value "HTTP_PORT" "$gitea_port"
+  ensure_config_value "ROOT_URL" "$root_url"
+  ensure_config_value "LOCAL_ROOT_URL" "$local_root_url"
+  ensure_config_value "STATIC_URL_PREFIX" "$static_url_prefix"
+  ensure_config_value "DISABLE_SSH" "true"
+  ensure_config_value "SSH_DOMAIN" "127.0.0.1"
 }
 
 ensure_admin_user() {
@@ -112,6 +139,7 @@ main() {
 
   load_or_create_credentials
   write_config
+  reconcile_config
 
   mkdir -p /var/lib/gitea
   chown -R git:git "$data_dir" /var/lib/gitea

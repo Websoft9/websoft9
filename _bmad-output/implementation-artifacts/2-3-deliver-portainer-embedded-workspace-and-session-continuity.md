@@ -2,7 +2,7 @@
 
 ## Status
 
-in-progress
+done
 
 ## Story
 
@@ -95,12 +95,18 @@ so that container operations stay continuous inside the new shell.
 - Added probe heuristics and status rendering so Portainer bootstrap/auth surfaces no longer look like healthy embedded workspaces.
 - Added retry and diagnostics entry points so Portainer failures remain actionable from inside the shell.
 - Reused the shared route, card, and state model rather than creating Portainer-specific UI conventions.
+- Promoted Portainer to the same direct-workspace iframe experience used by Gitea and NPM.
+- Corrected the live `/w9deployment/` workspace upstream so the product-owned route serves Portainer instead of the console SPA.
+- Forwarded the browser-seeded `portainer_jwt` cookie as a Bearer token on `/w9deployment/api/*` so Portainer auto-login works inside the embedded workspace.
+- Recreated the live product container with `/var/run/docker.sock` mounted and a fixed `init_portainer` bootstrap so the default local Portainer environment is auto-created again.
 
 ### Completion Notes List
 
 - Portainer now has a dedicated containers workspace route under the Websoft9 shell.
 - Failure and degraded states are explicit and routed through the same product-owned recovery surface.
 - The resulting workspace remains compatible with later shared-failure normalization without route redesign.
+- Portainer auto-login now works under the product-owned route instead of falling back to the raw login screen.
+- The default local Portainer environment is now auto-created again, so the embedded workspace no longer stalls on the Environment Wizard.
 
 ### File List
 
@@ -110,8 +116,16 @@ so that container operations stay continuous inside the new shell.
 - console/src/features/integrations/integrations-page.tsx
 - console/src/features/integrations/integration-workspace-page.tsx
 - console/src/shared/i18n/resources.ts
+- apphub/src/services/integration_session_bridge.py
+- docker/product/deployment/init_portainer.go
+- docker/product/gateway/platform-gateway-routes.conf
+- docker/product/README.md
 
 ### Change Log
 
 - 2026-04-22: Implemented the Portainer embedded workspace, continuity detection, and recovery UX for Story 2.3.
 - 2026-04-22: Promoted the Portainer workspace to the primary containers navigation entry while retaining the shared compatibility route.
+- 2026-04-23: Aligned the containers route with the direct-workspace iframe experience used by repository and gateway and corrected the `/w9deployment/` workspace upstream.
+- 2026-04-23: Restored Portainer auto-login by forwarding the seeded JWT cookie as a Bearer token on `/w9deployment/api/*`.
+- 2026-04-23: Restored automatic local-environment bootstrap by fixing `init_portainer`, recreating the live product container with `/var/run/docker.sock`, and validating the `local` endpoint through the live Portainer API.
+- 2026-04-23: Story status moved to done after live validation confirmed embedded access, auto-login continuity, and local-environment bootstrap are working.

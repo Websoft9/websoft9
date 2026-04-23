@@ -2,7 +2,7 @@
 
 ## Status
 
-in-progress
+done
 
 ## Story
 
@@ -94,12 +94,23 @@ so that repository operations remain continuous inside the new shell.
 - Extended integration probing so authentication-like responses resolve to a dedicated `session-error` state instead of being misreported as healthy.
 - Added workspace-level recovery actions and diagnostics metadata for the resolved Gitea route path.
 - Validated the shared implementation through `npm run build` and `npm run lint`.
+- Tightened the Gitea auth markers so public Explore content is no longer misclassified as a session failure.
+- Restored the healthy Gitea workspace to a direct iframe embed without the extra shell-level status panel above it.
+- Simplified the repository refresh transition so Gitea no longer falls back to the generic diagnostics-and-recovery panel during normal bootstrap.
+- Reconciled the live Gitea runtime to use the product-owned `/w9git/` root URL and static asset prefix so the embedded UI can render under the product origin instead of behaving like a raw `:3001` root deployment.
+- Updated the AppHub Gitea session bridge to log in directly against the local Gitea service on `:3001`, then seed the browser with normalized `/w9git` cookies, bypassing the internal proxy hop that was corrupting the cookie path for auto-login.
+- Extended the session bootstrap contract so the console now passes its active locale to AppHub and AppHub rewrites the Gitea `lang` cookie to the matching `/w9git` locale, keeping the embedded workspace language aligned with the product shell.
 
 ### Completion Notes List
 
 - Gitea now has an embedded repository workspace entry under the Websoft9 shell.
 - The default path stays product-owned, and raw external login is no longer the default entry pattern.
 - When continuity falls back to a login/bootstrap surface, the UI now reports a dedicated session-continuity failure instead of dropping into a blank or silent state.
+- When continuity is healthy, the repository entry now opens straight into the embedded Gitea workspace again instead of forcing the user through an extra workspace status header first.
+- The repository route now uses only a minimal bootstrap transition instead of the shared recovery panel during normal refresh.
+- The running product Gitea UI now resolves under `/w9git/` with product-origin asset paths, which removes the most severe embedded-style and navigation breakage from the previous root-path configuration.
+- Browser-like validation now confirms `POST /api/integrations/gitea/session` returns `/w9git` cookies and that a fresh client can reach `/w9git/user/settings` and `/w9git/explore/repos` in an authenticated state.
+- Browser-like validation with `X-Websoft9-Locale: zh-CN` now confirms the bootstrap response emits `lang=zh-CN` and the embedded Gitea UI renders Chinese labels such as `登录`, `探索`, and `帮助`.
 
 ### File List
 
@@ -114,3 +125,7 @@ so that repository operations remain continuous inside the new shell.
 
 - 2026-04-22: Implemented the Gitea embedded workspace path, session-continuity detection, and recovery UX for Story 2.2.
 - 2026-04-22: Promoted the Gitea workspace to the primary repository navigation entry while retaining the shared compatibility route.
+- 2026-04-23: Narrowed Gitea login-page detection and restored the healthy repository route to direct embedded rendering, then rebuilt and redeployed the console assets to the running product container.
+- 2026-04-23: Simplified the repository refresh transition, corrected the running Gitea subpath runtime configuration to `/w9git/`, and revalidated the embedded route against the live product container.
+- 2026-04-23: Fixed Gitea auto-login by bypassing the cookie-path-mangling internal proxy during session bootstrap and revalidated the flow with browser-like `Origin` and `Referer` headers against the live product container.
+- 2026-04-23: Story status moved to done after live validation confirmed embedded repository continuity, auto-login, and locale synchronization remain stable.

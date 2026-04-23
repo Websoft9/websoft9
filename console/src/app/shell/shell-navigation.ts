@@ -24,6 +24,14 @@ export const shellNavigationItems = [
         pageKey: 'repository',
     },
     {
+        segment: 'files',
+        pageKey: 'files',
+    },
+    {
+        segment: 'terminal',
+        pageKey: 'terminal',
+    },
+    {
         segment: 'services',
         pageKey: 'services',
     },

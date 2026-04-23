@@ -20,6 +20,10 @@ Inside the running container:
 - `platform-healthcheck.sh` distinguishes ready, degraded, and failed states
 - `platform-start-gateway.sh` starts the dedicated platform-gateway nginx process under supervisord using `/usr/sbin/nginx` and image-managed gateway config under `/etc/websoft9/platform-gateway`
 
+Portainer runtime requirement:
+
+- The converged product container must have `/var/run/docker.sock` mounted if Portainer is expected to auto-create and manage the local Docker environment. Without that bind mount, Portainer admin initialization can succeed while local environment initialization fails, leaving the UI in the Environment Wizard with no endpoint.
+
 Proxy responsibility split for Story 1.5:
 
 - Product entry on `/` now serves the built console SPA from `/etc/websoft9/console`, and the dedicated `platform-gateway` nginx process under supervisord continues to own internal ports `8889/8890` plus reserved prefixes such as `/api/`, `/media/`, `/w9deployment/`, `/w9proxy/`, `/w9git/`, and `/w9gateway/healthz`.

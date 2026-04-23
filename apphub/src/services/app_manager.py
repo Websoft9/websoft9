@@ -62,7 +62,7 @@ class AppManger:
         try:
             # Get the app media path
             base_path = ConfigManager("system.ini").get_value("app_media", "path")
-            app_media_path = base_path + 'catalog_' + locale + '.json'
+            app_media_path = os.path.join(base_path, f"catalog_{locale}.json")
             # check the app media path is exists
             if not os.path.exists(app_media_path):
                 logger.error(f"Get app'catalog error: {app_media_path} is not exists")
@@ -102,7 +102,7 @@ class AppManger:
             base_path = config_manager.get_value("app_media", "path")
             app_lib_path = config_manager.get_value("docker_library", "path")
             
-            app_media_path = base_path + 'product_' + locale + '.json'
+            app_media_path = os.path.join(base_path, f"product_{locale}.json")
             
             # check the app media path is exists
             if not os.path.exists(app_media_path):

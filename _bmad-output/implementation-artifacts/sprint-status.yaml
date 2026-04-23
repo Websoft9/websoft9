@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-04-22T05:20:00Z
+last_updated: 2026-04-23T04:25:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -44,16 +44,16 @@ development_status:
   1-6-solidify-single-container-data-config-and-recoverability-boundaries: done
   epic-1-retrospective: done
 
-  epic-2: in-progress
+  epic-2: done
   2-1-establish-integration-workspace-entry-cards: done
-  2-2-deliver-gitea-embedded-workspace-and-session-continuity: in-progress
-  2-3-deliver-portainer-embedded-workspace-and-session-continuity: in-progress
-  2-4-deliver-npm-embedded-workspace-and-session-continuity: in-progress
-  2-5-handle-integration-failures-and-degraded-states-consistently: in-progress
-  epic-2-retrospective: optional
+  2-2-deliver-gitea-embedded-workspace-and-session-continuity: done
+  2-3-deliver-portainer-embedded-workspace-and-session-continuity: done
+  2-4-deliver-npm-embedded-workspace-and-session-continuity: done
+  2-5-handle-integration-failures-and-degraded-states-consistently: done
+  epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-build-the-app-store-list-and-filters-page: backlog
+  epic-3: in-progress
+  3-1-build-the-app-store-list-and-filters-page: done
   3-2-build-the-app-detail-and-install-parameters-page: backlog
   3-3-build-the-installation-task-loop: backlog
   3-4-build-the-my-apps-list-and-detail-shell: backlog

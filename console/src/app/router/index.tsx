@@ -4,6 +4,7 @@ import { AppRouteBoundary } from './app-route-boundary'
 import { ShellPlaceholderPage } from '../pages/shell-placeholder-page'
 import { AppShell } from '../shell/app-shell'
 import { shellNavigationItems } from '../shell/shell-navigation'
+import { AppStorePage } from '../../features/app-store/app-store-page'
 import { IntegrationsPage } from '../../features/integrations/integrations-page'
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
 
@@ -27,6 +28,13 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <IntegrationWorkspacePage integrationKey="gitea" />,
+            }
+        }
+
+        if (item.segment === 'appstore') {
+            return {
+                path: item.segment,
+                element: <AppStorePage />,
             }
         }
 

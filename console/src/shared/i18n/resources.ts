@@ -15,7 +15,6 @@ export const shellResources = {
                 sections: {
                     system: 'System',
                     tools: 'Tools',
-                    access: 'Access',
                 },
             },
             localeSwitcher: {
@@ -52,6 +51,12 @@ export const shellResources = {
                 },
                 repository: {
                     label: 'Repository',
+                },
+                files: {
+                    label: 'Files',
+                },
+                terminal: {
+                    label: 'Terminal',
                 },
                 services: {
                     label: 'Services',
@@ -206,6 +211,30 @@ export const shellResources = {
                     systemBody:
                         'This route keeps the product-owned workspace and shared Epic 2 recovery model while restoring the original repository entry shape.',
                 },
+                files: {
+                    eyebrow: 'Shell route placeholder',
+                    title: 'Files shell entry',
+                    description:
+                        'This route reserves the shared surface for file browsing, transfer, and product-owned storage workflows inside the Websoft9 shell.',
+                    nextStepTitle: 'What lands here next',
+                    nextStepBody:
+                        'File browsing, uploads, downloads, and future file-level actions can attach here without borrowing space from the embedded repository or gateway workspaces.',
+                    systemTitle: 'Current system state',
+                    systemBody:
+                        'The shell now keeps file-centric workflows as their own top-level surface instead of forcing them into a generic utility bucket.',
+                },
+                terminal: {
+                    eyebrow: 'Shell route placeholder',
+                    title: 'Terminal shell entry',
+                    description:
+                        'This route reserves the shared surface for terminal access, command execution, and future operator flows inside the Websoft9 shell.',
+                    nextStepTitle: 'What lands here next',
+                    nextStepBody:
+                        'Terminal continuity, session launch, and future shell-assisted operations can attach here without mixing with repository or container management surfaces.',
+                    systemTitle: 'Current system state',
+                    systemBody:
+                        'The route tree now preserves a dedicated terminal mental model instead of hiding shell access behind a broader tools grouping.',
+                },
                 settings: {
                     eyebrow: 'Shell route placeholder',
                     title: 'Settings shell entry',
@@ -217,6 +246,77 @@ export const shellResources = {
                     systemTitle: 'Current system state',
                     systemBody:
                         'Language switching is product-owned and no longer depends on Cockpit locale globals or po.js assets.',
+                },
+            },
+            appStorePage: {
+                filters: {
+                    searchPlaceholder: 'Enter an app name to search, such as WordPress, MySQL, GitLab ...',
+                    allMainCategories: 'All',
+                    allSubCategories: 'All',
+                },
+                results: {
+                    sectionTitle: 'All',
+                    title: '{{count}} apps',
+                    helper: 'Keyword and category filters update the current visible app list immediately.',
+                },
+                states: {
+                    loading: 'Loading App Store data...',
+                    retry: 'Retry',
+                    errorTitle: 'App Store data is temporarily unavailable',
+                    errorDetail: 'The current available-app request failed with status {{statusCode}}. Retry after checking the AppHub API path.',
+                    emptyTitle: 'No apps match the current filters',
+                    emptyDetail: 'Adjust the keyword or category filter to widen the visible App Store results.',
+                },
+                card: {
+                    imageFallbackAlt: 'App logo',
+                    summaryFallback: 'Base app metadata is available, but this app does not currently expose a summary field.',
+                    versionLabel: 'Version',
+                    webAppLabel: 'Web App',
+                    webAppYes: 'Yes',
+                    webAppNo: 'No',
+                    requirementLabel: 'Requirements',
+                    requirementValue: '{{cpu}} CPU / {{memory}} GB / {{storage}} GB',
+                    settingsLabel: 'Settings',
+                    websiteAction: 'Website',
+                },
+                detail: {
+                    versionLine: 'Version: {{version}}',
+                    requirementLine: 'Minimum requirements: {{cpu}} vCPU, {{memory}} GB memory, {{storage}} GB storage',
+                    categoriesLabel: 'Categories:',
+                    overviewTitle: 'Overview',
+                    descriptionTitle: 'Details',
+                },
+                install: {
+                    versionLine: 'Version: {{version}}',
+                    appIdLabel: 'Application name',
+                    appIdHelper: 'Only letters and numbers from 2 to 20 are allowed. No special characters.',
+                    versionLabel: 'Application version',
+                    httpPortLabel: 'Application HTTP port',
+                    httpsPortLabel: 'Application HTTPS port',
+                    databasePortLabel: 'Database port',
+                    dynamicPortLabel: '{{name}} port',
+                    dynamicSettingLabel: '{{name}}',
+                    setGlobalDomain: 'Set global domain',
+                    addDomain: 'Add Domain',
+                    customDomainLabel: 'Domain',
+                    customDomainPlaceholder: 'Please enter a custom domain name.',
+                    disableDomain: 'Disable',
+                    enableDomain: 'Enable',
+                    validation: {
+                        appId: 'Please enter a custom application name between 2 and 20 characters.Cannot start with a number.',
+                        customDomain: 'Please enter a custom domain name.',
+                    },
+                    submitting: 'Installing...',
+                    feedback: {
+                        success: 'The application has started installing. You can continue tracking it in My Apps.',
+                        error: 'Installation failed. Please retry after checking the current configuration.',
+                    },
+                },
+                actions: {
+                    close: 'Close',
+                    closeIcon: 'x',
+                    install: 'Install',
+                    delete: 'Delete',
                 },
             },
             integrations: {
@@ -322,7 +422,6 @@ export const shellResources = {
                 sections: {
                     system: '系统',
                     tools: '工具',
-                    access: '访问',
                 },
             },
             localeSwitcher: {
@@ -359,6 +458,12 @@ export const shellResources = {
                 },
                 repository: {
                     label: '仓库',
+                },
+                files: {
+                    label: '文件',
+                },
+                terminal: {
+                    label: '终端',
                 },
                 services: {
                     label: '服务',
@@ -513,6 +618,30 @@ export const shellResources = {
                     systemBody:
                         '这条路由保留了产品自有工作区和 Epic 2 共享恢复模型，同时把用户入口恢复到原先围绕仓库工作的认知方式。',
                 },
+                files: {
+                    eyebrow: '壳层路由占位',
+                    title: '文件壳层入口',
+                    description:
+                        '这个路由为文件浏览、传输和产品自有存储工作流预留共享壳层表面。',
+                    nextStepTitle: '后续功能将落在这里',
+                    nextStepBody:
+                        '文件浏览、上传、下载，以及后续文件级操作都可以挂在这里，而不必借用仓库或网关工作区的表面。',
+                    systemTitle: '当前系统状态',
+                    systemBody:
+                        '壳层现在把文件相关工作流提升为独立一级表面，而不是继续塞进泛化的工具分组。',
+                },
+                terminal: {
+                    eyebrow: '壳层路由占位',
+                    title: '终端壳层入口',
+                    description:
+                        '这个路由为终端访问、命令执行和后续运维工作流预留共享壳层表面。',
+                    nextStepTitle: '后续功能将落在这里',
+                    nextStepBody:
+                        '终端连续性、会话启动以及后续 shell 辅助运维能力都可以附着在这里，而不会和仓库或容器管理表面混在一起。',
+                    systemTitle: '当前系统状态',
+                    systemBody:
+                        '当前路由树保留了独立终端心智模型，而不是把 shell 入口继续隐藏在更宽泛的工具语义之后。',
+                },
                 settings: {
                     eyebrow: '壳层路由占位',
                     title: '设置壳层入口',
@@ -524,6 +653,77 @@ export const shellResources = {
                     systemTitle: '当前系统状态',
                     systemBody:
                         '语言切换现在由产品自身控制，不再依赖 Cockpit locale 全局变量或 po.js 资源。',
+                },
+            },
+            appStorePage: {
+                filters: {
+                    searchPlaceholder: '请输入要搜索的应用名称,例如:WordPress,MySQL,GitLab ...',
+                    allMainCategories: '全部',
+                    allSubCategories: '全部',
+                },
+                results: {
+                    sectionTitle: '全部',
+                    title: '{{count}} 个应用',
+                    helper: '关键字和分类筛选会立即更新当前可见的应用列表。',
+                },
+                states: {
+                    loading: '正在加载应用商店数据……',
+                    retry: '重试',
+                    errorTitle: '应用商店数据暂时不可用',
+                    errorDetail: '当前 available-app 请求失败，状态码为 {{statusCode}}。请检查 AppHub API 路径后重试。',
+                    emptyTitle: '当前筛选条件下没有匹配应用',
+                    emptyDetail: '请调整关键字或分类筛选条件，以扩大当前可见结果。',
+                },
+                card: {
+                    imageFallbackAlt: '应用 Logo',
+                    summaryFallback: '当前应用已有基础元数据，但暂未提供 summary 字段。',
+                    versionLabel: '版本',
+                    webAppLabel: 'Web 应用',
+                    webAppYes: '是',
+                    webAppNo: '否',
+                    requirementLabel: '资源要求',
+                    requirementValue: '{{cpu}} CPU / {{memory}} GB / {{storage}} GB',
+                    settingsLabel: '设置项',
+                    websiteAction: '官网',
+                },
+                detail: {
+                    versionLine: '版本: {{version}}',
+                    requirementLine: '最低配置要求: {{cpu}} vCPU, {{memory}} GB memory, {{storage}} GB storage',
+                    categoriesLabel: '类别:',
+                    overviewTitle: '概览',
+                    descriptionTitle: '详情',
+                },
+                install: {
+                    versionLine: '版本: {{version}}',
+                    appIdLabel: '应用名称',
+                    appIdHelper: '只允许使用2-20位的字母和数字,不允许使用特殊字符.',
+                    versionLabel: '应用版本',
+                    httpPortLabel: '应用 HTTP 端口',
+                    httpsPortLabel: '应用 HTTPS 端口',
+                    databasePortLabel: '数据库端口',
+                    dynamicPortLabel: '{{name}} 端口',
+                    dynamicSettingLabel: '{{name}}',
+                    setGlobalDomain: '设置全局域名',
+                    addDomain: '添加域名',
+                    customDomainLabel: '域名',
+                    customDomainPlaceholder: '请输入自定义域名。',
+                    disableDomain: '禁用',
+                    enableDomain: '启用',
+                    validation: {
+                        appId: '请输入一个2-20位的自定义应用名称.不允许以数字开头.',
+                        customDomain: '请输入自定义域名',
+                    },
+                    submitting: '安装中...',
+                    feedback: {
+                        success: '应用已经开始安装, 你可以到我的应用中继续跟踪。',
+                        error: '安装失败, 请检查当前配置后重试。',
+                    },
+                },
+                actions: {
+                    close: '关闭',
+                    closeIcon: 'x',
+                    install: '安装',
+                    delete: '删除',
                 },
             },
             integrations: {

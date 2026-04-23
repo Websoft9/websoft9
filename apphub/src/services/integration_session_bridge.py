@@ -21,6 +21,10 @@ class IntegrationSessionBridge:
             "http://127.0.0.1:8889",
         ).rstrip("/")
         self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", "/data/gitea/credential"))
+        self.gitea_direct_origin = os.getenv(
+            "WEBSOFT9_GITEA_DIRECT_ORIGIN",
+            "http://127.0.0.1:3001",
+        ).rstrip("/")
         self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "/data/portainer/credential"))
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
         self.portainer_direct_origin = os.getenv(
@@ -28,9 +32,9 @@ class IntegrationSessionBridge:
             "http://127.0.0.1:9003",
         ).rstrip("/")
 
-    def bootstrap(self, integration_key: IntegrationKey) -> list[dict[str, object]]:
+    def bootstrap(self, integration_key: IntegrationKey, locale: Optional[str] = None) -> list[dict[str, object]]:
         if integration_key == "gitea":
-            return self.bootstrap_gitea()
+            return self.bootstrap_gitea(locale)
         if integration_key == "portainer":
             return self.bootstrap_portainer()
         if integration_key == "npm":
@@ -42,39 +46,47 @@ class IntegrationSessionBridge:
             details=f"Unsupported integration: {integration_key}",
         )
 
-    def bootstrap_gitea(self) -> list[dict[str, object]]:
+    def bootstrap_gitea(self, locale: Optional[str] = None) -> list[dict[str, object]]:
         username, password = self._get_gitea_credentials()
         session = self._create_session()
 
         try:
-            login_page = session.get(f"{self.gateway_origin}/w9git/user/login", timeout=20)
+            login_page = session.get(f"{self.gitea_direct_origin}/user/login", timeout=20)
             login_page.raise_for_status()
 
             csrf_match = re.search(r'name="_csrf" value="([^"]+)"', login_page.text)
-            if csrf_match:
-                login_response = session.post(
-                    f"{self.gateway_origin}/w9git/user/login",
-                    data={
-                        "_csrf": csrf_match.group(1),
-                        "user_name": username,
-                        "password": password,
-                    },
-                    allow_redirects=False,
-                    timeout=20,
+            if not csrf_match:
+                raise CustomException(
+                    status_code=502,
+                    message="Integration Session Bootstrap Failed",
+                    details="Gitea login page did not expose a CSRF token",
                 )
-                if login_response.status_code >= 400:
-                    raise CustomException(
-                        status_code=502,
-                        message="Integration Session Bootstrap Failed",
-                        details=f"Gitea login failed with status {login_response.status_code}",
-                    )
 
-                if "Sign In - Gitea" in login_response.text:
-                    raise CustomException(
-                        status_code=502,
-                        message="Integration Session Bootstrap Failed",
-                        details="Gitea credentials were rejected by the login form",
-                    )
+            login_response = session.post(
+                f"{self.gitea_direct_origin}/user/login",
+                data={
+                    "_csrf": csrf_match.group(1),
+                    "user_name": username,
+                    "password": password,
+                },
+                allow_redirects=False,
+                timeout=20,
+            )
+            if login_response.status_code >= 400:
+                raise CustomException(
+                    status_code=502,
+                    message="Integration Session Bootstrap Failed",
+                    details=f"Gitea login failed with status {login_response.status_code}",
+                )
+
+            if "Sign In - Gitea" in login_response.text:
+                raise CustomException(
+                    status_code=502,
+                    message="Integration Session Bootstrap Failed",
+                    details="Gitea credentials were rejected by the login form",
+                )
+
+            self._verify_gitea_session_cookie(session)
 
             cookies = self._export_session_cookies(session, default_path="/w9git/")
             if not cookies:
@@ -83,6 +95,13 @@ class IntegrationSessionBridge:
                     message="Integration Session Bootstrap Failed",
                     details="Gitea session bootstrap did not yield browser cookies",
                 )
+
+            self._upsert_cookie(
+                cookies,
+                name="lang",
+                value=self._resolve_gitea_locale(locale),
+                path="/w9git",
+            )
 
             return cookies
         except CustomException:
@@ -93,6 +112,15 @@ class IntegrationSessionBridge:
                 status_code=502,
                 message="Integration Session Bootstrap Failed",
                 details="Unable to establish Gitea session",
+            )
+
+    def _verify_gitea_session_cookie(self, session: requests.Session) -> None:
+        cookie_names = {cookie.name for cookie in session.cookies}
+        if "i_like_gitea" not in cookie_names:
+            raise CustomException(
+                status_code=502,
+                message="Integration Session Bootstrap Failed",
+                details="Gitea login did not yield the expected session cookie",
             )
 
     def bootstrap_portainer(self) -> list[dict[str, object]]:
@@ -233,12 +261,50 @@ class IntegrationSessionBridge:
     def _export_session_cookies(self, session: requests.Session, default_path: str) -> list[dict[str, object]]:
         cookies: list[dict[str, object]] = []
         for cookie in session.cookies:
+            path = self._normalize_cookie_path(cookie.path, default_path)
             cookies.append(
                 {
                     "name": cookie.name,
                     "value": cookie.value,
-                    "path": cookie.path or default_path,
+                    "path": path,
                     "httponly": False,
                 }
             )
         return cookies
+
+    def _normalize_cookie_path(self, cookie_path: Optional[str], default_path: str) -> str:
+        normalized_default = (default_path or "/").rstrip("/") or "/"
+        normalized_cookie_path = (cookie_path or normalized_default).rstrip("/") or "/"
+
+        duplicated_prefix = f"{normalized_default}{normalized_default}"
+        if normalized_cookie_path == duplicated_prefix:
+            return normalized_default
+
+        if normalized_cookie_path.startswith(f"{duplicated_prefix}/"):
+            suffix = normalized_cookie_path[len(duplicated_prefix):]
+            return f"{normalized_default}{suffix}" or normalized_default
+
+        return normalized_cookie_path
+
+    def _resolve_gitea_locale(self, locale: Optional[str]) -> str:
+        normalized_locale = (locale or "").strip().lower()
+        if normalized_locale.startswith("zh"):
+            return "zh-CN"
+
+        return "en-US"
+
+    def _upsert_cookie(self, cookies: list[dict[str, object]], name: str, value: str, path: str) -> None:
+        for cookie in cookies:
+            if cookie.get("name") == name:
+                cookie["value"] = value
+                cookie["path"] = path
+                return
+
+        cookies.append(
+            {
+                "name": name,
+                "value": value,
+                "path": path,
+                "httponly": False,
+            }
+        )

@@ -2,7 +2,7 @@
 
 ## Status
 
-in-progress
+done
 
 ## Story
 
@@ -101,6 +101,8 @@ so that proxy operations remain available inside the new shell while native flow
 - NPM now has a stable gateway workspace route under the Websoft9 shell.
 - Session-continuity and failure states are handled through the shared integration contract instead of ad hoc iframe behavior.
 - The route remains aligned with the existing platform-origin versus app-access boundary.
+- The primary gateway entry now follows the same direct-workspace UX as Gitea: minimal bootstrap state first, then a direct embed of the NPM management surface instead of the generic status wrapper.
+- The default embedded landing page now opens the proxy-hosts management view at `/w9proxy/nginx/proxy-hosts` rather than the broader root shell.
 
 ### File List
 
@@ -115,3 +117,5 @@ so that proxy operations remain available inside the new shell while native flow
 
 - 2026-04-22: Implemented the NPM embedded workspace, continuity detection, and shared recovery UX for Story 2.4.
 - 2026-04-22: Promoted the NPM workspace to the primary gateway navigation entry while retaining the shared compatibility route.
+- 2026-04-23: Aligned the gateway route with the Gitea-style direct workspace experience and changed the default embedded landing page to `/w9proxy/nginx/proxy-hosts`, then rebuilt and redeployed the live console bundle.
+- 2026-04-23: Story status moved to done after live validation confirmed the direct embedded gateway route and session continuity remain stable.

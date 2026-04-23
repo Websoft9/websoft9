@@ -17,12 +17,14 @@
 ### GET /apps/catalog/{locale}
 
 - 用途: 获取应用分类目录。
+- 当前定位: compatibility-only 回退接口。产品内应用商店应优先读取 `/media/json/catalog_{locale}.json`，仅在静态目录不可用时回退到该接口。
 - locale 目前限制为 zh 或 en。
 - 数据来源: media 目录中的 catalog_{locale}.json。
 
 ### GET /apps/available/{locale}
 
 - 用途: 获取可安装应用列表。
+- 当前定位: compatibility-only 回退接口。产品内应用商店应优先读取 `/media/json/product_{locale}.json` 与 `/media/json/app-store-install-metadata.json`，仅在静态资源异常时回退到该接口。
 - 当前会结合 docker-library 下各应用 env 配置推导 settings 和 is_web_app。
 
 ### GET /apps
@@ -114,7 +116,7 @@
 
 ### 可复用
 
-- 应用目录、应用可用列表。
+- 应用目录、应用可用列表聚合逻辑仍可复用，但对产品内 App Store 前端而言更适合作为兼容回退层，而不是主浏览数据源。
 - 应用列表和部分详情聚合逻辑。
 - 备份相关接口框架。
 - 代理相关封装思路。
