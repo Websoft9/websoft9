@@ -10,6 +10,8 @@ class AppResponse(BaseModel):
     app_dist: Optional[str]=Field(None, description="App dist",example="community")
     app_version: Optional[str]=Field(None, description="App version",example="1.0.0")
     app_official: bool=Field(True, description="App official",example=True)              
+    is_php_app: bool=Field(False, description="Whether the app belongs to the PHP capability list", example=True)
+    is_monitor_app: bool=Field(False, description="Whether the app belongs to the monitor capability list", example=False)
     proxy_enabled: bool=Field(False, description="Proxy enabled",example=False)
     status: int=Field(0, description="App status(0:unknown,1:active,2:inactive,3:installing,4:error)",example=0)
     creationDate: Optional[int]=Field(None, description="Creation date",example=0)

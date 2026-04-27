@@ -4,6 +4,7 @@ import os
 import shutil
 import random
 import ipaddress
+import re
 import yaml
 import time
 import docker
@@ -11,6 +12,7 @@ import requests
 import asyncio
 import aiodocker
 import asyncio
+from textwrap import dedent
 from typing import Tuple
 from datetime import datetime
 from src.core.config import ConfigManager
@@ -52,6 +54,235 @@ class AppManger:
         for key in keys_to_remove:
             cls._cache.pop(key, None)
             cls._cache_timestamps.pop(key, None)
+
+    def _get_capability_flags(self, app_name: str | None) -> tuple[bool, bool]:
+        normalized_name = (app_name or "").strip()
+        if not normalized_name:
+            return False, False
+
+        system_config = ConfigManager("system.ini")
+        php_apps = {
+            item.strip()
+            for item in (system_config.get_value("php_apps", "keys") or "").split(",")
+            if item.strip()
+        }
+        monitor_apps = {
+            item.strip()
+            for item in (system_config.get_value("appmonitor", "keys") or "").split(",")
+            if item.strip()
+        }
+
+        return normalized_name in php_apps, normalized_name in monitor_apps
+
+    def _parse_app_env(self, app_env: list[str] | None) -> tuple[dict[str, str], str | None, str | None, str | None, str | None, str | bool]:
+        app_env_format: dict[str, str] = {}
+        app_name = None
+        app_dist = None
+        app_version = None
+        w9_url = None
+        w9_url_replace: str | bool = False
+
+        for item in app_env or []:
+            parts = item.split("=", 1)
+            if len(parts) == 2:
+                key, value = parts
+            else:
+                key = parts[0]
+                value = ""
+
+            app_env_format[key] = value
+            if key == "W9_APP_NAME":
+                app_name = value
+            elif key == "W9_DIST":
+                app_dist = value
+            elif key == "W9_VERSION":
+                app_version = value
+            elif key == "W9_URL_REPLACE":
+                w9_url_replace = value
+            elif key == "W9_URL":
+                w9_url = value
+
+        return app_env_format, app_name, app_dist, app_version, w9_url, w9_url_replace
+
+    def _enrich_proxy_hosts(self, proxy_hosts: list[dict] | None, w9_url_replace: str | bool = False, w9_url: str | None = None) -> list[dict]:
+        enriched_hosts: list[dict] = []
+        for proxy_host in proxy_hosts or []:
+            host = dict(proxy_host)
+            host["w9_url_replace"] = w9_url_replace
+            host["w9_url"] = w9_url
+            enriched_hosts.append(host)
+        return enriched_hosts
+
+    def _group_proxy_hosts_by_app(self, proxy_hosts: list[dict] | None) -> dict[str, list[dict]]:
+        proxy_hosts_by_app: dict[str, list[dict]] = {}
+        for proxy_host in proxy_hosts or []:
+            app_id = proxy_host.get("forward_host")
+            if isinstance(app_id, str) and app_id:
+                proxy_hosts_by_app.setdefault(app_id, []).append(proxy_host)
+        return proxy_hosts_by_app
+
+    def _group_volumes_by_app(self, volumes: list[dict] | None) -> dict[str, list[dict]]:
+        volumes_by_app: dict[str, list[dict]] = {}
+        for volume in volumes or []:
+            labels = volume.get("Labels") or {}
+            app_id = labels.get("com.docker.compose.project")
+            if isinstance(app_id, str) and app_id:
+                volumes_by_app.setdefault(app_id, []).append(volume)
+        return volumes_by_app
+
+    def _guess_app_name_from_app_id(self, app_id: str | None) -> str | None:
+        normalized_app_id = (app_id or "").strip()
+        if not normalized_app_id:
+            return None
+
+        base_name, separator, suffix = normalized_app_id.rpartition("_")
+        if separator and suffix and len(suffix) <= 12:
+            return base_name or normalized_app_id
+        return normalized_app_id
+
+    def get_php_info(self, app_id: str, endpointId: int = None):
+        try:
+            portainerManager = PortainerManager()
+
+            if endpointId:
+                check_endpointId(endpointId, portainerManager)
+            else:
+                endpointId = portainerManager.get_local_endpoint_id()
+
+            if not portainerManager.check_stack_exists(app_id, endpointId):
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"{app_id} Not Found"
+                )
+
+            app_containers = portainerManager.get_containers_by_stack_name(app_id, endpointId)
+            if not app_containers:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="No containers found for this app"
+                )
+
+            docker_client = docker.from_env()
+            candidate_containers = sorted(
+                app_containers,
+                key=lambda container: (
+                    0 if container.get("State") == "running" else 1,
+                    0 if f"/{app_id}" in container.get("Names", []) else 1,
+                ),
+            )
+
+            for candidate in candidate_containers:
+                candidate_id = candidate.get("Id", "")
+                if not candidate_id:
+                    continue
+
+                try:
+                    container = docker_client.containers.get(candidate_id)
+                    php_version_result = container.exec_run("php -v")
+                    php_modules_result = container.exec_run("php -m")
+                except docker.errors.APIError:
+                    continue
+
+                if php_version_result.exit_code != 0 or php_modules_result.exit_code != 0:
+                    continue
+
+                php_version_raw = php_version_result.output.decode("utf-8", errors="ignore")
+                php_modules_raw = php_modules_result.output.decode("utf-8", errors="ignore")
+
+                version_match = re.search(r"PHP\s+(\d+\.\d+\.\d+)", php_version_raw)
+                php_version = f"PHP {version_match.group(1)}" if version_match else php_version_raw.strip()
+
+                categorized_modules = {"PHP Modules": []}
+                current_category = "PHP Modules"
+
+                for module in php_modules_raw.strip().splitlines():
+                    normalized_module = module.strip()
+                    if not normalized_module:
+                        continue
+
+                    if normalized_module.startswith("[") and normalized_module.endswith("]"):
+                        current_category = normalized_module[1:-1]
+                        categorized_modules[current_category] = []
+                        continue
+
+                    categorized_modules.setdefault(current_category, []).append(normalized_module)
+
+                return {
+                    "version": php_version,
+                    "modules": categorized_modules,
+                }
+
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="PHP runtime is not available for any running container in this app"
+            )
+        except CustomException as e:
+            raise e
+        except docker.errors.NotFound:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Main PHP container not found"
+            )
+        except Exception as e:
+            logger.error(f"Get php info by app_id:{app_id} error:{e}")
+            raise CustomException()
+
+    def request_php_migration(self, app_id: str, target_version: str, remarks: str, endpointId: int = None):
+        try:
+            php_info = self.get_php_info(app_id, endpointId)
+            app_detail = self.get_app_by_id(app_id, endpointId)
+            webhook_url = ConfigManager("system.ini").get_value("webhook", "wechat")
+
+            normalized_target_version = (target_version or "").strip()
+            normalized_remarks = (remarks or "").strip()
+
+            if not normalized_target_version:
+                raise CustomException(status_code=400, message="Invalid Request", details="Target PHP version is required")
+            if not normalized_remarks:
+                raise CustomException(status_code=400, message="Invalid Request", details="Migration remarks are required")
+            if not webhook_url:
+                raise CustomException(status_code=500, message="Invalid Request", details="Webhook URL is not configured")
+
+            app_name = app_detail.get("app_name") or app_detail.get("name") or self._guess_app_name_from_app_id(app_id) or app_id
+            current_version = php_info.get("version") or "Unknown"
+
+            payload = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "content": dedent(
+                        f"""
+                        <font color="warning">PHP版本迁移申请</font>
+                        >应用名称：<font color="comment">{app_name}</font>
+                        >应用ID：<font color="comment">{app_id}</font>
+                        >当前版本：<font color="comment">{current_version}</font>
+                        >目标版本：<font color="comment">PHP {normalized_target_version}</font>
+                        >备注信息：<font color="comment">{normalized_remarks}</font>
+                        """
+                    ).strip(),
+                },
+            }
+
+            response = requests.post(webhook_url, json=payload, timeout=15)
+            response.raise_for_status()
+
+            response_body = response.json() if response.content else {}
+            if response_body.get("errcode", 0) != 0:
+                raise CustomException(status_code=502, message="Webhook Failed", details=response_body.get("errmsg", "PHP migration request webhook rejected the payload"))
+
+            return {"message": "Success", "details": "PHP migration request submitted successfully"}
+        except CustomException as e:
+            raise e
+        except requests.RequestException as e:
+            logger.error(f"Request php migration by app_id:{app_id} error:{e}")
+            raise CustomException(status_code=502, message="Webhook Failed", details="Failed to submit the PHP migration request")
+        except Exception as e:
+            logger.error(f"Request php migration by app_id:{app_id} error:{e}")
+            raise CustomException()
+
     def get_catalog_apps(self,locale:str):
         """
         Get catalog apps
@@ -170,7 +401,36 @@ class AppManger:
 
     def create_installation_tracking(self, app_install: appInstall) -> Tuple[str, str]:
         tracked_app_id = app_install.app_id + "_" + PasswordGenerator.generate_random_string(5)
-        tracking_id = start_app_installation(tracked_app_id, app_install.app_name)
+
+        # Reserve ports now (template defaults + settings overrides) so concurrent
+        # install requests see them before Docker containers are actually started.
+        reserved_ports: set = set()
+        try:
+            library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            env_path = os.path.join(library_path, app_install.app_name, ".env")
+            if os.path.exists(env_path):
+                with open(env_path) as _f:
+                    for _line in _f:
+                        _line = _line.strip()
+                        if not _line or _line.startswith('#') or '=' not in _line:
+                            continue
+                        _k, _, _v = _line.partition('=')
+                        if 'PORT_SET' in _k:
+                            try:
+                                reserved_ports.add(int(_v.strip()))
+                            except ValueError:
+                                pass
+        except Exception as _e:
+            logger.warning(f"Port reservation: could not read template .env: {_e}")
+        if app_install.settings:
+            for _key, _val in app_install.settings.items():
+                if 'PORT_SET' in _key:
+                    try:
+                        reserved_ports.add(int(_val))
+                    except (ValueError, TypeError):
+                        pass
+
+        tracking_id = start_app_installation(tracked_app_id, app_install.app_name, reserved_ports=reserved_ports)
         return tracked_app_id, tracking_id
 
     def get_apps(self,endpointId:int = None):
@@ -194,15 +454,57 @@ class AppManger:
             apps_info = []
             # Get the stacks by endpointId from portainer
             stacks = portainerManager.get_stacks(endpointId)
+            all_containers = portainerManager.get_containers(endpointId)
+            proxy_hosts_by_app = self._group_proxy_hosts_by_app(ProxyManager().get_proxy_hosts())
+
+            stack_names = {
+                stack.get("Name")
+                for stack in stacks
+                if stack.get("Name") is not None
+            }
+
+            containers_by_project: dict[str, list[dict]] = {}
+            for container in all_containers:
+                container_labels = container.get("Labels") or {}
+                container_project = container_labels.get("com.docker.compose.project")
+                if isinstance(container_project, str) and container_project:
+                    containers_by_project.setdefault(container_project, []).append(container)
+
             for stack in stacks:
                 stack_name = stack.get("Name",None)
                 if stack_name is not None:
-                    # Get the app info by stack_name from portainer
-                    app_info = self.get_app_by_id(stack_name,endpointId)
-                    apps_info.append(app_info)
+                    stack_status = stack.get("Status", 0)
+                    gitConfig = stack.get("GitConfig", {}) or {}
+                    creationDate = stack.get("CreationDate", "")
+                    domain_names = self._enrich_proxy_hosts(proxy_hosts_by_app.get(stack_name, []))
+                    proxy_enabled = len(domain_names) > 0
+                    app_name = self._guess_app_name_from_app_id(stack_name)
+                    app_dist = None
+                    app_version = None
+                    is_php_app, is_monitor_app = self._get_capability_flags(app_name)
+                    app_env_format: dict[str, str] = {}
+                    stack_containers = containers_by_project.get(stack_name, [])
+                    stack_volumes = portainerManager.get_volumes_by_stack_name(stack_name, endpointId, False)
 
-            # Get the not stacks(not installed apps)
-            all_containers = portainerManager.get_containers(endpointId) # Get all containers by endpointId from portainer
+                    app_info = AppResponse(
+                        app_id=stack_name,
+                        endpointId=endpointId,
+                        app_name=app_name,
+                        app_dist=app_dist,
+                        app_version=app_version,
+                        app_official=True,
+                        is_php_app=is_php_app,
+                        is_monitor_app=is_monitor_app,
+                        proxy_enabled=proxy_enabled,
+                        domain_names=domain_names,
+                        status=stack_status,
+                        creationDate=creationDate,
+                        gitConfig=gitConfig,
+                        containers=stack_containers,
+                        volumes=stack_volumes,
+                        env=app_env_format,
+                    )
+                    apps_info.append(app_info)
 
             # Set the not stacks info for response(app not install by portainer)
             not_stacks = [] 
@@ -214,7 +516,7 @@ class AppManger:
                     container_project = container_labels.get("com.docker.compose.project",None)
                     if container_project is not None:
                         # Check the container_project is exists in stacks
-                        if not any(container_project in stack.get("Name",[]) for stack in stacks):
+                        if container_project not in stack_names:
                             # Add the not stacks
                             not_stacks.append(container_project)
             
@@ -252,17 +554,26 @@ class AppManger:
                     apps_info = [app_info for app_info in apps_info if app_info.app_id != app_response.app_id]
                 apps_info.append(app_response)
 
-            # Get the installing error apps
-            for app_uuid,app in list(appInstallingError.items()):
+            # Get the installing error apps.
+            # Auto-clean stale errors: if the app already appears in apps_info (recovered in Portainer
+            # or still being installed), the previous error entry is no longer relevant and can be
+            # discarded. This prevents a deleted-from-Portainer app from showing up as Error.
+            existing_app_ids = {info.app_id for info in apps_info}
+            for app_uuid, app in list(appInstallingError.items()):
+                err_app_id = app.get("app_id")
+                if err_app_id in existing_app_ids:
+                    # App recovered or re-deployed — remove the stale error entry
+                    appInstallingError.pop(app_uuid)
+                    continue
                 app_response = AppResponse(
-                        app_id = app.get("app_id", None),
-                        tracking_id = app.get("tracking_id", app_uuid),
-                        status = app.get("status", None),
-                        app_name = app.get("app_name", None),
-                        app_official = app.get("app_official", None),
-                        error = app.get("error", None),
-                        logs = None
-                    )
+                    app_id=err_app_id,
+                    tracking_id=app.get("tracking_id", app_uuid),
+                    status=app.get("status", None),
+                    app_name=app.get("app_name", None),
+                    app_official=app.get("app_official", None),
+                    error=app.get("error", None),
+                    logs=None
+                )
                 apps_info.append(app_response)
 
             return apps_info
@@ -289,17 +600,14 @@ class AppManger:
             else:
                 endpointId = portainerManager.get_local_endpoint_id()
             
-            # validate the app_id is exists in portainer
-            is_stack_exists =  portainerManager.check_stack_exists(app_id,endpointId)
-            if not is_stack_exists:
+            # Get stack_info by app_id from portainer
+            stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
+            if stack_info is None:
                 raise CustomException(
                     status_code=400,
                     message="Invalid Request",
                     details=f"{app_id} Not Found"
                 )
-            
-            # Get stack_info by app_id from portainer
-            stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
             # Get the stack_id
             stack_id = stack_info.get("Id",None)
             # Check the stack_id is exists
@@ -343,35 +651,11 @@ class AppManger:
                     main_container_info =  portainerManager.get_container_by_id(endpointId, main_container_id)
                     # Get the env from main_container_info
                     app_env = main_container_info.get("Config", {}).get("Env", [])
-                    
-                # Get info from app_env
-                app_name = None
-                app_dist = None
-                app_version = None
-                w9_url = None
-                w9_url_replace = False
-                for item in app_env:
-                    parts  = item.split("=", 1)
-                    if len(parts) == 2:
-                        key, value = parts
-                    else:
-                        key = parts[0]
-                        value = "" 
-                    app_env_format[key] = value
-                    if key == "W9_APP_NAME":
-                        app_name = value
-                    elif key == "W9_DIST":
-                        app_dist = value
-                    elif key == "W9_VERSION":
-                        app_version = value
-                    elif key == "W9_URL_REPLACE":
-                        w9_url_replace = value
-                    elif key == "W9_URL":
-                        w9_url = value
 
-                for domain in domain_names:
-                    domain["w9_url_replace"] = w9_url_replace
-                    domain["w9_url"] = w9_url
+                app_env_format, app_name, app_dist, app_version, w9_url, w9_url_replace = self._parse_app_env(app_env)
+                domain_names = self._enrich_proxy_hosts(domain_names, w9_url_replace, w9_url)
+
+                is_php_app, is_monitor_app = self._get_capability_flags(app_name)
 
                 # Set the appResponse
                 appResponse = AppResponse(
@@ -381,6 +665,8 @@ class AppManger:
                     app_dist = app_dist,
                     app_version = app_version,
                     app_official = True,
+                    is_php_app = is_php_app,
+                    is_monitor_app = is_monitor_app,
                     proxy_enabled = proxy_enabled,
                     domain_names = domain_names,
                     status = stack_status,
@@ -399,6 +685,8 @@ class AppManger:
                     app_dist = "",
                     app_version = "",
                     app_official = True,
+                    is_php_app = False,
+                    is_monitor_app = False,
                     proxy_enabled = proxy_enabled,
                     domain_names = domain_names,
                     status = stack_status,

@@ -12,6 +12,8 @@ from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
 from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
 from src.schemas.appInstall import appInstall
+from src.schemas.appPhpInfo import AppPhpInfoResponse
+from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_manager import AppManger
@@ -82,6 +84,39 @@ def get_app_by_id(
     endpointId: int = Query(None, description="Endpoint ID to get app details from. If not set, get details from the local endpoint")
 ):
     return AppManger().get_app_by_id(app_id, endpointId)
+
+@router.get(
+        "/apps/{app_id}/php",
+        summary="Inspect PHP runtime",
+        description="Retrieve PHP version and modules for PHP-capable apps",
+        responses={
+        200: {"model": AppPhpInfoResponse},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+    )
+def get_app_php_info(
+    app_id: str = Path(..., description="App ID to inspect PHP runtime from"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint")
+):
+    return AppManger().get_php_info(app_id, endpointId)
+
+@router.post(
+        "/apps/{app_id}/php/migration-request",
+        summary="Submit PHP migration request",
+        description="Submit a PHP version migration request for PHP-capable apps",
+        responses={
+        200: {"description": "PHP migration request accepted"},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+    )
+def submit_app_php_migration_request(
+    payload: AppPhpMigrationRequest,
+    app_id: str = Path(..., description="App ID to request PHP migration for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint")
+):
+    return AppManger().request_php_migration(app_id, payload.target_version, payload.remarks, endpointId)
 
 @router.post(
     "/apps/install",
@@ -346,3 +381,37 @@ def app_remove(
     app_id: str = Path(..., description="The error app ID to remove"),
 ):
     AppManger().remove_error_app(app_id)
+
+
+@router.post(
+    "/apps/debug/inject-error",
+    summary="[DEBUG] Inject a fake error app",
+    description="Injects a fake app entry into the error state for UI testing. Never call in production.",
+    status_code=201,
+)
+def debug_inject_error(
+    app_id: str = Query("debug_app", description="Fake app_id"),
+    app_name: str = Query("Debug Error App", description="Fake app name"),
+    error_msg: str = Query("This is a simulated installation error.\nLine 2 of error.\nFailed to deploy a stack: compose up operation failed.", description="Error message"),
+):
+    import uuid
+    from src.services.app_status import appInstallingError
+    uid = str(uuid.uuid4())
+    appInstallingError[uid] = {
+        "app_id": app_id,
+        "app_name": app_name,
+        "app_official": True,
+        "status": 4,
+        "tracking_id": uid,
+        "error": error_msg,
+        "logs": [
+            {"title": "Prepare", "sub_logs": ["Clone repository", "Render template", "Validate config"]},
+            {"title": "Deploy", "sub_logs": [
+                "Pulling image websoft9/moodle:latest",
+                "Creating network moodle_default",
+                error_msg.split("\n")[0],
+            ]},
+            {"title": "Post-install", "sub_logs": []},
+        ],
+    }
+    return {"tracking_id": uid, "app_id": app_id}

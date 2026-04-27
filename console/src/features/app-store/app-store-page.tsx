@@ -598,7 +598,12 @@ export function AppStorePage() {
             }
             navigate(nextSearchParams.size > 0 ? `/myapps?${nextSearchParams.toString()}` : '/myapps', { replace: true })
         } catch (submitError) {
-            const message = submitError instanceof Error ? submitError.message : t('appStorePage.install.feedback.error')
+            let message = submitError instanceof Error ? submitError.message : t('appStorePage.install.feedback.error')
+            // Detect port conflict error from backend and show i18n-friendly message
+            const portMatch = message.match(/Port\s+(\d+)\s+is already in use/i)
+            if (portMatch) {
+                message = t('appStorePage.install.feedback.portConflict', { port: portMatch[1] })
+            }
             setInstallError(message)
         } finally {
             setIsSubmittingInstall(false)
@@ -638,8 +643,12 @@ export function AppStorePage() {
                 <Box
                     sx={{
                         display: 'grid',
-                        gap: 1.5,
-                        gridTemplateColumns: { xs: '1fr', md: '220px 220px minmax(0, 1fr)' },
+                        gap: 2.25,
+                        gridTemplateColumns: {
+                            xs: '1fr',
+                            md: 'repeat(2, minmax(0, 1fr))',
+                            xl: 'repeat(4, minmax(0, 1fr))',
+                        },
                         alignItems: 'center',
                     }}
                 >
@@ -726,6 +735,7 @@ export function AppStorePage() {
                         }}
                         placeholder={t('appStorePage.filters.searchPlaceholder')}
                         sx={{
+                            gridColumn: { xl: 'span 2' },
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: '4px',
                                 backgroundColor: '#fff',
@@ -742,7 +752,7 @@ export function AppStorePage() {
                     />
                 </Box>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 34, px: 0.25 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 34 }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 400, color: '#111827' }}>{t('appStorePage.results.sectionTitle')}</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {isFetching && !isLoading ? <CircularProgress size={16} /> : null}

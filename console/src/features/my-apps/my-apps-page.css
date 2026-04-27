@@ -1,0 +1,341 @@
+/* ============================================
+   My Apps Page – Legacy Plugin Visual Rebuild
+   Matches plugin-myapps (appstore-item cards)
+   ============================================ */
+
+/* ── Toolbar ──────────────────────────────── */
+.myapps-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.myapps-toolbar-select {
+    flex: 0 0 auto;
+    width: 220px;
+}
+
+.myapps-toolbar-search {
+    flex: 1 1 auto;
+    min-width: 160px;
+}
+
+.myapps-toolbar-refresh {
+    flex: 0 0 auto;
+}
+
+/* Bootstrap-like form controls */
+.form-select,
+.form-control {
+    display: block;
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+    appearance: auto;
+}
+
+.form-select:focus,
+.form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.form-control::placeholder {
+    color: #b6bcc6;
+}
+
+/* Bootstrap-like button */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 400;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid transparent;
+    padding: 0.375rem 0.75rem;
+    font-size: 14px;
+    line-height: 1.5;
+    border-radius: 4px;
+    white-space: nowrap;
+    background-color: transparent;
+    color: #313a46;
+    height: 38px;
+    text-decoration: none;
+}
+
+.btn-primary {
+    color: #fff;
+    background-color: #727cf5;
+    border-color: #727cf5;
+}
+
+.btn-primary:hover {
+    background-color: #626be6;
+    border-color: #5a63de;
+    color: #fff;
+}
+
+.btn-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* ── Card grid (Bootstrap Col xxl=2 md=3 equivalent) ── */
+.myapps-card-grid {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px;
+}
+
+/* Each card slot: full width on small, 4-up on md, 6-up on xxl */
+.appstore-item {
+    padding: 10px;
+    width: 50%;
+    box-sizing: border-box;
+    flex: 0 0 50%;
+}
+
+@media (min-width: 576px) {
+    .appstore-item {
+        width: 33.333333%;
+        flex: 0 0 33.333333%;
+    }
+}
+
+@media (min-width: 768px) {
+    .appstore-item {
+        width: 25%;
+        flex: 0 0 25%;
+    }
+}
+
+@media (min-width: 1200px) {
+    .appstore-item {
+        width: 20%;
+        flex: 0 0 20%;
+    }
+}
+
+@media (min-width: 1400px) {
+    .appstore-item {
+        width: 16.666667%;
+        flex: 0 0 16.666667%;
+    }
+}
+
+/* ── Card inner ── */
+.appstore-item-content {
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgb(0 0 0 / 10%);
+    border-radius: 2px;
+    padding: 10px;
+    width: 100%;
+    overflow: hidden;
+    text-align: center;
+    position: relative;
+}
+
+.text-align-center {
+    text-align: center;
+}
+
+.highlight {
+    cursor: pointer;
+}
+
+.highlight:hover {
+    background-color: rgb(229, 230, 229);
+}
+
+/* ── Card action icons (top-right, dripicons style) ── */
+.float-end {
+    float: right;
+}
+
+.clearfix::after {
+    display: block;
+    clear: both;
+    content: '';
+}
+
+.arrow-none::after {
+    display: none;
+}
+
+.card-drop {
+    position: relative;
+    z-index: 10;
+}
+
+.p-0 {
+    padding: 0;
+}
+
+.noti-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #98a6ad;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.noti-icon:hover {
+    color: #313a46;
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.noti-icon svg {
+    fill: currentColor;
+}
+
+/* ── App icon in card ── */
+.app-icon {
+    min-height: 80px;
+    max-height: 80px;
+    min-width: 80px;
+    max-width: 100%;
+    margin: 20px 10px 20px 10px;
+    object-fit: contain;
+}
+
+/* ── App title in card ── */
+.appstore-item-content-title {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* ── Bootstrap-like status badges ── */
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    font-size: 75%;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+}
+
+.bg-success {
+    background-color: #0acf97;
+    color: #fff;
+}
+
+.bg-warning {
+    background-color: #ffbc00;
+    color: #313a46;
+}
+
+.bg-info {
+    background-color: #39afd1;
+    color: #fff;
+}
+
+.bg-danger {
+    background-color: #fa5c7c;
+    color: #fff;
+}
+
+.bg-dark {
+    background-color: #313a46;
+    color: #fff;
+}
+
+/* ── Utility spacing ── */
+.m-2 {
+    margin: 0.5rem;
+}
+
+.me-1 {
+    margin-right: 0.25rem;
+}
+
+/* ── Installing spinner (Bootstrap spinner-border-sm) ── */
+.spinner-border-sm {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+    vertical-align: middle;
+}
+
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Section headings ── */
+.myapps-section-heading {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    color: #6c757d;
+    font-weight: 700;
+}
+
+.myapps-section-heading.is-secondary {
+    font-weight: 400;
+    margin-top: 20px;
+}
+
+/* ── Empty state / no-apps link ── */
+.myapps-empty-link {
+    color: #727cf5;
+    text-decoration: none;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+.myapps-empty-link:hover {
+    text-decoration: underline;
+}
+
+/* ── Empty state CTA button ── */
+.myapps-empty-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 8px;
+    padding: 7px 20px;
+    border-radius: 6px;
+    border: 1px solid rgba(114, 124, 245, 0.45);
+    background: transparent;
+    color: #727cf5;
+    font-size: 13.5px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.myapps-empty-btn:hover {
+    background: rgba(114, 124, 245, 0.08);
+    border-color: #727cf5;
+}

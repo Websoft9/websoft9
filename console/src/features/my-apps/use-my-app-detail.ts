@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { MyApp } from './use-my-apps'
 
@@ -14,7 +14,7 @@ type MyAppDetailError = Error & {
     statusCode?: number
 }
 
-async function fetchMyAppDetail(appId: string) {
+export async function fetchMyAppDetail(appId: string) {
     const response = await fetch(`/api/apps/${encodeURIComponent(appId)}`, {
         credentials: 'include',
         headers: {
@@ -32,10 +32,17 @@ async function fetchMyAppDetail(appId: string) {
 }
 
 export function useMyAppDetail(appId: string | undefined) {
+    const queryClient = useQueryClient()
+
     return useQuery<MyAppDetail, MyAppDetailError>({
         queryKey: ['my-app-detail', appId],
         queryFn: async () => fetchMyAppDetail(appId ?? ''),
         enabled: Boolean(appId),
-        staleTime: 2_000,
+        staleTime: 10_000,
+        initialData: () => {
+            if (!appId) return undefined
+            const apps = queryClient.getQueryData<MyApp[]>(['my-apps'])
+            return apps?.find((app) => app.app_id === appId)
+        },
     })
 }

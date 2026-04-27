@@ -9,11 +9,12 @@ import {
     Stack,
     Typography,
 } from '@mui/material'
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { supportedLocales } from '../../shared/i18n/i18n'
+import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { shellNavigationItems } from './shell-navigation'
 
 const navigationSections = [
@@ -27,17 +28,47 @@ const navigationSections = [
     },
 ] as const
 
+const LAST_MYAPP_DETAIL_ROUTE_KEY = 'websoft9:last-myapp-detail-route'
+
 export function AppShell() {
     const { t, i18n } = useTranslation('shell')
+    const location = useLocation()
     const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
 
     const resolvedLocale = i18n.resolvedLanguage ?? supportedLocales[0]
+    const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        const pathWithSearch = `${location.pathname}${location.search}`
+
+        if (/^\/myapps\/[^/]+/.test(location.pathname)) {
+            window.sessionStorage.setItem(LAST_MYAPP_DETAIL_ROUTE_KEY, pathWithSearch)
+            return
+        }
+
+        if (location.pathname === '/myapps') {
+            window.sessionStorage.removeItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
+        }
+    }, [location.pathname, location.search])
+
+    const rememberedMyAppDetailRoute = useMemo(() => {
+        if (typeof window === 'undefined') {
+            return null
+        }
+
+        return window.sessionStorage.getItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
+    }, [location.pathname, location.search])
 
     return (
         <Box
             sx={{
-                minHeight: '100vh',
+                height: '100vh',
+                overflow: 'hidden',
                 backgroundColor: '#e8edf4',
             }}
         >
@@ -175,7 +206,8 @@ export function AppShell() {
             <Box
                 sx={{
                     display: 'grid',
-                    minHeight: 'calc(100vh - 76px)',
+                    height: 'calc(100vh - 76px)',
+                    overflow: 'hidden',
                     gridTemplateColumns: { xs: '1fr', lg: '238px minmax(0, 1fr)' },
                 }}
             >
@@ -187,6 +219,7 @@ export function AppShell() {
                         borderBottom: { xs: '1px solid rgba(15, 23, 42, 0.04)', lg: 'none' },
                         px: 1.5,
                         py: 1.75,
+                        overflowY: 'auto',
                     }}
                 >
                     <Stack spacing={2.25} sx={{ pl: 1.25 }}>
@@ -237,7 +270,9 @@ export function AppShell() {
                                                         backgroundColor: 'rgba(255,255,255,0.62)',
                                                     },
                                                 }}
-                                                to={`/${item.segment}`}
+                                                to={item.segment === 'myapps' && rememberedMyAppDetailRoute && !location.pathname.startsWith('/myapps')
+                                                    ? rememberedMyAppDetailRoute
+                                                    : `/${item.segment}`}
                                             >
                                                 <Typography sx={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35 }} variant="body2">
                                                     {t(`nav.${item.pageKey}.label`)}
@@ -256,10 +291,12 @@ export function AppShell() {
                     sx={{
                         minWidth: 0,
                         backgroundColor: '#ffffff',
-                        px: { xs: 2, md: 3 },
-                        py: { xs: 2, md: 2.5 },
+                        px: activeIntegrationRoute ? 0 : { xs: 2, md: 3 },
+                        py: activeIntegrationRoute ? 0 : { xs: 2, md: 2.5 },
+                        overflowY: activeIntegrationRoute ? 'hidden' : 'auto',
                     }}
                 >
+                    <PersistentIntegrationWorkspaces />
                     <Outlet />
                 </Box>
             </Box>

@@ -1,0 +1,999 @@
+/* ============================================
+   My App Detail Page - Legacy Plugin Alignment
+   ============================================ */
+
+.myapps-detail-overlay {
+    min-height: calc(100vh - 72px);
+    background: rgba(0, 0, 0, 0.22);
+    padding: 16px 0;
+}
+
+.myapps-detail-shell {
+    width: 95%;
+    margin: 0 auto;
+    background: #fff;
+    font-family: 'Nunito', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.myapps-detail-header {
+    border-bottom: 1px solid #dee2e6;
+    padding: 0;
+}
+
+.myapps-detail-header-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    gap: 0;
+}
+
+.myapps-detail-shell .appstore-item-content-icon {
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.myapps-detail-shell .myapps-detail-meta {
+    flex: 1;
+    min-width: 0;
+    padding: 0 12px;
+}
+
+.myapps-detail-shell .appstore-item-content-title {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.myapps-detail-title {
+    margin: 2px 0 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #364a63;
+}
+
+.myapps-detail-status {
+    margin: 3px 0 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.myapps-detail-status-meta {
+    color: #98a6ad;
+    font-weight: 500;
+}
+
+.myapps-detail-shell .app-icon {
+    min-height: 78px;
+    max-height: 78px;
+    min-width: 78px;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.myapps-detail-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0;
+    margin-left: auto;
+    padding-right: 2px;
+}
+
+.myapps-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: 36px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    border: 1px solid #727cf5;
+    background: #727cf5;
+    color: #fff;
+    cursor: pointer;
+    text-decoration: none;
+    min-width: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+    font-size: 14px;
+    line-height: 1;
+    margin-right: 10px;
+    box-shadow: 0 2px 6px rgba(114, 124, 245, 0.22);
+    flex: 0 0 auto;
+    appearance: none;
+    transform: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.myapps-action-btn:hover,
+.myapps-action-btn:focus,
+.myapps-action-btn:focus-visible,
+.myapps-action-btn:active,
+.myapps-action-btn.is-busy {
+    background: #6873ec;
+    border-color: #6873ec;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(104, 115, 236, 0.26);
+    outline: none;
+    transform: none;
+}
+
+.myapps-action-btn:focus-visible {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(114, 124, 245, 0.34);
+}
+
+.myapps-action-btn:disabled {
+    background: #cfd5ff;
+    border-color: #c7ceff;
+    color: #fff;
+    opacity: 1;
+    cursor: default;
+    pointer-events: none;
+    box-shadow: none;
+}
+
+.myapps-action-btn.is-state-disabled {
+    background: #cfd5ff;
+    border-color: #c7ceff;
+    color: #fff;
+    box-shadow: none;
+}
+
+.myapps-action-btn.is-busy:disabled {
+    background: #6873ec;
+    border-color: #6873ec;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(104, 115, 236, 0.26);
+}
+
+.myapps-action-btn .noti-icon,
+.myapps-action-btn .spinner-border-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+}
+
+.myapps-action-btn .noti-icon {
+    font-size: 16px;
+    color: inherit;
+    text-shadow: 0 1px 0 rgba(34, 46, 156, 0.26);
+}
+
+.myapps-action-btn:disabled .noti-icon,
+.myapps-action-btn.is-state-disabled .noti-icon {
+    text-shadow: none;
+}
+
+.myapps-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none !important;
+    border: none !important;
+    color: #98a6ad;
+    cursor: pointer;
+    padding: 0 2px 0 4px;
+    margin-left: 0;
+    border-radius: 2px;
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 400;
+}
+
+.myapps-close-btn:hover {
+    color: #495057;
+}
+
+.myapps-detail-body {
+    padding: 14px 14px 20px;
+}
+
+.myapps-detail-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.myapps-detail-nav-col {
+    width: 224px;
+    min-width: 224px;
+    flex: 0 0 auto;
+}
+
+.myapps-detail-content-col {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    padding: 0 0 0 14px;
+}
+
+.myapps-detail-nav-col .nav {
+    display: flex;
+    flex-wrap: wrap;
+    padding-left: 0;
+    margin-bottom: 0;
+    list-style: none;
+}
+
+.myapps-detail-nav-col .nav-pills {
+    background-color: transparent;
+    border-radius: 0;
+    padding: 0;
+    flex-direction: column;
+}
+
+.myapps-detail-nav-col .flex-column {
+    flex-direction: column;
+}
+
+.myapps-detail-nav-col .nav-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 0.62rem 0.95rem;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: #727cf5;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1.5;
+    margin-bottom: 0;
+    font-family: inherit;
+}
+
+.myapps-detail-nav-col .nav-link:hover {
+    background-color: rgba(114, 124, 245, 0.1);
+    color: #727cf5;
+}
+
+.myapps-detail-nav-col .nav-link.active {
+    background-color: #727cf5;
+    color: #fff;
+    font-weight: 600;
+}
+
+.myapps-detail-nav-col .nav-link.active:hover {
+    background-color: #727cf5;
+    color: #fff;
+}
+
+.myapps-panel-header {
+    border-bottom: 1px solid #eef2f7;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+.myapps-panel-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
+}
+
+.myapps-overview-row {
+    display: table-row;
+}
+
+.myapps-overview-label {
+    width: 210px;
+    min-width: 210px;
+    font-weight: 600;
+    color: #495057;
+    font-size: 14px;
+    padding-right: 22px;
+}
+
+.myapps-overview-value {
+    color: #6c757d;
+    font-size: 14px;
+    word-break: break-all;
+}
+
+.myapps-card {
+    border: 1px solid #eef2f7;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.myapps-card-header {
+    border-bottom: 1px solid #eef2f7;
+    padding: 12px 18px 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.myapps-card-header-compact {
+    padding: 13px 18px 12px;
+}
+
+.myapps-overview-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #364a63;
+    line-height: 1.35;
+}
+
+.myapps-overview-card-body {
+    padding: 16px 18px 20px;
+}
+
+.myapps-overview-table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.myapps-overview-row td {
+    padding: 16px 14px 16px 0;
+    border-bottom: 1px solid #eef2f7;
+    vertical-align: middle;
+}
+
+.myapps-uninstall-title {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #495057;
+    line-height: 1.35;
+}
+
+.myapps-uninstall-desc {
+    margin: 0;
+    color: #6c757d;
+    line-height: 1.5;
+}
+
+.myapps-uninstall-layout {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px 0 18px;
+}
+
+.myapps-uninstall-copy {
+    max-width: 760px;
+    flex: 1 1 560px;
+}
+
+.myapps-uninstall-actions {
+    margin-left: auto;
+    padding-top: 2px;
+    padding-right: 2px;
+}
+
+.myapps-uninstall-btn {
+    align-self: flex-start;
+    min-width: 58px;
+    height: 32px;
+    padding: 5px 12px;
+    border: 1px solid #ffbc00;
+    border-radius: 3px;
+    background: #ffbc00;
+    color: #313a46;
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.myapps-uninstall-btn:disabled {
+    cursor: default;
+    opacity: 1;
+}
+
+.myapps-php-card-body {
+    padding: 0 18px 14px;
+}
+
+.myapps-php-table {
+    width: 100%;
+}
+
+.myapps-php-table .myapps-overview-row td {
+    padding-right: 0;
+}
+
+.myapps-php-module-group {
+    margin-bottom: 8px;
+}
+
+.myapps-php-module-group:last-child {
+    margin-bottom: 0;
+}
+
+.myapps-php-module-title {
+    display: block;
+    margin-bottom: 6px;
+    color: #495057;
+}
+
+.myapps-php-module-list {
+    color: #6c757d;
+    line-height: 1.65;
+}
+
+.myapps-php-module-divider {
+    margin-top: 10px;
+    border-top: 1px solid #eef2f7;
+}
+
+.myapps-php-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.myapps-php-switch-note {
+    color: #98a6ad;
+    font-style: italic;
+}
+
+.myapps-php-request-box {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: #f8f9fc;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+}
+
+.myapps-php-request-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.myapps-php-request-row-top {
+    align-items: flex-start;
+}
+
+.myapps-php-request-label {
+    width: 150px;
+    min-width: 150px;
+    color: #495057;
+    font-size: 14px;
+}
+
+.myapps-php-request-select,
+.myapps-php-request-textarea {
+    width: 100%;
+    max-width: 360px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #495057;
+    background: #fff;
+    font: inherit;
+}
+
+.myapps-php-request-textarea {
+    min-height: 104px;
+    resize: vertical;
+}
+
+.myapps-php-request-actions {
+    display: flex;
+    justify-content: flex-start;
+    padding-left: 166px;
+}
+
+.myapps-access-domain-empty {
+    min-height: 46px;
+}
+
+.myapps-database-card-body {
+    padding: 0 18px 14px;
+}
+
+.myapps-database-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.myapps-database-table th,
+.myapps-database-table td {
+    padding: 18px 10px;
+    border-bottom: 1px solid #eef2f7;
+    vertical-align: middle;
+    text-align: left;
+    color: #495057;
+    font-size: 14px;
+}
+
+.myapps-database-table th {
+    font-weight: 700;
+    color: #495057;
+}
+
+.myapps-database-table td {
+    color: #6c757d;
+}
+
+.myapps-database-password-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.myapps-database-password-text {
+    font-family: monospace;
+    letter-spacing: 2px;
+}
+
+.myapps-database-icon-btn {
+    background: none;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 2px 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.myapps-database-icon-btn .noti-icon {
+    font-size: 16px;
+    color: inherit;
+}
+
+.myapps-card-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #364a63;
+    line-height: 1.2;
+}
+
+.myapps-card-desc {
+    color: #526484;
+    font-size: 15px;
+    margin-top: 4px;
+}
+
+.myapps-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #364a63;
+    line-height: 1.35;
+}
+
+.myapps-section-desc {
+    margin-top: 4px;
+    color: #6c757d;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.myapps-card-header-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 5px 12px;
+    border: 1px solid #727cf5;
+    border-radius: 3px;
+    background: #727cf5;
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.myapps-card-header-btn-secondary {
+    background: #fff;
+    color: #6c757d;
+    border-color: #ced4da;
+}
+
+.myapps-card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.myapps-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.myapps-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.myapps-detail-table th,
+.myapps-detail-table td {
+    padding: 16px 14px;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left;
+    vertical-align: middle;
+    font-size: 14px;
+}
+
+.myapps-detail-table th {
+    font-weight: 700;
+    color: #495057;
+}
+
+.myapps-detail-table td {
+    color: #6c757d;
+}
+
+.myapps-cell-center {
+    text-align: center !important;
+}
+
+.myapps-table-actions-inline,
+.myapps-table-actions-text {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.myapps-table-actions-inline {
+    justify-content: center;
+}
+
+.myapps-inline-link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: #727cf5;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.myapps-inline-link-danger {
+    color: #fa5c7c;
+}
+
+.myapps-empty-cell {
+    padding: 32px 12px !important;
+    color: #98a6ad !important;
+    text-align: center !important;
+}
+
+.myapps-table-loading {
+    display: flex;
+    justify-content: center;
+    padding: 16px 0;
+}
+
+.myapps-volume-card {
+    margin-bottom: 16px;
+}
+
+.myapps-card-header-compose {
+    justify-content: flex-start;
+}
+
+.myapps-compose-card-body {
+    padding: 16px 18px 20px;
+}
+
+.myapps-compose-config-version {
+    margin: 0 0 16px;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.myapps-compose-back-btn {
+    margin-left: 10px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: #98a6ad;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.myapps-compose-back-btn:disabled {
+    color: #ced4da;
+    cursor: default;
+}
+
+.myapps-access-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.myapps-access-accordion {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.myapps-access-accordion::before {
+    display: none;
+}
+
+.myapps-access-summary-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.myapps-access-summary-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.myapps-access-summary-desc {
+    color: #495057;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.myapps-access-inline-link {
+    border: none;
+    background: none;
+    padding: 0;
+    color: #727cf5;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.myapps-access-card {
+    border-color: #e6e9ef;
+}
+
+.myapps-access-card-header {
+    min-height: 34px;
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.myapps-access-card-body {
+    padding: 18px;
+}
+
+.myapps-access-domain-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.myapps-access-domain-field {
+    flex: 1;
+    min-height: 38px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #495057;
+    background: #fff;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+
+.myapps-access-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.myapps-access-form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.myapps-access-refreshing,
+.myapps-access-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+.myapps-access-link-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    color: #495057;
+}
+
+.myapps-access-link-label {
+    font-weight: 700;
+    min-width: 56px;
+}
+
+.myapps-access-account-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.myapps-access-account-row:last-child {
+    margin-bottom: 0;
+}
+
+.myapps-access-account-label {
+    width: 170px;
+    color: #212529;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.myapps-access-account-field-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.myapps-access-account-field {
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 0 12px;
+    color: #6c757d;
+    background: #edf2f7;
+}
+
+.myapps-access-account-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.myapps-table-action-link {
+    color: #727cf5;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.myapps-table-action-link:hover {
+    color: #626be6;
+}
+
+.myapps-detail-shell .noti-icon {
+    font-size: inherit;
+    line-height: 1;
+}
+
+.myapps-detail-shell .spinner-border-sm {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: detail-spinner 0.75s linear infinite;
+    vertical-align: middle;
+}
+
+@keyframes detail-spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 1100px) {
+    .myapps-detail-header-row {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .myapps-detail-actions {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 12px;
+        justify-content: flex-end;
+    }
+
+    .myapps-detail-layout {
+        gap: 12px;
+    }
+
+    .myapps-detail-nav-col {
+        width: 200px;
+        min-width: 200px;
+    }
+
+    .myapps-overview-table {
+        width: 100%;
+    }
+}
+
+@media (max-width: 900px) {
+    .myapps-detail-layout {
+        flex-direction: column;
+    }
+
+    .myapps-detail-nav-col {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .myapps-detail-content-col {
+        padding: 14px;
+    }
+
+    .myapps-detail-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .myapps-card-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .myapps-card-header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .myapps-access-account-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .myapps-access-account-label {
+        width: auto;
+    }
+
+    .myapps-access-domain-row {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .myapps-uninstall-actions {
+        margin-left: 0;
+    }
+
+    .myapps-php-request-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .myapps-php-request-label {
+        width: auto;
+        min-width: 0;
+    }
+
+    .myapps-php-request-select,
+    .myapps-php-request-textarea {
+        max-width: none;
+    }
+
+    .myapps-php-request-actions {
+        padding-left: 0;
+    }
+}

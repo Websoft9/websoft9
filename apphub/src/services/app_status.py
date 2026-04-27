@@ -6,7 +6,7 @@ appInstallingError = {}         # app install error
 MAX_SUB_LOGS = 30  # 每个阶段的最大子日志数量
 
 # Add app to appInstalling
-def start_app_installation(app_id, app_name, app_uuid=None):
+def start_app_installation(app_id, app_name, app_uuid=None, reserved_ports=None):
     app_uuid = app_uuid or str(uuid.uuid4())
     app = {
         "app_id": app_id,
@@ -14,7 +14,8 @@ def start_app_installation(app_id, app_name, app_uuid=None):
         "app_official": True,
         "status": 3,  # installing
         "tracking_id": app_uuid,
-        "logs": []
+        "logs": [],
+        "reserved_ports": reserved_ports or set(),
     }
     appInstalling[app_uuid] = app
     return app_uuid
@@ -50,6 +51,7 @@ def modify_app_information(app_uuid, error):
         app = appInstalling.pop(app_uuid)
         app["status"] = 4  # error
         app["error"] = error
+        app.pop("reserved_ports", None)  # release port reservation
         appInstallingError[app_uuid] = app
     # If the app is not in appInstalling but in appInstallingError, modify it
     elif app_uuid in appInstallingError:

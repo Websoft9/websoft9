@@ -11,6 +11,8 @@ type IntegrationSessionResult = {
     sessionState: Exclude<IntegrationSessionState, 'idle' | 'bootstrapping'>
 }
 
+const integrationSessionCache = new Map<string, IntegrationSessionResult>()
+
 export function useIntegrationSession(integrationKey: IntegrationKey, integrationStatus: IntegrationStatus, refreshToken: string | null) {
     const { i18n } = useTranslation('shell')
     const [result, setResult] = useState<IntegrationSessionResult | null>(null)
@@ -20,6 +22,12 @@ export function useIntegrationSession(integrationKey: IntegrationKey, integratio
 
     useEffect(() => {
         if (!canBootstrap) {
+            return
+        }
+
+        const cachedResult = integrationSessionCache.get(requestKey)
+        if (cachedResult) {
+            setResult(cachedResult)
             return
         }
 
@@ -39,22 +47,26 @@ export function useIntegrationSession(integrationKey: IntegrationKey, integratio
                     throw new Error(payload?.details ?? payload?.message ?? `HTTP ${response.status}`)
                 }
 
-                setResult({
+                const nextResult = {
                     errorMessage: null,
                     requestKey,
                     sessionState: 'ready',
-                })
+                } satisfies IntegrationSessionResult
+                integrationSessionCache.set(requestKey, nextResult)
+                setResult(nextResult)
             })
             .catch((error: unknown) => {
                 if (abortController.signal.aborted) {
                     return
                 }
 
-                setResult({
+                const nextResult = {
                     errorMessage: error instanceof Error ? error.message : 'Failed to establish integration session',
                     requestKey,
                     sessionState: 'error',
-                })
+                } satisfies IntegrationSessionResult
+                integrationSessionCache.set(requestKey, nextResult)
+                setResult(nextResult)
             })
 
         return () => {

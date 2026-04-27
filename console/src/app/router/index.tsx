@@ -16,21 +16,21 @@ export function createAppRouter() {
         if (item.segment === 'containers') {
             return {
                 path: item.segment,
-                element: <IntegrationWorkspacePage integrationKey="portainer" />,
+                element: <IntegrationWorkspacePage integrationKey="portainer" shellPersistent />,
             }
         }
 
         if (item.segment === 'gateway') {
             return {
                 path: item.segment,
-                element: <IntegrationWorkspacePage integrationKey="npm" />,
+                element: <IntegrationWorkspacePage integrationKey="npm" shellPersistent />,
             }
         }
 
         if (item.segment === 'repository') {
             return {
                 path: item.segment,
-                element: <IntegrationWorkspacePage integrationKey="gitea" />,
+                element: <IntegrationWorkspacePage integrationKey="gitea" shellPersistent />,
             }
         }
 

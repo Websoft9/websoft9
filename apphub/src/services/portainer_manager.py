@@ -315,6 +315,23 @@ class PortainerManager:
             logger.error(f"Get volumes by stack name:{stack_name} error: {response.status_code}:{response.text}")
             raise CustomException()
 
+    def get_volumes(self, endpoint_id: int, dangling: bool):
+        """
+        Get all volumes from an endpoint.
+
+        Args:
+            endpoint_id (int): endpoint id
+            dangling (bool): whether to query dangling volumes only
+
+        Returns:
+            list: volume list
+        """
+        response = self.portainer.get_volumes(endpoint_id, dangling)
+        if response.status_code == 200:
+            return response.json().get("Volumes", [])
+        logger.error(f"Get volumes from endpoint:{endpoint_id} error: {response.status_code}:{response.text}")
+        raise CustomException()
+
     def remove_volume(self, volume_names: list, endpoint_id: int):
         """
         Remove volume by name

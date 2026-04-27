@@ -1,17 +1,19 @@
 import { Alert, Box, Button, Chip, Paper, Stack, Typography } from '@mui/material'
-import { Navigate, Outlet, useParams } from 'react-router-dom'
+import { useEffect, useMemo } from 'react'
+import { Navigate, Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
-import { getIntegrationDefinition, getIntegrationDefinitionByEntrySegment, type IntegrationKey } from './integration-model'
+import { getIntegrationDefinition, getIntegrationDefinitionByEntrySegment, integrationDefinitions, type IntegrationKey } from './integration-model'
 import { useIntegrationSession } from './use-integration-session'
 import { useIntegrationStatuses } from './use-integration-status'
 
 type IntegrationWorkspacePageProps = {
     integrationKey?: IntegrationKey
     showCatalogLink?: boolean
+    shellPersistent?: boolean
 }
 
-export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, showCatalogLink = false }: IntegrationWorkspacePageProps) {
+export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, showCatalogLink = false, shellPersistent = false }: IntegrationWorkspacePageProps) {
     const { integrationKey: routeIntegrationKey, '*': unmatchedPath } = useParams()
     const definition =
         (fixedIntegrationKey ? getIntegrationDefinition(fixedIntegrationKey) : undefined) ??
@@ -22,7 +24,47 @@ export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, 
         return <Navigate replace to="/repository" />
     }
 
+    if (shellPersistent && (definition.key === 'gitea' || definition.key === 'npm' || definition.key === 'portainer')) {
+        return null
+    }
+
     return <IntegrationWorkspaceContent definition={definition} showCatalogLink={showCatalogLink} />
+}
+
+export function PersistentIntegrationWorkspaces() {
+    const location = useLocation()
+    const activeDefinition = useMemo(() => {
+        return integrationDefinitions.find((definition) => location.pathname === `/${definition.entrySegment}`) ?? null
+    }, [location.pathname])
+
+    if (!activeDefinition) {
+        return null
+    }
+
+    return (
+        <Box
+            sx={{
+                position: 'relative',
+                width: '100%',
+                height: 'calc(100vh - 76px)',
+                backgroundColor: '#fff',
+            }}
+        >
+            {integrationDefinitions.map((definition) => (
+                <Box
+                    key={definition.key}
+                    sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        visibility: definition.key === activeDefinition.key ? 'visible' : 'hidden',
+                        pointerEvents: definition.key === activeDefinition.key ? 'auto' : 'none',
+                    }}
+                >
+                    <DirectIntegrationWorkspaceFrame active={definition.key === activeDefinition.key} definition={definition} />
+                </Box>
+            ))}
+        </Box>
+    )
 }
 
 type IntegrationWorkspaceContentProps = {
@@ -112,8 +154,117 @@ function applyEmbeddedShellStyle(frame: HTMLIFrameElement, integrationKey: Integ
     }
 }
 
+function getIntegrationWorkspaceStorageKey(integrationKey: IntegrationKey) {
+    return `websoft9:integration-workspace:${integrationKey}:last-src`
+}
+
+function resolveWorkspaceTarget(definition: IntegrationWorkspaceContentProps['definition'], requestedTarget: string | null, rememberedWorkspaceSrc: string | null) {
+    if (requestedTarget && (requestedTarget.startsWith(definition.probePath) || requestedTarget.startsWith(definition.directPath))) {
+        return requestedTarget
+    }
+
+    if (rememberedWorkspaceSrc && (rememberedWorkspaceSrc.startsWith(definition.probePath) || rememberedWorkspaceSrc.startsWith(definition.directPath))) {
+        return rememberedWorkspaceSrc
+    }
+
+    return definition.workspacePath
+}
+
+function rememberIntegrationTarget(definition: IntegrationWorkspaceContentProps['definition'], target: string | null) {
+    if (typeof window === 'undefined' || !target) {
+        return
+    }
+
+    if (target.startsWith(definition.probePath) || target.startsWith(definition.directPath)) {
+        window.sessionStorage.setItem(getIntegrationWorkspaceStorageKey(definition.key), target)
+    }
+}
+
+function handleIntegrationFrameLoad(frame: HTMLIFrameElement, definition: IntegrationWorkspaceContentProps['definition']) {
+    applyEmbeddedShellStyle(frame, definition.key)
+    try {
+        const currentLocation = frame.contentWindow?.location
+        const nextPath = currentLocation ? `${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}` : null
+        rememberIntegrationTarget(definition, nextPath)
+    } catch {
+        // Embedded integrations stay same-origin under product-owned paths, but keep a silent fallback.
+    }
+}
+
+function DirectIntegrationWorkspaceFrame({ active, definition }: { active: boolean; definition: IntegrationWorkspaceContentProps['definition'] }) {
+    const { t } = useTranslation('shell')
+    const [searchParams] = useSearchParams()
+    const { refresh, snapshots } = useIntegrationStatuses()
+
+    const snapshot = snapshots[definition.key]
+    const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt)
+    const shouldRenderFrame = sessionState === 'ready' && (snapshot.status === 'available' || snapshot.status === 'session-error')
+    const requestedTarget = active ? searchParams.get('target') : null
+    const rememberedWorkspaceSrc = useMemo(() => {
+        if (typeof window === 'undefined') {
+            return null
+        }
+
+        return window.sessionStorage.getItem(getIntegrationWorkspaceStorageKey(definition.key))
+    }, [definition.key])
+    const iframeSrc = resolveWorkspaceTarget(definition, requestedTarget, rememberedWorkspaceSrc)
+
+    useEffect(() => {
+        rememberIntegrationTarget(definition, requestedTarget)
+    }, [definition, requestedTarget])
+
+    return shouldRenderFrame ? (
+        <Box
+            component="iframe"
+            src={iframeSrc}
+            onLoad={(event) => {
+                handleIntegrationFrameLoad(event.currentTarget, definition)
+            }}
+            sx={{
+                width: '100%',
+                height: 'calc(100vh - 76px)',
+                border: 0,
+                display: 'block',
+                backgroundColor: '#fff',
+            }}
+            title={t(`integrations.catalog.${definition.key}.title`)}
+        />
+    ) : (
+        <Stack
+            spacing={1.25}
+            sx={{
+                height: 'calc(100vh - 76px)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                px: 3,
+                textAlign: 'center',
+            }}
+        >
+            {sessionState === 'error' ? (
+                <>
+                    <Chip color="warning" label={t('integrations.workspace.sessionBootstrapFailed')} />
+                    <Typography color="text.secondary" variant="body2">
+                        {errorMessage ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
+                    </Typography>
+                    <Button onClick={refresh} variant="outlined">
+                        {t('integrations.workspace.retryProbe')}
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <Chip color="info" label={t('integrations.workspace.bootstrappingSession')} />
+                    <Typography color="text.secondary" variant="body2">
+                        {t('integrations.workspace.bootstrappingSessionDetail')}
+                    </Typography>
+                </>
+            )}
+        </Stack>
+    )
+}
+
 function IntegrationWorkspaceContent({ definition, showCatalogLink }: IntegrationWorkspaceContentProps) {
     const { t } = useTranslation('shell')
+    const [searchParams] = useSearchParams()
     const { refresh, snapshots } = useIntegrationStatuses()
     const directWorkspaceViewportHeight = 'calc(100vh - 76px)'
 
@@ -126,6 +277,19 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
     const alertSeverity = snapshot.status === 'available' ? 'success' : snapshot.status === 'loading' ? 'info' : 'warning'
     const isDirectWorkspace = definition.key === 'gitea' || definition.key === 'npm' || definition.key === 'portainer'
     const renderDirectWorkspace = isDirectWorkspace && shouldRenderFrame
+    const requestedTarget = searchParams.get('target')
+    const rememberedWorkspaceSrc = useMemo(() => {
+        if (typeof window === 'undefined') {
+            return null
+        }
+
+        return window.sessionStorage.getItem(getIntegrationWorkspaceStorageKey(definition.key))
+    }, [definition.key])
+    const iframeSrc = resolveWorkspaceTarget(definition, requestedTarget, rememberedWorkspaceSrc)
+
+    useEffect(() => {
+        rememberIntegrationTarget(definition, requestedTarget)
+    }, [definition, requestedTarget])
 
     if (isDirectWorkspace) {
         return (
@@ -140,9 +304,9 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                 {renderDirectWorkspace ? (
                     <Box
                         component="iframe"
-                        src={definition.workspacePath}
+                        src={iframeSrc}
                         onLoad={(event) => {
-                            applyEmbeddedShellStyle(event.currentTarget, definition.key)
+                            handleIntegrationFrameLoad(event.currentTarget, definition)
                         }}
                         sx={{
                             width: '100%',
@@ -271,9 +435,18 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                     </Box>
                     <Box
                         component="iframe"
-                        src={definition.workspacePath}
+                        src={iframeSrc}
                         onLoad={(event) => {
                             applyEmbeddedShellStyle(event.currentTarget, definition.key)
+                            try {
+                                const currentLocation = event.currentTarget.contentWindow?.location
+                                const nextPath = currentLocation ? `${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}` : null
+                                if (nextPath && (nextPath.startsWith(definition.probePath) || nextPath.startsWith(definition.directPath))) {
+                                    window.sessionStorage.setItem(getIntegrationWorkspaceStorageKey(definition.key), nextPath)
+                                }
+                            } catch {
+                                // Embedded integrations stay same-origin under product-owned paths, but keep a silent fallback.
+                            }
                         }}
                         sx={{
                             width: '100%',

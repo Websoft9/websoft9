@@ -1,5 +1,6 @@
 import os
 import json
+import docker
 from src.core.config import ConfigManager
 from src.core.logger import logger
 from src.core.exception import CustomException
@@ -8,6 +9,110 @@ from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
 from src.services.app_status import appInstalling,appInstallingError
+
+
+def _get_host_bound_ports() -> set:
+    """
+    Return the set of TCP host ports currently bound by all running containers.
+    Uses the Docker socket so results reflect the real host-level port bindings.
+    """
+    bound = set()
+    try:
+        client = docker.from_env()
+        for container in client.containers.list():
+            ports = (container.attrs.get('NetworkSettings') or {}).get('Ports') or {}
+            for binding_list in ports.values():
+                if not binding_list:
+                    continue
+                for binding in binding_list:
+                    host_port = binding.get('HostPort')
+                    if host_port:
+                        try:
+                            bound.add(int(host_port))
+                        except ValueError:
+                            pass
+    except Exception as e:
+        logger.warning(f"Could not scan Docker container ports for conflict check: {e}")
+    return bound
+
+
+def _read_template_ports(app_name: str) -> set:
+    """
+    Read W9_*PORT_SET values from the app template's .env file.
+    Returns the set of integer port numbers found.
+    """
+    ports = set()
+    try:
+        library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+        env_path = os.path.join(library_path, app_name, ".env")
+        if os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    key, _, val = line.partition('=')
+                    if 'PORT_SET' in key:
+                        try:
+                            ports.add(int(val.strip()))
+                        except ValueError:
+                            pass
+    except Exception as e:
+        logger.warning(f"Could not read template .env for port check ({app_name}): {e}")
+    return ports
+
+
+def check_port_conflicts(settings: dict, app_name: str = None):
+    """
+    Check whether any port requested (from settings overrides and/or the app template)
+    is already in use — either bound by a running Docker container or claimed by an
+    app that is currently being installed.
+
+    Args:
+        settings (dict): The settings dict from appInstall (may be None).
+        app_name (str): App name used to read template .env default ports (optional).
+    Raises:
+        CustomException: If a requested port is already in use.
+    """
+    # Collect ports explicitly requested via settings
+    settings_ports: dict[str, int] = {}
+    if settings:
+        for key, val in settings.items():
+            if 'PORT_SET' in key:
+                try:
+                    settings_ports[key] = int(val)
+                except (ValueError, TypeError):
+                    pass
+
+    # Also collect template default ports not already overridden by settings
+    template_ports: dict[str, int] = {}
+    if app_name:
+        override_values = set(settings_ports.values())
+        for port in _read_template_ports(app_name):
+            if port not in override_values:
+                template_ports[f'W9_PORT_DEFAULT_{port}'] = port
+
+    requested = {**settings_ports, **template_ports}
+    if not requested:
+        return
+
+    # Ports claimed by apps currently being installed (not yet Docker-bound)
+    installing_ports: set = set()
+    for entry in appInstalling.values():
+        installing_ports.update(entry.get('reserved_ports') or set())
+
+    docker_ports = _get_host_bound_ports()
+    all_used = docker_ports | installing_ports
+
+    for key, port in requested.items():
+        if port in all_used:
+            source = 'a running container' if port in docker_ports else 'an app currently being installed'
+            logger.error(f"Port conflict: {port} is already claimed by {source}")
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"Port {port} is already in use. Please choose a different port.",
+            )
 
 def check_appName_and_appVersion(app_name:str, app_version:str):
         """
@@ -196,6 +301,9 @@ def install_validate(appInstall:appInstall,endpointId:int):
 
         # Check the apps number is exceed the maximum number of apps
         check_apps_number(endpointId)
+
+        # Check port conflicts for any W9_*PORT_SET settings (includes template defaults)
+        check_port_conflicts(appInstall.settings, app_name)
     except CustomException as e:
         raise e
     except Exception as e:

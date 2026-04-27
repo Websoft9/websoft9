@@ -2,52 +2,40 @@ import {
     Alert,
     Box,
     Button,
-    Card,
-    CardContent,
-    Chip,
     CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     FormControlLabel,
-    Link,
     Snackbar,
-    Stack,
+    Step,
+    StepContent,
+    StepLabel,
+    Stepper,
     Switch,
-    Tab,
-    Tabs,
     Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
-import { useMyAppDetail } from './use-my-app-detail'
+import { LegacyMyAppLogo } from './my-app-media'
+import { type MyAppDetail, useMyAppDetail } from './use-my-app-detail'
 import { MyAppAccessPanel } from './my-app-access-panel'
+import { useMyAppPhpInfo } from './use-my-app-php-info'
+import './my-app-detail-page.css'
 
-type DetailTabKey = 'overview' | 'access' | 'runtime' | 'storage' | 'backup' | 'uninstall'
-type LifecycleActionKey = 'access' | 'start' | 'stop' | 'restart' | 'redeploy' | 'uninstall'
+// =====================
+// Types
+// =====================
+type DetailTabKey = 'overview' | 'access' | 'container' | 'volumes' | 'php' | 'database' | 'monitor' | 'compose' | 'uninstall'
+type LifecycleActionKey = 'start' | 'stop' | 'restart' | 'redeploy' | 'uninstall'
 type ActionFeedback = {
     severity: 'success' | 'error' | 'info'
     message: string
 }
-type HeaderActionLink = {
-    key: 'access'
-    label: string
-    href: string
-    disabled: boolean
-    loading: boolean
-}
-type HeaderActionButton = {
-    key: Exclude<LifecycleActionKey, 'access'>
-    label: string
-    disabled: boolean
-    loading: boolean
-    onClick: () => void
-}
-type HeaderActionItem = HeaderActionLink | HeaderActionButton
 type RedeployLogEntry = {
     timestamp?: string
     type?: string
@@ -56,39 +44,79 @@ type RedeployLogEntry = {
     details?: string
     data?: unknown
 }
-
-const detailTabs: DetailTabKey[] = ['overview', 'access', 'runtime', 'storage', 'backup', 'uninstall']
-
-function getStatusKey(status: number) {
-    if (status === 3) {
-        return 'installing'
+type DatabaseRow = {
+    type: string
+    host: string
+    account: string
+    password: string
+    tool: string
+}
+type BackupSnapshot = {
+    id: string
+    short_id?: string
+    time: string
+    summary?: {
+        total_bytes_processed?: number
     }
-
-    if (status === 2) {
-        return 'inactive'
-    }
-
-    if (status === 4) {
-        return 'error'
-    }
-
-    return 'active'
+}
+type VolumeBackupRow = {
+    id: string
+    fullId: string
+    time: string
+    size: string
+}
+type PhpMigrationFeedback = {
+    message: string
+    details?: string
 }
 
-function getStatusColor(status: number): 'default' | 'success' | 'warning' | 'error' {
-    if (status === 1) {
-        return 'success'
-    }
+// =====================
+// Action button icon helpers (dripicons CSS classes, same as old plugin)
+// =====================
+function BtnIcon({ className, spinning }: { className: string; spinning?: boolean }) {
+    if (spinning) return <span style={{ width: 14, height: 14, display: 'inline-block', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.75s linear infinite', verticalAlign: 'middle' }} />
+    return <i className={`${className} noti-icon`} />
+}
 
-    if (status === 3) {
-        return 'warning'
-    }
+// Password visibility icons (SVG, used in database tab)
+function IconEye() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" /></svg>
+}
+function IconEyeOff() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 7a5 5 0 0 1 5 5c0 .64-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46A11.8 11.8 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65a3 3 0 0 0 3 3c.22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53a5 5 0 0 1-5-5c0-.79.2-1.53.53-2.2zm4.31-.78 3.15 3.15.02-.16a3 3 0 0 0-3-3l-.17.01z" /></svg>
+}
+function IconCopy() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" /></svg>
+}
 
-    if (status === 4) {
-        return 'error'
-    }
 
-    return 'default'
+// =====================
+// Status helpers
+// =====================
+function getStatusLabel(status: number) {
+    if (status === 1) return 'Active'
+    if (status === 3) return 'Installing'
+    if (status === 4) return 'Error'
+    return 'Inactive'
+}
+
+function getStatusColor(status: number) {
+    if (status === 1) return 'green'
+    if (status === 4) return 'red'
+    return '#f0ad4e'
+}
+
+// =====================
+// Data helpers
+// =====================
+const dbConfig: Record<string, { account: string; tool: string }> = {
+    mariadb: { account: 'root', tool: 'phpMyAdmin,CloudBeaver' },
+    mysql: { account: 'root', tool: 'phpMyAdmin,CloudBeaver' },
+    postgresql: { account: 'postgres', tool: 'pgAdmin,CloudBeaver' },
+    mongodb: { account: 'root', tool: 'MongoCompass' },
+    oracle: { account: 'system', tool: 'CloudBeaver' },
+    sqlserver: { account: 'sa', tool: 'CloudBeaver' },
+    redis: { account: '-', tool: 'RedisInsight' },
 }
 
 function getDomainEntries(domainNames: Array<Record<string, unknown>> | undefined, env: Record<string, string> | undefined) {
@@ -96,71 +124,397 @@ function getDomainEntries(domainNames: Array<Record<string, unknown>> | undefine
         .map((entry) => {
             const domainName = entry.domain_name
             const domain = entry.domain
-
-            if (typeof domainName === 'string' && domainName.trim()) {
-                return domainName.trim()
-            }
-
-            if (typeof domain === 'string' && domain.trim()) {
-                return domain.trim()
-            }
-
+            if (typeof domainName === 'string' && domainName.trim()) return domainName.trim()
+            if (typeof domain === 'string' && domain.trim()) return domain.trim()
             return null
         })
-        .filter((value): value is string => Boolean(value))
+        .filter((v): v is string => Boolean(v))
 
     const envUrl = env?.W9_URL?.trim()
-    if (envUrl && !domains.includes(envUrl)) {
-        domains.unshift(envUrl)
-    }
-
+    if (envUrl && !domains.includes(envUrl)) domains.unshift(envUrl)
     return domains
 }
 
+function hasAccessTab(env: Record<string, string> | undefined) {
+    if (!env) return false
+    if (env.W9_URL?.trim()) return true
+    return Object.keys(env).some((key) => key.startsWith('W9_LOGIN'))
+}
+
+function getDetailTabs(data: MyAppDetail): DetailTabKey[] {
+    const tabs: DetailTabKey[] = ['overview', 'container', 'compose', 'uninstall']
+    if (hasAccessTab(data.env)) tabs.splice(1, 0, 'access')
+    if ((data.volumes ?? []).length > 0) tabs.splice(3, 0, 'volumes')
+    if (data.is_php_app) tabs.splice(4, 0, 'php')
+    if (data.env?.W9_DB_EXPOSE?.trim()) tabs.splice(5, 0, 'database')
+    if (data.is_monitor_app) tabs.splice(6, 0, 'monitor')
+    return tabs
+}
+
+const knownDetailPortLabelKeys: Record<string, string> = {
+    W9_HTTP_PORT_SET: 'appStorePage.install.httpPortLabel',
+    W9_HTTPS_PORT_SET: 'appStorePage.install.httpsPortLabel',
+    W9_DB_PORT_SET: 'appStorePage.install.databasePortLabel',
+}
+
+const detailPortTokenLabels = {
+    en: {
+        API: 'API',
+        APP: 'Application',
+        DB: 'Database',
+        HTTP: 'HTTP',
+        HTTPS: 'HTTPS',
+        PORT: 'Port',
+    },
+    zh: {
+        API: 'API',
+        APP: '应用',
+        DB: '数据库',
+        HTTP: 'HTTP',
+        HTTPS: 'HTTPS',
+        PORT: '端口',
+    },
+} as const
+
+function humanizeDetailPortToken(token: string) {
+    return token
+        .toLowerCase()
+        .replace(/(^|\s)(\w)/g, (value) => value.toUpperCase())
+}
+
+function formatDetailSettingName(value: string, locale: string) {
+    const localeKey = locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+    const tokenLabels = detailPortTokenLabels[localeKey]
+
+    return value
+        .split('_')
+        .filter(Boolean)
+        .map((token) => tokenLabels[token.toUpperCase() as keyof typeof tokenLabels] ?? humanizeDetailPortToken(token))
+        .join(' ')
+}
+
+function getDetailPortLabel(key: string, t: (key: string, options?: Record<string, unknown>) => string, locale: string) {
+    const knownLabelKey = knownDetailPortLabelKeys[key]
+    if (knownLabelKey) {
+        return t(knownLabelKey)
+    }
+
+    const normalizedKey = key.replace(/^W9_/, '').replace(/_SET$/, '')
+    if (!normalizedKey) {
+        return key
+    }
+
+    if (normalizedKey.endsWith('_PORT')) {
+        const portName = normalizedKey.slice(0, -'_PORT'.length)
+        return t('appStorePage.install.dynamicPortLabel', {
+            name: formatDetailSettingName(portName, locale),
+        })
+    }
+
+    return t('appStorePage.install.dynamicSettingLabel', {
+        name: formatDetailSettingName(normalizedKey, locale),
+    })
+}
+
+// PORT_SET env key -> translated label key or raw env key fallback
+function getPortEntries(env: Record<string, string> | undefined): Array<[string, string, string]> {
+    if (!env) return []
+    return Object.entries(env)
+        .filter(([key]) => key.endsWith('PORT_SET'))
+        .map(([key, value]) => [key, knownDetailPortLabelKeys[key] ?? key, String(value || '-')])
+}
+
+// Container state → color badge
+function ContainerStateBadge({ state }: { state: string }) {
+    const lower = state.toLowerCase()
+    let bg = '#6c757d'
+    let color = '#fff'
+    if (lower === 'running') { bg = '#0acf97' }
+    else if (lower === 'exited' || lower === 'stopped' || lower === 'dead') { bg = '#fa5c7c' }
+    else if (lower === 'paused') { bg = '#ffbc00'; color = '#313a46' }
+    else if (lower === 'created') { bg = '#6c757d' }
+    return (
+        <span style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            borderRadius: '12px',
+            backgroundColor: bg,
+            color,
+            fontSize: '12px',
+            fontWeight: 600,
+            lineHeight: '18px',
+        }}>{state}</span>
+    )
+}
+
 function formatCreationDate(value: number | null | undefined, locale: string) {
-    if (!value) {
-        return '-'
-    }
-
-    const normalizedValue = value > 10_000_000_000 ? value : value * 1_000
-
+    if (!value) return '-'
+    const normalized = value > 10_000_000_000 ? value : value * 1_000
     try {
-        return new Intl.DateTimeFormat(locale, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-        }).format(new Date(normalizedValue))
+        return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(normalized))
     } catch {
         return '-'
     }
 }
 
-function getRuntimeSummary(containers: Array<Record<string, unknown>> | undefined, volumes: Array<Record<string, unknown>> | undefined) {
-    return {
-        containers: containers?.length ?? 0,
-        volumes: volumes?.length ?? 0,
+function getContainerStateSummary(containers: Array<Record<string, unknown>> | undefined) {
+    if (!containers || containers.length === 0) return '-'
+    const counts = containers.reduce<Record<string, number>>((acc, c) => {
+        const state = typeof c.State === 'string' ? c.State : typeof c.state === 'string' ? c.state : 'unknown'
+        acc[state] = (acc[state] ?? 0) + 1
+        return acc
+    }, {})
+    return Object.entries(counts)
+        .sort(([a], [b]) => (a === 'running' ? -1 : b === 'running' ? 1 : a.localeCompare(b)))
+        .map(([state, n]) => `${state}(${n})`)
+        .join('-')
+}
+
+function getContainerName(c: Record<string, unknown>) {
+    const names = Array.isArray(c.Names) ? c.Names : []
+    return (typeof names[0] === 'string' ? names[0] : '').replace(/^\//, '') || '-'
+}
+
+function getContainerState(c: Record<string, unknown>) {
+    return typeof c.State === 'string' ? c.State : typeof c.state === 'string' ? c.state : 'unknown'
+}
+
+function getContainerStatus(c: Record<string, unknown>) {
+    return typeof c.Status === 'string' ? c.Status : '-'
+}
+
+function getContainerImage(c: Record<string, unknown>) {
+    return typeof c.Image === 'string' ? c.Image : '-'
+}
+
+function getContainerId(c: Record<string, unknown>) {
+    return typeof c.Id === 'string' ? c.Id : typeof c.id === 'string' ? c.id : ''
+}
+
+function getContainerCreatedAt(c: Record<string, unknown>, locale: string) {
+    const created = typeof c.Created === 'number' ? c.Created : null
+    return created ? formatCreationDate(created, locale) : '-'
+}
+
+function getContainerIpAddress(c: Record<string, unknown>) {
+    const ns = c.NetworkSettings
+    if (!ns || typeof ns !== 'object') return '-'
+    const networks = (ns as { Networks?: Record<string, { IPAddress?: string }> }).Networks
+    const ip = networks?.websoft9?.IPAddress
+    if (typeof ip === 'string' && ip.trim()) return ip
+    return Object.values(networks ?? {}).find((n) => typeof n?.IPAddress === 'string' && n.IPAddress.trim())?.IPAddress || '-'
+}
+
+function getPublishedPorts(c: Record<string, unknown>) {
+    const ports = Array.isArray(c.Ports) ? c.Ports : []
+    return ports
+        .filter((p): p is { IP?: unknown; PublicPort?: unknown; PrivatePort?: unknown } => Boolean(p && typeof p === 'object'))
+        .filter((p) => typeof p.IP === 'string' && /^(\d{1,3}\.){3}\d{1,3}$/.test(p.IP))
+        .sort((a, b) => Number(a.PublicPort ?? 0) - Number(b.PublicPort ?? 0))
+        .map((p) => `${String(p.PublicPort ?? '')}:${String(p.PrivatePort ?? '')}`)
+        .filter(Boolean)
+        .join(', ') || '-'
+}
+
+function getVolumeLabel(v: Record<string, unknown>) {
+    return String(v.Name ?? v.name ?? v.Mountpoint ?? '-')
+}
+
+function getVolumeCreatedAt(v: Record<string, unknown>, locale: string) {
+    const createdAt = typeof v.CreatedAt === 'string' ? v.CreatedAt : ''
+    if (!createdAt) return '-'
+    const parsed = Date.parse(createdAt)
+    if (Number.isNaN(parsed)) return createdAt
+    try {
+        return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(parsed))
+    } catch {
+        return createdAt
     }
 }
 
-async function parseJsonError(response: Response, fallbackMessage: string) {
-    try {
-        const payload = (await response.json()) as { details?: string; message?: string }
-        return payload.details || payload.message || fallbackMessage
-    } catch {
-        return fallbackMessage
+function getDatabaseRows(data: MyAppDetail): DatabaseRow[] {
+    const expose = data.env?.W9_DB_EXPOSE
+    if (!expose) return []
+    return expose.split(',').map((s) => s.trim()).filter(Boolean).map((dbType) => ({
+        type: dbType,
+        host: `${data.app_id}-${dbType}`,
+        account: dbConfig[dbType]?.account || '-',
+        password: data.env?.W9_POWER_PASSWORD || '-',
+        tool: dbConfig[dbType]?.tool || '-',
+    }))
+}
+
+function getComposeVersion(data: MyAppDetail) {
+    const git = data.gitConfig ?? {}
+    for (const key of ['ConfigVersion', 'ReferenceName', 'ComposeFilePath', 'RepositoryURL'] as const) {
+        const v = git[key]
+        if (typeof v === 'string' && v.trim()) return v.trim()
     }
+    return '-'
+}
+
+function formatBackupSize(bytes: number) {
+    if (!bytes) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    let value = bytes
+    let unitIndex = 0
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024
+        unitIndex += 1
+    }
+    return `${Number(value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 2))} ${units[unitIndex]}`
+}
+
+function formatBackupTime(value: string, locale: string) {
+    const parsed = Date.parse(value)
+    if (Number.isNaN(parsed)) return value
+    try {
+        return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(parsed))
+    } catch {
+        return value
+    }
+}
+
+function formatBackupRows(snapshots: BackupSnapshot[], locale: string): VolumeBackupRow[] {
+    return [...snapshots]
+        .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
+        .map((snapshot) => ({
+            id: snapshot.short_id || snapshot.id.slice(0, 8),
+            fullId: snapshot.id,
+            time: formatBackupTime(snapshot.time, locale),
+            size: formatBackupSize(snapshot.summary?.total_bytes_processed || 0),
+        }))
+}
+
+// =====================
+// API helpers
+// =====================
+async function parseJsonError(response: Response, fallback: string) {
+    try {
+        const body = (await response.json()) as { details?: string; message?: string }
+        return body.details || body.message || fallback
+    } catch {
+        return fallback
+    }
+}
+
+async function copyTextWithFallback(value: string) {
+    if (navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(value)
+            return
+        } catch {
+            // Fall through to the execCommand path for browsers without clipboard permission.
+        }
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'absolute'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+
+    if (!copied) {
+        throw new Error('Copy failed')
+    }
+}
+
+function openProductPath(path: string, navigate: (to: string) => void) {
+    const normalizedPath = path.trim()
+
+    if (normalizedPath.startsWith('/w9deployment/')) {
+        navigate(`/containers?target=${encodeURIComponent(normalizedPath)}`)
+        return
+    }
+
+    if (normalizedPath.startsWith('/w9git/')) {
+        navigate(`/repository?target=${encodeURIComponent(normalizedPath)}`)
+        return
+    }
+
+    if (normalizedPath.startsWith('/w9proxy/')) {
+        navigate(`/gateway?target=${encodeURIComponent(normalizedPath)}`)
+        return
+    }
+
+    window.location.assign(normalizedPath)
 }
 
 async function runLifecycleRequest(url: string, method: 'POST' | 'DELETE') {
     const response = await fetch(url, {
         method,
         credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        throw new Error(await parseJsonError(response, `Lifecycle action failed: ${response.status}`))
+    }
+}
+
+async function fetchBackupSnapshots(appId: string) {
+    const response = await fetch(`/api/backup/snapshots?app_id=${encodeURIComponent(appId)}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        throw new Error(await parseJsonError(response, `Backup list failed: ${response.status}`))
+    }
+    return (await response.json()) as BackupSnapshot[]
+}
+
+async function createAppBackup(appId: string) {
+    const response = await fetch(`/api/backup/${encodeURIComponent(appId)}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        throw new Error(await parseJsonError(response, `Create backup failed: ${response.status}`))
+    }
+}
+
+async function submitPhpMigrationRequest(appId: string, targetVersion: string, remarks: string) {
+    const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/php/migration-request`, {
+        method: 'POST',
+        credentials: 'include',
         headers: {
             Accept: 'application/json',
+            'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ target_version: targetVersion, remarks }),
     })
 
     if (!response.ok) {
-        throw new Error(await parseJsonError(response, `Lifecycle action failed: ${response.status}`))
+        throw new Error(await parseJsonError(response, `PHP migration request failed: ${response.status}`))
+    }
+
+    return (await response.json()) as PhpMigrationFeedback
+}
+
+async function deleteAppBackup(snapshotId: string) {
+    const response = await fetch(`/api/backup/snapshots/${encodeURIComponent(snapshotId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok && response.status !== 204) {
+        throw new Error(await parseJsonError(response, `Delete backup failed: ${response.status}`))
+    }
+}
+
+async function restoreAppBackup(appId: string, snapshotId: string) {
+    const response = await fetch(`/api/backup/restore/${encodeURIComponent(appId)}/${encodeURIComponent(snapshotId)}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        throw new Error(await parseJsonError(response, `Restore backup failed: ${response.status}`))
     }
 }
 
@@ -172,11 +526,8 @@ async function runRedeployRequest(
     const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/redeploy?pullImage=${String(pullImage)}`, {
         method: 'PUT',
         credentials: 'include',
-        headers: {
-            Accept: 'text/plain',
-        },
+        headers: { Accept: 'text/plain' },
     })
-
     if (!response.ok || !response.body) {
         throw new Error(await parseJsonError(response, `Redeploy failed: ${response.status}`))
     }
@@ -189,70 +540,46 @@ async function runRedeployRequest(
     while (true) {
         const { done, value } = await reader.read()
         buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done })
-
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
 
         for (const line of lines) {
-            if (!line.trim()) {
-                continue
-            }
-
-            const parsedEntry = JSON.parse(line) as RedeployLogEntry
-            onLog(parsedEntry)
-
-            if (parsedEntry.status === 'success') {
-                finalStatus = 'success'
-            }
-
-            if (parsedEntry.status === 'failed' || parsedEntry.type === 'error') {
-                finalStatus = 'failed'
-            }
+            if (!line.trim()) continue
+            const entry = JSON.parse(line) as RedeployLogEntry
+            onLog(entry)
+            if (entry.status === 'success') finalStatus = 'success'
+            if (entry.status === 'failed' || entry.type === 'error') finalStatus = 'failed'
         }
 
-        if (done) {
-            break
-        }
+        if (done) break
     }
 
     if (buffer.trim()) {
-        const parsedEntry = JSON.parse(buffer) as RedeployLogEntry
-        onLog(parsedEntry)
-        if (parsedEntry.status === 'success') {
-            finalStatus = 'success'
-        }
-        if (parsedEntry.status === 'failed' || parsedEntry.type === 'error') {
-            finalStatus = 'failed'
-        }
+        const entry = JSON.parse(buffer) as RedeployLogEntry
+        onLog(entry)
+        if (entry.status === 'success') finalStatus = 'success'
+        if (entry.status === 'failed' || entry.type === 'error') finalStatus = 'failed'
     }
 
-    if (finalStatus !== 'success') {
-        throw new Error('Redeploy did not complete successfully.')
-    }
+    if (finalStatus !== 'success') throw new Error('Redeploy did not complete successfully.')
 }
 
-function isHeaderActionItem(value: HeaderActionItem | null): value is HeaderActionItem {
-    return value !== null
-}
-
-function getAccessHref(value: string) {
-    if (/^https?:\/\//i.test(value)) {
-        return value
-    }
-
-    if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(value) || value.includes(':')) {
-        return `http://${value}`
-    }
-
-    return `https://${value}`
-}
-
+// =====================
+// Main component
+// =====================
 export function MyAppDetailPage() {
     const { t, i18n } = useTranslation('shell')
     const { appId } = useParams()
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
     const queryClient = useQueryClient()
-    const [selectedTab, setSelectedTab] = useState<DetailTabKey>('overview')
+    const initialTab = searchParams.get('tab')
+    const [selectedTab, setSelectedTab] = useState<DetailTabKey>(() => {
+        if (initialTab && ['overview', 'access', 'container', 'volumes', 'php', 'database', 'monitor', 'compose', 'uninstall'].includes(initialTab)) {
+            return initialTab as DetailTabKey
+        }
+        return 'overview'
+    })
     const [actionInProgress, setActionInProgress] = useState<LifecycleActionKey | null>(null)
     const [feedback, setFeedback] = useState<ActionFeedback | null>(null)
     const [redeployDialogOpen, setRedeployDialogOpen] = useState(false)
@@ -260,453 +587,1033 @@ export function MyAppDetailPage() {
     const [redeployLogs, setRedeployLogs] = useState<RedeployLogEntry[]>([])
     const [uninstallDialogOpen, setUninstallDialogOpen] = useState(false)
     const [purgeData, setPurgeData] = useState(false)
-    const { data, error, isLoading, refetch, isFetching } = useMyAppDetail(appId)
+    const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
+    const [volumeBackups, setVolumeBackups] = useState<VolumeBackupRow[]>([])
+    const [volumeBackupLoading, setVolumeBackupLoading] = useState(false)
+    const [volumeBackupError, setVolumeBackupError] = useState<string | null>(null)
+    const [createBackupDialogOpen, setCreateBackupDialogOpen] = useState(false)
+    const [deleteBackupTarget, setDeleteBackupTarget] = useState<VolumeBackupRow | null>(null)
+    const [restoreBackupTarget, setRestoreBackupTarget] = useState<VolumeBackupRow | null>(null)
+    const [volumeBackupAction, setVolumeBackupAction] = useState<'create' | 'delete' | 'restore' | null>(null)
+    const [composeStep, setComposeStep] = useState(0)
+    const [showPhpMigrationForm, setShowPhpMigrationForm] = useState(false)
+    const [phpTargetVersion, setPhpTargetVersion] = useState('')
+    const [phpMigrationRemarks, setPhpMigrationRemarks] = useState('')
+    const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
+
+    const { data, error, isLoading, refetch } = useMyAppDetail(appId)
+    const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php'))
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
 
     const domains = useMemo(() => getDomainEntries(data?.domain_names, data?.env), [data?.domain_names, data?.env])
-    const runtimeSummary = useMemo(() => getRuntimeSummary(data?.containers, data?.volumes), [data?.containers, data?.volumes])
+    const detailTabs = useMemo(() => (data ? getDetailTabs(data) : ['overview' as const]), [data])
+    const portEntries = useMemo(() => getPortEntries(data?.env), [data?.env])
+    const databaseRows = useMemo(() => (data ? getDatabaseRows(data) : []), [data])
+    const containerStateSummary = useMemo(() => getContainerStateSummary(data?.containers), [data?.containers])
+    const sortedVolumes = useMemo(() => {
+        const volumes = [...(data?.volumes ?? [])]
+        return volumes.sort((a, b) => getVolumeLabel(a).localeCompare(getVolumeLabel(b)))
+    }, [data?.volumes])
+    const composeSteps = useMemo(() => ([
+        {
+            label: t('myAppsDetailPage.tabs.compose.steps.modify.label'),
+            description: t('myAppsDetailPage.tabs.compose.steps.modify.description'),
+            action: t('myAppsDetailPage.tabs.compose.steps.modify.action'),
+        },
+        {
+            label: t('myAppsDetailPage.tabs.compose.steps.redeploy.label'),
+            description: t('myAppsDetailPage.tabs.compose.steps.redeploy.description'),
+            action: t('myAppsDetailPage.tabs.compose.steps.redeploy.action'),
+        },
+    ]), [t])
+
+    useEffect(() => {
+        if (!detailTabs.includes(selectedTab)) {
+            setSelectedTab(detailTabs[0] ?? 'overview')
+        }
+    }, [detailTabs, selectedTab])
+
+    useEffect(() => {
+        const urlTab = searchParams.get('tab')
+        if (urlTab === selectedTab) {
+            return
+        }
+
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.set('tab', selectedTab)
+        setSearchParams(nextParams, { replace: true })
+    }, [searchParams, selectedTab, setSearchParams])
+
+    useEffect(() => {
+        if (!data?.app_id || selectedTab !== 'volumes') return
+
+        let cancelled = false
+        setVolumeBackupLoading(true)
+        setVolumeBackupError(null)
+
+        void fetchBackupSnapshots(data.app_id)
+            .then((snapshots) => {
+                if (cancelled) return
+                setVolumeBackups(formatBackupRows(snapshots, locale))
+            })
+            .catch((err) => {
+                if (cancelled) return
+                setVolumeBackups([])
+                setVolumeBackupError(err instanceof Error ? err.message : t('myAppsDetailPage.tabs.volumes.backups.loadFailed'))
+            })
+            .finally(() => {
+                if (!cancelled) setVolumeBackupLoading(false)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [data?.app_id, locale, selectedTab, t])
 
     async function refreshAfterAction() {
         await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['my-apps'] }),
             queryClient.invalidateQueries({ queryKey: ['my-app-detail', appId] }),
         ])
-
         setTimeout(() => {
             void queryClient.invalidateQueries({ queryKey: ['my-apps'] })
             void queryClient.invalidateQueries({ queryKey: ['my-app-detail', appId] })
         }, 1500)
     }
 
-    async function handleSimpleAction(actionKey: Extract<LifecycleActionKey, 'start' | 'stop' | 'restart'>) {
-        if (!data) {
-            return
-        }
-
+    async function handleSimpleAction(actionKey: 'start' | 'stop' | 'restart') {
+        if (!data) return
         const actionMap = {
-            start: {
-                method: 'POST' as const,
-                url: `/api/apps/${encodeURIComponent(data.app_id)}/start`,
-                successMessage: t('myAppsDetailPage.feedback.startSuccess', { appId: data.app_id }),
-            },
-            stop: {
-                method: 'POST' as const,
-                url: `/api/apps/${encodeURIComponent(data.app_id)}/stop`,
-                successMessage: t('myAppsDetailPage.feedback.stopSuccess', { appId: data.app_id }),
-            },
-            restart: {
-                method: 'POST' as const,
-                url: `/api/apps/${encodeURIComponent(data.app_id)}/restart`,
-                successMessage: t('myAppsDetailPage.feedback.restartSuccess', { appId: data.app_id }),
-            },
+            start: { method: 'POST' as const, url: `/api/apps/${encodeURIComponent(data.app_id)}/start`, msg: t('myAppsDetailPage.feedback.startSuccess', { appId: data.app_id }) },
+            stop: { method: 'POST' as const, url: `/api/apps/${encodeURIComponent(data.app_id)}/stop`, msg: t('myAppsDetailPage.feedback.stopSuccess', { appId: data.app_id }) },
+            restart: { method: 'POST' as const, url: `/api/apps/${encodeURIComponent(data.app_id)}/restart`, msg: t('myAppsDetailPage.feedback.restartSuccess', { appId: data.app_id }) },
         }
-
-        const actionConfig = actionMap[actionKey]
+        const cfg = actionMap[actionKey]
         setActionInProgress(actionKey)
-
         try {
-            await runLifecycleRequest(actionConfig.url, actionConfig.method)
+            await runLifecycleRequest(cfg.url, cfg.method)
             await refreshAfterAction()
-            setFeedback({ severity: 'success', message: actionConfig.successMessage })
-        } catch (actionError) {
-            setFeedback({
-                severity: 'error',
-                message: actionError instanceof Error ? actionError.message : t('myAppsDetailPage.feedback.genericError'),
-            })
+            setFeedback({ severity: 'success', message: cfg.msg })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.feedback.genericError') })
         } finally {
             setActionInProgress(null)
         }
     }
 
     async function handleRedeploy() {
-        if (!data) {
-            return
-        }
-
+        if (!data) return
         setActionInProgress('redeploy')
         setRedeployLogs([])
-
         try {
-            await runRedeployRequest(data.app_id, redeployPullImage, (entry) => {
-                setRedeployLogs((currentValue) => [...currentValue, entry])
-            })
+            await runRedeployRequest(data.app_id, redeployPullImage, (entry) => setRedeployLogs((prev) => [...prev, entry]))
             await refreshAfterAction()
             setFeedback({ severity: 'success', message: t('myAppsDetailPage.feedback.redeploySuccess', { appId: data.app_id }) })
-        } catch (actionError) {
-            setFeedback({
-                severity: 'error',
-                message: actionError instanceof Error ? actionError.message : t('myAppsDetailPage.feedback.genericError'),
-            })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.feedback.genericError') })
         } finally {
             setActionInProgress(null)
         }
     }
 
     async function handleUninstall() {
-        if (!data) {
-            return
-        }
-
+        if (!data) return
         setActionInProgress('uninstall')
-
         try {
             await runLifecycleRequest(`/api/apps/${encodeURIComponent(data.app_id)}/uninstall?purge_data=${String(purgeData)}`, 'DELETE')
             await queryClient.invalidateQueries({ queryKey: ['my-apps'] })
             setFeedback({ severity: 'success', message: t('myAppsDetailPage.feedback.uninstallSuccess', { appId: data.app_id }) })
             navigate('/myapps')
-        } catch (actionError) {
-            setFeedback({
-                severity: 'error',
-                message: actionError instanceof Error ? actionError.message : t('myAppsDetailPage.feedback.genericError'),
-            })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.feedback.genericError') })
         } finally {
             setActionInProgress(null)
             setUninstallDialogOpen(false)
         }
     }
 
-    const rawActionItems: Array<HeaderActionItem | null> = data
-        ? [
-              domains.length > 0
-                  ? {
-                        key: 'access' as const,
-                        label: t('myAppsDetailPage.actions.access'),
-                        href: getAccessHref(domains[0]),
-                        disabled: false,
-                        loading: false,
-                    }
-                  : null,
-              {
-                  key: 'start' as const,
-                  label: t('myAppsDetailPage.actions.start'),
-                  disabled: data.status === 1 || actionInProgress !== null,
-                  loading: actionInProgress === 'start',
-                  onClick: () => void handleSimpleAction('start'),
-              },
-              {
-                  key: 'stop' as const,
-                  label: t('myAppsDetailPage.actions.stop'),
-                  disabled: data.status !== 1 || actionInProgress !== null,
-                  loading: actionInProgress === 'stop',
-                  onClick: () => void handleSimpleAction('stop'),
-              },
-              {
-                  key: 'restart' as const,
-                  label: t('myAppsDetailPage.actions.restart'),
-                  disabled: data.status !== 1 || actionInProgress !== null,
-                  loading: actionInProgress === 'restart',
-                  onClick: () => void handleSimpleAction('restart'),
-              },
-              {
-                  key: 'redeploy' as const,
-                  label: t('myAppsDetailPage.actions.redeploy'),
-                  disabled: data.status === 3 || actionInProgress !== null,
-                  loading: actionInProgress === 'redeploy',
-                  onClick: () => {
-                      setRedeployLogs([])
-                      setRedeployDialogOpen(true)
-                  },
-              },
-              {
-                  key: 'uninstall' as const,
-                  label: t('myAppsDetailPage.actions.uninstall'),
-                  disabled: actionInProgress !== null,
-                  loading: actionInProgress === 'uninstall',
-                  onClick: () => {
-                      setUninstallDialogOpen(true)
-                  },
-              },
-                    ]
-        : []
+    async function refreshVolumeBackups() {
+        if (!data?.app_id) return
+        setVolumeBackupLoading(true)
+        setVolumeBackupError(null)
+        try {
+            const snapshots = await fetchBackupSnapshots(data.app_id)
+            setVolumeBackups(formatBackupRows(snapshots, locale))
+        } catch (err) {
+            setVolumeBackups([])
+            setVolumeBackupError(err instanceof Error ? err.message : t('myAppsDetailPage.tabs.volumes.backups.loadFailed'))
+        } finally {
+            setVolumeBackupLoading(false)
+        }
+    }
 
-        const actionItems = rawActionItems.filter(isHeaderActionItem)
+    async function handleCreateBackup() {
+        if (!data?.app_id) return
+        setVolumeBackupAction('create')
+        try {
+            await createAppBackup(data.app_id)
+            await refreshVolumeBackups()
+            setCreateBackupDialogOpen(false)
+            setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.volumes.backups.createSuccess') })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.tabs.volumes.backups.createFailed') })
+        } finally {
+            setVolumeBackupAction(null)
+        }
+    }
+
+    async function handleDeleteBackup() {
+        if (!deleteBackupTarget) return
+        setVolumeBackupAction('delete')
+        try {
+            await deleteAppBackup(deleteBackupTarget.fullId)
+            await refreshVolumeBackups()
+            setDeleteBackupTarget(null)
+            setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.volumes.backups.deleteSuccess') })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.tabs.volumes.backups.deleteFailed') })
+        } finally {
+            setVolumeBackupAction(null)
+        }
+    }
+
+    async function handleRestoreBackup() {
+        if (!data?.app_id || !restoreBackupTarget) return
+        setVolumeBackupAction('restore')
+        try {
+            await restoreAppBackup(data.app_id, restoreBackupTarget.fullId)
+            await refreshVolumeBackups()
+            await refreshAfterAction()
+            setRestoreBackupTarget(null)
+            setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.volumes.backups.restoreSuccess') })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.tabs.volumes.backups.restoreFailed') })
+        } finally {
+            setVolumeBackupAction(null)
+        }
+    }
+
+    function handleComposeAction(stepIndex: number) {
+        if (!data) return
+
+        if (stepIndex === 0) {
+            const auth = data.gitConfig?.Authentication
+            const username = auth && typeof auth === 'object' && 'Username' in auth && typeof auth.Username === 'string' && auth.Username.trim()
+                ? auth.Username.trim()
+                : 'websoft9'
+            openProductPath(`/w9git/${username}/${data.app_id}`, navigate)
+            return
+        }
+
+        setRedeployLogs([])
+        setRedeployDialogOpen(true)
+    }
+
+    async function handlePhpMigrationRequest() {
+        if (!data?.app_id) return
+
+        if (!phpTargetVersion.trim()) {
+            setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.php.validation.version') })
+            return
+        }
+
+        if (!phpMigrationRemarks.trim()) {
+            setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.php.validation.remarks') })
+            return
+        }
+
+        setPhpMigrationSubmitting(true)
+        try {
+            const result = await submitPhpMigrationRequest(data.app_id, phpTargetVersion.trim(), phpMigrationRemarks.trim())
+            setFeedback({ severity: 'success', message: result.details || result.message || t('myAppsDetailPage.tabs.php.migration.submitSuccess') })
+            setShowPhpMigrationForm(false)
+            setPhpTargetVersion('')
+            setPhpMigrationRemarks('')
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.feedback.genericError') })
+        } finally {
+            setPhpMigrationSubmitting(false)
+        }
+    }
+
+    const containerStates = (data?.containers ?? [])
+        .map((container) => (typeof container.State === 'string' ? container.State : typeof container.state === 'string' ? container.state : 'unknown'))
+
+    // Keep disable semantics consistent with legacy plugin appdetail.js
+    const disableStartByState = containerStates.some((state) => ['running', 'restarting', 'paused', 'created'].includes(state))
+    const disableStopByState = containerStates.length === 0 || containerStates.every((state) => state === 'exited')
+
+    const isStartDisabled = !data || actionInProgress !== null || disableStartByState
+    const isStopDisabled = !data || actionInProgress !== null || disableStopByState
+    const isRestartDisabled = !data || actionInProgress !== null
+    const isRedeployDisabled = !data || actionInProgress !== null
+
+    const tabLabels: Record<DetailTabKey, string> = {
+        overview: t('myAppsDetailPage.tabs.overview.label'),
+        access: t('myAppsDetailPage.tabs.access.label'),
+        container: t('myAppsDetailPage.tabs.container.label'),
+        volumes: t('myAppsDetailPage.tabs.volumes.label'),
+        php: t('myAppsDetailPage.tabs.php.label'),
+        database: t('myAppsDetailPage.tabs.database.label'),
+        monitor: t('myAppsDetailPage.tabs.monitor.label'),
+        compose: t('myAppsDetailPage.tabs.compose.label'),
+        uninstall: t('myAppsDetailPage.tabs.uninstall.label'),
+    }
+
+    const tabTitles: Record<DetailTabKey, string> = {
+        overview: t('myAppsDetailPage.tabs.overview.title'),
+        access: t('myAppsDetailPage.tabs.access.title'),
+        container: t('myAppsDetailPage.tabs.container.title'),
+        volumes: t('myAppsDetailPage.tabs.volumes.title'),
+        php: t('myAppsDetailPage.tabs.php.title'),
+        database: t('myAppsDetailPage.tabs.database.title'),
+        monitor: t('myAppsDetailPage.tabs.monitor.title'),
+        compose: t('myAppsDetailPage.tabs.compose.title'),
+        uninstall: t('myAppsDetailPage.tabs.uninstall.title'),
+    }
 
     return (
-        <Box
-            sx={{
-                minHeight: 'calc(100vh - 120px)',
-                px: { xs: 0.5, md: 1 },
-                py: { xs: 1, md: 1.5 },
-            }}
-        >
-            <Stack spacing={2.5}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}>
-                    <Box>
-                        <Button component={RouterLink} to="/myapps" size="small" sx={{ px: 0, mb: 1, textTransform: 'none' }}>
-                            {t('myAppsDetailPage.back')}
-                        </Button>
-                        <Typography color="text.secondary" sx={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6 }}>
-                            {t('myAppsDetailPage.hero.eyebrow')}
-                        </Typography>
-                        <Typography component="h1" sx={{ fontSize: { xs: 28, md: 32 }, fontWeight: 500, lineHeight: 1.1 }}>
-                            {data?.app_name || data?.app_id || appId}
-                        </Typography>
-                        <Typography color="text.secondary" sx={{ mt: 0.75 }} variant="body1">
-                            {t('myAppsDetailPage.hero.description')}
-                        </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: { md: 'flex-end' } }}>
-                        {data ? <Chip color={getStatusColor(data.status)} label={t(`myAppsPage.status.${getStatusKey(data.status)}`)} size="small" /> : null}
-                        {actionItems.map((actionItem) => {
-                            if ('href' in actionItem) {
-                                return (
-                                    <Button
-                                        component={Link}
-                                        href={actionItem.href}
-                                        key={actionItem.key}
-                                        rel="noreferrer"
-                                        size="small"
-                                        target="_blank"
-                                        underline="none"
-                                        variant="contained"
-                                    >
-                                        {actionItem.label}
-                                    </Button>
-                                )
-                            }
+        /* Dark overlay – matches Bootstrap modal-backdrop */
+        <div className="myapps-detail-overlay">
+            {/* White modal shell */}
+            <div className="myapps-detail-shell">
 
-                            return (
-                                <Button
-                                    color={actionItem.key === 'uninstall' ? 'error' : 'primary'}
-                                    disabled={actionItem.disabled}
-                                    key={actionItem.key}
-                                    onClick={actionItem.onClick}
-                                    size="small"
-                                    variant={actionItem.key === 'uninstall' ? 'outlined' : 'contained'}
-                                >
-                                    {actionItem.loading ? t('myAppsDetailPage.actions.running') : actionItem.label}
-                                </Button>
-                            )
-                        })}
-                        <Button onClick={() => void refetch()} variant="outlined">
-                            {t('myAppsDetailPage.hero.refresh')}
-                        </Button>
-                    </Stack>
-                </Stack>
+                {/* ── Header (Modal.Header equivalent) ── */}
+                <div className="myapps-detail-header">
+                    <div className="myapps-detail-header-row">
+                        {/* App icon (appstore-item-content-icon col-same-height) */}
+                        <div className="appstore-item-content-icon">
+                            <LegacyMyAppLogo
+                                appId={data?.app_id || appId}
+                                appName={data?.app_name}
+                                locale={locale}
+                                size={80}
+                                marginY={0}
+                            />
+                        </div>
 
+                        {/* App title + status */}
+                        <div className="myapps-detail-meta">
+                            <h4 className="appstore-item-content-title myapps-detail-title">
+                                {data?.app_id || appId}
+                            </h4>
+                            <h5 className="myapps-detail-status" style={{ color: getStatusColor(data?.status ?? 2) }}>
+                                {getStatusLabel(data?.status ?? 2)}
+                                {' : '}
+                                <span className="myapps-detail-status-meta">{containerStateSummary}</span>
+                            </h5>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="myapps-detail-actions">
+                            {/* Start */}
+                            <button
+                                className={`myapps-action-btn${actionInProgress === 'start' ? ' is-busy' : ''}${disableStartByState ? ' is-state-disabled' : ''}`}
+                                disabled={isStartDisabled}
+                                title={t('myAppsDetailPage.actions.start')}
+                                onClick={() => void handleSimpleAction('start')}
+                            >
+                                <BtnIcon className="dripicons-media-play" spinning={actionInProgress === 'start'} />
+                            </button>
+                            {/* Stop */}
+                            <button
+                                className={`myapps-action-btn${actionInProgress === 'stop' ? ' is-busy' : ''}${disableStopByState ? ' is-state-disabled' : ''}`}
+                                disabled={isStopDisabled}
+                                title={t('myAppsDetailPage.actions.stop')}
+                                onClick={() => void handleSimpleAction('stop')}
+                            >
+                                <BtnIcon className="dripicons-power" spinning={actionInProgress === 'stop'} />
+                            </button>
+                            {/* Restart */}
+                            <button
+                                className={`myapps-action-btn${actionInProgress === 'restart' ? ' is-busy' : ''}`}
+                                disabled={isRestartDisabled}
+                                title={t('myAppsDetailPage.actions.restart')}
+                                onClick={() => void handleSimpleAction('restart')}
+                            >
+                                <BtnIcon className="dripicons-clockwise" spinning={actionInProgress === 'restart'} />
+                            </button>
+                            {/* Redeploy */}
+                            <button
+                                className={`myapps-action-btn${actionInProgress === 'redeploy' ? ' is-busy' : ''}`}
+                                disabled={isRedeployDisabled}
+                                title={t('myAppsDetailPage.actions.redeploy')}
+                                onClick={() => { setRedeployLogs([]); setRedeployDialogOpen(true) }}
+                            >
+                                <BtnIcon className="dripicons-cutlery" spinning={actionInProgress === 'redeploy'} />
+                            </button>
+                            {/* Docs */}
+                            <a
+                                className="myapps-action-btn"
+                                href={`https://support.websoft9.com/${locale.startsWith('zh') ? '' : 'en/'}docs/${data?.app_name || ''}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={t('myAppsDetailPage.actions.documentation')}
+                            >
+                                <i className="dripicons-document noti-icon" />
+                            </a>
+                            {/* Close */}
+                            <button
+                                className="myapps-close-btn"
+                                onClick={() => navigate('/myapps')}
+                                title="Close"
+                            >
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Loading state ── */}
                 {isLoading ? (
-                    <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, py: 5 }}>
-                                <CircularProgress size={28} />
-                                <Typography color="text.secondary" variant="body2">
-                                    {t('myAppsDetailPage.states.loading')}
-                                </Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '64px 24px' }}>
+                        <CircularProgress size={28} />
+                        <span style={{ color: '#6c757d', fontSize: '14px' }}>{t('myAppsDetailPage.states.loading')}</span>
+                    </div>
                 ) : null}
 
+                {/* ── Error state ── */}
                 {!isLoading && error ? (
-                    <Alert
-                        action={
-                            <Button color="inherit" size="small" onClick={() => void refetch()}>
-                                {t('myAppsDetailPage.states.retry')}
-                            </Button>
-                        }
-                        severity="warning"
-                        variant="outlined"
-                    >
-                        <Typography sx={{ fontWeight: 600 }}>{t('myAppsDetailPage.states.errorTitle')}</Typography>
-                        <Typography variant="body2">{t('myAppsDetailPage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}</Typography>
-                    </Alert>
+                    <div style={{ padding: 24 }}>
+                        <Alert
+                            action={<Button color="inherit" size="small" onClick={() => void refetch()}>{t('myAppsDetailPage.states.retry')}</Button>}
+                            severity="warning"
+                            variant="outlined"
+                        >
+                            <strong>{t('myAppsDetailPage.states.errorTitle')}</strong>
+                            <br />
+                            {t('myAppsDetailPage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
+                        </Alert>
+                    </div>
                 ) : null}
 
+                {/* ── Body (Modal.Body row equivalent) ── */}
                 {!isLoading && !error && data ? (
-                    <>
-                        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', xl: 'repeat(3, minmax(0, 1fr))' } }}>
-                            <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                                <CardContent>
-                                    <Typography color="text.secondary" variant="body2">
-                                        {t('myAppsDetailPage.summary.identityTitle')}
-                                    </Typography>
-                                    <Typography sx={{ mt: 1, fontWeight: 600 }}>{data.app_id}</Typography>
-                                    <Typography color="text.secondary" sx={{ mt: 1 }} variant="body2">
-                                        {t('myAppsDetailPage.summary.identityBody', {
-                                            version: data.app_version || '-',
-                                            edition: data.app_dist || '-',
-                                            createdAt: formatCreationDate(data.creationDate, locale),
-                                        })}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                            <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                                <CardContent>
-                                    <Typography color="text.secondary" variant="body2">
-                                        {t('myAppsDetailPage.summary.accessTitle')}
-                                    </Typography>
-                                    <Stack spacing={0.75} sx={{ mt: 1 }}>
-                                        {domains.length > 0 ? (
-                                            domains.map((domain) => (
-                                                <Link href={getAccessHref(domain)} key={domain} rel="noreferrer" target="_blank" underline="hover">
-                                                    {domain}
-                                                </Link>
-                                            ))
-                                        ) : (
-                                            <Typography color="text.secondary" variant="body2">
-                                                {t('myAppsDetailPage.summary.noAccess')}
-                                            </Typography>
-                                        )}
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-                            <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                                <CardContent>
-                                    <Typography color="text.secondary" variant="body2">
-                                        {t('myAppsDetailPage.summary.runtimeTitle')}
-                                    </Typography>
-                                    <Typography sx={{ mt: 1, fontWeight: 600 }}>
-                                        {t('myAppsDetailPage.summary.runtimeBody', runtimeSummary)}
-                                    </Typography>
-                                    {isFetching ? (
-                                        <Typography color="text.secondary" sx={{ mt: 1 }} variant="body2">
-                                            {t('myAppsDetailPage.summary.refreshing')}
-                                        </Typography>
-                                    ) : null}
-                                </CardContent>
-                            </Card>
-                        </Box>
-
-                        {data.error ? <Alert severity="error" variant="outlined">{data.error}</Alert> : null}
-
-                        <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                            <CardContent sx={{ p: 0 }}>
-                                <Tabs
-                                    value={selectedTab}
-                                    onChange={(_, value: DetailTabKey) => {
-                                        setSelectedTab(value)
-                                    }}
-                                    variant="scrollable"
-                                    sx={{ borderBottom: '1px solid rgba(15, 23, 42, 0.08)', px: 2 }}
-                                >
-                                    {detailTabs.map((tabKey) => (
-                                        <Tab key={tabKey} label={t(`myAppsDetailPage.tabs.${tabKey}.label`)} value={tabKey} />
-                                    ))}
-                                </Tabs>
-
-                                <Box sx={{ p: 2.5 }}>
-                                    <Typography sx={{ fontSize: 18, fontWeight: 600 }}>{t(`myAppsDetailPage.tabs.${selectedTab}.title`)}</Typography>
-                                    <Typography color="text.secondary" sx={{ mt: 1 }} variant="body2">
-                                        {t(`myAppsDetailPage.tabs.${selectedTab}.description`)}
-                                    </Typography>
-
-                                    {selectedTab === 'overview' ? (
-                                        <Stack spacing={1.25} sx={{ mt: 2 }}>
-                                            <Typography variant="body2">{t('myAppsDetailPage.tabs.overview.items.status', { status: t(`myAppsPage.status.${getStatusKey(data.status)}`) })}</Typography>
-                                            <Typography variant="body2">{t('myAppsDetailPage.tabs.overview.items.proxy', { enabled: data.proxy_enabled ? t('myAppsDetailPage.common.enabled') : t('myAppsDetailPage.common.disabled') })}</Typography>
-                                            <Typography variant="body2">{t('myAppsDetailPage.tabs.overview.items.endpoint', { endpointId: data.endpointId ?? '-' })}</Typography>
-                                        </Stack>
-                                    ) : null}
-
-                                    {selectedTab === 'access' ? <MyAppAccessPanel appId={data.app_id} entryDomains={domains} isWebApp={Boolean(data.env?.W9_URL)} onUpdated={refreshAfterAction} /> : null}
-
-                                    {selectedTab === 'runtime' ? (
-                                        <Stack spacing={1.25} sx={{ mt: 2 }}>
-                                            <Typography variant="body2">{t('myAppsDetailPage.tabs.runtime.items.containers', { count: runtimeSummary.containers })}</Typography>
-                                            <Typography variant="body2">{t('myAppsDetailPage.tabs.runtime.items.volumes', { count: runtimeSummary.volumes })}</Typography>
-                                            <Typography variant="body2">{t('myAppsDetailPage.tabs.runtime.items.stack', { branch: String(data.gitConfig?.ConfigVersion ?? '-') })}</Typography>
-                                        </Stack>
-                                    ) : null}
-
-                                    {selectedTab === 'storage' ? (
-                                        <Stack spacing={1.25} sx={{ mt: 2 }}>
-                                            {(data.volumes ?? []).length > 0 ? (
-                                                (data.volumes ?? []).map((volume, index) => (
-                                                    <Typography key={`${String(volume.Name ?? volume.name ?? 'volume')}-${index}`} variant="body2">
-                                                        {String(volume.Name ?? volume.name ?? volume.Mountpoint ?? '-')}
-                                                    </Typography>
-                                                ))
-                                            ) : (
-                                                <Typography color="text.secondary" variant="body2">
-                                                    {t('myAppsDetailPage.tabs.storage.empty')}
-                                                </Typography>
-                                            )}
-                                        </Stack>
-                                    ) : null}
-
-                                    {selectedTab === 'backup' ? (
-                                        <Box sx={{ mt: 2 }}>
-                                            <Alert severity="info" variant="outlined">
-                                                {t('myAppsDetailPage.tabs.backup.placeholder')}
-                                            </Alert>
-                                        </Box>
-                                    ) : null}
-
-                                    {selectedTab === 'uninstall' ? (
-                                        <Box sx={{ mt: 2 }}>
-                                            <Alert severity="warning" variant="outlined">
-                                                {t('myAppsDetailPage.tabs.uninstall.placeholder')}
-                                            </Alert>
-                                        </Box>
-                                    ) : null}
-                                </Box>
-                            </CardContent>
-                        </Card>
-                    </>
-                ) : null}
-            </Stack>
-
-            <Dialog fullWidth maxWidth="md" open={redeployDialogOpen} onClose={() => setRedeployDialogOpen(false)}>
-                <DialogTitle>{t('myAppsDetailPage.dialogs.redeployTitle')}</DialogTitle>
-                <DialogContent dividers>
-                    <Stack spacing={2}>
-                        <Typography color="text.secondary" variant="body2">
-                            {t('myAppsDetailPage.dialogs.redeployBody')}
-                        </Typography>
-                        <FormControlLabel
-                            control={<Switch checked={redeployPullImage} onChange={(event) => setRedeployPullImage(event.target.checked)} />}
-                            label={t('myAppsDetailPage.dialogs.redeployPullImage')}
-                        />
-                        {redeployLogs.length > 0 ? (
-                            <Box sx={{ maxHeight: 260, overflowY: 'auto', bgcolor: '#0f172a', color: '#e2e8f0', p: 1.5 }}>
-                                <Stack spacing={1}>
-                                    {redeployLogs.map((entry, index) => (
-                                        <Typography key={`${entry.timestamp ?? 'entry'}-${index}`} sx={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap' }}>
-                                            {entry.timestamp ? `[${entry.timestamp}] ` : ''}
-                                            {entry.message ?? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data ?? entry.status ?? '', null, 2))}
-                                        </Typography>
-                                    ))}
-                                </Stack>
-                            </Box>
+                    <div className="myapps-detail-body">
+                        {data.error ? (
+                            <Alert severity="error" variant="outlined" style={{ marginBottom: 16 }}>
+                                {data.error}
+                            </Alert>
                         ) : null}
-                    </Stack>
+
+                        {/* 2-column layout: nav (col-sm-2) + content (col-sm-10) */}
+                        <div className="myapps-detail-layout">
+                            {/* Left: Nav pills */}
+                            <div className="myapps-detail-nav-col">
+                                <div className="nav flex-column nav-pills">
+                                    {detailTabs.map((tabKey) => (
+                                        <button
+                                            key={tabKey}
+                                            className={`nav-link${selectedTab === tabKey ? ' active' : ''}`}
+                                            onClick={() => setSelectedTab(tabKey)}
+                                        >
+                                            {tabLabels[tabKey]}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Right: Tab content */}
+                            <div className="myapps-detail-content-col">
+                                {/* Panel title */}
+                                {!['overview', 'container', 'database', 'volumes', 'compose', 'uninstall'].includes(selectedTab) ? (
+                                    <div className="myapps-panel-header">
+                                        <h5 className="myapps-panel-title">{tabTitles[selectedTab]}</h5>
+                                    </div>
+                                ) : null}
+
+                                {/* ── Overview ── */}
+                                {selectedTab === 'overview' ? (
+                                    <div className="myapps-card">
+                                        <div className="myapps-card-header myapps-card-header-compact">
+                                            <div className="myapps-overview-title">{tabTitles.overview}</div>
+                                        </div>
+                                        <div className="myapps-overview-card-body">
+                                            <table className="myapps-overview-table" role="presentation">
+                                                <tbody>
+                                                    <tr className="myapps-overview-row">
+                                                        <td className="myapps-overview-label">{t('myAppsDetailPage.summary.appId')}</td>
+                                                        <td className="myapps-overview-value">{data.app_id}</td>
+                                                    </tr>
+                                                    <tr className="myapps-overview-row">
+                                                        <td className="myapps-overview-label">{t('myAppsDetailPage.summary.appName')}</td>
+                                                        <td className="myapps-overview-value">{data.app_name || '-'}</td>
+                                                    </tr>
+                                                    <tr className="myapps-overview-row">
+                                                        <td className="myapps-overview-label">{t('myAppsDetailPage.summary.appVersion')}</td>
+                                                        <td className="myapps-overview-value">{data.app_version || '-'}</td>
+                                                    </tr>
+                                                    {portEntries.map(([key, labelKey, value], i) => (
+                                                        <tr key={`port-${i}`} className="myapps-overview-row">
+                                                            <td className="myapps-overview-label">{labelKey === key ? getDetailPortLabel(key, t, locale) : t(labelKey)}</td>
+                                                            <td className="myapps-overview-value">{value}</td>
+                                                        </tr>
+                                                    ))}
+                                                    <tr className="myapps-overview-row">
+                                                        <td className="myapps-overview-label">{t('myAppsDetailPage.summary.createdAt')}</td>
+                                                        <td className="myapps-overview-value">{formatCreationDate(data.creationDate, locale)}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {/* ── Access ── */}
+                                {selectedTab === 'access' ? (
+                                    <MyAppAccessPanel
+                                        appId={data.app_id}
+                                        entryDomains={domains}
+                                        env={data.env}
+                                        isWebApp={Boolean(data.env?.W9_URL)}
+                                        onUpdated={refreshAfterAction}
+                                    />
+                                ) : null}
+
+                                {/* ── Container ── */}
+                                {selectedTab === 'container' ? (
+                                    <div className="myapps-card">
+                                        <div className="myapps-card-header">
+                                            <div>
+                                                <div className="myapps-section-title">{t('myAppsDetailPage.tabs.container.title')}</div>
+                                                <div className="myapps-section-desc">{t('myAppsDetailPage.tabs.container.description', { appId: data.app_id })}</div>
+                                            </div>
+                                            <a
+                                                className="myapps-card-header-btn"
+                                                href={`/w9deployment/#!/${data.endpointId ?? 1}/docker/stacks/${data.app_id}?type=2&regular=false&external=true&orphaned=false`}
+                                                onClick={(event) => {
+                                                    event.preventDefault()
+                                                    openProductPath(`/w9deployment/#!/${data.endpointId ?? 1}/docker/stacks/${data.app_id}?type=2&regular=false&external=true&orphaned=false`, navigate)
+                                                }}
+                                            >
+                                                {t('myAppsDetailPage.tabs.container.more')}
+                                            </a>
+                                        </div>
+                                        {(data.containers ?? []).length > 0 ? (
+                                            <div className="myapps-table-wrap">
+                                                <table className="myapps-detail-table" role="table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.name')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.state')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.status')}</th>
+                                                            <th className="myapps-cell-center">{t('myAppsDetailPage.tabs.container.columns.actions')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.image')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.created')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.ipAddress')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.container.columns.ports')}</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(data.containers ?? []).map((c, i) => {
+                                                            const containerId = getContainerId(c)
+                                                            const endpointId = data.endpointId ?? 1
+                                                            const state = getContainerState(c)
+                                                            const image = getContainerImage(c)
+                                                            return (
+                                                                <tr key={`${getContainerName(c)}-${i}`}>
+                                                                    <td>{getContainerName(c)}</td>
+                                                                    <td><ContainerStateBadge state={state} /></td>
+                                                                    <td>{getContainerStatus(c)}</td>
+                                                                    <td className="myapps-cell-center">
+                                                                        <div className="myapps-table-actions-inline">
+                                                                            <a href={containerId ? `/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs` : '#'} title="Logs" className="myapps-table-action-link" onClick={(event) => {
+                                                                                if (!containerId) return
+                                                                                event.preventDefault()
+                                                                                openProductPath(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`, navigate)
+                                                                            }}>
+                                                                                <i className="dripicons-document-remove noti-icon" />
+                                                                            </a>
+                                                                            {state === 'running' ? (
+                                                                                <a href={containerId ? `/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats` : '#'} title="Stats" className="myapps-table-action-link" onClick={(event) => {
+                                                                                    if (!containerId) return
+                                                                                    event.preventDefault()
+                                                                                    openProductPath(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`, navigate)
+                                                                                }}>
+                                                                                    <i className="dripicons-graph-bar noti-icon" />
+                                                                                </a>
+                                                                            ) : null}
+                                                                            {state === 'running' ? (
+                                                                                <a href={containerId ? `/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec` : '#'} title="Exec Console" className="myapps-table-action-link" onClick={(event) => {
+                                                                                    if (!containerId) return
+                                                                                    event.preventDefault()
+                                                                                    openProductPath(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`, navigate)
+                                                                                }}>
+                                                                                    <i className="dripicons-code noti-icon" />
+                                                                                </a>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td title={image}>{image.length > 20 ? `${image.slice(0, 20)}...` : image}</td>
+                                                                    <td>{getContainerCreatedAt(c, locale)}</td>
+                                                                    <td>{getContainerIpAddress(c)}</td>
+                                                                    <td>{getPublishedPorts(c)}</td>
+                                                                </tr>
+                                                            )
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ) : (
+                                            <div style={{ padding: 16 }}>
+                                                <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.container.empty')}</Alert>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+
+                                {/* ── Volumes ── */}
+                                {selectedTab === 'volumes' ? (
+                                    (data.volumes ?? []).length > 0 ? (
+                                        <>
+                                            <div className="myapps-card myapps-volume-card">
+                                                <div className="myapps-card-header">
+                                                    <div className="myapps-section-title">{t('myAppsDetailPage.tabs.volumes.title')}</div>
+                                                    <a className="myapps-card-header-btn" href={`/w9deployment/#!/${data.endpointId ?? 1}/docker/volumes`} onClick={(event) => {
+                                                        event.preventDefault()
+                                                        openProductPath(`/w9deployment/#!/${data.endpointId ?? 1}/docker/volumes`, navigate)
+                                                    }}>{t('myAppsDetailPage.tabs.volumes.more')}</a>
+                                                </div>
+                                                <div className="myapps-table-wrap">
+                                                    <table className="myapps-detail-table" role="table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.driver')}</th>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.mountpoint')}</th>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.created')}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {sortedVolumes.map((v, i) => (
+                                                                <tr key={`${getVolumeLabel(v)}-${i}`}>
+                                                                    <td>{getVolumeLabel(v)}</td>
+                                                                    <td>{String(v.Driver ?? '-')}</td>
+                                                                    <td>{String(v.Mountpoint ?? '-')}</td>
+                                                                    <td>{getVolumeCreatedAt(v, locale)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div className="myapps-card myapps-volume-card">
+                                                <div className="myapps-card-header">
+                                                    <div className="myapps-section-title">{t('myAppsDetailPage.tabs.volumes.backups.title')}</div>
+                                                    <div className="myapps-card-header-actions">
+                                                        <button className="myapps-card-header-btn myapps-card-header-btn-secondary" onClick={() => void refreshVolumeBackups()} disabled={volumeBackupLoading}>
+                                                            {volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
+                                                        </button>
+                                                        <button className="myapps-card-header-btn" onClick={() => setCreateBackupDialogOpen(true)}>
+                                                            {t('myAppsDetailPage.tabs.volumes.backups.create')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="myapps-table-wrap">
+                                                    <table className="myapps-detail-table" role="table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}</th>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}</th>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}</th>
+                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.action')}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {volumeBackups.length === 0 && !volumeBackupLoading ? (
+                                                                <tr>
+                                                                    <td colSpan={4} className="myapps-empty-cell">{volumeBackupError || t('myAppsDetailPage.tabs.volumes.backups.empty')}</td>
+                                                                </tr>
+                                                            ) : (
+                                                                volumeBackups.map((backup) => (
+                                                                    <tr key={backup.fullId}>
+                                                                        <td>{backup.id}</td>
+                                                                        <td>{backup.time}</td>
+                                                                        <td>{backup.size}</td>
+                                                                        <td>
+                                                                            <div className="myapps-table-actions-text">
+                                                                                <button className="myapps-inline-link" onClick={() => setRestoreBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.restore')}</button>
+                                                                                <button className="myapps-inline-link myapps-inline-link-danger" onClick={() => setDeleteBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.delete')}</button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                    {volumeBackupLoading ? (
+                                                        <div className="myapps-table-loading">
+                                                            <CircularProgress size={20} />
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.volumes.empty')}</Alert>
+                                    )
+                                ) : null}
+
+                                {/* ── PHP ── */}
+                                {selectedTab === 'php' ? (
+                                    <div className="myapps-card">
+                                        <div className="myapps-card-header myapps-card-header-compact">
+                                            <div className="myapps-overview-title">{t('myAppsDetailPage.tabs.php.overviewTitle')}</div>
+                                        </div>
+                                        <div className="myapps-php-card-body">
+                                            {phpInfoQuery.isLoading ? (
+                                                <div className="myapps-access-loading">
+                                                    <CircularProgress size={18} />
+                                                    <span>{t('myAppsDetailPage.tabs.php.loading')}</span>
+                                                </div>
+                                            ) : null}
+                                            {phpInfoQuery.error ? (
+                                                <Alert severity="warning" variant="outlined">
+                                                    {t('myAppsDetailPage.tabs.php.error', { statusCode: phpInfoQuery.error.statusCode ?? 'unknown' })}
+                                                </Alert>
+                                            ) : null}
+                                            {phpInfoQuery.data ? (
+                                                <table className="myapps-overview-table myapps-php-table" role="table">
+                                                    <tbody>
+                                                        <tr className="myapps-overview-row">
+                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.tabs.php.currentVersionLabel')}</td>
+                                                            <td className="myapps-overview-value">{phpInfoQuery.data.version}</td>
+                                                        </tr>
+                                                        <tr className="myapps-overview-row">
+                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.tabs.php.modulesLabel')}</td>
+                                                            <td className="myapps-overview-value">
+                                                                {Object.entries(phpInfoQuery.data.modules).map(([group, modules], index, array) => (
+                                                                    <div className="myapps-php-module-group" key={group}>
+                                                                        <strong className="myapps-php-module-title">{group}:</strong>
+                                                                        <div className="myapps-php-module-list">{modules.length > 0 ? modules.join(', ') : '-'}</div>
+                                                                        {index < array.length - 1 ? <div className="myapps-php-module-divider" /> : null}
+                                                                    </div>
+                                                                ))}
+                                                            </td>
+                                                        </tr>
+                                                        <tr className="myapps-overview-row">
+                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.tabs.php.switchLabel')}</td>
+                                                            <td className="myapps-overview-value">
+                                                                <div className="myapps-php-switch-row">
+                                                                    <button className="myapps-card-header-btn" onClick={() => {
+                                                                        setShowPhpMigrationForm((prev) => !prev)
+                                                                        if (showPhpMigrationForm) {
+                                                                            setPhpTargetVersion('')
+                                                                            setPhpMigrationRemarks('')
+                                                                        }
+                                                                    }}>
+                                                                        {showPhpMigrationForm ? t('myAppsDetailPage.tabs.php.migration.cancel') : t('myAppsDetailPage.tabs.php.migration.request')}
+                                                                    </button>
+                                                                    <span className="myapps-php-switch-note">{t('myAppsDetailPage.tabs.php.migration.note')}</span>
+                                                                </div>
+                                                                {showPhpMigrationForm ? (
+                                                                    <div className="myapps-php-request-box">
+                                                                        <div className="myapps-php-request-row">
+                                                                            <label className="myapps-php-request-label">{t('myAppsDetailPage.tabs.php.migration.targetVersion')} *</label>
+                                                                            <select className="myapps-php-request-select" value={phpTargetVersion} onChange={(event) => setPhpTargetVersion(event.target.value)}>
+                                                                                <option value="">{t('myAppsDetailPage.tabs.php.migration.selectVersion')}</option>
+                                                                                <option value="7.4">PHP 7.4</option>
+                                                                                <option value="8.0">PHP 8.0</option>
+                                                                                <option value="8.1">PHP 8.1</option>
+                                                                                <option value="8.2">PHP 8.2</option>
+                                                                                <option value="8.3">PHP 8.3</option>
+                                                                            </select>
+                                                                        </div>
+                                                                        <div className="myapps-php-request-row myapps-php-request-row-top">
+                                                                            <label className="myapps-php-request-label">{t('myAppsDetailPage.tabs.php.migration.remarks')} *</label>
+                                                                            <textarea className="myapps-php-request-textarea" rows={4} value={phpMigrationRemarks} onChange={(event) => setPhpMigrationRemarks(event.target.value)} placeholder={t('myAppsDetailPage.tabs.php.migration.remarksPlaceholder')} />
+                                                                        </div>
+                                                                        <div className="myapps-php-request-actions">
+                                                                            <button className="myapps-card-header-btn" disabled={phpMigrationSubmitting} onClick={() => void handlePhpMigrationRequest()}>
+                                                                                {phpMigrationSubmitting ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.php.migration.submit')}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : null}
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {/* ── Database ── */}
+                                {selectedTab === 'database' ? (
+                                    databaseRows.length > 0 ? (
+                                        <div className="myapps-card">
+                                            <div className="myapps-card-header myapps-card-header-compact">
+                                                <div className="myapps-overview-title">{t('myAppsDetailPage.tabs.database.title')}</div>
+                                            </div>
+                                            <div className="myapps-database-card-body">
+                                                <table className="myapps-database-table" role="table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>{t('myAppsDetailPage.tabs.database.columns.type')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.database.columns.host')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.database.columns.account')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
+                                                            <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {databaseRows.map((row) => (
+                                                            <tr key={`${row.type}-${row.host}`}>
+                                                                <td>{row.type}</td>
+                                                                <td>{row.host}</td>
+                                                                <td>{row.account}</td>
+                                                                <td>
+                                                                    <div className="myapps-database-password-cell">
+                                                                        <span className="myapps-database-password-text">
+                                                                            {showPasswords[row.type] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
+                                                                        </span>
+                                                                        <button
+                                                                            className="myapps-database-icon-btn"
+                                                                            title={showPasswords[row.type] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
+                                                                            onClick={() => setShowPasswords((prev) => ({ ...prev, [row.type]: !prev[row.type] }))}
+                                                                        >
+                                                                            {showPasswords[row.type] ? <IconEyeOff /> : <IconEye />}
+                                                                        </button>
+                                                                        <button
+                                                                            className="myapps-database-icon-btn"
+                                                                            title={t('myAppsDetailPage.tabs.database.copy')}
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    await copyTextWithFallback(row.password)
+                                                                                    setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
+                                                                                } catch {
+                                                                                    setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <IconCopy />
+                                                                        </button>
+                                                                    </div>
+                                                                </td>
+                                                                <td>{row.tool}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.database.empty')}</Alert>
+                                    )
+                                ) : null}
+
+                                {/* ── Monitor ── */}
+                                {selectedTab === 'monitor' ? (
+                                    <div style={{ maxWidth: 640 }}>
+                                        <Alert severity="info" variant="outlined" style={{ marginBottom: 12 }}>
+                                            {t('myAppsDetailPage.tabs.monitor.placeholder')}
+                                        </Alert>
+                                        <button
+                                            className="myapps-action-btn"
+                                            style={{ padding: '6px 14px', fontSize: 14 }}
+                                            onClick={() => navigate('/gateway')}
+                                        >
+                                            {t('myAppsDetailPage.tabs.monitor.openGateway')}
+                                        </button>
+                                    </div>
+                                ) : null}
+
+                                {/* ── Compose ── */}
+                                {selectedTab === 'compose' ? (
+                                    <div className="myapps-card">
+                                        <div className="myapps-card-header myapps-card-header-compose">
+                                            <div>
+                                                <div className="myapps-section-title">{t('myAppsDetailPage.tabs.compose.title')}</div>
+                                                <div className="myapps-section-desc">{t('myAppsDetailPage.tabs.compose.description')}</div>
+                                            </div>
+                                        </div>
+                                        <div className="myapps-compose-card-body">
+                                            <p className="myapps-compose-config-version">{t('myAppsDetailPage.tabs.compose.configVersion', { value: getComposeVersion(data) })}</p>
+                                            <Box sx={{ maxWidth: 520 }}>
+                                                <Stepper activeStep={composeStep} orientation="vertical">
+                                                    {composeSteps.map((step, index) => (
+                                                        <Step key={step.label}>
+                                                            <StepLabel>{step.label}</StepLabel>
+                                                            <StepContent>
+                                                                <Typography>{step.description}</Typography>
+                                                                <Box sx={{ mb: 2, mt: 1 }}>
+                                                                    <button className="myapps-card-header-btn" onClick={() => handleComposeAction(index)}>
+                                                                        {step.action}
+                                                                    </button>
+                                                                    <button className="myapps-compose-back-btn" disabled={index === 0} onClick={() => setComposeStep((prev) => Math.max(prev - 1, 0))}>
+                                                                        {t('myAppsDetailPage.tabs.compose.back')}
+                                                                    </button>
+                                                                </Box>
+                                                            </StepContent>
+                                                        </Step>
+                                                    ))}
+                                                </Stepper>
+                                            </Box>
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {/* ── Uninstall ── */}
+                                {selectedTab === 'uninstall' ? (
+                                    <div className="myapps-uninstall-layout">
+                                        <div className="myapps-uninstall-copy">
+                                            <h6 className="myapps-uninstall-title">{t('myAppsDetailPage.tabs.uninstall.title')}</h6>
+                                            <p className="myapps-uninstall-desc">
+                                                {t('myAppsDetailPage.tabs.uninstall.placeholder')}
+                                            </p>
+                                        </div>
+                                        <div className="myapps-uninstall-actions">
+                                            <button
+                                                className="myapps-uninstall-btn"
+                                                disabled={actionInProgress !== null}
+                                                onClick={() => setUninstallDialogOpen(true)}
+                                            >
+                                                {t('myAppsDetailPage.actions.uninstall')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
+            {/* ── Redeploy dialog ── */}
+            <Dialog fullWidth maxWidth="md" open={redeployDialogOpen} onClose={() => setRedeployDialogOpen(false)}
+                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}>
+                <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>
+                    {t('myAppsDetailPage.dialogs.redeployTitle')}
+                </DialogTitle>
+                <DialogContent dividers>
+                    <p style={{ margin: '10px 0' }}>{t('myAppsDetailPage.dialogs.redeployBody')}</p>
+                    <FormControlLabel
+                        control={<Switch checked={redeployPullImage} onChange={(e) => setRedeployPullImage(e.target.checked)} />}
+                        label={t('myAppsDetailPage.dialogs.redeployPullImage')}
+                    />
+                    {redeployLogs.length > 0 ? (
+                        <div style={{ maxHeight: 200, overflowY: 'auto', backgroundColor: '#000', color: '#fff', padding: 10, marginTop: 10, fontFamily: 'monospace', borderRadius: 4 }}>
+                            {redeployLogs.map((entry, i) => (
+                                <div key={i} style={{ color: entry.type === 'error' ? '#ff4444' : '#fff', whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '0.9em' }}>
+                                    {entry.timestamp ? `[${new Date(entry.timestamp).toLocaleTimeString()}] ` : ''}
+                                    {entry.message ?? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data ?? entry.status ?? ''))}
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setRedeployDialogOpen(false)}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
-                    <Button disabled={actionInProgress !== null} onClick={() => void handleRedeploy()} variant="contained">
+                    <Button
+                        disabled={actionInProgress !== null}
+                        onClick={() => void handleRedeploy()}
+                        sx={{ backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a800' } }}
+                    >
                         {actionInProgress === 'redeploy' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.actions.redeploy')}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            <Dialog fullWidth maxWidth="sm" open={uninstallDialogOpen} onClose={() => setUninstallDialogOpen(false)}>
-                <DialogTitle>{t('myAppsDetailPage.dialogs.uninstallTitle')}</DialogTitle>
+            {/* ── Uninstall dialog ── */}
+            <Dialog fullWidth maxWidth="sm" open={uninstallDialogOpen} onClose={() => setUninstallDialogOpen(false)}
+                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}>
+                <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>{t('myAppsDetailPage.dialogs.uninstallTitle')}</DialogTitle>
                 <DialogContent dividers>
-                    <Stack spacing={2}>
-                        <Typography color="text.secondary" variant="body2">
-                            {t('myAppsDetailPage.dialogs.uninstallBody', { appId: data?.app_id ?? appId ?? '-' })}
-                        </Typography>
-                        <FormControlLabel
-                            control={<Switch checked={purgeData} onChange={(event) => setPurgeData(event.target.checked)} />}
-                            label={t('myAppsDetailPage.dialogs.uninstallPurge')}
-                        />
-                    </Stack>
+                    <p style={{ margin: '10px 0' }}>{t('myAppsDetailPage.dialogs.uninstallBody', { appId: data?.app_id ?? appId ?? '-' })}</p>
+                    <FormControlLabel
+                        control={<Switch checked={purgeData} onChange={(e) => setPurgeData(e.target.checked)} color="warning" />}
+                        label={t('myAppsDetailPage.dialogs.uninstallPurge')}
+                    />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setUninstallDialogOpen(false)}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
-                    <Button color="error" disabled={actionInProgress !== null} onClick={() => void handleUninstall()} variant="contained">
+                    <Button onClick={() => setUninstallDialogOpen(false)} sx={{ color: '#6c757d' }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button
+                        sx={{ backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a800' } }}
+                        disabled={actionInProgress !== null}
+                        onClick={() => void handleUninstall()}
+                        variant="contained"
+                    >
                         {actionInProgress === 'uninstall' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.actions.uninstall')}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {feedback ? (
-                <Snackbar autoHideDuration={4000} onClose={() => setFeedback(null)} open>
-                    <Alert onClose={() => setFeedback(null)} severity={feedback.severity} sx={{ width: '100%' }} variant="filled">
-                        {feedback.message}
-                    </Alert>
-                </Snackbar>
-            ) : null}
-        </Box>
+            <Dialog fullWidth maxWidth="md" open={createBackupDialogOpen} onClose={() => setCreateBackupDialogOpen(false)}
+                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}>
+                <DialogTitle sx={{ backgroundColor: '#727cf5', color: '#fff' }}>{t('myAppsDetailPage.tabs.volumes.backups.create')}</DialogTitle>
+                <DialogContent dividers>
+                    <p style={{ margin: '10px 0' }}>{t('myAppsDetailPage.tabs.volumes.backups.createBody')}</p>
+                    <div className="myapps-table-wrap">
+                        <table className="myapps-detail-table" role="table">
+                            <thead>
+                                <tr>
+                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
+                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.mountpoint')}</th>
+                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.driver')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedVolumes.map((v, i) => (
+                                    <tr key={`${getVolumeLabel(v)}-dialog-${i}`}>
+                                        <td>{getVolumeLabel(v)}</td>
+                                        <td>{String(v.Mountpoint ?? '-')}</td>
+                                        <td>{String(v.Driver ?? '-')}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setCreateBackupDialogOpen(false)} sx={{ color: '#6c757d' }}>{t('myAppsDetailPage.dialogs.close')}</Button>
+                    <Button variant="contained" onClick={() => void handleCreateBackup()} disabled={volumeBackupAction === 'create'}>
+                        {volumeBackupAction === 'create' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.volumes.backups.create')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog fullWidth maxWidth="sm" open={Boolean(deleteBackupTarget)} onClose={() => setDeleteBackupTarget(null)}
+                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}>
+                <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteTitle')}</DialogTitle>
+                <DialogContent dividers>
+                    <p style={{ margin: '10px 0' }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteBody')}</p>
+                    {deleteBackupTarget ? <p style={{ margin: '10px 0', color: '#6c757d' }}>{deleteBackupTarget.id} · {deleteBackupTarget.time} · {deleteBackupTarget.size}</p> : null}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteBackupTarget(null)} sx={{ color: '#6c757d' }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button variant="contained" color="warning" onClick={() => void handleDeleteBackup()} disabled={volumeBackupAction === 'delete'}>
+                        {volumeBackupAction === 'delete' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.volumes.backups.delete')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog fullWidth maxWidth="sm" open={Boolean(restoreBackupTarget)} onClose={() => setRestoreBackupTarget(null)}
+                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}>
+                <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>{t('myAppsDetailPage.tabs.volumes.backups.restoreTitle')}</DialogTitle>
+                <DialogContent dividers>
+                    <p style={{ margin: '10px 0' }}>{t('myAppsDetailPage.tabs.volumes.backups.restoreBody')}</p>
+                    {restoreBackupTarget ? <p style={{ margin: '10px 0', color: '#6c757d' }}>{restoreBackupTarget.id} · {restoreBackupTarget.time} · {restoreBackupTarget.size}</p> : null}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setRestoreBackupTarget(null)} sx={{ color: '#6c757d' }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button variant="contained" color="warning" onClick={() => void handleRestoreBackup()} disabled={volumeBackupAction === 'restore'}>
+                        {volumeBackupAction === 'restore' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.volumes.backups.restore')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ── Feedback toast ── */}
+            <Snackbar
+                open={Boolean(feedback)}
+                autoHideDuration={3000}
+                onClose={() => setFeedback(null)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert onClose={() => setFeedback(null)} severity={feedback?.severity ?? 'info'} variant="filled" elevation={6} sx={{ width: '100%' }}>
+                    {feedback?.message}
+                </Alert>
+            </Snackbar>
+        </div>
     )
 }
