@@ -1,0 +1,126 @@
+.users-page {
+    min-height: calc(100vh - 120px);
+}
+
+.users-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.users-page-title {
+    color: #111827;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+    padding-top: 4px;
+}
+
+.users-toolbar {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+    min-width: min(100%, 520px);
+}
+
+.users-toolbar-search {
+    flex: 1 1 320px;
+    min-width: 240px;
+}
+
+.users-panel {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+.users-table-meta {
+    color: #6b7280;
+    font-size: 13px;
+    padding: 16px 20px 0;
+}
+
+.users-loading,
+.users-empty-state {
+    padding: 20px;
+}
+
+.users-table .MuiTableCell-head {
+    background: #f8fafc;
+    border-bottom: 1px solid #d1d5db;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.users-table .MuiTableCell-body {
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+}
+
+.users-identity-cell {
+    min-width: 180px;
+}
+
+.users-linkish {
+    color: #0b69c7;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.users-inline-tags {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.users-row-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.users-row-note {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 8px;
+    text-align: right;
+}
+
+@media (max-width: 899px) {
+    .users-header {
+        flex-direction: column;
+    }
+
+    .users-toolbar {
+        min-width: 100%;
+        width: 100%;
+    }
+}
+
+@media (max-width: 599px) {
+    .users-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .users-toolbar-search {
+        min-width: 100%;
+    }
+
+    .users-row-actions {
+        justify-content: flex-start;
+    }
+
+    .users-row-note {
+        text-align: left;
+    }
+}

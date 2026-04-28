@@ -15,12 +15,14 @@ import {
     Link,
     MenuItem,
     Snackbar,
+    Stack,
     SvgIcon,
     TextField,
     Typography,
 } from '@mui/material'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -87,6 +89,36 @@ type InstallTaskAcceptedResponse = {
     tracking_id: string
     message: string
     details: string
+}
+
+type ProductAuthFavoritesResponse = {
+    favorites: string[]
+}
+
+async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
+    const response = await fetch(input, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(init?.headers ?? {}),
+        },
+        ...init,
+    })
+
+    const payload = (await response.json().catch(() => null)) as { details?: string; message?: string } | T | null
+    if (!response.ok) {
+        const errorMessage =
+            payload && typeof payload === 'object' && 'details' in payload
+                ? payload.details ?? payload.message ?? `HTTP ${response.status}`
+                : `HTTP ${response.status}`
+        throw new Error(errorMessage)
+    }
+
+    return payload as T
+}
+
+async function fetchFavorites() {
+    return requestJson<ProductAuthFavoritesResponse>('/api/auth/favorites', { method: 'GET' })
 }
 
 async function installApp(
@@ -206,14 +238,15 @@ function AppScreenshot({ app, locale, alt }: { app: AppStoreApp; locale: string;
                 setSourceIndex((currentValue) => currentValue + 1)
             }}
             sx={{
-                width: '80%',
-                height: 300,
+                width: 'calc(100% - 48px)',
+                maxWidth: 520,
+                height: { xs: 190, md: 250 },
                 display: 'block',
                 objectFit: 'contain',
                 mx: 'auto',
-                mt: 2.5,
+                mt: 2,
                 backgroundColor: '#fff',
-                mb: 3,
+                mb: 2.5,
             }}
         />
     )
@@ -224,6 +257,14 @@ function GitHubMarkIcon() {
         <SvgIcon viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.59 2 12.25c0 4.52 2.87 8.35 6.84 9.7.5.1.66-.22.66-.49 0-.24-.01-1.03-.01-1.86-2.78.62-3.37-1.22-3.37-1.22-.46-1.2-1.11-1.52-1.11-1.52-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.35 1.12 2.92.85.09-.67.35-1.12.63-1.38-2.22-.26-4.56-1.15-4.56-5.13 0-1.13.39-2.05 1.03-2.77-.1-.26-.45-1.32.1-2.75 0 0 .84-.28 2.75 1.06A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.36 1.91-1.34 2.75-1.06 2.75-1.06.55 1.43.2 2.49.1 2.75.64.72 1.03 1.64 1.03 2.77 0 3.99-2.35 4.87-4.58 5.12.36.32.69.95.69 1.92 0 1.39-.01 2.5-.01 2.84 0 .27.17.59.67.49A10.1 10.1 0 0 0 22 12.25C22 6.59 17.52 2 12 2Z" />
         </SvgIcon>
+    )
+}
+
+function FavoriteSectionHeading({ title }: { title: string }) {
+    return (
+        <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 34 }}>
+            <Typography sx={{ fontSize: 16, fontWeight: 500, color: '#111827' }}>{title}</Typography>
+        </Box>
     )
 }
 
@@ -451,6 +492,7 @@ function matchesLegacySubCatalog(app: AppStoreApp, selectedSubCatalogKey: string
 export function AppStorePage() {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
+    const contentAreaRef = useRef<HTMLDivElement | null>(null)
     const [searchValue, setSearchValue] = useState('')
     const [selectedMainCatalogKey, setSelectedMainCatalogKey] = useState('all')
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
@@ -469,9 +511,15 @@ export function AppStorePage() {
     const deferredSearchValue = useDeferredValue(searchValue)
     const { data, error, isLoading, isFetching, refetch } = useAppStoreApps()
     const { data: catalogsData } = useAppStoreCatalogs()
+    const { data: favoritesData, refetch: refetchFavorites } = useQuery<ProductAuthFavoritesResponse, Error>({
+        queryKey: ['product-auth-favorites'],
+        queryFn: fetchFavorites,
+        staleTime: 10_000,
+    })
 
     const apps = data ?? []
     const catalogs = catalogsData ?? []
+    const favoriteSet = useMemo(() => new Set((favoritesData?.favorites ?? []).map((item) => item.toLowerCase())), [favoritesData?.favorites])
     const currentHostname = typeof window === 'undefined' ? '' : window.location.hostname
     const domainSuffix = wildcardDomain ? `.${wildcardDomain}` : ''
     const mainCategories = useMemo(() => [{ key: 'all', title: t('appStorePage.filters.allMainCategories') }, ...catalogs], [catalogs, t])
@@ -489,6 +537,18 @@ export function AppStorePage() {
                     matchesAppStoreSearch(app, deferredSearchValue),
             ),
         [apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey],
+    )
+    const favoriteApps = useMemo(() => {
+        const favoriteKeys = [...(favoritesData?.favorites ?? [])].reverse()
+        const filteredAppMap = new Map(filteredApps.map((app) => [(app.key ?? '').toLowerCase(), app]))
+
+        return favoriteKeys
+            .map((favoriteKey) => filteredAppMap.get(favoriteKey.toLowerCase()))
+            .filter((app): app is AppStoreApp => Boolean(app))
+    }, [favoritesData?.favorites, filteredApps])
+    const nonFavoriteApps = useMemo(
+        () => filteredApps.filter((app) => !favoriteSet.has((app.key ?? '').toLowerCase())),
+        [favoriteSet, filteredApps],
     )
 
     useEffect(() => {
@@ -628,10 +688,34 @@ export function AppStorePage() {
         setSearchValue(value)
     }
 
+    async function handleToggleFavorite(appKey: string | undefined, options?: { closeDetail?: boolean }) {
+        if (!appKey) {
+            return
+        }
+
+        const normalizedKey = appKey.toLowerCase()
+        if (favoriteSet.has(normalizedKey)) {
+            await requestJson<ProductAuthFavoritesResponse>(`/api/auth/favorites/${normalizedKey}`, { method: 'DELETE' })
+        } else {
+            await requestJson<ProductAuthFavoritesResponse>('/api/auth/favorites', {
+                method: 'POST',
+                body: JSON.stringify({ app_key: normalizedKey }),
+            })
+        }
+
+        await refetchFavorites()
+
+        if (options?.closeDetail) {
+            handleCloseModal()
+        }
+    }
+
     return (
         <Box
+            ref={contentAreaRef}
             sx={{
                 minHeight: 'calc(100vh - 120px)',
+                position: 'relative',
                 mx: { xs: -1, md: -3 },
                 my: { xs: -1.5, md: -2.5 },
                 px: { xs: 2, md: 3 },
@@ -806,88 +890,174 @@ export function AppStorePage() {
                 ) : null}
 
                 {!isLoading && !error && filteredApps.length > 0 ? (
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gap: 2.25,
-                            gridTemplateColumns: {
-                                xs: '1fr',
-                                md: 'repeat(2, minmax(0, 1fr))',
-                                xl: 'repeat(4, minmax(0, 1fr))',
-                            },
-                        }}
-                    >
-                        {filteredApps.map((app) => {
-                            return (
-                                <Card
-                                    key={app.key ?? app.trademark}
-                                    elevation={0}
-                                    onClick={() => {
-                                        setSelectedApp(app)
-                                    }}
+                    <Stack spacing={2.5}>
+                        {favoriteApps.length > 0 ? (
+                            <Stack spacing={1.5}>
+                                <FavoriteSectionHeading title={t('appStorePage.results.favoriteSectionTitle')} />
+                                <Box
                                     sx={{
-                                        border: '1px solid rgba(229, 231, 235, 0.92)',
-                                        borderRadius: '2px',
-                                        backgroundColor: '#fff',
-                                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                                        cursor: 'pointer',
-                                        transition: 'background-color 120ms ease, box-shadow 120ms ease',
-                                        '&:hover': {
-                                            backgroundColor: 'rgb(229, 230, 229)',
-                                            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                        display: 'grid',
+                                        gap: 2.25,
+                                        gridTemplateColumns: {
+                                            xs: '1fr',
+                                            md: 'repeat(2, minmax(0, 1fr))',
+                                            xl: 'repeat(4, minmax(0, 1fr))',
                                         },
                                     }}
                                 >
-                                    <CardContent sx={{ p: '10px !important' }}>
-                                        <Box sx={{ display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
-                                            <Box sx={{ width: 100, minWidth: 100, px: '10px', boxSizing: 'border-box' }}>
-                                                <Box sx={{ width: 80, height: 80 }}>
-                                                    <AppLogo app={app} />
+                                    {favoriteApps.map((app) => {
+                                        return (
+                                            <Card
+                                                key={`favorite-${app.key ?? app.trademark}`}
+                                                elevation={0}
+                                                onClick={() => {
+                                                    setSelectedApp(app)
+                                                }}
+                                                sx={{
+                                                    border: '1px solid rgba(229, 231, 235, 0.92)',
+                                                    borderRadius: '2px',
+                                                    background: 'linear-gradient(180deg, #fffdf5 0%, #ffffff 100%)',
+                                                    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 120ms ease, box-shadow 120ms ease',
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgb(245, 241, 224)',
+                                                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                                    },
+                                                }}
+                                            >
+                                                <CardContent sx={{ p: '10px !important' }}>
+                                                    <Box sx={{ display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
+                                                        <Box sx={{ width: 100, minWidth: 100, px: '10px', boxSizing: 'border-box' }}>
+                                                            <Box sx={{ width: 80, height: 80 }}>
+                                                                <AppLogo app={app} />
+                                                            </Box>
+                                                        </Box>
+                                                        <Box sx={{ minWidth: 0, textAlign: 'left' }}>
+                                                            <Typography sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                {app.trademark ?? app.key}
+                                                            </Typography>
+                                                            <Typography sx={{ fontSize: 14, lineHeight: 1.45, height: 44, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
+                                                                {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </CardContent>
+                                            </Card>
+                                        )
+                                    })}
+                                </Box>
+                            </Stack>
+                        ) : null}
+
+                        <Stack spacing={1.5}>
+                            <FavoriteSectionHeading title={t('appStorePage.results.allAppsSectionTitle')} />
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gap: 2.25,
+                                    gridTemplateColumns: {
+                                        xs: '1fr',
+                                        md: 'repeat(2, minmax(0, 1fr))',
+                                        xl: 'repeat(4, minmax(0, 1fr))',
+                                    },
+                                }}
+                            >
+                                {nonFavoriteApps.map((app) => {
+                                    return (
+                                        <Card
+                                            key={app.key ?? app.trademark}
+                                            elevation={0}
+                                            onClick={() => {
+                                                setSelectedApp(app)
+                                            }}
+                                            sx={{
+                                                border: '1px solid rgba(229, 231, 235, 0.92)',
+                                                borderRadius: '2px',
+                                                backgroundColor: '#fff',
+                                                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                                cursor: 'pointer',
+                                                transition: 'background-color 120ms ease, box-shadow 120ms ease',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgb(229, 230, 229)',
+                                                    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                                },
+                                            }}
+                                        >
+                                            <CardContent sx={{ p: '10px !important' }}>
+                                                <Box sx={{ display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
+                                                    <Box sx={{ width: 100, minWidth: 100, px: '10px', boxSizing: 'border-box' }}>
+                                                        <Box sx={{ width: 80, height: 80 }}>
+                                                            <AppLogo app={app} />
+                                                        </Box>
+                                                    </Box>
+                                                    <Box sx={{ minWidth: 0, textAlign: 'left' }}>
+                                                        <Typography sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {app.trademark ?? app.key}
+                                                        </Typography>
+                                                        <Typography sx={{ fontSize: 14, lineHeight: 1.45, height: 44, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
+                                                            {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
+                                                        </Typography>
+                                                    </Box>
                                                 </Box>
-                                            </Box>
-                                            <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                                                <Typography sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    {app.trademark ?? app.key}
-                                                </Typography>
-                                                <Typography sx={{ fontSize: 14, lineHeight: 1.45, height: 44, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
-                                                    {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    </CardContent>
-                                </Card>
-                            )
-                        })}
-                    </Box>
+                                            </CardContent>
+                                        </Card>
+                                    )
+                                })}
+                            </Box>
+                        </Stack>
+                    </Stack>
                 ) : null}
             </Box>
 
             <Dialog
                 fullWidth
-                maxWidth="md"
                 open={Boolean(selectedApp)}
                 onClose={handleCloseModal}
+                disablePortal
+                container={contentAreaRef.current}
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    '& .MuiBackdrop-root': {
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.18)',
+                    },
+                    '& .MuiDialog-container': {
+                        position: 'absolute',
+                        inset: 0,
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        px: { xs: 1.5, md: 3 },
+                        py: { xs: 1.5, md: 2.5 },
+                        overflowY: 'auto',
+                    },
+                }}
                 slotProps={{
                     paper: {
                         sx: {
-                            width: 'min(800px, calc(100vw - 32px))',
+                            width: { xs: 'min(100%, 800px)', md: 'min(800px, calc(100% - 32px))' },
                             maxWidth: '800px',
+                            maxHeight: 'calc(100% - 48px)',
+                            margin: 0,
                             borderRadius: '2px',
-                            boxShadow: '0 12px 36px rgba(15, 23, 42, 0.18)',
+                            boxShadow: '0 16px 40px rgba(15, 23, 42, 0.16)',
+                            overflow: 'hidden',
                         },
                     },
                 }}
             >
                 {selectedApp ? (
                     <>
-                        <DialogTitle sx={{ px: 3, py: 2.25 }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr) auto', gap: 2, alignItems: 'start' }}>
-                                <Box sx={{ width: 88, height: 88 }}>
+                        <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 } }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) auto', gap: 1.5, alignItems: 'start' }}>
+                                <Box sx={{ width: 64, height: 64, mt: 0.25 }}>
                                     <AppLogo app={selectedApp} />
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                        <Typography sx={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, color: '#334155' }}>{selectedApp.trademark ?? selectedApp.key}</Typography>
+                                        <Typography sx={{ fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: '#334155' }}>{selectedApp.trademark ?? selectedApp.key}</Typography>
                                         <Button
                                             component="a"
                                             href={getDocumentationUrl(selectedApp, i18n.resolvedLanguage ?? i18n.language ?? 'en')}
@@ -897,11 +1067,11 @@ export function AppStorePage() {
                                             variant="contained"
                                             sx={{
                                                 minWidth: 'auto',
-                                                px: 1.25,
-                                                py: 0.2,
+                                                px: 1,
+                                                py: 0.1,
                                                 borderRadius: '999px',
                                                 textTransform: 'none',
-                                                fontSize: 13.5,
+                                                fontSize: 12.5,
                                                 fontWeight: 500,
                                                 lineHeight: 1.8,
                                                 boxShadow: 'none',
@@ -916,14 +1086,14 @@ export function AppStorePage() {
                                     <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 400, color: '#475569' }}>
                                         {t('appStorePage.detail.versionLine', { version: getAppStoreVersionSummary(selectedApp) || '-' })}
                                     </Typography>
-                                    <Typography sx={{ mt: 0.25, fontSize: 14, fontWeight: 400, color: '#475569' }}>
+                                    <Typography sx={{ mt: 0.15, fontSize: 14, fontWeight: 400, color: '#475569' }}>
                                         {t('appStorePage.detail.requirementLine', {
                                             cpu: formatRequirement(selectedApp.vcpu),
                                             memory: formatRequirement(selectedApp.memory),
                                             storage: formatRequirement(selectedApp.storage),
                                         })}
                                     </Typography>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mt: 0.25, color: 'primary.main', fontSize: 14 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mt: 0.15, color: 'primary.main', fontSize: 14 }}>
                                         <Typography component="span" sx={{ color: '#475569', fontSize: 14, fontWeight: 400 }}>
                                             {t('appStorePage.detail.categoriesLabel')}
                                         </Typography>
@@ -950,12 +1120,12 @@ export function AppStorePage() {
                                         ))}
                                     </Box>
                                 </Box>
-                                <IconButton onClick={handleCloseModal} size="small" sx={{ color: '#94a3b8', mt: 0.5 }}>
+                                <IconButton onClick={handleCloseModal} size="small" sx={{ color: '#94a3b8', mt: 0.25, mr: -0.5 }}>
                                     <Box component="span" sx={{ fontSize: 28, lineHeight: 1 }}>x</Box>
                                 </IconButton>
                             </Box>
                         </DialogTitle>
-                        <DialogContent dividers sx={{ px: 0, py: 0 }}>
+                        <DialogContent dividers sx={{ px: 0, py: 0, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
                             {!isInstallMode ? (
                                 <>
                                     <AppScreenshot
@@ -964,20 +1134,20 @@ export function AppStorePage() {
                                         locale={i18n.resolvedLanguage ?? i18n.language ?? 'en'}
                                     />
 
-                                    <Box sx={{ px: 3, pt: 1.5, pb: 2.5 }}>
-                                        <Typography sx={{ fontSize: 17, fontWeight: 700, mb: 1.25, color: '#475569' }}>{t('appStorePage.detail.overviewTitle')}</Typography>
-                                        <Typography sx={{ mb: 3.25, lineHeight: 1.75, fontSize: 14, color: '#475569', fontWeight: 400 }}>
+                                    <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 0.5, pb: 2.25 }}>
+                                        <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: '#475569' }}>{t('appStorePage.detail.overviewTitle')}</Typography>
+                                        <Typography sx={{ mb: 2.5, lineHeight: 1.75, fontSize: 14, color: '#475569', fontWeight: 400 }}>
                                             {selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
                                         </Typography>
 
-                                        <Typography sx={{ fontSize: 17, fontWeight: 700, mb: 1.25, color: '#475569' }}>{t('appStorePage.detail.descriptionTitle')}</Typography>
+                                        <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: '#475569' }}>{t('appStorePage.detail.descriptionTitle')}</Typography>
                                         <Typography sx={{ lineHeight: 1.75, whiteSpace: 'pre-wrap', fontSize: 14, color: '#475569', fontWeight: 400 }}>
                                             {selectedApp.description || selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
                                         </Typography>
                                     </Box>
                                 </>
                             ) : (
-                                <Box sx={{ display: 'grid', gap: 1.25, px: 2.5, py: 2.25 }}>
+                                <Box sx={{ display: 'grid', gap: 1.25, px: { xs: 2, md: 2.5 }, py: 2.25 }}>
                                     <Box>
                                         <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{t('appStorePage.install.appIdLabel')}</Typography>
                                         <Box
@@ -1215,6 +1385,23 @@ export function AppStorePage() {
                                 }}
                             >
                                 {t('appStorePage.actions.close')}
+                            </Button>
+                            <Button
+                                onClick={() => void handleToggleFavorite(selectedApp.key, { closeDetail: true })}
+                                variant="contained"
+                                color="inherit"
+                                aria-label={favoriteSet.has((selectedApp.key ?? '').toLowerCase()) ? t('appStorePage.actions.unfavorite') : t('appStorePage.actions.favorite')}
+                                sx={{
+                                    minWidth: 68,
+                                    backgroundColor: '#f8fafc',
+                                    color: '#334155',
+                                    borderRadius: 0,
+                                    border: '1px solid rgba(203, 213, 225, 0.9)',
+                                    boxShadow: 'none',
+                                    '&:hover': { backgroundColor: '#eef2f7', boxShadow: 'none' },
+                                }}
+                            >
+                                {favoriteSet.has((selectedApp.key ?? '').toLowerCase()) ? t('appStorePage.actions.unfavorite') : t('appStorePage.actions.favorite')}
                             </Button>
                             {!isInstallMode ? (
                                 <Button

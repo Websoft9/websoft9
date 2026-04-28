@@ -13,7 +13,12 @@ type IntegrationSessionResult = {
 
 const integrationSessionCache = new Map<string, IntegrationSessionResult>()
 
-export function useIntegrationSession(integrationKey: IntegrationKey, integrationStatus: IntegrationStatus, refreshToken: string | null) {
+export function useIntegrationSession(
+    integrationKey: IntegrationKey,
+    integrationStatus: IntegrationStatus,
+    refreshToken: string | null,
+    enabled = true,
+) {
     const { i18n } = useTranslation('shell')
     const [result, setResult] = useState<IntegrationSessionResult | null>(null)
     const canBootstrap = integrationStatus === 'available' || integrationStatus === 'session-error'
@@ -21,7 +26,7 @@ export function useIntegrationSession(integrationKey: IntegrationKey, integratio
     const requestKey = `${integrationKey}:${integrationStatus}:${refreshToken ?? 'initial'}:${locale}`
 
     useEffect(() => {
-        if (!canBootstrap) {
+        if (!enabled || !canBootstrap) {
             return
         }
 
@@ -72,12 +77,12 @@ export function useIntegrationSession(integrationKey: IntegrationKey, integratio
         return () => {
             abortController.abort()
         }
-    }, [canBootstrap, integrationKey, locale, requestKey])
+    }, [canBootstrap, enabled, integrationKey, locale, requestKey])
 
     const currentResult = result?.requestKey === requestKey ? result : null
 
     return {
-        errorMessage: canBootstrap ? currentResult?.errorMessage ?? null : null,
-        sessionState: !canBootstrap ? 'idle' : currentResult?.sessionState ?? 'bootstrapping',
+        errorMessage: enabled && canBootstrap ? currentResult?.errorMessage ?? null : null,
+        sessionState: !enabled || !canBootstrap ? 'idle' : currentResult?.sessionState ?? 'bootstrapping',
     }
 }

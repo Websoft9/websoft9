@@ -23,7 +23,7 @@ export const shellResources = {
             user: {
                 name: 'Administrator',
                 role: 'Websoft9 User',
-                roleAuthenticated: 'Product operator session',
+                roleAuthenticated: 'Authenticated user session',
                 roleAnonymous: 'Authentication required',
                 menu: {
                     profile: 'Profile',
@@ -35,6 +35,14 @@ export const shellResources = {
                 loading: 'Checking product authentication status...',
                 statusErrorTitle: 'Product authentication is temporarily unavailable',
                 genericError: 'The authentication request failed. Please retry.',
+                errors: {
+                    invalidCredentials: 'Incorrect username or password.',
+                    userDisabled: 'This user has been disabled. Please contact the system administrator.',
+                },
+                actions: {
+                    showPassword: 'Show password',
+                    hidePassword: 'Hide password',
+                },
                 protectedModulesTitle: 'Protected module baseline',
                 fields: {
                     displayName: 'Display name',
@@ -42,18 +50,16 @@ export const shellResources = {
                     password: 'Password',
                 },
                 setup: {
-                    eyebrow: 'Product authentication bootstrap',
-                    title: 'Create the first Websoft9 operator',
-                    description:
-                        'This initialization path replaces host-user and Cockpit-session shortcuts for protected modules. The first operator becomes the product-owned administrator baseline.',
+                    eyebrow: 'Operator setup',
+                    title: 'Create a Websoft9 operator',
+                    description: 'Create the first product-owned operator for this console.',
                     submit: 'Initialize operator',
                     submitting: 'Initializing...',
                 },
                 login: {
-                    eyebrow: 'Product authentication sign-in',
-                    title: 'Sign in to protected Websoft9 modules',
-                    description:
-                        'Users, files, terminal, services, and logs now require a product-owned operator session when product authentication is enabled.',
+                    eyebrow: 'Secure sign-in',
+                    title: 'Sign in to Websoft9',
+                    description: 'Use your product operator account to continue.',
                     submit: 'Sign in',
                     submitting: 'Signing in...',
                 },
@@ -287,6 +293,8 @@ export const shellResources = {
                     sectionTitle: 'All',
                     title: '{{count}} apps',
                     helper: 'Keyword and category filters update the current visible app list immediately.',
+                    favoriteSectionTitle: 'My favorites',
+                    allAppsSectionTitle: 'All applications',
                 },
                 states: {
                     loading: 'Loading App Store data...',
@@ -346,6 +354,8 @@ export const shellResources = {
                     close: 'Close',
                     closeIcon: 'x',
                     install: 'Install',
+                    favorite: 'Add to favorites',
+                    unfavorite: 'Remove from favorites',
                     delete: 'Delete',
                 },
             },
@@ -711,6 +721,20 @@ export const shellResources = {
                     saveSuccess: '{{key}} was updated successfully.',
                     saveError: 'Saving the selected setting failed.',
                 },
+                preferences: {
+                    title: 'User preferences',
+                    description: 'Update your current operator profile and language preference used across the native console.',
+                    usernameLabel: 'Username',
+                    displayNameLabel: 'Display name',
+                    languageLabel: 'Language',
+                    feedback: {
+                        saveSuccess: 'Your user preferences were updated successfully.',
+                        saveError: 'Saving user preferences failed.',
+                    },
+                    validation: {
+                        displayNameRequired: 'Enter a display name before saving your preferences.',
+                    },
+                },
                 validation: {
                     required: 'Enter a non-empty value before saving.',
                 },
@@ -787,6 +811,86 @@ export const shellResources = {
                         settings: 'Settings plugin',
                         navigator: 'Navigator plugin',
                     },
+                },
+            },
+            usersPage: {
+                hero: {
+                    title: 'User accounts',
+                },
+                states: {
+                    loading: 'Loading product-side users...',
+                    refreshing: 'Refreshing product-side users...',
+                    retry: 'Retry',
+                    loadError: 'User-management request returned HTTP {{statusCode}}.',
+                    authDisabled: 'Product-side authentication is disabled, so user management is not available in the current flow.',
+                    empty: 'No users have been created yet.',
+                    noResults: 'No users match the current search.',
+                },
+                filters: {
+                    searchLabel: 'Search users',
+                    searchPlaceholder: 'Search by username or display name',
+                },
+                columns: {
+                    username: 'Username',
+                    displayName: 'Full name',
+                    language: 'Language',
+                    status: 'Status',
+                    createdAt: 'Created',
+                    actions: 'Actions',
+                },
+                badges: {
+                    current: 'Your account',
+                    initialized: 'System user',
+                },
+                create: {
+                    submit: 'Create user',
+                    submitting: 'Creating...',
+                },
+                list: {
+                    meta: '{{count}} users',
+                },
+                fields: {
+                    language: 'Language',
+                    usernameReadonly: 'Usernames are fixed after creation.',
+                    passwordHelper: 'Use a strong password with at least 8 characters.',
+                    passwordOptional: 'Leave blank to keep the current password.',
+                    newPassword: 'New password',
+                    confirmPassword: 'Confirm password',
+                    passwordMismatch: 'The passwords do not match.',
+                },
+                locales: {
+                    en: 'English',
+                    'zh-CN': 'Chinese',
+                },
+                status: {
+                    enabled: 'Enabled',
+                    disabled: 'Disabled',
+                },
+                actions: {
+                    edit: 'Edit',
+                    enable: 'Enable',
+                    disable: 'Disable',
+                    delete: 'Delete',
+                },
+                dialogs: {
+                    cancel: 'Cancel',
+                    createTitle: 'Create user',
+                    editTitle: 'Edit user',
+                    deleteTitle: 'Delete user',
+                    deleteBody: 'This will remove {{username}} and invalidate existing sessions.',
+                    confirmCreate: 'Create user',
+                    confirmEdit: 'Save changes',
+                    confirmDelete: 'Delete user',
+                    saving: 'Saving...',
+                    deleting: 'Deleting...',
+                },
+                feedback: {
+                    createSuccess: '{{username}} was created successfully.',
+                    editSuccess: '{{username}} was updated successfully.',
+                    enableSuccess: '{{username}} was enabled successfully.',
+                    disableSuccess: '{{username}} was disabled successfully.',
+                    deleteSuccess: '{{username}} was deleted successfully.',
+                    genericError: 'The user-management action failed.',
                 },
             },
             integrations: {
@@ -900,7 +1004,7 @@ export const shellResources = {
             user: {
                 name: '管理员',
                 role: 'Websoft9 用户',
-                roleAuthenticated: '产品侧操作员会话',
+                roleAuthenticated: '已登录用户会话',
                 roleAnonymous: '需要认证',
                 menu: {
                     profile: '个人资料',
@@ -912,6 +1016,14 @@ export const shellResources = {
                 loading: '正在检查产品侧认证状态...',
                 statusErrorTitle: '产品侧认证暂时不可用',
                 genericError: '认证请求失败，请重试。',
+                errors: {
+                    invalidCredentials: '用户名或密码错误。',
+                    userDisabled: '该用户已被禁用，请联系系统管理员。',
+                },
+                actions: {
+                    showPassword: '显示密码',
+                    hidePassword: '隐藏密码',
+                },
                 protectedModulesTitle: '受保护模块基线',
                 fields: {
                     displayName: '显示名称',
@@ -919,18 +1031,16 @@ export const shellResources = {
                     password: '密码',
                 },
                 setup: {
-                    eyebrow: '产品侧认证初始化',
-                    title: '创建首个 Websoft9 操作员',
-                    description:
-                        '这个初始化流程会替代宿主机用户和 Cockpit 会话对受保护模块的旁路访问，首个操作员会成为产品自有管理员基线。',
+                    eyebrow: '操作员初始化',
+                    title: '创建 Websoft9 操作员',
+                    description: '为当前控制台创建首个产品侧操作员。',
                     submit: '初始化操作员',
                     submitting: '正在初始化...',
                 },
                 login: {
-                    eyebrow: '产品侧认证登录',
-                    title: '登录受保护的 Websoft9 模块',
-                    description:
-                        '当产品侧认证启用时，用户、文件、终端、服务和日志这些模块都需要产品自有操作员会话。',
+                    eyebrow: '安全登录',
+                    title: '登录 Websoft9',
+                    description: '使用产品侧操作员账号继续。',
                     submit: '登录',
                     submitting: '正在登录...',
                 },
@@ -1164,6 +1274,8 @@ export const shellResources = {
                     sectionTitle: '全部',
                     title: '{{count}} 个应用',
                     helper: '关键字和分类筛选会立即更新当前可见的应用列表。',
+                    favoriteSectionTitle: '我的收藏',
+                    allAppsSectionTitle: '全部应用',
                 },
                 states: {
                     loading: '正在加载应用商店数据……',
@@ -1223,6 +1335,8 @@ export const shellResources = {
                     close: '关闭',
                     closeIcon: 'x',
                     install: '安装',
+                    favorite: '收藏',
+                    unfavorite: '取消收藏',
                     delete: '删除',
                 },
             },
@@ -1588,6 +1702,20 @@ export const shellResources = {
                     saveSuccess: '{{key}} 更新成功。',
                     saveError: '保存当前设置失败。',
                 },
+                preferences: {
+                    title: '用户偏好',
+                    description: '更新当前操作员的个人资料和语言偏好，并立即同步到原生控制台。',
+                    usernameLabel: '用户名',
+                    displayNameLabel: '显示名称',
+                    languageLabel: '语言',
+                    feedback: {
+                        saveSuccess: '用户偏好已更新。',
+                        saveError: '保存用户偏好失败。',
+                    },
+                    validation: {
+                        displayNameRequired: '保存前请输入显示名称。',
+                    },
+                },
                 validation: {
                     required: '保存前请输入非空值。',
                 },
@@ -1664,6 +1792,86 @@ export const shellResources = {
                         settings: '设置插件',
                         navigator: '导航插件',
                     },
+                },
+            },
+            usersPage: {
+                hero: {
+                    title: '用户账户',
+                },
+                states: {
+                    loading: '正在加载产品侧用户...',
+                    refreshing: '正在刷新产品侧用户...',
+                    retry: '重试',
+                    loadError: '用户管理请求返回了 HTTP {{statusCode}}。',
+                    authDisabled: '当前流程已关闭产品侧认证，因此用户管理暂不可用。',
+                    empty: '当前还没有创建任何用户。',
+                    noResults: '没有匹配当前搜索条件的用户。',
+                },
+                filters: {
+                    searchLabel: '搜索用户',
+                    searchPlaceholder: '按用户名或显示名称搜索',
+                },
+                columns: {
+                    username: '用户名',
+                    displayName: '全名',
+                    language: '语言',
+                    status: '状态',
+                    createdAt: '创建时间',
+                    actions: '操作',
+                },
+                badges: {
+                    current: '您的账户',
+                    initialized: '系统用户',
+                },
+                create: {
+                    submit: '创建用户',
+                    submitting: '正在创建...',
+                },
+                list: {
+                    meta: '{{count}} 个用户',
+                },
+                fields: {
+                    language: '语言',
+                    usernameReadonly: '用户名创建后不可修改。',
+                    passwordHelper: '请使用至少 8 个字符的强密码。',
+                    passwordOptional: '留空则保持当前密码不变。',
+                    newPassword: '新密码',
+                    confirmPassword: '确认密码',
+                    passwordMismatch: '两次输入的密码不一致。',
+                },
+                locales: {
+                    en: 'English',
+                    'zh-CN': '简体中文',
+                },
+                status: {
+                    enabled: '启用',
+                    disabled: '禁用',
+                },
+                actions: {
+                    edit: '编辑',
+                    enable: '启用',
+                    disable: '禁用',
+                    delete: '删除',
+                },
+                dialogs: {
+                    cancel: '取消',
+                    createTitle: '创建用户',
+                    editTitle: '编辑用户',
+                    deleteTitle: '删除用户',
+                    deleteBody: '这会删除 {{username}}，并使其现有会话失效。',
+                    confirmCreate: '创建用户',
+                    confirmEdit: '保存修改',
+                    confirmDelete: '删除用户',
+                    saving: '正在保存...',
+                    deleting: '正在删除...',
+                },
+                feedback: {
+                    createSuccess: '{{username}} 创建成功。',
+                    editSuccess: '{{username}} 已更新。',
+                    enableSuccess: '{{username}} 已启用。',
+                    disableSuccess: '{{username}} 已禁用。',
+                    deleteSuccess: '{{username}} 已删除。',
+                    genericError: '用户管理操作失败。',
                 },
             },
             integrations: {

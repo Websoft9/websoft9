@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Chip, Paper, Stack, Typography } from '@mui/material'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -33,21 +33,19 @@ export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, 
 
 export function PersistentIntegrationWorkspaces() {
     const location = useLocation()
+    const { refresh, snapshots } = useIntegrationStatuses()
     const activeDefinition = useMemo(() => {
         return integrationDefinitions.find((definition) => location.pathname === `/${definition.entrySegment}`) ?? null
     }, [location.pathname])
 
-    if (!activeDefinition) {
-        return null
-    }
-
     return (
         <Box
             sx={{
-                position: 'relative',
-                width: '100%',
-                height: 'calc(100vh - 76px)',
+                position: 'absolute',
+                inset: 0,
+                display: activeDefinition ? 'block' : 'none',
                 backgroundColor: '#fff',
+                zIndex: 1,
             }}
         >
             {integrationDefinitions.map((definition) => (
@@ -56,11 +54,16 @@ export function PersistentIntegrationWorkspaces() {
                     sx={{
                         position: 'absolute',
                         inset: 0,
-                        visibility: definition.key === activeDefinition.key ? 'visible' : 'hidden',
-                        pointerEvents: definition.key === activeDefinition.key ? 'auto' : 'none',
+                        visibility: definition.key === activeDefinition?.key ? 'visible' : 'hidden',
+                        pointerEvents: definition.key === activeDefinition?.key ? 'auto' : 'none',
                     }}
                 >
-                    <DirectIntegrationWorkspaceFrame active={definition.key === activeDefinition.key} definition={definition} />
+                    <DirectIntegrationWorkspaceFrame
+                        active={definition.key === activeDefinition?.key}
+                        definition={definition}
+                        refresh={refresh}
+                        snapshot={snapshots[definition.key]}
+                    />
                 </Box>
             ))}
         </Box>
@@ -191,14 +194,22 @@ function handleIntegrationFrameLoad(frame: HTMLIFrameElement, definition: Integr
     }
 }
 
-function DirectIntegrationWorkspaceFrame({ active, definition }: { active: boolean; definition: IntegrationWorkspaceContentProps['definition'] }) {
+function DirectIntegrationWorkspaceFrame({
+    active,
+    definition,
+    refresh,
+    snapshot,
+}: {
+    active: boolean
+    definition: IntegrationWorkspaceContentProps['definition']
+    refresh: () => void
+    snapshot: ReturnType<typeof useIntegrationStatuses>['snapshots'][IntegrationKey]
+}) {
     const { t } = useTranslation('shell')
     const [searchParams] = useSearchParams()
-    const { refresh, snapshots } = useIntegrationStatuses()
-
-    const snapshot = snapshots[definition.key]
-    const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt)
-    const shouldRenderFrame = sessionState === 'ready' && (snapshot.status === 'available' || snapshot.status === 'session-error')
+    const [hasInitializedFrame, setHasInitializedFrame] = useState(false)
+    const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt, active || hasInitializedFrame)
+    const shouldRenderFrame = (active || hasInitializedFrame) && sessionState === 'ready' && (snapshot.status === 'available' || snapshot.status === 'session-error')
     const requestedTarget = active ? searchParams.get('target') : null
     const rememberedWorkspaceSrc = useMemo(() => {
         if (typeof window === 'undefined') {
@@ -212,6 +223,16 @@ function DirectIntegrationWorkspaceFrame({ active, definition }: { active: boole
     useEffect(() => {
         rememberIntegrationTarget(definition, requestedTarget)
     }, [definition, requestedTarget])
+
+    useEffect(() => {
+        if (active && sessionState === 'ready') {
+            setHasInitializedFrame(true)
+        }
+    }, [active, sessionState])
+
+    if (!active && !hasInitializedFrame) {
+        return null
+    }
 
     return shouldRenderFrame ? (
         <Box

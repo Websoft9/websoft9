@@ -7,6 +7,9 @@ runtime_status_file="${WEBSOFT9_RUNTIME_STATUS_FILE:-$runtime_state_dir/runtime-
 supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
 supervisor_socket="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
 status_interval="${WEBSOFT9_STATUS_INTERVAL:-15}"
+product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
+product_auth_bootstrap_username="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_USERNAME:-websoft9}"
+product_auth_bootstrap_display_name="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_DISPLAY_NAME:-Websoft9 User}"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') [platform-entrypoint] $*"
@@ -78,6 +81,26 @@ wait_for_file() {
   done
 }
 
+generate_password() {
+  openssl rand -base64 18 | tr -dc 'A-Za-z0-9@#%+=' | head -c 16
+}
+
+load_or_create_product_auth_credentials() {
+  if [[ -f "$product_auth_credential_path" ]]; then
+    read -r product_auth_bootstrap_username product_auth_bootstrap_display_name product_auth_bootstrap_password < <(
+      jq -r '.username + "\t" + (.display_name // "Websoft9 User") + "\t" + .password' "$product_auth_credential_path"
+    )
+    return
+  fi
+
+  product_auth_bootstrap_password="$(generate_password)"
+  mkdir -p "$(dirname "$product_auth_credential_path")"
+  cat >"$product_auth_credential_path" <<EOF
+{"username":"$product_auth_bootstrap_username","display_name":"$product_auth_bootstrap_display_name","password":"$product_auth_bootstrap_password"}
+EOF
+  chmod 600 "$product_auth_credential_path"
+}
+
 sync_runtime_config() {
   local mode="$1"
 
@@ -124,6 +147,36 @@ start_apphub_core() {
 
   wait_for_url "apphub-api" "${WEBSOFT9_APPHUB_HEALTH_URL:-http://127.0.0.1:8080/api/healthz}" 60
   wait_for_url "apphub-media" "${WEBSOFT9_MEDIA_HEALTH_URL:-http://127.0.0.1:8081/healthz}" 60
+}
+
+bootstrap_product_auth() {
+  log "phase=workspace-bootstrap action=bootstrap-product-auth"
+
+  load_or_create_product_auth_credentials
+  python3 - <<'PY'
+import json
+import os
+import sys
+
+sys.path.insert(0, "/websoft9/apphub")
+
+from src.services.product_auth import ProductAuthService
+
+credential_path = os.environ["WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH"]
+with open(credential_path, "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+operator, created = ProductAuthService().bootstrap_operator_if_missing(
+    username=payload["username"],
+    password=payload["password"],
+    display_name=payload.get("display_name") or "Websoft9 User",
+    client_host="127.0.0.1",
+    user_agent="platform-entrypoint",
+)
+
+state = "created" if created else "reused"
+print(f"product_auth_bootstrap={state} username={operator['username']}")
+PY
 }
 
 bootstrap_platform_gateway() {
@@ -182,10 +235,12 @@ main() {
 
   log "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
+  export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   ensure_runtime_assets
   sync_runtime_config base
   start_supervisor
   start_apphub_core
+  bootstrap_product_auth
   bootstrap_platform_gateway
   bootstrap_gitea
   bootstrap_portainer

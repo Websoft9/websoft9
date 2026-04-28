@@ -1,9 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { i18n, normalizeSupportedLocale } from '../../shared/i18n/i18n'
+
 type ProductAuthUser = {
     id: string
     username: string
     display_name: string
+    locale: string
     disabled: boolean
     deleted: boolean
     reset_password_eligible: boolean
@@ -95,6 +98,16 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         }
     }, [])
 
+    useEffect(() => {
+        const nextLocale = status?.current_user?.locale
+        const normalizedLocale = normalizeSupportedLocale(nextLocale)
+        if (!nextLocale || i18n.resolvedLanguage === normalizedLocale || i18n.language === normalizedLocale) {
+            return
+        }
+
+        void i18n.changeLanguage(normalizedLocale)
+    }, [status?.current_user?.locale])
+
     const initialize = useCallback(async (payload: { username: string; password: string; displayName: string }) => {
         setIsSubmitting(true)
         try {
@@ -104,6 +117,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                     username: payload.username,
                     password: payload.password,
                     display_name: payload.displayName,
+                    locale: normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en'),
                 }),
             })
             setStatus(nextStatus)

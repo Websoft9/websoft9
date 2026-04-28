@@ -14,7 +14,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useProductAuth } from '../../features/product-auth/product-auth-provider'
-import { supportedLocales } from '../../shared/i18n/i18n'
+import { normalizeSupportedLocale, supportedLocales } from '../../shared/i18n/i18n'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { shellNavigationItems } from './shell-navigation'
 
@@ -35,7 +35,7 @@ export function AppShell() {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
-    const { isSubmitting, logout, status } = useProductAuth()
+    const { isSubmitting, logout, refresh, status } = useProductAuth()
     const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
 
@@ -68,17 +68,35 @@ export function AppShell() {
     }, [location.pathname, location.search])
 
     const userDisplayName = status?.current_user?.display_name ?? t('user.name')
-    const userRoleLabel = status?.enabled
-        ? status.authenticated
-            ? t('user.roleAuthenticated')
-            : t('user.roleAnonymous')
-        : t('user.role')
     const userInitial = userDisplayName.slice(0, 1).toUpperCase()
+
+    async function persistCurrentUserLocale(locale: string) {
+        const currentUser = status?.current_user
+        if (!status?.enabled || !status.authenticated || !currentUser) {
+            return
+        }
+
+        await fetch(`/api/auth/users/${encodeURIComponent(currentUser.id)}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                display_name: currentUser.display_name,
+                locale,
+            }),
+        })
+
+        await refresh()
+    }
 
     return (
         <Box
             sx={{
                 height: '100vh',
+                position: 'relative',
                 overflow: 'hidden',
                 backgroundColor: '#e8edf4',
             }}
@@ -150,14 +168,7 @@ export function AppShell() {
                     >
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                             <Avatar sx={{ width: 30, height: 30, bgcolor: '#d7e3f4', color: '#24446b', fontSize: 13 }}>{userInitial}</Avatar>
-                            <Stack spacing={0} sx={{ alignItems: 'flex-start' }}>
-                                <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1 }}>
-                                    {userDisplayName}
-                                </Typography>
-                                <Typography color="text.secondary" sx={{ fontSize: 11, lineHeight: 1.1 }}>
-                                    {userRoleLabel}
-                                </Typography>
-                            </Stack>
+                            <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1 }}>{userDisplayName}</Typography>
                         </Stack>
                     </Button>
                 </Stack>
@@ -174,8 +185,14 @@ export function AppShell() {
                     <MenuItem
                         key={locale}
                         onClick={() => {
-                            void i18n.changeLanguage(locale)
                             setLocaleMenuAnchor(null)
+                            const normalizedLocale = normalizeSupportedLocale(locale)
+                            if (normalizedLocale === normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en')) {
+                                return
+                            }
+
+                            void i18n.changeLanguage(normalizedLocale)
+                            void persistCurrentUserLocale(normalizedLocale)
                         }}
                         selected={resolvedLocale === locale}
                     >
@@ -191,22 +208,6 @@ export function AppShell() {
                 }}
                 open={Boolean(userMenuAnchor)}
             >
-                <MenuItem
-                    onClick={() => {
-                        setUserMenuAnchor(null)
-                    }}
-                    disabled={!status?.authenticated}
-                >
-                    {t('user.menu.profile')}
-                </MenuItem>
-                <MenuItem
-                    onClick={() => {
-                        setUserMenuAnchor(null)
-                    }}
-                    disabled={!status?.authenticated}
-                >
-                    {t('user.menu.preferences')}
-                </MenuItem>
                 <MenuItem
                     onClick={() => {
                         setUserMenuAnchor(null)
@@ -310,6 +311,7 @@ export function AppShell() {
                 <Box
                     component="main"
                     sx={{
+                        position: 'relative',
                         minWidth: 0,
                         backgroundColor: '#ffffff',
                         px: activeIntegrationRoute ? 0 : { xs: 2, md: 3 },

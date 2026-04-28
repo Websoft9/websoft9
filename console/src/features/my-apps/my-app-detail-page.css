@@ -3,16 +3,17 @@
    ============================================ */
 
 .myapps-detail-overlay {
-    min-height: calc(100vh - 72px);
-    background: rgba(0, 0, 0, 0.22);
-    padding: 16px 0;
+    min-height: calc(100vh - 76px);
+    background-color: rgba(15, 23, 42, 0.18);
+    padding: 24px 0;
 }
 
 .myapps-detail-shell {
-    width: 95%;
+    width: min(95%, 1440px);
     margin: 0 auto;
     background: #fff;
     font-family: 'Nunito', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
 }
 
 .myapps-detail-header {

@@ -16,7 +16,23 @@ FROM python:3.11-slim AS python-deps-builder
 
 WORKDIR /build
 COPY apphub/requirements.txt /build/requirements.txt
-RUN python -m pip install --no-cache-dir --target /opt/websoft9-pydeps -r /build/requirements.txt supervisor
+RUN set -e; \
+    export PIP_PROGRESS_BAR=off; \
+    export PIP_DEFAULT_TIMEOUT=120; \
+    mkdir -p /tmp/pip-cache; \
+    for attempt in 1 2 3; do \
+        python -m pip install \
+            --cache-dir /tmp/pip-cache \
+            --retries 10 \
+            --timeout 120 \
+            --target /opt/websoft9-pydeps \
+            -r /build/requirements.txt \
+            supervisor && break; \
+        if [ "$attempt" -eq 3 ]; then \
+            exit 1; \
+        fi; \
+        echo "pip install failed on attempt $attempt, retrying..."; \
+    done
 
 FROM gitea/gitea:1.25.5 AS gitea-runtime
 FROM portainer/portainer-ce:2.40.0 AS portainer-runtime
@@ -45,6 +61,10 @@ ENV WEBSOFT9_RUNTIME_LAYOUT=single-container-target \
     PYTHONUNBUFFERED=1
 
 WORKDIR /websoft9
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y sqlite3 && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN getent group git >/dev/null || groupadd --gid 1000 git && \
     id -u git >/dev/null 2>&1 || useradd --uid 1000 --gid 1000 --home-dir /data/gitea --shell /bin/bash git

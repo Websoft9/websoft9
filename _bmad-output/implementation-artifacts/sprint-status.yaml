@@ -65,7 +65,7 @@ development_status:
   epic-4: in-progress
   4-1-build-the-home-overview-and-global-task-feedback-baseline: backlog
   4-2-build-minimal-product-side-login-and-administrator-initialization: done
-  4-3-build-the-basic-user-management-entry: backlog
+  4-3-build-the-basic-user-management-entry: done
   4-4-build-the-backup-list-and-restore-loop: backlog
   4-5-build-the-controlled-file-management-workspace: backlog
   4-6-build-the-controlled-terminal-bridge-and-session-audit: backlog

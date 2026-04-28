@@ -12,6 +12,7 @@ import { IntegrationWorkspacePage } from '../../features/integrations/integratio
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
 import { SettingsPage } from '../../features/settings/settings-page'
+import { UsersPage } from '../../features/users/users-page'
 
 export function createAppRouter() {
     const shellRoutes: RouteObject[] = shellNavigationItems.map((item) => {
@@ -67,6 +68,13 @@ export function createAppRouter() {
             }
         }
 
+        if (item.segment === 'users') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><UsersPage /></ProductAuthRouteGuard>,
+            }
+        }
+
         const pageElement = <ShellPlaceholderPage pageKey={item.pageKey} />
 
         return {
@@ -81,7 +89,19 @@ export function createAppRouter() {
             element: <AppRouteBoundary />,
             children: [
                 {
-                    element: <AppShell />,
+                    path: 'auth/setup',
+                    element: <ProductAuthPage mode="setup" />,
+                },
+                {
+                    path: 'auth/login',
+                    element: <ProductAuthPage mode="login" />,
+                },
+                {
+                    element: (
+                        <ProductAuthRouteGuard requireAuthentication routeSegment="__shell__">
+                            <AppShell />
+                        </ProductAuthRouteGuard>
+                    ),
                     children: [
                         {
                             index: true,
@@ -94,14 +114,6 @@ export function createAppRouter() {
                         {
                             path: 'integrations/:integrationKey',
                             element: <IntegrationWorkspacePage showCatalogLink />,
-                        },
-                        {
-                            path: 'auth/setup',
-                            element: <ProductAuthPage mode="setup" />,
-                        },
-                        {
-                            path: 'auth/login',
-                            element: <ProductAuthPage mode="login" />,
                         },
                         ...shellRoutes,
                     ],

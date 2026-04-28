@@ -116,6 +116,7 @@ export function SettingsPage() {
         }
     }
 
+
     return (
         <Box
             sx={{
@@ -137,29 +138,16 @@ export function SettingsPage() {
                     </Typography>
                 </Stack>
 
-                {feedback ? <Alert severity={feedback.severity} variant="outlined">{feedback.message}</Alert> : null}
-
                 {error ? (
-                    <Alert
-                        action={
-                            <Button color="inherit" onClick={() => void refetch()} size="small">
-                                {t('settingsPage.states.retry')}
-                            </Button>
-                        }
-                        severity="warning"
-                        variant="outlined"
-                    >
-                        {t('settingsPage.states.loadError', { statusCode: error.statusCode ?? 'unknown' })}
+                    <Alert severity="error">
+                        {error.message}
                     </Alert>
                 ) : null}
 
-                {isLoading ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CircularProgress size={18} />
-                        <Typography color="text.secondary" variant="body2">
-                            {t('settingsPage.states.loading')}
-                        </Typography>
-                    </Box>
+                {feedback ? (
+                    <Alert severity={feedback.severity}>
+                        {feedback.message}
+                    </Alert>
                 ) : null}
 
                 <Box
