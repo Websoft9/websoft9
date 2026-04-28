@@ -2,8 +2,37 @@
 
 # Define variables
 credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential}"
+internal_gateway_auth_dir="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-/etc/custom/internal-gateway-auth}"
+internal_gateway_trust_key_file="$internal_gateway_auth_dir/trust_key"
+gateway_auth_dir="/etc/websoft9/platform-gateway"
+gateway_auth_file="$gateway_auth_dir/apphub-auth.conf"
 
 DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
+
+write_apphub_gateway_auth() {
+    local trust_key=""
+
+    mkdir -p "$gateway_auth_dir"
+    mkdir -p "$internal_gateway_auth_dir"
+
+    if [ -f "$internal_gateway_trust_key_file" ]; then
+        trust_key="$(tr -d '[:space:]' < "$internal_gateway_trust_key_file")"
+    fi
+
+    if [ -z "$trust_key" ]; then
+        trust_key="$(openssl rand -hex 32)"
+        printf '%s\n' "$trust_key" > "$internal_gateway_trust_key_file"
+        chmod 600 "$internal_gateway_trust_key_file"
+    fi
+
+    cat > "$gateway_auth_file" <<EOF
+proxy_set_header x-api-key "";
+proxy_set_header x-websoft9-internal-request "1";
+proxy_set_header x-websoft9-internal-secret "$trust_key";
+EOF
+}
+
+write_apphub_gateway_auth
 
 # Migrating initproxy.conf file
 if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi

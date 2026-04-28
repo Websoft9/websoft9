@@ -26,23 +26,29 @@ set_system_config() {
 }
 
 write_apphub_gateway_auth() {
-  local api_key=""
+  local trust_key=""
+  local internal_gateway_auth_dir="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-/etc/custom/internal-gateway-auth}"
+  local internal_gateway_trust_key_file="$internal_gateway_auth_dir/trust_key"
   local gateway_dir="/etc/websoft9/platform-gateway"
   local gateway_auth_file="$gateway_dir/apphub-auth.conf"
 
   mkdir -p "$gateway_dir"
+  mkdir -p "$internal_gateway_auth_dir"
 
-  api_key="$(apphub getconfig --section api_key --key key 2>/dev/null || true)"
-
-  if [[ -n "$api_key" ]]; then
-    cat >"$gateway_auth_file" <<EOF
-proxy_set_header x-api-key "$api_key";
-EOF
-    return
+  if [[ -f "$internal_gateway_trust_key_file" ]]; then
+    trust_key="$(tr -d '[:space:]' < "$internal_gateway_trust_key_file")"
   fi
 
-  cat >"$gateway_auth_file" <<'EOF'
-# AppHub API key is not available yet.
+  if [[ -z "$trust_key" ]]; then
+    trust_key="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+    printf '%s\n' "$trust_key" > "$internal_gateway_trust_key_file"
+    chmod 600 "$internal_gateway_trust_key_file"
+  fi
+
+  cat >"$gateway_auth_file" <<EOF
+proxy_set_header x-api-key "";
+proxy_set_header x-websoft9-internal-request "1";
+proxy_set_header x-websoft9-internal-secret "$trust_key";
 EOF
 }
 

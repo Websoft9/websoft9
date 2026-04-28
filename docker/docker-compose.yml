@@ -8,6 +8,8 @@ services:
     volumes:
       - apphub_logs:/websoft9/apphub/logs
       - apphub_config:/websoft9/apphub/src/config
+      - product_auth_data:/etc/custom/product-auth
+      - internal_gateway_auth:/etc/custom/internal-gateway-auth
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - deployment
@@ -67,6 +69,7 @@ services:
       - nginx_letsencrypt:/etc/letsencrypt
       - nginx_modsec:/etc/modsec
       - nginx_var:/etc/custom
+      - internal_gateway_auth:/etc/custom/internal-gateway-auth
     labels:
       - "owner=websoft9"
       - "com.docker.compose.w9_http.port=80"
@@ -87,3 +90,5 @@ volumes:
   nginx_letsencrypt:
   nginx_modsec:
   nginx_var:
+  product_auth_data:
+  internal_gateway_auth:

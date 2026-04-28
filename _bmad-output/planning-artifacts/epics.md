@@ -560,6 +560,10 @@ so that high-risk actions no longer rely on host users or Cockpit sessions.
 **Then** the system blocks access to that module
 **And** the old Cockpit session model no longer acts as a bypass.
 
+**Scope note:** When Phase 1 enables product-side authentication, the baseline protected-module set is `users`, `files`, `terminal`, `services`, and `logs`, and the operator identity model introduced here must be reusable by Story 4.3 without replacing account storage, disabled-state semantics, or session invalidation rules.
+
+**Dependency note:** This story is the prerequisite identity baseline for Story 4.3. Basic user management should not ship before the administrator bootstrap, product-side login, and protected-route gate all exist.
+
 ### Story 4.3: Build the basic user-management entry
 
 As a system administrator,
@@ -577,6 +581,8 @@ so that future protected flows can rely on product-side user continuity without 
 **When** that user tries to continue using a protected feature
 **Then** access is denied
 **And** product-side user handling remains decoupled from host accounts.
+
+**Dependency note:** Depends on Story 4.2 to establish the product-side operator account model, login session, and protected-module gate.
 
 ### Story 4.4: Build the backup list and restore loop
 

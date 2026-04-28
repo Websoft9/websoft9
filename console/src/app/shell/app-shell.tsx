@@ -10,9 +10,10 @@ import {
     Typography,
 } from '@mui/material'
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import { useProductAuth } from '../../features/product-auth/product-auth-provider'
 import { supportedLocales } from '../../shared/i18n/i18n'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { shellNavigationItems } from './shell-navigation'
@@ -32,7 +33,9 @@ const LAST_MYAPP_DETAIL_ROUTE_KEY = 'websoft9:last-myapp-detail-route'
 
 export function AppShell() {
     const { t, i18n } = useTranslation('shell')
+    const navigate = useNavigate()
     const location = useLocation()
+    const { isSubmitting, logout, status } = useProductAuth()
     const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
 
@@ -63,6 +66,14 @@ export function AppShell() {
 
         return window.sessionStorage.getItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
     }, [location.pathname, location.search])
+
+    const userDisplayName = status?.current_user?.display_name ?? t('user.name')
+    const userRoleLabel = status?.enabled
+        ? status.authenticated
+            ? t('user.roleAuthenticated')
+            : t('user.roleAnonymous')
+        : t('user.role')
+    const userInitial = userDisplayName.slice(0, 1).toUpperCase()
 
     return (
         <Box
@@ -138,13 +149,13 @@ export function AppShell() {
                         }}
                     >
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                            <Avatar sx={{ width: 30, height: 30, bgcolor: '#d7e3f4', color: '#24446b', fontSize: 13 }}>U</Avatar>
+                            <Avatar sx={{ width: 30, height: 30, bgcolor: '#d7e3f4', color: '#24446b', fontSize: 13 }}>{userInitial}</Avatar>
                             <Stack spacing={0} sx={{ alignItems: 'flex-start' }}>
                                 <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.1 }}>
-                                    {t('user.name')}
+                                    {userDisplayName}
                                 </Typography>
                                 <Typography color="text.secondary" sx={{ fontSize: 11, lineHeight: 1.1 }}>
-                                    {t('user.role')}
+                                    {userRoleLabel}
                                 </Typography>
                             </Stack>
                         </Stack>
@@ -184,6 +195,7 @@ export function AppShell() {
                     onClick={() => {
                         setUserMenuAnchor(null)
                     }}
+                    disabled={!status?.authenticated}
                 >
                     {t('user.menu.profile')}
                 </MenuItem>
@@ -191,13 +203,22 @@ export function AppShell() {
                     onClick={() => {
                         setUserMenuAnchor(null)
                     }}
+                    disabled={!status?.authenticated}
                 >
                     {t('user.menu.preferences')}
                 </MenuItem>
                 <MenuItem
                     onClick={() => {
                         setUserMenuAnchor(null)
+                        if (!status?.enabled || !status.authenticated || isSubmitting) {
+                            return
+                        }
+
+                        void logout().then(() => {
+                            navigate('/auth/login', { replace: true })
+                        })
                     }}
+                    disabled={!status?.enabled || !status.authenticated || isSubmitting}
                 >
                     {t('user.menu.signOut')}
                 </MenuItem>

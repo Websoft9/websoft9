@@ -9,6 +9,8 @@ import { MyAppDetailPage } from '../../features/my-apps/my-app-detail-page'
 import { MyAppsPage } from '../../features/my-apps/my-apps-page'
 import { IntegrationsPage } from '../../features/integrations/integrations-page'
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
+import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
+import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
 import { SettingsPage } from '../../features/settings/settings-page'
 
 export function createAppRouter() {
@@ -65,9 +67,11 @@ export function createAppRouter() {
             }
         }
 
+        const pageElement = <ShellPlaceholderPage pageKey={item.pageKey} />
+
         return {
             path: item.segment,
-            element: <ShellPlaceholderPage pageKey={item.pageKey} />,
+            element: <ProductAuthRouteGuard routeSegment={item.segment}>{pageElement}</ProductAuthRouteGuard>,
         }
     })
 
@@ -90,6 +94,14 @@ export function createAppRouter() {
                         {
                             path: 'integrations/:integrationKey',
                             element: <IntegrationWorkspacePage showCatalogLink />,
+                        },
+                        {
+                            path: 'auth/setup',
+                            element: <ProductAuthPage mode="setup" />,
+                        },
+                        {
+                            path: 'auth/login',
+                            element: <ProductAuthPage mode="login" />,
                         },
                         ...shellRoutes,
                     ],

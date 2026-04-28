@@ -23,10 +23,39 @@ export const shellResources = {
             user: {
                 name: 'Administrator',
                 role: 'Websoft9 User',
+                roleAuthenticated: 'Product operator session',
+                roleAnonymous: 'Authentication required',
                 menu: {
                     profile: 'Profile',
                     preferences: 'Preferences',
                     signOut: 'Sign out',
+                },
+            },
+            auth: {
+                loading: 'Checking product authentication status...',
+                statusErrorTitle: 'Product authentication is temporarily unavailable',
+                genericError: 'The authentication request failed. Please retry.',
+                protectedModulesTitle: 'Protected module baseline',
+                fields: {
+                    displayName: 'Display name',
+                    username: 'Username',
+                    password: 'Password',
+                },
+                setup: {
+                    eyebrow: 'Product authentication bootstrap',
+                    title: 'Create the first Websoft9 operator',
+                    description:
+                        'This initialization path replaces host-user and Cockpit-session shortcuts for protected modules. The first operator becomes the product-owned administrator baseline.',
+                    submit: 'Initialize operator',
+                    submitting: 'Initializing...',
+                },
+                login: {
+                    eyebrow: 'Product authentication sign-in',
+                    title: 'Sign in to protected Websoft9 modules',
+                    description:
+                        'Users, files, terminal, services, and logs now require a product-owned operator session when product authentication is enabled.',
+                    submit: 'Sign in',
+                    submitting: 'Signing in...',
                 },
             },
             locales: {
@@ -871,10 +900,39 @@ export const shellResources = {
             user: {
                 name: '管理员',
                 role: 'Websoft9 用户',
+                roleAuthenticated: '产品侧操作员会话',
+                roleAnonymous: '需要认证',
                 menu: {
                     profile: '个人资料',
                     preferences: '偏好设置',
                     signOut: '退出登录',
+                },
+            },
+            auth: {
+                loading: '正在检查产品侧认证状态...',
+                statusErrorTitle: '产品侧认证暂时不可用',
+                genericError: '认证请求失败，请重试。',
+                protectedModulesTitle: '受保护模块基线',
+                fields: {
+                    displayName: '显示名称',
+                    username: '用户名',
+                    password: '密码',
+                },
+                setup: {
+                    eyebrow: '产品侧认证初始化',
+                    title: '创建首个 Websoft9 操作员',
+                    description:
+                        '这个初始化流程会替代宿主机用户和 Cockpit 会话对受保护模块的旁路访问，首个操作员会成为产品自有管理员基线。',
+                    submit: '初始化操作员',
+                    submitting: '正在初始化...',
+                },
+                login: {
+                    eyebrow: '产品侧认证登录',
+                    title: '登录受保护的 Websoft9 模块',
+                    description:
+                        '当产品侧认证启用时，用户、文件、终端、服务和日志这些模块都需要产品自有操作员会话。',
+                    submit: '登录',
+                    submitting: '正在登录...',
                 },
             },
             locales: {

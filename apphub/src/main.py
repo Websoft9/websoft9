@@ -1,9 +1,10 @@
-import logging, sys
+import logging, os, sys
 from fastapi import FastAPI, Request,Security,Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from src.api.v1.routers import app as api_app
+from src.api.v1.routers import auth as api_auth
 from src.api.v1.routers import integrations as api_integrations
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
@@ -11,6 +12,7 @@ from src.api.v1.routers import backup as api_backup
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
+from src.core.request_auth import has_valid_internal_gateway_auth
 from src.schemas.errorResponse import ErrorResponse
 from fastapi.responses import HTMLResponse
 from fastapi.security.api_key import APIKeyHeader
@@ -22,6 +24,7 @@ uvicorn_logger.addHandler(stdout_handler)
 uvicorn_logger.setLevel(logging.INFO)
 
 API_KEY_NAME = "x-api-key"
+INTERNAL_GATEWAY_TRUST_KEY_FILE = os.getenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", "/etc/custom/internal-gateway-auth/trust_key")
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 async def verify_key(request: Request, api_key_header: str = Security(api_key_header)):
@@ -36,6 +39,9 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
     if request.url.path.startswith("/api/integrations/"):
         return None
 
+    if request.url.path.startswith("/api/auth/"):
+        return None
+
     if request.url.path.startswith("/api/apps/catalog/"):
         return None
 
@@ -46,6 +52,14 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
         return None
 
     if request.url.path == "/api/settings/domain":
+        return None
+
+    internal_gateway_secret = None
+    if os.path.exists(INTERNAL_GATEWAY_TRUST_KEY_FILE):
+        with open(INTERNAL_GATEWAY_TRUST_KEY_FILE, "r", encoding="utf-8") as handle:
+            internal_gateway_secret = handle.read().strip() or None
+
+    if has_valid_internal_gateway_auth(request.headers, internal_gateway_secret):
         return None
 
     # validate api key is provided
@@ -150,6 +164,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 app.include_router(api_app.router,tags=["apps"])
+app.include_router(api_auth.router,tags=["auth"])
 app.include_router(api_integrations.router,tags=["integrations"])
 app.include_router(api_proxy.router,tags=["proxys"])
 app.include_router(api_backup.router,tags=["backup"])
