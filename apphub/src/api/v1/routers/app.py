@@ -34,7 +34,7 @@ router = APIRouter()
         }
     )
 def get_catalog_apps(
-    locale: str = Path(..., description="Language to get catalogs from", regex="^(zh|en)$"),
+    locale: str = Path(..., description="Language to get catalogs from", regex="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_catalog_apps(locale)
 
@@ -50,7 +50,7 @@ def get_catalog_apps(
         }
     )
 def get_available_apps(
-    locale: str = Path(..., description="Language to get available apps from", regex="^(zh|en)$"),
+    locale: str = Path(..., description="Language to get available apps from", regex="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_available_apps(locale)
 

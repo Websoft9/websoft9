@@ -1,6 +1,32 @@
 from typing import List
+import os
+import socket
+from urllib.parse import urlparse
+
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
+from src.core.logger import logger
+
+
+def resolve_nginx_proxy_manager_api_base_url() -> str:
+    configured = (ConfigManager().get_value("nginx_proxy_manager", "base_url") or "").rstrip("/")
+    fallback = os.getenv("WEBSOFT9_NGINX_PROXY_MANAGER_API_BASE_URL", "http://127.0.0.1:81/api").rstrip("/")
+    if not configured:
+        return fallback
+
+    parsed = urlparse(configured)
+    host = parsed.hostname
+    if not parsed.scheme or not parsed.netloc or not host:
+        return fallback
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        logger.error(f"Nginx Proxy Manager base_url host '{host}' is unreachable; falling back to {fallback}")
+        return fallback
+
+    return configured
 
 
 class NginxProxyManagerAPI:
@@ -26,7 +52,7 @@ class NginxProxyManagerAPI:
         Initialize the NginxProxyManagerAPI instance.
         """
         self.api = APIHelper(
-            ConfigManager().get_value("nginx_proxy_manager", "base_url"),
+            resolve_nginx_proxy_manager_api_base_url(),
             {
                 "Content-Type": "application/json",
             },

@@ -1,12 +1,36 @@
 from datetime import datetime
 import json
+import os
+import socket
 import threading
+from urllib.parse import urlparse
 
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
 from functools import wraps
 from src.core.logger import logger
 from src.core.exception import CustomException
+
+
+def resolve_portainer_api_base_url() -> str:
+    configured = (ConfigManager().get_value("portainer", "base_url") or "").rstrip("/")
+    fallback = os.getenv("WEBSOFT9_PORTAINER_API_BASE_URL", "https://127.0.0.1:9443/api").rstrip("/")
+    if not configured:
+        return fallback
+
+    parsed = urlparse(configured)
+    host = parsed.hostname
+    if not parsed.scheme or not parsed.netloc or not host:
+        return fallback
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        logger.error(f"Portainer base_url host '{host}' is unreachable; falling back to {fallback}")
+        return fallback
+
+    return configured
 
 
 class JWTManager:
@@ -25,7 +49,7 @@ class JWTManager:
         username = ConfigManager().get_value("portainer", "user_name")
         password = ConfigManager().get_value("portainer", "user_pwd")
         api = APIHelper(
-            ConfigManager().get_value("portainer", "base_url"),
+            resolve_portainer_api_base_url(),
             {
                 "Content-Type": "application/json",
             },
@@ -77,7 +101,7 @@ class PortainerAPI:
         Initialize the PortainerAPI instance
         """
         self.api = APIHelper(
-            ConfigManager().get_value("portainer", "base_url"),
+            resolve_portainer_api_base_url(),
             {
                 "Content-Type": "application/json",
                 # "Authorization": f"Bearer {JWTManager.get_token()}",

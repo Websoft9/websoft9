@@ -5,8 +5,11 @@ import shutil
 import random
 import ipaddress
 import re
+import tempfile
+import urllib.request
 import yaml
 import time
+import zipfile
 import docker
 import requests
 import asyncio
@@ -15,6 +18,7 @@ import asyncio
 from textwrap import dedent
 from typing import Tuple
 from datetime import datetime
+from pathlib import Path
 from src.core.config import ConfigManager
 from src.core.envHelper import EnvHelper
 from src.core.exception import CustomException
@@ -139,6 +143,78 @@ class AppManger:
         if separator and suffix and len(suffix) <= 12:
             return base_name or normalized_app_id
         return normalized_app_id
+
+    def _normalize_locale(self, locale: str | None) -> str:
+        normalized_locale = (locale or "en").strip().lower()
+        return "zh" if normalized_locale.startswith("zh") else "en"
+
+    def _ensure_media_asset(self, file_name: str) -> str:
+        base_path = ConfigManager("system.ini").get_value("app_media", "path")
+        asset_path = os.path.join(base_path, file_name)
+        if os.path.exists(asset_path):
+            return asset_path
+
+        try:
+            self._sync_media_assets_from_artifact(base_path)
+        except Exception as exc:
+            logger.error(f"Runtime media asset sync failed while restoring {file_name}: {exc}")
+
+        if not os.path.exists(asset_path):
+            logger.error(f"App media asset missing after sync attempt: {asset_path}")
+            raise CustomException(status_code=500, message="Internal Server Error", details=f"Required app media asset is missing: {file_name}")
+
+        return asset_path
+
+    def _sync_media_assets_from_artifact(self, base_path: str) -> None:
+        media_json_dir = Path(base_path)
+        target_dir = media_json_dir.parent
+        marker_path = media_json_dir / "product_en.json"
+        if marker_path.exists():
+            return
+
+        artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com").rstrip("/")
+        version_file = Path("/websoft9/version.json")
+        channel = "release"
+        if version_file.exists():
+            try:
+                version = json.loads(version_file.read_text(encoding="utf-8")).get("version", "")
+                if "rc" in version:
+                    channel = "dev"
+            except Exception:
+                channel = "release"
+
+        package_name = os.getenv("WEBSOFT9_MEDIA_PACKAGE", "media-dev.zip" if channel == "dev" else "media-latest.zip")
+        package_url = f"{artifact_base}/{channel}/websoft9/plugin/media/{package_name}"
+
+        with tempfile.TemporaryDirectory(prefix="websoft9-media-") as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            zip_path = temp_dir / package_name
+            extract_dir = temp_dir / "extract"
+            extract_dir.mkdir(parents=True, exist_ok=True)
+
+            request = urllib.request.Request(
+                package_url,
+                headers={
+                    "User-Agent": "Websoft9-AppHub/1.0",
+                    "Accept": "application/zip,application/octet-stream;q=0.9,*/*;q=0.8",
+                },
+            )
+            with urllib.request.urlopen(request) as response, zip_path.open("wb") as output:
+                shutil.copyfileobj(response, output)
+
+            with zipfile.ZipFile(zip_path) as archive:
+                archive.extractall(extract_dir)
+
+            source_root = extract_dir / "media"
+            if not source_root.exists():
+                children = [child for child in extract_dir.iterdir() if child.is_dir()]
+                source_root = children[0] if len(children) == 1 else extract_dir
+
+            target_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source_root, target_dir, dirs_exist_ok=True)
+
+        if not marker_path.exists():
+            raise RuntimeError(f"Media assets are still missing after artifact sync: {marker_path}")
 
     def get_php_info(self, app_id: str, endpointId: int = None):
         try:
@@ -291,16 +367,11 @@ class AppManger:
             locale (str): The language to get catalog apps from.
         """
         try:
-            # Get the app media path
-            base_path = ConfigManager("system.ini").get_value("app_media", "path")
-            app_media_path = os.path.join(base_path, f"catalog_{locale}.json")
-            # check the app media path is exists
-            if not os.path.exists(app_media_path):
-                logger.error(f"Get app'catalog error: {app_media_path} is not exists")
-                raise CustomException()
+            normalized_locale = self._normalize_locale(locale)
+            app_media_path = self._ensure_media_asset(f"catalog_{normalized_locale}.json")
             
             # Get the app catalog list
-            with open(app_media_path, "r") as f:
+            with open(app_media_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data
         except (CustomException,Exception) as e:
@@ -315,10 +386,11 @@ class AppManger:
             locale (str): The language to get available apps from.
         """
         # 预先获取初始应用过滤条件，用于缓存key
+        normalized_locale = self._normalize_locale(locale)
         initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
         
         # 缓存检查 - 包含配置信息在key中
-        cache_key = f"available_apps_{locale}_{initial_apps or 'all'}"
+        cache_key = f"available_apps_{normalized_locale}_{initial_apps or 'all'}"
         current_time = time.time()
         
         # 检查缓存是否存在且未过期
@@ -330,15 +402,8 @@ class AppManger:
         try:
             # 预先读取所有配置，避免重复读取
             config_manager = ConfigManager("system.ini")
-            base_path = config_manager.get_value("app_media", "path")
             app_lib_path = config_manager.get_value("docker_library", "path")
-            
-            app_media_path = os.path.join(base_path, f"product_{locale}.json")
-            
-            # check the app media path is exists
-            if not os.path.exists(app_media_path):
-                logger.error(f"Get available apps error: {app_media_path} is not exists")
-                raise CustomException()
+            app_media_path = self._ensure_media_asset(f"product_{normalized_locale}.json")
             
             # Get the app available list
             with open(app_media_path, "r", encoding='utf-8') as f:
@@ -603,10 +668,30 @@ class AppManger:
             # Get stack_info by app_id from portainer
             stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
             if stack_info is None:
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"{app_id} Not Found"
+                fallback_app = next((app for app in self.get_apps(endpointId) if app.app_id == app_id), None)
+                if fallback_app is not None:
+                    return fallback_app
+                domain_names = ProxyManager().get_proxy_host_by_app(app_id)
+                proxy_enabled = len(domain_names) > 0
+                app_name = self._guess_app_name_from_app_id(app_id)
+                is_php_app, is_monitor_app = self._get_capability_flags(app_name)
+                return AppResponse(
+                    app_id=app_id,
+                    endpointId=endpointId,
+                    app_name=app_name,
+                    app_dist=None,
+                    app_version=None,
+                    app_official=False,
+                    is_php_app=is_php_app,
+                    is_monitor_app=is_monitor_app,
+                    proxy_enabled=proxy_enabled,
+                    domain_names=self._enrich_proxy_hosts(domain_names),
+                    status=2,
+                    creationDate=None,
+                    gitConfig={},
+                    containers=[],
+                    volumes=[],
+                    env={},
                 )
             # Get the stack_id
             stack_id = stack_info.get("Id",None)
@@ -1459,15 +1544,10 @@ class AppManger:
               check_endpointId(endpointId, portainerManager)
         else:
             endpointId = portainerManager.get_local_endpoint_id()
-        
-        # Check the app_id is exists
-        stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
-        if stack_info is None:
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{app_id} Not Found"
-            )
+
+        # Reading proxy access configuration should remain tolerant even when
+        # Portainer can no longer resolve the stack by name. The My Apps shell
+        # may still surface historical app records or existing proxy bindings.
         # Get the proxys
         return proxyManager.get_proxy_host_by_app(app_id)
 
