@@ -12,6 +12,7 @@ import { IntegrationWorkspacePage } from '../../features/integrations/integratio
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
 import { SettingsPage } from '../../features/settings/settings-page'
+import { FilesPage } from '../../features/files/files-page'
 import { UsersPage } from '../../features/users/users-page'
 
 export function createAppRouter() {
@@ -72,6 +73,13 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <ProductAuthRouteGuard routeSegment={item.segment}><UsersPage /></ProductAuthRouteGuard>,
+            }
+        }
+
+        if (item.segment === 'files') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><FilesPage /></ProductAuthRouteGuard>,
             }
         }
 

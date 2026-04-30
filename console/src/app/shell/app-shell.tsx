@@ -230,15 +230,15 @@ export function AppShell() {
                     display: 'grid',
                     height: 'calc(100vh - 76px)',
                     overflow: 'hidden',
-                    gridTemplateColumns: { xs: '1fr', lg: '238px minmax(0, 1fr)' },
+                    gridTemplateColumns: { xs: '1fr', md: '238px minmax(0, 1fr)' },
                 }}
             >
                 <Box
                     component="aside"
                     sx={{
                         backgroundColor: '#f6f8fb',
-                        borderRight: { lg: '1px solid rgba(15, 23, 42, 0.04)' },
-                        borderBottom: { xs: '1px solid rgba(15, 23, 42, 0.04)', lg: 'none' },
+                        borderRight: { md: '1px solid rgba(15, 23, 42, 0.04)' },
+                        borderBottom: { xs: '1px solid rgba(15, 23, 42, 0.04)', md: 'none' },
                         px: 1.5,
                         py: 1.75,
                         overflowY: 'auto',

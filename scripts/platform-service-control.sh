@@ -5,7 +5,7 @@ set -euo pipefail
 supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
 
 usage() {
-  echo "usage: $0 <start|stop|restart|status> <all|apphub-api|apphub-media|gitea|portainer|nginx-proxy-manager>" >&2
+  echo "usage: $0 <start|stop|restart|status> <all|apphub-api|apphub-media|files-agent|gitea|portainer|nginx-proxy-manager>" >&2
 }
 
 npm_start() {
@@ -88,7 +88,7 @@ case "$service" in
         ;;
     esac
     ;;
-  apphub-api|apphub-media|gitea|portainer)
+  apphub-api|apphub-media|files-agent|gitea|portainer)
     supervisor_action "$action" "$service"
     ;;
   *)

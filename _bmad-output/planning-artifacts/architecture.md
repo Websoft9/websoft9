@@ -139,7 +139,7 @@ This track does not force a persistence redesign. AppHub's current configuration
 
 **Persistence & Modeling Approach:**
 
-Existing AppHub configuration, service contracts, and integration metadata should be reused wherever practical. When new durable state is needed, add it in the least disruptive way that preserves compatibility with current AppHub service logic. New capability should default to AppHub extension, not a sidecar backend or a flag-day rewrite of settings and runtime state.
+Existing AppHub configuration, service contracts, and integration metadata should be reused wherever practical. When new durable state is needed, add it in the least disruptive way that preserves compatibility with current AppHub service logic. New capability should default to AppHub extension and AppHub-owned APIs rather than a parallel public backend or a flag-day rewrite of settings and runtime state. A narrow exception is approved for privileged bridge execution that materially benefits from warm reuse and isolation inside the current product runtime, such as a long-lived internal file-operations sidecar. In that exception, AppHub still owns authentication, authorization, request validation, and the public API contract, while the sidecar remains an internal execution dependency only.
 
 **Validation Strategy:**
 
@@ -227,6 +227,8 @@ Product entry and internal-service routing are owned by the Websoft9 platform ga
 
 MVP will avoid premature service decomposition. Internal communication stays in-process between domain modules, while external calls to Docker, Portainer, Gitea, and Nginx Proxy Manager pass through explicit gateway/adaptor layers with typed request and error translation boundaries.
 
+The approved exception is the privileged file bridge. File browsing and mutation continue to enter through AppHub-owned REST endpoints, but AppHub may delegate low-level file execution to a long-lived internal sidecar running in the current container topology rather than launching an ephemeral helper container per request. That sidecar must not become a second product API. It is reachable only from AppHub over an internal channel such as localhost or a Unix socket, and it receives already-authorized, already-canonicalized operations scoped to approved Docker-volume roots.
+
 **Decision Record:**
 
 - Category: API & Communication
@@ -273,6 +275,8 @@ Vite build output should be manually chunked along stable feature boundaries whe
 
 MVP deployment remains self-hosted and single-node. The runtime topology converges AppHub + Portainer + Gitea + Nginx Proxy Manager into a single product container with Cockpit removed from the product path. This is a topology convergence rather than a service-responsibility rewrite, so the services continue to run with their native runtimes under one product-managed process supervision layer.
 
+For the file-management bridge, the target runtime should prefer a long-lived internal `files-agent` style sidecar or co-scheduled helper process over per-request helper-container startup. This keeps privileged file access inside the current container estate without requiring a host-resident daemon, while materially reducing cold-start cost, request fan-out, and script-fragment drift in the file-management path.
+
 **Environment Configuration:**
 
 Runtime configuration should split cleanly. Deployment-time immutable settings and sensitive secrets move toward typed environment variables plus secret mounts, while product-editable operational settings remain AppHub-managed configuration with validation, auditability, and migration support. Repository-tracked ini files may still appear in migration tooling, but they are not the long-term source of truth for mutable product settings.
@@ -308,7 +312,7 @@ The architecture is intentionally optimized for vertical scaling first. Stateles
 4. Make the product-entry routing boundary and app-access routing boundary explicit before proxy-sensitive feature migration, initially reusing the retained gateway and Nginx Proxy Manager topology where practical.
 5. Introduce the task orchestration model plus SSE status streaming through AppHub as the unified API layer.
 6. Migrate App Store and My Apps onto the new product shell and AppHub-backed typed API contracts.
-7. Rebuild terminal, files, backup, restore, and upgrade bridges behind explicit safety boundaries, adding only the minimum guards required for each migrated flow.
+7. Rebuild terminal, files, backup, restore, and upgrade bridges behind explicit safety boundaries, adding only the minimum guards required for each migrated flow. For file management specifically, replace per-request helper-container execution with a long-lived internal file-execution sidecar or equivalent warm bridge inside the product runtime.
 8. Complete integration adapters, auto-login workspaces, direct-upgrade tooling, and other migration-critical compatibility work.
 9. After core migration stabilizes, address deferred legacy optimization topics such as API key governance, user/account redesign, credential hardening, and richer authorization models.
 

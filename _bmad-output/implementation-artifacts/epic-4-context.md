@@ -25,7 +25,7 @@ New durable state should only be added where Cockpit removal or native capabilit
 
 ## Technical Decisions
 
-FastAPI AppHub remains the single backend API layer. New epic capabilities should extend AppHub routes and services instead of growing a parallel backend. Existing AppHub response and config patterns remain the practical baseline unless a story needs a narrowly scoped additive contract.
+FastAPI AppHub remains the single backend API layer. New epic capabilities should extend AppHub routes and services instead of growing a parallel backend. Existing AppHub response and config patterns remain the practical baseline unless a story needs a narrowly scoped additive contract. The approved narrow exception is the privileged file bridge: AppHub still owns the public API, auth, validation, and audit boundary, but low-level file execution may be delegated to a long-lived internal `files-agent` sidecar or equivalent warm bridge inside the product runtime.
 
 Authentication and credential changes stay minimal and capability-driven. Story 4.2 already established the reusable operator record shape, password hashing, session-backed login model, protected-module status contract, forced session invalidation semantics, audit events, and product-owned JSON persistence. Downstream stories in this epic must reuse that identity boundary instead of replacing its storage model or re-coupling to host identities.
 
@@ -37,4 +37,4 @@ Epic 4 surfaces must live inside the shared console shell and follow the route-a
 
 ## Cross-Story Dependencies
 
-Epic 4 depends on the stabilized shell, runtime, integrations, My Apps continuity, and settings baseline delivered by Epics 1 through 3. Story 4.2 is the direct prerequisite for Story 4.3 because user-management actions must reuse the operator account model, session invalidation rules, disabled-state semantics, and protected-route gate introduced there. Later file, terminal, services, and logs stories should in turn consume the same product-auth boundary rather than inventing their own identity model.
+Epic 4 depends on the stabilized shell, runtime, integrations, My Apps continuity, and settings baseline delivered by Epics 1 through 3. Story 4.2 is the direct prerequisite for Story 4.3 because user-management actions must reuse the operator account model, session invalidation rules, disabled-state semantics, and protected-route gate introduced there. Later file, terminal, services, and logs stories should in turn consume the same product-auth boundary rather than inventing their own identity model. For the file module specifically, downstream implementation should follow the corrected sidecar-based execution model rather than continuing the initial per-request helper-container pattern.
