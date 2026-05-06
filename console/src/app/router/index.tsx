@@ -14,6 +14,7 @@ import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-
 import { SettingsPage } from '../../features/settings/settings-page'
 import { FilesPage } from '../../features/files/files-page'
 import { LogsPage } from '../../features/logs/logs-page'
+import { ServicesPage } from '../../features/services/services-page'
 import { UsersPage } from '../../features/users/users-page'
 
 export function createAppRouter() {
@@ -88,6 +89,13 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <ProductAuthRouteGuard routeSegment={item.segment}><LogsPage /></ProductAuthRouteGuard>,
+            }
+        }
+
+        if (item.segment === 'services') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><ServicesPage /></ProductAuthRouteGuard>,
             }
         }
 

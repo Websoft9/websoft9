@@ -11,6 +11,7 @@ platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/var/log/websof
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
 product_auth_bootstrap_username="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_USERNAME:-websoft9}"
 product_auth_bootstrap_display_name="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_DISPLAY_NAME:-Websoft9 User}"
+service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/var/log/websoft9}"
 
 write_runtime_event() {
   local level="$1"
@@ -159,6 +160,14 @@ update_runtime_status() {
   return 1
 }
 
+ensure_service_log_roots() {
+  mkdir -p "$service_log_root/gitea" "$service_log_root/portainer"
+
+  if [[ -d /data/logs && ! -e "$service_log_root/nginx-proxy-manager" ]]; then
+    ln -s /data/logs "$service_log_root/nginx-proxy-manager"
+  fi
+}
+
 shutdown_supervisor() {
   if [[ -S "$supervisor_socket" ]]; then
     supervisorctl -c "$supervisor_config" shutdown >/dev/null 2>&1 || true
@@ -169,6 +178,7 @@ start_supervisor() {
   log_event "info" "core-bootstrap.start-supervisor" "phase=core-bootstrap action=start-supervisor"
 
   mkdir -p "$runtime_state_dir"
+  ensure_service_log_roots
   supervisord -c "$supervisor_config"
   wait_for_file "supervisor-socket" "$supervisor_socket" 30
 }

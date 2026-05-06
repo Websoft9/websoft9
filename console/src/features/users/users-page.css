@@ -21,7 +21,7 @@
 .users-toolbar {
     align-items: center;
     display: flex;
-    gap: 16px;
+    gap: 8px;
     justify-content: flex-end;
     min-width: min(100%, 520px);
 }
@@ -29,6 +29,52 @@
 .users-toolbar-search {
     flex: 1 1 320px;
     min-width: 240px;
+}
+
+.users-toolbar-field .MuiOutlinedInput-root {
+    background: #fff;
+    border-radius: 4px;
+    min-height: 38px;
+}
+
+.users-toolbar-field .MuiInputBase-input {
+    color: #495057;
+    font-size: 14px;
+    font-weight: 400;
+    min-height: auto;
+    padding-bottom: 8.5px;
+    padding-top: 8.5px;
+}
+
+.users-toolbar-field .MuiInputBase-input::placeholder {
+    color: #b6bcc6;
+    opacity: 1;
+}
+
+.users-toolbar-field .MuiOutlinedInput-notchedOutline {
+    border-color: #ced4da;
+}
+
+.users-toolbar-field:hover .MuiOutlinedInput-notchedOutline {
+    border-color: #86b7fe;
+}
+
+.users-toolbar-field .MuiInputLabel-root {
+    display: none;
+}
+
+.users-toolbar-button {
+    background-color: #727cf5;
+    border-radius: 4px;
+    box-shadow: none;
+    color: #fff;
+    min-height: 38px;
+    padding: 0.375rem 0.75rem;
+    text-transform: none;
+}
+
+.users-toolbar-button:hover {
+    background-color: #5f69e8;
 }
 
 .users-panel {

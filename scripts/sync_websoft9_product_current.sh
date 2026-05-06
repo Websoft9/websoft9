@@ -10,6 +10,7 @@ logging_config_src="$repo_root/docker/product/apphub/logging_config.yaml"
 platform_entrypoint_src="$repo_root/docker/product/scripts/platform-entrypoint.sh"
 platform_runtime_assets_src="$repo_root/docker/product/scripts/platform-sync-runtime-assets.py"
 service_control_src="$repo_root/docker/product/scripts/platform-service-control.sh"
+portainer_start_src="$repo_root/docker/product/scripts/platform-start-portainer.sh"
 legacy_files_agent_sidecar="${WEBSOFT9_FILES_AGENT_SIDECAR_NAME:-websoft9-files-agent-current}"
 
 detect_docker_volumes_root() {
@@ -126,9 +127,20 @@ sync_runtime_support_files() {
     docker cp "$platform_entrypoint_src" "$container_name:/websoft9/script/platform-entrypoint.sh"
     docker cp "$platform_runtime_assets_src" "$container_name:/websoft9/script/platform-sync-runtime-assets.py"
     docker cp "$service_control_src" "$container_name:/websoft9/script/platform-service-control.sh"
+    docker cp "$portainer_start_src" "$container_name:/websoft9/script/platform-start-portainer.sh"
     docker exec "$container_name" chmod +x /websoft9/script/platform-entrypoint.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-runtime-assets.py
     docker exec "$container_name" chmod +x /websoft9/script/platform-service-control.sh
+    docker exec "$container_name" chmod +x /websoft9/script/platform-start-portainer.sh
+}
+
+ensure_service_log_runtime_paths() {
+    docker exec "$container_name" sh -lc '
+        mkdir -p /var/log/websoft9/gitea /var/log/websoft9/portainer
+        if [ -d /data/logs ] && [ ! -e /var/log/websoft9/nginx-proxy-manager ]; then
+            ln -s /data/logs /var/log/websoft9/nginx-proxy-manager
+        fi
+    '
 }
 
 ensure_single_container_files_runtime
@@ -148,6 +160,7 @@ docker rm -f "$legacy_files_agent_sidecar" >/dev/null 2>&1 || true
 sync_runtime_support_files
 
 echo "[5/6] Reloading supervisor and restarting files services"
+ensure_service_log_runtime_paths
 docker exec "$container_name" sh -lc 'supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf reread && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf update && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf restart files-agent apphub-api'
 
 for attempt in 1 2 3 4 5 6 7 8 9 10; do

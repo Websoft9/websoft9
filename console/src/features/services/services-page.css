@@ -1,0 +1,368 @@
+.services-page-shell {
+    height: calc(100vh - 120px);
+    margin: -20px -24px;
+    padding: 18px 24px 22px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.services-page-panel,
+.services-page-log-panel {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: #ffffff;
+}
+
+.services-page-panel {
+    padding: 16px;
+}
+
+.services-page-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.services-page-list {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.services-page-log-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+}
+
+.services-page-table-container {
+    min-height: 0;
+}
+
+.services-page-toolbar {
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+    min-width: min(100%, 640px);
+}
+
+.services-page-title {
+    color: #111827;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+    padding-top: 4px;
+}
+
+.services-page-dialog-titlebar {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.services-page-dialog-close-glyph {
+    color: #475569;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.services-page-toolbar-search {
+    flex: 1 1 300px;
+    min-width: 220px;
+}
+
+.services-page-toolbar-select {
+    flex: 0 0 auto;
+    width: 220px;
+}
+
+.services-page-toolbar-field .MuiOutlinedInput-root {
+    background: #fff;
+    border-radius: 4px;
+    min-height: 38px;
+}
+
+.services-page-toolbar-field .MuiInputBase-input,
+.services-page-toolbar-field .MuiSelect-select {
+    color: #495057;
+    font-size: 14px;
+    font-weight: 400;
+    min-height: auto;
+    padding-bottom: 8.5px;
+    padding-top: 8.5px;
+}
+
+.services-page-toolbar-field .MuiInputBase-input::placeholder {
+    color: #b6bcc6;
+    opacity: 1;
+}
+
+.services-page-toolbar-field .MuiOutlinedInput-notchedOutline {
+    border-color: #ced4da;
+}
+
+.services-page-toolbar-field:hover .MuiOutlinedInput-notchedOutline {
+    border-color: #86b7fe;
+}
+
+.services-page-toolbar-field.Mui-focused .MuiOutlinedInput-notchedOutline,
+.services-page-toolbar-field .Mui-focused .MuiOutlinedInput-notchedOutline {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+.services-page-toolbar-field .MuiInputLabel-root {
+    display: none;
+}
+
+.services-page-toolbar-button {
+    background-color: #727cf5;
+    border-radius: 4px;
+    box-shadow: none;
+    color: #fff;
+    min-height: 38px;
+    min-width: 92px;
+    padding: 0.375rem 0.75rem;
+    text-transform: none;
+}
+
+.services-page-toolbar-button:hover {
+    background-color: #5f69e8;
+}
+
+.services-page-toolbar-button-secondary {
+    background: #fff;
+    border-color: #ced4da;
+    color: #334155;
+}
+
+.services-page-toolbar-button-secondary:hover {
+    background: #f8fafc;
+    border-color: #86b7fe;
+}
+
+.services-page-autorefresh-toggle {
+    margin-left: 4px;
+    margin-right: 0;
+    white-space: nowrap;
+}
+
+.services-page-autorefresh-toggle .MuiFormControlLabel-label {
+    color: #334155;
+    font-size: 13px;
+}
+
+.services-page-empty-state {
+    display: grid;
+    gap: 6px;
+    min-height: 100%;
+    place-content: center;
+    text-align: center;
+}
+
+.services-page-table .MuiTableCell-head {
+    background: #f8fafc;
+    border-bottom: 1px solid #d1d5db;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.services-page-table .MuiTableCell-body {
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+}
+
+.services-page-service-cell {
+    min-width: 140px;
+}
+
+.services-page-service-title {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.services-page-service-description,
+.services-page-service-updated {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.services-page-row-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.services-page-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #0f172a;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.services-page-indicator-ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.services-page-indicator-degraded,
+.services-page-indicator-missing {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.services-page-indicator-error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.services-page-log-panel {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: hidden;
+    width: 100%;
+}
+
+.services-page-dialog-paper {
+    width: min(1100px, calc(100% - 32px));
+    max-width: 1100px;
+    max-height: calc(100% - 32px);
+    margin: 0;
+    border-radius: 2px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.services-page-log-toolbar {
+    gap: 8px;
+}
+
+.services-page-log-search {
+    flex: 1 1 240px;
+    min-width: 220px;
+}
+
+.services-page-log-select {
+    width: 160px;
+}
+
+.services-page-log-refresh-button {
+    min-width: 80px;
+}
+
+.services-page-log-body-dialog {
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.92);
+    border-radius: 8px;
+    min-height: 0;
+    padding: 2px 0;
+    max-height: none;
+    height: 100%;
+}
+
+.services-page-log-entry {
+    display: block;
+    padding: 6px 12px;
+    border-bottom: 1px solid #eef2f7;
+    background: transparent;
+}
+
+.services-page-log-entry:last-child {
+    border-bottom: none;
+}
+
+.services-page-log-time,
+.services-page-log-message {
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    font-size: 11px;
+}
+
+.services-page-log-time {
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.services-page-log-content {
+    min-width: 0;
+}
+
+.services-page-log-inline {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+}
+
+.services-page-log-level {
+    margin-bottom: 0;
+}
+
+.services-page-log-message {
+    flex: 1 1 420px;
+    min-width: 0;
+    color: #0f172a;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.services-page-log-more-row {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 12px;
+}
+
+.services-page-loading,
+.services-page-dialog-empty {
+    padding: 8px 0;
+}
+
+@media (max-width: 1100px) {
+    .services-page-row-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 720px) {
+    .services-page-shell {
+        margin: -12px -8px;
+        padding: 14px 16px 18px;
+    }
+
+    .services-page-dialog-paper {
+        width: min(100%, calc(100% - 12px));
+        max-height: calc(100% - 12px);
+    }
+
+    .services-page-log-select,
+    .services-page-log-search {
+        width: 100%;
+    }
+
+    .services-page-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+        min-width: 100%;
+    }
+
+    .services-page-toolbar-search,
+    .services-page-toolbar-select {
+        width: 100%;
+    }
+
+}

@@ -8,6 +8,7 @@ from src.api.v1.routers import auth as api_auth
 from src.api.v1.routers import files as api_files
 from src.api.v1.routers import integrations as api_integrations
 from src.api.v1.routers import logs as api_logs
+from src.api.v1.routers import services as api_services
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
 from src.api.v1.routers import backup as api_backup
@@ -48,6 +49,9 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
         return None
 
     if request.url.path.startswith("/api/logs/"):
+        return None
+
+    if request.url.path == "/api/services" or request.url.path.startswith("/api/services/"):
         return None
 
     if request.url.path == "/api/proxys" or request.url.path.startswith("/api/proxys/"):
@@ -185,6 +189,7 @@ app.include_router(api_auth.router,tags=["auth"])
 app.include_router(api_files.router,tags=["files"])
 app.include_router(api_integrations.router,tags=["integrations"])
 app.include_router(api_logs.router,tags=["logs"])
+app.include_router(api_services.router,tags=["services"])
 app.include_router(api_proxy.router,tags=["proxys"])
 app.include_router(api_backup.router,tags=["backup"])
 app.include_router(api_settings.router,tags=["settings"])

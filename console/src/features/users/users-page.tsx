@@ -269,15 +269,14 @@ export function UsersPage() {
 
                     <Box className="users-toolbar">
                         <TextField
-                            className="users-toolbar-search"
-                            label={t('usersPage.filters.searchLabel')}
+                            className="users-toolbar-field users-toolbar-search"
                             onChange={(event) => setSearchValue(event.target.value)}
                             placeholder={t('usersPage.filters.searchPlaceholder')}
                             size="small"
                             value={searchValue}
                         />
                         {currentUserIsSystem ? (
-                            <Button onClick={openCreateDialog} variant="contained">
+                            <Button className="users-toolbar-button" onClick={openCreateDialog} variant="contained">
                                 {t('usersPage.create.submit')}
                             </Button>
                         ) : null}
