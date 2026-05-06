@@ -4,6 +4,8 @@ formatters:
   default:
     format: "%(asctime)s - %(levelname)s - %(message)s"
     datefmt: "%Y-%m-%d %H:%M:%S"
+  platform_runtime_json:
+    (): utils.runtime_logging.PlatformRuntimeJsonFormatter
 filters:
   ignore_specific_requests:
     (): utils.log_filters.IgnoreSpecificRequestsFilter
@@ -13,14 +15,19 @@ handlers:
     formatter: default
     stream: ext://sys.stdout
     filters: [ignore_specific_requests]
+  platform_runtime:
+    class: utils.runtime_logging.PlatformRuntimeFileHandler
+    formatter: platform_runtime_json
+    filename: /var/log/websoft9/platform-runtime.log
+    filters: [ignore_specific_requests]
 loggers:
   uvicorn:
     level: INFO
-    handlers: [console]
+    handlers: [console, platform_runtime]
     propagate: False
   uvicorn.error:
     level: INFO
-    handlers: [console]
+    handlers: [console, platform_runtime]
     propagate: False
   uvicorn.access:
     level: INFO
@@ -28,4 +35,4 @@ loggers:
     propagate: False
 root:
   level: INFO
-  handlers: [console]
+  handlers: [console, platform_runtime]

@@ -70,7 +70,7 @@ development_status:
   4-5-build-the-controlled-file-management-workspace: review
   4-6-build-the-controlled-terminal-bridge-and-session-audit: backlog
   4-7-build-the-core-services-view-and-log-drilldown: backlog
-  4-8-build-the-websoft9-runtime-logs-page: backlog
+  4-8-build-the-websoft9-runtime-logs-page: review
   epic-4-retrospective: optional
 
   epic-5: backlog

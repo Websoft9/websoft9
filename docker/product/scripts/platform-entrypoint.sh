@@ -7,12 +7,43 @@ runtime_status_file="${WEBSOFT9_RUNTIME_STATUS_FILE:-$runtime_state_dir/runtime-
 supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
 supervisor_socket="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
 status_interval="${WEBSOFT9_STATUS_INTERVAL:-15}"
+platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/var/log/websoft9/platform-runtime.log}"
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
 product_auth_bootstrap_username="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_USERNAME:-websoft9}"
 product_auth_bootstrap_display_name="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_DISPLAY_NAME:-Websoft9 User}"
 
-log() {
-  echo "$(date '+%Y-%m-%d %H:%M:%S') [platform-entrypoint] $*"
+write_runtime_event() {
+  local level="$1"
+  local event="$2"
+  local message="$3"
+
+  mkdir -p "$(dirname "$platform_runtime_log_path")"
+  python3 - "$platform_runtime_log_path" "$level" "$event" "$message" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+path, level, event, message = sys.argv[1:5]
+payload = {
+    "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "level": level,
+    "component": "platform-entrypoint",
+    "domain": "runtime",
+    "event": event,
+    "message": message,
+}
+with open(path, "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n")
+PY
+}
+
+log_event() {
+  local level="$1"
+  local event="$2"
+  local message="$3"
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S') [platform-entrypoint] $message"
+  write_runtime_event "$level" "$event" "$message"
 }
 
 write_status() {
@@ -45,12 +76,12 @@ wait_for_url() {
   while true; do
     status_code="$(curl "${curl_args[@]}" "$url" || true)"
     if [[ "$status_code" != "000" && "$status_code" -lt 500 ]]; then
-      log "phase=wait name=$name result=ready url=$url status=$status_code"
+      log_event "info" "wait.ready" "phase=wait name=$name result=ready url=$url status=$status_code"
       return 0
     fi
 
     if (( $(date +%s) - started_at >= timeout_seconds )); then
-      log "phase=wait name=$name result=timeout url=$url status=$status_code"
+      log_event "warning" "wait.timeout" "phase=wait name=$name result=timeout url=$url status=$status_code"
       return 1
     fi
 
@@ -68,12 +99,12 @@ wait_for_file() {
 
   while true; do
     if [[ -e "$path" ]]; then
-      log "phase=wait name=$name result=ready path=$path"
+      log_event "info" "wait.ready" "phase=wait name=$name result=ready path=$path"
       return 0
     fi
 
     if (( $(date +%s) - started_at >= timeout_seconds )); then
-      log "phase=wait name=$name result=timeout path=$path"
+      log_event "warning" "wait.timeout" "phase=wait name=$name result=timeout path=$path"
       return 1
     fi
 
@@ -135,7 +166,7 @@ shutdown_supervisor() {
 }
 
 start_supervisor() {
-  log "phase=core-bootstrap action=start-supervisor"
+  log_event "info" "core-bootstrap.start-supervisor" "phase=core-bootstrap action=start-supervisor"
 
   mkdir -p "$runtime_state_dir"
   supervisord -c "$supervisor_config"
@@ -143,17 +174,18 @@ start_supervisor() {
 }
 
 start_apphub_core() {
-  log "phase=core-bootstrap action=start-apphub-core"
+  log_event "info" "core-bootstrap.start-apphub-core" "phase=core-bootstrap action=start-apphub-core"
 
   wait_for_url "apphub-api" "${WEBSOFT9_APPHUB_HEALTH_URL:-http://127.0.0.1:8080/api/healthz}" 60
   wait_for_url "apphub-media" "${WEBSOFT9_MEDIA_HEALTH_URL:-http://127.0.0.1:8081/healthz}" 60
 }
 
 bootstrap_product_auth() {
-  log "phase=workspace-bootstrap action=bootstrap-product-auth"
+  log_event "info" "workspace-bootstrap.bootstrap-product-auth" "phase=workspace-bootstrap action=bootstrap-product-auth"
 
   load_or_create_product_auth_credentials
-  python3 - <<'PY'
+  local output
+  output="$(python3 - <<'PY'
 import json
 import os
 import sys
@@ -177,10 +209,12 @@ operator, created = ProductAuthService().bootstrap_operator_if_missing(
 state = "created" if created else "reused"
 print(f"product_auth_bootstrap={state} username={operator['username']}")
 PY
+  )"
+  log_event "info" "workspace-bootstrap.bootstrap-product-auth.result" "$output"
 }
 
 bootstrap_platform_gateway() {
-  log "phase=workspace-bootstrap action=bootstrap-platform-gateway"
+  log_event "info" "workspace-bootstrap.bootstrap-platform-gateway" "phase=workspace-bootstrap action=bootstrap-platform-gateway"
 
   if ! wait_for_url "platform-gateway" "${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-http://127.0.0.1:8889/w9gateway/healthz}" 30; then
     write_status "degraded" "platform gateway failed to become healthy during bootstrap"
@@ -189,7 +223,7 @@ bootstrap_platform_gateway() {
 }
 
 bootstrap_gitea() {
-  log "phase=workspace-bootstrap action=bootstrap-gitea"
+  log_event "info" "workspace-bootstrap.bootstrap-gitea" "phase=workspace-bootstrap action=bootstrap-gitea"
 
   if ! wait_for_url "gitea" "${WEBSOFT9_GITEA_HEALTH_URL:-http://127.0.0.1:3001/}" 45; then
     write_status "degraded" "gitea failed to become healthy during bootstrap"
@@ -200,7 +234,7 @@ bootstrap_gitea() {
 }
 
 bootstrap_portainer() {
-  log "phase=workspace-bootstrap action=bootstrap-portainer"
+  log_event "info" "workspace-bootstrap.bootstrap-portainer" "phase=workspace-bootstrap action=bootstrap-portainer"
 
   if ! wait_for_url "portainer" "${WEBSOFT9_PORTAINER_HEALTH_URL:-https://127.0.0.1:9443/api/system/status}" 45; then
     write_status "degraded" "portainer failed to become healthy during bootstrap"
@@ -211,7 +245,7 @@ bootstrap_portainer() {
 }
 
 bootstrap_nginx_proxy_manager() {
-  log "phase=workspace-bootstrap action=bootstrap-nginx-proxy-manager"
+  log_event "info" "workspace-bootstrap.bootstrap-nginx-proxy-manager" "phase=workspace-bootstrap action=bootstrap-nginx-proxy-manager"
 
   if ! wait_for_url "nginx-proxy-manager" "${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/}" 45; then
     write_status "degraded" "nginx-proxy-manager failed to become healthy during bootstrap"
@@ -233,7 +267,7 @@ monitor_runtime() {
 main() {
   trap shutdown_supervisor EXIT INT TERM
 
-  log "Starting Websoft9 converged product runtime"
+  log_event "info" "runtime.start" "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   ensure_runtime_assets
@@ -248,7 +282,7 @@ main() {
   sync_runtime_config credentials || true
 
   if ! update_runtime_status; then
-    log "bootstrap failed and runtime is not ready"
+    log_event "error" "runtime.bootstrap-failed" "bootstrap failed and runtime is not ready"
     exit 1
   fi
 

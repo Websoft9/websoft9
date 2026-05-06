@@ -120,6 +120,9 @@ services:
         persistence: image-managed
         recovery: restored by image redeploy
     logs:
+      - path: /var/log/websoft9/platform-runtime.log
+        persistence: optional-mounted
+        recovery: retain as the standardized Websoft9 platform runtime log source for the product logs module
       - path: /var/log/websoft9/supervisord.log
         persistence: optional-mounted
         recovery: retain when restart and bootstrap diagnostics are required

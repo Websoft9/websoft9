@@ -13,6 +13,7 @@ import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
 import { SettingsPage } from '../../features/settings/settings-page'
 import { FilesPage } from '../../features/files/files-page'
+import { LogsPage } from '../../features/logs/logs-page'
 import { UsersPage } from '../../features/users/users-page'
 
 export function createAppRouter() {
@@ -80,6 +81,13 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <ProductAuthRouteGuard routeSegment={item.segment}><FilesPage /></ProductAuthRouteGuard>,
+            }
+        }
+
+        if (item.segment === 'logs') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><LogsPage /></ProductAuthRouteGuard>,
             }
         }
 

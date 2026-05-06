@@ -155,3 +155,42 @@
 2. 在应用域先沿用当前 `app_id + tracking_id + /api/apps` 的过渡反馈模型，为后续 SSE 任务流、My Apps 详情和生命周期动作提供连续性基线。
 3. 新增用户认证、权限、日志、服务、文件管理、终端桥接等新 API。
 4. 再逐步削弱对 Portainer、Gitea、NPM 当前接口和凭据桥接的依赖。
+
+## 9. 平台运行时标准日志契约
+
+### 目标边界
+
+- `logs` 模块只消费 Websoft9 平台运行时标准日志。
+- `services` 模块只消费第三方服务原生日志。
+- 混合的单容器 `docker logs` 不再作为 `logs` 模块的长期数据合同。
+
+### 标准日志源
+
+- 标准日志文件路径: `/var/log/websoft9/platform-runtime.log`
+- 格式: JSON Lines，每行一个独立 JSON 对象
+- 时间统一使用 UTC ISO 8601，例如 `2026-05-06T01:35:03Z`
+
+### 必填字段
+
+- `ts`: 事件时间，UTC ISO 8601 字符串
+- `level`: `info`、`warning`、`error`
+- `component`: 产生日志的 Websoft9 平台组件，例如 `platform-entrypoint`、`apphub-api`
+- `domain`: 固定为 `runtime`
+- `event`: 稳定事件名，建议使用 `phase.action` 或 `component.action` 风格
+- `message`: 面向运维展示的文本消息
+
+### 可选字段
+
+- `context`: 结构化上下文对象，用于附带 URL、状态码、资源名等补充信息
+
+### 示例
+
+```json
+{"ts":"2026-05-06T01:35:03Z","level":"info","component":"platform-entrypoint","domain":"runtime","event":"workspace-bootstrap.bootstrap-gitea","message":"phase=workspace-bootstrap action=bootstrap-gitea"}
+```
+
+### 当前实现约束
+
+- `platform-entrypoint` 和 AppHub 运行时日志应写入该标准日志源。
+- `runtime-console` API 应从该标准日志源读取，而不是从混合容器输出做语义筛选。
+- Nginx Proxy Manager、Gitea、Portainer 等第三方服务原生日志不得写入该标准日志源。
