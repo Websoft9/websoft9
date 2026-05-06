@@ -79,12 +79,15 @@ context:
 - 2026-04-30: Correct-course update approved. Story 4.5 is reopened so the helper-container execution layer can be replaced with a long-lived internal `files-agent` execution layer.
 - 2026-04-30: Implemented the internal `files-agent` migration. AppHub now calls a localhost files agent instead of launching one helper container per request.
 - 2026-04-30: Final runtime alignment completed. The `files-agent` now runs as a supervisor-managed process inside `websoft9-product-current`, and the temporary extra files-agent container has been removed.
+- 2026-04-30: Runtime mount handling was aligned with Docker metadata instead of a fixed host path. The sync/recreate flow now detects the current Docker data-root dynamically, binds the resolved volumes root into the product container, passes it to `files-agent` through environment configuration, and keeps the browser-facing workspace rooted at the virtual `/volumes` path instead of exposing host absolute paths or `_data` segments.
 
 ## Design Notes
 
 The hard problem in this story is still boundary enforcement, not the tree widget. Frontend reuse is acceptable only if the component can consume a product-owned API that already resolved approved volumes and canonical paths. Prefer a thin FastAPI service over a separate public file server. The implementation split should be: AppHub owns approved-volume discovery, authentication, canonical path policy, and audit; the internal `files-agent` process owns low-level file operations inside approved roots; the console owns browsing and action UX; any third-party file-manager widget remains replaceable infrastructure rather than the authority on security rules.
 
 This story intentionally avoids forcing an app-first navigation model. Users should be able to manage files through a familiar file-manager surface, while the backend still filters which volumes are visible and keeps host paths hidden. Text editing should remain intentionally basic and exclude large or binary payloads. The in-container `files-agent` is an internal execution dependency only; it must not become a second user-facing backend or bypass AppHub policy enforcement.
+
+The current runtime still requires the product container to have access to the host Docker volumes root because `files-agent` performs real filesystem operations inside approved volume roots. The difference is operational ownership: operators should not hand-configure that bind or assume `/var/lib/docker/volumes`; the product sync/recreate flow should discover Docker's active root path and inject the matching bind automatically.
 
 ## Verification
 
@@ -116,6 +119,7 @@ GPT-5.4
 - Replaced the helper-container execution path with an internal `files-agent` client and service contract while preserving the existing AppHub `/api/files/*` surface.
 - Finalized the runtime as a single product container by adding the Docker volumes bind to `websoft9-product-current`, starting `files-agent` under supervisor, and deleting the temporary extra files-agent container.
 - Revalidated the backend slice with `pytest -q -o addopts='' tests/test_file_manager.py`, rebuilt and synced the live product, and confirmed the in-container root browse path in the running container with root-directory latency around 17-24 ms.
+- Updated the files workspace presentation to use the virtual `/volumes` root in the browser so the UI no longer exposes host Docker paths or `_data` implementation details.
 - Left the story in `review` because authenticated end-to-end browser validation of the protected files UI still requires an operator login session in the live environment.
 
 ### File List
@@ -141,3 +145,4 @@ GPT-5.4
 - 2026-04-29: Implemented the initial Story 4.5 backend and frontend file-management slice, completed automated review/fix validation, and recorded focused validation coverage.
 - 2026-04-30: Reopened Story 4.5 through Correct Course after accepting the internal `files-agent` runtime direction as the new execution-layer target.
 - 2026-04-30: Replaced the helper-container execution layer with the internal `files-agent` path, then finalized the live runtime as a single-container supervisor-managed process model and advanced the story to review.
+- 2026-04-30: Replaced the fixed `/var/lib/docker/volumes` runtime assumption with dynamic DockerRootDir detection during product-container recreation, and aligned the browser-visible root label to `/volumes`.

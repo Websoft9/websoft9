@@ -20,6 +20,12 @@ Inside the running container:
 - `platform-healthcheck.sh` distinguishes ready, degraded, and failed states
 - `platform-start-gateway.sh` starts the dedicated platform-gateway nginx process under supervisord using `/usr/sbin/nginx` and image-managed gateway config under `/etc/websoft9/platform-gateway`
 
+Files workspace runtime requirement:
+
+- The converged product container must have access to the host Docker volumes root if the native Files workspace is enabled, because the in-container `files-agent` performs real filesystem operations inside approved volume roots.
+- Do not hard-code `/var/lib/docker/volumes` as that source path. The product sync/recreate flow should detect Docker's active data-root, bind the resolved `<DockerRootDir>/volumes` path into the container, and pass the same resolved root to `files-agent` through `WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS`.
+- The browser-facing Files workspace should remain rooted at the virtual `/volumes` path. Host absolute paths, Docker `Mountpoint` values, and `_data` implementation details should stay behind AppHub and `files-agent`.
+
 Portainer runtime requirement:
 
 - The converged product container must have `/var/run/docker.sock` mounted if Portainer is expected to auto-create and manage the local Docker environment. Without that bind mount, Portainer admin initialization can succeed while local environment initialization fails, leaving the UI in the Environment Wizard with no endpoint.

@@ -188,15 +188,15 @@ function normalizeActionErrorMessage(
     return message
 }
 
-const DOCKER_VOLUMES_ROOT_PATH = '/var/lib/docker/volumes'
+const VIRTUAL_VOLUMES_ROOT_PATH = '/volumes'
 const DOCKER_VOLUMES_ROOT_SENTINEL = '__docker_volumes_root__'
 
 function buildVirtualPath(volumeName: string, path: string): string {
     if (!volumeName) {
-        return path === '/' ? DOCKER_VOLUMES_ROOT_PATH : `${DOCKER_VOLUMES_ROOT_PATH}${path}`
+        return path === '/' ? VIRTUAL_VOLUMES_ROOT_PATH : `${VIRTUAL_VOLUMES_ROOT_PATH}${path}`
     }
 
-    const volumeBasePath = `${DOCKER_VOLUMES_ROOT_PATH}/${volumeName}/_data`
+    const volumeBasePath = `${VIRTUAL_VOLUMES_ROOT_PATH}/${volumeName}`
     return path === '/' ? volumeBasePath : `${volumeBasePath}${path}`
 }
 
@@ -207,11 +207,11 @@ function buildSiblingPath(path: string, nextName: string): string {
 
 function parseBrowserPath(input: string, knownVolumes: string[]): NavigationLocation | null {
     const trimmed = input.trim()
-    if (!trimmed.startsWith(DOCKER_VOLUMES_ROOT_PATH)) {
+    if (!trimmed.startsWith(VIRTUAL_VOLUMES_ROOT_PATH)) {
         return null
     }
 
-    const suffix = trimmed.slice(DOCKER_VOLUMES_ROOT_PATH.length)
+    const suffix = trimmed.slice(VIRTUAL_VOLUMES_ROOT_PATH.length)
     const normalizedSuffix = suffix ? `/${suffix.replace(/^\/+/, '').replace(/\/+$/, '')}`.replace(/\/+/g, '/') : '/'
     if (normalizedSuffix === '/' || normalizedSuffix === '/.') {
         return { volumeName: '', path: '/' }
@@ -355,7 +355,7 @@ export function FilesPage() {
     const [dialogState, setDialogState] = useState<DialogState>(null)
     const [dialogValue, setDialogValue] = useState('')
     const [directorySearch, setDirectorySearch] = useState('')
-    const [pathInputValue, setPathInputValue] = useState(DOCKER_VOLUMES_ROOT_PATH)
+    const [pathInputValue, setPathInputValue] = useState(VIRTUAL_VOLUMES_ROOT_PATH)
     const [pathSuggestions, setPathSuggestions] = useState<string[]>([])
     const [feedback, setFeedback] = useState<{ severity: 'success' | 'error' | 'info'; message: string } | null>(null)
     const [isActionSubmitting, setIsActionSubmitting] = useState(false)
@@ -474,19 +474,19 @@ export function FilesPage() {
     useEffect(() => {
         const normalizedInput = pathInputValue.trim()
         const volumeNames = volumes.map((volume) => volume.volume_name)
-        if (!normalizedInput.startsWith(DOCKER_VOLUMES_ROOT_PATH)) {
+        if (!normalizedInput.startsWith(VIRTUAL_VOLUMES_ROOT_PATH)) {
             setPathSuggestions([])
             return
         }
 
-        const normalizedPath = normalizedInput.replace(/\/+$/, '') || DOCKER_VOLUMES_ROOT_PATH
+        const normalizedPath = normalizedInput.replace(/\/+$/, '') || VIRTUAL_VOLUMES_ROOT_PATH
         const lastSlashIndex = normalizedPath.lastIndexOf('/')
         const parentAbsolutePath =
-            normalizedInput.endsWith('/') || normalizedPath === DOCKER_VOLUMES_ROOT_PATH
+            normalizedInput.endsWith('/') || normalizedPath === VIRTUAL_VOLUMES_ROOT_PATH
                 ? normalizedPath
                 : normalizedPath.slice(0, lastSlashIndex)
         const partialName =
-            normalizedInput.endsWith('/') || normalizedPath === DOCKER_VOLUMES_ROOT_PATH
+            normalizedInput.endsWith('/') || normalizedPath === VIRTUAL_VOLUMES_ROOT_PATH
                 ? ''
                 : normalizedPath.slice(lastSlashIndex + 1).toLowerCase()
         const parsedParentPath = parseBrowserPath(parentAbsolutePath, volumeNames)
