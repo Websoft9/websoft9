@@ -10,6 +10,7 @@ logging_config_src="$repo_root/docker/product/apphub/logging_config.yaml"
 gateway_conf_dir="$repo_root/docker/product/gateway"
 product_proxy_init_src="$repo_root/docker/product/proxy/init_nginx.sh"
 portainer_init_src="$repo_root/docker/product/deployment/init_portainer.go"
+npm_base_image="${WEBSOFT9_NPM_BASE_IMAGE:-jc21/nginx-proxy-manager:2.12.6}"
 platform_entrypoint_src="$repo_root/docker/product/scripts/platform-entrypoint.sh"
 platform_sync_config_src="$repo_root/docker/product/scripts/platform-sync-config.sh"
 platform_runtime_assets_src="$repo_root/docker/product/scripts/platform-sync-runtime-assets.py"
@@ -174,6 +175,30 @@ sync_runtime_support_files() {
     rm -f "$init_portainer_bin"
 }
 
+restore_npm_frontend_if_needed() {
+    if docker exec "$container_name" sh -lc 'grep -q "Nginx Proxy Manager" /app/frontend/index.html' >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "Detected contaminated NPM frontend assets; restoring /app/frontend"
+
+    local restore_dir
+    restore_dir="$(mktemp -d)"
+
+    if docker exec "$container_name" test -d /opt/websoft9-npm-frontend; then
+        docker cp "$container_name:/opt/websoft9-npm-frontend/." "$restore_dir/"
+    else
+        local temp_container
+        temp_container="$(docker create "$npm_base_image")"
+        docker cp "$temp_container:/app/frontend/." "$restore_dir/"
+        docker rm "$temp_container" >/dev/null
+    fi
+
+    docker exec "$container_name" rm -rf /app/frontend/*
+    docker cp "$restore_dir/." "$container_name:/app/frontend/"
+    rm -rf "$restore_dir"
+}
+
 ensure_service_log_runtime_paths() {
     docker exec "$container_name" sh -lc '
         mkdir -p /var/log/websoft9/gitea /var/log/websoft9/portainer
@@ -198,6 +223,7 @@ tar -C "$apphub_dir" -cf - src | docker exec -i "$container_name" tar -C /websof
 echo "[4/6] Updating single-container runtime support files"
 docker rm -f "$legacy_files_agent_sidecar" >/dev/null 2>&1 || true
 sync_runtime_support_files
+restore_npm_frontend_if_needed
 
 echo "[5/6] Syncing runtime assets and restarting runtime services"
 ensure_service_log_runtime_paths

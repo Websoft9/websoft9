@@ -143,6 +143,16 @@ ensure_runtime_assets() {
   /websoft9/script/platform-sync-runtime-assets.py
 }
 
+sync_runtime_assets_async() {
+  (
+    if ensure_runtime_assets; then
+      log_event "info" "runtime.assets-sync-complete" "runtime assets sync completed"
+    else
+      log_event "warning" "runtime.assets-sync-failed" "runtime assets sync failed; continuing with existing bundled assets"
+    fi
+  ) &
+}
+
 update_runtime_status() {
   local output
 
@@ -293,9 +303,9 @@ main() {
   log_event "info" "runtime.start" "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
-  ensure_runtime_assets
   sync_runtime_config base
   start_supervisor
+  sync_runtime_assets_async
   start_apphub_core
   bootstrap_product_auth
   bootstrap_platform_gateway

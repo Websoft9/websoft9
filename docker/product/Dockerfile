@@ -71,6 +71,8 @@ RUN apt-get update && \
     apt-get install --no-install-recommends -y sqlite3 && \
     rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /opt/websoft9-npm-frontend && cp -a /app/frontend/. /opt/websoft9-npm-frontend/
+
 RUN getent group git >/dev/null || groupadd --gid 1000 git && \
     id -u git >/dev/null 2>&1 || useradd --uid 1000 --gid 1000 --home-dir /data/gitea --shell /bin/bash git
 
@@ -129,6 +131,7 @@ COPY docker/product/scripts/platform-healthcheck.sh /websoft9/script/platform-he
 COPY docker/product/scripts/platform-service-control.sh /websoft9/script/platform-service-control.sh
 COPY docker/product/scripts/platform-start-gateway.sh /websoft9/script/platform-start-gateway.sh
 COPY docker/product/scripts/platform-start-gitea.sh /websoft9/script/platform-start-gitea.sh
+COPY docker/product/scripts/platform-start-portainer.sh /websoft9/script/platform-start-portainer.sh
 COPY docker/product/scripts/platform-sync-config.sh /websoft9/script/platform-sync-config.sh
 COPY docker/product/scripts/platform-sync-runtime-assets.py /websoft9/script/platform-sync-runtime-assets.py
 
@@ -143,6 +146,7 @@ RUN chmod +x /app/init_nginx.sh \
     /websoft9/script/platform-service-control.sh \
     /websoft9/script/platform-start-gateway.sh \
     /websoft9/script/platform-start-gitea.sh \
+    /websoft9/script/platform-start-portainer.sh \
     /websoft9/script/platform-sync-config.sh \
     /websoft9/script/platform-sync-runtime-assets.py \
     /etc/s6-overlay/s6-rc.d/websoft9-supervisor/run && \
