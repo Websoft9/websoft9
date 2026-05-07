@@ -21,6 +21,23 @@ set_config() {
   apphub setconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
+set_config_if_missing() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import configparser
+import sys
+
+section, key, value = sys.argv[1:4]
+config = configparser.ConfigParser()
+config.read('/websoft9/apphub/src/config/config.ini')
+if not config.has_section(section):
+    config.add_section(section)
+if not config.has_option(section, key):
+    config.set(section, key, value)
+    with open('/websoft9/apphub/src/config/config.ini', 'w', encoding='utf-8') as file:
+        config.write(file)
+PY
+}
+
 set_system_config() {
   apphub setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
@@ -53,36 +70,28 @@ EOF
 }
 
 sync_base() {
-  set_config gitea base_url "${WEBSOFT9_GITEA_API_URL:-http://127.0.0.1:3001/api/v1}"
-  set_config portainer base_url "${WEBSOFT9_PORTAINER_API_URL:-https://127.0.0.1:9443/api}"
-  set_config nginx_proxy_manager base_url "${WEBSOFT9_NPM_API_URL:-http://127.0.0.1:81/api}"
-  set_config nginx_proxy_manager ssl_cert "${WEBSOFT9_NPM_CERT_MARKER:-/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert}"
-  set_config nginx_proxy_manager ssl_key "${WEBSOFT9_NPM_SSL_KEY_PATH:-/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key}"
+  set_config_if_missing platform_gateway https_enabled "${WEBSOFT9_PLATFORM_HTTPS_ENABLED:-false}"
+  set_config_if_missing platform_gateway ssl_cert "${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert}"
+  set_config_if_missing platform_gateway ssl_key "${WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH:-/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key}"
   set_system_config docker_library path "${WEBSOFT9_LIBRARY_PATH:-/websoft9/library/apps}"
   set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
   write_apphub_gateway_auth
 }
 
 sync_credentials() {
-  local gitea_credential_path="${WEBSOFT9_GITEA_CREDENTIAL_PATH:-/data/gitea/credential}"
-  local portainer_credential_path="${WEBSOFT9_PORTAINER_CREDENTIAL_PATH:-/data/portainer/credential}"
-  local npm_credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/nginx-proxy-manager/credential.json}"
+  python3 - <<'PY'
+import configparser
 
-  if [[ -f "$gitea_credential_path" ]]; then
-    set_config gitea user_name "$(jq -r '.username' "$gitea_credential_path")"
-    set_config gitea user_email "$(jq -r '.email' "$gitea_credential_path")"
-    set_config gitea user_pwd "$(jq -r '.password' "$gitea_credential_path")"
-  fi
+config_path = '/websoft9/apphub/src/config/config.ini'
+config = configparser.ConfigParser()
+config.read(config_path, encoding='utf-8')
 
-  if [[ -f "$portainer_credential_path" ]]; then
-    set_config portainer user_name "${WEBSOFT9_PORTAINER_ADMIN_USER:-admin}"
-    set_config portainer user_pwd "$(cat "$portainer_credential_path")"
-  fi
+for section in ('gitea', 'portainer', 'nginx_proxy_manager'):
+    config.remove_section(section)
 
-  if [[ -f "$npm_credential_path" ]]; then
-    set_config nginx_proxy_manager user_name "$(jq -r '.username' "$npm_credential_path")"
-    set_config nginx_proxy_manager user_pwd "$(jq -r '.password' "$npm_credential_path")"
-  fi
+with open(config_path, 'w', encoding='utf-8') as file:
+    config.write(file)
+PY
 
   write_apphub_gateway_auth
 }

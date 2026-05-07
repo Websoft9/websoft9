@@ -9,6 +9,7 @@ from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
 from src.services.app_status import appInstalling,appInstallingError
+from src.services.product_metadata import read_product_edition
 
 
 def _get_host_bound_ports() -> set:
@@ -248,16 +249,16 @@ def check_apps_number(endpointId:int):
     # 在这里导入是为避免和app_manager的循环导入，导致代码报错
     from src.services.app_manager import AppManger
 
-    # Get the max_apps from config
-    max_apps = ConfigManager("system.ini").get_value("max_apps", "key")
-    if max_apps:
+    edition = read_product_edition()
+    max_apps = edition.max_apps
+    if max_apps is not None:
         # Get all apps from the endpoint
         appInstallApps = AppManger().get_apps(endpointId)
 
         # Get the official and  status is 1(Active) or 3(Installing) apps
         app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 3)]
 
-        if len(app_official) >= int(max_apps):
+        if len(app_official) >= max_apps:
             logger.error(f"Exceed the maximum number of apps")
             raise CustomException(
                 status_code=400,

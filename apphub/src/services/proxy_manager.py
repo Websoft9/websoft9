@@ -6,6 +6,7 @@ from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.external.nginx_proxy_manager_api import NginxProxyManagerAPI
+from src.services.integration_credentials import IntegrationCredentialProvider
 
 class ProxyManager:
     """
@@ -67,8 +68,9 @@ class ProxyManager:
 
         # if the token is expired or not got from keyring, get a new one
         try:
-            userName = ConfigManager().get_value("nginx_proxy_manager", "user_name")
-            userPwd = ConfigManager().get_value("nginx_proxy_manager", "user_pwd")
+            credentials = IntegrationCredentialProvider().get_npm_credentials()
+            userName = credentials.username
+            userPwd = credentials.password
         except Exception as e:
             logger.error(f"Get Nginx Proxy Manager's UserName and UserPwd Error:{e}")
             raise CustomException()

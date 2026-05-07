@@ -15,6 +15,7 @@ from src.services.apikey_manager import APIKeyManager
 from src.services.settings_manager import SettingsManager
 from src.core.exception import CustomException
 from src.core.config import ConfigManager
+from src.services.integration_credentials import IntegrationCredentialProvider
 
 @click.group()
 def cli():
@@ -134,8 +135,9 @@ def commit(appid, github_token):
     """Commit the app to the Github"""
     try:
         # 从配置文件读取gitea的用户名和密码
-        gitea_user = ConfigManager().get_value("gitea", "user_name")
-        gitea_pwd = ConfigManager().get_value("gitea", "user_pwd")
+        credentials = IntegrationCredentialProvider().get_gitea_credentials()
+        gitea_user = credentials.username
+        gitea_pwd = credentials.password
     
         # 将/tmp目录作为工作目录，如果不存在则创建，如果存在则清空
         work_dir = "/tmp/git"

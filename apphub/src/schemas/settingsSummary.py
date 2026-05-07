@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -8,6 +10,7 @@ class SettingsSummaryItem(BaseModel):
     sensitive: bool = False
     masked: bool = False
     editable: bool = False
+    metadata: dict[str, Any] | None = None
 
 
 class SettingsSummaryGroup(BaseModel):

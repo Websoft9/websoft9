@@ -5,6 +5,7 @@ from src.core.logger import logger
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.external.gitea_api import GiteaAPI
+from src.services.integration_credentials import IntegrationCredentialProvider
 
 
 class GiteaManager:
@@ -33,8 +34,9 @@ class GiteaManager:
         """
         Set basic auth credential
         """
-        username = ConfigManager().get_value("gitea", "user_name")
-        password = ConfigManager().get_value("gitea", "user_pwd")
+        credentials = IntegrationCredentialProvider().get_gitea_credentials()
+        username = credentials.username
+        password = credentials.password
           
         credentials = f"{username}:{password}"
         credentials_encoded = base64.b64encode(credentials.encode()).decode()

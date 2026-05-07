@@ -9,26 +9,10 @@ DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
 rm -f /data/nginx/default_host/initproxy.conf
 rm -f /data/nginx/proxy_host/initproxy.conf
 
-sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /etc/websoft9/platform-gateway/platform-gateway-routes.conf
-
-if [ "${WEBSOFT9_RUNTIME_LAYOUT:-}" = "single-container-target" ]; then
-    sed -i 's#http://websoft9-deployment:9000#http://127.0.0.1:9000#g' /etc/websoft9/platform-gateway/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-proxy:81#http://127.0.0.1:81#g' /etc/websoft9/platform-gateway/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-git:3001#http://127.0.0.1:3001#g' /etc/websoft9/platform-gateway/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-apphub:8080#http://127.0.0.1:8080#g' /etc/websoft9/platform-gateway/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-apphub:8081#http://127.0.0.1:8081#g' /etc/websoft9/platform-gateway/platform-gateway-routes.conf
-fi
-
-# Copy stream.conf
-if [ ! -d /data/nginx/stream ]; then mkdir -p /data/nginx/stream; fi
-cp -f /etc/websoft9/stream.conf /data/nginx/stream/stream.conf
-
-# Copy custom_ssl.conf
-if [ ! -d /etc/custom ]; then mkdir -p /etc/custom; fi
-cp -f /etc/websoft9/custom_ssl.conf /etc/custom/custom_ssl.conf
+# The dedicated platform-gateway now binds 9000 directly.
+rm -f /data/nginx/stream/stream.conf
 
 SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
-sed -i "s#/data/custom_ssl#${SSL_DIR}#g" /etc/custom/custom_ssl.conf
 
 # If credential file then create it and init credential for NPM
 # Reload NPM docker image Environments

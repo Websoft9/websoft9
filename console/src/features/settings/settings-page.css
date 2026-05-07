@@ -1,0 +1,142 @@
+.settings-page {
+    min-height: calc(100vh - 120px);
+    padding: 8px;
+}
+
+.settings-page--loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.settings-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.settings-page-title {
+    font-size: 30px;
+    line-height: 1.1;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.settings-page-description {
+    max-width: 760px;
+    margin-top: 4px;
+}
+
+.settings-page-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+}
+
+.settings-form-shell {
+    background-color: #fff;
+    border: 1px solid #dbe4ee;
+    border-radius: 2px;
+    box-shadow: 0 2px 5px rgb(0 0 0 / 10%);
+    overflow: hidden;
+}
+
+.settings-form-shell__header {
+    padding: 18px 20px;
+    border-bottom: 1px solid #eef2f7;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.settings-form-shell__title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.settings-form-shell__caption {
+    margin-top: 4px;
+    color: #64748b;
+}
+
+.settings-form-table {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-form-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.settings-form-row:last-child {
+    border-bottom: none;
+}
+
+.settings-form-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #313a46;
+}
+
+.settings-form-control {
+    min-width: 0;
+}
+
+.settings-form-switch {
+    align-items: center;
+    min-height: 40px;
+}
+
+.settings-form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 150px;
+}
+
+.settings-form-meta {
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.settings-form-value {
+    font-weight: 600;
+    color: #16a34a;
+}
+
+@media (max-width: 899px) {
+    .settings-form-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .settings-form-actions {
+        justify-content: flex-start;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 599px) {
+    .settings-page {
+        padding: 4px;
+    }
+
+    .settings-page-title {
+        font-size: 26px;
+    }
+
+    .settings-form-shell__header,
+    .settings-form-row {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+}

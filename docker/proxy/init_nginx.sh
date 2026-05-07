@@ -2,74 +2,8 @@
 
 # Define variables
 credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential}"
-internal_gateway_auth_dir="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-/etc/custom/internal-gateway-auth}"
-internal_gateway_trust_key_file="$internal_gateway_auth_dir/trust_key"
-gateway_auth_dir="/etc/websoft9/platform-gateway"
-gateway_auth_file="$gateway_auth_dir/apphub-auth.conf"
-
-DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
-
-write_apphub_gateway_auth() {
-    local trust_key=""
-
-    mkdir -p "$gateway_auth_dir"
-    mkdir -p "$internal_gateway_auth_dir"
-
-    if [ -f "$internal_gateway_trust_key_file" ]; then
-        trust_key="$(tr -d '[:space:]' < "$internal_gateway_trust_key_file")"
-    fi
-
-    if [ -z "$trust_key" ]; then
-        trust_key="$(openssl rand -hex 32)"
-        printf '%s\n' "$trust_key" > "$internal_gateway_trust_key_file"
-        chmod 600 "$internal_gateway_trust_key_file"
-    fi
-
-    cat > "$gateway_auth_file" <<EOF
-proxy_set_header x-api-key "";
-proxy_set_header x-websoft9-internal-request "1";
-proxy_set_header x-websoft9-internal-secret "$trust_key";
-EOF
-}
-
-write_apphub_gateway_auth
-
-# Migrating initproxy.conf file
-if [ ! -d /data/nginx/default_host ]; then mkdir -p /data/nginx/default_host; fi
-cp -f /etc/websoft9/initproxy.conf /data/nginx/default_host/initproxy.conf
-[ -f /etc/websoft9/initproxy.conf ] && rm -f /data/nginx/proxy_host/initproxy.conf
-
-sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /data/nginx/default_host/initproxy.conf
-sed -i "s/{{DOCKER0_IP}}/$DOCKER0_IP/g" /etc/websoft9/platform-gateway-routes.conf
-
-if [ "${WEBSOFT9_RUNTIME_LAYOUT:-}" = "single-container-target" ]; then
-    sed -i 's#http://websoft9-deployment:9000#http://127.0.0.1:9000#g' /data/nginx/default_host/initproxy.conf
-    sed -i 's#http://websoft9-proxy:81#http://127.0.0.1:81#g' /data/nginx/default_host/initproxy.conf
-    sed -i 's#http://websoft9-git:3000#http://127.0.0.1:3000#g' /data/nginx/default_host/initproxy.conf
-    sed -i 's#http://websoft9-apphub:8080#http://127.0.0.1:8080#g' /data/nginx/default_host/initproxy.conf
-    sed -i 's#http://websoft9-apphub:8081#http://127.0.0.1:8081#g' /data/nginx/default_host/initproxy.conf
-    sed -i 's#http://websoft9-deployment:9000#http://127.0.0.1:9000#g' /etc/websoft9/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-proxy:81#http://127.0.0.1:81#g' /etc/websoft9/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-git:3000#http://127.0.0.1:3000#g' /etc/websoft9/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-apphub:8080#http://127.0.0.1:8080#g' /etc/websoft9/platform-gateway-routes.conf
-    sed -i 's#http://websoft9-apphub:8081#http://127.0.0.1:8081#g' /etc/websoft9/platform-gateway-routes.conf
-fi
-
-# Copy stream.conf
-if [ ! -d /data/nginx/stream ]; then mkdir -p /data/nginx/stream; fi
-cp -f /etc/websoft9/stream.conf /data/nginx/stream/stream.conf
-
-# Copy custom_var.conf custom_ssl.conf
-if [ ! -d /etc/custom ]; then mkdir -p /etc/custom; fi
-cp -f /etc/websoft9/custom_var.conf /etc/custom/custom_var.conf
-cp -f /etc/websoft9/custom_ssl.conf /etc/custom/custom_ssl.conf
 
 SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
-sed -i "s#/data/custom_ssl#${SSL_DIR}#g" /etc/custom/custom_ssl.conf
-
-# Deploy Websoft9 landing pages
-rm -rf /var/www/html/index.html
-cp -rf /etc/websoft9/landing/* /var/www/html/
 
 # If credential file then create it and init credential for NPM
 # Reload NPM docker image Environments

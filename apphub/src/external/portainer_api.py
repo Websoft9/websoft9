@@ -10,11 +10,17 @@ from src.core.config import ConfigManager
 from functools import wraps
 from src.core.logger import logger
 from src.core.exception import CustomException
+from src.services.integration_credentials import IntegrationCredentialProvider
 
 
 def resolve_portainer_api_base_url() -> str:
-    configured = (ConfigManager().get_value("portainer", "base_url") or "").rstrip("/")
-    fallback = os.getenv("WEBSOFT9_PORTAINER_API_BASE_URL", "https://127.0.0.1:9443/api").rstrip("/")
+    fallback = os.getenv("WEBSOFT9_PORTAINER_API_BASE_URL", "http://127.0.0.1:9004/api").rstrip("/")
+
+    try:
+        configured = (ConfigManager().get_value("portainer", "base_url") or "").rstrip("/")
+    except Exception:
+        return fallback
+
     if not configured:
         return fallback
 
@@ -46,8 +52,9 @@ class JWTManager:
 
     @classmethod
     def refresh_token(cls):
-        username = ConfigManager().get_value("portainer", "user_name")
-        password = ConfigManager().get_value("portainer", "user_pwd")
+        credentials = IntegrationCredentialProvider().get_portainer_credentials()
+        username = credentials.username
+        password = credentials.password
         api = APIHelper(
             resolve_portainer_api_base_url(),
             {

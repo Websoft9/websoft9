@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query,Path
+from fastapi import APIRouter, Query, Path
 from src.schemas.appSettings import AppSettings
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
@@ -44,6 +44,8 @@ def get_settings_summary():
 def get_setting_by_section(
     section: str = Path(..., description="Section name to update settings from"),
 ):
+    if section in {"gitea", "portainer", "nginx_proxy_manager"}:
+        return {}
     return SettingsManager().read_section(section)
 
 @router.put(

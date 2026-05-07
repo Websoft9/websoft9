@@ -27,7 +27,7 @@ def log(message: str) -> None:
 
 
 def detect_channel() -> str:
-    version_file = Path("/websoft9/version.json")
+    version_file = Path("/websoft9/apphub/src/config/product_metadata.json")
     if not version_file.exists():
         return "release"
 

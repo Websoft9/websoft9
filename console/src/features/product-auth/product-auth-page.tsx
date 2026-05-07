@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { prewarmAuthenticatedIntegrationSessions } from '../integrations/integration-session-bootstrap'
 import { useProductAuth } from './product-auth-provider'
 
 type ProductAuthPageProps = {
@@ -23,6 +24,10 @@ function resolveNext(search: string) {
     const params = new URLSearchParams(search)
     const next = params.get('next')
     return next && next.startsWith('/') ? next : '/users'
+}
+
+function targetsIntegrationWorkspace(path: string) {
+    return /^\/(containers|gateway|repository)(?:[/?#]|$)/.test(path)
 }
 
 function mapAuthErrorMessage(message: string | null, t: (key: string) => string) {
@@ -51,7 +56,7 @@ function IconEyeOff() {
 }
 
 export function ProductAuthPage({ mode }: ProductAuthPageProps) {
-    const { t } = useTranslation('shell')
+    const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
     const { errorMessage, initialize, isLoading, isSubmitting, login, status } = useProductAuth()
@@ -116,11 +121,27 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
         setLocalError(null)
 
         try {
-            if (mode === 'setup') {
-                await initialize({ username, password, displayName })
+            const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+            const nextStatus =
+                mode === 'setup'
+                    ? await initialize({ username, password, displayName })
+                    : await login({ username, password })
+
+            const prewarmPromise =
+                nextStatus.authenticated && nextStatus.current_user
+                    ? prewarmAuthenticatedIntegrationSessions(locale, nextStatus.current_user.id)
+                    : Promise.resolve()
+
+            if (targetsIntegrationWorkspace(nextPath)) {
+                await prewarmPromise.catch(() => {
+                    // Keep login/setup success independent from integration prewarm failures.
+                })
             } else {
-                await login({ username, password })
+                void prewarmPromise.catch(() => {
+                    // Non-integration destinations should not wait on third-party session prewarm.
+                })
             }
+
             navigate(nextPath, { replace: true })
         } catch (error) {
             setLocalError(error instanceof Error ? error.message : t('auth.genericError'))

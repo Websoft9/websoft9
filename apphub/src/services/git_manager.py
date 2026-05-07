@@ -3,6 +3,7 @@ from git import Repo, GitCommandError
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.config import ConfigManager
+from src.services.integration_credentials import IntegrationCredentialProvider
 from urllib.parse import urlparse, urlunparse
 
 class GitManager:
@@ -42,8 +43,9 @@ class GitManager:
         # Add all files to the index and commit.
         try:
             config_writer = repo.config_writer()
-            config_writer.set_value('user', 'name', ConfigManager().get_value('gitea', 'user_name'))
-            config_writer.set_value('user', 'email', ConfigManager().get_value('gitea', 'user_email'))
+            credentials = IntegrationCredentialProvider().get_gitea_credentials()
+            config_writer.set_value('user', 'name', credentials.username)
+            config_writer.set_value('user', 'email', credentials.email)
             config_writer.release()
             repo.git.add('.')
             repo.git.commit('-m', 'Initial commit')

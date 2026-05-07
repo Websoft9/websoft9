@@ -29,7 +29,7 @@ export const integrationDefinitions: IntegrationDefinition[] = [
     {
         authMarkers: ['#/auth', '/api/auth', 'Portainer'],
         authPaths: ['/api/auth'],
-        diagnosticsPath: '/w9deployment/api/auth',
+        diagnosticsPath: '/w9deployment/',
         entrySegment: 'containers',
         key: 'portainer',
         pageKey: 'portainer',

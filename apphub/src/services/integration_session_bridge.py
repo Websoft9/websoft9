@@ -6,9 +6,9 @@ from typing import Literal, Optional
 
 import requests
 
-from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
+from src.services.integration_credentials import IntegrationCredentialProvider
 
 
 IntegrationKey = Literal["gitea", "portainer", "npm"]
@@ -16,9 +16,10 @@ IntegrationKey = Literal["gitea", "portainer", "npm"]
 
 class IntegrationSessionBridge:
     def __init__(self, gateway_origin: Optional[str] = None):
+        self.credential_provider = IntegrationCredentialProvider()
         self.gateway_origin = gateway_origin or os.getenv(
             "WEBSOFT9_PLATFORM_GATEWAY_INTERNAL_ORIGIN",
-            "http://127.0.0.1:8889",
+            "http://127.0.0.1:9000",
         ).rstrip("/")
         self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", "/data/gitea/credential"))
         self.gitea_direct_origin = os.getenv(
@@ -26,11 +27,11 @@ class IntegrationSessionBridge:
             "http://127.0.0.1:3001",
         ).rstrip("/")
         self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "/data/portainer/credential"))
-        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
         self.portainer_direct_origin = os.getenv(
             "WEBSOFT9_PORTAINER_DIRECT_ORIGIN",
-            "http://127.0.0.1:9003",
+            "http://127.0.0.1:9004",
         ).rstrip("/")
+        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
 
     def bootstrap(self, integration_key: IntegrationKey, locale: Optional[str] = None) -> list[dict[str, object]]:
         if integration_key == "gitea":
@@ -45,6 +46,37 @@ class IntegrationSessionBridge:
             message="Invalid Request",
             details=f"Unsupported integration: {integration_key}",
         )
+
+    def bootstrap_all(self, locale: Optional[str] = None) -> dict[str, object]:
+        integrations: dict[str, dict[str, object]] = {}
+        cookies: list[dict[str, object]] = []
+
+        for integration_key in ("gitea", "portainer", "npm"):
+            try:
+                next_cookies = self.bootstrap(integration_key, locale=locale)
+                integrations[integration_key] = {
+                    "status": "ok",
+                    "cookies": len(next_cookies),
+                }
+                cookies.extend(next_cookies)
+            except CustomException as exc:
+                integrations[integration_key] = {
+                    "status": "error",
+                    "message": exc.details or exc.message,
+                }
+            except Exception as exc:
+                logger.error(f"{integration_key} bulk bootstrap failed: {exc}")
+                integrations[integration_key] = {
+                    "status": "error",
+                    "message": "Unexpected integration bootstrap failure",
+                }
+
+        status = "ok" if all(result["status"] == "ok" for result in integrations.values()) else "partial"
+        return {
+            "status": status,
+            "integrations": integrations,
+            "cookies": cookies,
+        }
 
     def bootstrap_gitea(self, locale: Optional[str] = None) -> list[dict[str, object]]:
         username, password = self._get_gitea_credentials()
@@ -128,10 +160,15 @@ class IntegrationSessionBridge:
         session = self._create_session()
 
         try:
-            response = self._post_portainer_auth(session, username, password)
+            response = session.post(
+                f"{self.portainer_direct_origin}/api/auth",
+                json={"username": username, "password": password},
+                timeout=20,
+            )
+            response.raise_for_status()
 
-            jwt = response.json().get("jwt")
-            if not jwt:
+            token = response.json().get("jwt")
+            if not token:
                 raise CustomException(
                     status_code=502,
                     message="Integration Session Bootstrap Failed",
@@ -141,9 +178,9 @@ class IntegrationSessionBridge:
             return [
                 {
                     "name": "portainer_jwt",
-                    "value": jwt,
+                    "value": token,
                     "path": "/",
-                    "httponly": False,
+                    "httponly": True,
                 }
             ]
         except CustomException:
@@ -155,27 +192,6 @@ class IntegrationSessionBridge:
                 message="Integration Session Bootstrap Failed",
                 details="Unable to establish Portainer session",
             )
-
-    def _post_portainer_auth(self, session: requests.Session, username: str, password: str):
-        response = session.post(
-            f"{self.gateway_origin}/w9deployment/api/auth",
-            json={"username": username, "password": password},
-            timeout=20,
-        )
-
-        if response.ok:
-            return response
-
-        if response.status_code != 404:
-            response.raise_for_status()
-
-        fallback_response = session.post(
-            f"{self.portainer_direct_origin}/api/auth",
-            json={"username": username, "password": password},
-            timeout=20,
-        )
-        fallback_response.raise_for_status()
-        return fallback_response
 
     def bootstrap_npm(self) -> list[dict[str, object]]:
         username, password, nickname = self._get_npm_credentials()
@@ -227,36 +243,16 @@ class IntegrationSessionBridge:
         return session
 
     def _get_gitea_credentials(self) -> tuple[str, str]:
-        if self.gitea_credential_path.is_file():
-            payload = json.loads(self.gitea_credential_path.read_text())
-            return payload["username"], payload["password"]
-
-        return (
-            ConfigManager().get_value("gitea", "user_name"),
-            ConfigManager().get_value("gitea", "user_pwd"),
-        )
+        credentials = self.credential_provider.get_gitea_credentials()
+        return credentials.username, credentials.password
 
     def _get_portainer_credentials(self) -> tuple[str, str]:
-        if self.portainer_credential_path.is_file():
-            return os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin"), self.portainer_credential_path.read_text().strip()
-
-        return (
-            ConfigManager().get_value("portainer", "user_name"),
-            ConfigManager().get_value("portainer", "user_pwd"),
-        )
+        credentials = self.credential_provider.get_portainer_credentials()
+        return credentials.username, credentials.password
 
     def _get_npm_credentials(self) -> tuple[str, str, str]:
-        if self.npm_credential_path.is_file():
-            payload = json.loads(self.npm_credential_path.read_text())
-            username = payload["username"]
-            return username, payload["password"], payload.get("nickname", username.split("@")[0])
-
-        username = ConfigManager().get_value("nginx_proxy_manager", "user_name")
-        return (
-            username,
-            ConfigManager().get_value("nginx_proxy_manager", "user_pwd"),
-            ConfigManager().get_value("nginx_proxy_manager", "nike_name"),
-        )
+        credentials = self.credential_provider.get_npm_credentials()
+        return credentials.username, credentials.password, credentials.nickname
 
     def _export_session_cookies(self, session: requests.Session, default_path: str) -> list[dict[str, object]]:
         cookies: list[dict[str, object]] = []

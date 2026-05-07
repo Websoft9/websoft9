@@ -701,10 +701,8 @@ export const shellResources = {
             },
             settingsPage: {
                 hero: {
-                    eyebrow: 'Product settings baseline',
-                    title: 'Manage product-wide settings without exposing long-lived secrets in clear text.',
-                    description:
-                        'The native settings page now groups domain, certificate, mirror, internal access, upgrade, and version data behind the shared shell and masks sensitive values by default.',
+                    title: 'System Settings',
+                    description: 'Keep Websoft9 platform defaults in one compact work area, following the same page rhythm as App Store and My Apps.',
                 },
                 states: {
                     loading: 'Loading product settings...',
@@ -713,6 +711,8 @@ export const shellResources = {
                     loadError: 'Settings summary request returned HTTP {{statusCode}}.',
                 },
                 actions: {
+                    edit: 'Edit',
+                    cancel: 'Cancel',
                     save: 'Save',
                     saving: 'Saving...',
                     editValue: 'Enter a new value',
@@ -720,6 +720,9 @@ export const shellResources = {
                 feedback: {
                     saveSuccess: '{{key}} was updated successfully.',
                     saveError: 'Saving the selected setting failed.',
+                    httpsSuccess: 'Platform HTTPS updated successfully.',
+                    httpsError: 'Failed to update platform HTTPS.',
+                    httpsDisabledRedirecting: 'Platform HTTPS was disabled. Redirecting this page to HTTP.',
                 },
                 preferences: {
                     title: 'User preferences',
@@ -744,72 +747,30 @@ export const shellResources = {
                     readOnly: 'Read-only in the current baseline.',
                     readOnlySensitive: 'Sensitive value is masked and read-only in the current baseline.',
                 },
-                groups: {
-                    domain: {
-                        title: 'Domain',
-                        description: 'Global domain defaults consumed by app installation and access flows.',
-                    },
-                    certificate: {
-                        title: 'Certificate',
-                        description: 'Certificate-related runtime paths are visible here, while sensitive values remain masked.',
-                    },
-                    mirror: {
-                        title: 'Mirror Source',
-                        description: 'Define the current package and metadata mirror used by the product runtime.',
-                    },
-                    internal_access: {
-                        title: 'Internal Access',
-                        description: 'Track product-owned service endpoints and masked internal credentials.',
-                    },
-                    upgrade: {
-                        title: 'Upgrade',
-                        description: 'Baseline upgrade targets and channels exposed by the current runtime.',
-                    },
-                    version: {
-                        title: 'Version',
-                        description: 'Current product and plugin version inventory loaded from runtime metadata.',
-                    },
-                },
                 items: {
                     domain: {
-                        wildcard_domain: 'Wildcard domain',
+                        wildcard_domain: 'Global domain',
                     },
-                    nginx_proxy_manager: {
-                        ssl_cert: 'Certificate path',
-                        ssl_key: 'Certificate key path',
-                        base_url: 'Gateway API URL',
-                    },
-                    docker_mirror: {
-                        url: 'Mirror metadata URL',
-                    },
-                    portainer: {
-                        base_url: 'Portainer API URL',
-                    },
-                    gitea: {
-                        base_url: 'Gitea API URL',
-                    },
-                    cockpit: {
-                        port: 'Cockpit port',
-                    },
-                    api_key: {
-                        key: 'AppHub API key',
-                    },
-                    upgrade: {
-                        target: 'Supported target',
-                        release_channel: 'Release channel',
-                        dev_channel: 'Development channel',
+                    platform_gateway: {
+                        https_enabled: 'HTTPS',
                     },
                     version: {
                         product: 'Product version',
                     },
-                    version_plugins: {
-                        portainer: 'Portainer plugin',
-                        nginx: 'Nginx plugin',
-                        gitea: 'Gitea plugin',
-                        myapps: 'My Apps plugin',
-                        appstore: 'App Store plugin',
-                        settings: 'Settings plugin',
-                        navigator: 'Navigator plugin',
+                },
+                https: {
+                    enabled: 'Enabled',
+                    disabled: 'Disabled',
+                },
+                version: {
+                    label: 'Version',
+                },
+                upgrade: {
+                    label: 'System upgrade',
+                    comingSoon: 'Upgrade precheck and execution are being connected in the next stories.',
+                    actions: {
+                        precheck: 'Run precheck',
+                        start: 'Start upgrade',
                     },
                 },
             },
@@ -1940,10 +1901,8 @@ export const shellResources = {
             },
             settingsPage: {
                 hero: {
-                    eyebrow: '产品设置基线',
-                    title: '在不长期明文暴露敏感值的前提下管理产品级设置。',
-                    description:
-                        '原生设置页现在通过共享壳层承载域名、证书、镜像源、内部访问、升级和版本信息，并默认掩码敏感字段。',
+                    title: '系统设置',
+                    description: '把 Websoft9 平台默认项集中到一个紧凑工作区里，页面节奏与应用商店和我的应用保持一致。',
                 },
                 states: {
                     loading: '正在加载产品设置...',
@@ -1952,6 +1911,8 @@ export const shellResources = {
                     loadError: '设置摘要请求返回 HTTP {{statusCode}}。',
                 },
                 actions: {
+                    edit: '编辑',
+                    cancel: '取消',
                     save: '保存',
                     saving: '保存中...',
                     editValue: '输入新值',
@@ -1959,6 +1920,9 @@ export const shellResources = {
                 feedback: {
                     saveSuccess: '{{key}} 更新成功。',
                     saveError: '保存当前设置失败。',
+                    httpsSuccess: '平台 HTTPS 更新成功。',
+                    httpsError: '平台 HTTPS 更新失败。',
+                    httpsDisabledRedirecting: '平台 HTTPS 已关闭，当前页面正在切换到 HTTP。',
                 },
                 preferences: {
                     title: '用户偏好',
@@ -1983,72 +1947,30 @@ export const shellResources = {
                     readOnly: '当前基线下为只读。',
                     readOnlySensitive: '敏感值已掩码，且在当前基线下只读。',
                 },
-                groups: {
-                    domain: {
-                        title: '域名',
-                        description: '供应用安装与访问流程复用的全局域名默认值。',
-                    },
-                    certificate: {
-                        title: '证书',
-                        description: '这里展示证书相关运行路径，敏感值默认保持掩码。',
-                    },
-                    mirror: {
-                        title: '镜像源',
-                        description: '定义产品运行时当前使用的包与元数据镜像源。',
-                    },
-                    internal_access: {
-                        title: '内部访问',
-                        description: '集中查看产品内服务端点与已掩码的内部凭据。',
-                    },
-                    upgrade: {
-                        title: '升级',
-                        description: '展示当前运行时暴露的升级目标与渠道基线。',
-                    },
-                    version: {
-                        title: '版本',
-                        description: '从运行时元数据读取当前产品与插件版本清单。',
-                    },
-                },
                 items: {
                     domain: {
-                        wildcard_domain: '通配域名',
+                        wildcard_domain: '全局域名',
                     },
-                    nginx_proxy_manager: {
-                        ssl_cert: '证书路径',
-                        ssl_key: '证书私钥路径',
-                        base_url: 'Gateway API 地址',
-                    },
-                    docker_mirror: {
-                        url: '镜像元数据地址',
-                    },
-                    portainer: {
-                        base_url: 'Portainer API 地址',
-                    },
-                    gitea: {
-                        base_url: 'Gitea API 地址',
-                    },
-                    cockpit: {
-                        port: 'Cockpit 端口',
-                    },
-                    api_key: {
-                        key: 'AppHub API Key',
-                    },
-                    upgrade: {
-                        target: '支持的目标',
-                        release_channel: '正式渠道',
-                        dev_channel: '开发渠道',
+                    platform_gateway: {
+                        https_enabled: 'HTTPS',
                     },
                     version: {
                         product: '产品版本',
                     },
-                    version_plugins: {
-                        portainer: 'Portainer 插件',
-                        nginx: 'Nginx 插件',
-                        gitea: 'Gitea 插件',
-                        myapps: '我的应用插件',
-                        appstore: '应用商店插件',
-                        settings: '设置插件',
-                        navigator: '导航插件',
+                },
+                https: {
+                    enabled: '已启用',
+                    disabled: '已关闭',
+                },
+                version: {
+                    label: '版本',
+                },
+                upgrade: {
+                    label: '系统升级',
+                    comingSoon: '升级预检和升级执行正在后续故事中接入。',
+                    actions: {
+                        precheck: '运行预检',
+                        start: '开始升级',
                     },
                 },
             },

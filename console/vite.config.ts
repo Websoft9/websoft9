@@ -2,7 +2,6 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 const gatewayTarget = process.env.WEBSOFT9_DEV_GATEWAY ?? 'http://127.0.0.1:9000'
-const portainerTarget = process.env.WEBSOFT9_DEV_PORTAINER ?? 'http://127.0.0.1:9003'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -20,9 +19,8 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/w9deployment/': {
-        target: portainerTarget,
+        target: gatewayTarget,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/w9deployment/, '/'),
       },
       '/w9proxy/': {
         target: gatewayTarget,

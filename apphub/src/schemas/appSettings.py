@@ -1,23 +1,6 @@
-from pydantic import BaseModel, Field, HttpUrl
+from typing import Optional
 
-class NginxProxyManagerSetting(BaseModel):
-    base_url: HttpUrl = Field(..., title="The base url for nginx proxy manager")
-    user_name: str = Field(..., title="The user name for nginx proxy manager")
-    user_pwd: str = Field(..., title="The user password for nginx proxy manager")
-    listen_port: int = Field(..., title="The listen port for nginx proxy manager")
-    docker0_ip: str = Field(..., title="The docker0 IP for nginx proxy manager")
-    ssl_cert: str = Field(..., title="The SSL certificate path for nginx proxy manager")
-    ssl_key: str = Field(..., title="The SSL key path for nginx proxy manager")
-
-class GiteaSetting(BaseModel):
-    base_url: HttpUrl = Field(..., title="The base url for gitea")
-    user_name: str = Field(..., title="The user name for gitea")
-    user_pwd: str = Field(..., title="The user password for gitea")
-
-class PortainerSetting(BaseModel):
-    base_url: HttpUrl = Field(..., title="The base url for portainer")
-    user_name: str = Field(..., title="The user name for portainer")
-    user_pwd: str = Field(..., title="The user password for portainer")
+from pydantic import BaseModel, Field
 
 class ApiKeySetting(BaseModel):
     key: str = Field(..., title="The api key")
@@ -25,13 +8,17 @@ class ApiKeySetting(BaseModel):
 class Domain(BaseModel):
     wildcard_domain: str = Field(None, title="The domain name")
 
-class Cockpit(BaseModel):
-    port: int = Field(..., title="The port of cockpit")
+class PlatformGatewaySetting(BaseModel):
+    https_enabled: str = Field(..., title="Whether platform gateway HTTPS is enabled")
+    ssl_cert: str = Field(..., title="The SSL certificate path for platform gateway")
+    ssl_key: str = Field(..., title="The SSL key path for platform gateway")
+
+class ProductAuthSetting(BaseModel):
+    enabled: str = Field(..., title="Whether product auth is enabled")
+    protected_modules: str = Field(..., title="Protected modules list")
 
 class AppSettings(BaseModel):
-    nginx_proxy_manager: NginxProxyManagerSetting
-    gitea: GiteaSetting
-    portainer: PortainerSetting
     api_key: ApiKeySetting
     domain: Domain
-    cockpit: Cockpit
+    platform_gateway: Optional[PlatformGatewaySetting] = None
+    product_auth: Optional[ProductAuthSetting] = None

@@ -226,7 +226,20 @@ PY
 bootstrap_platform_gateway() {
   log_event "info" "workspace-bootstrap.bootstrap-platform-gateway" "phase=workspace-bootstrap action=bootstrap-platform-gateway"
 
-  if ! wait_for_url "platform-gateway" "${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-http://127.0.0.1:8889/w9gateway/healthz}" 30; then
+  local platform_gateway_health_url
+  platform_gateway_health_url="${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-$(python3 - "${WEBSOFT9_APPHUB_CONFIG_PATH:-/websoft9/apphub/src/config/config.ini}" <<'PY'
+import configparser
+import sys
+
+config = configparser.ConfigParser()
+config.read(sys.argv[1])
+enabled = config.get("platform_gateway", "https_enabled", fallback="false").strip().lower()
+scheme = "https" if enabled in {"true", "1", "yes", "on"} else "http"
+print(f"{scheme}://127.0.0.1:9000/w9gateway/healthz")
+PY
+)}"
+
+  if ! wait_for_url "platform-gateway" "$platform_gateway_health_url" 30; then
     write_status "degraded" "platform gateway failed to become healthy during bootstrap"
     return 0
   fi
@@ -246,7 +259,7 @@ bootstrap_gitea() {
 bootstrap_portainer() {
   log_event "info" "workspace-bootstrap.bootstrap-portainer" "phase=workspace-bootstrap action=bootstrap-portainer"
 
-  if ! wait_for_url "portainer" "${WEBSOFT9_PORTAINER_HEALTH_URL:-https://127.0.0.1:9443/api/system/status}" 45; then
+  if ! wait_for_url "portainer" "${WEBSOFT9_PORTAINER_HEALTH_URL:-http://127.0.0.1:9004/api/system/status}" 45; then
     write_status "degraded" "portainer failed to become healthy during bootstrap"
     return 0
   fi

@@ -1,5 +1,10 @@
 {
   "version": "2.2.17",
+  "edition": {
+    "key": "open-source",
+    "name": "Open Source",
+    "max_apps": 2
+  },
   "plugins": {
     "portainer": "0.1.4",
     "nginx": "0.1.0",

@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Header, Response
 
@@ -7,14 +7,7 @@ from src.services.integration_session_bridge import IntegrationSessionBridge
 router = APIRouter()
 
 
-@router.post("/integrations/{integration_key}/session")
-def bootstrap_integration_session(
-    response: Response,
-    integration_key: Literal["gitea", "portainer", "npm"],
-    x_websoft9_locale: str | None = Header(default=None),
-):
-    cookies = IntegrationSessionBridge().bootstrap(integration_key, locale=x_websoft9_locale)
-
+def _set_session_cookies(response: Response, cookies: list[dict[str, object]]) -> None:
     for cookie in cookies:
         response.set_cookie(
             key=str(cookie["name"]),
@@ -23,5 +16,25 @@ def bootstrap_integration_session(
             httponly=bool(cookie.get("httponly", False)),
             samesite="lax",
         )
+
+
+@router.post("/integrations/session")
+def bootstrap_all_integration_sessions(
+    response: Response,
+    x_websoft9_locale: Optional[str] = Header(default=None),
+):
+    payload = IntegrationSessionBridge().bootstrap_all(locale=x_websoft9_locale)
+    _set_session_cookies(response, payload.pop("cookies"))
+    return payload
+
+
+@router.post("/integrations/{integration_key}/session")
+def bootstrap_integration_session(
+    response: Response,
+    integration_key: Literal["gitea", "portainer", "npm"],
+    x_websoft9_locale: Optional[str] = Header(default=None),
+):
+    cookies = IntegrationSessionBridge().bootstrap(integration_key, locale=x_websoft9_locale)
+    _set_session_cookies(response, cookies)
 
     return {"status": "ok", "integration": integration_key}

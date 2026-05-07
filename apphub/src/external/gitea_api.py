@@ -1,8 +1,38 @@
 import base64
+import os
+import socket
+from urllib.parse import urlparse
 
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
 from src.core.logger import logger
+from src.services.integration_credentials import IntegrationCredentialProvider
+
+
+def resolve_gitea_api_base_url() -> str:
+    fallback = os.getenv("WEBSOFT9_GITEA_API_BASE_URL", "http://127.0.0.1:3001/api/v1").rstrip("/")
+
+    try:
+        configured = (ConfigManager().get_value("gitea", "base_url") or "").rstrip("/")
+    except Exception:
+        return fallback
+
+    if not configured:
+        return fallback
+
+    parsed = urlparse(configured)
+    host = parsed.hostname
+    if not parsed.scheme or not parsed.netloc or not host:
+        return fallback
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        logger.error(f"Gitea base_url host '{host}' is unreachable; falling back to {fallback}")
+        return fallback
+
+    return configured
 
 
 class GiteaAPI:
@@ -25,9 +55,9 @@ class GiteaAPI:
         """
         Initialize the GiteaAPI instance
         """
-        self.owner = ConfigManager().get_value("gitea", "user_name")
+        self.owner = IntegrationCredentialProvider().get_gitea_credentials().username
         self.api = APIHelper(
-            ConfigManager().get_value("gitea", "base_url"),
+            resolve_gitea_api_base_url(),
             {
                 "Content-Type": "application/json",
             },

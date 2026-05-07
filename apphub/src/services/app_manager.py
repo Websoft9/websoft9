@@ -29,6 +29,7 @@ from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
 from src.core.logger import logger
+from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.proxy_manager import ProxyManager
 from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
@@ -173,7 +174,7 @@ class AppManger:
             return
 
         artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com").rstrip("/")
-        version_file = Path("/websoft9/version.json")
+        version_file = Path("/websoft9/apphub/src/config/product_metadata.json")
         channel = "release"
         if version_file.exists():
             try:
@@ -946,8 +947,9 @@ class AppManger:
         try:
             add_installing_logs(app_uuid,"Starting the services","")
             # Get gitea user_name and user_pwd
-            user_name = ConfigManager().get_value("gitea","user_name")
-            user_pwd = ConfigManager().get_value("gitea","user_pwd")
+            credentials = IntegrationCredentialProvider().get_gitea_credentials()
+            user_name = credentials.username
+            user_pwd = credentials.password
 
             # Create stack in portainer
             stack_info = portainerManager.create_stack_from_repository(app_id,endpointId,repo_url,user_name,user_pwd)
@@ -1087,8 +1089,9 @@ class AppManger:
                 details=f"{app_id} Not Found"
             )
         else:
-            user_name = ConfigManager().get_value("gitea","user_name")
-            user_pwd = ConfigManager().get_value("gitea","user_pwd")
+            credentials = IntegrationCredentialProvider().get_gitea_credentials()
+            user_name = credentials.username
+            user_pwd = credentials.password
 
             app_tmp_dir = f"/tmp/{app_id}"
             # if the app_tmp_dir exists, remove it
@@ -1820,8 +1823,9 @@ class AppManger:
             # Initialize a local git repository from a directory
             gitManager.init_local_repo_from_dir()
 
-            user_name = ConfigManager().get_value("gitea","user_name")
-            user_pwd = ConfigManager().get_value("gitea","user_pwd")
+            credentials = IntegrationCredentialProvider().get_gitea_credentials()
+            user_name = credentials.username
+            user_pwd = credentials.password
 
             # Push the local repo to remote repo
             gitManager.push_local_repo_to_remote_repo(repo_url,user_name,user_pwd)
@@ -1883,7 +1887,7 @@ class AppManger:
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
     def download_image_accelerators(self):
         try:
-            url = ConfigManager("config.ini").get_value("docker_mirror", "url")
+            url = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip() or "https://artifact.websoft9.com/release/websoft9/mirrors.json"
             response = requests.get(url)
             if response.status_code != 200:
                 logger.error(f"Failed to download image accelerators: {response.text}")

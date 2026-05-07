@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -19,10 +18,9 @@ import (
 )
 
 const (
-	portainerURL        = "https://127.0.0.1:9443/api"
-	portainerAssetsPath = "/app/frontend"
+	portainerURL        = "http://127.0.0.1:9004/api"
+	portainerAssetsPath = "/opt/websoft9-portainer"
 	portainerHTTPBind   = ":9004"
-	portainerHTTPSBind  = ":9443"
 	maxRetries          = 5
 	retryDelay          = 5 * time.Second
 	charset             = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$()_"
@@ -101,7 +99,6 @@ func startAndWaitForPortainer(args ...string) (*exec.Cmd, error) {
 	portainerArgs := append([]string{
 		"--assets", portainerAssetsPath,
 		"--bind", portainerHTTPBind,
-		"--bind-https", portainerHTTPSBind,
 		"--http-enabled",
 	}, args...)
 	cmd := exec.Command("/portainer", portainerArgs...)
@@ -364,9 +361,5 @@ func isPortainerInitialized() bool {
 }
 
 func portainerHTTPClient() *http.Client {
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
-	return &http.Client{Transport: transport}
+	return &http.Client{}
 }

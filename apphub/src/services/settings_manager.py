@@ -1,10 +1,11 @@
 import os
-import json
 import configparser
+import subprocess
 from typing import Dict
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.schemas.appSettings import AppSettings
+from src.services.product_metadata import read_product_edition, read_product_metadata
 
 class SettingsManager:
     """
@@ -50,55 +51,34 @@ class SettingsManager:
 
     def read_summary(self) -> dict:
         self.config.read(self.config_file_path)
-        version_payload = self._read_version_payload()
+        version_payload = read_product_metadata()
+        edition = read_product_edition()
+        raw_version = str(version_payload.get("version", "")).strip()
+        edition_name = str(edition.name or "").strip()
+        product_version = f"{edition_name} {raw_version}".strip() or "-"
 
         return {
             "groups": [
                 {
-                    "id": "domain",
+                    "id": "general",
                     "items": [
                         self._build_item("domain", "wildcard_domain", self._get_value("domain", "wildcard_domain"), editable=True),
-                    ],
-                },
-                {
-                    "id": "certificate",
-                    "items": [
-                        self._build_item("nginx_proxy_manager", "ssl_cert", self._get_value("nginx_proxy_manager", "ssl_cert"), masked=True),
-                        self._build_item("nginx_proxy_manager", "ssl_key", self._get_value("nginx_proxy_manager", "ssl_key"), sensitive=True, masked=True),
-                    ],
-                },
-                {
-                    "id": "mirror",
-                    "items": [
-                        self._build_item("docker_mirror", "url", self._get_value("docker_mirror", "url"), editable=True),
-                    ],
-                },
-                {
-                    "id": "internal_access",
-                    "items": [
-                        self._build_item("nginx_proxy_manager", "base_url", self._get_value("nginx_proxy_manager", "base_url"), editable=True),
-                        self._build_item("portainer", "base_url", self._get_value("portainer", "base_url"), editable=True),
-                        self._build_item("gitea", "base_url", self._get_value("gitea", "base_url"), editable=True),
-                        self._build_item("cockpit", "port", self._get_value("cockpit", "port"), editable=True),
-                        self._build_item("api_key", "key", self._get_value("api_key", "key"), sensitive=True, masked=True),
-                    ],
-                },
-                {
-                    "id": "upgrade",
-                    "items": [
-                        self._build_item("upgrade", "target", "apps"),
-                        self._build_item("upgrade", "release_channel", "release"),
-                        self._build_item("upgrade", "dev_channel", "dev"),
+                        self._build_item("platform_gateway", "https_enabled", self._bool_to_string(self._is_platform_https_enabled()), editable=True),
                     ],
                 },
                 {
                     "id": "version",
                     "items": [
-                        self._build_item("version", "product", str(version_payload.get("version", "-"))),
-                        *[
-                            self._build_item("version_plugins", key, str(value))
-                            for key, value in (version_payload.get("plugins") or {}).items()
-                        ],
+                        self._build_item(
+                            "version",
+                            "product",
+                            product_version,
+                            metadata={
+                                "version": raw_version,
+                                "edition_key": edition.key,
+                                "edition_names": edition.names,
+                            },
+                        ),
                     ],
                 },
             ],
@@ -196,6 +176,8 @@ class SettingsManager:
         try:
             # Read the config file
             self.config.read(self.config_file_path)
+            if section == "platform_gateway" and key == "https_enabled":
+                return self._write_platform_https_setting(value)
             # Check if section exists
             if section not in self.config.sections():
                 raise CustomException(
@@ -224,7 +206,7 @@ class SettingsManager:
     def _get_value(self, section: str, key: str) -> str:
         return self.config.get(section, key, fallback="")
 
-    def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False) -> dict:
+    def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
         display_value = value
         if masked:
             display_value = self._mask_value(value)
@@ -236,6 +218,7 @@ class SettingsManager:
             "sensitive": sensitive,
             "masked": masked,
             "editable": editable,
+            "metadata": metadata,
         }
 
     def _mask_value(self, value: str) -> str:
@@ -245,10 +228,77 @@ class SettingsManager:
             return "*" * len(value)
         return f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
 
-    def _read_version_payload(self) -> dict:
-        candidate_path = os.path.abspath(os.path.join(os.path.dirname(self.config_file_path), "../../../version.json"))
-        if not os.path.exists(candidate_path):
-            return {}
+    def _is_platform_https_enabled(self) -> bool:
+        configured = self.config.get("platform_gateway", "https_enabled", fallback="").strip().lower()
+        if configured in {"true", "1", "yes", "on"}:
+            return True
+        if configured in {"false", "0", "no", "off"}:
+            return False
 
-        with open(candidate_path, "r", encoding="utf-8") as file:
-            return json.load(file)
+        gateway_default_conf = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_DEFAULT_CONF", "/etc/websoft9/platform-gateway/default.conf")
+        if os.path.exists(gateway_default_conf):
+            try:
+                with open(gateway_default_conf, "r", encoding="utf-8") as file:
+                    return "listen 9000 default_server ssl" in file.read()
+            except OSError:
+                logger.warning("Unable to read platform gateway config when resolving https_enabled")
+
+        return False
+
+    def _write_platform_https_setting(self, value: str) -> Dict[str, str]:
+        enabled = self._parse_bool(value)
+
+        if not self.config.has_section("platform_gateway"):
+            self.config.add_section("platform_gateway")
+
+        self.config.set("platform_gateway", "https_enabled", self._bool_to_string(enabled))
+        if enabled:
+            self.config.set("platform_gateway", "ssl_cert", self._default_ssl_cert_path())
+            self.config.set("platform_gateway", "ssl_key", self._default_ssl_key_path())
+
+        with open(self.config_file_path, 'w') as configfile:
+            self.config.write(configfile)
+
+        self._restart_platform_gateway()
+        return self.read_section("platform_gateway")
+
+    def _restart_platform_gateway(self) -> None:
+        try:
+            subprocess.Popen(
+                [
+                    "sh",
+                    "-lc",
+                    "sleep 0.5 && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf restart platform-gateway",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except OSError as error:
+            logger.error(f"Failed to schedule platform-gateway restart after HTTPS toggle: {error}")
+            raise CustomException(
+                status_code=500,
+                message="Internal Server Error",
+                details="Failed to apply the platform HTTPS change",
+            )
+
+    def _parse_bool(self, value: str) -> bool:
+        normalized = (value or "").strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+        raise CustomException(
+            status_code=400,
+            message="Invalid Request",
+            details="https_enabled must be a boolean value",
+        )
+
+    def _bool_to_string(self, value: bool) -> str:
+        return "true" if value else "false"
+
+    def _default_ssl_cert_path(self) -> str:
+        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert")
+
+    def _default_ssl_key_path(self) -> str:
+        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key")

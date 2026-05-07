@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-05-06T03:00:00Z
+last_updated: 2026-05-07T00:30:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -50,6 +50,7 @@ development_status:
   2-3-deliver-portainer-embedded-workspace-and-session-continuity: done
   2-4-deliver-npm-embedded-workspace-and-session-continuity: done
   2-5-handle-integration-failures-and-degraded-states-consistently: done
+  2-6-unify-integration-readiness-and-session-prewarm: done
   epic-2-retrospective: done
 
   epic-3: done
@@ -60,6 +61,7 @@ development_status:
   3-5-build-lifecycle-actions-and-the-application-detail-header: done
   3-6-build-application-access-proxy-and-certificate-management: done
   3-7-build-product-settings-and-the-sensitive-configuration-baseline: done
+  3-8-consolidate-integration-credential-source-of-truth: done
   epic-3-retrospective: optional
 
   epic-4: in-progress
@@ -73,8 +75,8 @@ development_status:
   4-8-build-the-websoft9-runtime-logs-page: review
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-build-the-upgrade-precheck-and-migration-summary: backlog
+  epic-5: in-progress
+  5-1-build-the-upgrade-precheck-and-migration-summary: in-progress
   5-2-build-single-path-upgrade-execution-and-failure-handling: backlog
   5-3-build-post-upgrade-continuity-confirmation-and-repair-entry: backlog
   epic-5-retrospective: optional

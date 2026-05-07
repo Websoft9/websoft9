@@ -11,6 +11,8 @@ from src.core.logger import logger
 from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
 
+DEFAULT_DOCKER_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+
 class BackupManager:
     """Docker Volume Backup Manager using Restic"""
 
@@ -56,7 +58,7 @@ class BackupManager:
         # Load mirrors from a remote URL
         try:
             config_manager = ConfigManager("config.ini")
-            mirrors_url = config_manager.get_value("docker_mirror", "url")
+            mirrors_url = (config_manager.get_value("docker_mirror", "url") or "").strip() or DEFAULT_DOCKER_MIRROR_URL
             response = requests.get(mirrors_url)
             if response.status_code != 200:
                 logger.error(f"Failed to download image accelerators: {response.text}")

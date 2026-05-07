@@ -26,6 +26,20 @@ esac
 portainer_marker="${WEBSOFT9_PORTAINER_BOOTSTRAP_MARKER:-$portainer_default_marker}"
 npm_marker="${WEBSOFT9_NPM_BOOTSTRAP_MARKER:-$npm_default_marker}"
 npm_cert_marker="${WEBSOFT9_NPM_CERT_MARKER:-$npm_default_cert_marker}"
+apphub_config_path="${WEBSOFT9_APPHUB_CONFIG_PATH:-/websoft9/apphub/src/config/config.ini}"
+
+platform_gateway_health_url() {
+  python3 - "$apphub_config_path" <<'PY'
+import configparser
+import sys
+
+config = configparser.ConfigParser()
+config.read(sys.argv[1])
+enabled = config.get("platform_gateway", "https_enabled", fallback="false").strip().lower()
+scheme = "https" if enabled in {"true", "1", "yes", "on"} else "http"
+print(f"{scheme}://127.0.0.1:9000/w9gateway/healthz")
+PY
+}
 
 required_checks=(
   "apphub-api|${WEBSOFT9_APPHUB_HEALTH_URL:-http://127.0.0.1:8080/api/healthz}"
@@ -33,9 +47,9 @@ required_checks=(
 )
 
 supporting_checks=(
-  "platform-gateway|${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-http://127.0.0.1:8889/w9gateway/healthz}"
+  "platform-gateway|${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-$(platform_gateway_health_url)}"
   "gitea|${WEBSOFT9_GITEA_HEALTH_URL:-http://127.0.0.1:3001/}"
-  "portainer|${WEBSOFT9_PORTAINER_HEALTH_URL:-https://127.0.0.1:9443/api/system/status}"
+  "portainer|${WEBSOFT9_PORTAINER_HEALTH_URL:-http://127.0.0.1:9004/api/system/status}"
   "nginx-proxy-manager|${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/}"
 )
 

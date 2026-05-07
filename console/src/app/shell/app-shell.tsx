@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useProductAuth } from '../../features/product-auth/product-auth-provider'
 import { normalizeSupportedLocale, supportedLocales } from '../../shared/i18n/i18n'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
+import { useIntegrationSessionPrewarm } from '../../features/integrations/integration-session-bootstrap'
 import { shellNavigationItems } from './shell-navigation'
 
 const navigationSections = [
@@ -41,6 +42,8 @@ export function AppShell() {
 
     const resolvedLocale = i18n.resolvedLanguage ?? supportedLocales[0]
     const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
+
+    useIntegrationSessionPrewarm()
 
     useEffect(() => {
         if (typeof window === 'undefined') {

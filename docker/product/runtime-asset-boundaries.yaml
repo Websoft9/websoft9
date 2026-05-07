@@ -103,6 +103,9 @@ services:
       - path: /etc/websoft9/platform-gateway
         persistence: image-managed
         recovery: restored by image redeploy and startup rewrites
+      - path: /etc/custom/platform-gateway
+        persistence: mounted
+        recovery: required for platform-gateway TLS continuity without relying on NPM custom SSL assets
     logs:
       - path: /var/log/websoft9/platform-gateway-access.log
         persistence: optional-mounted

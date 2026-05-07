@@ -2,7 +2,7 @@ import logging, os, sys
 from fastapi import FastAPI, Request,Security,Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.docs import get_swagger_ui_html
 from src.api.v1.routers import app as api_app
 from src.api.v1.routers import auth as api_auth
 from src.api.v1.routers import files as api_files
@@ -14,10 +14,10 @@ from src.api.v1.routers import proxy as api_proxy
 from src.api.v1.routers import backup as api_backup
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
+from src.core.api_key_auth import should_skip_api_key_auth
 from src.core.logger import logger
 from src.core.request_auth import has_valid_internal_gateway_auth
 from src.schemas.errorResponse import ErrorResponse
-from fastapi.responses import HTMLResponse
 from fastapi.security.api_key import APIKeyHeader
 
 # set uvicorn logger to stdout
@@ -35,44 +35,7 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
     """
     Verify API Key
     """
-    # skip docs and openapi endpoints
-    if request.url.path in {"/api/docs", "/api/openapi.json", "/api/redoc", "/api/healthz"}:
-        return None
-
-    if request.url.path.startswith("/api/integrations/"):
-        return None
-
-    if request.url.path.startswith("/api/auth/"):
-        return None
-
-    if request.url.path.startswith("/api/files/"):
-        return None
-
-    if request.url.path.startswith("/api/logs/"):
-        return None
-
-    if request.url.path == "/api/services" or request.url.path.startswith("/api/services/"):
-        return None
-
-    if request.url.path == "/api/proxys" or request.url.path.startswith("/api/proxys/"):
-        return None
-
-    if request.url.path == "/api/apps" or request.url.path.startswith("/api/apps/"):
-        return None
-
-    if request.url.path == "/api/settings" or request.url.path.startswith("/api/settings/"):
-        return None
-
-    if request.url.path.startswith("/api/apps/catalog/"):
-        return None
-
-    if request.url.path.startswith("/api/apps/available/"):
-        return None 
-
-    if request.url.path == "/api/apps/install":
-        return None
-
-    if request.url.path == "/api/settings/domain":
+    if should_skip_api_key_auth(request.url.path):
         return None
 
     internal_gateway_secret = None
@@ -90,8 +53,12 @@ async def verify_key(request: Request, api_key_header: str = Security(api_key_he
             message="Invalid Request",
             details="No API Key provided"
         )
-    # get api key from config
-    API_KEY = ConfigManager().get_value("api_key","key")
+
+    try:
+        API_KEY = ConfigManager().get_value("api_key","key")
+    except Exception:
+        API_KEY = None
+
     # validate api key is set
     if API_KEY is None:
         raise CustomException(
@@ -119,35 +86,16 @@ app = FastAPI(
         dependencies=[Depends(verify_key)],
     )
 
-app.mount("/static", StaticFiles(directory="swagger-ui"), name="static")
-
 @app.get("/healthz", include_in_schema=False)
 async def healthz():
     return {"status": "ok"}
 
-@app.get("/docs", response_class=HTMLResponse,include_in_schema=False,)
+@app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>AppHub API</title>
-        <link rel="stylesheet" type="text/css" href="/api/static/swagger-ui.css">
-        <script src="/api/static/swagger-ui-bundle.js"></script>
-    </head>
-    <body>
-        <div id="swagger-ui"></div>
-        <script>
-        const ui = SwaggerUIBundle({
-            url: "/api/openapi.json",
-            dom_id: '#swagger-ui',
-            presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-            layout: "BaseLayout"
-        })
-        </script>
-    </body>
-    </html>
-    """
+    return get_swagger_ui_html(
+        openapi_url="/api/openapi.json",
+        title="AppHub API",
+    )
 
 # remove 422 responses
 def remove_422_responses():

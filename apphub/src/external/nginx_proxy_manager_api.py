@@ -9,8 +9,13 @@ from src.core.logger import logger
 
 
 def resolve_nginx_proxy_manager_api_base_url() -> str:
-    configured = (ConfigManager().get_value("nginx_proxy_manager", "base_url") or "").rstrip("/")
     fallback = os.getenv("WEBSOFT9_NGINX_PROXY_MANAGER_API_BASE_URL", "http://127.0.0.1:81/api").rstrip("/")
+
+    try:
+        configured = (ConfigManager().get_value("nginx_proxy_manager", "base_url") or "").rstrip("/")
+    except Exception:
+        return fallback
+
     if not configured:
         return fallback
 
