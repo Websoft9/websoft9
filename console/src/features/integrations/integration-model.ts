@@ -27,8 +27,8 @@ export const integrationDefinitions: IntegrationDefinition[] = [
         directPath: '/w9git/explore/repos',
     },
     {
-        authMarkers: ['#/auth', '/api/auth', 'Portainer'],
-        authPaths: ['/api/auth'],
+        authMarkers: ['data-cy="button-login"', 'id="password_check"', 'ng-model="$ctrl.state.username"'],
+        authPaths: ['#/auth', '#!/auth'],
         diagnosticsPath: '/w9deployment/',
         entrySegment: 'containers',
         key: 'portainer',
@@ -38,7 +38,7 @@ export const integrationDefinitions: IntegrationDefinition[] = [
         directPath: '/w9deployment/',
     },
     {
-        authMarkers: ['/login', 'nginx-proxy-manager', 'Authorization'],
+        authMarkers: ['name="identity"', 'name="secret"', 'Forgot your password?'],
         authPaths: ['/login'],
         diagnosticsPath: '/w9proxy/',
         entrySegment: 'gateway',

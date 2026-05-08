@@ -108,10 +108,10 @@ export const shellResources = {
             },
             pages: {
                 dashboard: {
-                    eyebrow: 'Shell route placeholder',
-                    title: 'Overview shell entry',
+                    eyebrow: 'Home overview',
+                    title: 'Overview dashboard',
                     description:
-                        'This route reserves the top-level product overview, summary metrics, and quick operator feedback inside the shared console shell.',
+                        'The dashboard now summarizes product health, application state, core services, and recent tasks inside the shared console shell.',
                     nodeName: 'dev',
                     nodeSummary: 'Running Ubuntu 24.04.3 LTS',
                     primaryAction: 'Restart',
@@ -148,7 +148,7 @@ export const shellResources = {
                         'Dashboard summaries, product status cards, and shortcut actions can attach here without changing the shared shell structure.',
                     systemTitle: 'Current system state',
                     systemBody:
-                        'The shell now exposes a standard backend-style overview entry above the rest of the product navigation.',
+                        'The shell now exposes a product-native overview instead of a placeholder entry.',
                 },
                 appStore: {
                     eyebrow: 'Shell route placeholder',
@@ -281,6 +281,85 @@ export const shellResources = {
                     systemTitle: 'Current system state',
                     systemBody:
                         'Language switching is product-owned and no longer depends on Cockpit locale globals or po.js assets.',
+                },
+            },
+            overviewPage: {
+                compactHeader: {
+                    title: 'Overview dashboard',
+                },
+                eyebrow: 'Websoft9 overview',
+                title: 'One screen for product status, operational signals, and next actions.',
+                description: 'Overview keeps the homepage focused on Websoft9 itself: edition, install capacity, runtime health, and the signals operators should review first.',
+                generatedAt: 'Updated {{value}}',
+                waitingForData: 'Waiting for the first overview snapshot...',
+                badges: {
+                    ready: 'Ready',
+                    partial: 'Partial',
+                },
+                actions: {
+                    refresh: 'Refresh',
+                    refreshing: 'Refreshing...',
+                    retry: 'Retry',
+                    open: 'Open',
+                },
+                runtimeScope: {
+                    container: 'Container scope',
+                    system: 'System scope',
+                },
+                runtimeNote: {
+                    container: 'CPU / memory only',
+                    system: 'CPU / memory fallback',
+                },
+                runtimeMeta: {
+                    cpuQuota: 'CPU quota',
+                    visibleCores: 'Visible cores',
+                },
+                states: {
+                    authDisabled: 'Product authentication is disabled. Overview data will appear after product-auth is enabled.',
+                    loadError: 'Overview is temporarily unavailable.',
+                    sectionUnavailable: 'This overview section is temporarily unavailable.',
+                },
+                cards: {
+                    product: {
+                        title: 'Product',
+                        unlimited: 'Unlimited',
+                        metrics: {
+                            version: 'Version',
+                            edition: 'Edition',
+                            installedApps: 'Installed apps',
+                            availableApps: 'Install limit',
+                        },
+                    },
+                    host: {
+                        title: 'Host',
+                        metrics: {
+                            hostname: 'Hostname',
+                            os: 'Operating system',
+                            kernel: 'Kernel',
+                            uptime: 'Uptime',
+                        },
+                    },
+                    runtime: {
+                        title: 'Resource health',
+                        badges: {
+                            healthy: 'Healthy',
+                            warning: 'Warning',
+                            critical: 'Critical',
+                        },
+                        metrics: {
+                            cpu: 'CPU load',
+                            memory: 'Memory',
+                        },
+                    },
+                    hostRuntime: {
+                        title: 'Host resources',
+                        description: 'Live host-level CPU, memory, and disk pressure.',
+                        metrics: {
+                            cpu: 'Host CPU',
+                            memory: 'Host memory',
+                            disk: 'Disk usage',
+                        },
+                    },
                 },
             },
             appStorePage: {
@@ -1130,6 +1209,8 @@ export const shellResources = {
                     backToCatalog: 'Back to integrations',
                     bootstrappingSession: 'Preparing sign-in',
                     bootstrappingSessionDetail: 'Websoft9 is establishing the integration session before opening the embedded workspace.',
+                    refreshingSession: 'Refreshing sign-in',
+                    refreshingSessionDetail: 'The embedded workspace session expired, so Websoft9 is re-establishing it automatically.',
                     diagnosticsPath: 'Diagnostics path: {{path}}',
                     diagnosticsTitle: 'Diagnostics entry',
                     lastResolvedUrl: 'Last resolved probe URL: {{url}}',
@@ -1138,6 +1219,8 @@ export const shellResources = {
                     retryProbe: 'Retry probe',
                     sessionBootstrapFailed: 'Sign-in bridge failed',
                     sessionBootstrapFailedDetail: 'Websoft9 could not establish the embedded sign-in session. Use diagnostics or open the service directly.',
+                    sessionRefreshFailed: 'Session refresh failed',
+                    sessionRefreshFailedDetail: 'The embedded session expired and could not be restored automatically. Retry the workspace or open the service directly.',
                 },
                 states: {
                     loading: {
@@ -1308,10 +1391,10 @@ export const shellResources = {
             },
             pages: {
                 dashboard: {
-                    eyebrow: '壳层路由占位',
-                    title: '概览壳层入口',
+                    eyebrow: '首页概览',
+                    title: '概览仪表盘',
                     description:
-                        '这个路由为产品总览、摘要指标和运维快捷反馈提供共享壳层下的顶部入口。',
+                        '首页现在会在共享壳层内汇总产品状态、应用状态、核心服务和最近任务反馈。',
                     nodeName: 'dev',
                     nodeSummary: '运行中 Ubuntu 24.04.3 LTS',
                     primaryAction: '重启',
@@ -1348,7 +1431,7 @@ export const shellResources = {
                         '仪表盘摘要、产品状态卡片和快捷动作都可以挂到这里，而不需要改变共享壳层结构。',
                     systemTitle: '当前系统状态',
                     systemBody:
-                        '壳层现在在其它产品导航之前提供了一个更接近标准后台的概览入口。',
+                        '壳层现在提供的是产品原生概览，而不是占位入口。',
                 },
                 appStore: {
                     eyebrow: '壳层路由占位',
@@ -1481,6 +1564,85 @@ export const shellResources = {
                     systemTitle: '当前系统状态',
                     systemBody:
                         '语言切换现在由产品自身控制，不再依赖 Cockpit locale 全局变量或 po.js 资源。',
+                },
+            },
+            overviewPage: {
+                compactHeader: {
+                    title: '概览面板',
+                },
+                eyebrow: 'Websoft9 概览',
+                title: '用一个首页看清产品状态、运行信号和下一步动作。',
+                description: '概览首页聚焦 Websoft9 自身：版本与版本线、安装上限、运行资源健康，以及操作员应该优先查看的关键信号。',
+                generatedAt: '最近更新：{{value}}',
+                waitingForData: '正在等待第一份概览快照...',
+                badges: {
+                    ready: '正常',
+                    partial: '部分可用',
+                },
+                actions: {
+                    refresh: '刷新',
+                    refreshing: '刷新中...',
+                    retry: '重试',
+                    open: '打开',
+                },
+                runtimeScope: {
+                    container: '容器口径',
+                    system: '系统口径',
+                },
+                runtimeNote: {
+                    container: '仅看 CPU / 内存',
+                    system: '当前回退为整机 CPU / 内存',
+                },
+                runtimeMeta: {
+                    cpuQuota: 'CPU 配额',
+                    visibleCores: '可见核心',
+                },
+                states: {
+                    authDisabled: '产品认证尚未启用。启用 product-auth 后这里会显示概览数据。',
+                    loadError: '概览暂时不可用。',
+                    sectionUnavailable: '这个概览分区暂时不可用。',
+                },
+                cards: {
+                    product: {
+                        title: '产品信息',
+                        unlimited: '无限制',
+                        metrics: {
+                            version: '当前版本',
+                            edition: '版本线',
+                            installedApps: '已安装应用',
+                            availableApps: '安装上限',
+                        },
+                    },
+                    host: {
+                        title: '宿主机信息',
+                        metrics: {
+                            hostname: '主机名',
+                            os: '操作系统',
+                            kernel: '内核版本',
+                            uptime: '运行时长',
+                        },
+                    },
+                    runtime: {
+                        title: '资源健康',
+                        badges: {
+                            healthy: '健康',
+                            warning: '注意',
+                            critical: '告警',
+                        },
+                        metrics: {
+                            cpu: 'CPU 负载',
+                            memory: '内存',
+                        },
+                    },
+                    hostRuntime: {
+                        title: '宿主机资源',
+                        description: '显示宿主机口径的 CPU、内存和磁盘压力。',
+                        metrics: {
+                            cpu: '主机 CPU',
+                            memory: '主机内存',
+                            disk: '磁盘占用',
+                        },
+                    },
                 },
             },
             appStorePage: {
@@ -2330,6 +2492,8 @@ export const shellResources = {
                     backToCatalog: '返回集成目录',
                     bootstrappingSession: '正在准备登录',
                     bootstrappingSessionDetail: 'Websoft9 正在先建立集成服务会话，再打开嵌入工作区。',
+                    refreshingSession: '正在恢复会话',
+                    refreshingSessionDetail: '嵌入工作区会话已过期，Websoft9 正在自动重新建立登录状态。',
                     diagnosticsPath: '诊断路径：{{path}}',
                     diagnosticsTitle: '诊断入口',
                     lastResolvedUrl: '最近一次探测落点 URL：{{url}}',
@@ -2338,6 +2502,8 @@ export const shellResources = {
                     retryProbe: '重试探测',
                     sessionBootstrapFailed: '登录桥接失败',
                     sessionBootstrapFailedDetail: 'Websoft9 未能建立嵌入登录会话。请使用诊断信息或直接打开服务。',
+                    sessionRefreshFailed: '会话恢复失败',
+                    sessionRefreshFailedDetail: '嵌入会话已过期，但自动恢复未成功。请重试工作区，或直接打开服务。',
                 },
                 states: {
                     loading: {

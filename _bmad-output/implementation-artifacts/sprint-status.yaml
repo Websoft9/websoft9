@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-05-07T00:30:00Z
+last_updated: 2026-05-07T09:20:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -65,7 +65,7 @@ development_status:
   epic-3-retrospective: optional
 
   epic-4: in-progress
-  4-1-build-the-home-overview-and-global-task-feedback-baseline: backlog
+  4-1-build-the-home-overview-and-global-task-feedback-baseline: done
   4-2-build-minimal-product-side-login-and-administrator-initialization: done
   4-3-build-the-basic-user-management-entry: done
   4-4-build-the-backup-list-and-restore-loop: backlog

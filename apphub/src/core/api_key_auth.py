@@ -21,6 +21,9 @@ def should_skip_api_key_auth(path: str) -> bool:
     if normalized_path.startswith("/logs/"):
         return True
 
+    if normalized_path == "/overview" or normalized_path.startswith("/overview/"):
+        return True
+
     if normalized_path == "/services" or normalized_path.startswith("/services/"):
         return True
 

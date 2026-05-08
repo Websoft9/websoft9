@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Chip, Paper, Stack, Typography } from '@mui/material'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -194,6 +194,49 @@ function handleIntegrationFrameLoad(frame: HTMLIFrameElement, definition: Integr
     }
 }
 
+function inspectIntegrationFrame(frame: HTMLIFrameElement, definition: IntegrationWorkspaceContentProps['definition']) {
+    try {
+        const currentLocation = frame.contentWindow?.location
+        const doc = frame.contentDocument
+        const pathname = currentLocation?.pathname ?? ''
+        const search = currentLocation?.search ?? ''
+        const hash = currentLocation?.hash ?? ''
+        const resolvedTarget = `${pathname}${search}${hash}`
+        const title = doc?.title ?? ''
+        const html = doc?.documentElement?.innerHTML ?? ''
+
+        const authPathMatched = definition.authPaths.some((authPath) => resolvedTarget.includes(authPath))
+        const authMarkerMatched = definition.authMarkers.some((marker) =>
+            title.includes(marker) || html.includes(marker),
+        )
+
+        return {
+            authSurfaceDetected: authPathMatched || authMarkerMatched,
+            resolvedTarget,
+        }
+    } catch {
+        return {
+            authSurfaceDetected: false,
+            resolvedTarget: null,
+        }
+    }
+}
+
+async function bootstrapIntegrationSession(integrationKey: IntegrationKey, locale: string) {
+    const response = await fetch(`/api/integrations/${integrationKey}/session`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'X-Websoft9-Locale': locale,
+        },
+    })
+
+    if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { details?: string; message?: string } | null
+        throw new Error(payload?.details ?? payload?.message ?? `HTTP ${response.status}`)
+    }
+}
+
 function DirectIntegrationWorkspaceFrame({
     active,
     definition,
@@ -205,11 +248,22 @@ function DirectIntegrationWorkspaceFrame({
     refresh: () => void
     snapshot: ReturnType<typeof useIntegrationStatuses>['snapshots'][IntegrationKey]
 }) {
-    const { t } = useTranslation('shell')
+    const { t, i18n } = useTranslation('shell')
     const [searchParams] = useSearchParams()
     const [hasInitializedFrame, setHasInitializedFrame] = useState(false)
+    const [frameVersion, setFrameVersion] = useState(0)
+    const [recoveryState, setRecoveryState] = useState<'idle' | 'recovering' | 'error'>('idle')
+    const [recoveryError, setRecoveryError] = useState<string | null>(null)
+    const [lastRecoveryTarget, setLastRecoveryTarget] = useState<string | null>(null)
+    const inspectionTimeoutRef = useRef<number | null>(null)
     const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt, active || hasInitializedFrame)
-    const shouldRenderFrame = (active || hasInitializedFrame) && sessionState === 'ready' && (snapshot.status === 'available' || snapshot.status === 'session-error')
+    const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const shouldRenderFrame =
+        (active || hasInitializedFrame) &&
+        sessionState === 'ready' &&
+        recoveryState !== 'recovering' &&
+        recoveryState !== 'error' &&
+        (snapshot.status === 'available' || snapshot.status === 'session-error')
     const requestedTarget = active ? searchParams.get('target') : null
     const rememberedWorkspaceSrc = useMemo(() => {
         if (typeof window === 'undefined') {
@@ -230,6 +284,48 @@ function DirectIntegrationWorkspaceFrame({
         }
     }, [active, sessionState])
 
+    useEffect(() => {
+        if (sessionState !== 'ready') {
+            setRecoveryState('idle')
+            setRecoveryError(null)
+        }
+    }, [sessionState])
+
+    useEffect(() => {
+        return () => {
+            if (inspectionTimeoutRef.current !== null) {
+                window.clearTimeout(inspectionTimeoutRef.current)
+            }
+        }
+    }, [])
+
+    async function recoverIntegrationSession(target: string | null, options?: { force?: boolean }) {
+        const recoveryTarget = target || iframeSrc
+        if (recoveryState === 'recovering') {
+            return
+        }
+
+        if (!options?.force && lastRecoveryTarget === recoveryTarget) {
+            setRecoveryState('error')
+            setRecoveryError(t('integrations.workspace.sessionRefreshFailedDetail'))
+            return
+        }
+
+        setRecoveryState('recovering')
+        setRecoveryError(null)
+        setLastRecoveryTarget(recoveryTarget)
+
+        try {
+            await bootstrapIntegrationSession(definition.key, locale)
+            setRecoveryState('idle')
+            setRecoveryError(null)
+            setFrameVersion((current) => current + 1)
+        } catch (error) {
+            setRecoveryState('error')
+            setRecoveryError(error instanceof Error ? error.message : t('integrations.workspace.sessionRefreshFailedDetail'))
+        }
+    }
+
     if (!active && !hasInitializedFrame) {
         return null
     }
@@ -237,9 +333,38 @@ function DirectIntegrationWorkspaceFrame({
     return shouldRenderFrame ? (
         <Box
             component="iframe"
+            key={`${definition.key}:${frameVersion}`}
             src={iframeSrc}
             onLoad={(event) => {
+                if (inspectionTimeoutRef.current !== null) {
+                    window.clearTimeout(inspectionTimeoutRef.current)
+                    inspectionTimeoutRef.current = null
+                }
+
                 handleIntegrationFrameLoad(event.currentTarget, definition)
+
+                const inspectFrame = () => {
+                    const inspection = inspectIntegrationFrame(event.currentTarget, definition)
+                    if (!inspection.authSurfaceDetected) {
+                        setRecoveryState('idle')
+                        setRecoveryError(null)
+                        setLastRecoveryTarget(null)
+                        return
+                    }
+
+                    void recoverIntegrationSession(inspection.resolvedTarget)
+                }
+
+                const inspectionDelayMs = definition.key === 'portainer' ? 2000 : 0
+                if (inspectionDelayMs > 0) {
+                    inspectionTimeoutRef.current = window.setTimeout(() => {
+                        inspectionTimeoutRef.current = null
+                        inspectFrame()
+                    }, inspectionDelayMs)
+                    return
+                }
+
+                inspectFrame()
             }}
             sx={{
                 width: '100%',
@@ -261,7 +386,24 @@ function DirectIntegrationWorkspaceFrame({
                 textAlign: 'center',
             }}
         >
-            {sessionState === 'error' ? (
+            {recoveryState === 'recovering' ? (
+                <>
+                    <Chip color="info" label={t('integrations.workspace.refreshingSession')} />
+                    <Typography color="text.secondary" variant="body2">
+                        {t('integrations.workspace.refreshingSessionDetail')}
+                    </Typography>
+                </>
+            ) : recoveryState === 'error' ? (
+                <>
+                    <Chip color="warning" label={t('integrations.workspace.sessionRefreshFailed')} />
+                    <Typography color="text.secondary" variant="body2">
+                        {recoveryError ?? t('integrations.workspace.sessionRefreshFailedDetail')}
+                    </Typography>
+                    <Button onClick={() => void recoverIntegrationSession(null, { force: true })} variant="outlined">
+                        {t('integrations.workspace.retryProbe')}
+                    </Button>
+                </>
+            ) : sessionState === 'error' ? (
                 <>
                     <Chip color="warning" label={t('integrations.workspace.sessionBootstrapFailed')} />
                     <Typography color="text.secondary" variant="body2">

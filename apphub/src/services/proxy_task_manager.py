@@ -1,5 +1,6 @@
 import threading
 import uuid
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from src.core.exception import CustomException
@@ -52,6 +53,7 @@ class ProxyTaskManager:
                 "status": "pending",
                 "proxy_host": None,
                 "error": None,
+                "updated_at": self._timestamp_now(),
             }
 
         threading.Thread(target=self._run_task, args=(task_id, worker), daemon=True).start()
@@ -86,3 +88,7 @@ class ProxyTaskManager:
             task["status"] = status
             task["proxy_host"] = proxy_host
             task["error"] = error
+            task["updated_at"] = self._timestamp_now()
+
+    def _timestamp_now(self) -> str:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
