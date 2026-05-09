@@ -1,6 +1,6 @@
-import { Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, CircularProgress, LinearProgress, Paper, Stack, SvgIcon, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useProductAuth } from '../product-auth/product-auth-provider'
@@ -20,6 +20,7 @@ type OverviewProductSummary = {
     version: string | null
     edition_key: string | null
     edition_name: string | null
+    catalog_app_count: number | null
     installed_count: number | null
     available_app_count: number | null
     upgrade_state: string
@@ -74,6 +75,23 @@ type OverviewServicesSummary = {
     target_route: string
 }
 
+type OverviewTaskItem = {
+    key: string
+    kind: string
+    title: string
+    status: 'running' | 'success' | 'failed'
+    detail: string | null
+    updated_at: string
+    target_route: string
+}
+
+type OverviewTasksSummary = {
+    available: boolean
+    unavailable_reason: string | null
+    items: OverviewTaskItem[]
+    target_route: string
+}
+
 type OverviewResponse = {
     generated_at: string
     product: OverviewProductSummary
@@ -82,6 +100,7 @@ type OverviewResponse = {
     runtime: OverviewRuntimeSummary
     host_runtime: OverviewRuntimeSummary
     services: OverviewServicesSummary
+    tasks: OverviewTasksSummary
     alerts: OverviewAlert[]
 }
 
@@ -111,7 +130,7 @@ export function OverviewPage() {
     const { t, i18n } = useTranslation('shell')
     const { status } = useProductAuth()
 
-    const { data, error, isLoading, isFetching, refetch } = useQuery<OverviewResponse, Error>({
+    const { data, error, isLoading, refetch } = useQuery<OverviewResponse, Error>({
         queryKey: ['overview-summary'],
         queryFn: () => requestJson<OverviewResponse>('/api/overview'),
         enabled: Boolean(status?.enabled && status?.authenticated),
@@ -121,15 +140,6 @@ export function OverviewPage() {
     })
 
     const locale = i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en-US'
-    const dateFormatter = useMemo(
-        () =>
-            new Intl.DateTimeFormat(locale, {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-            }),
-        [locale],
-    )
-
     const numberFormatter = useMemo(
         () =>
             new Intl.NumberFormat(locale, {
@@ -137,33 +147,14 @@ export function OverviewPage() {
             }),
         [locale],
     )
+    const localizedEditionName = getLocalizedEditionName(data?.product.edition_key ?? null, data?.product.edition_name ?? null, t)
 
     return (
         <Box className="overview-page-shell">
-            <Stack spacing={1.75}>
-                <Stack className="overview-page-header" direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-                    <Stack spacing={0.45}>
-                        <Typography className="overview-page-title">
-                            {t('overviewPage.compactHeader.title')}
-                        </Typography>
-                    </Stack>
-
-                    <Stack className="overview-page-actions" direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                        {data ? (
-                            <Typography className="overview-page-updated" color="text.secondary">
-                                {t('overviewPage.generatedAt', { value: dateFormatter.format(new Date(data.generated_at)) })}
-                            </Typography>
-                        ) : null}
-                        <Button
-                            className="overview-page-refresh-button"
-                            onClick={() => void refetch()}
-                            size="small"
-                            variant="contained"
-                        >
-                            {isFetching ? t('overviewPage.actions.refreshing') : t('overviewPage.actions.refresh')}
-                        </Button>
-                    </Stack>
-                </Stack>
+            <Stack spacing={2}>
+                <Typography className="overview-page-title">
+                    {t('overviewPage.compactHeader.title')}
+                </Typography>
 
                 {!status?.enabled ? <Alert severity="info">{t('overviewPage.states.authDisabled')}</Alert> : null}
 
@@ -200,131 +191,120 @@ export function OverviewPage() {
 
                 {data ? (
                     <Stack spacing={2}>
-                        <Stack className="overview-page-intro" spacing={0.9}>
-                            <Typography className="overview-page-description" color="text.secondary">
-                                {t('overviewPage.description')}
-                            </Typography>
-                        </Stack>
-
-                        <Box className="overview-page-grid overview-page-grid-summary">
-                            <Paper className="overview-page-panel" elevation={0}>
-                                <Stack spacing={1.5}>
-                                    <Stack className="overview-page-panel-header" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                        <Typography className="overview-page-panel-title">{t('overviewPage.cards.product.title')}</Typography>
-                                        <Chip className="overview-page-status-chip" color={data.product.available ? 'success' : 'warning'} label={data.product.available ? t('overviewPage.badges.ready') : t('overviewPage.badges.partial')} size="small" />
-                                    </Stack>
-
-                                    {data.product.available ? (
-                                        <Box className="overview-page-metrics-grid overview-page-metrics-grid-product">
-                                            <SummaryMetricCell accent="#2563eb" label={t('overviewPage.cards.product.metrics.version')} value={data.product.version || '--'} />
-                                            <SummaryMetricCell accent="#0f766e" label={t('overviewPage.cards.product.metrics.edition')} value={data.product.edition_name || data.product.edition_key || '--'} />
-                                            <SummaryMetricCell accent="#d97706" label={t('overviewPage.cards.product.metrics.installedApps')} value={String(data.product.installed_count ?? 0)} />
-                                            <SummaryMetricCell accent="#7c3aed" label={t('overviewPage.cards.product.metrics.availableApps')} value={formatAppLimit(data.product.available_app_count, t('overviewPage.cards.product.unlimited'))} />
-                                        </Box>
-                                    ) : (
-                                        <Alert severity="warning">{data.product.unavailable_reason || t('overviewPage.states.sectionUnavailable')}</Alert>
-                                    )}
-                                </Stack>
-                            </Paper>
-
-                            <Paper className="overview-page-panel" elevation={0}>
-                                <Stack spacing={1.5}>
-                                    <Stack className="overview-page-panel-header" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                        <Typography className="overview-page-panel-title">{t('overviewPage.cards.host.title')}</Typography>
-                                        <Chip className="overview-page-status-chip" color={data.host.available ? 'success' : 'warning'} label={data.host.available ? t('overviewPage.badges.ready') : t('overviewPage.badges.partial')} size="small" />
-                                    </Stack>
-
-                                    {data.host.available ? (
-                                        <Box className="overview-page-metrics-grid overview-page-metrics-grid-product">
-                                            <SummaryMetricCell accent="#1d4ed8" label={t('overviewPage.cards.host.metrics.hostname')} value={data.host.hostname || '--'} />
-                                            <SummaryMetricCell accent="#0f766e" label={t('overviewPage.cards.host.metrics.os')} value={data.host.os_name || '--'} />
-                                            <SummaryMetricCell accent="#d97706" label={t('overviewPage.cards.host.metrics.kernel')} value={data.host.kernel_version || '--'} />
-                                            <SummaryMetricCell accent="#7c3aed" label={t('overviewPage.cards.host.metrics.uptime')} value={formatUptime(data.host.uptime_seconds)} />
-                                        </Box>
-                                    ) : (
-                                        <Alert severity="warning">{data.host.unavailable_reason || t('overviewPage.states.sectionUnavailable')}</Alert>
-                                    )}
-                                </Stack>
-                            </Paper>
+                        <Box className="overview-page-summary-strip">
+                            <CompactSummaryCard
+                                label={t('overviewPage.summary.availableApps')}
+                                value={typeof data.product.catalog_app_count === 'number' ? String(data.product.catalog_app_count) : '--'}
+                                accent="amber"
+                                icon={<StorefrontSummaryIcon />}
+                            />
+                            <CompactSummaryCard
+                                label={t('overviewPage.summary.installedApps')}
+                                value={String(data.apps.installed_count ?? 0)}
+                                accent="teal"
+                                icon={<AppsSummaryIcon />}
+                            />
+                            <CompactSummaryCard
+                                label={t('overviewPage.stats.activeApps')}
+                                value={String(data.apps.active_count ?? 0)}
+                                accent="green"
+                                icon={<CheckSummaryIcon />}
+                            />
+                            <CompactSummaryCard
+                                label={t('overviewPage.summary.errorApps')}
+                                value={String(data.apps.error_count ?? 0)}
+                                accent="violet"
+                                icon={<AlertSummaryIcon />}
+                            />
                         </Box>
 
-                        <Box className="overview-page-grid overview-page-grid-runtime-panels">
-                            <Paper className="overview-page-panel" elevation={0}>
-                                <Stack spacing={2}>
+                        <Box className="overview-page-dashboard-grid">
+                            <Paper className="overview-page-panel overview-page-panel-runtime" elevation={0}>
+                                <Stack className="overview-page-panel-stack" spacing={2.8}>
                                     <Stack className="overview-page-panel-header" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                        <Typography className="overview-page-panel-title">{t('overviewPage.cards.runtime.title')}</Typography>
+                                        <Box>
+                                            <Typography className="overview-page-panel-title">{t('overviewPage.cards.runtime.title')}</Typography>
+                                            <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.runtime.subtitle')}</Typography>
+                                        </Box>
                                         <Chip className="overview-page-status-chip" color={data.runtime.health_state === 'healthy' ? 'success' : data.runtime.health_state === 'warning' ? 'warning' : 'error'} label={t(`overviewPage.cards.runtime.badges.${data.runtime.health_state}`)} size="small" />
                                     </Stack>
+
                                     {data.runtime.available ? (
-                                        <Stack spacing={1.25}>
-                                            <Box className="overview-page-runtime-note">
-                                                <Typography className="overview-page-runtime-note-badge">
-                                                    {t(`overviewPage.runtimeScope.${data.runtime.runtime_scope}`)}
-                                                </Typography>
-                                                <Typography className="overview-page-runtime-note-text" color="text.secondary">
-                                                    {t(`overviewPage.runtimeNote.${data.runtime.runtime_scope}`)}
-                                                </Typography>
+                                        <>
+                                            <Box className="overview-page-info-grid overview-page-info-grid--platform">
+                                                <InfoBlock label={t('overviewPage.cards.product.metrics.version')} value={data.product.version || '--'} />
+                                                <InfoBlock label={t('overviewPage.cards.product.metrics.edition')} value={localizedEditionName} />
+                                                <InfoBlock label={t('overviewPage.stats.healthyServices')} value={`${data.services.healthy_count ?? 0}/${data.services.total_count ?? 0}`} />
+                                                <InfoBlock label={t('overviewPage.cards.product.metrics.availableApps')} value={typeof data.product.available_app_count === 'number' ? String(data.product.available_app_count) : t('overviewPage.cards.product.unlimited')} />
                                             </Box>
-                                            <Box className="overview-page-runtime-grid">
-                                                <RuntimeGaugeCard
-                                                    accent="#2563eb"
-                                                    hint={data.runtime.cpu_quota_cores ? `${t('overviewPage.runtimeMeta.cpuQuota')} ${formatQuotaCores(data.runtime.cpu_quota_cores, numberFormatter)}` : `${t('overviewPage.runtimeMeta.visibleCores')} ${data.runtime.cpu_cores ?? '--'}`}
+
+                                            <Stack className="overview-page-resource-stack" spacing={1.5}>
+                                                <ResourceMeterRow
+                                                    accent="blue"
                                                     label={t('overviewPage.cards.runtime.metrics.cpu')}
+                                                    meta={data.runtime.cpu_quota_cores ? `${t('overviewPage.runtimeMeta.cpuQuota')} ${formatQuotaCores(data.runtime.cpu_quota_cores, numberFormatter)}` : `${t('overviewPage.runtimeMeta.visibleCores')} ${data.runtime.cpu_cores ?? '--'}`}
                                                     value={data.runtime.cpu_percent}
                                                 />
-                                                <RuntimeGaugeCard
-                                                    accent="#d97706"
-                                                    hint={formatUsedOverTotal(data.runtime.memory_used_bytes, data.runtime.memory_total_bytes, numberFormatter)}
+                                                <ResourceMeterRow
+                                                    accent="amber"
                                                     label={t('overviewPage.cards.runtime.metrics.memory')}
+                                                    meta={formatUsedOverTotal(data.runtime.memory_used_bytes, data.runtime.memory_total_bytes, numberFormatter)}
                                                     value={data.runtime.memory_percent}
                                                 />
-                                            </Box>
-                                        </Stack>
+                                            </Stack>
+                                        </>
                                     ) : (
                                         <Alert severity="warning">{data.runtime.unavailable_reason || t('overviewPage.states.sectionUnavailable')}</Alert>
                                     )}
                                 </Stack>
                             </Paper>
 
-                            <Paper className="overview-page-panel overview-page-panel-emphasis" elevation={0}>
-                                <Stack spacing={2}>
+                            <Paper className="overview-page-panel overview-page-panel-server" elevation={0}>
+                                <Stack className="overview-page-panel-stack" spacing={2.8}>
                                     <Stack className="overview-page-panel-header" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                        <Typography className="overview-page-panel-title">{t('overviewPage.cards.hostRuntime.title')}</Typography>
-                                        <Chip className="overview-page-status-chip" color={data.host_runtime.health_state === 'healthy' ? 'success' : data.host_runtime.health_state === 'warning' ? 'warning' : 'error'} label={t(`overviewPage.cards.runtime.badges.${data.host_runtime.health_state}`)} size="small" />
+                                        <Box>
+                                            <Typography className="overview-page-panel-title">{t('overviewPage.cards.host.title')}</Typography>
+                                            <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.hostRuntime.description')}</Typography>
+                                        </Box>
+                                        <Chip className="overview-page-status-chip" color={data.host.available ? 'success' : 'warning'} label={data.host.available ? t('overviewPage.badges.ready') : t('overviewPage.badges.partial')} size="small" />
                                     </Stack>
-                                    {data.host_runtime.available ? (
-                                        <Stack spacing={1.25}>
-                                            <Box className="overview-page-runtime-note">
-                                                <Typography className="overview-page-runtime-note-badge">
-                                                    {t(`overviewPage.runtimeScope.${data.host_runtime.runtime_scope}`)}
-                                                </Typography>
-                                                <Typography className="overview-page-runtime-note-text" color="text.secondary">
-                                                    {t('overviewPage.cards.hostRuntime.description')}
-                                                </Typography>
+
+                                    {data.host.available ? (
+                                        <>
+                                            <Box className="overview-page-info-grid">
+                                                <InfoBlock label={t('overviewPage.cards.host.metrics.hostname')} value={data.host.hostname || '--'} />
+                                                <InfoBlock label={t('overviewPage.cards.host.metrics.os')} value={data.host.os_name || '--'} />
+                                                <InfoBlock label={t('overviewPage.cards.host.metrics.kernel')} value={data.host.kernel_version || data.host.architecture || '--'} />
+                                                <InfoBlock label={t('overviewPage.cards.host.metrics.uptime')} value={formatUptime(data.host.uptime_seconds)} />
                                             </Box>
-                                            <Box className="overview-page-runtime-grid overview-page-runtime-grid-host">
-                                                <RuntimeGaugeCard
-                                                    accent="#1d4ed8"
-                                                    hint={`${t('overviewPage.runtimeMeta.visibleCores')} ${data.host_runtime.cpu_cores ?? '--'}`}
-                                                    label={t('overviewPage.cards.hostRuntime.metrics.cpu')}
-                                                    value={data.host_runtime.cpu_percent}
-                                                />
-                                                <RuntimeGaugeCard
-                                                    accent="#d97706"
-                                                    hint={formatUsedOverTotal(data.host_runtime.memory_used_bytes, data.host_runtime.memory_total_bytes, numberFormatter)}
-                                                    label={t('overviewPage.cards.hostRuntime.metrics.memory')}
-                                                    value={data.host_runtime.memory_percent}
-                                                />
-                                                <RuntimeGaugeCard
-                                                    accent="#0f766e"
-                                                    hint={formatUsedOverTotal(data.host_runtime.disk_used_bytes ?? null, data.host_runtime.disk_total_bytes ?? null, numberFormatter)}
-                                                    label={t('overviewPage.cards.hostRuntime.metrics.disk')}
-                                                    value={data.host_runtime.disk_percent ?? null}
-                                                />
-                                            </Box>
-                                        </Stack>
+
+                                            {data.host_runtime.available ? (
+                                                <Stack className="overview-page-resource-stack" spacing={1.5}>
+                                                    <ResourceMeterRow
+                                                        accent="blue"
+                                                        label={t('overviewPage.cards.hostRuntime.metrics.cpu')}
+                                                        meta={`${t('overviewPage.runtimeMeta.visibleCores')} ${data.host_runtime.cpu_cores ?? '--'}`}
+                                                        value={data.host_runtime.cpu_percent}
+                                                    />
+                                                    <ResourceMeterRow
+                                                        accent="amber"
+                                                        label={t('overviewPage.cards.hostRuntime.metrics.memory')}
+                                                        meta={formatUsedOverTotal(data.host_runtime.memory_used_bytes, data.host_runtime.memory_total_bytes, numberFormatter)}
+                                                        value={data.host_runtime.memory_percent}
+                                                    />
+                                                    <ResourceMeterRow
+                                                        accent="teal"
+                                                        label={t('overviewPage.cards.hostRuntime.metrics.disk')}
+                                                        meta={formatUsedOverTotal(data.host_runtime.disk_used_bytes ?? null, data.host_runtime.disk_total_bytes ?? null, numberFormatter)}
+                                                        value={data.host_runtime.disk_percent ?? null}
+                                                    />
+                                                </Stack>
+                                            ) : (
+                                                <Alert severity="warning">{data.host_runtime.unavailable_reason || t('overviewPage.states.sectionUnavailable')}</Alert>
+                                            )}
+                                        </>
                                     ) : (
-                                        <Alert severity="warning">{data.host_runtime.unavailable_reason || t('overviewPage.states.sectionUnavailable')}</Alert>
+                                        <Alert severity="warning">{data.host.unavailable_reason || t('overviewPage.states.sectionUnavailable')}</Alert>
                                     )}
                                 </Stack>
                             </Paper>
@@ -358,13 +338,6 @@ function formatBytes(value: number | null, formatter: Intl.NumberFormat): string
     return `${formatter.format(size)} ${units[unitIndex]}`
 }
 
-function formatAppLimit(value: number | null, unlimitedLabel: string): string {
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-        return unlimitedLabel
-    }
-    return String(value)
-}
-
 function formatUsedOverTotal(used: number | null, total: number | null, formatter: Intl.NumberFormat): string {
     return `${formatBytes(used, formatter)} / ${formatBytes(total, formatter)}`
 }
@@ -392,75 +365,92 @@ function formatUptime(value: number | null): string {
     return `${hours}h ${minutes}m`
 }
 
-function SummaryMetricCell({
+function getLocalizedEditionName(
+    editionKey: string | null,
+    editionName: string | null,
+    t: (key: string) => string,
+): string {
+    const normalizedKey = (editionKey || editionName || '').trim().toLowerCase()
+    if (normalizedKey === 'free' || editionName === '免费版' || editionName === 'Free') {
+        return t('overviewPage.cards.product.editionNames.community')
+    }
+
+    return editionName || editionKey || '--'
+}
+
+function InfoBlock({
     label,
     value,
-    accent,
 }: {
     label: string
     value: string
-    accent: string
 }) {
     return (
-        <Box
-            className="overview-page-metric-cell"
-        >
-            <Box className="overview-page-metric-accent" sx={{ backgroundColor: accent }} />
-            <Stack className="overview-page-metric-stack">
-                <Typography className="overview-page-metric-label" color="text.secondary">
-                    {label}
-                </Typography>
-                <Typography className="overview-page-metric-value">{value}</Typography>
-            </Stack>
+        <Box className="overview-page-info-block">
+            <Typography className="overview-page-info-label">{label}</Typography>
+            <Typography className="overview-page-info-value">{value}</Typography>
         </Box>
     )
 }
 
-function RuntimeGaugeCard({
+function CompactSummaryCard({
     label,
     value,
-    hint,
+    accent,
+    icon,
+}: {
+    label: string
+    value: string
+    accent: 'amber' | 'teal' | 'green' | 'violet'
+    icon: ReactNode
+}) {
+    return (
+        <Box className={`overview-page-summary-card overview-page-summary-card--${accent}`}>
+            <Box className="overview-page-summary-icon-wrap">{icon}</Box>
+            <Typography className="overview-page-summary-value">{value}</Typography>
+            <Typography className="overview-page-summary-label">{label}</Typography>
+        </Box>
+    )
+}
+
+function StorefrontSummaryIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M5 5.5 6.2 3h11.6L19 5.5V8a2.5 2.5 0 0 1-1.5 2.3V19a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-8.7A2.5 2.5 0 0 1 5 8V5.5Zm2 1V8a.5.5 0 0 0 .5.5h1A1.5 1.5 0 0 0 10 7V6.5H7Zm5 0V7A1.5 1.5 0 0 0 13.5 8.5h1a.5.5 0 0 0 .5-.5V6.5h-3Zm4.8 0h-1.3V8a2.48 2.48 0 0 1-.5 1.5V19h1V6.5ZM8.5 10.5V19h7v-8.5A3.38 3.38 0 0 1 12 8.7a3.38 3.38 0 0 1-3.5 1.8Z" /></SvgIcon>
+}
+
+function AppsSummaryIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M5 5h6v6H5V5Zm8 0h6v6h-6V5ZM5 13h6v6H5v-6Zm8 0h6v2h-6v-2Zm0 4h6v2h-6v-2Z" /></SvgIcon>
+}
+
+function CheckSummaryIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M9.55 16.6 5.4 12.45l1.4-1.4 2.75 2.75 7.65-7.65 1.4 1.4-9.05 9.05Z" /></SvgIcon>
+}
+
+function AlertSummaryIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Zm1 13h-2v-2h2v2Zm0-4h-2V8h2v4Z" /></SvgIcon>
+}
+
+function ResourceMeterRow({
+    label,
+    value,
+    meta,
     accent,
 }: {
     label: string
     value: number | null
-    hint: string
-    accent: string
+    meta: string
+    accent: 'blue' | 'teal' | 'amber'
 }) {
     const normalizedValue = typeof value === 'number' && !Number.isNaN(value) ? Math.max(0, Math.min(value, 100)) : 0
 
     return (
-        <Paper
-            elevation={0}
-            className="overview-page-runtime-card"
-        >
-            <Stack className="overview-page-runtime-card-stack" spacing={1.25}>
-                <Box className="overview-page-runtime-gauge-wrap">
-                    <CircularProgress className="overview-page-runtime-gauge-bg" size={104} thickness={3.2} value={100} variant="determinate" />
-                    <CircularProgress
-                        size={104}
-                        thickness={3.2}
-                        value={normalizedValue}
-                        variant="determinate"
-                        sx={{
-                            color: accent,
-                            '& .MuiCircularProgress-circle': {
-                                strokeLinecap: 'round',
-                            },
-                        }}
-                    />
-                    <Stack className="overview-page-runtime-gauge-center">
-                        <Typography className="overview-page-runtime-gauge-value">{formatPercent(value)}</Typography>
-                        <Typography className="overview-page-runtime-gauge-label" color="text.secondary">
-                            {label}
-                        </Typography>
-                    </Stack>
-                </Box>
-                <Typography className="overview-page-runtime-hint" color="text.secondary">
-                    {hint}
-                </Typography>
+        <Box className={`overview-page-resource-meter overview-page-resource-meter--${accent}`}>
+            <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <Typography className="overview-page-resource-label">{label}</Typography>
+                <Typography className="overview-page-resource-value">{formatPercent(value)}</Typography>
             </Stack>
-        </Paper>
+            <LinearProgress className="overview-page-resource-progress" variant="determinate" value={normalizedValue} />
+            <Typography className="overview-page-resource-meta">{meta}</Typography>
+        </Box>
     )
 }
 

@@ -27,6 +27,7 @@ class OverviewProductSummary(BaseModel):
     version: Optional[str] = Field(default=None, description="Current product version")
     edition_key: Optional[str] = Field(default=None, description="Current edition key")
     edition_name: Optional[str] = Field(default=None, description="Current edition display name")
+    catalog_app_count: Optional[int] = Field(default=None, description="Total application count exposed in the App Store")
     installed_count: Optional[int] = Field(default=None, description="Installed application count")
     available_app_count: Optional[int] = Field(default=None, description="Available application count for the current product edition")
     upgrade_state: str = Field(default="unknown", description="Compact upgrade state")

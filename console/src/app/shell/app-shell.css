@@ -1,0 +1,885 @@
+.app-shell-root {
+    --shell-sidebar-width: 280px;
+    --shell-sidebar-collapsed-width: 98px;
+    --shell-topbar-height: 72px;
+    overflow: hidden;
+    min-height: 100vh;
+    background: var(--shell-bg);
+    color: var(--shell-text);
+}
+
+.app-shell-root--collapsed {
+    --shell-sidebar-width: var(--shell-sidebar-collapsed-width);
+}
+
+.app-shell-root--light {
+    --shell-bg: #f4f6f8;
+    --shell-text: #212b36;
+    --shell-sidebar-bg: rgba(255, 255, 255, 0.92);
+    --shell-sidebar-text: #526170;
+    --shell-sidebar-muted: rgba(99, 115, 129, 0.72);
+    --shell-sidebar-hover: rgba(145, 158, 171, 0.12);
+    --shell-sidebar-active: rgba(32, 101, 209, 0.12);
+    --shell-topbar-bg: #ffffff;
+    --shell-topbar-border: rgba(145, 158, 171, 0.16);
+    --shell-surface-bg: #ffffff;
+    --shell-surface-soft: #f4f6f8;
+    --shell-surface-border: rgba(145, 158, 171, 0.16);
+    --shell-subtle-text: #637381;
+    --shell-strong-text: #212b36;
+    --shell-floating-bg: rgba(255, 255, 255, 0.92);
+    --shell-floating-shadow: 0 20px 40px rgba(145, 158, 171, 0.16);
+}
+
+.app-shell-root--dark {
+    --shell-bg: #161c24;
+    --shell-text: #f9fafb;
+    --shell-sidebar-bg: #0b1220;
+    --shell-sidebar-text: #dfe3ea;
+    --shell-sidebar-muted: rgba(223, 227, 234, 0.52);
+    --shell-sidebar-hover: rgba(255, 255, 255, 0.08);
+    --shell-sidebar-active: rgba(32, 101, 209, 0.3);
+    --shell-topbar-bg: #1f2937;
+    --shell-topbar-border: rgba(255, 255, 255, 0.08);
+    --shell-surface-bg: #1f2937;
+    --shell-surface-soft: #111827;
+    --shell-surface-border: rgba(255, 255, 255, 0.08);
+    --shell-subtle-text: #9aa4b2;
+    --shell-strong-text: #f9fafb;
+    --shell-floating-bg: rgba(31, 41, 55, 0.94);
+    --shell-floating-shadow: 0 20px 48px rgba(0, 0, 0, 0.36);
+}
+
+.app-shell-frame {
+    position: relative;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-shell-sidebar {
+    width: var(--shell-sidebar-width);
+    height: 100vh;
+    flex-shrink: 0;
+    background: var(--shell-sidebar-bg);
+    color: var(--shell-sidebar-text);
+    padding: 0 14px 18px;
+    border-right: 1px solid var(--shell-topbar-border);
+    backdrop-filter: blur(18px);
+    transition: width 180ms ease, padding 180ms ease;
+}
+
+.app-shell-sidebar-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 8px;
+}
+
+.app-shell-sidebar-header {
+    min-height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.app-shell-sidebar-toggle {
+    position: absolute;
+    top: calc(var(--shell-topbar-height) / 2);
+    left: var(--shell-sidebar-width);
+    transform: translate(-50%, -50%);
+    min-width: 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 1px solid var(--shell-topbar-border);
+    background: var(--shell-surface-bg);
+    box-shadow: 0 8px 18px rgba(145, 158, 171, 0.18);
+    color: var(--shell-subtle-text);
+    padding: 0;
+    flex-shrink: 0;
+    z-index: 4;
+}
+
+.app-shell-sidebar-toggle:hover {
+    background: var(--shell-surface-soft);
+}
+
+.app-shell-sidebar-toggle .MuiSvgIcon-root {
+    font-size: 20px;
+}
+
+.app-shell-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+    padding: 0;
+}
+
+.app-shell-brand-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: block;
+}
+
+.app-shell-brand-copy {
+    min-width: 0;
+}
+
+.app-shell-brand-title {
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--shell-strong-text);
+    letter-spacing: -0.02em;
+}
+
+.app-shell-nav-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.app-shell-nav-section+.app-shell-nav-section {
+    margin-top: 14px;
+}
+
+.app-shell-section-label {
+    padding: 0 12px 8px;
+    font-size: 11px;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--shell-sidebar-muted);
+}
+
+.app-shell-nav-item {
+    min-height: 48px;
+    border-radius: 12px;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    color: var(--shell-sidebar-text);
+    display: flex;
+    align-items: center;
+    transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.app-shell-nav-item:hover {
+    background: var(--shell-sidebar-hover);
+    color: var(--shell-strong-text);
+}
+
+.app-shell-nav-item.active {
+    background: var(--shell-sidebar-active);
+    color: var(--shell-strong-text);
+}
+
+.app-shell-nav-item-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 14px;
+    flex-shrink: 0;
+}
+
+.app-shell-nav-item-icon .MuiSvgIcon-root {
+    font-size: 20px;
+}
+
+.app-shell-nav-item-label {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.app-shell-content {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-shell-topbar {
+    flex-shrink: 0;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 0 28px;
+    background: var(--shell-topbar-bg);
+    border-bottom: 1px solid var(--shell-topbar-border);
+}
+
+.app-shell-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-shell-user-trigger {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid var(--shell-surface-border);
+    background: transparent;
+    color: var(--shell-subtle-text);
+    padding: 3px;
+}
+
+.app-shell-user-trigger:hover {
+    background: rgba(145, 158, 171, 0.1);
+}
+
+.app-shell-root--dark .app-shell-user-trigger:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.app-shell-icon-button {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--shell-surface-border);
+    background: var(--shell-surface-bg);
+    color: var(--shell-subtle-text);
+    padding: 0;
+}
+
+.app-shell-icon-button:hover {
+    background: var(--shell-surface-soft);
+}
+
+.app-shell-user-avatar,
+.app-shell-account-avatar {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1d4ed8;
+}
+
+.app-shell-root--dark .app-shell-user-avatar,
+.app-shell-root--dark .app-shell-account-avatar {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.28) 0%, rgba(96, 165, 250, 0.2) 100%);
+    color: #93c5fd;
+}
+
+.app-shell-user-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+}
+
+.app-shell-user-avatar .MuiSvgIcon-root {
+    font-size: 18px;
+}
+
+.app-shell-settings-title {
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--shell-strong-text);
+}
+
+.app-shell-account-preferences {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.app-shell-account-preferences-card {
+    padding: 16px;
+    border-radius: 18px;
+    border: 1px solid var(--shell-surface-border);
+    background: var(--shell-surface-bg);
+}
+
+.app-shell-settings-group+.app-shell-settings-group {
+    margin-top: 18px;
+}
+
+.app-shell-settings-label {
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--shell-subtle-text);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.app-shell-settings-options {
+    display: grid;
+    gap: 10px;
+}
+
+.app-shell-settings-options--compact {
+    margin-top: 14px;
+}
+
+.app-shell-toggle-pill {
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 44px;
+    border-radius: 14px;
+    border: 1px solid var(--shell-surface-border);
+    background: var(--shell-surface-bg);
+    color: var(--shell-subtle-text);
+    padding: 0 14px;
+    text-transform: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.app-shell-toggle-pill.active {
+    background: var(--shell-sidebar-active);
+    color: var(--shell-strong-text);
+    border-color: rgba(32, 101, 209, 0.2);
+}
+
+.app-shell-account-menu {
+    width: 252px;
+    max-width: min(252px, calc(100vw - 24px));
+    background: var(--shell-floating-bg);
+    box-shadow: var(--shell-floating-shadow);
+    backdrop-filter: blur(24px);
+    border-radius: 20px;
+    border: 1px solid var(--shell-surface-border);
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.app-shell-account-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    gap: 6px;
+    color: var(--shell-strong-text);
+}
+
+.app-shell-account-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0 4px;
+    text-align: center;
+}
+
+.app-shell-account-avatar {
+    width: 64px;
+    height: 64px;
+}
+
+.app-shell-account-avatar .MuiSvgIcon-root {
+    font-size: 28px;
+}
+
+.app-shell-account-copy {
+    min-width: 0;
+}
+
+.app-shell-account-name {
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--shell-strong-text);
+}
+
+.app-shell-account-email {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-account-links {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.app-shell-account-link {
+    min-height: 40px;
+    border-radius: 10px;
+    padding: 8px 10px;
+    justify-content: flex-start;
+    gap: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--shell-strong-text);
+}
+
+.app-shell-account-link:hover {
+    background: var(--shell-surface-soft);
+}
+
+.app-shell-account-link.active {
+    background: var(--shell-surface-soft);
+}
+
+.app-shell-account-link-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--shell-subtle-text);
+    flex-shrink: 0;
+}
+
+.app-shell-account-link.active .app-shell-account-link-icon {
+    background: rgba(145, 158, 171, 0.2);
+    color: var(--shell-strong-text);
+}
+
+.app-shell-account-link-title {
+    font-size: 13px;
+    line-height: 1.3;
+    font-weight: 600;
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-account-link-trailing {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #2065d1;
+}
+
+.app-shell-account-link-trailing .MuiSvgIcon-root {
+    font-size: 18px;
+}
+
+.app-shell-account-link.active .app-shell-account-link-title {
+    color: var(--shell-strong-text);
+}
+
+.app-shell-locale-badge {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(37, 99, 235, 0.1);
+    color: #1d4ed8;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.app-shell-account-section-label {
+    margin: 6px 8px 2px;
+    font-size: 11px;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-account-link--selected {
+    background: transparent !important;
+    box-shadow: none;
+}
+
+.app-shell-account-link--selected:hover {
+    background: var(--shell-surface-soft) !important;
+}
+
+.app-shell-account-link--selected .app-shell-account-link-icon {
+    background: transparent;
+    color: #2065d1;
+}
+
+.app-shell-account-link--selected .app-shell-account-link-title {
+    color: #0f3d91;
+    font-weight: 700;
+}
+
+.app-shell-account-menu--dark .app-shell-locale-badge {
+    background: rgba(96, 165, 250, 0.18);
+    color: #bfdbfe;
+}
+
+.app-shell-account-menu--dark .app-shell-account-link-trailing {
+    color: #93c5fd;
+}
+
+.app-shell-account-menu--dark .app-shell-account-link--selected {
+    background: transparent !important;
+    box-shadow: none;
+}
+
+.app-shell-account-menu--dark .app-shell-account-link--selected:hover {
+    background: var(--shell-surface-soft) !important;
+}
+
+.app-shell-account-menu--dark .app-shell-account-link--selected .app-shell-account-link-icon {
+    background: transparent;
+    color: #dbeafe;
+}
+
+.app-shell-account-menu--dark .app-shell-account-link--selected .app-shell-account-link-title {
+    color: #eff6ff;
+}
+
+.app-shell-account-link--danger,
+.app-shell-account-link--danger .app-shell-account-link-title,
+.app-shell-account-link--danger .app-shell-account-link-icon {
+    color: #b71d18;
+}
+
+.app-shell-account-link--danger:hover {
+    background: rgba(255, 86, 48, 0.12);
+}
+
+.app-shell-account-menu--dark .app-shell-account-link--danger,
+.app-shell-account-menu--dark .app-shell-account-link--danger .app-shell-account-link-title,
+.app-shell-account-menu--dark .app-shell-account-link--danger .app-shell-account-link-icon {
+    color: #fecaca;
+}
+
+.app-shell-account-menu--dark .app-shell-account-link--danger:hover {
+    background: rgba(255, 120, 103, 0.14);
+}
+
+.app-shell-account-actions {
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+.app-shell-settings-menu {
+    width: 340px;
+    max-width: min(340px, calc(100vw - 24px));
+    background: var(--shell-floating-bg);
+    box-shadow: var(--shell-floating-shadow);
+    backdrop-filter: blur(24px);
+    border-radius: 20px;
+    border: 1px solid var(--shell-surface-border);
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.app-shell-settings-menu--compact {
+    width: 208px;
+    max-width: min(208px, calc(100vw - 24px));
+}
+
+.app-shell-settings-menu--compact .app-shell-settings-panel {
+    padding: 8px;
+    gap: 2px;
+}
+
+.app-shell-settings-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    color: var(--shell-strong-text);
+}
+
+.app-shell-settings-header {
+    padding-bottom: 8px;
+}
+
+.app-shell-settings-subtitle {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-settings-section {
+    padding: 0;
+    border-radius: 0;
+    border: 0;
+    background: transparent;
+}
+
+.app-shell-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.app-shell-settings-item {
+    min-height: 42px;
+    border-radius: 10px;
+    padding: 8px 10px;
+    gap: 10px;
+}
+
+.app-shell-settings-item.active {
+    background: var(--shell-surface-soft);
+}
+
+.app-shell-settings-item-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: var(--shell-subtle-text);
+    flex-shrink: 0;
+}
+
+.app-shell-settings-item.active .app-shell-settings-item-icon {
+    background: rgba(145, 158, 171, 0.2);
+    color: var(--shell-strong-text);
+}
+
+.app-shell-settings-item-label {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.3;
+    font-weight: 600;
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-settings-item.active .app-shell-settings-item-label {
+    color: var(--shell-strong-text);
+}
+
+.app-shell-settings-item-check {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #2065d1;
+    flex-shrink: 0;
+}
+
+.app-shell-account-logout {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 86, 48, 0.24);
+    background: rgba(255, 86, 48, 0.16);
+    color: #b71d18;
+    text-transform: none;
+    font-size: 14px;
+    font-weight: 700;
+    justify-content: center;
+    gap: 10px;
+}
+
+.app-shell-account-logout:hover {
+    background: rgba(255, 86, 48, 0.24);
+}
+
+.app-shell-root--dark .app-shell-account-logout {
+    border-color: rgba(255, 120, 103, 0.24);
+    background: rgba(255, 120, 103, 0.16);
+    color: #ffb4ab;
+}
+
+.app-shell-root--dark .app-shell-account-logout:hover {
+    background: rgba(255, 120, 103, 0.24);
+}
+
+.app-shell-account-logout .MuiButton-startIcon {
+    margin-right: 0;
+}
+
+.app-shell-account-logout .MuiSvgIcon-root {
+    font-size: 18px;
+}
+
+.app-shell-main {
+    position: relative;
+    min-width: 0;
+    flex: 1;
+    min-height: 0;
+    background: var(--shell-bg);
+}
+
+.app-shell-main--dashboard {
+    padding-top: 16px !important;
+    padding-bottom: 12px !important;
+}
+
+.app-shell-main-body {
+    min-height: 100%;
+}
+
+.app-shell-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0 20px;
+    border-top: 1px solid var(--shell-topbar-border);
+    background: color-mix(in srgb, var(--shell-topbar-bg) 92%, var(--shell-bg) 8%);
+    color: var(--shell-subtle-text);
+    flex-shrink: 0;
+}
+
+.app-shell-footer-inner {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.app-shell-footer-copy {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    font-weight: inherit !important;
+    letter-spacing: inherit !important;
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-footer-separator {
+    font: inherit;
+    color: color-mix(in srgb, var(--shell-subtle-text) 70%, transparent 30%);
+}
+
+.app-shell-footer-link {
+    font: inherit;
+    color: var(--shell-subtle-text);
+    text-decoration: none;
+}
+
+.app-shell-footer-link:hover {
+    color: var(--shell-strong-text);
+}
+
+@media (max-width: 767px) {
+    .app-shell-content {
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .app-shell-footer {
+        min-height: 64px;
+        padding: 8px 16px;
+    }
+
+    .app-shell-footer-inner {
+        white-space: normal;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}
+
+.app-shell-root--collapsed .app-shell-sidebar {
+    width: var(--shell-sidebar-width);
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.app-shell-root--collapsed .app-shell-sidebar-header {
+    justify-content: center;
+}
+
+.app-shell-root--collapsed .app-shell-sidebar-inner {
+    gap: 12px;
+}
+
+.app-shell-root--collapsed .app-shell-brand {
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.app-shell-root--collapsed .app-shell-brand-copy {
+    display: block;
+    text-align: center;
+}
+
+.app-shell-root--collapsed .app-shell-brand-title {
+    font-size: 11px;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+.app-shell-root--collapsed .app-shell-section-label {
+    display: none;
+}
+
+.app-shell-root--collapsed .app-shell-nav-item {
+    min-height: 68px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 6px;
+    text-align: center;
+}
+
+.app-shell-root--collapsed .app-shell-nav-item-icon {
+    margin-right: 0;
+    width: 24px;
+    height: 24px;
+}
+
+.app-shell-root--collapsed .app-shell-nav-item-label {
+    display: block;
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: normal;
+    word-break: break-word;
+    max-width: 100%;
+}
+
+@media (max-width: 899px) {
+    .app-shell-frame {
+        flex-direction: column;
+    }
+
+    .app-shell-sidebar {
+        width: 100%;
+        padding-bottom: 10px;
+    }
+
+    .app-shell-topbar {
+        padding: 0 16px;
+    }
+
+    .app-shell-sidebar-toggle {
+        display: none;
+    }
+
+    .app-shell-account-menu {
+        width: 100%;
+        max-width: calc(100vw - 16px);
+    }
+
+    .app-shell-settings-menu {
+        width: 100%;
+        max-width: calc(100vw - 16px);
+    }
+
+    .app-shell-settings-menu--compact {
+        width: 100%;
+        max-width: calc(100vw - 16px);
+    }
+}

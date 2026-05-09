@@ -1,30 +1,35 @@
 import { createTheme } from '@mui/material/styles'
 
-export const appTheme = createTheme({
-    colorSchemes: {
-        light: true,
-    },
-    cssVariables: true,
-    palette: {
-        primary: {
-            main: '#1767d1',
+export function createAppTheme(mode: 'light' | 'dark') {
+    return createTheme({
+        cssVariables: true,
+        palette: {
+            mode,
+            primary: {
+                main: '#1767d1',
+            },
+            secondary: {
+                main: '#0f8c72',
+            },
+            background: mode === 'dark'
+                ? {
+                    default: '#161c24',
+                    paper: '#1f2937',
+                }
+                : {
+                    default: '#f5f7fb',
+                    paper: '#ffffff',
+                },
         },
-        secondary: {
-            main: '#0f8c72',
+        shape: {
+            borderRadius: 16,
         },
-        background: {
-            default: '#f5f7fb',
-            paper: '#ffffff',
+        typography: {
+            fontFamily: ['Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'].join(','),
+            h3: {
+                fontWeight: 700,
+                letterSpacing: '-0.03em',
+            },
         },
-    },
-    shape: {
-        borderRadius: 16,
-    },
-    typography: {
-        fontFamily: ['Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'].join(','),
-        h3: {
-            fontWeight: 700,
-            letterSpacing: '-0.03em',
-        },
-    },
-})
+    })
+}

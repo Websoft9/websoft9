@@ -13,12 +13,20 @@ export const shellResources = {
             },
             navigation: {
                 sections: {
-                    system: 'System',
-                    tools: 'Tools',
+                    system: 'Workspace',
+                    tools: 'System',
                 },
             },
             localeSwitcher: {
                 label: 'Language',
+            },
+            preferences: {
+                title: 'Preferences',
+                language: 'Language',
+                appearance: 'Appearance',
+                current: 'Current',
+                light: 'Light',
+                dark: 'Dark',
             },
             user: {
                 name: 'Administrator',
@@ -26,9 +34,20 @@ export const shellResources = {
                 roleAuthenticated: 'Authenticated user session',
                 roleAnonymous: 'Authentication required',
                 menu: {
+                    account: 'Account',
+                    home: 'Home',
+                    homeDescription: 'Go back to the overview dashboard.',
                     profile: 'Profile',
+                    profileDescription: 'Manage account profile and access.',
                     preferences: 'Preferences',
+                    preferencesDescription: 'Tune product preferences and runtime behavior.',
+                    session: 'Session',
                     signOut: 'Sign out',
+                },
+                promo: {
+                    kicker: 'Workspace',
+                    title: 'Keep control of the product shell',
+                    body: 'Use this account drawer for quick access to profile, preferences, and sign-out actions.',
                 },
             },
             auth: {
@@ -283,9 +302,19 @@ export const shellResources = {
                         'Language switching is product-owned and no longer depends on Cockpit locale globals or po.js assets.',
                 },
             },
+            footer: {
+                copyright: '© 2026 Websoft9. All Rights Reserved.',
+                website: 'Official Website',
+                github: 'GitHub',
+                manual: 'User Manual',
+                ticket: 'Support Ticket',
+            },
             overviewPage: {
                 compactHeader: {
                     title: 'Overview dashboard',
+                },
+                hero: {
+                    title: 'One place for product, server, and runtime signals.',
                 },
                 eyebrow: 'Websoft9 overview',
                 title: 'One screen for product status, operational signals, and next actions.',
@@ -295,6 +324,19 @@ export const shellResources = {
                 badges: {
                     ready: 'Ready',
                     partial: 'Partial',
+                },
+                stats: {
+                    activeApps: 'Active apps',
+                    healthyServices: 'Healthy services',
+                },
+                summary: {
+                    availableApps: 'App Store total',
+                    installedApps: 'Installed apps',
+                    errorApps: 'Apps with errors',
+                    memoryCapacity: 'Memory capacity',
+                    taskQueue: 'Recent tasks',
+                    noFailedTasks: 'No failed tasks',
+                    failedTasks: '{{count}} failed',
                 },
                 actions: {
                     refresh: 'Refresh',
@@ -323,15 +365,18 @@ export const shellResources = {
                     product: {
                         title: 'Product',
                         unlimited: 'Unlimited',
+                        editionNames: {
+                            community: 'Community',
+                        },
                         metrics: {
                             version: 'Version',
                             edition: 'Edition',
                             installedApps: 'Installed apps',
-                            availableApps: 'Install limit',
+                            availableApps: 'Installable apps',
                         },
                     },
                     host: {
-                        title: 'Host',
+                        title: 'Server',
                         metrics: {
                             hostname: 'Hostname',
                             os: 'Operating system',
@@ -340,7 +385,8 @@ export const shellResources = {
                         },
                     },
                     runtime: {
-                        title: 'Resource health',
+                        title: 'Platform',
+                        subtitle: 'Websoft9 platform info and load',
                         badges: {
                             healthy: 'Healthy',
                             warning: 'Warning',
@@ -352,12 +398,33 @@ export const shellResources = {
                         },
                     },
                     hostRuntime: {
-                        title: 'Host resources',
-                        description: 'Live host-level CPU, memory, and disk pressure.',
+                        title: 'Resource snapshot',
+                        description: 'Host CPU, memory, and disk usage',
                         metrics: {
                             cpu: 'Host CPU',
                             memory: 'Host memory',
                             disk: 'Disk usage',
+                        },
+                    },
+                    platformOverview: {
+                        title: 'Platform overview',
+                        subtitle: 'Core product identity and operating capacity at a glance.',
+                        unlimitedHelper: 'No install cap applied',
+                        serviceHelper: 'Healthy service share',
+                        metrics: {
+                            installCapacity: 'Install capacity',
+                            serviceHealth: 'Service health',
+                        },
+                    },
+                    apps: {
+                        title: 'App activity',
+                        subtitle: 'Current workload distribution across installed apps.',
+                        donutCaption: 'Running ratio',
+                        metrics: {
+                            active: 'Active',
+                            inactive: 'Inactive',
+                            installing: 'Installing',
+                            error: 'Error',
                         },
                     },
                 },
@@ -1296,12 +1363,20 @@ export const shellResources = {
             },
             navigation: {
                 sections: {
-                    system: '系统',
-                    tools: '工具',
+                    system: '工作区',
+                    tools: '系统',
                 },
             },
             localeSwitcher: {
                 label: '语言',
+            },
+            preferences: {
+                title: '偏好设置',
+                language: '语言',
+                appearance: '外观',
+                current: '当前',
+                light: '亮色',
+                dark: '暗色',
             },
             user: {
                 name: '管理员',
@@ -1309,9 +1384,20 @@ export const shellResources = {
                 roleAuthenticated: '已登录用户会话',
                 roleAnonymous: '需要认证',
                 menu: {
+                    account: '账户',
+                    home: '首页',
+                    homeDescription: '返回概览工作台。',
                     profile: '个人资料',
+                    profileDescription: '管理账户资料和访问权限。',
                     preferences: '偏好设置',
+                    preferencesDescription: '调整产品偏好和运行行为。',
+                    session: '会话',
                     signOut: '退出登录',
+                },
+                promo: {
+                    kicker: '工作区',
+                    title: '保持对产品壳层的掌控',
+                    body: '这个账户抽屉提供资料、偏好与退出登录等快捷入口。',
                 },
             },
             auth: {
@@ -1566,9 +1652,19 @@ export const shellResources = {
                         '语言切换现在由产品自身控制，不再依赖 Cockpit locale 全局变量或 po.js 资源。',
                 },
             },
+            footer: {
+                copyright: '© 2026 Websoft9. All Rights Reserved.',
+                website: '官网',
+                github: 'GitHub',
+                manual: '使用手册',
+                ticket: '在线工单',
+            },
             overviewPage: {
                 compactHeader: {
                     title: '概览面板',
+                },
+                hero: {
+                    title: '把产品、服务器与运行时信号集中到一个首页。',
                 },
                 eyebrow: 'Websoft9 概览',
                 title: '用一个首页看清产品状态、运行信号和下一步动作。',
@@ -1578,6 +1674,19 @@ export const shellResources = {
                 badges: {
                     ready: '正常',
                     partial: '部分可用',
+                },
+                stats: {
+                    activeApps: '运行中应用',
+                    healthyServices: '健康服务',
+                },
+                summary: {
+                    availableApps: '应用商店总数',
+                    installedApps: '已安装应用',
+                    errorApps: '异常应用',
+                    memoryCapacity: '内存总量',
+                    taskQueue: '最近任务',
+                    noFailedTasks: '没有失败任务',
+                    failedTasks: '{{count}} 个失败任务',
                 },
                 actions: {
                     refresh: '刷新',
@@ -1606,15 +1715,18 @@ export const shellResources = {
                     product: {
                         title: '产品信息',
                         unlimited: '无限制',
+                        editionNames: {
+                            community: '社区版',
+                        },
                         metrics: {
                             version: '当前版本',
                             edition: '版本线',
                             installedApps: '已安装应用',
-                            availableApps: '安装上限',
+                            availableApps: '可安装应用数',
                         },
                     },
                     host: {
-                        title: '宿主机信息',
+                        title: '服务器',
                         metrics: {
                             hostname: '主机名',
                             os: '操作系统',
@@ -1623,7 +1735,8 @@ export const shellResources = {
                         },
                     },
                     runtime: {
-                        title: '资源健康',
+                        title: '平台',
+                        subtitle: 'Websoft9平台信息和负载',
                         badges: {
                             healthy: '健康',
                             warning: '注意',
@@ -1635,12 +1748,33 @@ export const shellResources = {
                         },
                     },
                     hostRuntime: {
-                        title: '宿主机资源',
-                        description: '显示宿主机口径的 CPU、内存和磁盘压力。',
+                        title: '资源概况',
+                        description: '主机 CPU、内存和磁盘占用',
                         metrics: {
                             cpu: '主机 CPU',
                             memory: '主机内存',
                             disk: '磁盘占用',
+                        },
+                    },
+                    platformOverview: {
+                        title: '平台概览',
+                        subtitle: '集中展示产品身份与当前承载能力。',
+                        unlimitedHelper: '当前未设置安装上限',
+                        serviceHelper: '健康服务占比',
+                        metrics: {
+                            installCapacity: '安装容量',
+                            serviceHealth: '服务健康度',
+                        },
+                    },
+                    apps: {
+                        title: '应用状态',
+                        subtitle: '按当前应用负载分布组织展示。',
+                        donutCaption: '运行占比',
+                        metrics: {
+                            active: '运行中',
+                            inactive: '未运行',
+                            installing: '安装中',
+                            error: '异常',
                         },
                     },
                 },

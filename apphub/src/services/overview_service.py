@@ -30,6 +30,7 @@ class OverviewService:
         self,
         auth_service: Optional[ProductAuthService] = None,
         product_metadata_loader: Optional[Callable[[], dict]] = None,
+        available_catalog_count_loader: Optional[Callable[[], Optional[int]]] = None,
         host_summary_loader: Optional[Callable[[], dict]] = None,
         host_runtime_summary_loader: Optional[Callable[[], dict]] = None,
         apps_loader: Optional[Callable[[], Sequence[object]]] = None,
@@ -40,6 +41,7 @@ class OverviewService:
     ):
         self.auth_service = auth_service or ProductAuthService()
         self._product_metadata_loader = product_metadata_loader or self._load_product_metadata
+        self._available_catalog_count_loader = available_catalog_count_loader or self._load_available_catalog_count
         self._host_summary_loader = host_summary_loader or self._load_host_summary
         self._host_runtime_summary_loader = host_runtime_summary_loader or self._load_host_runtime_summary
         self._apps_loader = apps_loader or self._load_apps
@@ -48,6 +50,8 @@ class OverviewService:
         self._tasks_loader = tasks_loader or self._load_recent_tasks
         self._now_provider = now_provider or (lambda: datetime.now(timezone.utc))
         self._last_cpu_usage_sample: Optional[tuple[int, int]] = None
+        self._last_host_cpu_sample: Optional[tuple[int, int]] = None
+        self._cached_host_cpu_percent: Optional[tuple[float, int]] = None
         self._last_network_sample: Optional[tuple[int, int, int]] = None
 
     def get_overview(self, session_token: Optional[str]) -> OverviewResponse:
@@ -76,10 +80,16 @@ class OverviewService:
     def _safe_product_summary(self, apps: OverviewAppsSummary) -> OverviewProductSummary:
         try:
             payload = self._product_metadata_loader() or {}
+            catalog_app_count: Optional[int] = None
+            try:
+                catalog_app_count = self._available_catalog_count_loader()
+            except Exception:
+                catalog_app_count = None
             return OverviewProductSummary(
                 version=payload.get("version") or None,
                 edition_key=payload.get("edition_key") or None,
                 edition_name=payload.get("edition_name") or None,
+                catalog_app_count=catalog_app_count,
                 installed_count=apps.installed_count if apps.available else None,
                 available_app_count=payload.get("max_apps"),
                 upgrade_state=payload.get("upgrade_state") or "unknown",
@@ -217,6 +227,15 @@ class OverviewService:
             "upgrade_state": "unknown",
         }
 
+    def _load_available_catalog_count(self) -> Optional[int]:
+        from src.services.app_manager import AppManger
+
+        try:
+            available_apps = AppManger().get_available_apps("en")
+        except Exception:
+            return None
+        return len(list(available_apps or []))
+
     def _load_docker_host_info(self) -> dict:
         client = None
         try:
@@ -266,8 +285,11 @@ class OverviewService:
             runtime_scope = "container"
             cpu_percent = round(cpu_percent, 1)
         else:
-            load_one = os.getloadavg()[0]
-            cpu_percent = round(min(max((load_one / cpu_cores) * 100, 0.0), 999.0), 1)
+            cpu_percent = self._read_host_cpu_percent()
+            if cpu_percent is None:
+                load_one = os.getloadavg()[0]
+                cpu_percent = min(max((load_one / cpu_cores) * 100, 0.0), 100.0)
+            cpu_percent = round(cpu_percent, 1)
 
         memory_snapshot = self._read_cgroup_memory_snapshot()
         if memory_snapshot is not None:
@@ -316,8 +338,11 @@ class OverviewService:
     def _load_host_runtime_summary(self) -> dict:
         docker_host_info = self._load_docker_host_info()
         cpu_cores = docker_host_info.get("cpu_cores") or os.cpu_count() or 1
-        load_one = os.getloadavg()[0]
-        cpu_percent = round(min(max((load_one / cpu_cores) * 100, 0.0), 999.0), 1)
+        cpu_percent = self._read_host_cpu_percent()
+        if cpu_percent is None:
+            load_one = os.getloadavg()[0]
+            cpu_percent = min(max((load_one / cpu_cores) * 100, 0.0), 100.0)
+        cpu_percent = round(cpu_percent, 1)
 
         memory_total_bytes, memory_available_bytes = self._read_memory_snapshot()
         resolved_memory_total_bytes = docker_host_info.get("memory_total_bytes") or memory_total_bytes
@@ -456,6 +481,77 @@ class OverviewService:
             return None
 
         return min(max((delta_usage_ns / delta_wall_ns / effective_cores) * 100, 0.0), 999.0)
+
+    def _read_host_cpu_percent(self) -> Optional[float]:
+        now_ns = time.monotonic_ns()
+        cached = self._cached_host_cpu_percent
+        if cached is not None:
+            cached_percent, cached_at_ns = cached
+            if now_ns - cached_at_ns < 500_000_000:
+                return cached_percent
+
+        sample = self._read_host_cpu_times()
+        if sample is None:
+            return None
+
+        previous_sample = self._last_host_cpu_sample
+        if previous_sample is None:
+            time.sleep(0.08)
+            next_sample = self._read_host_cpu_times()
+            if next_sample is None:
+                self._last_host_cpu_sample = sample
+                return None
+            self._last_host_cpu_sample = next_sample
+            percent = self._calculate_host_cpu_percent(sample, next_sample)
+        else:
+            self._last_host_cpu_sample = sample
+            percent = self._calculate_host_cpu_percent(previous_sample, sample)
+
+        if percent is None:
+            return None
+
+        self._cached_host_cpu_percent = (percent, now_ns)
+        return percent
+
+    def _read_host_cpu_times(self) -> Optional[tuple[int, int]]:
+        raw_stats = self._read_text_file(Path("/proc/stat"))
+        if not raw_stats:
+            return None
+
+        for line in raw_stats.splitlines():
+            if not line.startswith("cpu "):
+                continue
+
+            parts = line.split()
+            if len(parts) < 5:
+                return None
+
+            try:
+                values = [int(value) for value in parts[1:]]
+            except ValueError:
+                return None
+
+            idle_ticks = values[3] + (values[4] if len(values) > 4 else 0)
+            total_ticks = sum(values)
+            return idle_ticks, total_ticks
+
+        return None
+
+    def _calculate_host_cpu_percent(
+        self,
+        previous_sample: tuple[int, int],
+        current_sample: tuple[int, int],
+    ) -> Optional[float]:
+        previous_idle_ticks, previous_total_ticks = previous_sample
+        current_idle_ticks, current_total_ticks = current_sample
+
+        delta_total_ticks = current_total_ticks - previous_total_ticks
+        delta_idle_ticks = current_idle_ticks - previous_idle_ticks
+        if delta_total_ticks <= 0 or delta_idle_ticks < 0:
+            return None
+
+        busy_ticks = max(delta_total_ticks - delta_idle_ticks, 0)
+        return min(max((busy_ticks / delta_total_ticks) * 100, 0.0), 100.0)
 
     def _read_cgroup_cpu_limit_cores(self) -> Optional[float]:
         cpu_max = self._read_text_file(Path("/sys/fs/cgroup/cpu.max"))

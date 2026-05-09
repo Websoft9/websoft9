@@ -58,6 +58,7 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {
             "hostname": "host-a",
             "os_name": "Ubuntu 24.04",
@@ -149,6 +150,7 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
 
     assert payload.product.version == "2.2.17"
     assert payload.product.edition_key == "free"
+    assert payload.product.catalog_app_count == 432
     assert payload.product.installed_count == 3
     assert payload.product.available_app_count == 2
     assert payload.host.hostname == "host-a"
@@ -173,6 +175,7 @@ def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
             "runtime_scope": "system",
@@ -216,6 +219,7 @@ def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
     assert payload.apps.available is False
     assert "apps source unavailable" in (payload.apps.unavailable_reason or "")
     assert payload.product.available is True
+    assert payload.product.catalog_app_count == 432
     assert payload.product.installed_count is None
     assert payload.product.available_app_count == 2
     assert payload.host.available is True
@@ -229,6 +233,7 @@ def test_overview_service_supports_runtime_app_response_models():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
             "runtime_scope": "system",
@@ -358,16 +363,16 @@ def test_overview_host_runtime_summary_reports_system_disk_usage():
 
     with (
         patch.object(service, "_load_docker_host_info", return_value={}),
+        patch.object(service, "_read_host_cpu_percent", return_value=42.5),
         patch.object(service, "_read_memory_snapshot", return_value=(16_000, 10_000)),
         patch.object(service, "_read_network_summary", return_value=(120_000, 80_000, 4_096, 2_048)),
         patch("src.services.overview_service.os.cpu_count", return_value=8),
-        patch("src.services.overview_service.os.getloadavg", return_value=(2.0, 1.5, 1.0)),
         patch("src.services.overview_service.shutil.disk_usage", return_value=shutil._ntuple_diskusage(total=200_000, used=90_000, free=110_000)),
     ):
         payload = service._load_host_runtime_summary()
 
     assert payload["runtime_scope"] == "system"
-    assert payload["cpu_percent"] == 25.0
+    assert payload["cpu_percent"] == 42.5
     assert payload["memory_percent"] == 37.5
     assert payload["disk_percent"] == 45.0
     assert payload["disk_used_bytes"] == 90_000
@@ -418,9 +423,9 @@ def test_overview_host_runtime_summary_prefers_docker_host_capacity_when_availab
                 "docker_root_dir": "/data/docker",
             },
         ),
+        patch.object(service, "_read_host_cpu_percent", return_value=50.0),
         patch.object(service, "_read_memory_snapshot", return_value=(7_865_692 * 1024, 2_700_000_000)),
         patch.object(service, "_read_network_summary", return_value=(120_000, 80_000, 4_096, 2_048)),
-        patch("src.services.overview_service.os.getloadavg", return_value=(1.0, 0.5, 0.25)),
         patch("src.services.overview_service.shutil.disk_usage", return_value=shutil._ntuple_diskusage(total=200_000, used=90_000, free=110_000)) as mocked_disk_usage,
     ):
         payload = service._load_host_runtime_summary()
@@ -432,6 +437,19 @@ def test_overview_host_runtime_summary_prefers_docker_host_capacity_when_availab
     assert payload["memory_total_bytes"] == 8_054_468_608
     assert payload["memory_used_bytes"] == 5_354_468_608
     assert payload["memory_percent"] == 66.5
+
+
+def test_overview_host_cpu_percent_uses_proc_stat_deltas():
+    service = OverviewService(auth_service=FakeAuthService())
+
+    with (
+        patch.object(service, "_read_host_cpu_times", side_effect=[(400, 1_000), (420, 1_100)]),
+        patch("src.services.overview_service.time.sleep"),
+        patch("src.services.overview_service.time.monotonic_ns", return_value=1_000_000_000),
+    ):
+        cpu_percent = service._read_host_cpu_percent()
+
+    assert cpu_percent == 80.0
 
 
 def test_overview_runtime_summary_prefers_cgroup_limits_when_available():
