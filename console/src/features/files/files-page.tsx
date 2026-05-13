@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './files-page.css'
@@ -190,6 +191,155 @@ function normalizeActionErrorMessage(
 
 const VIRTUAL_VOLUMES_ROOT_PATH = '/volumes'
 const DOCKER_VOLUMES_ROOT_SENTINEL = '__docker_volumes_root__'
+type FileVisualKind = 'directory' | 'image' | 'config' | 'certificate' | 'code' | 'document' | 'archive' | 'spreadsheet' | 'media' | 'file'
+
+const IMAGE_FILE_EXTENSIONS = new Set(['.apng', '.avif', '.bmp', '.gif', '.ico', '.jpeg', '.jpg', '.png', '.svg', '.webp'])
+const CONFIG_FILE_EXTENSIONS = new Set(['.conf', '.config', '.env', '.ini', '.properties', '.toml', '.yaml', '.yml'])
+const CERTIFICATE_FILE_EXTENSIONS = new Set(['.cert', '.crt', '.key', '.pem', '.p12', '.pfx'])
+const CODE_FILE_EXTENSIONS = new Set(['.c', '.cc', '.cpp', '.css', '.go', '.h', '.hpp', '.html', '.java', '.js', '.json', '.mdx', '.php', '.py', '.rb', '.rs', '.sh', '.sql', '.ts', '.tsx', '.vue', '.xml'])
+const DOCUMENT_FILE_EXTENSIONS = new Set(['.doc', '.docx', '.md', '.pdf', '.rtf', '.txt'])
+const ARCHIVE_FILE_EXTENSIONS = new Set(['.7z', '.bz2', '.gz', '.rar', '.tar', '.tgz', '.xz', '.zip'])
+const SPREADSHEET_FILE_EXTENSIONS = new Set(['.csv', '.numbers', '.ods', '.xls', '.xlsx'])
+const MEDIA_FILE_EXTENSIONS = new Set(['.aac', '.flac', '.m4a', '.mkv', '.mov', '.mp3', '.mp4', '.ogg', '.wav', '.webm'])
+
+function getFileExtension(name: string): string {
+    const lastDotIndex = name.lastIndexOf('.')
+    if (lastDotIndex < 0) {
+        return ''
+    }
+
+    return name.slice(lastDotIndex).toLowerCase()
+}
+
+function getVisualKind(item: Pick<FileManagerItem, 'item_type' | 'name'>): FileVisualKind {
+    if (item.item_type === 'directory') {
+        return 'directory'
+    }
+
+    const extension = getFileExtension(item.name)
+    if (IMAGE_FILE_EXTENSIONS.has(extension)) {
+        return 'image'
+    }
+    if (CONFIG_FILE_EXTENSIONS.has(extension)) {
+        return 'config'
+    }
+    if (CERTIFICATE_FILE_EXTENSIONS.has(extension)) {
+        return 'certificate'
+    }
+    if (CODE_FILE_EXTENSIONS.has(extension)) {
+        return 'code'
+    }
+    if (DOCUMENT_FILE_EXTENSIONS.has(extension)) {
+        return 'document'
+    }
+    if (ARCHIVE_FILE_EXTENSIONS.has(extension)) {
+        return 'archive'
+    }
+    if (SPREADSHEET_FILE_EXTENSIONS.has(extension)) {
+        return 'spreadsheet'
+    }
+    if (MEDIA_FILE_EXTENSIONS.has(extension)) {
+        return 'media'
+    }
+
+    return 'file'
+}
+
+function FileItemGlyph({ kind, variant }: { kind: FileVisualKind; variant: 'card' | 'list' }) {
+    const className = variant === 'card' ? `files-card-visual files-card-visual-${kind}` : `files-list-icon files-list-icon-${kind}`
+
+    if (kind === 'directory') {
+        return (
+            <span className={className}>
+                <svg aria-hidden="true" className="files-item-glyph-svg" viewBox="0 0 64 64">
+                    <path d="M10 16a5 5 0 0 1 5-5h12.5c1.7 0 3.3.8 4.3 2.1l2.2 2.9H49a5 5 0 0 1 5 5v5H10v-10Z" fill="currentColor" opacity="0.88" />
+                    <path d="M7 24.5A5.5 5.5 0 0 1 12.5 19H51a6 6 0 0 1 6 6V43a8 8 0 0 1-8 8H15a8 8 0 0 1-8-8V24.5Z" fill="currentColor" />
+                    <path d="M12 27h40" fill="none" stroke="rgba(255,255,255,0.22)" strokeLinecap="round" strokeWidth="2.2" />
+                    <path d="M13 18h17.5c1.1 0 2.2.5 2.8 1.4l1 1.6H13.5a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 1 .5-.5Z" fill="rgba(255,255,255,0.34)" />
+                </svg>
+            </span>
+        )
+    }
+
+    const fileShell = (
+        <>
+            <path d="M16 6h24l10 10v38a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V12a6 6 0 0 1 2-4.4A5.8 5.8 0 0 1 20 6Z" fill="currentColor" />
+            <path d="M40 6v10a3 3 0 0 0 3 3h10" fill="rgba(255,255,255,0.3)" />
+            <path d="M40 6v10a3 3 0 0 0 3 3h10" fill="none" stroke="rgba(255,255,255,0.82)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
+            <path d="M20 17h14" fill="none" stroke="rgba(255,255,255,0.18)" strokeLinecap="round" strokeWidth="2.2" />
+        </>
+    )
+
+    const accent = (() => {
+        if (kind === 'image') {
+            return (
+                <>
+                    <circle cx="24" cy="29" r="4" fill="rgba(255,255,255,0.92)" />
+                    <path d="M18 47l8-9 6 6 5-7 9 10H18Z" fill="rgba(255,255,255,0.92)" />
+                </>
+            )
+        }
+        if (kind === 'config') {
+            return (
+                <>
+                    <path d="M22 27h18" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeWidth="3" />
+                    <path d="M22 36h18" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeWidth="3" />
+                    <circle cx="28" cy="27" r="3.6" fill="currentColor" opacity="0.32" />
+                    <circle cx="35" cy="36" r="3.6" fill="currentColor" opacity="0.32" />
+                </>
+            )
+        }
+        if (kind === 'certificate') {
+            return (
+                <>
+                    <path d="M32 22 41 26v8c0 6-4.1 10.9-9 12-4.9-1.1-9-6-9-12v-8l9-4Z" fill="rgba(255,255,255,0.92)" />
+                    <path d="m28.5 33 2.5 2.5 5-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.6" opacity="0.4" />
+                </>
+            )
+        }
+        if (kind === 'code') {
+            return <path d="m24 28-6 6 6 6m16-12 6 6-6 6m-8 4 4-20" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+        }
+        if (kind === 'document') {
+            return (
+                <>
+                    <path d="M22 26h20" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeWidth="3" />
+                    <path d="M22 34h20" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeWidth="3" />
+                    <path d="M22 42h14" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeWidth="3" />
+                </>
+            )
+        }
+        if (kind === 'archive') {
+            return (
+                <>
+                    <path d="M29 20h6v24h-6Z" fill="rgba(255,255,255,0.92)" />
+                    <path d="M29 24h6M29 30h6M29 36h6" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.2" opacity="0.3" />
+                </>
+            )
+        }
+        if (kind === 'spreadsheet') {
+            return (
+                <>
+                    <path d="M21 24h22v20H21Z" fill="rgba(255,255,255,0.92)" />
+                    <path d="M28.5 24v20M35.5 24v20M21 31h22M21 38h22" fill="none" stroke="currentColor" strokeWidth="2.2" opacity="0.28" />
+                </>
+            )
+        }
+        if (kind === 'media') {
+            return <path d="M26 22v20l16-10-16-10Z" fill="rgba(255,255,255,0.92)" />
+        }
+        return <path d="M22 26h20M22 34h16M22 42h12" fill="none" stroke="rgba(255,255,255,0.92)" strokeLinecap="round" strokeWidth="3" />
+    })()
+
+    return (
+        <span className={className}>
+            <svg aria-hidden="true" className="files-item-glyph-svg" viewBox="0 0 64 64">
+                {fileShell}
+                {accent}
+            </svg>
+        </span>
+    )
+}
 
 function buildVirtualPath(volumeName: string, path: string): string {
     if (!volumeName) {
@@ -232,6 +382,33 @@ function parseBrowserPath(input: string, knownVolumes: string[]): NavigationLoca
     }
 
     return { volumeName: '', path: normalizedSuffix }
+}
+
+async function resolveExistingLocation(nextLocation: NavigationLocation): Promise<NavigationLocation> {
+    let candidate = nextLocation
+
+    while (true) {
+        if (!candidate.volumeName && candidate.path === '/') {
+            return candidate
+        }
+
+        try {
+            await requestJson<FileManagerDirectoryResponse>(
+                `/api/files/tree?volume_id=${encodeURIComponent(candidate.volumeName || DOCKER_VOLUMES_ROOT_SENTINEL)}&path=${encodeURIComponent(candidate.path)}`,
+                { method: 'GET' },
+            )
+            return candidate
+        } catch {
+            if (candidate.path === '/') {
+                return candidate.volumeName ? { volumeName: candidate.volumeName, path: '/' } : { volumeName: '', path: '/' }
+            }
+
+            candidate = {
+                ...candidate,
+                path: parentPath(candidate.path),
+            }
+        }
+    }
 }
 
 function ToolbarGlyph({ kind }: { kind: 'back' | 'forward' | 'up' | 'refresh' | 'folder' | 'file' | 'upload' | 'download' | 'rename' | 'trash' | 'edit' | 'search' | 'save' | 'close' }) {
@@ -342,6 +519,7 @@ function isSameLocation(left: NavigationLocation, right: NavigationLocation): bo
 
 export function FilesPage() {
     const { t, i18n } = useTranslation('shell')
+    const [searchParams, setSearchParams] = useSearchParams()
     const { status } = useProductAuth()
     const queryClient = useQueryClient()
     const [selectedVolume, setSelectedVolume] = useState('')
@@ -466,10 +644,47 @@ export function FilesPage() {
     const selectedItemPath = selectedItem?.path ?? selectedRootEntry?.path ?? editorPath ?? null
     const browserPathLabel = buildVirtualPath(selectedVolume, currentPath)
     const activeVolumeId = selectedVolume || DOCKER_VOLUMES_ROOT_SENTINEL
+    const pendingBrowserPath = searchParams.get('path')?.trim() ?? ''
 
     useEffect(() => {
         setPathInputValue(browserPathLabel)
     }, [browserPathLabel])
+
+    useEffect(() => {
+        if (!pendingBrowserPath || !status?.enabled || !status?.authenticated) {
+            return
+        }
+
+        const parsed = parseBrowserPath(pendingBrowserPath, volumes.map((volume) => volume.volume_name))
+        if (!parsed) {
+            return
+        }
+
+        if (parsed.volumeName && !volumes.length) {
+            return
+        }
+
+        let cancelled = false
+
+        void (async () => {
+            const resolved = await resolveExistingLocation(parsed)
+            if (cancelled) {
+                return
+            }
+
+            applyLocation(resolved, false)
+            setNavigationHistory([resolved])
+            setNavigationIndex(0)
+
+            const nextParams = new URLSearchParams(searchParams)
+            nextParams.delete('path')
+            setSearchParams(nextParams, { replace: true })
+        })()
+
+        return () => {
+            cancelled = true
+        }
+    }, [pendingBrowserPath, searchParams, setSearchParams, status?.authenticated, status?.enabled, volumes])
 
     useEffect(() => {
         const normalizedInput = pathInputValue.trim()
@@ -1232,7 +1447,7 @@ export function FilesPage() {
     ]
 
     return (
-        <Box className="files-page" sx={{ px: { xs: 0.25, md: 0.5 }, py: { xs: 0.5, md: 0.75 } }}>
+        <Box className="files-page" sx={{ px: { xs: 0.25, md: 0.5 }, pt: { xs: 0.25, md: 0.375 }, pb: { xs: 0.25, md: 0.5 } }}>
             <Stack spacing={0.5} className="files-shell">
                 {!status?.enabled ? <Alert severity="info">{t('filesPage.states.authDisabled')}</Alert> : null}
 
@@ -1411,7 +1626,7 @@ export function FilesPage() {
                                                     onDoubleClick={() => void openRootEntry(item)}
                                                 >
                                                     <div className="files-list-name">
-                                                        <span className={item.item_type === 'directory' ? 'files-list-folder-dot' : 'files-list-file-dot'} />
+                                                        <FileItemGlyph kind={getVisualKind(item)} variant="list" />
                                                         <span className="files-truncate">{item.name}</span>
                                                     </div>
                                                     <div>{item.mode ?? '—'}</div>
@@ -1436,7 +1651,7 @@ export function FilesPage() {
                                                     onDoubleClick={() => void openFile(item)}
                                                 >
                                                     <div className="files-list-name">
-                                                        <span className={item.item_type === 'directory' ? 'files-list-folder-dot' : 'files-list-file-dot'} />
+                                                        <FileItemGlyph kind={getVisualKind(item)} variant="list" />
                                                         <span className="files-truncate">{item.name}</span>
                                                     </div>
                                                     <div>{item.mode ?? '—'}</div>
@@ -1467,7 +1682,7 @@ export function FilesPage() {
                                                 onDoubleClick={() => void openRootEntry(item)}
                                             >
                                                 <div className={`files-card-hitbox ${isSelected ? 'files-card-hitbox-selected' : ''}`}>
-                                                    <div className={`files-card-visual files-card-visual-${item.item_type}`} />
+                                                    <FileItemGlyph kind={getVisualKind(item)} variant="card" />
                                                     <div className="files-card-body">
                                                         <div className="files-card-title">{item.name}</div>
                                                     </div>
@@ -1491,7 +1706,7 @@ export function FilesPage() {
                                                 onMouseEnter={() => prefetchMetadata(activeVolumeId, item.path)}
                                             >
                                                 <div className={`files-card-hitbox ${isSelected ? 'files-card-hitbox-selected' : ''}`}>
-                                                    <div className={`files-card-visual files-card-visual-${item.item_type}`} />
+                                                    <FileItemGlyph kind={getVisualKind(item)} variant="card" />
                                                     <div className="files-card-body">
                                                         <div className="files-card-title">{item.name}</div>
                                                     </div>

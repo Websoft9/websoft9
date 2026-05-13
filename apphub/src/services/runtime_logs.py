@@ -19,6 +19,7 @@ class RuntimeLogsService:
     ):
         self.auth_service = auth_service or ProductAuthService()
         self.log_path = Path(log_path or os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", PLATFORM_RUNTIME_LOG_PATH))
+        self.excluded_components = {"apphub-api"}
 
     def list_sources(self, session_token: Optional[str]) -> list[RuntimeLogsSourceSummary]:
         self.auth_service._require_authenticated_operator(session_token)
@@ -76,6 +77,10 @@ class RuntimeLogsService:
             return None
 
         if str(payload.get("domain") or "runtime").strip().lower() != "runtime":
+            return None
+
+        component = str(payload.get("component") or "").strip().lower()
+        if component in self.excluded_components:
             return None
 
         timestamp = self._normalize_timestamp(payload.get("ts"))

@@ -23,6 +23,9 @@ PORTAINER_LOG_PATTERN = re.compile(
     r"(?P<message>.+)$"
 )
 SLASH_TIMESTAMP_PATTERN = re.compile(r"^(?P<ts>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\s+(?P<message>.+)$")
+NGINX_ACCESS_LOG_PATTERN = re.compile(
+    r'^(?P<client>\S+)\s+-\s+-\s+\[(?P<ts>[^\]]+)\]\s+"(?P<request>[^"]+)"\s+(?P<status>\d{3})\s+(?P<bytes>\d+|-)(?:\s+"(?P<referrer>[^"]*)"\s+"(?P<agent>[^"]*)")?$'
+)
 BRACKET_LEVEL_PATTERN = re.compile(r"^(?:HTTPRequest\s+)?\[(?P<level>[IWEF])\]\s+(?P<message>.+)$")
 NGINX_LEVEL_PATTERN = re.compile(r"^\[(?P<level>error|warn|warning|notice|info)\]\s+(?P<message>.+)$", re.IGNORECASE)
 LOG_LEVEL_ALIASES = {
@@ -63,6 +66,7 @@ class ServiceDefinition:
     workspace_route: Optional[str] = None
     integration_key: Optional[str] = None
     log_root: Path = Path("/")
+    log_paths: Sequence[Path] = field(default_factory=tuple)
     markers: Sequence[Path] = field(default_factory=tuple)
 
 
@@ -73,6 +77,27 @@ class HealthProbeResult:
 
 
 DEFAULT_SERVICE_DEFINITIONS = (
+    ServiceDefinition(
+        key="platform-gateway",
+        label="Platform Gateway",
+        description="Websoft9 entry gateway service",
+        supervisor_program="platform-gateway",
+        health_url=os.getenv("WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL", "http://127.0.0.1:9000/w9gateway/healthz"),
+        health_verify_tls=False,
+        log_root=Path("/var/log/websoft9"),
+        log_paths=(
+            Path("/var/log/websoft9/platform-gateway-access.log"),
+            Path("/var/log/websoft9/platform-gateway-error.log"),
+        ),
+    ),
+    ServiceDefinition(
+        key="apphub-api",
+        label="AppHub",
+        description="Websoft9 API and orchestration service",
+        supervisor_program="apphub-api",
+        health_url=os.getenv("WEBSOFT9_APPHUB_HEALTH_URL", "http://127.0.0.1:8080/api/healthz"),
+        log_root=Path("/websoft9/apphub/logs"),
+    ),
     ServiceDefinition(
         key="gitea",
         label="Gitea",
@@ -191,7 +216,7 @@ class CoreServicesService:
                 )
             )
 
-        logs_available = self._has_log_files(definition.log_root)
+        logs_available = self._has_log_files(definition.log_root, definition.log_paths)
         indicators.append(
             ServiceIndicator(
                 key="log-root",
@@ -289,10 +314,10 @@ class CoreServicesService:
         return HealthProbeResult(ok=False, detail=f"HTTP {response.status_code}")
 
     def _read_service_logs(self, definition: ServiceDefinition, limit: int) -> tuple[list[ServiceLogEntry], Optional[str]]:
-        if not definition.log_root.exists():
+        if not definition.log_root.exists() and not definition.log_paths:
             return [], "Service raw logs are not currently available"
 
-        files = self._recent_log_files(definition.log_root)
+        files = self._recent_log_files(definition.log_root, definition.log_paths)
         if not files:
             return [], "Service raw logs are not currently available"
 
@@ -310,7 +335,9 @@ class CoreServicesService:
         entries = [self._parse_log_line(source, raw_line) for source, raw_line in lines]
         return [entry for entry in entries if entry is not None], None
 
-    def _has_log_files(self, log_root: Path) -> bool:
+    def _has_log_files(self, log_root: Path, log_paths: Sequence[Path]) -> bool:
+        if any(self._is_supported_log_file(path) for path in log_paths):
+            return True
         if not log_root.exists():
             return False
         for _root, _dirs, files in os.walk(log_root):
@@ -318,7 +345,11 @@ class CoreServicesService:
                 return True
         return False
 
-    def _recent_log_files(self, log_root: Path) -> list[Path]:
+    def _recent_log_files(self, log_root: Path, log_paths: Sequence[Path]) -> list[Path]:
+        explicit_paths = [path for path in log_paths if self._is_supported_log_file(path)]
+        if explicit_paths:
+            return sorted(explicit_paths, key=lambda path: path.stat().st_mtime)
+
         candidates: list[tuple[float, Path]] = []
         for root, _dirs, files in os.walk(log_root):
             for file_name in files:
@@ -348,6 +379,19 @@ class CoreServicesService:
         if not raw:
             return None
 
+        nginx_access_match = NGINX_ACCESS_LOG_PATTERN.match(raw)
+        if nginx_access_match:
+            request = nginx_access_match.group("request").strip()
+            status = nginx_access_match.group("status").strip()
+            message = f'{request} | status={status}'
+            return ServiceLogEntry(
+                timestamp=self._normalize_timestamp(nginx_access_match.group("ts")),
+                level="INF",
+                source=None,
+                message=message,
+                raw=raw,
+            )
+
         portainer_match = PORTAINER_LOG_PATTERN.match(raw)
         if portainer_match:
             return ServiceLogEntry(
@@ -363,7 +407,7 @@ class CoreServicesService:
             level, message = self._extract_message_level(slash_match.group("message").strip())
             return ServiceLogEntry(
                 timestamp=self._normalize_timestamp(slash_match.group("ts")),
-                level=level,
+                level=level or self._infer_default_level(message),
                 source=None,
                 message=message,
                 raw=raw,
@@ -373,13 +417,13 @@ class CoreServicesService:
         if match:
             timestamp = self._normalize_timestamp(match.group("ts"))
             level, message = self._extract_message_level(match.group("message").strip())
-            return ServiceLogEntry(timestamp=timestamp, level=level, source=None, message=message, raw=raw)
+            return ServiceLogEntry(timestamp=timestamp, level=level or self._infer_default_level(message), source=None, message=message, raw=raw)
         level, message = self._extract_message_level(raw)
-        return ServiceLogEntry(timestamp=None, level=level, source=None, message=message, raw=raw)
+        return ServiceLogEntry(timestamp=None, level=level or self._infer_default_level(message), source=None, message=message, raw=raw)
 
     def _normalize_timestamp(self, value: str) -> Optional[str]:
         candidate = value.strip()
-        for pattern in ("%Y/%m/%d %I:%M%p", "%Y/%m/%d %I:%M:%S%p", "%Y/%m/%d %H:%M:%S"):
+        for pattern in ("%Y/%m/%d %I:%M%p", "%Y/%m/%d %I:%M:%S%p", "%Y/%m/%d %H:%M:%S", "%d/%b/%Y:%H:%M:%S %z"):
             try:
                 parsed = datetime.strptime(candidate, pattern).replace(tzinfo=timezone.utc)
                 return parsed.isoformat().replace("+00:00", "Z")
@@ -419,6 +463,18 @@ class CoreServicesService:
             return level, nginx_match.group("message").strip()
 
         return None, message
+
+    def _infer_default_level(self, message: str) -> str:
+        normalized = message.strip().lower()
+        if not normalized:
+            return "INF"
+        if "fatal" in normalized or "panic" in normalized:
+            return "FTL"
+        if "error" in normalized or "failed" in normalized or "exception" in normalized:
+            return "ERR"
+        if "warn" in normalized:
+            return "WRN"
+        return "INF"
 
     def _entry_at_or_after(self, entry: ServiceLogEntry, cutoff: datetime) -> bool:
         if not entry.timestamp:

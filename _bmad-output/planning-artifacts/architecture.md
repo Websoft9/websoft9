@@ -34,7 +34,7 @@ _This document records the final architecture decisions for the current refactor
 
 **Functional Requirements:**
 
-The PRD defines a control-plane refactor around three capability families: product-owned app workflows such as catalog, install, My Apps, backup, proxy, and settings; controlled operational capability such as product-scoped logs, services, mounted-file management, and a host terminal bridge; and continuity capability such as direct upgrade plus continuous entry into Gitea, Portainer, and Nginx Proxy Manager. The product is therefore not a generic server panel. It is an application-focused control plane with explicit host-interaction boundaries. App Store and My Apps remain the primary spine and take priority over secondary modules.
+The PRD defines a control-plane refactor around three capability families: product-owned app workflows such as catalog, install, My Apps, backup, proxy, and settings; controlled operational capability such as product-scoped logs, services, mounted-file management, and a host terminal bridge; and continuity capability such as direct upgrade plus continuous entry into Gitea, Portainer, and Nginx Proxy Manager. The application-workflow family now also expands the install model into three source types: marketplace templates, user-authored Docker Compose deployment, and curated runtime-based source deployment starting with PHP projects. The product is therefore not a generic server panel. It is an application-focused control plane with explicit host-interaction boundaries and one normalized installation domain. App Store and My Apps remain the primary spine and take priority over secondary modules.
 
 **Non-Functional Requirements:**
 
@@ -124,6 +124,8 @@ npm create vite@latest console -- --template react-ts
 4. Proxy responsibilities stay explicitly separated as concerns: Websoft9 product entry and internal-service routing must not be conflated with user app-domain routing, but MVP may enforce that boundary within the current gateway and Nginx Proxy Manager topology before deciding whether a physically separate gateway is necessary.
 5. Gateway responsibilities must be split between platform routing and app-access routing, while legacy authorization, API key governance, and richer user management remain deferred optimization topics unless a specific migrated flow forces earlier work.
 6. The direct-upgrade migration playbook is a mandatory implementation artifact before any migration-sensitive development story is considered done.
+7. Flexible installation must be implemented as one normalized installation domain in AppHub rather than as separate ad hoc flows for templates, compose deployments, and runtime-source deployments.
+8. Phase 1 runtime-based source deployment starts with curated PHP profiles and explicitly defers broader multi-runtime expansion.
 
 **Deferred Decisions (Post-MVP):**
 
@@ -131,15 +133,41 @@ npm create vite@latest console -- --template react-ts
 2. Multi-node horizontal scaling and HA database topology are deferred. MVP is optimized for single-host self-hosted deployment with clean future expansion.
 3. External identity providers such as OIDC or LDAP are deferred until the product-native identity model is stable.
 
+### Installation Domain Architecture
+
+Websoft9 will treat all install entry points as variants of one installation domain rather than as unrelated product surfaces.
+
+**Installation source types in Phase 1:**
+
+1. Marketplace template install sourced from existing App Store metadata.
+2. Custom Docker Compose install sourced from uploaded or inline-authored compose content.
+3. Runtime-based source deployment sourced from uploaded application bundles plus a curated runtime profile, starting with PHP.
+
+**Normalized installation objects:**
+
+- `installation_source`: identifies whether the request comes from marketplace, compose, or runtime source.
+- `installation_spec`: normalized product-owned deployment intent after validation and transformation.
+- `runtime_profile`: curated runtime descriptor used only for runtime-source deployments.
+- `deployment_revision`: persisted deployment snapshot used for redeploy, diagnosis, and lifecycle operations.
+
+**Processing pipeline:**
+
+1. Accept source payload and installation metadata through AppHub-owned APIs.
+2. Validate source-specific inputs.
+3. Normalize them into one installation specification.
+4. Apply policy checks before any container, volume, network, or proxy resource is created.
+5. Execute installation through the unified task model.
+6. Persist deployment summary so My Apps and lifecycle flows can treat all application types consistently.
+
 ### Data Architecture
 
 **Primary Persistence Choice:**
 
-This track does not force a persistence redesign. AppHub's current configuration and storage model remains the baseline, and new durable state is added only where Cockpit removal or new capabilities make it unavoidable, such as sessions, audit, task history, or upgrade checkpoints.
+This track does not force a persistence redesign. AppHub's current configuration and storage model remains the baseline, and new durable state is added only where Cockpit removal or new capabilities make it unavoidable, such as sessions, audit, task history, upgrade checkpoints, and the normalized installation records required by custom compose and runtime-source deployment.
 
 **Persistence & Modeling Approach:**
 
-Existing AppHub configuration, service contracts, and integration metadata should be reused wherever practical. When new durable state is needed, add it in the least disruptive way that preserves compatibility with current AppHub service logic. New capability should default to AppHub extension and AppHub-owned APIs rather than a parallel public backend or a flag-day rewrite of settings and runtime state. A narrow exception is approved for privileged bridge execution that materially benefits from warm reuse and isolation inside the current product runtime, such as a long-lived internal file-operations sidecar. In that exception, AppHub still owns authentication, authorization, request validation, and the public API contract, while the sidecar remains an internal execution dependency only.
+Existing AppHub configuration, service contracts, and integration metadata should be reused wherever practical. When new durable state is needed, add it in the least disruptive way that preserves compatibility with current AppHub service logic. New capability should default to AppHub extension and AppHub-owned APIs rather than a parallel public backend or a flag-day rewrite of settings and runtime state. For the flexible installation expansion, the new durable state should center on installation-source metadata, deployment revisions, runtime-profile references, and artifact locations for uploaded source bundles. A narrow exception is approved for privileged bridge execution that materially benefits from warm reuse and isolation inside the current product runtime, such as a long-lived internal file-operations sidecar. In that exception, AppHub still owns authentication, authorization, request validation, and the public API contract, while the sidecar remains an internal execution dependency only.
 
 **Validation Strategy:**
 
@@ -176,13 +204,15 @@ Authorization in MVP remains intentionally coarse-grained. The baseline is only 
 
 When these capabilities are introduced, passwords and product credentials should use modern password hashing and encrypted secret handling. Third-party tokens and integration secrets should move away from broad plaintext exposure over time, but that cleanup should be incremental AppHub hardening after the migration-critical path, not an up-front secret-platform rewrite.
 
+Custom compose and runtime-source deployment must also pass product-owned policy validation before any deployment resources are created.
+
 **Security Middleware & Transport Controls:**
 
 The backend will enforce secure cookie settings, CSRF protection for mutating requests, same-origin defaults, explicit CORS allowlists only where needed, and structured audit logging for privileged actions. TLS termination is expected at the reverse-proxy edge, but backend trust of upstream headers must remain explicit and minimal.
 
 **API Security Strategy:**
 
-Authentication endpoints, terminal bridges, file bridges, backup restore endpoints, and upgrade actions must receive stricter protection than general reads. Coarse rate limiting should be applied at the proxy layer, while app-level throttling and explicit guards protect sensitive command endpoints. If terminal access is implemented through SSH-backed session establishment, Websoft9 authorization gates the creation of the terminal session, while host-level permissions continue to derive from the bound SSH user rather than from a second internal shell permission model.
+Authentication endpoints, terminal bridges, file bridges, backup restore endpoints, upgrade actions, and flexible-installation submission endpoints must receive stricter protection than general reads. Coarse rate limiting should be applied at the proxy layer, while app-level throttling and explicit guards protect sensitive command endpoints. If terminal access is implemented through SSH-backed session establishment, Websoft9 authorization gates the creation of the terminal session, while host-level permissions continue to derive from the bound SSH user rather than from a second internal shell permission model. Compose policy validation must reject unsupported directives such as unrestricted host-path mounts, privileged containers, and disallowed network modes unless a future product policy explicitly introduces controlled exceptions.
 
 **Decision Record:**
 
@@ -214,6 +244,10 @@ OpenAPI remains the authoritative machine-readable API contract. API groups shou
 **Compatibility Strategy:**
 
 The architecture cannot assume a flag-day contract rewrite. Existing API key, snake_case, and `code/message/data` response patterns should be treated as the practical AppHub baseline. The new console should adapt to them where possible, and only introduce additive translation or normalization where Cockpit removal or new workflows make it necessary. If a deeper contract redesign is desired later, it should be planned as a separate redesign effort.
+
+**Installation API Strategy:**
+
+Flexible installation remains AppHub-owned. The product should expose one installation surface with source-type-aware request models rather than inventing three disconnected public APIs. Compose parsing, runtime-profile rendering, and source-bundle handling may use internal helper services, but AppHub remains the only public policy and contract boundary.
 
 **Third-Party Workspace Strategy:**
 

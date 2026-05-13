@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Chip, CircularProgress, LinearProgress, Paper, Stack, SvgIcon, Typography } from '@mui/material'
+import { Alert, Box, Button, LinearProgress, Paper, Stack, SvgIcon, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './overview-page.css'
 
@@ -148,6 +149,30 @@ export function OverviewPage() {
         [locale],
     )
     const localizedEditionName = getLocalizedEditionName(data?.product.edition_key ?? null, data?.product.edition_name ?? null, t)
+    const runtimeAlertSummary = useMemo(() => {
+        if (!data || data.runtime.health_state === 'healthy') {
+            return null
+        }
+
+        const runtimeAlert = data.alerts[0]
+        if (runtimeAlert) {
+            return runtimeAlert.detail ? `${runtimeAlert.title} - ${runtimeAlert.detail}` : runtimeAlert.title
+        }
+
+        if (typeof data.runtime.cpu_percent === 'number' && data.runtime.cpu_percent >= 85) {
+            return t('overviewPage.cards.runtime.warningReasonCpu', { value: formatPercent(data.runtime.cpu_percent) })
+        }
+
+        if (typeof data.runtime.memory_percent === 'number' && data.runtime.memory_percent >= 85) {
+            return t('overviewPage.cards.runtime.warningReasonMemory', { value: formatPercent(data.runtime.memory_percent) })
+        }
+
+        if (data.runtime.unavailable_reason) {
+            return data.runtime.unavailable_reason
+        }
+
+        return t('overviewPage.cards.runtime.warningReasonGeneric')
+    }, [data, t])
 
     return (
         <Box className="overview-page-shell">
@@ -167,26 +192,8 @@ export function OverviewPage() {
                     </Alert>
                 ) : null}
 
-                {data?.alerts?.length ? (
-                    <Stack spacing={1}>
-                        {data.alerts.slice(0, 3).map((alert) => (
-                            <Alert
-                                key={alert.key}
-                                severity={alert.level}
-                                variant="outlined"
-                                sx={{ borderRadius: 2 }}
-                            >
-                                <strong>{alert.title}</strong>
-                                {alert.detail ? ` - ${alert.detail}` : ''}
-                            </Alert>
-                        ))}
-                    </Stack>
-                ) : null}
-
                 {isLoading && !data ? (
-                    <Stack sx={{ minHeight: 260, alignItems: 'center', justifyContent: 'center' }}>
-                        <CircularProgress size={32} />
-                    </Stack>
+                    <SurfaceStateCard detail={t('overviewPage.states.loading')} loading />
                 ) : null}
 
                 {data ? (
@@ -225,8 +232,16 @@ export function OverviewPage() {
                                         <Box>
                                             <Typography className="overview-page-panel-title">{t('overviewPage.cards.runtime.title')}</Typography>
                                             <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.runtime.subtitle')}</Typography>
+                                            {runtimeAlertSummary ? (
+                                                <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.45, color: '#b45309' }}>
+                                                    {t('overviewPage.cards.runtime.warningReason', { reason: runtimeAlertSummary })}
+                                                </Typography>
+                                            ) : null}
                                         </Box>
-                                        <Chip className="overview-page-status-chip" color={data.runtime.health_state === 'healthy' ? 'success' : data.runtime.health_state === 'warning' ? 'warning' : 'error'} label={t(`overviewPage.cards.runtime.badges.${data.runtime.health_state}`)} size="small" />
+                                        <OverviewStatusBadge
+                                            label={t(`overviewPage.cards.runtime.badges.${data.runtime.health_state}`)}
+                                            tone={data.runtime.health_state === 'healthy' ? 'success' : data.runtime.health_state === 'warning' ? 'warning' : 'error'}
+                                        />
                                     </Stack>
 
                                     {data.runtime.available ? (
@@ -266,7 +281,10 @@ export function OverviewPage() {
                                             <Typography className="overview-page-panel-title">{t('overviewPage.cards.host.title')}</Typography>
                                             <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.hostRuntime.description')}</Typography>
                                         </Box>
-                                        <Chip className="overview-page-status-chip" color={data.host.available ? 'success' : 'warning'} label={data.host.available ? t('overviewPage.badges.ready') : t('overviewPage.badges.partial')} size="small" />
+                                        <OverviewStatusBadge
+                                            label={data.host.available ? t('overviewPage.badges.ready') : t('overviewPage.badges.partial')}
+                                            tone={data.host.available ? 'success' : 'warning'}
+                                        />
                                     </Stack>
 
                                     {data.host.available ? (
@@ -312,6 +330,41 @@ export function OverviewPage() {
                     </Stack>
                 ) : null}
             </Stack>
+        </Box>
+    )
+}
+
+function OverviewStatusBadge({
+    label,
+    tone,
+}: {
+    label: string
+    tone: 'success' | 'warning' | 'error'
+}) {
+    const palette =
+        tone === 'success'
+            ? { color: '#166534', backgroundColor: 'rgba(34, 197, 94, 0.14)' }
+            : tone === 'warning'
+                ? { color: '#b45309', backgroundColor: 'rgba(245, 158, 11, 0.16)' }
+                : { color: '#b91c1c', backgroundColor: 'rgba(239, 68, 68, 0.14)' }
+
+    return (
+        <Box
+            className="overview-page-status-chip"
+            sx={{
+                alignSelf: 'flex-start',
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: 24,
+                px: 1,
+                borderRadius: '999px',
+                fontSize: 12,
+                lineHeight: 1.2,
+                fontWeight: 700,
+                ...palette,
+            }}
+        >
+            {label}
         </Box>
     )
 }
@@ -387,8 +440,10 @@ function InfoBlock({
 }) {
     return (
         <Box className="overview-page-info-block">
-            <Typography className="overview-page-info-label">{label}</Typography>
-            <Typography className="overview-page-info-value">{value}</Typography>
+            <Box className="overview-page-info-block__body">
+                <Typography className="overview-page-info-label">{label}</Typography>
+                <Typography className="overview-page-info-value">{value}</Typography>
+            </Box>
         </Box>
     )
 }

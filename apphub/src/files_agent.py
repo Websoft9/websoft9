@@ -20,6 +20,36 @@ from src.schemas.errorResponse import ErrorResponse
 
 
 TEXT_FILE_LIMIT_BYTES = 1024 * 1024
+TEXT_EDITABLE_EXTENSIONS = {
+    ".conf",
+    ".config",
+    ".crt",
+    ".cert",
+    ".css",
+    ".csv",
+    ".env",
+    ".gitignore",
+    ".html",
+    ".ini",
+    ".js",
+    ".json",
+    ".key",
+    ".log",
+    ".md",
+    ".pem",
+    ".properties",
+    ".py",
+    ".sh",
+    ".sql",
+    ".svg",
+    ".toml",
+    ".ts",
+    ".tsx",
+    ".txt",
+    ".xml",
+    ".yaml",
+    ".yml",
+}
 
 
 class AgentPathRequest(BaseModel):
@@ -337,6 +367,9 @@ def _build_metadata(
 def _infer_text_editable(name: str, item_type: str, size: int, mode: int) -> bool:
     if item_type != "file" or size > TEXT_FILE_LIMIT_BYTES or not stat.S_ISREG(mode):
         return False
+    extension = os.path.splitext(name)[1].lower()
+    if extension in TEXT_EDITABLE_EXTENSIONS:
+        return True
     guessed, _ = mimetypes.guess_type(name)
     return guessed is None or guessed.startswith("text/") or guessed in {"application/json", "application/xml", "application/x-yaml"}
 
@@ -374,11 +407,15 @@ def _lookup_group(gid: int, include_id: bool = False) -> str:
 @lru_cache(maxsize=1)
 def _allowed_roots() -> tuple[str, ...]:
     raw = os.getenv("WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS", "/var/lib/docker/volumes")
+    platform_cert_path = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert")
     values = []
     for part in raw.split(":"):
         normalized = os.path.realpath(part.strip())
         if normalized:
             values.append(normalized)
+    platform_cert_root = os.path.realpath(os.path.dirname(platform_cert_path))
+    if platform_cert_root and platform_cert_root not in values:
+        values.append(platform_cert_root)
     return tuple(values)
 
 

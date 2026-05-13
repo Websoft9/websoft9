@@ -108,6 +108,7 @@ def create_product_auth_user(
         password=payload.password,
         display_name=payload.display_name,
         locale=payload.locale,
+        disabled=payload.disabled,
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )
@@ -131,6 +132,7 @@ def update_product_auth_user(
         target_operator_id=operator_id,
         display_name=payload.display_name,
         locale=payload.locale,
+        disabled=payload.disabled,
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )

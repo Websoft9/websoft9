@@ -10,6 +10,7 @@ ALLOWED_TIME_RANGES = {
     "1h": timedelta(hours=1),
     "6h": timedelta(hours=6),
     "24h": timedelta(hours=24),
+    "7d": timedelta(days=7),
 }
 
 
@@ -32,7 +33,7 @@ def _normalize_time_range(value: Optional[str]) -> Optional[str]:
     if not normalized:
         return None
     if normalized not in ALLOWED_TIME_RANGES:
-        raise ValueError("time_range must be one of: 15m, 1h, 6h, 24h")
+        raise ValueError("time_range must be one of: 15m, 1h, 6h, 24h, 7d")
     return normalized
 
 
@@ -48,7 +49,7 @@ class RuntimeLogsQuery(BaseModel):
     level: Optional[str] = None
     keyword: Optional[str] = None
     time_range: Optional[str] = None
-    limit: int = Field(default=200, ge=1, le=1000)
+    limit: int = Field(default=200, ge=1, le=20000)
 
     @field_validator("level", mode="before")
     @classmethod

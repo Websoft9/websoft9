@@ -13,6 +13,15 @@ from src.services.app_manager import AppManger
 
 DEFAULT_DOCKER_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
 
+
+def _normalize_image_accelerator(value: str) -> str:
+    normalized = value.strip().rstrip("/")
+    if normalized.startswith("http://"):
+        normalized = normalized[7:]
+    elif normalized.startswith("https://"):
+        normalized = normalized[8:]
+    return normalized
+
 class BackupManager:
     """Docker Volume Backup Manager using Restic"""
 
@@ -58,12 +67,15 @@ class BackupManager:
         # Load mirrors from a remote URL
         try:
             config_manager = ConfigManager("config.ini")
-            mirrors_url = (config_manager.get_value("docker_mirror", "url") or "").strip() or DEFAULT_DOCKER_MIRROR_URL
-            response = requests.get(mirrors_url)
-            if response.status_code != 200:
-                logger.error(f"Failed to download image accelerators: {response.text}")
-                raise CustomException(500, "Failed to download image accelerators", "Mirror Configuration Error")
-            mirrors = response.json().get("mirrors", [])
+            configured = (config_manager.get_value("docker_mirror", "url") or "").strip() or DEFAULT_DOCKER_MIRROR_URL
+            if configured.startswith("http://") or configured.startswith("https://"):
+                response = requests.get(configured)
+                if response.status_code != 200:
+                    logger.error(f"Failed to download image accelerators: {response.text}")
+                    raise CustomException(500, "Failed to download image accelerators", "Mirror Configuration Error")
+                mirrors = [_normalize_image_accelerator(str(item)) for item in response.json().get("mirrors", []) if str(item).strip()]
+            else:
+                mirrors = [_normalize_image_accelerator(item) for item in configured.replace("\n", ",").split(",") if item.strip()]
         except Exception as e:
             logger.error(f"Failed to fetch Docker mirrors: {e}")
             raise CustomException(500, "Failed to fetch Docker mirrors", "Mirror Fetch Error")

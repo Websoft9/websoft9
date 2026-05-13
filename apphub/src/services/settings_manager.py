@@ -1,11 +1,16 @@
 import os
 import configparser
 import subprocess
+import requests
 from typing import Dict
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.schemas.appSettings import AppSettings
 from src.services.product_metadata import read_product_edition, read_product_metadata
+
+
+DEFAULT_DOCKER_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS = 3650
 
 class SettingsManager:
     """
@@ -60,10 +65,42 @@ class SettingsManager:
         return {
             "groups": [
                 {
-                    "id": "general",
+                    "id": "network",
                     "items": [
+                        self._build_item("platform_gateway", "bound_domain", self._get_value("platform_gateway", "bound_domain"), editable=True),
                         self._build_item("domain", "wildcard_domain", self._get_value("domain", "wildcard_domain"), editable=True),
-                        self._build_item("platform_gateway", "https_enabled", self._bool_to_string(self._is_platform_https_enabled()), editable=True),
+                        self._build_item(
+                            "platform_gateway",
+                            "https_enabled",
+                            self._bool_to_string(self._is_platform_https_enabled()),
+                            editable=True,
+                            metadata={
+                                "cert_path": self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()),
+                                "key_path": self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()),
+                                "default_certificate": self._bool_to_string(self._is_default_platform_certificate()),
+                                "certificate_validity_days": str(DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS),
+                            },
+                        ),
+                        self._build_item(
+                            "platform_gateway",
+                            "force_https",
+                            self._bool_to_string(self._is_force_https_enabled()),
+                            editable=True,
+                        ),
+                    ],
+                },
+                {
+                    "id": "delivery",
+                    "items": [
+                        self._build_item(
+                            "docker_mirror",
+                            "url",
+                            self._docker_mirror_display_value(),
+                            editable=True,
+                            metadata={
+                                "default_value": DEFAULT_DOCKER_MIRROR_URL,
+                            },
+                        ),
                     ],
                 },
                 {
@@ -177,7 +214,11 @@ class SettingsManager:
             # Read the config file
             self.config.read(self.config_file_path)
             if section == "platform_gateway" and key == "https_enabled":
-                return self._write_platform_https_setting(value)
+                return self._write_platform_gateway_boolean_setting("https_enabled", value)
+            if section == "platform_gateway" and key == "force_https":
+                return self._write_platform_gateway_boolean_setting("force_https", value)
+            if section == "platform_gateway" and key == "bound_domain":
+                return self._write_platform_gateway_text_setting("bound_domain", value)
             # Check if section exists
             if section not in self.config.sections():
                 raise CustomException(
@@ -205,6 +246,14 @@ class SettingsManager:
 
     def _get_value(self, section: str, key: str) -> str:
         return self.config.get(section, key, fallback="")
+
+    def _docker_mirror_url(self) -> str:
+        configured = self.config.get("docker_mirror", "url", fallback="").strip()
+        return configured or DEFAULT_DOCKER_MIRROR_URL
+
+    def _docker_mirror_display_value(self) -> str:
+        mirrors = self._load_docker_mirror_entries(self._docker_mirror_url())
+        return "\n".join(mirrors)
 
     def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
         display_value = value
@@ -245,22 +294,79 @@ class SettingsManager:
 
         return False
 
-    def _write_platform_https_setting(self, value: str) -> Dict[str, str]:
+    def _is_force_https_enabled(self) -> bool:
+        configured = self.config.get("platform_gateway", "force_https", fallback="").strip().lower()
+        return configured in {"true", "1", "yes", "on"}
+
+    def _write_platform_gateway_boolean_setting(self, key: str, value: str) -> Dict[str, str]:
         enabled = self._parse_bool(value)
 
         if not self.config.has_section("platform_gateway"):
             self.config.add_section("platform_gateway")
 
-        self.config.set("platform_gateway", "https_enabled", self._bool_to_string(enabled))
-        if enabled:
+        if key == "force_https" and enabled and not self._is_platform_https_enabled():
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Platform HTTPS must be enabled before force HTTPS can be enabled",
+            )
+
+        self.config.set("platform_gateway", key, self._bool_to_string(enabled))
+        if key == "https_enabled" and enabled:
             self.config.set("platform_gateway", "ssl_cert", self._default_ssl_cert_path())
             self.config.set("platform_gateway", "ssl_key", self._default_ssl_key_path())
+        if key == "https_enabled" and not enabled:
+            self.config.set("platform_gateway", "force_https", "false")
 
         with open(self.config_file_path, 'w') as configfile:
             self.config.write(configfile)
 
         self._restart_platform_gateway()
         return self.read_section("platform_gateway")
+
+    def _write_platform_gateway_text_setting(self, key: str, value: str) -> Dict[str, str]:
+        if not self.config.has_section("platform_gateway"):
+            self.config.add_section("platform_gateway")
+
+        self.config.set("platform_gateway", key, value.strip())
+        with open(self.config_file_path, "w") as configfile:
+            self.config.write(configfile)
+
+        self._restart_platform_gateway()
+        return self.read_section("platform_gateway")
+
+    def _is_default_platform_certificate(self) -> bool:
+        current_cert = self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
+        current_key = self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()).strip()
+        return current_cert == self._default_ssl_cert_path() and current_key == self._default_ssl_key_path()
+
+    def _load_docker_mirror_entries(self, configured_value: str) -> list[str]:
+        candidate = (configured_value or "").strip() or DEFAULT_DOCKER_MIRROR_URL
+        if candidate.startswith("http://") or candidate.startswith("https://"):
+            try:
+                response = requests.get(candidate, timeout=10)
+                response.raise_for_status()
+                payload = response.json()
+                mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
+                normalized = [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
+                return normalized or [self._normalize_mirror_entry(candidate)]
+            except Exception:
+                return [self._normalize_mirror_entry(candidate)]
+
+        normalized = [
+            self._normalize_mirror_entry(item)
+            for item in candidate.replace("\n", ",").split(",")
+            if item.strip()
+        ]
+        return normalized or [self._normalize_mirror_entry(DEFAULT_DOCKER_MIRROR_URL)]
+
+    def _normalize_mirror_entry(self, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        if normalized.startswith("http://"):
+            normalized = normalized[7:]
+        elif normalized.startswith("https://"):
+            normalized = normalized[8:]
+        return normalized
 
     def _restart_platform_gateway(self) -> None:
         try:

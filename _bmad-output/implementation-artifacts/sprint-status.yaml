@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-05-07T09:20:00Z
+last_updated: 2026-05-13T00:00:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -53,10 +53,13 @@ development_status:
   2-6-unify-integration-readiness-and-session-prewarm: done
   epic-2-retrospective: done
 
-  epic-3: done
+  epic-3: in-progress
   3-1-build-the-app-store-list-and-filters-page: done
   3-2-build-the-app-detail-and-install-parameters-page: done
   3-3-build-the-installation-task-loop: done
+  3-3a-build-the-custom-compose-upload-and-editing-workspace: ready-for-dev
+  3-3b-build-backend-validation-and-install-execution-for-custom-compose-apps: ready-for-dev
+  3-3c-build-php-runtime-source-deployment: ready-for-dev
   3-4-build-the-my-apps-list-and-detail-shell: done
   3-5-build-lifecycle-actions-and-the-application-detail-header: done
   3-6-build-application-access-proxy-and-certificate-management: done

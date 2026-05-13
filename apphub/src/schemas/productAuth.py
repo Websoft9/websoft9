@@ -1,4 +1,5 @@
 from typing import Optional
+import re
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -20,7 +21,9 @@ def _normalize_display_name(value: str) -> str:
 def _normalize_password(value: str) -> str:
     normalized = str(value)
     if len(normalized) < 8:
-        raise ValueError("Password must be at least 8 characters")
+        raise ValueError("Password must be at least 8 characters and include uppercase, lowercase, number, and special character")
+    if not re.search(r"[A-Z]", normalized) or not re.search(r"[a-z]", normalized) or not re.search(r"\d", normalized) or not re.search(r"[^A-Za-z0-9]", normalized):
+        raise ValueError("Password must be at least 8 characters and include uppercase, lowercase, number, and special character")
     return normalized
 
 
@@ -76,6 +79,7 @@ class ProductAuthCreateUserRequest(BaseModel):
     password: str = Field(min_length=8, max_length=256)
     display_name: str = Field(min_length=1, max_length=128)
     locale: str = Field(default="en", max_length=16)
+    disabled: bool = False
 
     @field_validator("username", mode="before")
     @classmethod
@@ -110,6 +114,7 @@ class ProductAuthResetPasswordRequest(BaseModel):
 class ProductAuthUpdateUserRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=128)
     locale: str = Field(default="en", max_length=16)
+    disabled: Optional[bool] = None
 
     @field_validator("display_name", mode="before")
     @classmethod

@@ -54,6 +54,24 @@ class FakeAuthService:
 def build_service_definitions(tmp_path: Path) -> list[ServiceDefinition]:
     return [
         ServiceDefinition(
+            key="platform-gateway",
+            label="Platform Gateway",
+            description="Websoft9 entry gateway service",
+            supervisor_program="platform-gateway",
+            health_url="http://127.0.0.1:9000/w9gateway/healthz",
+            health_verify_tls=False,
+            log_root=tmp_path,
+            log_paths=(tmp_path / "platform-gateway-access.log", tmp_path / "platform-gateway-error.log"),
+        ),
+        ServiceDefinition(
+            key="apphub-api",
+            label="AppHub",
+            description="Websoft9 API and orchestration service",
+            supervisor_program="apphub-api",
+            health_url="http://127.0.0.1:8080/api/healthz",
+            log_root=tmp_path / "apphub-api",
+        ),
+        ServiceDefinition(
             key="gitea",
             label="Gitea",
             description="Git repository service",
@@ -97,6 +115,8 @@ def write_log(root: Path, file_name: str, lines: list[str]) -> None:
 
 def test_core_services_inventory_reuses_runtime_signals(tmp_path: Path):
     definitions = build_service_definitions(tmp_path)
+    write_log(tmp_path, "platform-gateway-access.log", ["2026-05-06T08:49:26Z gateway ready"])
+    write_log(tmp_path / "apphub-api", "apphub.log", ["2026-05-06T08:49:27Z apphub ready"])
     (tmp_path / "gitea-credential").write_text("ok", encoding="utf-8")
     (tmp_path / "portainer-credential").write_text("ok", encoding="utf-8")
     (tmp_path / "npm-credential.json").write_text("{}", encoding="utf-8")
@@ -108,21 +128,27 @@ def test_core_services_inventory_reuses_runtime_signals(tmp_path: Path):
     service = CoreServicesService(
         auth_service=FakeAuthService(),
         service_definitions=definitions,
-        supervisor_status_loader=lambda: {"gitea": "RUNNING", "portainer": "EXITED"},
-        health_probe=lambda definition: HealthProbeResult(ok=definition.key in {"gitea", "nginx-proxy-manager"}, detail="ok" if definition.key in {"gitea", "nginx-proxy-manager"} else "connection failed"),
+        supervisor_status_loader=lambda: {"platform-gateway": "RUNNING", "apphub-api": "RUNNING", "gitea": "RUNNING", "portainer": "EXITED"},
+        health_probe=lambda definition: HealthProbeResult(ok=definition.key in {"platform-gateway", "apphub-api", "gitea", "nginx-proxy-manager"}, detail="ok" if definition.key in {"platform-gateway", "apphub-api", "gitea", "nginx-proxy-manager"} else "connection failed"),
         now_provider=lambda: datetime(2026, 5, 6, 8, 50, tzinfo=timezone.utc),
     )
 
     payload = service.list_services("valid-session")
 
-    assert [item.key for item in payload] == ["gitea", "portainer", "nginx-proxy-manager"]
+    assert [item.key for item in payload] == ["platform-gateway", "apphub-api", "gitea", "portainer", "nginx-proxy-manager"]
     assert payload[0].runtime_state == "running"
     assert payload[0].health_state == "healthy"
-    assert payload[0].workspace_route == "repository"
-    assert payload[1].runtime_state == "stopped"
-    assert payload[1].health_state == "unavailable"
+    assert payload[0].workspace_route is None
+    assert payload[1].runtime_state == "running"
+    assert payload[1].health_state == "healthy"
+    assert payload[1].workspace_route is None
     assert payload[2].runtime_state == "running"
     assert payload[2].health_state == "healthy"
+    assert payload[2].workspace_route == "repository"
+    assert payload[3].runtime_state == "stopped"
+    assert payload[3].health_state == "unavailable"
+    assert payload[4].runtime_state == "running"
+    assert payload[4].health_state == "healthy"
     assert all("/" not in (indicator.value or "") for service in payload for indicator in service.indicators)
 
 
@@ -146,10 +172,13 @@ def test_core_services_inventory_degrades_per_row_when_one_health_source_fails(t
 
     payload = service.list_services("valid-session")
 
-    assert payload[0].health_state == "healthy"
-    assert payload[1].health_state == "degraded"
-    assert payload[1].indicators[0].status == "error"
-    assert "timed out" in (payload[1].indicators[0].detail or "")
+    apphub = next(item for item in payload if item.key == "apphub-api")
+    portainer = next(item for item in payload if item.key == "portainer")
+
+    assert apphub.health_state == "healthy"
+    assert portainer.health_state == "degraded"
+    assert portainer.indicators[0].status == "error"
+    assert "timed out" in (portainer.indicators[0].detail or "")
 
 
 def test_core_services_inventory_prefers_running_when_starting_service_is_healthy(tmp_path: Path):
@@ -251,7 +280,33 @@ def test_core_services_log_drilldown_skips_gzip_rotated_logs(tmp_path: Path):
     assert payload.available is True
     assert len(payload.entries) == 1
     assert payload.entries[0].message == "connect() failed"
-    assert payload.entries[0].level is None
+    assert payload.entries[0].level == "ERR"
+
+
+def test_core_services_log_drilldown_parses_platform_gateway_access_lines(tmp_path: Path):
+    definitions = build_service_definitions(tmp_path)
+    write_log(
+        tmp_path,
+        "platform-gateway-access.log",
+        [
+            '127.0.0.1 - - [27/Apr/2026:01:55:09 +0000] "GET /api/apps HTTP/1.1" 200 20297 "-" "curl/7.88.1"',
+        ],
+    )
+
+    service = CoreServicesService(
+        auth_service=FakeAuthService(),
+        service_definitions=definitions,
+        supervisor_status_loader=lambda: {"platform-gateway": "RUNNING"},
+        health_probe=lambda _definition: HealthProbeResult(ok=True, detail="ok"),
+    )
+
+    payload = service.get_service_logs("valid-session", "platform-gateway", ServiceLogsQuery(level="info", limit=20))
+
+    assert payload.available is True
+    assert len(payload.entries) == 1
+    assert payload.entries[0].timestamp == "2026-04-27T01:55:09Z"
+    assert payload.entries[0].level == "INF"
+    assert payload.entries[0].message == "GET /api/apps HTTP/1.1 | status=200"
 
 
 def test_core_services_log_drilldown_filters_by_level_and_time_range(tmp_path: Path):
@@ -347,6 +402,8 @@ def test_core_services_router_returns_inventory_payload(tmp_path: Path):
 
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload["services"]) == 3
-    assert payload["services"][0]["key"] == "gitea"
-    assert payload["services"][0]["runtime_state"] == "running"
+    assert len(payload["services"]) == 5
+    services_by_key = {service["key"]: service for service in payload["services"]}
+    assert services_by_key["platform-gateway"]["runtime_state"] == "unavailable"
+    assert services_by_key["apphub-api"]["runtime_state"] == "unavailable"
+    assert services_by_key["gitea"]["runtime_state"] == "running"

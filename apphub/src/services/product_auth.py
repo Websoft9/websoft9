@@ -269,6 +269,7 @@ class ProductAuthService:
         password: str,
         display_name: str,
         locale: str = "en",
+        disabled: bool = False,
         client_host: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> dict[str, Any]:
@@ -291,6 +292,7 @@ class ProductAuthService:
                 password=password,
                 display_name=display_name,
                 locale=locale,
+                disabled=disabled,
                 created_by=actor["username"],
             )
             operators.append(operator)
@@ -373,6 +375,7 @@ class ProductAuthService:
         target_operator_id: str,
         display_name: str,
         locale: str = "en",
+        disabled: Optional[bool] = None,
         client_host: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> dict[str, Any]:
@@ -393,6 +396,14 @@ class ProductAuthService:
 
             operator["display_name"] = normalized_display_name
             operator["locale"] = locale
+            if disabled is not None and bool(disabled) != bool(operator.get("disabled", False)):
+                if disabled:
+                    self._assert_can_manage_target_operator(actor, operator, allow_self=False)
+                    self._assert_not_last_active_operator(operators, operator, action="disable")
+                else:
+                    self._assert_can_manage_users(actor)
+                    self._assert_not_protected_bootstrap_operator(operator, action="enable")
+                operator["disabled"] = bool(disabled)
             operator["updated_at"] = self._now_iso()
             self._store_operators(operators)
             self._append_audit(
@@ -671,7 +682,15 @@ class ProductAuthService:
             self._store_sessions(sessions)
             return self._public_operator(operator)
 
-    def _build_operator(self, username: str, password: str, display_name: str, locale: str = "en", created_by: str = "bootstrap") -> dict[str, Any]:
+    def _build_operator(
+        self,
+        username: str,
+        password: str,
+        display_name: str,
+        locale: str = "en",
+        disabled: bool = False,
+        created_by: str = "bootstrap",
+    ) -> dict[str, Any]:
         normalized_username = username.strip().lower()
         normalized_display_name = display_name.strip()
         if not normalized_username.replace("-", "").replace("_", "").isalnum():
@@ -694,7 +713,7 @@ class ProductAuthService:
             "display_name": normalized_display_name,
             "locale": locale,
             "password_hash": self._hash_password(password),
-            "disabled": False,
+            "disabled": bool(disabled),
             "deleted": False,
             "created_by": created_by,
             "reset_password_eligible": True,

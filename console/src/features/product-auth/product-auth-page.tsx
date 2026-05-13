@@ -44,6 +44,10 @@ function mapAuthErrorMessage(message: string | null, t: (key: string) => string)
         return t('auth.errors.userDisabled')
     }
 
+    if (normalized === 'password must be at least 8 characters and include uppercase, lowercase, number, and special character') {
+        return t('auth.errors.passwordComplexity')
+    }
+
     return message
 }
 
@@ -66,6 +70,10 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const [displayName, setDisplayName] = useState('')
     const [localError, setLocalError] = useState<string | null>(null)
     const nextPath = useMemo(() => resolveNext(location.search), [location.search])
+    const setupPasswordValid = useMemo(
+        () => password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password),
+        [password],
+    )
     const authFieldSx = useMemo(
         () => ({
             '& .MuiOutlinedInput-root': {
@@ -119,6 +127,13 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         setLocalError(null)
+
+        if (mode === 'setup') {
+            if (!setupPasswordValid) {
+                setLocalError(t('auth.errors.passwordComplexity'))
+                return
+            }
+        }
 
         try {
             const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
@@ -207,6 +222,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                         <TextField
                             label={t('auth.fields.password')}
                             onChange={(event) => setPassword(event.target.value)}
+                            helperText={mode === 'setup' ? t('auth.passwordPolicy') : ' '}
                             required
                             size="medium"
                             type={showPassword ? 'text' : 'password'}
@@ -229,7 +245,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                             }}
                         />
                         <Button
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || (mode === 'setup' && !setupPasswordValid)}
                             size="large"
                             type="submit"
                             variant="contained"

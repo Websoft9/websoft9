@@ -148,12 +148,16 @@
     margin-top: 14px;
 }
 
-.app-shell-section-label {
+.app-shell-section-label,
+.app-shell-section-label.MuiTypography-root,
+.app-shell-account-section-label,
+.app-shell-account-section-label.MuiTypography-root {
     padding: 0 12px 8px;
-    font-size: 11px;
-    line-height: 1.3;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    font-weight: 700 !important;
+    font-family: inherit !important;
+    letter-spacing: 0.08em !important;
     text-transform: uppercase;
     color: var(--shell-sidebar-muted);
 }
@@ -193,10 +197,12 @@
     font-size: 20px;
 }
 
-.app-shell-nav-item-label {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.35;
+.app-shell-nav-item-label,
+.app-shell-nav-item-label.MuiTypography-root {
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    line-height: 1.35 !important;
+    font-family: inherit !important;
 }
 
 .app-shell-content {
@@ -224,6 +230,15 @@
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.app-shell-user-anchor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 54px;
 }
 
 .app-shell-user-trigger {
@@ -279,6 +294,18 @@
 
 .app-shell-user-avatar .MuiSvgIcon-root {
     font-size: 18px;
+}
+
+.app-shell-user-name,
+.app-shell-user-name.MuiTypography-root {
+    max-width: 88px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    color: var(--shell-subtle-text);
 }
 
 .app-shell-settings-title {
@@ -356,12 +383,26 @@
     overflow: hidden;
 }
 
+.app-shell-account-menu--light {
+    --account-menu-text: #526170;
+    --account-menu-subtle: #637381;
+    --account-menu-strong: #212b36;
+    --account-menu-soft: #f4f6f8;
+}
+
+.app-shell-account-menu--dark {
+    --account-menu-text: #dfe3ea;
+    --account-menu-subtle: #9aa4b2;
+    --account-menu-strong: #f9fafb;
+    --account-menu-soft: #111827;
+}
+
 .app-shell-account-panel {
     display: flex;
     flex-direction: column;
     padding: 8px;
     gap: 6px;
-    color: var(--shell-strong-text);
+    color: var(--account-menu-strong, var(--shell-strong-text));
 }
 
 .app-shell-account-summary {
@@ -414,15 +455,16 @@
     gap: 10px;
     border: 0;
     background: transparent;
-    color: var(--shell-strong-text);
+    color: var(--account-menu-text, var(--shell-sidebar-text)) !important;
 }
 
 .app-shell-account-link:hover {
-    background: var(--shell-surface-soft);
+    background: var(--account-menu-soft, var(--shell-surface-soft));
 }
 
 .app-shell-account-link.active {
-    background: var(--shell-surface-soft);
+    background: var(--account-menu-soft, var(--shell-surface-soft));
+    color: var(--account-menu-text, var(--shell-sidebar-text)) !important;
 }
 
 .app-shell-account-link-icon {
@@ -433,20 +475,22 @@
     justify-content: center;
     border-radius: 8px;
     background: transparent;
-    color: var(--shell-subtle-text);
+    color: var(--account-menu-subtle, var(--shell-subtle-text));
     flex-shrink: 0;
 }
 
 .app-shell-account-link.active .app-shell-account-link-icon {
     background: rgba(145, 158, 171, 0.2);
-    color: var(--shell-strong-text);
+    color: var(--account-menu-strong, var(--shell-strong-text));
 }
 
-.app-shell-account-link-title {
-    font-size: 13px;
-    line-height: 1.3;
-    font-weight: 600;
-    color: var(--shell-subtle-text);
+.app-shell-account-link .app-shell-account-link-title,
+.app-shell-account-link-title.MuiTypography-root {
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 400 !important;
+    font-family: inherit !important;
+    color: var(--account-menu-text, var(--shell-sidebar-text)) !important;
 }
 
 .app-shell-account-link-trailing {
@@ -461,8 +505,9 @@
     font-size: 18px;
 }
 
-.app-shell-account-link.active .app-shell-account-link-title {
-    color: var(--shell-strong-text);
+.app-shell-account-link.active .app-shell-account-link-title,
+.app-shell-account-link.active .app-shell-account-link-title.MuiTypography-root {
+    color: var(--account-menu-text, var(--shell-sidebar-text)) !important;
 }
 
 .app-shell-locale-badge {
@@ -483,12 +528,8 @@
 
 .app-shell-account-section-label {
     margin: 6px 8px 2px;
-    font-size: 11px;
-    line-height: 1.3;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--shell-subtle-text);
+    padding: 0;
+    color: var(--account-menu-subtle, var(--shell-subtle-text));
 }
 
 .app-shell-account-link--selected {
@@ -497,7 +538,7 @@
 }
 
 .app-shell-account-link--selected:hover {
-    background: var(--shell-surface-soft) !important;
+    background: var(--account-menu-soft, var(--shell-surface-soft)) !important;
 }
 
 .app-shell-account-link--selected .app-shell-account-link-icon {
@@ -506,8 +547,8 @@
 }
 
 .app-shell-account-link--selected .app-shell-account-link-title {
-    color: #0f3d91;
-    font-weight: 700;
+    color: var(--account-menu-text, var(--shell-sidebar-text)) !important;
+    font-weight: 400;
 }
 
 .app-shell-account-menu--dark .app-shell-locale-badge {
@@ -525,7 +566,7 @@
 }
 
 .app-shell-account-menu--dark .app-shell-account-link--selected:hover {
-    background: var(--shell-surface-soft) !important;
+    background: var(--account-menu-soft, var(--shell-surface-soft)) !important;
 }
 
 .app-shell-account-menu--dark .app-shell-account-link--selected .app-shell-account-link-icon {
@@ -533,8 +574,9 @@
     color: #dbeafe;
 }
 
-.app-shell-account-menu--dark .app-shell-account-link--selected .app-shell-account-link-title {
-    color: #eff6ff;
+.app-shell-account-menu--dark .app-shell-account-link--selected .app-shell-account-link-title,
+.app-shell-account-menu--dark .app-shell-account-link--selected .app-shell-account-link-title.MuiTypography-root {
+    color: var(--account-menu-text, var(--shell-sidebar-text)) !important;
 }
 
 .app-shell-account-link--danger,
@@ -709,12 +751,19 @@
     background: var(--shell-bg);
 }
 
+.app-shell-main--white-surface {
+    background: #ffffff;
+}
+
 .app-shell-main--dashboard {
     padding-top: 16px !important;
     padding-bottom: 12px !important;
 }
 
 .app-shell-main-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     min-height: 100%;
 }
 
@@ -722,12 +771,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 52px;
-    padding: 0 20px;
+    min-height: 40px;
+    padding: 0 16px;
     border-top: 1px solid var(--shell-topbar-border);
     background: color-mix(in srgb, var(--shell-topbar-bg) 92%, var(--shell-bg) 8%);
     color: var(--shell-subtle-text);
     flex-shrink: 0;
+}
+
+.app-shell-footer--white-surface {
+    background: #ffffff;
 }
 
 .app-shell-footer-inner {
@@ -735,7 +788,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 10px;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;

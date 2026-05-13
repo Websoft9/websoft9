@@ -14,6 +14,7 @@ from src.services.product_auth import ProductAuthService
 VOLUME_NAME_CACHE_TTL_SECONDS = 5.0
 DEFAULT_FILES_AGENT_URL = "http://127.0.0.1:8091"
 DOCKER_VOLUMES_ROOT_SENTINEL = "__docker_volumes_root__"
+PLATFORM_GATEWAY_CERTIFICATES_SENTINEL = "platform-gateway-certificates"
 _volume_name_cache: dict[str, Any] = {"expires_at": 0.0, "names": tuple()}
 
 
@@ -170,6 +171,14 @@ class FileManagerService:
                     "owner": labels.get("owner"),
                 }
             )
+        summaries.append(
+            {
+                "volume_name": PLATFORM_GATEWAY_CERTIFICATES_SENTINEL,
+                "driver": "system",
+                "app_id": None,
+                "owner": "platform-gateway",
+            }
+        )
         return summaries
 
     def list_directory(self, session_token: Optional[str], volume_id: str, relative_path: str) -> dict[str, Any]:
@@ -279,6 +288,8 @@ class FileManagerService:
         normalized = str(volume_id or "").strip()
         if normalized == DOCKER_VOLUMES_ROOT_SENTINEL:
             return "", self._docker_volumes_root_path(), "volumes"
+        if normalized == PLATFORM_GATEWAY_CERTIFICATES_SENTINEL:
+            return PLATFORM_GATEWAY_CERTIFICATES_SENTINEL, self._platform_gateway_certificates_root_path(), PLATFORM_GATEWAY_CERTIFICATES_SENTINEL
 
         volume_name = self._require_known_volume(normalized)
         return volume_name, self._resolve_volume_root_path(volume_name), volume_name
@@ -306,6 +317,10 @@ class FileManagerService:
                 return str(PurePosixPath(str(mountpoint)).parent.parent)
 
         raise CustomException(500, "File Operation Error", "Unable to resolve Docker volumes root path")
+
+    def _platform_gateway_certificates_root_path(self) -> str:
+        default_cert = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert")
+        return os.path.dirname(default_cert)
 
     def _resolve_volume_root_path(self, volume_name: str) -> str:
         volume = self._resolve_volume(volume_name)

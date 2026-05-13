@@ -18,7 +18,7 @@ import {
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { LegacyMyAppLogo } from './my-app-media'
@@ -68,6 +68,17 @@ type VolumeBackupRow = {
 type PhpMigrationFeedback = {
     message: string
     details?: string
+}
+
+type MyAppsDetailLocationState = {
+    backgroundScrollTop?: number
+}
+
+type ContentScopeRect = {
+    top: number
+    left: number
+    width: number
+    height: number
 }
 
 // =====================
@@ -570,9 +581,11 @@ async function runRedeployRequest(
 export function MyAppDetailPage() {
     const { t, i18n } = useTranslation('shell')
     const { appId } = useParams()
+    const location = useLocation()
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const queryClient = useQueryClient()
+    const locationState = (location.state ?? null) as MyAppsDetailLocationState | null
     const initialTab = searchParams.get('tab')
     const [selectedTab, setSelectedTab] = useState<DetailTabKey>(() => {
         if (initialTab && ['overview', 'access', 'container', 'volumes', 'php', 'database', 'monitor', 'compose', 'uninstall'].includes(initialTab)) {
@@ -600,10 +613,12 @@ export function MyAppDetailPage() {
     const [phpTargetVersion, setPhpTargetVersion] = useState('')
     const [phpMigrationRemarks, setPhpMigrationRemarks] = useState('')
     const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
+    const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
 
     const { data, error, isLoading, refetch } = useMyAppDetail(appId)
     const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php'))
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
 
     const domains = useMemo(() => getDomainEntries(data?.domain_names, data?.env), [data?.domain_names, data?.env])
     const detailTabs = useMemo(() => (data ? getDetailTabs(data) : ['overview' as const]), [data])
@@ -632,6 +647,53 @@ export function MyAppDetailPage() {
             setSelectedTab(detailTabs[0] ?? 'overview')
         }
     }, [detailTabs, selectedTab])
+
+    useEffect(() => {
+        if (!(contentScopeContainer instanceof HTMLElement)) {
+            return
+        }
+
+        const restoreScrollTop = typeof locationState?.backgroundScrollTop === 'number' ? locationState.backgroundScrollTop : contentScopeContainer.scrollTop
+
+        contentScopeContainer.scrollTop = restoreScrollTop
+
+        const updateScopeRect = () => {
+            const rect = contentScopeContainer.getBoundingClientRect()
+            setContentScopeRect({
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+            })
+        }
+
+        updateScopeRect()
+
+        window.addEventListener('resize', updateScopeRect)
+        return () => {
+            window.removeEventListener('resize', updateScopeRect)
+        }
+    }, [contentScopeContainer, locationState?.backgroundScrollTop])
+
+    useEffect(() => {
+        if (!(contentScopeContainer instanceof HTMLElement)) {
+            return
+        }
+
+        const lockedScrollTop = typeof locationState?.backgroundScrollTop === 'number' ? locationState.backgroundScrollTop : contentScopeContainer.scrollTop
+        const previousOverflowY = contentScopeContainer.style.overflowY
+        const previousOverscrollBehavior = contentScopeContainer.style.overscrollBehavior
+
+        contentScopeContainer.scrollTop = lockedScrollTop
+        contentScopeContainer.style.overflowY = 'hidden'
+        contentScopeContainer.style.overscrollBehavior = 'contain'
+
+        return () => {
+            contentScopeContainer.style.overflowY = previousOverflowY
+            contentScopeContainer.style.overscrollBehavior = previousOverscrollBehavior
+            contentScopeContainer.scrollTop = lockedScrollTop
+        }
+    }, [contentScopeContainer, locationState?.backgroundScrollTop])
 
     useEffect(() => {
         const urlTab = searchParams.get('tab')
@@ -874,7 +936,21 @@ export function MyAppDetailPage() {
 
     return (
         /* Dark overlay – matches Bootstrap modal-backdrop */
-        <div className="myapps-detail-overlay">
+        <div
+            className="myapps-detail-overlay"
+            style={
+                contentScopeRect
+                    ? {
+                        position: 'fixed',
+                        top: contentScopeRect.top,
+                        left: contentScopeRect.left,
+                        width: contentScopeRect.width,
+                        height: contentScopeRect.height,
+                        zIndex: 1400,
+                    }
+                    : undefined
+            }
+        >
             {/* White modal shell */}
             <div className="myapps-detail-shell">
 

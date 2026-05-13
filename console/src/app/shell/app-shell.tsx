@@ -114,6 +114,14 @@ export function AppShell() {
 
     const resolvedLocale = i18n.resolvedLanguage ?? supportedLocales[0]
     const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
+    const useWhiteWorkspaceSurface =
+        location.pathname === '/appstore' ||
+        location.pathname === '/dashboard' ||
+        location.pathname === '/files' ||
+        location.pathname === '/services' ||
+        location.pathname === '/logs' ||
+        location.pathname === '/users' ||
+        location.pathname === '/settings'
     const isChineseLocale = resolvedLocale === 'zh-CN'
     const footerLinks = useMemo(
         () => [
@@ -279,30 +287,36 @@ export function AppShell() {
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
                         <Box className="app-shell-topbar-actions">
-                            <IconButton
-                                color="inherit"
-                                onClick={(event) => {
-                                    if (userMenuAnchor) {
-                                        setUserMenuAnchor(null)
-                                        return
-                                    }
+                            <Box className="app-shell-user-anchor">
+                                <IconButton
+                                    color="inherit"
+                                    onClick={(event) => {
+                                        if (userMenuAnchor) {
+                                            setUserMenuAnchor(null)
+                                            return
+                                        }
 
-                                    setUserMenuAnchor(event.currentTarget)
-                                }}
-                                className="app-shell-user-trigger"
-                                aria-label={t('user.menu.profile')}
-                                title={t('user.menu.profile')}
-                            >
-                                <Avatar className="app-shell-user-avatar">
-                                    <PersonIcon />
-                                </Avatar>
-                            </IconButton>
+                                        setUserMenuAnchor(event.currentTarget)
+                                    }}
+                                    className="app-shell-user-trigger"
+                                    aria-label={t('user.menu.profile')}
+                                    title={t('user.menu.profile')}
+                                >
+                                    <Avatar className="app-shell-user-avatar">
+                                        <PersonIcon />
+                                    </Avatar>
+                                </IconButton>
+                                <Typography className="app-shell-user-name" component="span">
+                                    {status?.current_user?.username ?? 'guest'}
+                                </Typography>
+                            </Box>
                         </Box>
                     </Box>
 
                     <Box
                         component="main"
-                        className={`app-shell-main ${location.pathname === '/dashboard' ? 'app-shell-main--dashboard' : ''}`}
+                        className={`app-shell-main ${location.pathname === '/dashboard' ? 'app-shell-main--dashboard' : ''} ${useWhiteWorkspaceSurface ? 'app-shell-main--white-surface' : ''}`}
+                        id="app-shell-main"
                         sx={{
                             px: activeIntegrationRoute ? 0 : { xs: 2, md: 3 },
                             py: activeIntegrationRoute ? 0 : { xs: 2, md: 2.5 },
@@ -315,7 +329,7 @@ export function AppShell() {
                         </Box>
                     </Box>
 
-                    <Box component="footer" className="app-shell-footer">
+                    <Box component="footer" className={`app-shell-footer ${useWhiteWorkspaceSurface ? 'app-shell-footer--white-surface' : ''}`}>
                         <Box className="app-shell-footer-inner">
                             <Typography component="span" className="app-shell-footer-copy">{t('footer.copyright')}</Typography>
                             {footerLinks.map((link) => (
@@ -355,7 +369,12 @@ export function AppShell() {
                             className={`app-shell-account-link ${location.pathname.startsWith('/users') ? 'active' : ''}`}
                             onClick={() => {
                                 setUserMenuAnchor(null)
-                                navigate('/users')
+                                navigate('/users', {
+                                    state: {
+                                        openCurrentUserEditor: true,
+                                        profileDialogNonce: Date.now(),
+                                    },
+                                })
                             }}
                         >
                             <Box className="app-shell-account-link-icon"><ShellNavIcon segment="users" /></Box>

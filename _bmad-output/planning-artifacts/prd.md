@@ -117,6 +117,7 @@ The current system has the following root problems:
 7. Display only Websoft9 core service status and Websoft9 runtime logs.
 8. Preserve API integration, automatic login, and full UI access for Gitea, Portainer, and Nginx Proxy Manager.
 9. Provide a complete direct upgrade path from the current version to the refactored version.
+10. Expand application installation from marketplace-template-only flows to a unified installation model that also supports user-authored Docker Compose deployment and runtime-based source deployment.
 
 ### 4.2 Non-Goals
 
@@ -124,6 +125,8 @@ The current system has the following root problems:
 2. Phase 1 does not require full recreation of all Cockpit system management capabilities.
 3. Phase 1 does not require fully rewriting Portainer, Gitea, and Nginx Proxy Manager as native Websoft9 modules, but it does require preserving their API integration, automatic login, and full UI access.
 4. Multi-node orchestration, Kubernetes, or HA cluster support are not goals of this effort.
+5. Phase 1 does not attempt to become a general-purpose PaaS, CI/CD platform, or arbitrary buildpack system.
+6. Phase 1 does not allow unrestricted privileged Docker Compose options such as host network, privileged containers, or arbitrary host-path mounts without explicit product policy support.
 
 ## 5. Target Users
 
@@ -191,13 +194,43 @@ The system must provide an app store page that preserves the current primary inf
 
 #### FR-APP-002: App Installation Flow
 
-The system must support app installation initiated from the app store and display clear task feedback.
+The system must provide a unified application installation model and clear task feedback. Phase 1 installation sources include marketplace templates, user-authored Docker Compose deployments, and curated runtime-based source deployment.
+
+**Installation source types:**
+
+- Marketplace template installation from the App Store
+- User-authored Docker Compose installation through upload or inline editing
+- Runtime-based source deployment, starting with PHP project bundles in Phase 1
 
 **Acceptance Criteria:**
 
-- Users can configure app name, domain, and required installation parameters.
+- Users can choose an installation source type before submission when multiple flows are available.
 - The installation process is shown through task-state feedback rather than frontend-executed host commands.
-- After installation succeeds, the app appears in My Apps.
+- After installation succeeds, the app appears in My Apps with installation-source metadata.
+
+#### FR-APP-002A: Custom Docker Compose Installation
+
+The system must support user-authored Docker Compose installation so operators can install applications that do not come from the curated App Store catalog.
+
+**Acceptance Criteria:**
+
+- Users can create a custom installation by uploading a compose file or editing compose content online.
+- Phase 1 may start with single-file compose, but the product model must leave room for companion environment files and future multi-file expansion.
+- Before install, the backend validates syntax, normalizes the deployment model, and applies product security policy checks.
+- Validation failures must return actionable feedback that identifies the affected field, service, or unsupported directive.
+- After installation succeeds, My Apps records the deployment as a custom compose application rather than a marketplace template application.
+
+#### FR-APP-002B: Runtime-Based Source Deployment
+
+The system must support runtime-based source deployment so operators can upload project source code and let Websoft9 provision a curated runtime container and deployment topology for that project type.
+
+**Acceptance Criteria:**
+
+- Users can upload a source bundle for a supported runtime profile.
+- Phase 1 must support PHP project deployment as the first curated runtime profile.
+- The install flow captures runtime parameters such as runtime version, entry path, public directory, exposed port, and required environment variables.
+- The backend converts the source bundle plus runtime profile into a deployable runtime specification and executes it through the same task model used by other installation flows.
+- After deployment succeeds, My Apps records the application as a runtime-based deployment and exposes the selected runtime profile in detail views.
 
 ### 6.2 My Apps and Lifecycle
 
@@ -208,7 +241,9 @@ The system must provide a My Apps page for viewing currently installed applicati
 **Acceptance Criteria:**
 
 - The list page shows application name, status, access entry, and basic actions.
+- The list page also exposes enough metadata to distinguish marketplace, custom compose, and runtime-based deployments.
 - The detail page covers at least overview, access, container or runtime information, volumes or files, backup, and uninstall tabs.
+- The detail view exposes installation source, deployment summary, and runtime profile metadata when applicable.
 - The information architecture should stay as recognizable as possible compared with the current system.
 - High-frequency business paths from the old plugins must stay continuous in the new frontend, especially app browsing, installation, management, settings, backup, and access.
 
@@ -221,6 +256,7 @@ The system must support start, stop, restart, redeploy, and uninstall operations
 - Operations are executed through unified APIs and a task system.
 - State changes are reflected in the UI within 3 seconds.
 - Uninstall supports keeping or cleaning volumes.
+- Redeploy and update flows must work for marketplace, custom compose, and runtime-based applications, while clearly surfacing any flow-specific limitations.
 
 ### 6.3 Product-Native Authentication and Users
 
@@ -407,6 +443,8 @@ The system must handle the transition of old plugins, old entries, and old depen
 - If Phase 1 introduces product accounts and sessions, they must be independent from host accounts.
 - Terminal and file management must at least be established within a logged-in user context. If the terminal uses SSH login, host permissions are determined by the SSH user rather than by an internal Websoft9 permission mapping.
 - Sensitive configuration must not remain exposed in plaintext to the frontend.
+- Custom compose and runtime-source installation must pass backend policy validation before any container or proxy resources are created.
+- Phase 1 must explicitly reject unsupported or unsafe directives such as unrestricted host-path mounts, privileged mode, and unsupported network modes unless the product later introduces approved policy exceptions.
 
 ### 7.2 Performance
 
@@ -435,6 +473,8 @@ The system must handle the transition of old plugins, old entries, and old depen
 - Custom frontend shell and base navigation
 - The minimum login or operator initialization capability required by migrated flows
 - App store and My Apps core workflows
+- Custom Docker Compose installation with upload or inline editing
+- PHP runtime-based source deployment as the first curated runtime profile
 - App lifecycle management
 - Gitea, Portainer, and Nginx Proxy Manager API integration, automatic login, and full UI access
 - Container-mounted file management
@@ -451,6 +491,8 @@ The system must handle the transition of old plugins, old entries, and old depen
 - Fully rewriting Portainer, Gitea, or NPM as native Websoft9 modules in Phase 1
 - Multi-node orchestration or cluster capability
 - Broad user-model redesign, advanced audit, fine-grained RBAC, and enterprise SSO integration
+- Multi-runtime source-deployment expansion beyond the first curated profile set
+- Git-driven continuous deployment pipelines, build farm orchestration, and generic application buildpack automation
 
 ## 9. Product Risks
 
@@ -458,6 +500,8 @@ The system must handle the transition of old plugins, old entries, and old depen
 2. If the single-container convergence is implemented without clear process supervision, data isolation, and upgrade boundaries, it may introduce unnecessary maintenance cost and operational fragility.
 3. If direct upgrade lacks clear processing boundaries, it may reduce upgrade success rate and stability for current users.
 4. If the frontend engineering model is not unified early, the old plugin fragmentation problem may continue.
+5. If custom compose and runtime-source deployment are added without a clear installation domain model, Websoft9 may fragment into multiple incompatible install paths.
+6. If compose policy validation is too permissive, the new installation flows can become an operator-facing security and operability risk.
 
 ## 10. Open Decisions for Architecture Phase
 
@@ -468,11 +512,15 @@ The following questions must be clarified during the Create Architecture phase:
 3. The resource model, isolation boundary, and editing capability of container file management.
 4. How old Gitea, Portainer, and Nginx Proxy Manager data, API integration, and entry points are converted and carried forward during upgrade.
 5. The minimum Phase 1 authentication, initialization, and permission scope required by migrated flows, and which broader user-model concerns remain deferred.
+6. The normalized installation domain model for marketplace templates, custom compose deployments, and runtime-based source deployments.
+7. The Phase 1 Docker Compose policy boundary, including validation of volumes, networks, environment files, and unsupported directives.
+8. The Phase 1 runtime-profile model, starting with PHP source deployment and leaving room for later runtime families.
 
 ## 11. Success Metrics
 
 - Current-version users can complete a direct upgrade through a controlled set of steps, preserving legacy data such as certificates without breaking existing core workflows.
 - The new frontend covers the existing high-frequency paths: app browsing, installation, management, settings, logs, and services.
+- Operators can complete marketplace-template installation, custom compose installation, and PHP runtime-based source deployment through one consistent task-and-management model.
 - Authorized operators can complete major product operations through Websoft9 without depending on Cockpit-era host-user workflows.
 - After release, the new version no longer depends on Cockpit as the frontend runtime base.
 - After upgrading from the old version, third-party service entries, certificates, and application access paths remain available.

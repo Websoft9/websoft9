@@ -1,6 +1,7 @@
 import json
 import sys
 from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Union
 
@@ -68,17 +69,17 @@ def test_runtime_logs_service_filters_by_level_and_keyword(tmp_path: Path):
         tmp_path,
         [
             {"ts": "2026-05-06T08:49:28.100000Z", "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "core-bootstrap.start-supervisor", "message": "phase=core-bootstrap action=start-supervisor"},
-            {"ts": "2026-05-06T08:49:29.100000Z", "level": "error", "component": "apphub-api", "domain": "runtime", "event": "bootstrap-failed", "message": "failed to bootstrap apphub"},
+            {"ts": "2026-05-06T08:49:29.100000Z", "level": "error", "component": "platform-entrypoint", "domain": "runtime", "event": "bootstrap-failed", "message": "failed to bootstrap platform gateway"},
             {"ts": "2026-05-06T08:49:30.100000Z", "level": "warning", "component": "apphub-api", "domain": "runtime", "event": "restart-detected", "message": "warning restart detected"},
         ],
     )
     service = RuntimeLogsService(log_path=str(log_path), auth_service=FakeAuthService())
 
-    entries = service.get_runtime_logs("valid-session", RuntimeLogsQuery(level="error", keyword="apphub", limit=20))
+    entries = service.get_runtime_logs("valid-session", RuntimeLogsQuery(level="error", keyword="gateway", limit=20))
 
     assert len(entries) == 1
     assert entries[0].level == "error"
-    assert "apphub" in entries[0].message.lower()
+    assert "gateway" in entries[0].message.lower()
 
 
 def test_runtime_logs_service_filters_by_time_range_and_drops_unparseable_lines(tmp_path: Path):
@@ -98,6 +99,23 @@ def test_runtime_logs_service_filters_by_time_range_and_drops_unparseable_lines(
     assert entries[0].message == "[platform-entrypoint] info future line"
 
 
+def test_runtime_logs_service_accepts_7d_time_range(tmp_path: Path):
+    now = datetime.now(timezone.utc)
+    log_path = write_runtime_log_file(
+        tmp_path,
+        [
+            {"ts": (now - timedelta(days=3)).isoformat().replace("+00:00", "Z"), "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "within-7d", "message": "info line within seven days"},
+            {"ts": (now - timedelta(days=10)).isoformat().replace("+00:00", "Z"), "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "outside-7d", "message": "info line outside seven days"},
+        ],
+    )
+    service = RuntimeLogsService(log_path=str(log_path), auth_service=FakeAuthService())
+
+    entries = service.get_runtime_logs("valid-session", RuntimeLogsQuery(time_range="7d", limit=20))
+
+    assert len(entries) == 1
+    assert entries[0].message == "[platform-entrypoint] info line within seven days"
+
+
 def test_runtime_logs_service_ignores_third_party_and_non_runtime_lines(tmp_path: Path):
     log_path = write_runtime_log_file(
         tmp_path,
@@ -113,6 +131,22 @@ def test_runtime_logs_service_ignores_third_party_and_non_runtime_lines(tmp_path
 
     assert len(entries) == 1
     assert "platform-entrypoint" in entries[0].message
+
+
+def test_runtime_logs_service_excludes_apphub_runtime_entries(tmp_path: Path):
+    log_path = write_runtime_log_file(
+        tmp_path,
+        [
+            {"ts": "2026-05-06T01:12:50.000000Z", "level": "info", "component": "apphub-api", "domain": "runtime", "event": "bootstrap", "message": "apphub started"},
+            {"ts": "2026-05-06T01:12:55.000000Z", "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "workspace-bootstrap.bootstrap-platform-gateway", "message": "phase=workspace-bootstrap action=bootstrap-platform-gateway"},
+        ],
+    )
+    service = RuntimeLogsService(log_path=str(log_path), auth_service=FakeAuthService())
+
+    entries = service.get_runtime_logs("valid-session", RuntimeLogsQuery(limit=20))
+
+    assert len(entries) == 1
+    assert "apphub" not in entries[0].message.lower()
 
 
 def test_runtime_logs_service_raises_stable_error_when_log_source_missing(tmp_path: Path):
@@ -144,7 +178,7 @@ def test_runtime_logs_router_returns_normalized_payload(monkeypatch):
         PROJECT_ROOT / "tests",
         [
             {"ts": "2026-05-06T08:49:28.100000Z", "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "core-bootstrap.start-supervisor", "message": "phase=core-bootstrap action=start-supervisor"},
-            {"ts": "2026-05-06T08:49:29.100000Z", "level": "error", "component": "apphub-api", "domain": "runtime", "event": "bootstrap-failed", "message": "failed to bootstrap apphub"},
+            {"ts": "2026-05-06T08:49:29.100000Z", "level": "error", "component": "platform-entrypoint", "domain": "runtime", "event": "bootstrap-failed", "message": "failed to bootstrap platform gateway"},
         ],
         file_name="platform-runtime-router.log",
     )
@@ -167,7 +201,7 @@ def test_runtime_logs_router_validates_limit(monkeypatch):
     log_path = write_runtime_log_file(PROJECT_ROOT / "tests", [], file_name="platform-runtime-empty.log")
     logs_router._runtime_logs_service = RuntimeLogsService(log_path=str(log_path), auth_service=FakeAuthService())
 
-    response = client.get("/logs/runtime", cookies={"websoft9_operator_session": "valid-session"}, params={"limit": 5000})
+    response = client.get("/logs/runtime", cookies={"websoft9_operator_session": "valid-session"}, params={"limit": 50000})
 
     assert response.status_code == 400
     assert response.json()["message"] == "Request Validation Error"

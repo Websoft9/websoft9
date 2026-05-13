@@ -1887,15 +1887,30 @@ class AppManger:
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
     def download_image_accelerators(self):
         try:
-            url = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip() or "https://artifact.websoft9.com/release/websoft9/mirrors.json"
-            response = requests.get(url)
-            if response.status_code != 200:
-                logger.error(f"Failed to download image accelerators: {response.text}")
-                raise CustomException("Failed to download image accelerators")
-            return response.json().get("mirrors", [])
+            configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip() or "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+            if configured.startswith("http://") or configured.startswith("https://"):
+                response = requests.get(configured)
+                if response.status_code != 200:
+                    logger.error(f"Failed to download image accelerators: {response.text}")
+                    raise CustomException("Failed to download image accelerators")
+                return [self._normalize_image_accelerator(str(item)) for item in response.json().get("mirrors", []) if str(item).strip()]
+
+            return [
+                self._normalize_image_accelerator(item)
+                for item in configured.replace("\n", ",").split(",")
+                if item.strip()
+            ]
         except Exception as e:
             logger.error(f"Failed to download image accelerators: {e}")
             return []
+
+    def _normalize_image_accelerator(self, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        if normalized.startswith("http://"):
+            normalized = normalized[7:]
+        elif normalized.startswith("https://"):
+            normalized = normalized[8:]
+        return normalized
 
     def pull_images_from_yml(self, app_tmp_dir_path, app_uuid):
         env_file_path = os.path.join(app_tmp_dir_path, '.env')

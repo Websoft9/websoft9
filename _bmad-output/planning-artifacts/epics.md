@@ -38,6 +38,10 @@ FR2: Provide an App Store experience with category filtering, search, app detail
 
 FR3: Provide an app installation flow with parameter configuration, unified task feedback, and a post-install handoff into My Apps.
 
+FR3A: Support custom Docker Compose installation through upload or inline editing, with backend validation and policy enforcement.
+
+FR3B: Support runtime-based source deployment starting with PHP projects, using curated runtime profiles and the same unified task model.
+
 FR4: Provide a My Apps list and detail experience that preserves old high-frequency information architecture and access continuity.
 
 FR5: Support application lifecycle operations including start, stop, restart, redeploy, and uninstall through unified APIs and task handling.
@@ -86,6 +90,8 @@ NFR7: The frontend must be one unified project or workspace rather than multiple
 
 NFR8: The new control plane must narrow its dependency boundary on third-party management UIs while still preserving third-party API integration and full embedded access where required.
 
+NFR9: Flexible installation must enforce backend policy validation before creating deployment resources, and must reject unsupported high-risk Docker Compose directives in Phase 1.
+
 ### Additional Requirements
 
 - AppHub remains the unified API surface and main business orchestration layer.
@@ -94,6 +100,8 @@ NFR8: The new control plane must narrow its dependency boundary on third-party m
 - REST + OpenAPI remains the default API model. SSE carries long-running task progress. WebSocket remains reserved for terminal transport.
 - Third-party UI continuity must land inside Websoft9-owned integration workspaces rather than raw deep links.
 - High-risk actions such as terminal, file changes, backup restore, upgrade, and credential management require explicit safety checks and auditability.
+- Flexible installation must normalize marketplace, compose, and runtime-source requests into one installation domain owned by AppHub.
+- Phase 1 runtime-source deployment starts with PHP and explicitly defers broader multi-runtime rollout.
 - The direct-upgrade migration playbook must exist before migration-sensitive work is considered complete.
 
 ## Sequencing Principles
@@ -111,6 +119,8 @@ This revision uses the following implementation principles:
 FR1: Epic 4 - Product-Native Operations and Observability Expansion
 FR2: Epic 3 - Core Application Workflows and Product Settings
 FR3: Epic 3 - Core Application Workflows and Product Settings
+FR3A: Epic 3 - Core Application Workflows and Product Settings
+FR3B: Epic 3 - Core Application Workflows and Product Settings
 FR4: Epic 3 - Core Application Workflows and Product Settings
 FR5: Epic 3 - Core Application Workflows and Product Settings
 FR6: Epic 4 - Product-Native Operations and Observability Expansion
@@ -363,20 +373,20 @@ so that I understand whether the problem is availability, configuration, or sess
 **Then** unaffected workspaces stay usable
 **And** one broken integration does not collapse the entire integration surface.
 
-### Epic 3: Core Application Workflows and Product Settings
+### Epic 3: Core Application Workflows, Flexible Installation, and Product Settings
 
-Deliver the native core product flow after the shell and embedded integrations are stable: App Store, install, My Apps, application access, and Websoft9 settings.
+Deliver the native core product flow after the shell and embedded integrations are stable: App Store, flexible installation, My Apps, application access, and Websoft9 settings.
 
 **Why third:** This is the first large native user-value epic, but it should land after the workspace and integration continuity are already stable. That sequence reduces migration risk and keeps settings aligned with the new shell rather than legacy flows.
 
 **Scope:**
 
 - App Store list, search, filters, detail, and installation handoff.
-- Installation task loop and My Apps handoff.
+- Installation task loop, custom compose install, runtime-source deployment, and My Apps handoff.
 - My Apps list, detail shell, lifecycle actions, and application access management.
 - Product settings and sensitive configuration baseline.
 
-**FRs covered:** FR2, FR3, FR4, FR5, FR8, FR14
+**FRs covered:** FR2, FR3, FR3A, FR3B, FR4, FR5, FR8, FR14
 
 **Key dependencies:** Depends on Epic 1 for the shell/runtime base and Epic 2 for embedded integration continuity.
 
@@ -434,6 +444,59 @@ so that I can understand progress, failure causes, and what to do next.
 **Then** the UI shows queued, running, success, failure, or canceled states through one task-feedback model
 **And** failure states include a summary and diagnostics entry.
 
+### Story 3.3A: Build the custom compose upload and editing workspace
+
+As an operator installing a non-catalog application,
+I want to upload or edit Docker Compose content inside Websoft9,
+so that I can deploy custom applications without leaving the product shell.
+
+**Acceptance Criteria:**
+
+**Given** the user selects custom compose installation
+**When** the installation workspace opens
+**Then** the UI supports either uploading a compose file or editing compose content inline
+**And** the flow clearly separates compose content, environment inputs, and install metadata.
+
+**Given** the compose content changes
+**When** the user requests validation
+**Then** the backend validates syntax and returns actionable errors
+**And** the frontend does not attempt to parse or enforce Docker Compose policy on its own.
+
+### Story 3.3B: Build backend validation and install execution for custom compose apps
+
+As an operator deploying a custom stack,
+I want Websoft9 to validate and normalize my compose deployment before execution,
+so that unsafe or unsupported definitions fail early and valid definitions install through the standard task model.
+
+**Acceptance Criteria:**
+
+**Given** the user submits a custom compose installation request
+**When** AppHub receives the request
+**Then** AppHub normalizes it into the shared installation domain model
+**And** it applies product policy checks before creating deployment resources.
+
+**Given** the compose request includes unsupported directives
+**When** validation completes
+**Then** the install is rejected with actionable diagnostics
+**And** no partial application resources are created.
+
+### Story 3.3C: Build PHP runtime-source deployment
+
+As an operator deploying a PHP project,
+I want to upload project code and select a curated PHP runtime profile,
+so that Websoft9 can provision and run the application without requiring me to hand-author the full deployment stack.
+
+**Acceptance Criteria:**
+
+**Given** the user selects runtime-source deployment
+**When** the PHP deployment flow opens
+**Then** the UI supports source-bundle upload plus runtime configuration such as PHP version, public directory, entry path, and environment variables.
+
+**Given** the user submits a valid PHP runtime deployment request
+**When** AppHub accepts it
+**Then** AppHub renders a normalized installation specification and executes it through the same task model used by other install flows
+**And** the resulting application is classified as a runtime-based deployment in My Apps.
+
 ### Story 3.4: Build the My Apps list and detail shell
 
 As a user managing installed applications,
@@ -446,11 +509,13 @@ so that the old high-frequency management path remains continuous inside the new
 **When** the page loads
 **Then** the UI shows installed app name, state, access entry, and base actions
 **And** the structure remains recognizable to old users.
+**And** the list can distinguish marketplace, custom compose, and runtime-source applications.
 
 **Given** the user opens an application detail page
 **When** the page renders
 **Then** it exposes at least overview, access, runtime, volumes or files, backup, and uninstall structure slots
 **And** the detail layout can carry later lifecycle and operations features.
+**And** it exposes installation source, deployment summary, and runtime-profile metadata where applicable.
 
 ### Story 3.5: Build lifecycle actions and the application detail header
 
@@ -469,6 +534,7 @@ so that Websoft9 can take over the real application-management path instead of o
 **When** the backend accepts the request
 **Then** the platform executes it through the unified API and task model
 **And** state changes return to the UI within the defined feedback loop.
+**And** lifecycle actions behave consistently across marketplace, custom compose, and runtime-source applications while surfacing any source-specific limitations.
 
 ### Story 3.6: Build application access proxy and certificate management
 

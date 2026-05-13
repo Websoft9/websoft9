@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
-SUPPORTED_SERVICE_KEYS = {"gitea", "portainer", "nginx-proxy-manager"}
+SUPPORTED_SERVICE_KEYS = {"platform-gateway", "apphub-api", "gitea", "portainer", "nginx-proxy-manager"}
 SUPPORTED_LOG_LEVELS = {"info", "warning", "error", "fatal"}
 SUPPORTED_LOG_TIME_RANGES = {"all", "15m", "1h", "6h", "24h", "7d"}
 
@@ -17,7 +17,7 @@ def _normalize_keyword(value: Optional[str]) -> Optional[str]:
 def _normalize_service_key(value: str) -> str:
     normalized = str(value or "").strip().lower()
     if normalized not in SUPPORTED_SERVICE_KEYS:
-        raise ValueError("service must be one of: gitea, portainer, nginx-proxy-manager")
+        raise ValueError("service must be one of: platform-gateway, apphub-api, gitea, portainer, nginx-proxy-manager")
     return normalized
 
 
@@ -51,7 +51,7 @@ class ServiceLogsQuery(BaseModel):
     keyword: Optional[str] = None
     level: Optional[str] = None
     time_range: str = Field(default="all")
-    limit: int = Field(default=200, ge=1, le=5000)
+    limit: int = Field(default=200, ge=1, le=20000)
 
     @field_validator("keyword", mode="before")
     @classmethod

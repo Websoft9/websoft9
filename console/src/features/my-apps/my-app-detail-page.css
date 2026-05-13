@@ -3,9 +3,10 @@
    ============================================ */
 
 .myapps-detail-overlay {
-    min-height: calc(100vh - 76px);
     background-color: rgba(15, 23, 42, 0.18);
-    padding: 24px 0;
+    padding: 24px 16px;
+    overflow: auto;
+    box-sizing: border-box;
 }
 
 .myapps-detail-shell {

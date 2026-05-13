@@ -13,6 +13,7 @@ import {
     Paper,
     Stack,
     Switch,
+    SvgIcon,
     Table,
     TableBody,
     TableCell,
@@ -20,13 +21,14 @@ import {
     TableHead,
     TableRow,
     TextField,
+    Tooltip,
     Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link as RouterLink } from 'react-router-dom'
 
+import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './services-page.css'
 
@@ -73,6 +75,10 @@ type ServiceLogsResponse = {
     limit: number
     entries: ServiceLogEntry[]
     unavailable_reason: string | null
+}
+
+type LogLoadMoreAnchor = {
+    firstNewEntryIndex: number
 }
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
@@ -139,17 +145,16 @@ function formatEntryTime(value: string | null, formatter: Intl.DateTimeFormat): 
     return formatter.format(new Date(value))
 }
 
-function chipColorFromLogLevel(level: string | null): 'default' | 'success' | 'warning' | 'error' {
-    if (level === 'INF') {
-        return 'success'
-    }
-    if (level === 'WRN') {
-        return 'warning'
-    }
-    if (level === 'ERR' || level === 'FTL') {
-        return 'error'
-    }
-    return 'default'
+function RefreshIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.3 0 2.5.42 3.47 1.13L13 10h7V3l-2.35 3.35Z" />
+        </SvgIcon>
+    )
+}
+
+function getServiceDescription(serviceKey: string, description: string, t: (key: string, options?: Record<string, unknown>) => string) {
+    return t(`servicesPage.descriptions.${serviceKey}`, { defaultValue: description })
 }
 
 export function ServicesPage() {
@@ -157,7 +162,7 @@ export function ServicesPage() {
     const { status } = useProductAuth()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const logBodyRef = useRef<HTMLDivElement | null>(null)
-    const preserveLogScrollRef = useRef(false)
+    const logLoadMoreAnchorRef = useRef<LogLoadMoreAnchor | null>(null)
     const [contentAreaElement, setContentAreaElement] = useState<HTMLElement | null>(null)
     const [activeLogServiceKey, setActiveLogServiceKey] = useState<string | null>(null)
     const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
@@ -166,7 +171,7 @@ export function ServicesPage() {
     const [logKeywordInput, setLogKeywordInput] = useState('')
     const [logLevel, setLogLevel] = useState('all')
     const [logTimeRange, setLogTimeRange] = useState('all')
-    const [logLimit, setLogLimit] = useState(200)
+    const [logLimit, setLogLimit] = useState(100)
     const deferredKeyword = useDeferredValue(logKeywordInput)
 
     const { data, error, isLoading, isFetching, refetch } = useQuery<CoreServicesInventoryResponse, Error>({
@@ -237,16 +242,16 @@ export function ServicesPage() {
     const timeFormatter = useMemo(
         () =>
             new Intl.DateTimeFormat(locale, {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false,
+                dateStyle: 'short',
+                timeStyle: 'medium',
             }),
         [locale],
     )
 
     const logEntries = useMemo(() => [...(logsQuery.data?.entries ?? [])].reverse(), [logsQuery.data?.entries])
-    const canLoadMoreLogs = logEntries.length >= logLimit && logLimit < 5000
+    const canLoadMoreLogs = logEntries.length >= logLimit && logLimit < 20000
+    const showInventoryLoadingCard = isLoading && !data
+    const showInventoryRefreshRow = isFetching && Boolean(data)
 
     useEffect(() => {
         setContentAreaElement(pageShellRef.current?.closest('main') ?? null)
@@ -256,12 +261,24 @@ export function ServicesPage() {
         if (!activeLogServiceKey || !logBodyRef.current) {
             return
         }
-        if (preserveLogScrollRef.current) {
-            preserveLogScrollRef.current = false
+        logBodyRef.current.scrollTop = 0
+        logLoadMoreAnchorRef.current = null
+    }, [activeLogServiceKey])
+
+    useLayoutEffect(() => {
+        if (!logBodyRef.current || !logLoadMoreAnchorRef.current) {
             return
         }
-        logBodyRef.current.scrollTop = 0
-    }, [activeLogServiceKey, logsQuery.dataUpdatedAt])
+
+        const anchorIndex = logLoadMoreAnchorRef.current.firstNewEntryIndex
+        const anchorElement = logBodyRef.current.querySelector<HTMLElement>(`[data-log-entry-index="${anchorIndex}"]`)
+
+        if (anchorElement) {
+            logBodyRef.current.scrollTop = Math.max(0, anchorElement.offsetTop)
+        }
+
+        logLoadMoreAnchorRef.current = null
+    }, [logEntries.length])
 
     function handleOpenLogs(serviceKey: string) {
         setActiveLogServiceKey(serviceKey)
@@ -269,12 +286,18 @@ export function ServicesPage() {
         setLogKeywordInput('')
         setLogLevel('all')
         setLogTimeRange('all')
-        setLogLimit(200)
+        setLogLimit(100)
     }
 
     function handleLoadMoreLogs() {
-        preserveLogScrollRef.current = true
+        logLoadMoreAnchorRef.current = {
+            firstNewEntryIndex: logEntries.length,
+        }
+
         setLogLimit((current) => {
+            if (current < 200) {
+                return 200
+            }
             if (current < 500) {
                 return 500
             }
@@ -284,7 +307,13 @@ export function ServicesPage() {
             if (current < 2000) {
                 return 2000
             }
-            return 5000
+            if (current < 5000) {
+                return 5000
+            }
+            if (current < 10000) {
+                return 10000
+            }
+            return 20000
         })
     }
 
@@ -307,49 +336,48 @@ export function ServicesPage() {
                 ) : null}
 
                 <Box className="services-page-grid">
+                    <Paper className="services-page-toolbar-panel" elevation={0}>
+                        <Stack className="services-page-toolbar-row" direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+                            <Stack className="services-page-toolbar" direction={{ xs: 'column', md: 'row' }} spacing={1.25}>
+                                <TextField
+                                    className="services-page-toolbar-field services-page-toolbar-search"
+                                    onChange={(event) => setSearchValue(event.target.value)}
+                                    placeholder={t('servicesPage.filters.searchPlaceholder')}
+                                    size="small"
+                                    slotProps={{ inputLabel: { shrink: false } }}
+                                    value={searchValue}
+                                />
+                                <TextField
+                                    className="services-page-toolbar-field services-page-toolbar-select"
+                                    onChange={(event) => setStateFilter(event.target.value)}
+                                    select
+                                    size="small"
+                                    value={stateFilter}
+                                >
+                                    <MenuItem value="all">{t('servicesPage.filters.stateOptions.all')}</MenuItem>
+                                    <MenuItem value="running">{t('servicesPage.filters.stateOptions.running')}</MenuItem>
+                                    <MenuItem value="starting">{t('servicesPage.filters.stateOptions.starting')}</MenuItem>
+                                    <MenuItem value="stopped">{t('servicesPage.filters.stateOptions.stopped')}</MenuItem>
+                                    <MenuItem value="unavailable">{t('servicesPage.filters.stateOptions.unavailable')}</MenuItem>
+                                </TextField>
+                                <Tooltip title={isFetching ? t('servicesPage.states.loading') : t('servicesPage.actions.refresh')}>
+                                    <span>
+                                        <IconButton className="services-page-icon-button" onClick={() => { void refetch() }} disabled={isFetching} size="small">
+                                            {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                            </Stack>
+                        </Stack>
+                    </Paper>
+
                     <Paper className="services-page-panel services-page-list" elevation={0}>
                         <Stack spacing={1.5} sx={{ minHeight: 0 }}>
-                            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} sx={{ justifyContent: 'space-between', alignItems: { xs: 'stretch', lg: 'flex-start' } }}>
-                                <Typography className="services-page-title" variant="subtitle1">{t('servicesPage.inventory.title')}</Typography>
-
-                                <Stack className="services-page-toolbar" direction={{ xs: 'column', md: 'row' }} spacing={1.25}>
-                                    <TextField
-                                        className="services-page-toolbar-field services-page-toolbar-search"
-                                        onChange={(event) => setSearchValue(event.target.value)}
-                                        placeholder={t('servicesPage.filters.searchPlaceholder')}
-                                        size="small"
-                                        slotProps={{ inputLabel: { shrink: false } }}
-                                        value={searchValue}
-                                    />
-                                    <TextField
-                                        className="services-page-toolbar-field services-page-toolbar-select"
-                                        onChange={(event) => setStateFilter(event.target.value)}
-                                        select
-                                        size="small"
-                                        value={stateFilter}
-                                    >
-                                        <MenuItem value="all">{t('servicesPage.filters.stateOptions.all')}</MenuItem>
-                                        <MenuItem value="running">{t('servicesPage.filters.stateOptions.running')}</MenuItem>
-                                        <MenuItem value="starting">{t('servicesPage.filters.stateOptions.starting')}</MenuItem>
-                                        <MenuItem value="stopped">{t('servicesPage.filters.stateOptions.stopped')}</MenuItem>
-                                        <MenuItem value="unavailable">{t('servicesPage.filters.stateOptions.unavailable')}</MenuItem>
-                                    </TextField>
-                                    <Button className="services-page-toolbar-button" variant="contained" onClick={() => { void refetch() }} disabled={isFetching}>
-                                        {t('servicesPage.actions.refresh')}
-                                    </Button>
-                                </Stack>
-                            </Stack>
-
-                            {!isLoading && filteredServices.length === 0 ? (
-                                <Box className="services-page-empty-state">
-                                    <Typography variant="subtitle1">{t('servicesPage.states.emptyTitle')}</Typography>
-                                    <Typography color="text.secondary" variant="body2">
-                                        {services.length > 0 ? t('servicesPage.states.noResults') : t('servicesPage.states.empty')}
-                                    </Typography>
-                                </Box>
+                            {showInventoryLoadingCard ? (
+                                <SurfaceStateCard detail={t('servicesPage.states.loading')} loading />
                             ) : null}
 
-                            {!isLoading && filteredServices.length > 0 ? (
+                            {!showInventoryLoadingCard ? (
                                 <TableContainer className="services-page-table-container">
                                     <Table className="services-page-table">
                                         <TableHead>
@@ -363,7 +391,33 @@ export function ServicesPage() {
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {filteredServices.map((service) => (
+                                            {showInventoryRefreshRow ? (
+                                                <TableRow>
+                                                    <TableCell className="services-page-table-state-cell" colSpan={6}>
+                                                        <Box className="services-page-table-state">
+                                                            <CircularProgress size={18} />
+                                                            <Typography color="text.secondary" variant="body2">
+                                                                {t('servicesPage.states.loading')}
+                                                            </Typography>
+                                                        </Box>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : null}
+
+                                            {!showInventoryRefreshRow && filteredServices.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell className="services-page-table-state-cell" colSpan={6}>
+                                                        <Box className="services-page-empty-state services-page-table-state-box">
+                                                            <Typography variant="subtitle1">{t('servicesPage.states.emptyTitle')}</Typography>
+                                                            <Typography color="text.secondary" variant="body2">
+                                                                {services.length > 0 ? t('servicesPage.states.noResults') : t('servicesPage.states.empty')}
+                                                            </Typography>
+                                                        </Box>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : null}
+
+                                            {!showInventoryRefreshRow ? filteredServices.map((service) => (
                                                 <TableRow key={service.key}>
                                                     <TableCell>
                                                         <Stack className="services-page-service-cell" spacing={0.5}>
@@ -371,7 +425,7 @@ export function ServicesPage() {
                                                         </Stack>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Typography className="services-page-service-description">{service.description}</Typography>
+                                                        <Typography className="services-page-service-description">{getServiceDescription(service.key, service.description, t)}</Typography>
                                                     </TableCell>
                                                     <TableCell>
                                                         <Chip color={chipColorFromState(service.runtime_state)} label={t(`servicesPage.runtimeStates.${service.runtime_state}`)} size="small" />
@@ -379,10 +433,11 @@ export function ServicesPage() {
                                                     <TableCell>
                                                         <Chip color={chipColorFromState(service.health_state)} label={t(`servicesPage.healthStates.${service.health_state}`)} size="small" />
                                                     </TableCell>
-                                                    <TableCell>{formatDateTime(service.updated_at, dateFormatter)}</TableCell>
+                                                    <TableCell className="services-page-updated-at-cell">{formatDateTime(service.updated_at, dateFormatter)}</TableCell>
                                                     <TableCell align="right">
                                                         <Box className="services-page-row-actions">
                                                             <Button
+                                                                className="services-page-action-button"
                                                                 disabled={!service.logs_available}
                                                                 onClick={() => handleOpenLogs(service.key)}
                                                                 size="small"
@@ -390,15 +445,10 @@ export function ServicesPage() {
                                                             >
                                                                 {t('servicesPage.actions.viewLogs')}
                                                             </Button>
-                                                            {service.workspace_route ? (
-                                                                <Button component={RouterLink} size="small" to={`/${service.workspace_route}`} variant="outlined">
-                                                                    {t('servicesPage.actions.openWorkspace')}
-                                                                </Button>
-                                                            ) : null}
                                                         </Box>
                                                     </TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )) : null}
                                         </TableBody>
                                     </Table>
                                 </TableContainer>
@@ -436,16 +486,20 @@ export function ServicesPage() {
                 slotProps={{
                     paper: {
                         className: 'services-page-dialog-paper',
+                        square: true,
+                        sx: {
+                            borderRadius: '2px !important',
+                        },
                     },
                 }}
             >
                 <DialogTitle>
                     <Box className="services-page-dialog-titlebar">
-                        <Typography className="services-page-title services-page-log-title" variant="subtitle1">
+                        <Typography className="services-page-log-title" variant="subtitle1">
                             {activeLogService ? t('servicesPage.dialogs.logsTitle', { service: activeLogService.label }) : t('servicesPage.dialogs.logsFallbackTitle')}
                         </Typography>
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                            <IconButton aria-label={t('servicesPage.actions.close')} onClick={() => setActiveLogServiceKey(null)} size="small">
+                            <IconButton aria-label={t('servicesPage.actions.close')} className="services-page-icon-button" onClick={() => setActiveLogServiceKey(null)} size="small">
                                 <span className="services-page-dialog-close-glyph">×</span>
                             </IconButton>
                         </Stack>
@@ -493,23 +547,13 @@ export function ServicesPage() {
                                 <MenuItem value="error">{t('servicesPage.logs.levels.error')}</MenuItem>
                                 <MenuItem value="fatal">{t('servicesPage.logs.levels.fatal')}</MenuItem>
                             </TextField>
-                            <TextField
-                                className="services-page-toolbar-field services-page-toolbar-select services-page-log-select"
-                                select
-                                size="small"
-                                value={String(logLimit)}
-                                onChange={(event) => setLogLimit(Number(event.target.value))}
-                            >
-                                <MenuItem value="100">100</MenuItem>
-                                <MenuItem value="200">200</MenuItem>
-                                <MenuItem value="500">500</MenuItem>
-                                <MenuItem value="1000">1000</MenuItem>
-                                <MenuItem value="2000">2000</MenuItem>
-                                <MenuItem value="5000">5000</MenuItem>
-                            </TextField>
-                            <Button className="services-page-toolbar-button services-page-log-refresh-button" variant="contained" onClick={() => { void logsQuery.refetch() }}>
-                                {t('servicesPage.actions.refreshLogs')}
-                            </Button>
+                            <Tooltip title={logsQuery.isFetching ? t('servicesPage.states.loadingLogs') : t('servicesPage.actions.refreshLogs')}>
+                                <span>
+                                    <IconButton className="services-page-icon-button services-page-log-refresh-button" onClick={() => { void logsQuery.refetch() }} disabled={logsQuery.isFetching} size="small">
+                                        {logsQuery.isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                    </IconButton>
+                                </span>
+                            </Tooltip>
                             <FormControlLabel
                                 className="services-page-autorefresh-toggle"
                                 control={
@@ -552,12 +596,14 @@ export function ServicesPage() {
                                 <Box className="services-page-log-body services-page-log-body-dialog" ref={logBodyRef}>
                                     <Stack spacing={0}>
                                         {logEntries.map((entry, index) => (
-                                            <Box className="services-page-log-entry" key={`${entry.source}-${index}-${entry.raw}`} title={entry.raw}>
+                                            <Box className="services-page-log-entry" data-log-entry-index={index} key={`${entry.source}-${index}-${entry.raw}`} title={entry.raw}>
                                                 <div className="services-page-log-content">
                                                     <div className="services-page-log-inline">
                                                         {entry.timestamp ? <span className="services-page-log-time">{formatEntryTime(entry.timestamp, timeFormatter)}</span> : null}
                                                         {entry.level ? (
-                                                            <Chip className="services-page-log-level" color={chipColorFromLogLevel(entry.level)} label={entry.level} size="small" variant="outlined" />
+                                                            <span className={`services-page-log-level services-page-log-level-${entry.level.toLowerCase()}`}>
+                                                                {entry.level}
+                                                            </span>
                                                         ) : null}
                                                         <Typography component="div" className="services-page-log-message">
                                                             {entry.message}
@@ -568,7 +614,7 @@ export function ServicesPage() {
                                         ))}
                                         {canLoadMoreLogs ? (
                                             <Box className="services-page-log-more-row">
-                                                <Button onClick={handleLoadMoreLogs}>{t('servicesPage.actions.loadMoreLogs')}</Button>
+                                                <Button className="services-page-action-button" onClick={handleLoadMoreLogs}>{t('servicesPage.actions.loadMoreLogs')}</Button>
                                             </Box>
                                         ) : null}
                                     </Stack>

@@ -211,6 +211,48 @@ def test_product_auth_rejects_blank_or_trimmed_short_identity_fields(monkeypatch
     assert "Username" in short_username.json()["details"]
 
 
+def test_product_auth_rejects_weak_passwords(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        weak_initialize = client.post(
+            "/auth/initialize",
+            json={"username": "admin", "password": "weakpass", "display_name": "Platform Admin"},
+        )
+
+        assert weak_initialize.status_code == 400
+        assert "uppercase, lowercase, number, and special character" in weak_initialize.json()["details"]
+
+        initialize = client.post(
+            "/auth/initialize",
+            json={"username": "admin", "password": "StrongPass123!", "display_name": "Platform Admin"},
+        )
+        assert initialize.status_code == 200
+
+        weak_create = client.post(
+            "/auth/users",
+            json={"username": "operator", "password": "Strongpass", "display_name": "Operator"},
+        )
+        assert weak_create.status_code == 400
+        assert "uppercase, lowercase, number, and special character" in weak_create.json()["details"]
+
+        create_user = client.post(
+            "/auth/users",
+            json={"username": "operator", "password": "StrongPass123!", "display_name": "Operator"},
+        )
+        assert create_user.status_code == 200
+
+        weak_reset = client.post(
+            f"/auth/users/{create_user.json()['id']}/reset-password",
+            json={"password": "passwordonly"},
+        )
+        assert weak_reset.status_code == 400
+        assert "uppercase, lowercase, number, and special character" in weak_reset.json()["details"]
+
+
 def test_product_auth_invalidates_existing_session_when_operator_is_disabled(monkeypatch, tmp_path):
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
@@ -264,14 +306,22 @@ def test_product_auth_user_management_crud_and_session_invalidation(monkeypatch,
 
         create_response = admin_client.post(
             "/auth/users",
-            json={"username": "alice", "password": "StrongPass123!", "display_name": "Alice Operator"},
+            json={"username": "alice", "password": "StrongPass123!", "display_name": "Alice Operator", "disabled": True},
         )
         assert create_response.status_code == 200
         alice_id = create_response.json()["id"]
+        assert create_response.json()["disabled"] is True
+
+        enable_response = admin_client.put(
+            f"/auth/users/{alice_id}",
+            json={"display_name": "Alice Operator", "locale": "en", "disabled": False},
+        )
+        assert enable_response.status_code == 200
+        assert enable_response.json()["disabled"] is False
 
         update_response = admin_client.put(
             f"/auth/users/{alice_id}",
-            json={"display_name": "Alice Updated"},
+            json={"display_name": "Alice Updated", "locale": "en", "disabled": False},
         )
         assert update_response.status_code == 200
         assert update_response.json()["username"] == "alice"

@@ -39,7 +39,7 @@ def get_service_logs(
     keyword: Optional[str] = Query(default=None, description="Case-insensitive keyword filter"),
     level: Optional[str] = Query(default=None, description="Optional log level filter: info, warning, error, fatal"),
     time_range: str = Query(default="all", description="Optional time range filter: all, 15m, 1h, 6h, 24h, 7d"),
-    limit: int = Query(default=200, ge=1, le=5000, description="Maximum number of matching recent lines to return"),
+    limit: int = Query(default=200, ge=1, le=20000, description="Maximum number of matching recent lines to return"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     query = ServiceLogsQuery(keyword=keyword, level=level, time_range=time_range, limit=limit)
