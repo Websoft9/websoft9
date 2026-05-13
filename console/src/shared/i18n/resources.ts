@@ -57,11 +57,13 @@ export const shellResources = {
                 errors: {
                     invalidCredentials: 'Incorrect username or password.',
                     userDisabled: 'This user has been disabled. Please contact the system administrator.',
+                    passwordComplexity: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.',
                 },
                 actions: {
                     showPassword: 'Show password',
                     hidePassword: 'Hide password',
                 },
+                passwordPolicy: 'Use at least 8 characters with uppercase, lowercase, number, and special character.',
                 protectedModulesTitle: 'Protected module baseline',
                 fields: {
                     displayName: 'Display name',
@@ -92,10 +94,10 @@ export const shellResources = {
                     label: 'Overview',
                 },
                 appStore: {
-                    label: 'App Store',
+                    label: 'Install Apps',
                 },
                 myApps: {
-                    label: 'My Apps',
+                    label: 'Applications',
                 },
                 containers: {
                     label: 'Containers',
@@ -358,6 +360,7 @@ export const shellResources = {
                 },
                 states: {
                     authDisabled: 'Product authentication is disabled. Overview data will appear after product-auth is enabled.',
+                    loading: 'Loading overview data...',
                     loadError: 'Overview is temporarily unavailable.',
                     sectionUnavailable: 'This overview section is temporarily unavailable.',
                 },
@@ -387,6 +390,10 @@ export const shellResources = {
                     runtime: {
                         title: 'Platform',
                         subtitle: 'Websoft9 platform info and load',
+                        warningReason: 'Reason: {{reason}}',
+                        warningReasonCpu: 'CPU load is high: {{value}}',
+                        warningReasonMemory: 'Memory usage is high: {{value}}',
+                        warningReasonGeneric: 'The platform is reporting a warning state.',
                         badges: {
                             healthy: 'Healthy',
                             warning: 'Warning',
@@ -430,17 +437,49 @@ export const shellResources = {
                 },
             },
             appStorePage: {
+                hero: {
+                    title: 'Install applications',
+                    description: 'Choose an installation source first, then continue with marketplace apps, custom compose, or runtime deployment.',
+                },
+                sources: {
+                    marketplace: {
+                        label: 'Marketplace',
+                        description: 'Browse curated application templates and install them through the standard App Store flow.',
+                    },
+                    compose: {
+                        label: 'Custom Compose',
+                        description: 'Use this source for uploaded or inline-authored Docker Compose application installs.',
+                        emptyTitle: 'Custom Compose install entry',
+                        emptyDetail: 'This source is now exposed as a first-class install path. The dedicated compose workspace is the next implementation slice.',
+                    },
+                    runtime: {
+                        label: 'Runtime Deploy',
+                        description: 'Use this source for curated runtime-based deployments such as PHP project bundles.',
+                        emptyTitle: 'Runtime deployment entry',
+                        emptyDetail: 'This source is now reserved in the install IA. The structured runtime deployment workspace lands in the next implementation slice.',
+                    },
+                },
                 filters: {
                     searchPlaceholder: 'Enter an app name to search, such as WordPress, MySQL, GitLab ...',
                     allMainCategories: 'All',
                     allSubCategories: 'All',
+                    countLabel: '{{title}}({{count}})',
+                },
+                summary: {
+                    catalogApps: 'Catalog apps',
+                    visibleApps: 'Visible now',
+                    favoriteApps: 'Favorites',
+                    currentScope: 'Scope: {{category}}',
+                    allCategories: 'All categories',
                 },
                 results: {
-                    sectionTitle: 'All',
+                    sectionTitle: 'Applications',
                     title: '{{count}} apps',
                     helper: 'Keyword and category filters update the current visible app list immediately.',
                     favoriteSectionTitle: 'My favorites',
                     allAppsSectionTitle: 'All applications',
+                    favoriteEmptyTitle: 'No favorites yet',
+                    favoriteEmptyDetail: 'Add favorites from the app details and manage them here.',
                 },
                 states: {
                     loading: 'Loading App Store data...',
@@ -471,28 +510,40 @@ export const shellResources = {
                 },
                 install: {
                     versionLine: 'Version: {{version}}',
+                    errorTitle: 'Check the install form',
                     appIdLabel: 'Application name',
-                    appIdHelper: 'Only letters and numbers from 2 to 20 are allowed. No special characters.',
+                    appIdPlaceholder: 'For example: erpnext',
+                    appIdHelper: 'This name is used in generated service and network identifiers. Use 2 to 20 lowercase letters or numbers, and start with a letter.',
                     versionLabel: 'Application version',
+                    versionHelper: 'Choose the version to install before continuing.',
+                    versionFixedHelper: 'This application currently provides only one installable version.',
                     httpPortLabel: 'Application HTTP port',
                     httpsPortLabel: 'Application HTTPS port',
                     databasePortLabel: 'Database port',
                     dynamicPortLabel: '{{name}} port',
                     dynamicSettingLabel: '{{name}}',
+                    portHelper: 'Use a unique integer between 1 and 65535.',
                     setGlobalDomain: 'Set global domain',
                     addDomain: 'Add Domain',
-                    customDomainLabel: 'Domain',
-                    customDomainPlaceholder: 'Please enter a custom domain name.',
+                    customDomainLabel: 'Custom access address (optional)',
+                    customDomainPlaceholder: 'For example: blog.example.com',
+                    customDomainHelper: 'Users will open the app with this address. Leave it empty to use the default address generated by Websoft9. Do not include http://, https://, ports, or paths.',
+                    defaultDomainHelper: 'If enabled, Websoft9 will also create the default access address {{domain}}.',
                     disableDomain: 'Disable',
                     enableDomain: 'Enable',
                     validation: {
+                        appIdRequired: 'Please enter an application name.',
                         appId: 'Please enter a custom application name between 2 and 20 characters.Cannot start with a number.',
                         customDomain: 'Please enter a custom domain name.',
+                        customDomainFormat: 'Enter a valid address such as blog.example.com. Do not include http://, https://, ports, or paths.',
+                        port: '{{name}} must be an integer between 1 and 65535.',
+                        portDuplicate: 'Port {{port}} is used more than once. Each port must be unique.',
                     },
                     submitting: 'Installing...',
                     feedback: {
                         success: 'The application has started installing. You can continue tracking it in My Apps.',
                         error: 'Installation failed. Please retry after checking the current configuration.',
+                        maxApps: 'The current environment has reached the maximum number of installable apps. Remove an existing app or raise the limit before installing again.',
                         portConflict: 'Port {{port}} is already in use. Please choose a different port.',
                     },
                 },
@@ -500,9 +551,18 @@ export const shellResources = {
                     close: 'Close',
                     closeIcon: 'x',
                     install: 'Install',
+                    openInstalledApps: 'Open installed apps',
+                    backToMarketplace: 'Back to marketplace',
                     favorite: 'Add to favorites',
                     unfavorite: 'Remove from favorites',
+                    favoriteListLabel: 'My favorites',
+                    favoriteList: 'My favorites ({{count}})',
+                    refresh: 'Refresh',
+                    refreshing: 'Refreshing...',
                     delete: 'Delete',
+                },
+                feedback: {
+                    refreshComplete: 'App Store data refreshed.',
                 },
             },
             myAppsPage: {
@@ -512,6 +572,7 @@ export const shellResources = {
                     description:
                         'My Apps now consumes the shared AppHub inventory so installs can hand off here immediately and keep refreshing while setup is still running.',
                     refresh: 'Refresh',
+                    addApplication: 'Add application',
                 },
                 tracking: {
                     pending: 'Waiting for {{appId}} to appear in My Apps.',
@@ -524,6 +585,10 @@ export const shellResources = {
                     searchPlaceholder: 'Search by app name, ID, version, or error message',
                     searchPlaceholderLegacy: 'Search for apps like WordPress, MySQL, GitLab, ...',
                     allStates: 'All States',
+                    allSources: 'All sources',
+                    marketplaceSource: 'Marketplace',
+                    composeSource: 'Compose',
+                    runtimeSource: 'Runtime',
                     all: 'All ({{count}})',
                     installing: 'Installing ({{count}})',
                     active: 'Active ({{count}})',
@@ -549,8 +614,8 @@ export const shellResources = {
                     error: 'Error',
                 },
                 sections: {
-                    officialApps: "Websoft9's Apps",
-                    otherApps: 'Other Apps',
+                    officialApps: 'Marketplace installs',
+                    otherApps: 'Custom deployments',
                     installing: 'Installing queue',
                     active: 'Active apps',
                     inactive: 'Inactive apps',
@@ -561,8 +626,14 @@ export const shellResources = {
                     latestEvent: 'Latest event',
                     noLatestEvent: 'No recent install or runtime event was reported yet.',
                 },
+                source: {
+                    marketplace: 'Marketplace',
+                    compose: 'Compose',
+                    runtime: 'Runtime',
+                },
                 card: {
                     identifier: 'App ID: {{appId}}',
+                    source: 'Source: {{source}}',
                     meta: 'Version: {{version}} · Created: {{createdAt}}',
                     domain: 'Domain: {{domains}}',
                     noAccess: 'No access entry is available yet.',
@@ -848,7 +919,6 @@ export const shellResources = {
             settingsPage: {
                 hero: {
                     title: 'System Settings',
-                    description: 'Keep Websoft9 platform defaults in one compact work area, following the same page rhythm as App Store and My Apps.',
                 },
                 states: {
                     loading: 'Loading product settings...',
@@ -861,7 +931,10 @@ export const shellResources = {
                     cancel: 'Cancel',
                     save: 'Save',
                     saving: 'Saving...',
-                    editValue: 'Enter a new value',
+                    refresh: 'Refresh',
+                    restore: 'Restore',
+                    configure: 'Configure',
+                    editValue: 'Enter a configuration value',
                 },
                 feedback: {
                     saveSuccess: '{{key}} was updated successfully.',
@@ -886,6 +959,37 @@ export const shellResources = {
                 },
                 validation: {
                     required: 'Enter a non-empty value before saving.',
+                    url: 'Enter a valid URL before saving.',
+                },
+                summary: {
+                    editable: 'Editable items',
+                    version: 'Version',
+                },
+                sections: {
+                    platform: {
+                        title: 'Platform domain',
+                    },
+                    applications: {
+                        title: 'Global domain and acceleration',
+                    },
+                    system: {
+                        title: 'Version and upgrade',
+                    },
+                },
+                mirror: {
+                    placeholderInline: 'Type an accelerator address and press Enter',
+                    helper: 'During app installation, Websoft9 tries these accelerator addresses in order',
+                },
+                certificates: {
+                    helper: 'Open the certificate directory in Files to upload or replace the current platform certificate and key',
+                },
+                domain: {
+                    boundDomainHelper: 'Configure the main platform access domain used by the Websoft9 entry gateway',
+                    globalDomainHelper: 'Used as the default domain suffix for app installation and generated access addresses',
+                },
+                platformSsl: {
+                    httpsHelper: 'Use this to enable HTTPS access for the Websoft9 platform entry',
+                    forceHttpsHelper: 'Force HTTPS can only be enabled after platform HTTPS is turned on',
                 },
                 values: {
                     notConfigured: 'Not configured',
@@ -895,9 +999,17 @@ export const shellResources = {
                 },
                 items: {
                     domain: {
+                        bound_domain: 'Bound domain',
                         wildcard_domain: 'Global domain',
                     },
+                    docker_mirror: {
+                        url: 'Image accelerator address',
+                    },
                     platform_gateway: {
+                        certificates: 'Certificate files',
+                        httpsOptions: 'Platform SSL',
+                        force_https: 'Force HTTPS',
+                        bound_domain: 'Bound domain',
                         https_enabled: 'HTTPS',
                     },
                     version: {
@@ -907,6 +1019,8 @@ export const shellResources = {
                 https: {
                     enabled: 'Enabled',
                     disabled: 'Disabled',
+                    defaultCertificate: 'Currently using the platform default self-signed certificate',
+                    customCertificate: 'Currently using a custom certificate configuration',
                 },
                 version: {
                     label: 'Version',
@@ -958,12 +1072,28 @@ export const shellResources = {
                 },
                 fields: {
                     language: 'Language',
+                    status: 'Status',
+                    statusReadonly: 'Use the inline action buttons to change this protected account status.',
                     usernameReadonly: 'Usernames are fixed after creation.',
-                    passwordHelper: 'Use a strong password with at least 8 characters.',
-                    passwordOptional: 'Leave blank to keep the current password.',
+                    passwordHelper: 'Use at least 8 characters with uppercase, lowercase, number, and special character.',
+                    passwordOptional: 'Leave blank to keep the current password. If you set one, it must include uppercase, lowercase, number, and special character.',
                     newPassword: 'New password',
                     confirmPassword: 'Confirm password',
                     passwordMismatch: 'The passwords do not match.',
+                },
+                validation: {
+                    usernameRequired: 'Enter a username before creating the account.',
+                    usernameMinLength: 'Username must be at least 3 characters.',
+                    usernameMaxLength: 'Username must be 64 characters or fewer.',
+                    usernameTaken: 'This username is already in use.',
+                    fullNameRequired: 'Enter a full name before saving.',
+                    fullNameMaxLength: 'Full name must be 128 characters or fewer.',
+                    passwordRequired: 'Enter a password before creating the account.',
+                    confirmPasswordRequired: 'Enter the password again to confirm it.',
+                    passwordMinLength: 'Password must be at least 8 characters.',
+                    passwordComplexity: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.',
+                    passwordMaxLength: 'Password must be 256 characters or fewer.',
+                    languageRequired: 'Choose a language before saving.',
                 },
                 locales: {
                     en: 'English',
@@ -974,6 +1104,7 @@ export const shellResources = {
                     disabled: 'Disabled',
                 },
                 actions: {
+                    refresh: 'Refresh',
                     edit: 'Edit',
                     enable: 'Enable',
                     disable: 'Disable',
@@ -982,8 +1113,11 @@ export const shellResources = {
                 dialogs: {
                     cancel: 'Cancel',
                     createTitle: 'Create user',
+                    createDescription: 'Add a product-side operator account and choose its initial language, password, and status.',
                     editTitle: 'Edit user',
+                    editDescription: 'Update profile details, password, and status controls for {{username}}.',
                     deleteTitle: 'Delete user',
+                    deleteDescription: 'Remove this product-side operator account and invalidate its active sessions.',
                     deleteBody: 'This will remove {{username}} and invalidate existing sessions.',
                     confirmCreate: 'Create user',
                     confirmEdit: 'Save changes',
@@ -1159,6 +1293,7 @@ export const shellResources = {
                         '1h': 'Last 1 hour',
                         '6h': 'Last 6 hours',
                         '24h': 'Last 24 hours',
+                        '7d': 'Last 7 days',
                     },
                 },
                 groups: {
@@ -1168,6 +1303,7 @@ export const shellResources = {
                     refresh: 'Refresh',
                     autoRefreshOn: 'Auto refresh on',
                     autoRefreshOff: 'Auto refresh off',
+                    loadMoreLogs: 'Load more',
                 },
             },
             servicesPage: {
@@ -1175,6 +1311,13 @@ export const shellResources = {
                     title: 'Service inventory',
                     subtitle: '{{count}} / {{total}} bundled services in scope',
                     signalsHelp: 'Signals show the evidence behind each row state, such as health probes, bootstrap markers, and raw-log availability.',
+                },
+                descriptions: {
+                    'platform-gateway': 'Websoft9 entry gateway service',
+                    'apphub-api': 'Websoft9 API and orchestration service',
+                    gitea: 'Git repository service',
+                    portainer: 'Container management service',
+                    'nginx-proxy-manager': 'Reverse proxy and certificate service',
                 },
                 filters: {
                     searchLabel: 'Search services',
@@ -1198,6 +1341,7 @@ export const shellResources = {
                 },
                 states: {
                     authDisabled: 'Product-side authentication is disabled, so the services page is not available in the current flow.',
+                    loading: 'Loading services...',
                     loadError: 'Core services are currently unavailable.',
                     emptyTitle: 'No services found',
                     empty: 'No bundled services are available for the current runtime.',
@@ -1363,6 +1507,7 @@ export const shellResources = {
             },
             navigation: {
                 sections: {
+                    refresh: 'Refresh',
                     system: '工作区',
                     tools: '系统',
                 },
@@ -1407,11 +1552,13 @@ export const shellResources = {
                 errors: {
                     invalidCredentials: '用户名或密码错误。',
                     userDisabled: '该用户已被禁用，请联系系统管理员。',
+                    passwordComplexity: '密码至少需要 8 位，并同时包含大写字母、小写字母、数字和特殊字符。',
                 },
                 actions: {
                     showPassword: '显示密码',
                     hidePassword: '隐藏密码',
                 },
+                passwordPolicy: '请使用至少 8 位，并同时包含大写字母、小写字母、数字和特殊字符的密码。',
                 protectedModulesTitle: '受保护模块基线',
                 fields: {
                     displayName: '显示名称',
@@ -1442,10 +1589,10 @@ export const shellResources = {
                     label: '概览',
                 },
                 appStore: {
-                    label: '应用商店',
+                    label: '安装应用',
                 },
                 myApps: {
-                    label: '我的应用',
+                    label: '应用管理',
                 },
                 containers: {
                     label: '容器',
@@ -1708,6 +1855,7 @@ export const shellResources = {
                 },
                 states: {
                     authDisabled: '产品认证尚未启用。启用 product-auth 后这里会显示概览数据。',
+                    loading: '正在加载概览数据……',
                     loadError: '概览暂时不可用。',
                     sectionUnavailable: '这个概览分区暂时不可用。',
                 },
@@ -1737,6 +1885,10 @@ export const shellResources = {
                     runtime: {
                         title: '平台',
                         subtitle: 'Websoft9平台信息和负载',
+                        warningReason: '原因：{{reason}}',
+                        warningReasonCpu: 'CPU 负载较高：{{value}}',
+                        warningReasonMemory: '内存占用较高：{{value}}',
+                        warningReasonGeneric: '平台当前处于告警状态。',
                         badges: {
                             healthy: '健康',
                             warning: '注意',
@@ -1780,17 +1932,49 @@ export const shellResources = {
                 },
             },
             appStorePage: {
+                hero: {
+                    title: '安装应用',
+                    description: '先选择安装来源，再继续使用市场模板、自定义 Compose 或运行环境部署。',
+                },
+                sources: {
+                    marketplace: {
+                        label: '应用市场',
+                        description: '浏览平台维护的应用模板，并沿用标准安装流程完成安装。',
+                    },
+                    compose: {
+                        label: '自定义 Compose',
+                        description: '用于上传或在线编辑 Docker Compose，并作为自定义应用安装来源。',
+                        emptyTitle: '自定义 Compose 安装入口',
+                        emptyDetail: '这个安装来源已经在信息架构中成为一级入口，专用 Compose 工作区会在下一实现切片中落地。',
+                    },
+                    runtime: {
+                        label: '运行环境部署',
+                        description: '用于 PHP 等受控运行环境的源码包部署入口。',
+                        emptyTitle: '运行环境部署入口',
+                        emptyDetail: '这个安装来源已经在安装 IA 中预留完成，结构化运行环境工作区会在下一实现切片中落地。',
+                    },
+                },
                 filters: {
                     searchPlaceholder: '请输入要搜索的应用名称,例如:WordPress,MySQL,GitLab ...',
                     allMainCategories: '全部',
                     allSubCategories: '全部',
+                    countLabel: '{{title}}({{count}})',
+                },
+                summary: {
+                    catalogApps: '应用总数',
+                    visibleApps: '当前可见',
+                    favoriteApps: '我的收藏',
+                    currentScope: '当前范围: {{category}}',
+                    allCategories: '全部分类',
                 },
                 results: {
-                    sectionTitle: '全部',
+                    sectionTitle: '应用列表',
                     title: '{{count}} 个应用',
                     helper: '关键字和分类筛选会立即更新当前可见的应用列表。',
                     favoriteSectionTitle: '我的收藏',
                     allAppsSectionTitle: '全部应用',
+                    favoriteEmptyTitle: '还没有收藏应用',
+                    favoriteEmptyDetail: '可在应用详情中添加收藏，然后在这里集中查看。',
                 },
                 states: {
                     loading: '正在加载应用商店数据……',
@@ -1821,28 +2005,40 @@ export const shellResources = {
                 },
                 install: {
                     versionLine: '版本: {{version}}',
+                    errorTitle: '请先检查安装表单',
                     appIdLabel: '应用名称',
-                    appIdHelper: '只允许使用2-20位的字母和数字,不允许使用特殊字符.',
+                    appIdPlaceholder: '例如：erpnext',
+                    appIdHelper: '这个名称会用于生成服务名、网络名等标识。请使用 2 到 20 位小写字母或数字，并且必须以字母开头。',
                     versionLabel: '应用版本',
+                    versionHelper: '安装前请选择要使用的版本。',
+                    versionFixedHelper: '当前应用只提供这一个可安装版本。',
                     httpPortLabel: '应用 HTTP 端口',
                     httpsPortLabel: '应用 HTTPS 端口',
                     databasePortLabel: '数据库端口',
                     dynamicPortLabel: '{{name}} 端口',
                     dynamicSettingLabel: '{{name}}',
+                    portHelper: '请填写 1 到 65535 之间且不重复的整数端口。',
                     setGlobalDomain: '设置全局域名',
                     addDomain: '添加域名',
-                    customDomainLabel: '域名',
-                    customDomainPlaceholder: '请输入自定义域名。',
+                    customDomainLabel: '自定义访问地址（可选）',
+                    customDomainPlaceholder: '例如：blog.example.com',
+                    customDomainHelper: '用户将通过这个地址访问应用。留空时，Websoft9 会使用默认生成的访问地址。不要输入 http://、https://、端口或路径。',
+                    defaultDomainHelper: '启用后，Websoft9 还会同时生成默认访问地址 {{domain}}。',
                     disableDomain: '禁用',
                     enableDomain: '启用',
                     validation: {
+                        appIdRequired: '请输入应用名称。',
                         appId: '请输入一个2-20位的自定义应用名称.不允许以数字开头.',
                         customDomain: '请输入自定义域名',
+                        customDomainFormat: '请输入有效的访问地址，例如 blog.example.com。不要输入 http://、https://、端口或路径。',
+                        port: '{{name}} 必须是 1 到 65535 之间的整数。',
+                        portDuplicate: '端口 {{port}} 被重复使用了，每个端口都必须唯一。',
                     },
                     submitting: '安装中...',
                     feedback: {
                         success: '应用已经开始安装, 你可以到我的应用中继续跟踪。',
                         error: '安装失败, 请检查当前配置后重试。',
+                        maxApps: '当前环境已达到可安装应用数量上限。请先删除现有应用，或提高上限后再安装。',
                         portConflict: '端口 {{port}} 已被占用，请选择一个不同的端口。',
                     },
                 },
@@ -1850,9 +2046,18 @@ export const shellResources = {
                     close: '关闭',
                     closeIcon: 'x',
                     install: '安装',
+                    openInstalledApps: '打开已安装应用',
+                    backToMarketplace: '返回应用市场',
                     favorite: '收藏',
                     unfavorite: '取消收藏',
+                    favoriteListLabel: '我的收藏',
+                    favoriteList: '我的收藏({{count}})',
+                    refresh: '刷新',
+                    refreshing: '刷新中...',
                     delete: '删除',
+                },
+                feedback: {
+                    refreshComplete: '应用商店数据已刷新。',
                 },
             },
             myAppsPage: {
@@ -1862,6 +2067,7 @@ export const shellResources = {
                     description:
                         'My Apps 现在直接消费共享的 AppHub 应用清单，安装提交后可以立刻在这里承接，并在安装仍在执行时持续刷新。',
                     refresh: '刷新',
+                    addApplication: '新增应用',
                 },
                 tracking: {
                     pending: '正在等待 {{appId}} 出现在 My Apps 中。',
@@ -1874,6 +2080,10 @@ export const shellResources = {
                     searchPlaceholder: '按应用名、ID、版本或错误信息搜索',
                     searchPlaceholderLegacy: '请输入要搜索的应用名称,例如:WordPress,MySQL,GitLab, ...',
                     allStates: '所有状态',
+                    allSources: '所有来源',
+                    marketplaceSource: '市场安装',
+                    composeSource: 'Compose 安装',
+                    runtimeSource: '运行环境',
                     all: '全部 ({{count}})',
                     installing: '安装中 ({{count}})',
                     active: '运行中 ({{count}})',
@@ -1899,8 +2109,8 @@ export const shellResources = {
                     error: '错误',
                 },
                 sections: {
-                    officialApps: '微聚云应用',
-                    otherApps: '其他应用',
+                    officialApps: '市场安装',
+                    otherApps: '自定义部署',
                     installing: '安装队列',
                     active: '运行中的应用',
                     inactive: '未运行的应用',
@@ -1911,8 +2121,14 @@ export const shellResources = {
                     latestEvent: '最近事件',
                     noLatestEvent: '当前还没有上报最近的安装或运行事件。',
                 },
+                source: {
+                    marketplace: '市场应用',
+                    compose: 'Compose',
+                    runtime: '运行环境',
+                },
                 card: {
                     identifier: '应用 ID：{{appId}}',
+                    source: '来源：{{source}}',
                     meta: '版本：{{version}} · 创建时间：{{createdAt}}',
                     domain: '域名：{{domains}}',
                     noAccess: '当前还没有可用访问入口。',
@@ -2198,7 +2414,6 @@ export const shellResources = {
             settingsPage: {
                 hero: {
                     title: '系统设置',
-                    description: '把 Websoft9 平台默认项集中到一个紧凑工作区里，页面节奏与应用商店和我的应用保持一致。',
                 },
                 states: {
                     loading: '正在加载产品设置...',
@@ -2211,7 +2426,10 @@ export const shellResources = {
                     cancel: '取消',
                     save: '保存',
                     saving: '保存中...',
-                    editValue: '输入新值',
+                    refresh: '刷新',
+                    restore: '恢复默认',
+                    configure: '配置',
+                    editValue: '请输入配置值',
                 },
                 feedback: {
                     saveSuccess: '{{key}} 更新成功。',
@@ -2236,6 +2454,37 @@ export const shellResources = {
                 },
                 validation: {
                     required: '保存前请输入非空值。',
+                    url: '保存前请输入有效的 URL。',
+                },
+                summary: {
+                    editable: '可编辑项',
+                    version: '版本',
+                },
+                sections: {
+                    platform: {
+                        title: '平台域名',
+                    },
+                    applications: {
+                        title: '全局域名与镜像加速',
+                    },
+                    system: {
+                        title: '版本与升级',
+                    },
+                },
+                mirror: {
+                    placeholderInline: '输入加速地址后按 Enter',
+                    helper: '安装应用时，Websoft9 会按顺序尝试这些镜像加速地址',
+                },
+                certificates: {
+                    helper: '点击后会在文件菜单打开证书目录，可直接上传或替换当前平台证书和私钥',
+                },
+                domain: {
+                    boundDomainHelper: '用于配置 Websoft9 平台入口网关的主访问域名',
+                    globalDomainHelper: '用于安装应用时生成默认域名后缀，以及生成访问地址',
+                },
+                platformSsl: {
+                    httpsHelper: '用于启用 Websoft9 平台入口的 HTTPS 访问',
+                    forceHttpsHelper: '只有先开启平台 HTTPS，才可以继续开启强制 HTTPS',
                 },
                 values: {
                     notConfigured: '未配置',
@@ -2245,9 +2494,17 @@ export const shellResources = {
                 },
                 items: {
                     domain: {
+                        bound_domain: '绑定域名',
                         wildcard_domain: '全局域名',
                     },
+                    docker_mirror: {
+                        url: '镜像加速地址',
+                    },
                     platform_gateway: {
+                        certificates: '证书文件',
+                        httpsOptions: '平台SSL',
+                        force_https: '强制 HTTPS',
+                        bound_domain: '绑定域名',
                         https_enabled: 'HTTPS',
                     },
                     version: {
@@ -2257,6 +2514,8 @@ export const shellResources = {
                 https: {
                     enabled: '已启用',
                     disabled: '已关闭',
+                    defaultCertificate: '当前使用平台默认自签名证书',
+                    customCertificate: '当前使用自定义证书配置',
                 },
                 version: {
                     label: '版本',
@@ -2308,22 +2567,39 @@ export const shellResources = {
                 },
                 fields: {
                     language: '语言',
+                    status: '用户状态',
+                    statusReadonly: '受保护账户的状态请使用列表中的快捷操作按钮调整。',
                     usernameReadonly: '用户名创建后不可修改。',
-                    passwordHelper: '请使用至少 8 个字符的强密码。',
-                    passwordOptional: '留空则保持当前密码不变。',
+                    passwordHelper: '请使用至少 8 位，并同时包含大写字母、小写字母、数字和特殊字符的密码。',
+                    passwordOptional: '留空则保持当前密码不变；如果要设置新密码，必须同时包含大写字母、小写字母、数字和特殊字符。',
                     newPassword: '新密码',
                     confirmPassword: '确认密码',
                     passwordMismatch: '两次输入的密码不一致。',
                 },
+                validation: {
+                    usernameRequired: '创建前请输入用户名。',
+                    usernameMinLength: '用户名至少需要 3 个字符。',
+                    usernameMaxLength: '用户名不能超过 64 个字符。',
+                    usernameTaken: '该用户名已被占用。',
+                    fullNameRequired: '保存前请输入全名。',
+                    fullNameMaxLength: '全名不能超过 128 个字符。',
+                    passwordRequired: '创建前请输入密码。',
+                    confirmPasswordRequired: '请再次输入密码进行确认。',
+                    passwordMinLength: '密码至少需要 8 个字符。',
+                    passwordComplexity: '密码至少需要 8 位，并同时包含大写字母、小写字母、数字和特殊字符。',
+                    passwordMaxLength: '密码不能超过 256 个字符。',
+                    languageRequired: '保存前请选择语言。',
+                },
                 locales: {
                     en: 'English',
-                    'zh-CN': '简体中文',
+                    'zh-CN': '中文',
                 },
                 status: {
                     enabled: '启用',
                     disabled: '禁用',
                 },
                 actions: {
+                    refresh: '刷新',
                     edit: '编辑',
                     enable: '启用',
                     disable: '禁用',
@@ -2332,8 +2608,11 @@ export const shellResources = {
                 dialogs: {
                     cancel: '取消',
                     createTitle: '创建用户',
+                    createDescription: '新增产品侧用户，并设置初始语言、密码和账户状态。',
                     editTitle: '编辑用户',
+                    editDescription: '更新 {{username}} 的资料、密码和状态控制。',
                     deleteTitle: '删除用户',
+                    deleteDescription: '删除这个产品侧用户，并使其当前会话立即失效。',
                     deleteBody: '这会删除 {{username}}，并使其现有会话失效。',
                     confirmCreate: '创建用户',
                     confirmEdit: '保存修改',
@@ -2509,6 +2788,7 @@ export const shellResources = {
                         '1h': '最近 1 小时',
                         '6h': '最近 6 小时',
                         '24h': '最近 24 小时',
+                        '7d': '最近 7 天',
                     },
                 },
                 groups: {
@@ -2518,6 +2798,7 @@ export const shellResources = {
                     refresh: '刷新',
                     autoRefreshOn: '自动刷新已开启',
                     autoRefreshOff: '自动刷新已关闭',
+                    loadMoreLogs: '加载更多',
                 },
             },
             servicesPage: {
@@ -2525,6 +2806,13 @@ export const shellResources = {
                     title: '服务清单',
                     subtitle: '当前范围内共显示 {{count}} / {{total}} 个 bundled service',
                     signalsHelp: '运行信号表示这一行状态是根据哪些探针得出的，例如健康检查、引导标记和原生日志源。',
+                },
+                descriptions: {
+                    'platform-gateway': 'Websoft9 平台入口网关服务',
+                    'apphub-api': 'Websoft9 API 与编排服务',
+                    gitea: 'Git 仓库服务',
+                    portainer: '容器管理服务',
+                    'nginx-proxy-manager': '反向代理与证书服务',
                 },
                 filters: {
                     searchLabel: '搜索服务',
@@ -2548,6 +2836,7 @@ export const shellResources = {
                 },
                 states: {
                     authDisabled: '当前流程已关闭产品侧认证，因此服务页暂不可用。',
+                    loading: '正在加载服务信息...',
                     loadError: '当前无法获取核心服务信息。',
                     emptyTitle: '没有找到服务',
                     empty: '当前运行时下没有可展示的 bundled service。',

@@ -101,6 +101,7 @@ so that the old high-frequency management path moves into the new Websoft9 conso
 
 - 2026-04-23: `cd /workspace/websoft9/console && npm run typecheck`
 - 2026-04-23: `cd /workspace/websoft9/console && npm run build`
+- 2026-05-13: `cd /workspace/websoft9/console && npm run typecheck`
 
 ## Dev Agent Record
 
@@ -114,6 +115,7 @@ GPT-5.4
 - The native console now owns a stable `/myapps/:appId` detail route and detail-shell page.
 - The detail shell already reserves overview, access, runtime, volumes/files, backup, and uninstall sections so later stories can add real behavior without moving the IA again.
 - Detail entry is intentionally limited to stable official apps because the current AppHub detail endpoint does not yet resolve transient installing or error rows.
+- My Apps now behaves more like an installed-application control plane: navigation copy is aligned to Applications, the list adds install-source filters and source badges, and the primary toolbar action sends users back to Install Apps for new deployments.
 
 ### File List
 
@@ -127,3 +129,4 @@ GPT-5.4
 ### Change Log
 
 - 2026-04-23: Implemented the first native My Apps detail route and detail shell, and extended the My Apps list to meet the Story 3.4 acceptance baseline.
+- 2026-05-13: Refined the My Apps list IA with install-source filtering, source badges, and an Add Application action that routes back to the App Store install-entry surface.

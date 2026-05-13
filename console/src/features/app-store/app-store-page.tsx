@@ -1,30 +1,31 @@
 import {
-    Alert,
     Avatar,
+    Badge,
     Box,
     Button,
     Card,
     CardContent,
-    Chip,
     CircularProgress,
-    Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     IconButton,
     Link,
     MenuItem,
-    Snackbar,
     Stack,
     SvgIcon,
     TextField,
+    Tooltip,
     Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SurfaceFeedbackToast, SurfaceNoticeAlert, SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import {
     getAppStoreInstallDistributions,
     getPreferredAppStoreInstallDistribution,
@@ -75,9 +76,65 @@ function isInstallNameValid(value: string) {
     return /^[a-z][a-z0-9]{1,19}$/.test(value)
 }
 
+function normalizeCustomDomain(value: string) {
+    return value.trim().toLowerCase()
+}
+
+function isValidCustomDomain(value: string) {
+    if (!value || value.length > 253 || /\s/.test(value) || value.includes('://') || value.includes('/') || value.includes(':')) {
+        return false
+    }
+
+    const labels = value.split('.')
+    if (labels.length < 2) {
+        return false
+    }
+
+    return labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)) && !/^\d+$/.test(labels[labels.length - 1] ?? '')
+}
+
+function getInstallPortsValidationMessage(
+    settings: Record<string, string>,
+    t: (key: string, options?: Record<string, unknown>) => string,
+    locale: string,
+) {
+    const usedPorts = new Set<string>()
+
+    for (const [key, rawValue] of Object.entries(settings)) {
+        if (!key.toLowerCase().includes('port')) {
+            continue
+        }
+
+        const value = rawValue.trim()
+        const label = getInstallSettingLabel(key, t, locale)
+        if (!/^\d+$/.test(value)) {
+            return { key, message: t('appStorePage.install.validation.port', { name: label }) }
+        }
+
+        const port = Number(value)
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            return { key, message: t('appStorePage.install.validation.port', { name: label }) }
+        }
+
+        if (usedPorts.has(value)) {
+            return { key, message: t('appStorePage.install.validation.portDuplicate', { port: value }) }
+        }
+
+        usedPorts.add(value)
+    }
+
+    return null
+}
+
 type InstallFeedback = {
     severity: 'success' | 'error'
     message: string
+}
+
+type InstallFieldErrors = {
+    appId?: string
+    customDomain?: string
+    settings?: Record<string, string | undefined>
 }
 
 type InstallError = Error & {
@@ -260,11 +317,43 @@ function GitHubMarkIcon() {
     )
 }
 
+function DocumentationIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M6 3.75A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25h12A2.25 2.25 0 0 0 20.25 18V8.56a2.25 2.25 0 0 0-.66-1.59l-2.56-2.56a2.25 2.25 0 0 0-1.59-.66H6Zm8.25 1.7 3.3 3.3h-3.3v-3.3ZM8.25 11.25h7.5v1.5h-7.5v-1.5Zm0 3h7.5v1.5h-7.5v-1.5Zm0-6h3.75v1.5H8.25v-1.5Z" />
+        </SvgIcon>
+    )
+}
+
 function FavoriteSectionHeading({ title }: { title: string }) {
     return (
-        <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 34 }}>
-            <Typography sx={{ fontSize: 16, fontWeight: 500, color: '#111827' }}>{title}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 28 }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#111827', lineHeight: 1.35 }}>{title}</Typography>
         </Box>
+    )
+}
+
+function RefreshIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.3 0 2.5.42 3.47 1.13L13 10h7V3l-2.35 3.35Z" />
+        </SvgIcon>
+    )
+}
+
+function CloseIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.29 19.7l-1.41-1.42L9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.29-6.3 1.42 1.42Z" />
+        </SvgIcon>
+    )
+}
+
+function FavoriteIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A5.96 5.96 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z" />
+        </SvgIcon>
     )
 }
 
@@ -446,6 +535,123 @@ type DomainSettingsResponse = {
     wildcard_domain?: string | null
 }
 
+type CatalogOption = {
+    key: string
+    title: string
+    count: number
+}
+
+type DetailDialogSource = 'catalog' | 'favorites'
+type InstallSourceKey = 'marketplace' | 'compose' | 'runtime'
+
+type ContentViewportRect = {
+    top: number
+    left: number
+    width: number
+    height: number
+}
+
+type AppStoreScopedOverlayProps = {
+    open: boolean
+    scopeRect: ContentViewportRect | null
+    onClose: () => void
+    maxWidth?: number
+    verticalPlacement?: 'center' | 'top'
+    children: ReactNode
+}
+
+function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verticalPlacement = 'center', children }: AppStoreScopedOverlayProps) {
+    useEffect(() => {
+        if (!open) {
+            return
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [onClose, open])
+
+    if (!open || !scopeRect || typeof document === 'undefined') {
+        return null
+    }
+
+    const verticalPadding = verticalPlacement === 'top' ? 20 : 32
+    const availableHeight = Math.max(Math.round(scopeRect.height) - verticalPadding, 240)
+
+    return createPortal(
+        <Box
+            sx={{
+                position: 'fixed',
+                top: scopeRect.top,
+                left: scopeRect.left,
+                width: scopeRect.width,
+                height: scopeRect.height,
+                zIndex: 1400,
+            }}
+        >
+            <Box
+                onClick={onClose}
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.18)',
+                }}
+            />
+            <Box
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: verticalPlacement === 'top' ? 'flex-start' : 'center',
+                    justifyContent: 'center',
+                    px: { xs: 1.5, md: 1.5 },
+                    py: verticalPlacement === 'top' ? { xs: 1.5, md: 2 } : { xs: 1.5, md: 2.5 },
+                    pointerEvents: 'none',
+                }}
+            >
+                <Box
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={(event) => {
+                        event.stopPropagation()
+                    }}
+                    sx={{
+                        pointerEvents: 'auto',
+                        width: { xs: 'min(100%, 800px)', md: `min(${maxWidth}px, calc(100% - 16px))` },
+                        maxWidth: `${maxWidth}px`,
+                        height: 'auto',
+                        maxHeight: `${availableHeight}px`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        backgroundColor: '#fff',
+                        borderRadius: '2px',
+                        boxShadow: '0 16px 40px rgba(15, 23, 42, 0.16)',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {children}
+                </Box>
+            </Box>
+        </Box>,
+        document.body,
+    )
+}
+
+function formatCatalogOptionLabel(category: CatalogOption, options?: { hideCount?: boolean }) {
+    if (options?.hideCount) {
+        return category.title
+    }
+
+    return `${category.title}(${category.count})`
+}
+
 function getSubCatalogs(catalogs: AppStoreCatalogItem[], selectedMainCatalogKey: string) {
     if (selectedMainCatalogKey === 'all') {
         return []
@@ -492,7 +698,7 @@ function matchesLegacySubCatalog(app: AppStoreApp, selectedSubCatalogKey: string
 export function AppStorePage() {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
-    const contentAreaRef = useRef<HTMLDivElement | null>(null)
+    const [searchParams, setSearchParams] = useSearchParams()
     const [searchValue, setSearchValue] = useState('')
     const [selectedMainCatalogKey, setSelectedMainCatalogKey] = useState('all')
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
@@ -502,14 +708,21 @@ export function AppStorePage() {
     const [selectedVersion, setSelectedVersion] = useState('latest')
     const [installSettings, setInstallSettings] = useState<Record<string, string>>({})
     const [installError, setInstallError] = useState<string | null>(null)
+    const [installFieldErrors, setInstallFieldErrors] = useState<InstallFieldErrors>({})
     const [installFeedback, setInstallFeedback] = useState<InstallFeedback | null>(null)
     const [isSubmittingInstall, setIsSubmittingInstall] = useState(false)
+    const [isRefreshingStore, setIsRefreshingStore] = useState(false)
     const [wildcardDomain, setWildcardDomain] = useState('')
     const [isDomainEnabled, setIsDomainEnabled] = useState(true)
-    const [isCustomDomainVisible, setIsCustomDomainVisible] = useState(false)
     const [customDomain, setCustomDomain] = useState('')
+    const [isFavoritesOpen, setIsFavoritesOpen] = useState(false)
+    const [detailDialogSource, setDetailDialogSource] = useState<DetailDialogSource>('catalog')
+    const [contentViewportRect, setContentViewportRect] = useState<ContentViewportRect | null>(null)
+    const appIdInputRef = useRef<HTMLInputElement | null>(null)
+    const customDomainInputRef = useRef<HTMLInputElement | null>(null)
+    const installSettingInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
     const deferredSearchValue = useDeferredValue(searchValue)
-    const { data, error, isLoading, isFetching, refetch } = useAppStoreApps()
+    const { data, error, isLoading, refetch } = useAppStoreApps()
     const { data: catalogsData } = useAppStoreCatalogs()
     const { data: favoritesData, refetch: refetchFavorites } = useQuery<ProductAuthFavoritesResponse, Error>({
         queryKey: ['product-auth-favorites'],
@@ -519,13 +732,95 @@ export function AppStorePage() {
 
     const apps = data ?? []
     const catalogs = catalogsData ?? []
+    const sourceParam = searchParams.get('source')
+    const selectedInstallSource: InstallSourceKey = sourceParam === 'compose' || sourceParam === 'runtime' ? sourceParam : 'marketplace'
+    const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
     const favoriteSet = useMemo(() => new Set((favoritesData?.favorites ?? []).map((item) => item.toLowerCase())), [favoritesData?.favorites])
     const currentHostname = typeof window === 'undefined' ? '' : window.location.hostname
     const domainSuffix = wildcardDomain ? `.${wildcardDomain}` : ''
-    const mainCategories = useMemo(() => [{ key: 'all', title: t('appStorePage.filters.allMainCategories') }, ...catalogs], [catalogs, t])
+    const availableVersions = selectedApp ? getAppStoreInstallDistributions(selectedApp).flatMap((distribution) => distribution.versions) : []
+    const keywordMatchedApps = useMemo(() => apps.filter((app) => matchesAppStoreSearch(app, deferredSearchValue)), [apps, deferredSearchValue])
+    const mainCategoryCounts = useMemo(() => {
+        const counts = new Map<string, number>()
+
+        counts.set('all', keywordMatchedApps.length)
+        for (const catalog of catalogs) {
+            const catalogKey = catalog.key ?? ''
+            if (!catalogKey) {
+                continue
+            }
+
+            counts.set(catalogKey, keywordMatchedApps.filter((app) => matchesLegacyMainCatalog(app, catalogKey)).length)
+        }
+
+        return counts
+    }, [catalogs, keywordMatchedApps])
+    const mainCategories = useMemo<CatalogOption[]>(
+        () => [
+            {
+                key: 'all',
+                title: t('appStorePage.filters.allMainCategories'),
+                count: mainCategoryCounts.get('all') ?? 0,
+            },
+            ...catalogs
+                .map((catalog) => {
+                    const key = catalog.key ?? ''
+                    if (!key) {
+                        return null
+                    }
+
+                    return {
+                        key,
+                        title: catalog.title ?? key,
+                        count: mainCategoryCounts.get(key) ?? 0,
+                    }
+                })
+                .filter((catalog): catalog is CatalogOption => Boolean(catalog)),
+        ],
+        [catalogs, mainCategoryCounts, t],
+    )
+    const appsInSelectedMainCategory = useMemo(
+        () => keywordMatchedApps.filter((app) => matchesLegacyMainCatalog(app, selectedMainCatalogKey)),
+        [keywordMatchedApps, selectedMainCatalogKey],
+    )
+    const subCategoryCounts = useMemo(() => {
+        const counts = new Map<string, number>()
+
+        counts.set('all', appsInSelectedMainCategory.length)
+        for (const catalog of getSubCatalogs(catalogs, selectedMainCatalogKey)) {
+            const catalogKey = catalog.key ?? ''
+            if (!catalogKey) {
+                continue
+            }
+
+            counts.set(catalogKey, appsInSelectedMainCategory.filter((app) => matchesLegacySubCatalog(app, catalogKey)).length)
+        }
+
+        return counts
+    }, [appsInSelectedMainCategory, catalogs, selectedMainCatalogKey])
     const subCategories = useMemo(
-        () => [{ key: 'all', title: t('appStorePage.filters.allSubCategories') }, ...getSubCatalogs(catalogs, selectedMainCatalogKey)],
-        [catalogs, selectedMainCatalogKey, t],
+        () => [
+            {
+                key: 'all',
+                title: t('appStorePage.filters.allSubCategories'),
+                count: subCategoryCounts.get('all') ?? 0,
+            },
+            ...getSubCatalogs(catalogs, selectedMainCatalogKey)
+                .map((catalog) => {
+                    const key = catalog.key ?? ''
+                    if (!key) {
+                        return null
+                    }
+
+                    return {
+                        key,
+                        title: catalog.title ?? key,
+                        count: subCategoryCounts.get(key) ?? 0,
+                    }
+                })
+                .filter((catalog): catalog is CatalogOption => Boolean(catalog)),
+        ],
+        [catalogs, selectedMainCatalogKey, subCategoryCounts, t],
     )
 
     const filteredApps = useMemo(
@@ -540,16 +835,45 @@ export function AppStorePage() {
     )
     const favoriteApps = useMemo(() => {
         const favoriteKeys = [...(favoritesData?.favorites ?? [])].reverse()
-        const filteredAppMap = new Map(filteredApps.map((app) => [(app.key ?? '').toLowerCase(), app]))
+        const allAppMap = new Map(apps.map((app) => [(app.key ?? '').toLowerCase(), app]))
 
         return favoriteKeys
-            .map((favoriteKey) => filteredAppMap.get(favoriteKey.toLowerCase()))
+            .map((favoriteKey) => allAppMap.get(favoriteKey.toLowerCase()))
             .filter((app): app is AppStoreApp => Boolean(app))
-    }, [favoritesData?.favorites, filteredApps])
-    const nonFavoriteApps = useMemo(
-        () => filteredApps.filter((app) => !favoriteSet.has((app.key ?? '').toLowerCase())),
-        [favoriteSet, filteredApps],
-    )
+    }, [apps, favoritesData?.favorites])
+    const favoriteListLabel = t('appStorePage.actions.favoriteListLabel')
+    const installSourceOptions: Array<{ key: InstallSourceKey; label: string; description: string }> = [
+        {
+            key: 'marketplace',
+            label: t('appStorePage.sources.marketplace.label'),
+            description: t('appStorePage.sources.marketplace.description'),
+        },
+        {
+            key: 'compose',
+            label: t('appStorePage.sources.compose.label'),
+            description: t('appStorePage.sources.compose.description'),
+        },
+        {
+            key: 'runtime',
+            label: t('appStorePage.sources.runtime.label'),
+            description: t('appStorePage.sources.runtime.description'),
+        },
+    ]
+    const selectedMainCategory = mainCategories.find((category) => category.key === selectedMainCatalogKey) ?? mainCategories[0]
+    const selectedSubCategory = subCategories.find((category) => category.key === selectedSubCatalogKey) ?? subCategories[0]
+    const currentListTitle = useMemo(() => {
+        const segments = [t('appStorePage.results.allAppsSectionTitle')]
+
+        if (selectedMainCatalogKey !== 'all') {
+            segments.push(selectedMainCategory?.title ?? t('appStorePage.filters.allMainCategories'))
+        }
+
+        if (selectedSubCatalogKey !== 'all') {
+            segments.push(selectedSubCategory?.title ?? t('appStorePage.filters.allSubCategories'))
+        }
+
+        return segments.join(' / ')
+    }, [selectedMainCatalogKey, selectedMainCategory?.title, selectedSubCatalogKey, selectedSubCategory?.title, t])
 
     useEffect(() => {
         if (selectedMainCatalogKey === 'all') {
@@ -603,10 +927,63 @@ export function AppStorePage() {
         setSelectedVersion(distribution.versions[0] ?? 'latest')
         setInstallSettings({ ...(selectedApp.settings ?? {}) })
         setInstallError(null)
+        setInstallFieldErrors({})
         setIsDomainEnabled(Boolean(wildcardDomain))
-        setIsCustomDomainVisible(false)
         setCustomDomain('')
     }, [isInstallMode, selectedApp, wildcardDomain])
+
+    function captureContentViewport() {
+        if (!(contentScopeContainer instanceof HTMLElement)) {
+            setContentViewportRect(null)
+            return
+        }
+
+        const rect = contentScopeContainer.getBoundingClientRect()
+
+        setContentViewportRect({
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+        })
+    }
+
+    function openFavoritesDialog() {
+        captureContentViewport()
+        setIsFavoritesOpen(true)
+    }
+
+    function openAppDetail(app: AppStoreApp, source: DetailDialogSource) {
+        captureContentViewport()
+        setDetailDialogSource(source)
+        setSelectedApp(app)
+    }
+
+    useEffect(() => {
+        if (!(contentScopeContainer instanceof HTMLElement) || (!selectedApp && !isFavoritesOpen)) {
+            return
+        }
+
+        const preventBackgroundScroll = (event: Event) => {
+            if (!(event.target instanceof Element)) {
+                return
+            }
+
+            if (event.target.closest('.MuiDialog-paper')) {
+                return
+            }
+
+            event.preventDefault()
+        }
+
+        contentScopeContainer.addEventListener('wheel', preventBackgroundScroll, { passive: false, capture: true })
+        contentScopeContainer.addEventListener('touchmove', preventBackgroundScroll, { passive: false, capture: true })
+
+        return () => {
+            contentScopeContainer.removeEventListener('wheel', preventBackgroundScroll, { capture: true })
+            contentScopeContainer.removeEventListener('touchmove', preventBackgroundScroll, { capture: true })
+        }
+    }, [contentScopeContainer, isFavoritesOpen, selectedApp])
 
     async function handleInstallSubmit() {
         if (!selectedApp) {
@@ -614,13 +991,39 @@ export function AppStorePage() {
         }
 
         const normalizedAppId = normalizeInstallName(installName)
-        if (!isInstallNameValid(normalizedAppId)) {
-            setInstallError(t('appStorePage.install.validation.appId'))
+        const normalizedCustomDomain = normalizeCustomDomain(customDomain)
+        const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+        setInstallFieldErrors({})
+
+        if (!normalizedAppId) {
+            const message = t('appStorePage.install.validation.appIdRequired')
+            setInstallFieldErrors({ appId: message })
+            setInstallError(message)
+            appIdInputRef.current?.focus()
             return
         }
 
-        if (isCustomDomainVisible && !customDomain.trim()) {
-            setInstallError(t('appStorePage.install.validation.customDomain'))
+        if (!isInstallNameValid(normalizedAppId)) {
+            const message = t('appStorePage.install.validation.appId')
+            setInstallFieldErrors({ appId: message })
+            setInstallError(message)
+            appIdInputRef.current?.focus()
+            return
+        }
+
+        if (normalizedCustomDomain && !isValidCustomDomain(normalizedCustomDomain)) {
+            const message = t('appStorePage.install.validation.customDomainFormat')
+            setInstallFieldErrors({ customDomain: message })
+            setInstallError(message)
+            customDomainInputRef.current?.focus()
+            return
+        }
+
+        const portsValidationMessage = getInstallPortsValidationMessage(installSettings, t, locale)
+        if (portsValidationMessage) {
+            setInstallFieldErrors({ settings: { [portsValidationMessage.key]: portsValidationMessage.message } })
+            setInstallError(portsValidationMessage.message)
+            installSettingInputRefs.current[portsValidationMessage.key]?.focus()
             return
         }
 
@@ -628,12 +1031,12 @@ export function AppStorePage() {
         setInstallError(null)
 
         try {
-            const proxyEnabled = selectedApp.is_web_app ? (Boolean(wildcardDomain) && isDomainEnabled) || Boolean(customDomain.trim()) : false
+            const proxyEnabled = selectedApp.is_web_app ? (Boolean(wildcardDomain) && isDomainEnabled) || Boolean(normalizedCustomDomain) : false
             const domainNames = selectedApp.is_web_app
-                ? Boolean(customDomain.trim()) && Boolean(wildcardDomain) && isDomainEnabled
-                    ? [customDomain.trim(), `${normalizedAppId}.${wildcardDomain}`]
-                    : Boolean(customDomain.trim())
-                        ? [customDomain.trim()]
+                ? Boolean(normalizedCustomDomain) && Boolean(wildcardDomain) && isDomainEnabled
+                    ? [normalizedCustomDomain, `${normalizedAppId}.${wildcardDomain}`]
+                    : Boolean(normalizedCustomDomain)
+                        ? [normalizedCustomDomain]
                         : Boolean(wildcardDomain) && isDomainEnabled
                             ? [`${normalizedAppId}.${wildcardDomain}`]
                             : [currentHostname]
@@ -659,10 +1062,19 @@ export function AppStorePage() {
             navigate(nextSearchParams.size > 0 ? `/myapps?${nextSearchParams.toString()}` : '/myapps', { replace: true })
         } catch (submitError) {
             let message = submitError instanceof Error ? submitError.message : t('appStorePage.install.feedback.error')
+            if (/Exceed the maximum number of apps/i.test(message)) {
+                message = t('appStorePage.install.feedback.maxApps')
+            }
             // Detect port conflict error from backend and show i18n-friendly message
             const portMatch = message.match(/Port\s+(\d+)\s+is already in use/i)
             if (portMatch) {
-                message = t('appStorePage.install.feedback.portConflict', { port: portMatch[1] })
+                const conflictedPort = portMatch[1]
+                message = t('appStorePage.install.feedback.portConflict', { port: conflictedPort })
+                const matchedSettingKey = Object.entries(installSettings).find(([, value]) => value.trim() === conflictedPort)?.[0]
+                if (matchedSettingKey) {
+                    setInstallFieldErrors({ settings: { [matchedSettingKey]: message } })
+                    installSettingInputRefs.current[matchedSettingKey]?.focus()
+                }
             }
             setInstallError(message)
         } finally {
@@ -671,9 +1083,18 @@ export function AppStorePage() {
     }
 
     function handleCloseModal() {
+        const shouldRestoreFavorites = detailDialogSource === 'favorites'
+
         setSelectedApp(null)
         setIsInstallMode(false)
         setInstallError(null)
+        setInstallFieldErrors({})
+        setDetailDialogSource('catalog')
+        setContentViewportRect(null)
+
+        if (shouldRestoreFavorites) {
+            openFavoritesDialog()
+        }
     }
 
     function handleCatalogClick(subCategory: AppStoreCatalogItem, mainCategory?: AppStoreCatalogItem) {
@@ -682,10 +1103,52 @@ export function AppStorePage() {
         handleCloseModal()
     }
 
+    function handleInstallSourceChange(source: InstallSourceKey) {
+        const nextParams = new URLSearchParams(searchParams)
+        if (source === 'marketplace') {
+            nextParams.delete('source')
+        } else {
+            nextParams.set('source', source)
+        }
+
+        setSearchParams(nextParams, { replace: true })
+        setSelectedApp(null)
+        setIsInstallMode(false)
+    }
+
     function handleSearchChange(value: string) {
-        setSelectedMainCatalogKey('all')
-        setSelectedSubCatalogKey('all')
         setSearchValue(value)
+    }
+
+    async function handleRefreshStore() {
+        if (isRefreshingStore) {
+            return
+        }
+
+        setIsRefreshingStore(true)
+
+        try {
+            const [appsResult, favoritesResult] = await Promise.all([
+                refetch(),
+                refetchFavorites(),
+                new Promise((resolve) => {
+                    window.setTimeout(resolve, 450)
+                }),
+            ])
+
+            if (appsResult.error) {
+                throw appsResult.error
+            }
+
+            if (favoritesResult.error) {
+                throw favoritesResult.error
+            }
+
+        } catch (refreshError) {
+            setInstallError(refreshError instanceof Error ? refreshError.message : t('appStorePage.states.errorTitle'))
+        } finally {
+            setIsRefreshingStore(false)
+        }
     }
 
     async function handleToggleFavorite(appKey: string | undefined, options?: { closeDetail?: boolean }) {
@@ -706,34 +1169,111 @@ export function AppStorePage() {
         await refetchFavorites()
 
         if (options?.closeDetail) {
-            handleCloseModal()
+            const shouldRestoreFavorites = detailDialogSource === 'favorites'
+
+            setSelectedApp(null)
+            setIsInstallMode(false)
+            setInstallError(null)
+            setDetailDialogSource('catalog')
+            setContentViewportRect(null)
+
+            if (shouldRestoreFavorites) {
+                openFavoritesDialog()
+            }
         }
     }
 
     return (
         <Box
-            ref={contentAreaRef}
             sx={{
-                minHeight: 'calc(100vh - 120px)',
+                height: 'calc(100vh - 120px)',
                 position: 'relative',
                 mx: { xs: -1, md: -3 },
                 my: { xs: -1.5, md: -2.5 },
                 px: { xs: 2, md: 3 },
                 py: { xs: 1.5, md: 2.25 },
                 backgroundColor: '#ffffff',
+                overflow: 'hidden',
             }}
         >
-            <Box sx={{ display: 'grid', gap: 2, width: '100%' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', height: '100%', minHeight: 0 }}>
                 <Box
                     sx={{
+                        flexShrink: 0,
                         display: 'grid',
-                        gap: 2.25,
+                        gap: 1,
+                    }}
+                >
+                    <Box>
+                        <Typography sx={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, color: '#111827' }}>
+                            {t('appStorePage.hero.title')}
+                        </Typography>
+                        <Typography sx={{ mt: 0.5, fontSize: 14, lineHeight: 1.6, color: '#526170', maxWidth: 760 }}>
+                            {t('appStorePage.hero.description')}
+                        </Typography>
+                    </Box>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gap: 1,
+                            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                        }}
+                    >
+                        {installSourceOptions.map((option) => {
+                            const active = option.key === selectedInstallSource
+                            return (
+                                <Button
+                                    key={option.key}
+                                    onClick={() => {
+                                        handleInstallSourceChange(option.key)
+                                    }}
+                                    variant="outlined"
+                                    sx={{
+                                        alignItems: 'flex-start',
+                                        justifyContent: 'flex-start',
+                                        textAlign: 'left',
+                                        textTransform: 'none',
+                                        borderRadius: '2px',
+                                        minHeight: 88,
+                                        px: 1.5,
+                                        py: 1.25,
+                                        borderColor: active ? 'rgba(59, 130, 246, 0.42)' : 'rgba(226, 232, 240, 0.95)',
+                                        backgroundColor: active ? '#eff6ff' : '#ffffff',
+                                        color: '#111827',
+                                        '&:hover': {
+                                            borderColor: active ? 'rgba(59, 130, 246, 0.58)' : 'rgba(148, 163, 184, 0.95)',
+                                            backgroundColor: active ? '#dbeafe' : '#f8fafc',
+                                        },
+                                    }}
+                                >
+                                    <Box>
+                                        <Typography sx={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, color: '#111827' }}>
+                                            {option.label}
+                                        </Typography>
+                                        <Typography sx={{ mt: 0.5, fontSize: 13.5, lineHeight: 1.55, color: '#526170' }}>
+                                            {option.description}
+                                        </Typography>
+                                    </Box>
+                                </Button>
+                            )
+                        })}
+                    </Box>
+                </Box>
+
+                {selectedInstallSource === 'marketplace' ? (
+                <Box
+                    sx={{
+                        flexShrink: 0,
+                        display: 'grid',
+                        gap: 1.25,
                         gridTemplateColumns: {
                             xs: '1fr',
-                            md: 'repeat(2, minmax(0, 1fr))',
-                            xl: 'repeat(4, minmax(0, 1fr))',
+                            md: 'repeat(12, minmax(0, 1fr))',
                         },
-                        alignItems: 'center',
+                        alignItems: 'stretch',
+                        py: 0.5,
+                        backgroundColor: '#ffffff',
+                        boxShadow: 'none',
                     }}
                 >
                     <TextField
@@ -744,6 +1284,7 @@ export function AppStorePage() {
                             setSelectedMainCatalogKey(event.target.value)
                         }}
                         sx={{
+                            gridColumn: { md: 'span 3', xl: 'span 3' },
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: '4px',
                                 backgroundColor: '#fff',
@@ -768,8 +1309,8 @@ export function AppStorePage() {
                         }}
                     >
                         {mainCategories.map((category) => (
-                            <MenuItem key={category.key} value={category.key ?? 'all'}>
-                                {category.title}
+                            <MenuItem key={category.key} value={category.key}>
+                                {formatCatalogOptionLabel(category)}
                             </MenuItem>
                         ))}
                     </TextField>
@@ -781,6 +1322,7 @@ export function AppStorePage() {
                             setSelectedSubCatalogKey(event.target.value)
                         }}
                         sx={{
+                            gridColumn: { md: 'span 3', xl: 'span 3' },
                             '& .MuiOutlinedInput-root': {
                                 borderRadius: '4px',
                                 backgroundColor: '#fff',
@@ -805,8 +1347,8 @@ export function AppStorePage() {
                         }}
                     >
                         {subCategories.map((category) => (
-                            <MenuItem key={category.key} value={category.key ?? 'all'}>
-                                {category.title}
+                            <MenuItem key={category.key} value={category.key}>
+                                {formatCatalogOptionLabel(category, { hideCount: category.key === 'all' })}
                             </MenuItem>
                         ))}
                     </TextField>
@@ -818,82 +1360,179 @@ export function AppStorePage() {
                             handleSearchChange(event.target.value)
                         }}
                         placeholder={t('appStorePage.filters.searchPlaceholder')}
-                        sx={{
-                            gridColumn: { xl: 'span 2' },
-                            '& .MuiOutlinedInput-root': {
-                                borderRadius: '4px',
-                                backgroundColor: '#fff',
-                                minHeight: 42,
-                            },
-                            '& .MuiInputBase-input': appStoreControlTextSx,
-                            '& .MuiInputBase-input::placeholder': {
-                                fontSize: 14,
-                                fontWeight: 400,
-                                color: '#94a3b8',
-                                opacity: 1,
-                            },
-                        }}
+                        sx={{ display: 'none' }}
                     />
-                </Box>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 34 }}>
-                    <Typography sx={{ fontSize: 16, fontWeight: 400, color: '#111827' }}>{t('appStorePage.results.sectionTitle')}</Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {isFetching && !isLoading ? <CircularProgress size={16} /> : null}
-                        <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>
-                            {t('appStorePage.results.helper')}
-                        </Typography>
+                    <Box
+                        sx={{
+                            gridColumn: { xs: '1 / -1', md: 'span 6', xl: 'span 6' },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            justifySelf: 'stretch',
+                            width: '100%',
+                            minWidth: 0,
+                            gap: 0.5,
+                            minHeight: 42,
+                        }}
+                    >
+                        <TextField
+                            size="small"
+                            value={searchValue}
+                            onChange={(event) => {
+                                handleSearchChange(event.target.value)
+                            }}
+                            placeholder={t('appStorePage.filters.searchPlaceholder')}
+                            sx={{
+                                width: { xs: '100%', md: 436 },
+                                maxWidth: '100%',
+                                flex: { xs: '1 1 auto', md: '0 1 436px' },
+                                minWidth: 0,
+                                '& .MuiOutlinedInput-root': {
+                                    borderRadius: '4px',
+                                    backgroundColor: '#ffffff',
+                                    minHeight: 42,
+                                    border: '1px solid rgba(226, 232, 240, 0.95)',
+                                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                                },
+                                '& .MuiInputBase-input': appStoreControlTextSx,
+                                '& .MuiInputBase-input::placeholder': {
+                                    fontSize: 14,
+                                    fontWeight: 400,
+                                    color: '#94a3b8',
+                                    opacity: 1,
+                                },
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                marginLeft: 'auto',
+                                flexShrink: 0,
+                            }}
+                        >
+                            <Tooltip title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length }).replace(/\s*\(\d+\)$/, '')}>
+                                <Button
+                                    color="inherit"
+                                    onClick={() => {
+                                        openFavoritesDialog()
+                                    }}
+                                    size="small"
+                                    startIcon={
+                                        <Badge badgeContent={favoriteApps.length} color="error" max={99} overlap="circular">
+                                            <FavoriteIcon />
+                                        </Badge>
+                                    }
+                                    aria-label={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                                    sx={{
+                                        height: 42,
+                                        minWidth: 'auto',
+                                        px: 1.5,
+                                        borderRadius: '4px',
+                                        border: '1px solid rgba(251, 113, 133, 0.18)',
+                                        background: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%)',
+                                        color: '#e11d48',
+                                        boxShadow: '0 1px 2px rgba(244, 63, 94, 0.08)',
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        lineHeight: 1,
+                                        whiteSpace: 'nowrap',
+                                        '&:hover': {
+                                            background: 'linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%)',
+                                            boxShadow: '0 4px 10px rgba(244, 63, 94, 0.12)',
+                                        },
+                                        '& .MuiButton-startIcon': {
+                                            marginLeft: 0,
+                                            marginRight: 1,
+                                        },
+                                        '& .MuiBadge-badge': {
+                                            backgroundColor: '#e11d48',
+                                            color: '#fff',
+                                        },
+                                    }}
+                                    title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                                >
+                                    {favoriteListLabel}
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
+                                <IconButton
+                                    color="inherit"
+                                    onClick={() => {
+                                        void handleRefreshStore()
+                                    }}
+                                    size="small"
+                                    disabled={isRefreshingStore}
+                                    sx={{
+                                        width: 42,
+                                        height: 42,
+                                        borderRadius: '4px',
+                                        border: '1px solid rgba(203, 213, 225, 0.9)',
+                                        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                                        color: '#475569',
+                                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+                                        '&:hover': {
+                                            background: 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
+                                            color: '#334155',
+                                            boxShadow: '0 4px 10px rgba(15, 23, 42, 0.08)',
+                                        },
+                                    }}
+                                    title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                                >
+                                    {isRefreshingStore ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
                     </Box>
                 </Box>
-
-                {isLoading ? (
-                    <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, py: 5 }}>
-                                <CircularProgress size={28} />
-                                <Typography color="text.secondary" variant="body2">
-                                    {t('appStorePage.states.loading')}
-                                </Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                ) : null}
-
-                {!isLoading && error ? (
-                    <Alert
-                        action={
-                            <Button color="inherit" size="small" onClick={() => void refetch()}>
-                                {t('appStorePage.states.retry')}
+                ) : (
+                <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
+                    <Stack spacing={1.5} sx={{ pb: 0.5 }}>
+                        <SurfaceStateCard
+                            title={t(`appStorePage.sources.${selectedInstallSource}.emptyTitle`)}
+                            detail={t(`appStorePage.sources.${selectedInstallSource}.emptyDetail`)}
+                        />
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Button onClick={() => navigate('/myapps')} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none' }}>
+                                {t('appStorePage.actions.openInstalledApps')}
                             </Button>
-                        }
-                        severity="warning"
-                        variant="outlined"
-                    >
-                        <Typography sx={{ fontWeight: 600 }}>{t('appStorePage.states.errorTitle')}</Typography>
-                        <Typography variant="body2">
-                            {t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
-                        </Typography>
-                    </Alert>
-                ) : null}
+                            <Button onClick={() => handleInstallSourceChange('marketplace')} variant="contained" sx={{ borderRadius: '2px', textTransform: 'none', boxShadow: 'none' }}>
+                                {t('appStorePage.actions.backToMarketplace')}
+                            </Button>
+                        </Box>
+                    </Stack>
+                </Box>
+                )}
 
-                {!isLoading && !error && filteredApps.length === 0 ? (
-                    <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                        <CardContent>
-                            <Box sx={{ py: 4, textAlign: 'center' }}>
-                                <Typography sx={{ fontWeight: 600 }}>{t('appStorePage.states.emptyTitle')}</Typography>
-                                <Typography color="text.secondary" variant="body2">
-                                    {t('appStorePage.states.emptyDetail')}
-                                </Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                ) : null}
+                {selectedInstallSource === 'marketplace' ? (
+                <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
+                    <Stack spacing={1.5} sx={{ pb: 0.5 }}>
+                        {isLoading || isRefreshingStore ? (
+                            <SurfaceStateCard detail={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.states.loading')} loading />
+                        ) : null}
 
-                {!isLoading && !error && filteredApps.length > 0 ? (
-                    <Stack spacing={2.5}>
-                        {favoriteApps.length > 0 ? (
+                        {!isLoading && !isRefreshingStore && error ? (
+                            <SurfaceNoticeAlert
+                                detail={t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
+                                action={
+                                    <Button color="inherit" size="small" onClick={() => void refetch()}>
+                                        {t('appStorePage.states.retry')}
+                                    </Button>
+                                }
+                                severity="warning"
+                                title={t('appStorePage.states.errorTitle')}
+                            />
+                        ) : null}
+
+                        {!isLoading && !isRefreshingStore && !error && filteredApps.length === 0 ? (
+                            <SurfaceStateCard detail={t('appStorePage.states.emptyDetail')} title={t('appStorePage.states.emptyTitle')} />
+                        ) : null}
+
+                        {!isLoading && !isRefreshingStore && !error && filteredApps.length > 0 ? (
                             <Stack spacing={1.5}>
-                                <FavoriteSectionHeading title={t('appStorePage.results.favoriteSectionTitle')} />
+                                <FavoriteSectionHeading title={currentListTitle} />
                                 <Box
                                     sx={{
                                         display: 'grid',
@@ -905,23 +1544,23 @@ export function AppStorePage() {
                                         },
                                     }}
                                 >
-                                    {favoriteApps.map((app) => {
+                                    {filteredApps.map((app) => {
                                         return (
                                             <Card
-                                                key={`favorite-${app.key ?? app.trademark}`}
+                                                key={app.key ?? app.trademark}
                                                 elevation={0}
                                                 onClick={() => {
-                                                    setSelectedApp(app)
+                                                    openAppDetail(app, 'catalog')
                                                 }}
                                                 sx={{
                                                     border: '1px solid rgba(229, 231, 235, 0.92)',
                                                     borderRadius: '2px',
-                                                    background: 'linear-gradient(180deg, #fffdf5 0%, #ffffff 100%)',
+                                                    backgroundColor: '#fff',
                                                     boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
                                                     cursor: 'pointer',
                                                     transition: 'background-color 120ms ease, box-shadow 120ms ease',
                                                     '&:hover': {
-                                                        backgroundColor: 'rgb(245, 241, 224)',
+                                                        backgroundColor: 'rgb(229, 230, 229)',
                                                         boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
                                                     },
                                                 }}
@@ -949,139 +1588,160 @@ export function AppStorePage() {
                                 </Box>
                             </Stack>
                         ) : null}
-
-                        <Stack spacing={1.5}>
-                            <FavoriteSectionHeading title={t('appStorePage.results.allAppsSectionTitle')} />
-                            <Box
-                                sx={{
-                                    display: 'grid',
-                                    gap: 2.25,
-                                    gridTemplateColumns: {
-                                        xs: '1fr',
-                                        md: 'repeat(2, minmax(0, 1fr))',
-                                        xl: 'repeat(4, minmax(0, 1fr))',
-                                    },
-                                }}
-                            >
-                                {nonFavoriteApps.map((app) => {
-                                    return (
-                                        <Card
-                                            key={app.key ?? app.trademark}
-                                            elevation={0}
-                                            onClick={() => {
-                                                setSelectedApp(app)
-                                            }}
-                                            sx={{
-                                                border: '1px solid rgba(229, 231, 235, 0.92)',
-                                                borderRadius: '2px',
-                                                backgroundColor: '#fff',
-                                                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                                                cursor: 'pointer',
-                                                transition: 'background-color 120ms ease, box-shadow 120ms ease',
-                                                '&:hover': {
-                                                    backgroundColor: 'rgb(229, 230, 229)',
-                                                    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                                                },
-                                            }}
-                                        >
-                                            <CardContent sx={{ p: '10px !important' }}>
-                                                <Box sx={{ display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
-                                                    <Box sx={{ width: 100, minWidth: 100, px: '10px', boxSizing: 'border-box' }}>
-                                                        <Box sx={{ width: 80, height: 80 }}>
-                                                            <AppLogo app={app} />
-                                                        </Box>
-                                                    </Box>
-                                                    <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                                                        <Typography sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                            {app.trademark ?? app.key}
-                                                        </Typography>
-                                                        <Typography sx={{ fontSize: 14, lineHeight: 1.45, height: 44, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
-                                                            {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
-                                                        </Typography>
-                                                    </Box>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    )
-                                })}
-                            </Box>
-                        </Stack>
                     </Stack>
+                </Box>
                 ) : null}
             </Box>
 
-            <Dialog
-                fullWidth
+            <AppStoreScopedOverlay open={isFavoritesOpen} onClose={() => setIsFavoritesOpen(false)} scopeRect={contentViewportRect} maxWidth={832}>
+                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+                        <Typography sx={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: '#334155' }}>
+                            {t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                        </Typography>
+                        <IconButton
+                            color="inherit"
+                            onClick={() => {
+                                setIsFavoritesOpen(false)
+                            }}
+                            size="small"
+                            sx={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: '12px',
+                                border: '1px solid rgba(203, 213, 225, 0.9)',
+                                background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                                color: '#475569',
+                                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+                                '&:hover': {
+                                    background: 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
+                                    color: '#334155',
+                                },
+                            }}
+                            title={t('appStorePage.actions.close')}
+                        >
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                </DialogTitle>
+                <DialogContent dividers sx={{ px: { xs: 2, md: 2.5 }, py: 2, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                    {favoriteApps.length === 0 ? (
+                        <SurfaceStateCard title={t('appStorePage.results.favoriteEmptyTitle')} detail={t('appStorePage.results.favoriteEmptyDetail')} />
+                    ) : (
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gap: 2,
+                                gridTemplateColumns: {
+                                    xs: '1fr',
+                                    sm: 'repeat(2, minmax(0, 1fr))',
+                                    md: 'repeat(3, minmax(0, 1fr))',
+                                },
+                            }}
+                        >
+                            {favoriteApps.map((app) => (
+                                <Card
+                                    key={`favorites-dialog-${app.key ?? app.trademark}`}
+                                    elevation={0}
+                                    onClick={() => {
+                                        setIsFavoritesOpen(false)
+                                        openAppDetail(app, 'favorites')
+                                    }}
+                                    sx={{
+                                        border: '1px solid rgba(229, 231, 235, 0.92)',
+                                        borderRadius: '2px',
+                                        background: 'linear-gradient(180deg, #fffdf5 0%, #ffffff 100%)',
+                                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.08)',
+                                        cursor: 'pointer',
+                                        transition: 'background-color 120ms ease, box-shadow 120ms ease',
+                                        '&:hover': {
+                                            backgroundColor: 'rgb(245, 241, 224)',
+                                            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                        },
+                                    }}
+                                >
+                                    <CardContent sx={{ p: '10px !important' }}>
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
+                                            <Box sx={{ width: 88, minWidth: 88, px: '8px', boxSizing: 'border-box' }}>
+                                                <Box sx={{ width: 72, height: 72 }}>
+                                                    <AppLogo app={app} />
+                                                </Box>
+                                            </Box>
+                                            <Box sx={{ minWidth: 0, textAlign: 'left' }}>
+                                                <Typography sx={{ fontSize: 16, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {app.trademark ?? app.key}
+                                                </Typography>
+                                                <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, height: 40, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
+                                                    {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                    <Button
+                        color="inherit"
+                        onClick={() => setIsFavoritesOpen(false)}
+                        variant="contained"
+                        sx={{
+                            minWidth: 68,
+                            backgroundColor: '#eef2f7',
+                            color: '#475569',
+                            borderRadius: 0,
+                            boxShadow: 'none',
+                            '&:hover': { backgroundColor: '#e2e8f0', boxShadow: 'none' },
+                        }}
+                    >
+                        {t('appStorePage.actions.close')}
+                    </Button>
+                </DialogActions>
+            </AppStoreScopedOverlay>
+
+            <AppStoreScopedOverlay
                 open={Boolean(selectedApp)}
                 onClose={handleCloseModal}
-                disablePortal
-                container={contentAreaRef.current}
-                sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    '& .MuiBackdrop-root': {
-                        position: 'absolute',
-                        inset: 0,
-                        backgroundColor: 'rgba(15, 23, 42, 0.18)',
-                    },
-                    '& .MuiDialog-container': {
-                        position: 'absolute',
-                        inset: 0,
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        px: { xs: 1.5, md: 3 },
-                        py: { xs: 1.5, md: 2.5 },
-                        overflowY: 'auto',
-                    },
-                }}
-                slotProps={{
-                    paper: {
-                        sx: {
-                            width: { xs: 'min(100%, 800px)', md: 'min(800px, calc(100% - 32px))' },
-                            maxWidth: '800px',
-                            maxHeight: 'calc(100% - 48px)',
-                            margin: 0,
-                            borderRadius: '2px',
-                            boxShadow: '0 16px 40px rgba(15, 23, 42, 0.16)',
-                            overflow: 'hidden',
-                        },
-                    },
-                }}
+                scopeRect={contentViewportRect}
+                maxWidth={840}
+                verticalPlacement="top"
             >
                 {selectedApp ? (
                     <>
-                        <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 } }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr) auto', gap: 1.5, alignItems: 'start' }}>
-                                <Box sx={{ width: 64, height: 64, mt: 0.25 }}>
+                        <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) auto', gap: 1.5, alignItems: 'center' }}>
+                                <Box sx={{ width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <AppLogo app={selectedApp} />
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                         <Typography sx={{ fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: '#334155' }}>{selectedApp.trademark ?? selectedApp.key}</Typography>
-                                        <Button
-                                            component="a"
-                                            href={getDocumentationUrl(selectedApp, i18n.resolvedLanguage ?? i18n.language ?? 'en')}
-                                            rel="noreferrer"
-                                            size="small"
-                                            target="_blank"
-                                            variant="contained"
-                                            sx={{
-                                                minWidth: 'auto',
-                                                px: 1,
-                                                py: 0.1,
-                                                borderRadius: '999px',
-                                                textTransform: 'none',
-                                                fontSize: 12.5,
-                                                fontWeight: 500,
-                                                lineHeight: 1.8,
-                                                boxShadow: 'none',
-                                            }}
-                                        >
-                                            Documentation
-                                        </Button>
-                                        <IconButton component="a" href={getGitHubUrl(selectedApp)} rel="noreferrer" size="small" target="_blank" sx={{ p: 0.25, color: '#000' }}>
-                                            <GitHubMarkIcon />
-                                        </IconButton>
+                                        <Tooltip title="Documentation">
+                                            <IconButton
+                                                component="a"
+                                                href={getDocumentationUrl(selectedApp, i18n.resolvedLanguage ?? i18n.language ?? 'en')}
+                                                rel="noreferrer"
+                                                size="small"
+                                                target="_blank"
+                                                sx={{ p: 0.5, color: '#475569', border: '1px solid rgba(203, 213, 225, 0.9)', borderRadius: '4px', '& svg': { fontSize: 18 } }}
+                                            >
+                                                <DocumentationIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="GitHub">
+                                            <IconButton
+                                                component="a"
+                                                href={getGitHubUrl(selectedApp)}
+                                                rel="noreferrer"
+                                                size="small"
+                                                target="_blank"
+                                                sx={{ p: 0.5, color: '#000', border: '1px solid rgba(203, 213, 225, 0.9)', borderRadius: '4px', '& svg': { fontSize: 18 } }}
+                                            >
+                                                <GitHubMarkIcon />
+                                            </IconButton>
+                                        </Tooltip>
                                     </Box>
                                     <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 400, color: '#475569' }}>
                                         {t('appStorePage.detail.versionLine', { version: getAppStoreVersionSummary(selectedApp) || '-' })}
@@ -1120,12 +1780,12 @@ export function AppStorePage() {
                                         ))}
                                     </Box>
                                 </Box>
-                                <IconButton onClick={handleCloseModal} size="small" sx={{ color: '#94a3b8', mt: 0.25, mr: -0.5 }}>
+                                <IconButton onClick={handleCloseModal} size="small" sx={{ color: '#94a3b8', alignSelf: 'start', mr: -0.5 }}>
                                     <Box component="span" sx={{ fontSize: 28, lineHeight: 1 }}>x</Box>
                                 </IconButton>
                             </Box>
                         </DialogTitle>
-                        <DialogContent dividers sx={{ px: 0, py: 0, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                        <DialogContent dividers sx={{ px: 0, py: 0, flex: 1, overflowY: 'auto', '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
                             {!isInstallMode ? (
                                 <>
                                     <AppScreenshot
@@ -1156,18 +1816,21 @@ export function AppStorePage() {
                                                 gridTemplateColumns:
                                                     selectedApp.is_web_app && wildcardDomain
                                                         ? 'minmax(0, 1fr) 180px 74px'
-                                                        : selectedApp.is_web_app
-                                                            ? 'minmax(0, 1fr) 180px'
-                                                            : '1fr',
-                                                gap: selectedApp.is_web_app && !wildcardDomain ? 1.5 : 0,
+                                                        : '1fr',
+                                                gap: 0,
                                                 alignItems: 'center',
                                             }}
                                         >
                                             <TextField
+                                                autoFocus
+                                                error={Boolean(installFieldErrors.appId)}
                                                 fullWidth
-                                                placeholder={t('appStorePage.install.appIdHelper')}
+                                                inputRef={appIdInputRef}
+                                                placeholder={t('appStorePage.install.appIdPlaceholder')}
                                                 value={installName}
                                                 onChange={(event) => {
+                                                    setInstallFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
+                                                    setInstallError(null)
                                                     setInstallName(normalizeInstallName(event.target.value))
                                                 }}
                                                 sx={{
@@ -1188,23 +1851,6 @@ export function AppStorePage() {
                                                     },
                                                 }}
                                             />
-                                            {selectedApp.is_web_app && !wildcardDomain ? (
-                                                <Chip
-                                                    clickable
-                                                    color="primary"
-                                                    label={t('appStorePage.install.setGlobalDomain')}
-                                                    onClick={() => navigate('/settings')}
-                                                    sx={{
-                                                        justifySelf: 'start',
-                                                        borderRadius: '999px',
-                                                        color: '#fff',
-                                                        fontWeight: 500,
-                                                        px: 0.75,
-                                                        height: 38,
-                                                        fontSize: 14,
-                                                    }}
-                                                />
-                                            ) : null}
                                             {selectedApp.is_web_app && wildcardDomain ? (
                                                 <>
                                                     <Box
@@ -1212,25 +1858,45 @@ export function AppStorePage() {
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             px: 1.25,
-                                                            borderTop: '1px solid rgba(203, 213, 225, 0.9)',
-                                                            borderBottom: '1px solid rgba(203, 213, 225, 0.9)',
-                                                            backgroundColor: isDomainEnabled ? '#fff' : '#f8fafc',
-                                                            color: isDomainEnabled ? '#64748b' : '#cbd5e1',
+                                                            border: '1px solid rgba(203, 213, 225, 0.9)',
+                                                            borderLeft: 0,
+                                                            backgroundColor: isDomainEnabled ? '#ffffff' : '#f8fafc',
+                                                            color: isDomainEnabled ? '#64748b' : '#94a3b8',
                                                             fontSize: 13.5,
+                                                            height: 38,
+                                                            boxSizing: 'border-box',
                                                         }}
                                                     >
-                                                        {domainSuffix}
+                                                        <Box
+                                                            component="span"
+                                                            sx={{
+                                                                display: 'inline-block',
+                                                                textDecoration: isDomainEnabled ? 'none' : 'line-through',
+                                                                textDecorationThickness: isDomainEnabled ? undefined : '1px',
+                                                                textDecorationColor: isDomainEnabled ? undefined : '#94a3b8',
+                                                            }}
+                                                        >
+                                                            {domainSuffix}
+                                                        </Box>
                                                     </Box>
                                                     <Button
                                                         onClick={() => setIsDomainEnabled((currentValue) => !currentValue)}
                                                         sx={{
-                                                            minWidth: 74,
-                                                            backgroundColor: isDomainEnabled ? '#ff5f8f' : '#3b82f6',
-                                                            color: '#fff',
-                                                            boxShadow: '0 8px 14px rgba(255, 95, 143, 0.18)',
+                                                            minWidth: 82,
+                                                            border: isDomainEnabled ? '1px solid rgba(251, 146, 60, 0.32)' : '1px solid rgba(34, 197, 94, 0.28)',
+                                                            borderLeft: 0,
+                                                            background: isDomainEnabled
+                                                                ? 'linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%)'
+                                                                : 'linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)',
+                                                            color: isDomainEnabled ? '#b45309' : '#15803d',
+                                                            boxShadow: 'none',
                                                             borderRadius: '0 4px 4px 0',
                                                             '&:hover': {
-                                                                backgroundColor: isDomainEnabled ? '#fb4d83' : '#2563eb',
+                                                                background: isDomainEnabled
+                                                                    ? 'linear-gradient(180deg, #ffedd5 0%, #fed7aa 100%)'
+                                                                    : 'linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)',
+                                                                color: isDomainEnabled ? '#9a3412' : '#166534',
+                                                                boxShadow: 'none',
                                                             },
                                                         }}
                                                         variant="contained"
@@ -1242,34 +1908,20 @@ export function AppStorePage() {
                                         </Box>
                                     </Box>
 
-                                    {selectedApp.is_web_app && !isCustomDomainVisible ? (
-                                        <Box>
-                                            <Chip
-                                                clickable
-                                                color="primary"
-                                                label={t('appStorePage.install.addDomain')}
-                                                onClick={() => setIsCustomDomainVisible((currentValue) => !currentValue)}
-                                                sx={{
-                                                    borderRadius: '999px',
-                                                    color: '#fff',
-                                                    fontWeight: 500,
-                                                    px: 0.5,
-                                                    height: 34,
-                                                }}
-                                            />
-                                        </Box>
-                                    ) : null}
-
-                                    {selectedApp.is_web_app && isCustomDomainVisible ? (
+                                    {selectedApp.is_web_app ? (
                                         <Box>
                                             <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{t('appStorePage.install.customDomainLabel')}</Typography>
-                                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 84px', gap: 1 }}>
+                                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1 }}>
                                                 <TextField
                                                     fullWidth
+                                                    error={Boolean(installFieldErrors.customDomain)}
+                                                    inputRef={customDomainInputRef}
                                                     placeholder={t('appStorePage.install.customDomainPlaceholder')}
                                                     value={customDomain}
                                                     onChange={(event) => {
-                                                        setCustomDomain(event.target.value)
+                                                        setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
+                                                        setInstallError(null)
+                                                        setCustomDomain(normalizeCustomDomain(event.target.value))
                                                     }}
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
@@ -1281,76 +1933,109 @@ export function AppStorePage() {
                                                             fontWeight: 400,
                                                             color: '#334155',
                                                         },
+                                                        '& .MuiInputBase-input::placeholder': {
+                                                            fontSize: 14,
+                                                            fontWeight: 400,
+                                                            color: '#94a3b8',
+                                                            opacity: 1,
+                                                        },
                                                     }}
                                                 />
-                                                <Button
-                                                    color="error"
-                                                    onClick={() => {
-                                                        setIsCustomDomainVisible(false)
-                                                        setCustomDomain('')
-                                                    }}
-                                                    sx={{ minWidth: 84, boxShadow: 'none' }}
-                                                    variant="contained"
-                                                >
-                                                    {t('appStorePage.actions.delete')}
-                                                </Button>
                                             </Box>
                                         </Box>
                                     ) : null}
 
                                     <Box>
                                         <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{t('appStorePage.install.versionLabel')}</Typography>
-                                        <TextField
-                                            select
-                                            fullWidth
-                                            value={selectedVersion}
-                                            onChange={(event) => {
-                                                setSelectedVersion(event.target.value)
-                                            }}
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: '4px',
-                                                    height: 38,
-                                                },
-                                                '& .MuiSelect-select': appStoreControlTextSx,
-                                            }}
-                                            slotProps={{
-                                                select: {
-                                                    MenuProps: {
-                                                        slotProps: {
-                                                            paper: {
-                                                                sx: {
-                                                                    borderRadius: 0,
-                                                                    mt: 0.5,
-                                                                    '& .MuiMenuItem-root': appStoreMenuItemSx,
+                                        {availableVersions.length > 1 ? (
+                                            <TextField
+                                                select
+                                                fullWidth
+                                                value={selectedVersion}
+                                                onChange={(event) => {
+                                                    setInstallError(null)
+                                                    setSelectedVersion(event.target.value)
+                                                }}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: '4px',
+                                                        height: 38,
+                                                    },
+                                                    '& .MuiSelect-select': appStoreControlTextSx,
+                                                }}
+                                                slotProps={{
+                                                    select: {
+                                                        MenuProps: {
+                                                            disablePortal: true,
+                                                            slotProps: {
+                                                                paper: {
+                                                                    sx: {
+                                                                        borderRadius: 0,
+                                                                        mt: 0.5,
+                                                                        zIndex: 1501,
+                                                                        '& .MuiMenuItem-root': appStoreMenuItemSx,
+                                                                    },
                                                                 },
                                                             },
                                                         },
                                                     },
-                                                },
-                                            }}
-                                        >
-                                            {getAppStoreInstallDistributions(selectedApp).flatMap((distribution) =>
-                                                distribution.versions.map((version) => (
-                                                    <MenuItem key={`${distribution.dist}-${version}`} value={version}>
+                                                }}
+                                            >
+                                                {availableVersions.map((version) => (
+                                                    <MenuItem key={version} value={version}>
                                                         {version}
                                                     </MenuItem>
-                                                )),
-                                            )}
-                                        </TextField>
+                                                ))}
+                                            </TextField>
+                                        ) : (
+                                            <TextField
+                                                fullWidth
+                                                value={availableVersions[0] ?? selectedVersion}
+                                                slotProps={{
+                                                    input: {
+                                                        readOnly: true,
+                                                    },
+                                                }}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: '4px',
+                                                        height: 38,
+                                                        backgroundColor: '#f8fafc',
+                                                    },
+                                                    '& .MuiInputBase-input': appStoreControlTextSx,
+                                                }}
+                                            />
+                                        )}
                                     </Box>
 
                                     {Object.entries(installSettings).map(([key, value]) => (
                                         <Box key={key}>
                                             <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{getInstallSettingLabel(key, t, i18n.resolvedLanguage ?? i18n.language ?? 'en')}</Typography>
                                             <TextField
+                                                error={Boolean(installFieldErrors.settings?.[key])}
                                                 fullWidth
+                                                inputRef={(element) => {
+                                                    installSettingInputRefs.current[key] = element
+                                                }}
                                                 value={value}
                                                 onChange={(event) => {
+                                                    setInstallFieldErrors((currentValue) => ({
+                                                        ...currentValue,
+                                                        settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
+                                                    }))
+                                                    setInstallError(null)
                                                     setInstallSettings((currentValue) => ({
                                                         ...currentValue,
                                                         [key]: event.target.value,
                                                     }))
+                                                }}
+                                                slotProps={{
+                                                    htmlInput: key.toLowerCase().includes('port')
+                                                        ? {
+                                                            inputMode: 'numeric',
+                                                            pattern: '[0-9]*',
+                                                        }
+                                                        : undefined,
                                                 }}
                                                 sx={{
                                                     '& .MuiOutlinedInput-root': {
@@ -1370,7 +2055,7 @@ export function AppStorePage() {
                                 </Box>
                             )}
                         </DialogContent>
-                        <DialogActions sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                        <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
                             <Button
                                 color="inherit"
                                 onClick={handleCloseModal}
@@ -1421,29 +2106,19 @@ export function AppStorePage() {
                         </DialogActions>
                     </>
                 ) : null}
-            </Dialog>
+            </AppStoreScopedOverlay>
 
-            <Snackbar
-                autoHideDuration={4000}
+            <SurfaceFeedbackToast
+                message={installError ?? installFeedback?.message ?? ''}
                 onClose={() => {
                     setInstallFeedback(null)
                     setInstallError(null)
                 }}
                 open={Boolean(installFeedback) || Boolean(installError)}
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-            >
-                {installError ? (
-                    <Alert severity="error" variant="filled" sx={{ width: '100%' }}>
-                        {installError}
-                    </Alert>
-                ) : installFeedback ? (
-                    <Alert severity={installFeedback.severity} variant="filled" sx={{ width: '100%' }}>
-                        {installFeedback.message}
-                    </Alert>
-                ) : (
-                    <Box />
-                )}
-            </Snackbar>
+                scope="content"
+                scopeRect={contentViewportRect}
+                severity={installError ? 'error' : installFeedback?.severity ?? 'success'}
+            />
         </Box>
     )
 }

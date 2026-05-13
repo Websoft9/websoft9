@@ -151,6 +151,7 @@ GPT-5.4
 
 - 2026-04-23: `cd /workspace/websoft9/console && npm run typecheck`
 - 2026-04-23: `cd /workspace/websoft9/console && npm run build`
+- 2026-05-13: `cd /workspace/websoft9/console && npm run typecheck`
 - 2026-04-23: `docker exec websoft9-product-current curl -sS -i --max-time 20 http://127.0.0.1:8889/api/apps/available/en`
 - 2026-04-23: `docker exec websoft9-product-current curl -sS -i --max-time 20 http://127.0.0.1:8889/api/apps/catalog/en`
 - 2026-04-23: `cd /workspace/websoft9/console && docker cp dist/. websoft9-product-current:/etc/websoft9/console/`
@@ -178,6 +179,7 @@ GPT-5.4
 - Removed the centered max-width wrapper so the App Store content area now fills the available shell workspace and keeps its own background distinct from the left navigation column.
 - Refined the native App Store presentation so the right-hand workspace now stays on the shell's white content background, install/detail typography is less bright, the set-global-domain action sits on the application-name row, screenshot spacing from the divider is larger, and install validation/errors use one consistent top alert style.
 - Reduced steady-state AppHub load by moving the App Store's read-only browse data to static-first media JSON: the console now reads `/media/json/product_{locale}.json` and `/media/json/catalog_{locale}.json` before falling back to the legacy AppHub endpoints.
+- Refined the App Store IA into an install-entry surface: navigation now labels this area as Install Apps, the page exposes marketplace, compose, and runtime install-source entry cards, and non-marketplace paths intentionally stay as guided placeholders until Stories 3.3A and 3.3C land.
 - Added startup generation of `/media/json/app-store-install-metadata.json`, which precomputes each app's install `settings`, `is_web_app`, and configured `initial_apps` filter from the library `.env` files so the install modal can stay functional without AppHub transforming the browse payload on every request.
 - Narrowed the non-rounded visual treatment back to the modal footer's Close and Install buttons only; helper actions such as Documentation, Set Global Domain, Add Domain, Enable/Disable Domain, and Delete now use their prior rounded styling again.
 - Formally downgraded `GET /api/apps/catalog/{locale}` and `GET /api/apps/available/{locale}` to compatibility-only AppHub fallback endpoints in the router metadata and API contract docs so the static `/media/json/*` path remains the intended primary browse contract.

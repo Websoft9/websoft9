@@ -28,6 +28,7 @@ import './my-apps-page.css'
 // Types
 // =====================
 type StatusFilter = 'all' | '1' | '2' | '3' | '4'
+type SourceFilter = 'all' | 'marketplace' | 'compose' | 'runtime'
 type RemoveType = 'inactive' | 'error'
 type ActionFeedback = {
     severity: 'success' | 'error' | 'info'
@@ -55,6 +56,18 @@ function getStatusLabel(status: number): string {
         case 4: return 'Error'
         default: return 'Unknown'
     }
+}
+
+function getInstallSourceKey(app: MyApp): Exclude<SourceFilter, 'all'> {
+    if (app.app_official) {
+        return 'marketplace'
+    }
+
+    if (app.is_php_app) {
+        return 'runtime'
+    }
+
+    return 'compose'
 }
 
 // =====================
@@ -403,6 +416,7 @@ export function MyAppsPage() {
     const navigate = useNavigate()
     const [searchValue, setSearchValue] = useState('')
     const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
+    const [selectedSource, setSelectedSource] = useState<SourceFilter>('all')
     // Store only the identifier so the dialog always reads live data from the query
     const [logDialogKey, setLogDialogKey] = useState<string | null>(null)
     const [removeApp, setRemoveApp] = useState<MyApp | null>(null)
@@ -466,28 +480,40 @@ export function MyAppsPage() {
         () => apps.filter((app) => {
             if (!app.app_official) return false
             const matchesStatus = selectedStatus === 'all' || String(app.status) === selectedStatus
+            const matchesSource = selectedSource === 'all' || getInstallSourceKey(app) === selectedSource
             const searchText = [app.app_name, app.app_id, app.app_version, app.error].filter(Boolean).join(' ').toLowerCase()
             const matchesSearch = !searchValue.trim() || searchText.includes(searchValue.trim().toLowerCase())
-            return matchesStatus && matchesSearch
+            return matchesStatus && matchesSource && matchesSearch
         }),
-        [apps, selectedStatus, searchValue],
+        [apps, searchValue, selectedSource, selectedStatus],
     )
 
     const otherApps = useMemo(
         () => apps.filter((app) => {
             if (app.app_official) return false
-            return selectedStatus === 'all' || String(app.status) === selectedStatus
+            const matchesStatus = selectedStatus === 'all' || String(app.status) === selectedStatus
+            const matchesSource = selectedSource === 'all' || getInstallSourceKey(app) === selectedSource
+            const searchText = [app.app_name, app.app_id, app.app_version, app.error].filter(Boolean).join(' ').toLowerCase()
+            const matchesSearch = !searchValue.trim() || searchText.includes(searchValue.trim().toLowerCase())
+            return matchesStatus && matchesSource && matchesSearch
         }),
-        [apps, selectedStatus],
+        [apps, searchValue, selectedSource, selectedStatus],
     )
 
-    const hasOfficialApps = apps.some((app) => app.app_official)
-    const hasOtherApps = apps.some((app) => !app.app_official)
+    const hasVisibleOfficialApps = officialApps.length > 0
+    const hasVisibleOtherApps = otherApps.length > 0
 
     function handleCardClick(app: MyApp) {
         if (!app.app_official) return
         if (app.status === 1) {
-            void navigate(`/myapps/${encodeURIComponent(app.app_id)}`)
+            const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
+            const backgroundScrollTop = contentScopeContainer instanceof HTMLElement ? contentScopeContainer.scrollTop : 0
+
+            void navigate(`/myapps/${encodeURIComponent(app.app_id)}`, {
+                state: {
+                    backgroundScrollTop,
+                },
+            })
         } else if (app.status === 3 || app.status === 4) {
             setLogDialogKey(app.tracking_id ?? app.app_id)
         }
@@ -624,6 +650,25 @@ export function MyAppsPage() {
                         <h3 className="appstore-item-content-title" style={{ color: '#2196f3', margin: '0 0 4px' }}>
                             {app.app_id}
                         </h3>
+                        <div style={{ marginBottom: 4 }}>
+                            <span
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minHeight: 22,
+                                    padding: '0 8px',
+                                    borderRadius: 999,
+                                    backgroundColor: app.app_official ? '#dbeafe' : app.is_php_app ? '#ede9fe' : '#dcfce7',
+                                    color: app.app_official ? '#1d4ed8' : app.is_php_app ? '#6d28d9' : '#166534',
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    lineHeight: 1.2,
+                                }}
+                            >
+                                {t(`myAppsPage.source.${getInstallSourceKey(app)}`)}
+                            </span>
+                        </div>
                         {app.app_official ? (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 {app.status === 3 ? <span className="spinner-border-sm me-1" /> : null}
@@ -662,6 +707,18 @@ export function MyAppsPage() {
                         <option value="4">Error</option>
                     </select>
                 </div>
+                <div className="myapps-toolbar-select">
+                    <select
+                        className="form-select"
+                        value={selectedSource}
+                        onChange={(e) => setSelectedSource(e.target.value as SourceFilter)}
+                    >
+                        <option value="all">{t('myAppsPage.filters.allSources')}</option>
+                        <option value="marketplace">{t('myAppsPage.filters.marketplaceSource')}</option>
+                        <option value="compose">{t('myAppsPage.filters.composeSource')}</option>
+                        <option value="runtime">{t('myAppsPage.filters.runtimeSource')}</option>
+                    </select>
+                </div>
                 <div className="myapps-toolbar-search">
                     <input
                         type="text"
@@ -672,6 +729,13 @@ export function MyAppsPage() {
                     />
                 </div>
                 <div className="myapps-toolbar-refresh">
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => navigate('/appstore')}
+                        style={{ marginRight: 8 }}
+                    >
+                        {t('myAppsPage.hero.addApplication')}
+                    </button>
                     <button
                         className="btn btn-primary"
                         disabled={manualRefreshing}
@@ -713,7 +777,7 @@ export function MyAppsPage() {
             {/* Content */}
             {!isLoading && !error ? (
                 <>
-                    {!hasOfficialApps && !hasOtherApps ? (
+                    {!hasVisibleOfficialApps && !hasVisibleOtherApps ? (
                         <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)', mt: 2 }}>
                             <CardContent>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
@@ -740,7 +804,7 @@ export function MyAppsPage() {
                         </Card>
                     ) : (
                         <>
-                            {hasOfficialApps ? (
+                            {hasVisibleOfficialApps ? (
                                 <div>
                                     <h4 className="myapps-section-heading">{t('myAppsPage.sections.officialApps')}</h4>
                                     {officialApps.length === 0 ? (
@@ -760,7 +824,7 @@ export function MyAppsPage() {
                                 </div>
                             ) : null}
 
-                            {hasOtherApps ? (
+                            {hasVisibleOtherApps ? (
                                 <div>
                                     <h4 className="myapps-section-heading is-secondary">{t('myAppsPage.sections.otherApps')}</h4>
                                     <div className="myapps-card-grid">
