@@ -25,7 +25,9 @@ import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceFeedbackToast, SurfaceNoticeAlert, SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
+import { useAppColorMode } from '../../app/providers/color-mode'
 import {
     getAppStoreInstallDistributions,
     getPreferredAppStoreInstallDistribution,
@@ -152,6 +154,33 @@ type ProductAuthFavoritesResponse = {
     favorites: string[]
 }
 
+type ComposeEnvironmentRow = {
+    id: string
+    key: string
+    value: string
+}
+
+type ComposeValidationResponse = {
+    valid: boolean
+    services: string[]
+    environment_keys: string[]
+    details: string
+}
+
+const DEFAULT_COMPOSE_TEMPLATE = `services:
+    web:
+        image: nginx:latest
+        ports:
+            - "8080:80"
+`
+
+const INSTALL_WORKSPACE_CARD_SX = {
+    borderRadius: '2px',
+    border: '1px solid rgba(203, 213, 225, 0.9)',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
+}
+
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
         credentials: 'include',
@@ -176,6 +205,18 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
 async function fetchFavorites() {
     return requestJson<ProductAuthFavoritesResponse>('/api/auth/favorites', { method: 'GET' })
+}
+
+async function validateComposeInstall(payload: {
+    app_id: string
+    display_name: string
+    compose_content: string
+    env: Array<{ key: string; value: string }>
+}) {
+    return requestJson<ComposeValidationResponse>('/api/apps/install/compose/validate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
 }
 
 async function installApp(
@@ -267,7 +308,7 @@ function AppLogo({ app }: { app: AppStoreApp }) {
                 height: '100%',
                 objectFit: 'contain',
                 borderRadius: '4px',
-                backgroundColor: '#fff',
+                backgroundColor: 'transparent',
                 p: 0,
             }}
         />
@@ -288,24 +329,37 @@ function AppScreenshot({ app, locale, alt }: { app: AppStoreApp; locale: string;
 
     return (
         <Box
-            component="img"
-            alt={alt}
-            src={sources[sourceIndex]}
-            onError={() => {
-                setSourceIndex((currentValue) => currentValue + 1)
-            }}
             sx={{
-                width: 'calc(100% - 48px)',
-                maxWidth: 520,
-                height: { xs: 190, md: 250 },
-                display: 'block',
-                objectFit: 'contain',
+                width: 'calc(100% - 16px)',
+                maxWidth: 680,
+                height: { xs: 240, md: 360 },
+                display: 'flex',
+                alignItems: 'stretch',
+                justifyContent: 'center',
                 mx: 'auto',
-                mt: 2,
+                mt: 1,
+                mb: 1.75,
+                overflow: 'hidden',
                 backgroundColor: '#fff',
-                mb: 2.5,
             }}
-        />
+        >
+            <Box
+                component="img"
+                alt={alt}
+                src={sources[sourceIndex]}
+                onError={() => {
+                    setSourceIndex((currentValue) => currentValue + 1)
+                }}
+                sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'block',
+                    objectFit: 'cover',
+                    objectPosition: 'top center',
+                    backgroundColor: '#fff',
+                }}
+            />
+        </Box>
     )
 }
 
@@ -355,18 +409,6 @@ function FavoriteIcon() {
             <path d="m12 21.35-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A5.96 5.96 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z" />
         </SvgIcon>
     )
-}
-
-const appStoreControlTextSx = {
-    fontSize: 14,
-    fontWeight: 500,
-    color: '#334155',
-}
-
-const appStoreMenuItemSx = {
-    fontSize: 14,
-    fontWeight: 500,
-    color: '#334155',
 }
 
 function getDocumentationUrl(app: AppStoreApp, resolvedLanguage: string) {
@@ -531,6 +573,10 @@ function getInstallSettingLabel(key: string, t: (key: string, options?: Record<s
     })
 }
 
+function isWebAccessPortSetting(key: string) {
+    return key === 'W9_HTTP_PORT_SET' || key === 'W9_HTTPS_PORT_SET'
+}
+
 type DomainSettingsResponse = {
     wildcard_domain?: string | null
 }
@@ -543,6 +589,11 @@ type CatalogOption = {
 
 type DetailDialogSource = 'catalog' | 'favorites'
 type InstallSourceKey = 'marketplace' | 'compose' | 'runtime'
+
+type AppStorePageProps = {
+    lockedInstallSource?: InstallSourceKey
+    hideInstallSourceSelector?: boolean
+}
 
 type ContentViewportRect = {
     top: number
@@ -560,7 +611,7 @@ type AppStoreScopedOverlayProps = {
     children: ReactNode
 }
 
-function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verticalPlacement = 'center', children }: AppStoreScopedOverlayProps) {
+function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verticalPlacement = 'center', children, darkMode = false }: AppStoreScopedOverlayProps & { darkMode?: boolean }) {
     useEffect(() => {
         if (!open) {
             return
@@ -630,9 +681,11 @@ function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verti
                         maxHeight: `${availableHeight}px`,
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: '#fff',
+                        backgroundColor: darkMode ? '#182235' : '#fff',
+                        color: darkMode ? '#e5edf5' : '#111827',
                         borderRadius: '2px',
-                        boxShadow: '0 16px 40px rgba(15, 23, 42, 0.16)',
+                        boxShadow: darkMode ? '0 24px 64px rgba(2, 6, 23, 0.62)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
+                        border: darkMode ? '1px solid rgba(148, 163, 184, 0.22)' : undefined,
                         overflow: 'hidden',
                     }}
                 >
@@ -695,8 +748,9 @@ function matchesLegacySubCatalog(app: AppStoreApp, selectedSubCatalogKey: string
     return (app.catalogCollection?.items ?? []).some((mainCategory) => mainCategory.key === selectedSubCatalogKey)
 }
 
-export function AppStorePage() {
+export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = false }: AppStorePageProps) {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const [searchValue, setSearchValue] = useState('')
@@ -715,11 +769,21 @@ export function AppStorePage() {
     const [wildcardDomain, setWildcardDomain] = useState('')
     const [isDomainEnabled, setIsDomainEnabled] = useState(true)
     const [customDomain, setCustomDomain] = useState('')
+    const [composeAppId, setComposeAppId] = useState('customapp')
+    const [composeDisplayName, setComposeDisplayName] = useState('Custom Compose App')
+    const [composeDomain, setComposeDomain] = useState('')
+    const [composeContent, setComposeContent] = useState(DEFAULT_COMPOSE_TEMPLATE)
+    const [composeEnvRows, setComposeEnvRows] = useState<ComposeEnvironmentRow[]>([{ id: 'env-1', key: '', value: '' }])
+    const [composeValidation, setComposeValidation] = useState<ComposeValidationResponse | null>(null)
+    const [composeValidationError, setComposeValidationError] = useState<string | null>(null)
+    const [composeFieldErrors, setComposeFieldErrors] = useState<{ appId?: string; displayName?: string; composeContent?: string; domain?: string; env?: string }>({})
+    const [isValidatingCompose, setIsValidatingCompose] = useState(false)
     const [isFavoritesOpen, setIsFavoritesOpen] = useState(false)
     const [detailDialogSource, setDetailDialogSource] = useState<DetailDialogSource>('catalog')
     const [contentViewportRect, setContentViewportRect] = useState<ContentViewportRect | null>(null)
     const appIdInputRef = useRef<HTMLInputElement | null>(null)
     const customDomainInputRef = useRef<HTMLInputElement | null>(null)
+    const composeFileInputRef = useRef<HTMLInputElement | null>(null)
     const installSettingInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
     const deferredSearchValue = useDeferredValue(searchValue)
     const { data, error, isLoading, refetch } = useAppStoreApps()
@@ -733,11 +797,113 @@ export function AppStorePage() {
     const apps = data ?? []
     const catalogs = catalogsData ?? []
     const sourceParam = searchParams.get('source')
-    const selectedInstallSource: InstallSourceKey = sourceParam === 'compose' || sourceParam === 'runtime' ? sourceParam : 'marketplace'
+    const selectedInstallSource: InstallSourceKey = lockedInstallSource ?? (sourceParam === 'compose' || sourceParam === 'runtime' ? sourceParam : 'marketplace')
     const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
     const favoriteSet = useMemo(() => new Set((favoritesData?.favorites ?? []).map((item) => item.toLowerCase())), [favoritesData?.favorites])
     const currentHostname = typeof window === 'undefined' ? '' : window.location.hostname
+    const isDarkMode = colorMode === 'dark'
+    const appStoreControlTextSx = {
+        fontSize: 14,
+        fontWeight: 500,
+        color: isDarkMode ? '#e5edf5' : '#334155',
+    }
+    const appStoreMenuItemSx = {
+        fontSize: 14,
+        fontWeight: 500,
+        color: isDarkMode ? '#e5edf5' : '#334155',
+        '&.Mui-selected': {
+            backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.28)' : 'rgba(37, 99, 235, 0.12)',
+            color: isDarkMode ? '#f9fafb' : '#1e293b',
+        },
+        '&.Mui-selected:hover': {
+            backgroundColor: isDarkMode ? 'rgba(37, 99, 235, 0.36)' : 'rgba(37, 99, 235, 0.18)',
+        },
+    }
+    const palette = {
+        panelBg: isDarkMode ? '#111827' : '#ffffff',
+        dialogBg: isDarkMode ? '#182235' : '#ffffff',
+        panelSoft: isDarkMode ? '#0f172a' : '#f8fafc',
+        panelHover: isDarkMode ? '#1f2937' : 'rgb(229, 230, 229)',
+        text: isDarkMode ? '#f9fafb' : '#111827',
+        subtleText: isDarkMode ? '#9fb0c3' : '#475569',
+        border: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(226, 232, 240, 0.95)',
+        borderStrong: isDarkMode ? 'rgba(148, 163, 184, 0.22)' : 'rgba(203, 213, 225, 0.9)',
+        actionBg: isDarkMode ? '#1f2937' : '#eef2f7',
+        actionHover: isDarkMode ? '#334155' : '#e2e8f0',
+    }
+    const installDialogFieldSx = {
+        '& .MuiOutlinedInput-root': {
+            borderRadius: '4px',
+            minHeight: 38,
+            backgroundColor: palette.panelBg,
+        },
+        '& .MuiOutlinedInput-root.Mui-disabled': {
+            backgroundColor: palette.panelSoft,
+        },
+        '& .MuiOutlinedInput-notchedOutline': {
+            borderColor: palette.borderStrong,
+        },
+        '& .MuiInputLabel-root': {
+            color: palette.subtleText,
+        },
+        '& .MuiInputLabel-root.Mui-focused': {
+            color: palette.subtleText,
+        },
+        '& .MuiInputBase-input, & .MuiSelect-select': {
+            fontSize: 14,
+            fontWeight: 400,
+            color: palette.text,
+            WebkitTextFillColor: palette.text,
+        },
+        '& .MuiInputBase-input::placeholder': {
+            fontSize: 14,
+            fontWeight: 400,
+            color: isDarkMode ? '#64748b' : '#94a3b8',
+            WebkitTextFillColor: isDarkMode ? '#64748b' : '#94a3b8',
+            opacity: 1,
+        },
+        '& .MuiInputBase-input::-webkit-input-placeholder': {
+            color: isDarkMode ? '#64748b' : '#94a3b8',
+            WebkitTextFillColor: isDarkMode ? '#64748b' : '#94a3b8',
+            opacity: 1,
+        },
+        '& .MuiInputBase-input::-moz-placeholder': {
+            color: isDarkMode ? '#64748b' : '#94a3b8',
+            opacity: 1,
+        },
+        '& .MuiInputBase-input.Mui-disabled': {
+            WebkitTextFillColor: palette.text,
+            color: palette.text,
+            opacity: 1,
+        },
+        '& .MuiFormHelperText-root': {
+            color: palette.subtleText,
+            mx: 0,
+            mt: 0.75,
+        },
+        '& .MuiFormHelperText-root.Mui-error': {
+            color: '#fda4af',
+        },
+    } as const
+    const installDialogSelectMenuProps = {
+        disablePortal: true,
+        slotProps: {
+            paper: {
+                sx: {
+                    borderRadius: 0,
+                    mt: 0.5,
+                    zIndex: 1501,
+                    backgroundColor: palette.dialogBg,
+                    color: palette.text,
+                    border: `1px solid ${palette.borderStrong}`,
+                    '& .MuiMenuItem-root': appStoreMenuItemSx,
+                },
+            },
+        },
+    } as const
     const domainSuffix = wildcardDomain ? `.${wildcardDomain}` : ''
+    const normalizedCustomDomain = normalizeCustomDomain(customDomain)
+    const hasCustomAccessDomain = Boolean(normalizedCustomDomain)
     const availableVersions = selectedApp ? getAppStoreInstallDistributions(selectedApp).flatMap((distribution) => distribution.versions) : []
     const keywordMatchedApps = useMemo(() => apps.filter((app) => matchesAppStoreSearch(app, deferredSearchValue)), [apps, deferredSearchValue])
     const mainCategoryCounts = useMemo(() => {
@@ -859,6 +1025,13 @@ export function AppStorePage() {
             description: t('appStorePage.sources.runtime.description'),
         },
     ]
+    const pageHeroDescription =
+        selectedInstallSource === 'marketplace'
+            ? t('appStorePage.hero.description')
+            : t(`appStorePage.sources.${selectedInstallSource}.heroDescription`)
+    const pageHeroTitle = selectedInstallSource === 'marketplace'
+        ? undefined
+        : installSourceOptions.find((option) => option.key === selectedInstallSource)?.label
     const selectedMainCategory = mainCategories.find((category) => category.key === selectedMainCatalogKey) ?? mainCategories[0]
     const selectedSubCategory = subCategories.find((category) => category.key === selectedSubCatalogKey) ?? subCategories[0]
     const currentListTitle = useMemo(() => {
@@ -874,6 +1047,11 @@ export function AppStorePage() {
 
         return segments.join(' / ')
     }, [selectedMainCatalogKey, selectedMainCategory?.title, selectedSubCatalogKey, selectedSubCategory?.title, t])
+    const sourceWorkspaceBackTarget = hideInstallSourceSelector && selectedInstallSource !== 'marketplace' ? '/applications' : '/appstore'
+    const sourceWorkspaceBackLabel = hideInstallSourceSelector && selectedInstallSource !== 'marketplace'
+        ? t('appStorePage.actions.backToApplications')
+        : t('appStorePage.actions.backToMarketplace')
+    const showPageHero = !(hideInstallSourceSelector && selectedInstallSource === 'marketplace')
 
     useEffect(() => {
         if (selectedMainCatalogKey === 'all') {
@@ -1104,6 +1282,10 @@ export function AppStorePage() {
     }
 
     function handleInstallSourceChange(source: InstallSourceKey) {
+        if (lockedInstallSource || hideInstallSourceSelector) {
+            return
+        }
+
         const nextParams = new URLSearchParams(searchParams)
         if (source === 'marketplace') {
             nextParams.delete('source')
@@ -1114,6 +1296,95 @@ export function AppStorePage() {
         setSearchParams(nextParams, { replace: true })
         setSelectedApp(null)
         setIsInstallMode(false)
+    }
+
+    function clearComposeFeedback() {
+        setComposeValidation(null)
+        setComposeValidationError(null)
+    }
+
+    function updateComposeEnvRow(id: string, field: 'key' | 'value', value: string) {
+        clearComposeFeedback()
+        setComposeFieldErrors((currentValue) => ({ ...currentValue, env: undefined }))
+        setComposeEnvRows((currentValue) => currentValue.map((row) => (row.id === id ? { ...row, [field]: value } : row)))
+    }
+
+    function addComposeEnvRow() {
+        clearComposeFeedback()
+        setComposeEnvRows((currentValue) => [...currentValue, { id: `env-${Date.now()}-${currentValue.length}`, key: '', value: '' }])
+    }
+
+    function removeComposeEnvRow(id: string) {
+        clearComposeFeedback()
+        setComposeEnvRows((currentValue) => {
+            const nextRows = currentValue.filter((row) => row.id !== id)
+            return nextRows.length > 0 ? nextRows : [{ id: 'env-1', key: '', value: '' }]
+        })
+    }
+
+    async function handleComposeFileSelected(file: File | null) {
+        if (!file) {
+            return
+        }
+
+        const text = await file.text()
+        clearComposeFeedback()
+        setComposeFieldErrors((currentValue) => ({ ...currentValue, composeContent: undefined }))
+        setComposeContent(text)
+    }
+
+    async function handleValidateCompose() {
+        const nextErrors: { appId?: string; displayName?: string; composeContent?: string; domain?: string; env?: string } = {}
+        const normalizedComposeAppId = normalizeInstallName(composeAppId)
+        const normalizedComposeDomain = normalizeCustomDomain(composeDomain)
+        const envRows = composeEnvRows.filter((row) => row.key.trim() || row.value.trim())
+
+        if (!normalizedComposeAppId) {
+            nextErrors.appId = t('appStorePage.sources.compose.workspace.appIdRequired')
+        } else if (!isInstallNameValid(normalizedComposeAppId)) {
+            nextErrors.appId = t('appStorePage.install.validation.appId')
+        }
+
+        if (!composeDisplayName.trim()) {
+            nextErrors.displayName = t('appStorePage.sources.compose.workspace.displayNameRequired')
+        }
+
+        if (!composeContent.trim()) {
+            nextErrors.composeContent = t('appStorePage.sources.compose.workspace.composeRequired')
+        }
+
+        if (normalizedComposeDomain && !isValidCustomDomain(normalizedComposeDomain)) {
+            nextErrors.domain = t('appStorePage.install.validation.customDomainFormat')
+        }
+
+        if (envRows.some((row) => row.value.trim() && !row.key.trim())) {
+            nextErrors.env = t('appStorePage.sources.compose.workspace.envKeyRequired')
+        }
+
+        setComposeAppId(normalizedComposeAppId || composeAppId)
+        setComposeDomain(normalizedComposeDomain)
+        setComposeFieldErrors(nextErrors)
+        clearComposeFeedback()
+
+        if (Object.keys(nextErrors).length > 0) {
+            setComposeValidationError(Object.values(nextErrors)[0] ?? null)
+            return
+        }
+
+        setIsValidatingCompose(true)
+        try {
+            const response = await validateComposeInstall({
+                app_id: normalizedComposeAppId,
+                display_name: composeDisplayName.trim(),
+                compose_content: composeContent,
+                env: envRows.map((row) => ({ key: row.key.trim(), value: row.value })),
+            })
+            setComposeValidation(response)
+        } catch (validationError) {
+            setComposeValidationError(validationError instanceof Error ? validationError.message : t('appStorePage.sources.compose.workspace.validationFailedTitle'))
+        } finally {
+            setIsValidatingCompose(false)
+        }
     }
 
     function handleSearchChange(value: string) {
@@ -1189,11 +1460,46 @@ export function AppStorePage() {
                 height: 'calc(100vh - 120px)',
                 position: 'relative',
                 mx: { xs: -1, md: -3 },
-                my: { xs: -1.5, md: -2.5 },
+                my: { xs: -1.25, md: -2.25 },
                 px: { xs: 2, md: 3 },
-                py: { xs: 1.5, md: 2.25 },
-                backgroundColor: '#ffffff',
+                py: { xs: 1.25, md: 1.5 },
+                backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                color: isDarkMode ? '#f9fafb' : '#111827',
                 overflow: 'hidden',
+                '& .MuiCard-root': {
+                    background: `${isDarkMode ? '#111827' : '#ffffff'} !important`,
+                    borderColor: `${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(203, 213, 225, 0.9)'} !important`,
+                    color: `${isDarkMode ? '#f9fafb' : '#111827'} !important`,
+                },
+                '& .MuiPaper-root': {
+                    backgroundColor: `${isDarkMode ? '#111827' : '#ffffff'} !important`,
+                    color: `${isDarkMode ? '#f9fafb' : '#111827'} !important`,
+                },
+                '& .MuiOutlinedInput-root': {
+                    backgroundColor: `${isDarkMode ? '#111827' : '#ffffff'} !important`,
+                    color: `${isDarkMode ? '#f9fafb' : '#111827'} !important`,
+                },
+                '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: `${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(226, 232, 240, 0.95)'} !important`,
+                },
+                '& .MuiInputLabel-root, & .MuiInputBase-input, & .MuiSelect-select': {
+                    color: `${isDarkMode ? '#e5edf5' : '#111827'} !important`,
+                },
+                '& .MuiInputBase-input::placeholder': {
+                    color: `${isDarkMode ? '#94a3b8' : '#94a3b8'} !important`,
+                    opacity: '1 !important',
+                },
+                '& .MuiMenuItem-root': {
+                    color: `${isDarkMode ? '#e5edf5' : '#111827'} !important`,
+                },
+                '& .MuiTypography-root': {
+                    color: isDarkMode ? '#e5edf5' : undefined,
+                },
+                '& .MuiAlert-root': {
+                    backgroundColor: `${isDarkMode ? '#111827' : '#ffffff'} !important`,
+                    color: `${isDarkMode ? '#e5edf5' : '#111827'} !important`,
+                    border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(226,232,240,0.95)'}`,
+                },
             }}
         >
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', height: '100%', minHeight: 0 }}>
@@ -1204,399 +1510,647 @@ export function AppStorePage() {
                         gap: 1,
                     }}
                 >
-                    <Box>
-                        <Typography sx={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2, color: '#111827' }}>
-                            {t('appStorePage.hero.title')}
-                        </Typography>
-                        <Typography sx={{ mt: 0.5, fontSize: 14, lineHeight: 1.6, color: '#526170', maxWidth: 760 }}>
-                            {t('appStorePage.hero.description')}
-                        </Typography>
-                    </Box>
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gap: 1,
-                            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
-                        }}
-                    >
-                        {installSourceOptions.map((option) => {
-                            const active = option.key === selectedInstallSource
-                            return (
-                                <Button
-                                    key={option.key}
-                                    onClick={() => {
-                                        handleInstallSourceChange(option.key)
-                                    }}
-                                    variant="outlined"
-                                    sx={{
-                                        alignItems: 'flex-start',
-                                        justifyContent: 'flex-start',
-                                        textAlign: 'left',
-                                        textTransform: 'none',
-                                        borderRadius: '2px',
-                                        minHeight: 88,
-                                        px: 1.5,
-                                        py: 1.25,
-                                        borderColor: active ? 'rgba(59, 130, 246, 0.42)' : 'rgba(226, 232, 240, 0.95)',
-                                        backgroundColor: active ? '#eff6ff' : '#ffffff',
-                                        color: '#111827',
-                                        '&:hover': {
-                                            borderColor: active ? 'rgba(59, 130, 246, 0.58)' : 'rgba(148, 163, 184, 0.95)',
-                                            backgroundColor: active ? '#dbeafe' : '#f8fafc',
-                                        },
-                                    }}
-                                >
-                                    <Box>
-                                        <Typography sx={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, color: '#111827' }}>
-                                            {option.label}
-                                        </Typography>
-                                        <Typography sx={{ mt: 0.5, fontSize: 13.5, lineHeight: 1.55, color: '#526170' }}>
-                                            {option.description}
-                                        </Typography>
-                                    </Box>
-                                </Button>
-                            )
-                        })}
-                    </Box>
+                    {showPageHero ? (
+                        <PageDescriptionHeader
+                            title={pageHeroTitle}
+                            description={pageHeroDescription}
+                            titleColor={palette.text}
+                            descriptionColor={palette.subtleText}
+                            sx={{ mt: 0, pt: pageHeroTitle ? 0.5 : 0, mb: 0.5 }}
+                        />
+                    ) : null}
+                    {!hideInstallSourceSelector ? (
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gap: 1,
+                                gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+                            }}
+                        >
+                            {installSourceOptions.map((option) => {
+                                const active = option.key === selectedInstallSource
+                                return (
+                                    <Button
+                                        key={option.key}
+                                        onClick={() => {
+                                            handleInstallSourceChange(option.key)
+                                        }}
+                                        variant="outlined"
+                                        sx={{
+                                            alignItems: 'flex-start',
+                                            justifyContent: 'flex-start',
+                                            textAlign: 'left',
+                                            textTransform: 'none',
+                                            borderRadius: '2px',
+                                            minHeight: 88,
+                                            px: 1.5,
+                                            py: 1.25,
+                                            borderColor: active ? 'rgba(59, 130, 246, 0.42)' : palette.border,
+                                            backgroundColor: active ? (isDarkMode ? 'rgba(37, 99, 235, 0.18)' : '#eff6ff') : palette.panelBg,
+                                            color: palette.text,
+                                            '&:hover': {
+                                                borderColor: active ? 'rgba(59, 130, 246, 0.58)' : 'rgba(148, 163, 184, 0.95)',
+                                                backgroundColor: active ? (isDarkMode ? 'rgba(37, 99, 235, 0.24)' : '#dbeafe') : palette.panelSoft,
+                                            },
+                                        }}
+                                    >
+                                        <Box>
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, color: palette.text }}>
+                                                {option.label}
+                                            </Typography>
+                                            <Typography sx={{ mt: 0.5, fontSize: 13.5, lineHeight: 1.55, color: palette.subtleText }}>
+                                                {option.description}
+                                            </Typography>
+                                        </Box>
+                                    </Button>
+                                )
+                            })}
+                        </Box>
+                    ) : null}
                 </Box>
 
                 {selectedInstallSource === 'marketplace' ? (
-                <Box
-                    sx={{
-                        flexShrink: 0,
-                        display: 'grid',
-                        gap: 1.25,
-                        gridTemplateColumns: {
-                            xs: '1fr',
-                            md: 'repeat(12, minmax(0, 1fr))',
-                        },
-                        alignItems: 'stretch',
-                        py: 0.5,
-                        backgroundColor: '#ffffff',
-                        boxShadow: 'none',
-                    }}
-                >
-                    <TextField
-                        select
-                        size="small"
-                        value={selectedMainCatalogKey}
-                        onChange={(event) => {
-                            setSelectedMainCatalogKey(event.target.value)
-                        }}
-                        sx={{
-                            gridColumn: { md: 'span 3', xl: 'span 3' },
-                            '& .MuiOutlinedInput-root': {
-                                borderRadius: '4px',
-                                backgroundColor: '#fff',
-                                minHeight: 42,
-                            },
-                            '& .MuiSelect-select': appStoreControlTextSx,
-                        }}
-                        slotProps={{
-                            select: {
-                                MenuProps: {
-                                    slotProps: {
-                                        paper: {
-                                            sx: {
-                                                borderRadius: 0,
-                                                mt: 0.5,
-                                                '& .MuiMenuItem-root': appStoreMenuItemSx,
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        }}
-                    >
-                        {mainCategories.map((category) => (
-                            <MenuItem key={category.key} value={category.key}>
-                                {formatCatalogOptionLabel(category)}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-                    <TextField
-                        select
-                        size="small"
-                        value={selectedSubCatalogKey}
-                        onChange={(event) => {
-                            setSelectedSubCatalogKey(event.target.value)
-                        }}
-                        sx={{
-                            gridColumn: { md: 'span 3', xl: 'span 3' },
-                            '& .MuiOutlinedInput-root': {
-                                borderRadius: '4px',
-                                backgroundColor: '#fff',
-                                minHeight: 42,
-                            },
-                            '& .MuiSelect-select': appStoreControlTextSx,
-                        }}
-                        slotProps={{
-                            select: {
-                                MenuProps: {
-                                    slotProps: {
-                                        paper: {
-                                            sx: {
-                                                borderRadius: 0,
-                                                mt: 0.5,
-                                                '& .MuiMenuItem-root': appStoreMenuItemSx,
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        }}
-                    >
-                        {subCategories.map((category) => (
-                            <MenuItem key={category.key} value={category.key}>
-                                {formatCatalogOptionLabel(category, { hideCount: category.key === 'all' })}
-                            </MenuItem>
-                        ))}
-                    </TextField>
-                    <TextField
-                        fullWidth
-                        size="small"
-                        value={searchValue}
-                        onChange={(event) => {
-                            handleSearchChange(event.target.value)
-                        }}
-                        placeholder={t('appStorePage.filters.searchPlaceholder')}
-                        sx={{ display: 'none' }}
-                    />
-
                     <Box
                         sx={{
-                            gridColumn: { xs: '1 / -1', md: 'span 6', xl: 'span 6' },
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-start',
-                            justifySelf: 'stretch',
-                            width: '100%',
-                            minWidth: 0,
-                            gap: 0.5,
-                            minHeight: 42,
+                            flexShrink: 0,
+                            gap: 2.25,
+                            display: 'grid',
+                            py: 0,
+                            pr: { md: '18px' },
+                            backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                            boxShadow: 'none',
                         }}
                     >
-                        <TextField
-                            size="small"
-                            value={searchValue}
-                            onChange={(event) => {
-                                handleSearchChange(event.target.value)
-                            }}
-                            placeholder={t('appStorePage.filters.searchPlaceholder')}
-                            sx={{
-                                width: { xs: '100%', md: 436 },
-                                maxWidth: '100%',
-                                flex: { xs: '1 1 auto', md: '0 1 436px' },
-                                minWidth: 0,
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: '4px',
-                                    backgroundColor: '#ffffff',
-                                    minHeight: 42,
-                                    border: '1px solid rgba(226, 232, 240, 0.95)',
-                                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-                                },
-                                '& .MuiInputBase-input': appStoreControlTextSx,
-                                '& .MuiInputBase-input::placeholder': {
-                                    fontSize: 14,
-                                    fontWeight: 400,
-                                    color: '#94a3b8',
-                                    opacity: 1,
-                                },
-                            }}
+                        <PageDescriptionHeader
+                            title={t('nav.appStore.label')}
+                            description={t('appStorePage.hero.description')}
+                            titleColor={palette.text}
+                            descriptionColor={palette.subtleText}
+                            sx={{ mt: 0, mb: 0.75 }}
+                            actions={(
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <Tooltip title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length }).replace(/\s*\(\d+\)$/, '')}>
+                                        <Button
+                                            color="inherit"
+                                            onClick={() => {
+                                                openFavoritesDialog()
+                                            }}
+                                            size="small"
+                                            className="app-shell-page-pill"
+                                            startIcon={
+                                                <Badge badgeContent={favoriteApps.length} color="error" max={99} overlap="circular">
+                                                    <FavoriteIcon />
+                                                </Badge>
+                                            }
+                                            aria-label={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                                            sx={{
+                                                px: 1.5,
+                                                '&:hover': {
+                                                    borderColor: 'rgba(203, 213, 225, 0.85)',
+                                                    background: palette.panelSoft,
+                                                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+                                                },
+                                                '& .MuiButton-startIcon': {
+                                                    marginLeft: 0,
+                                                    marginRight: 1,
+                                                },
+                                                '& .MuiSvgIcon-root': {
+                                                    fontSize: 18,
+                                                },
+                                                '& .MuiBadge-badge': {
+                                                    backgroundColor: '#e11d48',
+                                                    color: '#fff',
+                                                },
+                                            }}
+                                            title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                                        >
+                                            {favoriteListLabel}
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
+                                        <IconButton
+                                            color="inherit"
+                                            onClick={() => {
+                                                void handleRefreshStore()
+                                            }}
+                                            size="small"
+                                            disabled={isRefreshingStore}
+                                            className="app-shell-page-action"
+                                            title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                                        >
+                                            {isRefreshingStore ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+                            )}
                         />
                         <Box
                             sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                marginLeft: 'auto',
                                 flexShrink: 0,
+                                display: 'grid',
+                                gap: 1.25,
+                                gridTemplateColumns: {
+                                    xs: '1fr',
+                                    md: 'repeat(2, minmax(0, 1fr))',
+                                    xl: 'repeat(4, minmax(0, 1fr))',
+                                },
+                                alignItems: 'stretch',
                             }}
                         >
-                            <Tooltip title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length }).replace(/\s*\(\d+\)$/, '')}>
-                                <Button
-                                    color="inherit"
-                                    onClick={() => {
-                                        openFavoritesDialog()
-                                    }}
-                                    size="small"
-                                    startIcon={
-                                        <Badge badgeContent={favoriteApps.length} color="error" max={99} overlap="circular">
-                                            <FavoriteIcon />
-                                        </Badge>
-                                    }
-                                    aria-label={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
-                                    sx={{
-                                        height: 42,
-                                        minWidth: 'auto',
-                                        px: 1.5,
+                            <TextField
+                                select
+                                size="small"
+                                value={selectedMainCatalogKey}
+                                onChange={(event) => {
+                                    setSelectedMainCatalogKey(event.target.value)
+                                }}
+                                sx={{
+                                    gridColumn: { md: 'span 1', xl: 'span 1' },
+                                    '& .MuiOutlinedInput-root': {
                                         borderRadius: '4px',
-                                        border: '1px solid rgba(251, 113, 133, 0.18)',
-                                        background: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%)',
-                                        color: '#e11d48',
-                                        boxShadow: '0 1px 2px rgba(244, 63, 94, 0.08)',
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        lineHeight: 1,
-                                        whiteSpace: 'nowrap',
-                                        '&:hover': {
-                                            background: 'linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%)',
-                                            boxShadow: '0 4px 10px rgba(244, 63, 94, 0.12)',
+                                        backgroundColor: palette.panelBg,
+                                        minHeight: 42,
+                                    },
+                                    '& .MuiSelect-select': appStoreControlTextSx,
+                                }}
+                                slotProps={{
+                                    select: {
+                                        MenuProps: {
+                                            slotProps: {
+                                                paper: {
+                                                    sx: {
+                                                        borderRadius: 0,
+                                                        mt: 0.5,
+                                                        '& .MuiMenuItem-root': appStoreMenuItemSx,
+                                                    },
+                                                },
+                                            },
                                         },
-                                        '& .MuiButton-startIcon': {
-                                            marginLeft: 0,
-                                            marginRight: 1,
-                                        },
-                                        '& .MuiBadge-badge': {
-                                            backgroundColor: '#e11d48',
-                                            color: '#fff',
-                                        },
-                                    }}
-                                    title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
-                                >
-                                    {favoriteListLabel}
-                                </Button>
-                            </Tooltip>
-                            <Tooltip title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
-                                <IconButton
-                                    color="inherit"
-                                    onClick={() => {
-                                        void handleRefreshStore()
-                                    }}
-                                    size="small"
-                                    disabled={isRefreshingStore}
-                                    sx={{
-                                        width: 42,
-                                        height: 42,
+                                    },
+                                }}
+                            >
+                                {mainCategories.map((category) => (
+                                    <MenuItem key={category.key} value={category.key}>
+                                        {formatCatalogOptionLabel(category)}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                size="small"
+                                value={selectedSubCatalogKey}
+                                onChange={(event) => {
+                                    setSelectedSubCatalogKey(event.target.value)
+                                }}
+                                sx={{
+                                    gridColumn: { md: 'span 1', xl: 'span 1' },
+                                    '& .MuiOutlinedInput-root': {
                                         borderRadius: '4px',
-                                        border: '1px solid rgba(203, 213, 225, 0.9)',
-                                        background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-                                        color: '#475569',
-                                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
-                                        '&:hover': {
-                                            background: 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
-                                            color: '#334155',
-                                            boxShadow: '0 4px 10px rgba(15, 23, 42, 0.08)',
+                                        backgroundColor: palette.panelBg,
+                                        minHeight: 42,
+                                    },
+                                    '& .MuiSelect-select': appStoreControlTextSx,
+                                }}
+                                slotProps={{
+                                    select: {
+                                        MenuProps: {
+                                            slotProps: {
+                                                paper: {
+                                                    sx: {
+                                                        borderRadius: 0,
+                                                        mt: 0.5,
+                                                        '& .MuiMenuItem-root': appStoreMenuItemSx,
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    },
+                                }}
+                            >
+                                {subCategories.map((category) => (
+                                    <MenuItem key={category.key} value={category.key}>
+                                        {formatCatalogOptionLabel(category, { hideCount: category.key === 'all' })}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <Box
+                                sx={{
+                                    gridColumn: { xs: '1 / -1', md: 'span 2', xl: 'span 2' },
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'flex-start',
+                                    justifySelf: 'stretch',
+                                    width: '100%',
+                                    minWidth: 0,
+                                    gap: 0.5,
+                                    minHeight: 42,
+                                }}
+                            >
+                                <TextField
+                                    size="small"
+                                    value={searchValue}
+                                    onChange={(event) => {
+                                        handleSearchChange(event.target.value)
+                                    }}
+                                    placeholder={t('appStorePage.filters.searchPlaceholder')}
+                                    sx={{
+                                        width: '100%',
+                                        maxWidth: '100%',
+                                        flex: '1 1 auto',
+                                        minWidth: 0,
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '4px',
+                                            backgroundColor: palette.panelBg,
+                                            minHeight: 42,
+                                            border: `1px solid ${palette.border}`,
+                                            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                                        },
+                                        '& .MuiInputBase-input': appStoreControlTextSx,
+                                        '& .MuiInputBase-input::placeholder': {
+                                            fontSize: 14,
+                                            fontWeight: 400,
+                                            color: '#94a3b8',
+                                            opacity: 1,
                                         },
                                     }}
-                                    title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
-                                >
-                                    {isRefreshingStore ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-                                </IconButton>
-                            </Tooltip>
+                                />
+                            </Box>
                         </Box>
                     </Box>
-                </Box>
+                ) : selectedInstallSource === 'compose' ? (
+                    <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
+                        <Stack spacing={1.5} sx={{ pb: 0.5 }}>
+                            <SurfaceStateCard
+                                title={t('appStorePage.sources.compose.workspace.title')}
+                                detail={t('appStorePage.sources.compose.workspace.description')}
+                            />
+
+                            <Card sx={INSTALL_WORKSPACE_CARD_SX}>
+                                <CardContent>
+                                    <Stack spacing={2}>
+                                        <Box>
+                                            <Typography variant="subtitle2" sx={{ color: '#0f172a', fontWeight: 700 }}>
+                                                {t('appStorePage.sources.compose.workspace.metadataTitle')}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                                                {t('appStorePage.sources.compose.workspace.metadataDetail')}
+                                            </Typography>
+                                        </Box>
+                                        <Box
+                                            sx={{
+                                                display: 'grid',
+                                                gap: 1.5,
+                                                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+                                            }}
+                                        >
+                                            <TextField
+                                                fullWidth
+                                                label={t('appStorePage.sources.compose.workspace.appIdLabel')}
+                                                placeholder={t('appStorePage.sources.compose.workspace.appIdPlaceholder')}
+                                                value={composeAppId}
+                                                onChange={(event) => {
+                                                    clearComposeFeedback()
+                                                    setComposeFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
+                                                    setComposeAppId(event.target.value)
+                                                }}
+                                                error={Boolean(composeFieldErrors.appId)}
+                                                helperText={composeFieldErrors.appId ?? ' '}
+                                            />
+                                            <TextField
+                                                fullWidth
+                                                label={t('appStorePage.sources.compose.workspace.displayNameLabel')}
+                                                placeholder={t('appStorePage.sources.compose.workspace.displayNamePlaceholder')}
+                                                value={composeDisplayName}
+                                                onChange={(event) => {
+                                                    clearComposeFeedback()
+                                                    setComposeFieldErrors((currentValue) => ({ ...currentValue, displayName: undefined }))
+                                                    setComposeDisplayName(event.target.value)
+                                                }}
+                                                error={Boolean(composeFieldErrors.displayName)}
+                                                helperText={composeFieldErrors.displayName ?? ' '}
+                                            />
+                                            <TextField
+                                                fullWidth
+                                                label={t('appStorePage.sources.compose.workspace.domainLabel')}
+                                                placeholder={t('appStorePage.sources.compose.workspace.domainPlaceholder')}
+                                                value={composeDomain}
+                                                onChange={(event) => {
+                                                    clearComposeFeedback()
+                                                    setComposeFieldErrors((currentValue) => ({ ...currentValue, domain: undefined }))
+                                                    setComposeDomain(event.target.value)
+                                                }}
+                                                error={Boolean(composeFieldErrors.domain)}
+                                                helperText={composeFieldErrors.domain ?? ' '}
+                                            />
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+
+                            <Card sx={INSTALL_WORKSPACE_CARD_SX}>
+                                <CardContent>
+                                    <Stack spacing={2}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ color: '#0f172a', fontWeight: 700 }}>
+                                                    {t('appStorePage.sources.compose.workspace.envTitle')}
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                                                    {t('appStorePage.sources.compose.workspace.envDetail')}
+                                                </Typography>
+                                            </Box>
+                                            <Button onClick={addComposeEnvRow} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none' }}>
+                                                {t('appStorePage.sources.compose.workspace.addEnv')}
+                                            </Button>
+                                        </Box>
+                                        <Stack spacing={1}>
+                                            {composeEnvRows.map((row, index) => (
+                                                <Box
+                                                    key={row.id}
+                                                    sx={{
+                                                        display: 'grid',
+                                                        gap: 1,
+                                                        gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1fr) auto' },
+                                                        alignItems: 'start',
+                                                    }}
+                                                >
+                                                    <TextField
+                                                        fullWidth
+                                                        label={t('appStorePage.sources.compose.workspace.envKeyLabel')}
+                                                        value={row.key}
+                                                        onChange={(event) => updateComposeEnvRow(row.id, 'key', event.target.value)}
+                                                    />
+                                                    <TextField
+                                                        fullWidth
+                                                        label={t('appStorePage.sources.compose.workspace.envValueLabel')}
+                                                        value={row.value}
+                                                        onChange={(event) => updateComposeEnvRow(row.id, 'value', event.target.value)}
+                                                    />
+                                                    <Button
+                                                        onClick={() => removeComposeEnvRow(row.id)}
+                                                        variant="text"
+                                                        color="inherit"
+                                                        disabled={composeEnvRows.length === 1 && index === 0 && !row.key && !row.value}
+                                                        sx={{ mt: { xs: 0, md: 1 }, justifySelf: 'start', textTransform: 'none' }}
+                                                    >
+                                                        {t('appStorePage.sources.compose.workspace.removeEnv')}
+                                                    </Button>
+                                                </Box>
+                                            ))}
+                                        </Stack>
+                                        {composeFieldErrors.env ? (
+                                            <Typography variant="body2" sx={{ color: '#b91c1c' }}>
+                                                {composeFieldErrors.env}
+                                            </Typography>
+                                        ) : null}
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+
+                            <Card sx={INSTALL_WORKSPACE_CARD_SX}>
+                                <CardContent>
+                                    <Stack spacing={2}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                            <Box>
+                                                <Typography variant="subtitle2" sx={{ color: '#0f172a', fontWeight: 700 }}>
+                                                    {t('appStorePage.sources.compose.workspace.composeTitle')}
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+                                                    {t('appStorePage.sources.compose.workspace.composeDetail')}
+                                                </Typography>
+                                            </Box>
+                                            <>
+                                                <input
+                                                    ref={composeFileInputRef}
+                                                    type="file"
+                                                    accept=".yml,.yaml,text/yaml,text/x-yaml,application/x-yaml"
+                                                    hidden
+                                                    onChange={(event) => {
+                                                        void handleComposeFileSelected(event.target.files?.[0] ?? null)
+                                                        event.target.value = ''
+                                                    }}
+                                                />
+                                                <Button
+                                                    onClick={() => composeFileInputRef.current?.click()}
+                                                    variant="outlined"
+                                                    sx={{ borderRadius: '2px', textTransform: 'none' }}
+                                                >
+                                                    {composeContent.trim() ? t('appStorePage.sources.compose.workspace.replaceUpload') : t('appStorePage.sources.compose.workspace.upload')}
+                                                </Button>
+                                            </>
+                                        </Box>
+                                        <TextField
+                                            fullWidth
+                                            multiline
+                                            minRows={16}
+                                            label={t('appStorePage.sources.compose.workspace.composeLabel')}
+                                            placeholder={t('appStorePage.sources.compose.workspace.composePlaceholder')}
+                                            value={composeContent}
+                                            onChange={(event) => {
+                                                clearComposeFeedback()
+                                                setComposeFieldErrors((currentValue) => ({ ...currentValue, composeContent: undefined }))
+                                                setComposeContent(event.target.value)
+                                            }}
+                                            error={Boolean(composeFieldErrors.composeContent)}
+                                            helperText={composeFieldErrors.composeContent ?? ' '}
+                                        />
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+
+                            <SurfaceNoticeAlert
+                                severity="info"
+                                title={t('appStorePage.sources.compose.label')}
+                                detail={t('appStorePage.sources.compose.workspace.validationOnly')}
+                            />
+
+                            {composeValidation ? (
+                                <SurfaceNoticeAlert
+                                    severity="success"
+                                    title={t('appStorePage.sources.compose.workspace.validatedTitle')}
+                                    detail={t('appStorePage.sources.compose.workspace.validatedDetail', { count: composeValidation.services.length })}
+                                />
+                            ) : null}
+
+                            {composeValidationError ? (
+                                <SurfaceNoticeAlert
+                                    severity="warning"
+                                    title={t('appStorePage.sources.compose.workspace.validationFailedTitle')}
+                                    detail={composeValidationError}
+                                />
+                            ) : null}
+
+                            <Card sx={INSTALL_WORKSPACE_CARD_SX}>
+                                <CardContent>
+                                    <Stack spacing={1.5}>
+                                        <Typography variant="subtitle2" sx={{ color: '#0f172a', fontWeight: 700 }}>
+                                            {t('appStorePage.sources.compose.workspace.services')}
+                                        </Typography>
+                                        {composeValidation?.services.length ? (
+                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                {composeValidation.services.map((serviceName) => (
+                                                    <Box
+                                                        key={serviceName}
+                                                        sx={{
+                                                            px: 1.25,
+                                                            py: 0.75,
+                                                            borderRadius: '999px',
+                                                            border: '1px solid rgba(148, 163, 184, 0.45)',
+                                                            backgroundColor: '#f8fafc',
+                                                            color: '#0f172a',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 600,
+                                                        }}
+                                                    >
+                                                        {serviceName}
+                                                    </Box>
+                                                ))}
+                                            </Box>
+                                        ) : (
+                                            <Typography variant="body2" sx={{ color: '#64748b' }}>
+                                                {t('appStorePage.sources.compose.workspace.noServices')}
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                <Button
+                                    onClick={() => void handleValidateCompose()}
+                                    variant="contained"
+                                    disabled={isValidatingCompose}
+                                    sx={{ borderRadius: '2px', textTransform: 'none', boxShadow: 'none' }}
+                                >
+                                    {isValidatingCompose ? t('appStorePage.sources.compose.workspace.validating') : t('appStorePage.sources.compose.workspace.validate')}
+                                </Button>
+                                <Button onClick={() => navigate('/myapps')} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none' }}>
+                                    {t('appStorePage.actions.openInstalledApps')}
+                                </Button>
+                                <Button onClick={() => navigate(sourceWorkspaceBackTarget)} variant="text" sx={{ borderRadius: '2px', textTransform: 'none' }}>
+                                    {sourceWorkspaceBackLabel}
+                                </Button>
+                            </Box>
+                        </Stack>
+                    </Box>
                 ) : (
-                <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
-                    <Stack spacing={1.5} sx={{ pb: 0.5 }}>
-                        <SurfaceStateCard
-                            title={t(`appStorePage.sources.${selectedInstallSource}.emptyTitle`)}
-                            detail={t(`appStorePage.sources.${selectedInstallSource}.emptyDetail`)}
-                        />
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                            <Button onClick={() => navigate('/myapps')} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none' }}>
-                                {t('appStorePage.actions.openInstalledApps')}
-                            </Button>
-                            <Button onClick={() => handleInstallSourceChange('marketplace')} variant="contained" sx={{ borderRadius: '2px', textTransform: 'none', boxShadow: 'none' }}>
-                                {t('appStorePage.actions.backToMarketplace')}
-                            </Button>
-                        </Box>
-                    </Stack>
-                </Box>
+                    <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
+                        <Stack spacing={1.5} sx={{ pb: 0.5 }}>
+                            <SurfaceStateCard
+                                title={t(`appStorePage.sources.${selectedInstallSource}.emptyTitle`)}
+                                detail={t(`appStorePage.sources.${selectedInstallSource}.emptyDetail`)}
+                            />
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                <Button onClick={() => navigate('/myapps')} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none' }}>
+                                    {t('appStorePage.actions.openInstalledApps')}
+                                </Button>
+                                <Button onClick={() => navigate(sourceWorkspaceBackTarget)} variant="contained" sx={{ borderRadius: '2px', textTransform: 'none', boxShadow: 'none' }}>
+                                    {sourceWorkspaceBackLabel}
+                                </Button>
+                            </Box>
+                        </Stack>
+                    </Box>
                 )}
 
                 {selectedInstallSource === 'marketplace' ? (
-                <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
-                    <Stack spacing={1.5} sx={{ pb: 0.5 }}>
-                        {isLoading || isRefreshingStore ? (
-                            <SurfaceStateCard detail={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.states.loading')} loading />
-                        ) : null}
+                    <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
+                        <Stack spacing={1.5} sx={{ pb: 0.5 }}>
+                            <FavoriteSectionHeading title={currentListTitle} />
 
-                        {!isLoading && !isRefreshingStore && error ? (
-                            <SurfaceNoticeAlert
-                                detail={t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
-                                action={
-                                    <Button color="inherit" size="small" onClick={() => void refetch()}>
-                                        {t('appStorePage.states.retry')}
-                                    </Button>
-                                }
-                                severity="warning"
-                                title={t('appStorePage.states.errorTitle')}
-                            />
-                        ) : null}
+                            {isLoading || isRefreshingStore ? (
+                                <SurfaceStateCard detail={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.states.loading')} loading />
+                            ) : null}
 
-                        {!isLoading && !isRefreshingStore && !error && filteredApps.length === 0 ? (
-                            <SurfaceStateCard detail={t('appStorePage.states.emptyDetail')} title={t('appStorePage.states.emptyTitle')} />
-                        ) : null}
+                            {!isLoading && !isRefreshingStore && error ? (
+                                <SurfaceNoticeAlert
+                                    detail={t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
+                                    action={
+                                        <Button color="inherit" size="small" onClick={() => void refetch()}>
+                                            {t('appStorePage.states.retry')}
+                                        </Button>
+                                    }
+                                    severity="warning"
+                                    title={t('appStorePage.states.errorTitle')}
+                                />
+                            ) : null}
 
-                        {!isLoading && !isRefreshingStore && !error && filteredApps.length > 0 ? (
-                            <Stack spacing={1.5}>
-                                <FavoriteSectionHeading title={currentListTitle} />
-                                <Box
-                                    sx={{
-                                        display: 'grid',
-                                        gap: 2.25,
-                                        gridTemplateColumns: {
-                                            xs: '1fr',
-                                            md: 'repeat(2, minmax(0, 1fr))',
-                                            xl: 'repeat(4, minmax(0, 1fr))',
-                                        },
-                                    }}
-                                >
-                                    {filteredApps.map((app) => {
-                                        return (
-                                            <Card
-                                                key={app.key ?? app.trademark}
-                                                elevation={0}
-                                                onClick={() => {
-                                                    openAppDetail(app, 'catalog')
-                                                }}
-                                                sx={{
-                                                    border: '1px solid rgba(229, 231, 235, 0.92)',
-                                                    borderRadius: '2px',
-                                                    backgroundColor: '#fff',
-                                                    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                                                    cursor: 'pointer',
-                                                    transition: 'background-color 120ms ease, box-shadow 120ms ease',
-                                                    '&:hover': {
-                                                        backgroundColor: 'rgb(229, 230, 229)',
+                            {!isLoading && !isRefreshingStore && !error && filteredApps.length === 0 ? (
+                                <SurfaceStateCard detail={t('appStorePage.states.emptyDetail')} title={t('appStorePage.states.emptyTitle')} />
+                            ) : null}
+
+                            {!isLoading && !isRefreshingStore && !error && filteredApps.length > 0 ? (
+                                <Stack spacing={1.5}>
+                                    <Box
+                                        sx={{
+                                            display: 'grid',
+                                            gap: 2.25,
+                                            gridTemplateColumns: {
+                                                xs: '1fr',
+                                                md: 'repeat(2, minmax(0, 1fr))',
+                                                xl: 'repeat(4, minmax(0, 1fr))',
+                                            },
+                                        }}
+                                    >
+                                        {filteredApps.map((app) => {
+                                            return (
+                                                <Card
+                                                    key={app.key ?? app.trademark}
+                                                    elevation={0}
+                                                    onClick={() => {
+                                                        openAppDetail(app, 'catalog')
+                                                    }}
+                                                    sx={{
+                                                        border: `1px solid ${palette.border}`,
+                                                        borderRadius: '2px',
+                                                        backgroundColor: palette.panelBg,
                                                         boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                                                    },
-                                                }}
-                                            >
-                                                <CardContent sx={{ p: '10px !important' }}>
-                                                    <Box sx={{ display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
-                                                        <Box sx={{ width: 100, minWidth: 100, px: '10px', boxSizing: 'border-box' }}>
-                                                            <Box sx={{ width: 80, height: 80 }}>
-                                                                <AppLogo app={app} />
+                                                        cursor: 'pointer',
+                                                        transition: 'background-color 120ms ease, box-shadow 120ms ease',
+                                                        '&:hover': {
+                                                            backgroundColor: palette.panelHover,
+                                                            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <CardContent sx={{ p: '10px !important' }}>
+                                                        <Box sx={{ display: 'grid', gridTemplateColumns: '100px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
+                                                            <Box sx={{ width: 100, minWidth: 100, px: '10px', boxSizing: 'border-box' }}>
+                                                                <Box sx={{ width: 80, height: 80 }}>
+                                                                    <AppLogo app={app} />
+                                                                </Box>
+                                                            </Box>
+                                                            <Box sx={{ minWidth: 0, textAlign: 'left' }}>
+                                                                <Typography sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: palette.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    {app.trademark ?? app.key}
+                                                                </Typography>
+                                                                <Typography sx={{ fontSize: 14, lineHeight: 1.45, height: 44, overflow: 'hidden', textOverflow: 'ellipsis', color: palette.subtleText, fontWeight: 400 }}>
+                                                                    {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
+                                                                </Typography>
                                                             </Box>
                                                         </Box>
-                                                        <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                                                            <Typography sx={{ fontSize: 17, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                                {app.trademark ?? app.key}
-                                                            </Typography>
-                                                            <Typography sx={{ fontSize: 14, lineHeight: 1.45, height: 44, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
-                                                                {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
-                                                            </Typography>
-                                                        </Box>
-                                                    </Box>
-                                                </CardContent>
-                                            </Card>
-                                        )
-                                    })}
-                                </Box>
-                            </Stack>
-                        ) : null}
-                    </Stack>
-                </Box>
+                                                    </CardContent>
+                                                </Card>
+                                            )
+                                        })}
+                                    </Box>
+                                </Stack>
+                            ) : null}
+                        </Stack>
+                    </Box>
                 ) : null}
             </Box>
 
-            <AppStoreScopedOverlay open={isFavoritesOpen} onClose={() => setIsFavoritesOpen(false)} scopeRect={contentViewportRect} maxWidth={832}>
-                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 } }}>
+            <AppStoreScopedOverlay open={isFavoritesOpen} onClose={() => setIsFavoritesOpen(false)} scopeRect={contentViewportRect} maxWidth={832} darkMode={isDarkMode}>
+                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, backgroundColor: palette.dialogBg }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
-                        <Typography sx={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: '#334155' }}>
+                        <Typography sx={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: palette.text }}>
                             {t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
                         </Typography>
                         <IconButton
@@ -1609,13 +2163,13 @@ export function AppStorePage() {
                                 width: 38,
                                 height: 38,
                                 borderRadius: '12px',
-                                border: '1px solid rgba(203, 213, 225, 0.9)',
-                                background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
-                                color: '#475569',
+                                border: `1px solid ${palette.border}`,
+                                background: palette.actionBg,
+                                color: palette.subtleText,
                                 boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
                                 '&:hover': {
-                                    background: 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
-                                    color: '#334155',
+                                    background: palette.actionHover,
+                                    color: palette.text,
                                 },
                             }}
                             title={t('appStorePage.actions.close')}
@@ -1624,7 +2178,7 @@ export function AppStorePage() {
                         </IconButton>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ px: { xs: 2, md: 2.5 }, py: 2, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                <DialogContent dividers sx={{ px: { xs: 2, md: 2.5 }, py: 2, backgroundColor: palette.dialogBg, '&.MuiDialogContent-dividers': { borderTopColor: palette.border, borderBottomColor: palette.border } }}>
                     {favoriteApps.length === 0 ? (
                         <SurfaceStateCard title={t('appStorePage.results.favoriteEmptyTitle')} detail={t('appStorePage.results.favoriteEmptyDetail')} />
                     ) : (
@@ -1648,15 +2202,15 @@ export function AppStorePage() {
                                         openAppDetail(app, 'favorites')
                                     }}
                                     sx={{
-                                        border: '1px solid rgba(229, 231, 235, 0.92)',
+                                        border: `1px solid ${palette.border}`,
                                         borderRadius: '2px',
-                                        background: 'linear-gradient(180deg, #fffdf5 0%, #ffffff 100%)',
-                                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.08)',
+                                        background: isDarkMode ? 'linear-gradient(180deg, #162033 0%, #111827 100%)' : 'linear-gradient(180deg, #fffdf5 0%, #ffffff 100%)',
+                                        boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.28)' : '0 2px 5px rgba(0, 0, 0, 0.08)',
                                         cursor: 'pointer',
                                         transition: 'background-color 120ms ease, box-shadow 120ms ease',
                                         '&:hover': {
-                                            backgroundColor: 'rgb(245, 241, 224)',
-                                            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                                            backgroundColor: isDarkMode ? palette.panelHover : 'rgb(245, 241, 224)',
+                                            boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.32)' : '0 2px 5px rgba(0, 0, 0, 0.1)',
                                         },
                                     }}
                                 >
@@ -1668,10 +2222,10 @@ export function AppStorePage() {
                                                 </Box>
                                             </Box>
                                             <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                                                <Typography sx={{ fontSize: 16, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <Typography sx={{ fontSize: 16, fontWeight: 600, lineHeight: 1.25, mb: 0.5, color: palette.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     {app.trademark ?? app.key}
                                                 </Typography>
-                                                <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, height: 40, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 400 }}>
+                                                <Typography sx={{ fontSize: 13.5, lineHeight: 1.45, height: 40, overflow: 'hidden', textOverflow: 'ellipsis', color: palette.subtleText, fontWeight: 400 }}>
                                                     {app.summary || app.overview || t('appStorePage.card.summaryFallback')}
                                                 </Typography>
                                             </Box>
@@ -1682,18 +2236,18 @@ export function AppStorePage() {
                         </Box>
                     )}
                 </DialogContent>
-                <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.dialogBg }}>
                     <Button
                         color="inherit"
                         onClick={() => setIsFavoritesOpen(false)}
                         variant="contained"
                         sx={{
                             minWidth: 68,
-                            backgroundColor: '#eef2f7',
-                            color: '#475569',
+                            backgroundColor: palette.actionBg,
+                            color: palette.subtleText,
                             borderRadius: 0,
                             boxShadow: 'none',
-                            '&:hover': { backgroundColor: '#e2e8f0', boxShadow: 'none' },
+                            '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none', color: palette.text },
                         }}
                     >
                         {t('appStorePage.actions.close')}
@@ -1707,17 +2261,18 @@ export function AppStorePage() {
                 scopeRect={contentViewportRect}
                 maxWidth={840}
                 verticalPlacement="top"
+                darkMode={isDarkMode}
             >
                 {selectedApp ? (
                     <>
-                        <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0 }}>
+                        <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0, backgroundColor: palette.dialogBg }}>
                             <Box sx={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) auto', gap: 1.5, alignItems: 'center' }}>
                                 <Box sx={{ width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <AppLogo app={selectedApp} />
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                        <Typography sx={{ fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: '#334155' }}>{selectedApp.trademark ?? selectedApp.key}</Typography>
+                                        <Typography sx={{ fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: palette.text }}>{selectedApp.trademark ?? selectedApp.key}</Typography>
                                         <Tooltip title="Documentation">
                                             <IconButton
                                                 component="a"
@@ -1725,7 +2280,7 @@ export function AppStorePage() {
                                                 rel="noreferrer"
                                                 size="small"
                                                 target="_blank"
-                                                sx={{ p: 0.5, color: '#475569', border: '1px solid rgba(203, 213, 225, 0.9)', borderRadius: '4px', '& svg': { fontSize: 18 } }}
+                                                sx={{ p: 0.5, color: palette.subtleText, border: `1px solid ${palette.border}`, borderRadius: '4px', '& svg': { fontSize: 18 } }}
                                             >
                                                 <DocumentationIcon />
                                             </IconButton>
@@ -1737,16 +2292,16 @@ export function AppStorePage() {
                                                 rel="noreferrer"
                                                 size="small"
                                                 target="_blank"
-                                                sx={{ p: 0.5, color: '#000', border: '1px solid rgba(203, 213, 225, 0.9)', borderRadius: '4px', '& svg': { fontSize: 18 } }}
+                                                sx={{ p: 0.5, color: isDarkMode ? '#f9fafb' : '#000', border: `1px solid ${palette.border}`, borderRadius: '4px', '& svg': { fontSize: 18 } }}
                                             >
                                                 <GitHubMarkIcon />
                                             </IconButton>
                                         </Tooltip>
                                     </Box>
-                                    <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 400, color: '#475569' }}>
+                                    <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
                                         {t('appStorePage.detail.versionLine', { version: getAppStoreVersionSummary(selectedApp) || '-' })}
                                     </Typography>
-                                    <Typography sx={{ mt: 0.15, fontSize: 14, fontWeight: 400, color: '#475569' }}>
+                                    <Typography sx={{ mt: 0.15, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
                                         {t('appStorePage.detail.requirementLine', {
                                             cpu: formatRequirement(selectedApp.vcpu),
                                             memory: formatRequirement(selectedApp.memory),
@@ -1754,7 +2309,7 @@ export function AppStorePage() {
                                         })}
                                     </Typography>
                                     <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mt: 0.15, color: 'primary.main', fontSize: 14 }}>
-                                        <Typography component="span" sx={{ color: '#475569', fontSize: 14, fontWeight: 400 }}>
+                                        <Typography component="span" sx={{ color: palette.subtleText, fontSize: 14, fontWeight: 400 }}>
                                             {t('appStorePage.detail.categoriesLabel')}
                                         </Typography>
                                         {(selectedApp.catalogCollection?.items ?? []).map((mainCategory, index) => (
@@ -1785,7 +2340,7 @@ export function AppStorePage() {
                                 </IconButton>
                             </Box>
                         </DialogTitle>
-                        <DialogContent dividers sx={{ px: 0, py: 0, flex: 1, overflowY: 'auto', '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                        <DialogContent dividers sx={{ px: 0, py: 0, flex: 1, overflowY: 'auto', backgroundColor: palette.dialogBg, '&.MuiDialogContent-dividers': { borderTopColor: palette.border, borderBottomColor: palette.border } }}>
                             {!isInstallMode ? (
                                 <>
                                     <AppScreenshot
@@ -1795,13 +2350,13 @@ export function AppStorePage() {
                                     />
 
                                     <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 0.5, pb: 2.25 }}>
-                                        <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: '#475569' }}>{t('appStorePage.detail.overviewTitle')}</Typography>
-                                        <Typography sx={{ mb: 2.5, lineHeight: 1.75, fontSize: 14, color: '#475569', fontWeight: 400 }}>
+                                        <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: palette.text }}>{t('appStorePage.detail.overviewTitle')}</Typography>
+                                        <Typography sx={{ mb: 2.5, lineHeight: 1.75, fontSize: 14, color: palette.subtleText, fontWeight: 400 }}>
                                             {selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
                                         </Typography>
 
-                                        <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: '#475569' }}>{t('appStorePage.detail.descriptionTitle')}</Typography>
-                                        <Typography sx={{ lineHeight: 1.75, whiteSpace: 'pre-wrap', fontSize: 14, color: '#475569', fontWeight: 400 }}>
+                                        <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 0.9, color: palette.text }}>{t('appStorePage.detail.descriptionTitle')}</Typography>
+                                        <Typography sx={{ lineHeight: 1.75, whiteSpace: 'pre-wrap', fontSize: 14, color: palette.subtleText, fontWeight: 400 }}>
                                             {selectedApp.description || selectedApp.overview || selectedApp.summary || t('appStorePage.card.summaryFallback')}
                                         </Typography>
                                     </Box>
@@ -1809,7 +2364,7 @@ export function AppStorePage() {
                             ) : (
                                 <Box sx={{ display: 'grid', gap: 1.25, px: { xs: 2, md: 2.5 }, py: 2.25 }}>
                                     <Box>
-                                        <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{t('appStorePage.install.appIdLabel')}</Typography>
+                                        <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.appIdLabel')}</Typography>
                                         <Box
                                             sx={{
                                                 display: 'grid',
@@ -1826,7 +2381,9 @@ export function AppStorePage() {
                                                 error={Boolean(installFieldErrors.appId)}
                                                 fullWidth
                                                 inputRef={appIdInputRef}
+                                                helperText={installFieldErrors.appId}
                                                 placeholder={t('appStorePage.install.appIdPlaceholder')}
+                                                size="small"
                                                 value={installName}
                                                 onChange={(event) => {
                                                     setInstallFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
@@ -1834,20 +2391,10 @@ export function AppStorePage() {
                                                     setInstallName(normalizeInstallName(event.target.value))
                                                 }}
                                                 sx={{
+                                                    ...installDialogFieldSx,
                                                     '& .MuiOutlinedInput-root': {
+                                                        ...installDialogFieldSx['& .MuiOutlinedInput-root'],
                                                         borderRadius: selectedApp.is_web_app && wildcardDomain ? '4px 0 0 4px' : '4px',
-                                                        height: 38,
-                                                    },
-                                                    '& .MuiInputBase-input': {
-                                                        fontSize: 14,
-                                                        fontWeight: 400,
-                                                        color: '#334155',
-                                                    },
-                                                    '& .MuiInputBase-input::placeholder': {
-                                                        fontSize: 14,
-                                                        fontWeight: 400,
-                                                        color: '#94a3b8',
-                                                        opacity: 1,
                                                     },
                                                 }}
                                             />
@@ -1858,10 +2405,10 @@ export function AppStorePage() {
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             px: 1.25,
-                                                            border: '1px solid rgba(203, 213, 225, 0.9)',
+                                                            border: `1px solid ${palette.border}`,
                                                             borderLeft: 0,
-                                                            backgroundColor: isDomainEnabled ? '#ffffff' : '#f8fafc',
-                                                            color: isDomainEnabled ? '#64748b' : '#94a3b8',
+                                                            backgroundColor: isDomainEnabled ? palette.panelBg : palette.panelSoft,
+                                                            color: isDomainEnabled ? palette.subtleText : '#94a3b8',
                                                             fontSize: 13.5,
                                                             height: 38,
                                                             boxSizing: 'border-box',
@@ -1910,74 +2457,49 @@ export function AppStorePage() {
 
                                     {selectedApp.is_web_app ? (
                                         <Box>
-                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{t('appStorePage.install.customDomainLabel')}</Typography>
+                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.customDomainLabel')}</Typography>
                                             <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1 }}>
                                                 <TextField
                                                     fullWidth
                                                     error={Boolean(installFieldErrors.customDomain)}
                                                     inputRef={customDomainInputRef}
+                                                    helperText={installFieldErrors.customDomain ?? t('appStorePage.install.customDomainHelper')}
                                                     placeholder={t('appStorePage.install.customDomainPlaceholder')}
+                                                    size="small"
                                                     value={customDomain}
                                                     onChange={(event) => {
                                                         setInstallFieldErrors((currentValue) => ({ ...currentValue, customDomain: undefined }))
                                                         setInstallError(null)
                                                         setCustomDomain(normalizeCustomDomain(event.target.value))
                                                     }}
-                                                    sx={{
-                                                        '& .MuiOutlinedInput-root': {
-                                                            borderRadius: '4px',
-                                                            height: 38,
-                                                        },
-                                                        '& .MuiInputBase-input': {
-                                                            fontSize: 14,
-                                                            fontWeight: 400,
-                                                            color: '#334155',
-                                                        },
-                                                        '& .MuiInputBase-input::placeholder': {
-                                                            fontSize: 14,
-                                                            fontWeight: 400,
-                                                            color: '#94a3b8',
-                                                            opacity: 1,
-                                                        },
-                                                    }}
+                                                    sx={installDialogFieldSx}
                                                 />
                                             </Box>
                                         </Box>
                                     ) : null}
 
                                     <Box>
-                                        <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{t('appStorePage.install.versionLabel')}</Typography>
+                                        <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{t('appStorePage.install.versionLabel')}</Typography>
                                         {availableVersions.length > 1 ? (
                                             <TextField
                                                 select
                                                 fullWidth
+                                                size="small"
                                                 value={selectedVersion}
                                                 onChange={(event) => {
                                                     setInstallError(null)
                                                     setSelectedVersion(event.target.value)
                                                 }}
                                                 sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '4px',
-                                                        height: 38,
+                                                    ...installDialogFieldSx,
+                                                    '& .MuiSelect-select': {
+                                                        ...appStoreControlTextSx,
+                                                        color: palette.text,
                                                     },
-                                                    '& .MuiSelect-select': appStoreControlTextSx,
                                                 }}
                                                 slotProps={{
                                                     select: {
-                                                        MenuProps: {
-                                                            disablePortal: true,
-                                                            slotProps: {
-                                                                paper: {
-                                                                    sx: {
-                                                                        borderRadius: 0,
-                                                                        mt: 0.5,
-                                                                        zIndex: 1501,
-                                                                        '& .MuiMenuItem-root': appStoreMenuItemSx,
-                                                                    },
-                                                                },
-                                                            },
-                                                        },
+                                                        MenuProps: installDialogSelectMenuProps,
                                                     },
                                                 }}
                                             >
@@ -1990,6 +2512,7 @@ export function AppStorePage() {
                                         ) : (
                                             <TextField
                                                 fullWidth
+                                                size="small"
                                                 value={availableVersions[0] ?? selectedVersion}
                                                 slotProps={{
                                                     input: {
@@ -1997,12 +2520,16 @@ export function AppStorePage() {
                                                     },
                                                 }}
                                                 sx={{
+                                                    ...installDialogFieldSx,
                                                     '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '4px',
-                                                        height: 38,
-                                                        backgroundColor: '#f8fafc',
+                                                        ...installDialogFieldSx['& .MuiOutlinedInput-root'],
+                                                        backgroundColor: palette.panelSoft,
                                                     },
-                                                    '& .MuiInputBase-input': appStoreControlTextSx,
+                                                    '& .MuiInputBase-input': {
+                                                        ...appStoreControlTextSx,
+                                                        color: palette.text,
+                                                        WebkitTextFillColor: palette.text,
+                                                    },
                                                 }}
                                             />
                                         )}
@@ -2010,13 +2537,24 @@ export function AppStorePage() {
 
                                     {Object.entries(installSettings).map(([key, value]) => (
                                         <Box key={key}>
-                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: '#475569' }}>{getInstallSettingLabel(key, t, i18n.resolvedLanguage ?? i18n.language ?? 'en')}</Typography>
+                                            {(() => {
+                                                const isProxyManagedPort = hasCustomAccessDomain && isWebAccessPortSetting(key)
+                                                const hasFieldError = Boolean(installFieldErrors.settings?.[key])
+                                                const shouldDisableSetting = isProxyManagedPort && !hasFieldError
+                                                const helperText = installFieldErrors.settings?.[key]
+
+                                                return (
+                                                    <>
+                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getInstallSettingLabel(key, t, i18n.resolvedLanguage ?? i18n.language ?? 'en')}</Typography>
                                             <TextField
+                                                disabled={shouldDisableSetting}
                                                 error={Boolean(installFieldErrors.settings?.[key])}
                                                 fullWidth
+                                                helperText={helperText}
                                                 inputRef={(element) => {
                                                     installSettingInputRefs.current[key] = element
                                                 }}
+                                                size="small"
                                                 value={value}
                                                 onChange={(event) => {
                                                     setInstallFieldErrors((currentValue) => ({
@@ -2038,35 +2576,35 @@ export function AppStorePage() {
                                                         : undefined,
                                                 }}
                                                 sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '4px',
-                                                        height: 38,
-                                                    },
+                                                    ...installDialogFieldSx,
                                                     '& .MuiInputBase-input': {
-                                                        fontSize: 14,
-                                                        fontWeight: 400,
-                                                        color: '#334155',
+                                                        ...appStoreControlTextSx,
+                                                        color: palette.text,
+                                                        WebkitTextFillColor: palette.text,
                                                     },
                                                 }}
                                             />
+                                                    </>
+                                                )
+                                            })()}
                                         </Box>
                                     ))}
 
                                 </Box>
                             )}
                         </DialogContent>
-                        <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                        <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.dialogBg }}>
                             <Button
                                 color="inherit"
                                 onClick={handleCloseModal}
                                 variant="contained"
                                 sx={{
                                     minWidth: 68,
-                                    backgroundColor: '#eef2f7',
-                                    color: '#475569',
+                                    backgroundColor: palette.actionBg,
+                                    color: palette.subtleText,
                                     borderRadius: 0,
                                     boxShadow: 'none',
-                                    '&:hover': { backgroundColor: '#e2e8f0', boxShadow: 'none' },
+                                    '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none', color: palette.text },
                                 }}
                             >
                                 {t('appStorePage.actions.close')}
@@ -2078,12 +2616,12 @@ export function AppStorePage() {
                                 aria-label={favoriteSet.has((selectedApp.key ?? '').toLowerCase()) ? t('appStorePage.actions.unfavorite') : t('appStorePage.actions.favorite')}
                                 sx={{
                                     minWidth: 68,
-                                    backgroundColor: '#f8fafc',
-                                    color: '#334155',
+                                    backgroundColor: palette.actionBg,
+                                    color: palette.text,
                                     borderRadius: 0,
-                                    border: '1px solid rgba(203, 213, 225, 0.9)',
+                                    border: `1px solid ${palette.border}`,
                                     boxShadow: 'none',
-                                    '&:hover': { backgroundColor: '#eef2f7', boxShadow: 'none' },
+                                    '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none' },
                                 }}
                             >
                                 {favoriteSet.has((selectedApp.key ?? '').toLowerCase()) ? t('appStorePage.actions.unfavorite') : t('appStorePage.actions.favorite')}

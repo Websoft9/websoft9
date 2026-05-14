@@ -2,7 +2,7 @@
 
 ## Status
 
-ready-for-dev
+review
 
 ## Story
 
@@ -127,13 +127,23 @@ GPT-5.4
 ### Completion Notes List
 
 - 2026-05-13: Story created to define the development-ready frontend slice for custom compose authoring inside the unified installation model.
+- 2026-05-13: Added a native App Store custom compose workspace with separated install metadata, environment rows, inline YAML authoring, and compose file upload.
+- 2026-05-13: Added AppHub-owned compose validation schema, service, route, and focused unit tests; live product validation passed through the running product container.
+- 2026-05-13: Install execution handoff remains intentionally deferred to Story 3.3B so this slice stays limited to authoring and backend validation.
 
 ### File List
 
 - _bmad-output/implementation-artifacts/3-3a-build-the-custom-compose-upload-and-editing-workspace.md
-- _bmad-output/implementation-artifacts/3-3a-build-the-custom-compose-upload-and-editing-workspace_cn.md
+- apphub/src/api/v1/routers/app.py
+- apphub/src/schemas/appComposeInstall.py
+- apphub/src/services/compose_install.py
+- apphub/tests/test_app_compose_install.py
+- console/src/features/app-store/app-store-page.tsx
+- console/src/shared/i18n/resources.ts
+- docs/api-contracts-apphub.md
 - _bmad-output/implementation-artifacts/sprint-status.yaml
 
 ### Change Log
 
 - 2026-05-13: Created Story 3.3A and advanced sprint tracking to ready-for-dev for the custom compose authoring workspace.
+- 2026-05-13: Implemented the compose authoring workspace and AppHub validation endpoint, and advanced the story to review.

@@ -1,9 +1,11 @@
-import { Alert, Box, Button, LinearProgress, Paper, Stack, SvgIcon, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, IconButton, LinearProgress, Paper, Stack, SvgIcon, Tooltip, Typography } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
+import { SurfaceStateCard, SurfaceStatusBadge } from '../../shared/design-system/standard-surfaces'
+import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { useAppColorMode } from '../../app/providers/color-mode'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './overview-page.css'
 
@@ -127,9 +129,19 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     return payload as T
 }
 
+function RefreshIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.3 0 2.5.42 3.47 1.13L13 10h7V3l-2.35 3.35Z" />
+        </SvgIcon>
+    )
+}
+
 export function OverviewPage() {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
     const { status } = useProductAuth()
+    const [isManualRefreshing, setIsManualRefreshing] = useState(false)
 
     const { data, error, isLoading, refetch } = useQuery<OverviewResponse, Error>({
         queryKey: ['overview-summary'],
@@ -139,6 +151,15 @@ export function OverviewPage() {
         refetchInterval: 30_000,
         refetchOnWindowFocus: false,
     })
+
+    async function handleManualRefresh() {
+        setIsManualRefreshing(true)
+        try {
+            await refetch()
+        } finally {
+            setIsManualRefreshing(false)
+        }
+    }
 
     const locale = i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en-US'
     const numberFormatter = useMemo(
@@ -177,9 +198,29 @@ export function OverviewPage() {
     return (
         <Box className="overview-page-shell">
             <Stack spacing={2}>
-                <Typography className="overview-page-title">
-                    {t('overviewPage.compactHeader.title')}
-                </Typography>
+                <PageDescriptionHeader
+                    title={t('nav.dashboard.label')}
+                    description={t('overviewPage.description')}
+                    descriptionColor={colorMode === 'dark' ? '#94a3b8' : '#64748b'}
+                    actions={(
+                        <Tooltip title={isManualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
+                            <span>
+                                <IconButton
+                                    color="inherit"
+                                    onClick={() => {
+                                        void handleManualRefresh()
+                                    }}
+                                    size="small"
+                                    disabled={isManualRefreshing}
+                                    className="app-shell-page-action"
+                                    title={isManualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                                >
+                                    {isManualRefreshing ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                </IconButton>
+                            </span>
+                        </Tooltip>
+                    )}
+                />
 
                 {!status?.enabled ? <Alert severity="info">{t('overviewPage.states.authDisabled')}</Alert> : null}
 
@@ -192,11 +233,11 @@ export function OverviewPage() {
                     </Alert>
                 ) : null}
 
-                {isLoading && !data ? (
+                {(isLoading && !data) || isManualRefreshing ? (
                     <SurfaceStateCard detail={t('overviewPage.states.loading')} loading />
                 ) : null}
 
-                {data ? (
+                {data && !isManualRefreshing ? (
                     <Stack spacing={2}>
                         <Box className="overview-page-summary-strip">
                             <CompactSummaryCard
@@ -238,9 +279,10 @@ export function OverviewPage() {
                                                 </Typography>
                                             ) : null}
                                         </Box>
-                                        <OverviewStatusBadge
+                                        <SurfaceStatusBadge
                                             label={t(`overviewPage.cards.runtime.badges.${data.runtime.health_state}`)}
                                             tone={data.runtime.health_state === 'healthy' ? 'success' : data.runtime.health_state === 'warning' ? 'warning' : 'error'}
+                                            darkMode={colorMode === 'dark'}
                                         />
                                     </Stack>
 
@@ -281,9 +323,10 @@ export function OverviewPage() {
                                             <Typography className="overview-page-panel-title">{t('overviewPage.cards.host.title')}</Typography>
                                             <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.hostRuntime.description')}</Typography>
                                         </Box>
-                                        <OverviewStatusBadge
+                                        <SurfaceStatusBadge
                                             label={data.host.available ? t('overviewPage.badges.ready') : t('overviewPage.badges.partial')}
                                             tone={data.host.available ? 'success' : 'warning'}
+                                            darkMode={colorMode === 'dark'}
                                         />
                                     </Stack>
 
@@ -330,41 +373,6 @@ export function OverviewPage() {
                     </Stack>
                 ) : null}
             </Stack>
-        </Box>
-    )
-}
-
-function OverviewStatusBadge({
-    label,
-    tone,
-}: {
-    label: string
-    tone: 'success' | 'warning' | 'error'
-}) {
-    const palette =
-        tone === 'success'
-            ? { color: '#166534', backgroundColor: 'rgba(34, 197, 94, 0.14)' }
-            : tone === 'warning'
-                ? { color: '#b45309', backgroundColor: 'rgba(245, 158, 11, 0.16)' }
-                : { color: '#b91c1c', backgroundColor: 'rgba(239, 68, 68, 0.14)' }
-
-    return (
-        <Box
-            className="overview-page-status-chip"
-            sx={{
-                alignSelf: 'flex-start',
-                display: 'inline-flex',
-                alignItems: 'center',
-                minHeight: 24,
-                px: 1,
-                borderRadius: '999px',
-                fontSize: 12,
-                lineHeight: 1.2,
-                fontWeight: 700,
-                ...palette,
-            }}
-        >
-            {label}
         </Box>
     )
 }

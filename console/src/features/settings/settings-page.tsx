@@ -16,28 +16,32 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
+import { useAppColorMode } from '../../app/providers/color-mode'
+import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import './settings-page.css'
 
-const SETTINGS_TEXT_FIELD_SX = {
-    '& .MuiOutlinedInput-root': {
-        borderRadius: '4px',
-        height: 38,
-        backgroundColor: '#ffffff',
-    },
-    '& .MuiOutlinedInput-root.Mui-disabled': {
-        backgroundColor: '#f8fafc',
-    },
-    '& .MuiInputBase-input': {
-        fontSize: 14,
-        fontWeight: 400,
-        color: '#334155',
-    },
-    '& .MuiInputBase-input::placeholder': {
-        fontSize: 14,
-        fontWeight: 400,
-        color: '#94a3b8',
-        opacity: 1,
-    },
+function getSettingsTextFieldSx(isDarkMode: boolean) {
+    return {
+        '& .MuiOutlinedInput-root': {
+            borderRadius: '4px',
+            height: 38,
+            backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+        },
+        '& .MuiOutlinedInput-root.Mui-disabled': {
+            backgroundColor: isDarkMode ? '#162033' : '#f8fafc',
+        },
+        '& .MuiInputBase-input': {
+            fontSize: 14,
+            fontWeight: 400,
+            color: isDarkMode ? '#e5edf5' : '#334155',
+        },
+        '& .MuiInputBase-input::placeholder': {
+            fontSize: 14,
+            fontWeight: 400,
+            color: isDarkMode ? '#64748b' : '#94a3b8',
+            opacity: 1,
+        },
+    } as const
 }
 
 type SettingsSummaryItem = {
@@ -123,6 +127,8 @@ const PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH = '/volumes/platform-gateway-ce
 
 export function SettingsPage() {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
+    const isDarkMode = colorMode === 'dark'
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -370,7 +376,7 @@ export function SettingsPage() {
                             }
                             disabled={!isEditing}
                             placeholder={t('settingsPage.actions.editValue')}
-                            sx={SETTINGS_TEXT_FIELD_SX}
+                            sx={getSettingsTextFieldSx(isDarkMode)}
                         />
                         {options?.helperText ? <Typography className="settings-field-helper settings-field-helper--inline">{options.helperText}</Typography> : null}
                     </div>
@@ -631,6 +637,8 @@ export function SettingsPage() {
     return (
         <Box className="settings-page">
             <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
+                <PageDescriptionHeader title={t('nav.settings.label')} description={t('settingsPage.hero.description')} descriptionColor="var(--settings-muted)" />
+
                 <Box className="settings-page-grid">
                     <Box className="settings-panels-grid">
                         <Paper className="settings-panel" elevation={0}>

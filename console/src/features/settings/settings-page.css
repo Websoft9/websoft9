@@ -10,6 +10,14 @@
     background: transparent;
 }
 
+.app-shell-root--dark .settings-page {
+    --settings-surface: #111827;
+    --settings-surface-soft: #0f172a;
+    --settings-border: rgba(71, 85, 105, 0.65);
+    --settings-title: #f8fafc;
+    --settings-muted: #94a3b8;
+}
+
 .settings-page--loading {
     display: flex;
     flex-direction: column;
@@ -41,9 +49,20 @@
     color: #475569;
 }
 
+.app-shell-root--dark .settings-toolbar-icon-button,
+.app-shell-root--dark .settings-toolbar-icon-button.MuiIconButton-root {
+    background: #0f172a;
+    color: #f8fafc;
+}
+
 .settings-toolbar-icon-button:hover,
 .settings-toolbar-icon-button.MuiIconButton-root:hover {
     background: #f8fafc;
+}
+
+.app-shell-root--dark .settings-toolbar-icon-button:hover,
+.app-shell-root--dark .settings-toolbar-icon-button.MuiIconButton-root:hover {
+    background: #162033;
 }
 
 .settings-panels-grid {
@@ -66,6 +85,11 @@
     background: #ffffff;
 }
 
+.app-shell-root--dark .settings-panel-header {
+    border-bottom-color: rgba(71, 85, 105, 0.65);
+    background: #111827;
+}
+
 .settings-panel-header--with-action {
     display: flex;
     align-items: flex-start;
@@ -78,6 +102,14 @@
     font-weight: 600 !important;
     color: #111827;
     line-height: 1.35 !important;
+}
+
+.app-shell-root--dark .settings-panel-title,
+.app-shell-root--dark .settings-form-value,
+.app-shell-root--dark .settings-form-value--muted,
+.app-shell-root--dark .settings-field-helper,
+.app-shell-root--dark .settings-mirror-inline-input {
+    color: #e5edf5;
 }
 
 .settings-header-icon-button,
@@ -99,6 +131,10 @@
     border-bottom: 1px solid rgba(226, 232, 240, 0.72);
 }
 
+.app-shell-root--dark .settings-form-row {
+    border-bottom-color: rgba(71, 85, 105, 0.45);
+}
+
 .settings-form-row:last-child {
     border-bottom: none;
 }
@@ -108,6 +144,12 @@
     font-weight: 400;
     color: #475569;
     line-height: 1.45;
+}
+
+.app-shell-root--dark .settings-form-label,
+.app-shell-root--dark .settings-switch-label,
+.app-shell-root--dark .settings-form-meta {
+    color: #94a3b8;
 }
 
 .settings-form-control {
@@ -171,6 +213,11 @@
     border: 1px solid rgba(203, 213, 225, 0.9);
     border-radius: 4px;
     background: #ffffff;
+}
+
+.app-shell-root--dark .settings-switch-item--row {
+    border-color: rgba(71, 85, 105, 0.65);
+    background: #0f172a;
 }
 
 .settings-switch-item--rowless {
@@ -243,6 +290,12 @@
     background: #ffffff;
 }
 
+.app-shell-root--dark .settings-mirror-box,
+.app-shell-root--dark .settings-mirror-edit-box {
+    border-color: rgba(71, 85, 105, 0.65);
+    background: #0f172a;
+}
+
 .settings-mirror-chip {
     display: inline-flex;
     align-items: center;
@@ -254,6 +307,14 @@
     color: #64748b;
     font-size: 13px;
     line-height: 1.4;
+}
+
+.app-shell-root--dark .settings-mirror-chip,
+.app-shell-root--dark .settings-mirror-edit-chip,
+.app-shell-root--dark .settings-mirror-edit-chip.MuiChip-root {
+    background: #162033;
+    border-color: rgba(71, 85, 105, 0.65);
+    color: #cbd5e1;
 }
 
 .settings-mirror-edit-chip,

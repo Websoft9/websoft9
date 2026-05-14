@@ -37,12 +37,12 @@ def _get_host_bound_ports() -> set:
     return bound
 
 
-def _read_template_ports(app_name: str) -> set:
+def _read_template_ports(app_name: str) -> dict[str, int]:
     """
     Read W9_*PORT_SET values from the app template's .env file.
     Returns the set of integer port numbers found.
     """
-    ports = set()
+    ports: dict[str, int] = {}
     try:
         library_path = ConfigManager("system.ini").get_value("docker_library", "path")
         env_path = os.path.join(library_path, app_name, ".env")
@@ -55,7 +55,7 @@ def _read_template_ports(app_name: str) -> set:
                     key, _, val = line.partition('=')
                     if 'PORT_SET' in key:
                         try:
-                            ports.add(int(val.strip()))
+                            ports[key.strip()] = int(val.strip())
                         except ValueError:
                             pass
     except Exception as e:
@@ -81,17 +81,16 @@ def check_port_conflicts(settings: dict, app_name: str = None):
         for key, val in settings.items():
             if 'PORT_SET' in key:
                 try:
-                    settings_ports[key] = int(val)
+                    settings_ports[key] = int(str(val).strip())
                 except (ValueError, TypeError):
                     pass
 
     # Also collect template default ports not already overridden by settings
     template_ports: dict[str, int] = {}
     if app_name:
-        override_values = set(settings_ports.values())
-        for port in _read_template_ports(app_name):
-            if port not in override_values:
-                template_ports[f'W9_PORT_DEFAULT_{port}'] = port
+        for key, port in _read_template_ports(app_name).items():
+            if key not in settings_ports:
+                template_ports[key] = port
 
     requested = {**settings_ports, **template_ports}
     if not requested:

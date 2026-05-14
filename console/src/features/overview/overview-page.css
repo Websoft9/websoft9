@@ -7,6 +7,9 @@
     --overview-text: var(--shell-strong-text);
     --overview-muted: var(--shell-subtle-text);
     --overview-progress-track: rgba(148, 163, 184, 0.14);
+    --overview-card-bg: #ffffff;
+    --overview-card-text: #1f2937;
+    --overview-card-value: #475569;
     min-height: 100%;
     padding: 0;
     background: transparent;
@@ -15,10 +18,9 @@
 .app-shell-root--dark .overview-page-shell {
     --overview-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     --overview-progress-track: rgba(148, 163, 184, 0.18);
-}
-
-.overview-page-title {
-    display: none;
+    --overview-card-bg: #111827;
+    --overview-card-text: #e5edf5;
+    --overview-card-value: #9fb0c3;
 }
 
 .overview-page-summary-strip {
@@ -30,13 +32,13 @@
 .overview-page-summary-card {
     position: relative;
     overflow: hidden;
-    padding: 16px 18px;
+    padding: 14px 16px;
     border-radius: 2px;
     border: 1px solid var(--overview-border);
     background: var(--overview-surface);
     background-color: var(--overview-surface);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    min-height: 108px;
+    min-height: 96px;
 }
 
 .overview-page-summary-card::after {
@@ -54,7 +56,7 @@
     position: relative;
     z-index: 1;
     margin-top: 4px;
-    font-size: 40px !important;
+    font-size: 34px !important;
     line-height: 1 !important;
     font-weight: 900 !important;
     letter-spacing: -0.05em;
@@ -153,7 +155,7 @@
 .overview-page-panel,
 .overview-page-panel.MuiPaper-root {
     position: relative;
-    padding: 16px;
+    padding: 14px;
     border-radius: 2px !important;
     border: 1px solid var(--overview-border);
     background: var(--overview-surface);
@@ -182,7 +184,7 @@
 .overview-page-panel-title {
     font-size: 20px;
     line-height: 1.2;
-    font-weight: 800;
+    font-weight: 900 !important;
     letter-spacing: -0.025em;
     color: var(--overview-title);
 }
@@ -216,26 +218,26 @@
 
 .overview-page-info-block {
     border-radius: 2px;
-    border: 1px solid rgba(229, 231, 235, 0.92);
-    background: #ffffff;
-    background-color: #ffffff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
-    min-height: 88px;
+    border: 1px solid var(--overview-border);
+    background: var(--overview-card-bg);
+    background-color: var(--overview-card-bg);
+    box-shadow: var(--overview-shadow);
+    min-height: 80px;
 }
 
 .overview-page-info-block__body {
     display: flex;
-    min-height: 88px;
+    min-height: 80px;
     flex-direction: column;
     justify-content: center;
-    padding: 14px 16px;
+    padding: 12px 14px;
 }
 
 .overview-page-info-label {
     font-size: 15px;
     line-height: 1.25;
     font-weight: 500;
-    color: #1f2937;
+    color: var(--overview-card-text);
 }
 
 .overview-page-info-value {
@@ -243,17 +245,17 @@
     font-size: 16px;
     line-height: 1.45;
     font-weight: 400;
-    color: #475569;
+    color: var(--overview-card-value);
     overflow-wrap: anywhere;
 }
 
 .overview-page-resource-meter {
-    padding: 15px 16px;
+    padding: 12px 14px;
     border-radius: 2px;
     border: 1px solid var(--overview-border);
-    background: #ffffff;
-    background-color: #ffffff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    background: var(--overview-card-bg);
+    background-color: var(--overview-card-bg);
+    box-shadow: var(--overview-shadow);
 }
 
 .overview-page-resource-stack {
@@ -319,6 +321,11 @@
         padding: 0;
     }
 
+    .overview-page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
     .overview-page-summary-strip,
     .overview-page-info-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -336,6 +343,15 @@
 @media (max-width: 599px) {
     .overview-page-shell {
         padding: 0;
+    }
+
+    .overview-page-title {
+        font-size: 24px !important;
+    }
+
+    .overview-page-header-meta,
+    .overview-page-header-meta.MuiTypography-root {
+        font-size: 12px !important;
     }
 
     .overview-page-panel {

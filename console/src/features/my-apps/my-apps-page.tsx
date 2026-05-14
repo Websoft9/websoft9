@@ -1,5 +1,6 @@
 import {
     Alert,
+    Box,
     Button,
     Card,
     CardContent,
@@ -10,6 +11,10 @@ import {
     DialogTitle,
     FormControlLabel,
     IconButton,
+    ListItemIcon,
+    ListItemText,
+    Menu,
+    MenuItem,
     Snackbar,
     Switch,
     Typography,
@@ -19,6 +24,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import { useAppColorMode } from '../../app/providers/color-mode'
+import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { useMyApps, type MyApp } from './use-my-apps'
 import { fetchMyAppDetail } from './use-my-app-detail'
 import { LegacyMyAppLogo } from './my-app-media'
@@ -28,8 +35,9 @@ import './my-apps-page.css'
 // Types
 // =====================
 type StatusFilter = 'all' | '1' | '2' | '3' | '4'
-type SourceFilter = 'all' | 'marketplace' | 'compose' | 'runtime'
 type RemoveType = 'inactive' | 'error'
+type AppSourceKey = 'marketplace' | 'compose' | 'runtime'
+type SourceFilter = 'all' | AppSourceKey
 type ActionFeedback = {
     severity: 'success' | 'error' | 'info'
     message: string
@@ -58,12 +66,21 @@ function getStatusLabel(status: number): string {
     }
 }
 
-function getInstallSourceKey(app: MyApp): Exclude<SourceFilter, 'all'> {
+function resolveAppSource(app: MyApp): AppSourceKey {
     if (app.app_official) {
         return 'marketplace'
     }
 
-    if (app.is_php_app) {
+    const haystack = [
+        app.app_dist,
+        JSON.stringify(app.env ?? {}),
+        JSON.stringify(app.gitConfig ?? {}),
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+    if (/(runtime|python|php|java|node|go|dotnet|gunicorn|tomcat|pm2)/.test(haystack)) {
         return 'runtime'
     }
 
@@ -77,6 +94,59 @@ function IconRedeploy() {
     return (
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
             <path d="M12 5a7 7 0 1 1-6.32 10H8a5 5 0 1 0 .53-4.25L11 13H4V6l2.58 2.58A6.96 6.96 0 0 1 12 5z" />
+        </svg>
+    )
+}
+
+function IconRefresh() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+            <path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20 4v6h-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
+
+function IconAppStore() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M7 4h10l1 4h2v2h-1l-1 9H6L5 10H4V8h2l1-4Zm1.58 4h6.84l-.5-2H9.08l-.5 2ZM8 12v5h2v-5H8Zm6 0v5h2v-5h-2Z" />
+        </svg>
+    )
+}
+
+function IconCompose() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M7 5v14M17 5v14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.7" />
+        </svg>
+    )
+}
+
+function IconRuntime() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+            <path d="M12 2 4 6.5V17.5L12 22l8-4.5V6.5L12 2Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+            <path d="M12 7v10M7.5 9.5 12 12l4.5-2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
+
+function IconDeployMenu() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+            <path d="M12 3v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="m8 9 4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 19h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+    )
+}
+
+function IconChevronDown() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="m7 10 5 5 5-5H7Z" />
         </svg>
     )
 }
@@ -412,8 +482,10 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
 // =====================
 export function MyAppsPage() {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
     const queryClient = useQueryClient()
     const navigate = useNavigate()
+    const isDarkMode = colorMode === 'dark'
     const [searchValue, setSearchValue] = useState('')
     const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
     const [selectedSource, setSelectedSource] = useState<SourceFilter>('all')
@@ -425,16 +497,33 @@ export function MyAppsPage() {
     const [pullImage, setPullImage] = useState(false)
     const [actionBusy, setActionBusy] = useState(false)
     const [feedback, setFeedback] = useState<ActionFeedback | null>(null)
+    const [manualRefreshing, setManualRefreshing] = useState(false)
+    const [deployMenuAnchor, setDeployMenuAnchor] = useState<HTMLElement | null>(null)
 
     const { data, error, isLoading, refetch } = useMyApps()
-    const [manualRefreshing, setManualRefreshing] = useState(false)
+    const apps = data ?? []
+    const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const palette = {
+        pageBg: isDarkMode ? '#0f172a' : '#ffffff',
+        panelBg: isDarkMode ? '#111827' : '#ffffff',
+        panelSoft: isDarkMode ? '#162033' : '#f8fafc',
+        border: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(15, 23, 42, 0.08)',
+        text: isDarkMode ? '#f8fafc' : '#111827',
+        subtleText: isDarkMode ? '#94a3b8' : '#64748b',
+    } as const
 
     async function handleManualRefresh() {
         setManualRefreshing(true)
-        try { await refetch() } finally { setManualRefreshing(false) }
+        try {
+            await refetch()
+        } finally {
+            setManualRefreshing(false)
+        }
     }
-    const apps = data ?? []
-    const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+
+    function getSourceLabel(source: AppSourceKey) {
+        return t(`myAppsPage.source.${source}`)
+    }
 
     useEffect(() => {
         if (apps.length === 0) return
@@ -476,32 +565,25 @@ export function MyAppsPage() {
         [logDialogKey, apps],
     )
 
-    const officialApps = useMemo(
+    const filteredApps = useMemo(
         () => apps.filter((app) => {
-            if (!app.app_official) return false
             const matchesStatus = selectedStatus === 'all' || String(app.status) === selectedStatus
-            const matchesSource = selectedSource === 'all' || getInstallSourceKey(app) === selectedSource
-            const searchText = [app.app_name, app.app_id, app.app_version, app.error].filter(Boolean).join(' ').toLowerCase()
+            const source = resolveAppSource(app)
+            const matchesSource = selectedSource === 'all' || source === selectedSource
+            const searchText = [app.app_name, app.app_id, app.app_version, app.error, app.app_dist].filter(Boolean).join(' ').toLowerCase()
             const matchesSearch = !searchValue.trim() || searchText.includes(searchValue.trim().toLowerCase())
             return matchesStatus && matchesSource && matchesSearch
         }),
         [apps, searchValue, selectedSource, selectedStatus],
     )
 
-    const otherApps = useMemo(
-        () => apps.filter((app) => {
-            if (app.app_official) return false
-            const matchesStatus = selectedStatus === 'all' || String(app.status) === selectedStatus
-            const matchesSource = selectedSource === 'all' || getInstallSourceKey(app) === selectedSource
-            const searchText = [app.app_name, app.app_id, app.app_version, app.error].filter(Boolean).join(' ').toLowerCase()
-            const matchesSearch = !searchValue.trim() || searchText.includes(searchValue.trim().toLowerCase())
-            return matchesStatus && matchesSource && matchesSearch
-        }),
-        [apps, searchValue, selectedSource, selectedStatus],
-    )
+    const marketplaceApps = useMemo(() => filteredApps.filter((app) => resolveAppSource(app) === 'marketplace'), [filteredApps])
+    const runtimeApps = useMemo(() => filteredApps.filter((app) => resolveAppSource(app) === 'runtime'), [filteredApps])
+    const composeApps = useMemo(() => filteredApps.filter((app) => resolveAppSource(app) === 'compose'), [filteredApps])
 
-    const hasVisibleOfficialApps = officialApps.length > 0
-    const hasVisibleOtherApps = otherApps.length > 0
+    const hasVisibleMarketplaceApps = marketplaceApps.length > 0
+    const hasVisibleRuntimeApps = runtimeApps.length > 0
+    const hasVisibleComposeApps = composeApps.length > 0
 
     function handleCardClick(app: MyApp) {
         if (!app.app_official) return
@@ -650,39 +732,25 @@ export function MyAppsPage() {
                         <h3 className="appstore-item-content-title" style={{ color: '#2196f3', margin: '0 0 4px' }}>
                             {app.app_id}
                         </h3>
-                        <div style={{ marginBottom: 4 }}>
-                            <span
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minHeight: 22,
-                                    padding: '0 8px',
-                                    borderRadius: 999,
-                                    backgroundColor: app.app_official ? '#dbeafe' : app.is_php_app ? '#ede9fe' : '#dcfce7',
-                                    color: app.app_official ? '#1d4ed8' : app.is_php_app ? '#6d28d9' : '#166534',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    lineHeight: 1.2,
-                                }}
-                            >
-                                {t(`myAppsPage.source.${getInstallSourceKey(app)}`)}
-                            </span>
-                        </div>
-                        {app.app_official ? (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {app.status === 3 ? <span className="spinner-border-sm me-1" /> : null}
-                                <div className="m-2">
-                                    <span className={`badge ${getStatusBadgeClass(app.status)}`}>
-                                        {getStatusLabel(app.status)}
-                                    </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                            {app.app_official ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {app.status === 3 ? <span className="spinner-border-sm me-1" /> : null}
+                                    <div className="m-2">
+                                        <span className={`badge ${getStatusBadgeClass(app.status)}`}>
+                                            {getStatusLabel(app.status)}
+                                        </span>
+                                    </div>
                                 </div>
+                            ) : (
+                                <div style={{ visibility: 'hidden', display: 'flex' }}>
+                                    <div className="m-2">&nbsp;</div>
+                                </div>
+                            )}
+                            <div style={{ fontSize: 12, lineHeight: 1.45, color: palette.subtleText }}>
+                                {getSourceLabel(resolveAppSource(app))}
                             </div>
-                        ) : (
-                            <div style={{ visibility: 'hidden', display: 'flex' }}>
-                                <div className="m-2">&nbsp;</div>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -690,10 +758,92 @@ export function MyAppsPage() {
     }
 
     return (
-        <div style={{ padding: '12px 16px', minHeight: 'calc(100vh - 120px)' }}>
+        <Box
+            className="myapps-page-shell"
+            sx={{
+                height: 'calc(100vh - 120px)',
+                position: 'relative',
+                mx: { xs: -1, md: -3 },
+                my: { xs: -1.25, md: -2.25 },
+                px: { xs: 2, md: 3 },
+                py: { xs: 1.25, md: 1.5 },
+                backgroundColor: palette.pageBg,
+                color: palette.text,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+            }}
+        >
+            <PageDescriptionHeader
+                title={t('nav.myApps.label')}
+                description={t('myAppsPage.hero.description')}
+                descriptionColor={palette.subtleText}
+                actions={(
+                    <>
+                        <Button
+                            color="inherit"
+                            onClick={(event) => {
+                                setDeployMenuAnchor(event.currentTarget)
+                            }}
+                            size="small"
+                            className="app-shell-page-pill"
+                            title={t('applicationsHubPage.menu.action')}
+                            startIcon={<IconDeployMenu />}
+                            endIcon={<IconChevronDown />}
+                        >
+                            {t('applicationsHubPage.menu.action')}
+                        </Button>
+                        <IconButton
+                            color="inherit"
+                            onClick={() => {
+                                void handleManualRefresh()
+                            }}
+                            size="small"
+                            disabled={manualRefreshing}
+                            className="app-shell-page-action"
+                            title={manualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                        >
+                            {manualRefreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh />}
+                        </IconButton>
+                    </>
+                )}
+                sx={{ mb: 1.5 }}
+            />
+
+            <Menu
+                anchorEl={deployMenuAnchor}
+                open={Boolean(deployMenuAnchor)}
+                onClose={() => setDeployMenuAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <MenuItem onClick={() => { setDeployMenuAnchor(null); navigate('/appstore') }}>
+                    <ListItemIcon><IconAppStore /></ListItemIcon>
+                    <ListItemText>{t('applicationsHubPage.menu.marketplace')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { setDeployMenuAnchor(null); navigate('/applications/custom-install') }}>
+                    <ListItemIcon><IconCompose /></ListItemIcon>
+                    <ListItemText>{t('applicationsHubPage.menu.customInstall')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { setDeployMenuAnchor(null); navigate('/applications/runtime') }}>
+                    <ListItemIcon><IconRuntime /></ListItemIcon>
+                    <ListItemText>{t('applicationsHubPage.menu.runtime')}</ListItemText>
+                </MenuItem>
+            </Menu>
 
             {/* Toolbar */}
             <div className="myapps-toolbar">
+                <div className="myapps-toolbar-select">
+                    <select
+                        className="form-select"
+                        value={selectedSource}
+                        onChange={(e) => setSelectedSource(e.target.value as SourceFilter)}
+                    >
+                        <option value="all">{t('myAppsPage.filters.allSources')}</option>
+                        <option value="marketplace">{t('myAppsPage.filters.marketplaceSource')}</option>
+                        <option value="compose">{t('myAppsPage.filters.composeSource')}</option>
+                        <option value="runtime">{t('myAppsPage.filters.runtimeSource')}</option>
+                    </select>
+                </div>
                 <div className="myapps-toolbar-select">
                     <select
                         className="form-select"
@@ -707,18 +857,6 @@ export function MyAppsPage() {
                         <option value="4">Error</option>
                     </select>
                 </div>
-                <div className="myapps-toolbar-select">
-                    <select
-                        className="form-select"
-                        value={selectedSource}
-                        onChange={(e) => setSelectedSource(e.target.value as SourceFilter)}
-                    >
-                        <option value="all">{t('myAppsPage.filters.allSources')}</option>
-                        <option value="marketplace">{t('myAppsPage.filters.marketplaceSource')}</option>
-                        <option value="compose">{t('myAppsPage.filters.composeSource')}</option>
-                        <option value="runtime">{t('myAppsPage.filters.runtimeSource')}</option>
-                    </select>
-                </div>
                 <div className="myapps-toolbar-search">
                     <input
                         type="text"
@@ -728,32 +866,15 @@ export function MyAppsPage() {
                         onChange={(e) => setSearchValue(e.target.value)}
                     />
                 </div>
-                <div className="myapps-toolbar-refresh">
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => navigate('/appstore')}
-                        style={{ marginRight: 8 }}
-                    >
-                        {t('myAppsPage.hero.addApplication')}
-                    </button>
-                    <button
-                        className="btn btn-primary"
-                        disabled={manualRefreshing}
-                        onClick={() => void handleManualRefresh()}
-                    >
-                        {manualRefreshing ? <span className="spinner-border-sm me-1" /> : null}
-                        {t('myAppsPage.hero.refresh')}
-                    </button>
-                </div>
             </div>
 
             {/* Loading – same pattern as App Store page */}
             {isLoading ? (
-                <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)', mt: 2 }}>
+                <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, mt: 2, backgroundColor: palette.panelBg }}>
                     <CardContent>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '40px 24px' }}>
                             <CircularProgress size={28} />
-                            <Typography color="text.secondary" variant="body2">
+                            <Typography color={palette.subtleText} variant="body2">
                                 {t('myAppsPage.states.loading')}
                             </Typography>
                         </div>
@@ -777,58 +898,56 @@ export function MyAppsPage() {
             {/* Content */}
             {!isLoading && !error ? (
                 <>
-                    {!hasVisibleOfficialApps && !hasVisibleOtherApps ? (
-                        <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)', mt: 2 }}>
+                    {filteredApps.length === 0 ? (
+                        <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, mt: 2, backgroundColor: palette.panelBg }}>
                             <CardContent>
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
                                     {/* Box icon */}
                                     <svg viewBox="0 0 64 64" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect width="64" height="64" rx="16" fill="#f1f2f7" />
-                                        <path d="M32 16l14 7v14l-14 7-14-7V23l14-7z" stroke="#b0b8d1" strokeWidth="2" strokeLinejoin="round" />
-                                        <path d="M32 16v14M18 23l14 7 14-7" stroke="#b0b8d1" strokeWidth="2" />
+                                        <rect width="64" height="64" rx="16" fill={isDarkMode ? '#162033' : '#f1f2f7'} />
+                                        <path d="M32 16l14 7v14l-14 7-14-7V23l14-7z" stroke={isDarkMode ? '#64748b' : '#b0b8d1'} strokeWidth="2" strokeLinejoin="round" />
+                                        <path d="M32 16v14M18 23l14 7 14-7" stroke={isDarkMode ? '#64748b' : '#b0b8d1'} strokeWidth="2" />
                                     </svg>
-                                    <Typography sx={{ fontWeight: 600, fontSize: 16, color: '#111827', mt: 1 }}>
-                                        {t('myAppsPage.states.noAppsInstalled')}
+                                    <Typography sx={{ fontWeight: 600, fontSize: 16, color: palette.text, mt: 1 }}>
+                                        {apps.length === 0 ? t('myAppsPage.states.noAppsInstalled') : t('myAppsPage.states.noAppsFound')}
                                     </Typography>
-                                    <Typography color="text.secondary" variant="body2" sx={{ textAlign: 'center', maxWidth: 400, lineHeight: 1.7 }}>
-                                        {t('myAppsPage.states.emptyDetail')}
+                                    <Typography color={palette.subtleText} variant="body2" sx={{ textAlign: 'center', maxWidth: 400, lineHeight: 1.7 }}>
+                                        {apps.length === 0 ? t('myAppsPage.states.emptyDetail') : t('myAppsPage.states.filterHint')}
                                     </Typography>
                                     <button
                                         className="myapps-empty-btn"
-                                        onClick={() => navigate('/appstore')}
+                                        onClick={() => navigate('/applications/deploy')}
                                     >
-                                        {t('myAppsPage.states.goToAppStore')}
+                                        {t('applicationsHubPage.menu.action')}
                                     </button>
                                 </div>
                             </CardContent>
                         </Card>
                     ) : (
                         <>
-                            {hasVisibleOfficialApps ? (
+                            {hasVisibleMarketplaceApps ? (
                                 <div>
                                     <h4 className="myapps-section-heading">{t('myAppsPage.sections.officialApps')}</h4>
-                                    {officialApps.length === 0 ? (
-                                        <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)' }}>
-                                            <CardContent>
-                                                <div style={{ padding: '24px', textAlign: 'center' }}>
-                                                    <Typography sx={{ fontWeight: 600 }}>{t('myAppsPage.states.noAppsFound')}</Typography>
-                                                    <Typography color="text.secondary" variant="body2">{t('myAppsPage.states.filterHint')}</Typography>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ) : (
-                                        <div className="myapps-card-grid">
-                                            {renderCards(officialApps)}
-                                        </div>
-                                    )}
+                                    <div className="myapps-card-grid">
+                                        {renderCards(marketplaceApps)}
+                                    </div>
                                 </div>
                             ) : null}
 
-                            {hasVisibleOtherApps ? (
+                            {hasVisibleRuntimeApps ? (
+                                <div>
+                                    <h4 className="myapps-section-heading is-secondary">{t('applicationsHubPage.menu.runtime')}</h4>
+                                    <div className="myapps-card-grid">
+                                        {renderCards(runtimeApps)}
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            {hasVisibleComposeApps ? (
                                 <div>
                                     <h4 className="myapps-section-heading is-secondary">{t('myAppsPage.sections.otherApps')}</h4>
                                     <div className="myapps-card-grid">
-                                        {renderCards(otherApps)}
+                                        {renderCards(composeApps)}
                                     </div>
                                 </div>
                             ) : null}
@@ -922,6 +1041,6 @@ export function MyAppsPage() {
                     {feedback?.message}
                 </Alert>
             </Snackbar>
-        </div>
+        </Box>
     )
 }

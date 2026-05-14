@@ -12,6 +12,30 @@
     margin-bottom: 8px;
 }
 
+.myapps-page-shell {
+    --myapps-surface: #ffffff;
+    --myapps-surface-soft: #f8fafc;
+    --myapps-surface-hover: rgb(229, 230, 229);
+    --myapps-border: #ced4da;
+    --myapps-text: #313a46;
+    --myapps-muted: #6c757d;
+    --myapps-heading: #6c757d;
+    --myapps-input-bg: #ffffff;
+    --myapps-primary: #727cf5;
+}
+
+.app-shell-root--dark .myapps-page-shell {
+    --myapps-surface: #111827;
+    --myapps-surface-soft: #162033;
+    --myapps-surface-hover: #162033;
+    --myapps-border: rgba(71, 85, 105, 0.82);
+    --myapps-text: #e5edf5;
+    --myapps-muted: #94a3b8;
+    --myapps-heading: #cbd5e1;
+    --myapps-input-bg: #0f172a;
+    --myapps-primary: #93c5fd;
+}
+
 .myapps-toolbar-select {
     flex: 0 0 auto;
     width: 220px;
@@ -20,10 +44,6 @@
 .myapps-toolbar-search {
     flex: 1 1 auto;
     min-width: 160px;
-}
-
-.myapps-toolbar-refresh {
-    flex: 0 0 auto;
 }
 
 /* Bootstrap-like form controls */
@@ -36,9 +56,9 @@
     font-size: 14px;
     font-weight: 400;
     line-height: 1.5;
-    color: #495057;
-    background-color: #fff;
-    border: 1px solid #ced4da;
+    color: var(--myapps-text);
+    background-color: var(--myapps-input-bg);
+    border: 1px solid var(--myapps-border);
     border-radius: 4px;
     outline: none;
     box-sizing: border-box;
@@ -52,7 +72,7 @@
 }
 
 .form-control::placeholder {
-    color: #b6bcc6;
+    color: var(--myapps-muted);
 }
 
 /* Bootstrap-like button */
@@ -77,8 +97,8 @@
 
 .btn-primary {
     color: #fff;
-    background-color: #727cf5;
-    border-color: #727cf5;
+    background-color: var(--myapps-primary);
+    border-color: var(--myapps-primary);
 }
 
 .btn-primary:hover {
@@ -137,8 +157,9 @@
 
 /* ── Card inner ── */
 .appstore-item-content {
-    background-color: #fff;
+    background-color: var(--myapps-surface);
     box-shadow: 0 2px 5px rgb(0 0 0 / 10%);
+    border: 1px solid var(--myapps-border);
     border-radius: 2px;
     padding: 10px;
     width: 100%;
@@ -156,7 +177,7 @@
 }
 
 .highlight:hover {
-    background-color: rgb(229, 230, 229);
+    background-color: var(--myapps-surface-hover);
 }
 
 /* ── Card action icons (top-right, dripicons style) ── */
@@ -188,7 +209,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #98a6ad;
+    color: var(--myapps-muted);
     line-height: 1;
     width: 22px;
     height: 22px;
@@ -197,8 +218,8 @@
 }
 
 .noti-icon:hover {
-    color: #313a46;
-    background-color: rgba(0, 0, 0, 0.06);
+    color: var(--myapps-text);
+    background-color: rgba(148, 163, 184, 0.12);
 }
 
 .noti-icon svg {
@@ -292,7 +313,7 @@
 .myapps-section-heading {
     margin-top: 30px;
     margin-bottom: 20px;
-    color: #6c757d;
+    color: var(--myapps-heading);
     font-weight: 700;
 }
 
@@ -303,7 +324,7 @@
 
 /* ── Empty state / no-apps link ── */
 .myapps-empty-link {
-    color: #727cf5;
+    color: var(--myapps-primary);
     text-decoration: none;
     background: none;
     border: none;
@@ -325,9 +346,9 @@
     margin-top: 8px;
     padding: 7px 20px;
     border-radius: 6px;
-    border: 1px solid rgba(114, 124, 245, 0.45);
+    border: 1px solid color-mix(in srgb, var(--myapps-primary) 45%, transparent);
     background: transparent;
-    color: #727cf5;
+    color: var(--myapps-primary);
     font-size: 13.5px;
     font-weight: 500;
     font-family: inherit;
@@ -336,6 +357,6 @@
 }
 
 .myapps-empty-btn:hover {
-    background: rgba(114, 124, 245, 0.08);
-    border-color: #727cf5;
+    background: rgba(148, 163, 184, 0.12);
+    border-color: var(--myapps-primary);
 }

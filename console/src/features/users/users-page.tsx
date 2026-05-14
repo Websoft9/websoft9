@@ -2,6 +2,8 @@ import {
     Alert,
     Box,
     Button,
+    Card,
+    CardContent,
     Chip,
     CircularProgress,
     DialogActions,
@@ -9,20 +11,13 @@ import {
     DialogTitle,
     InputAdornment,
     IconButton,
-    Paper,
     Snackbar,
     Stack,
     SvgIcon,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     TextField,
+    MenuItem,
     Tooltip,
     Typography,
-    MenuItem,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -31,6 +26,8 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { useAppColorMode } from '../../app/providers/color-mode'
+import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './users-page.css'
@@ -68,6 +65,7 @@ type UsersScopedOverlayProps = {
     open: boolean
     scopeRect: ContentScopeRect | null
     onClose: () => void
+    darkMode: boolean
     maxWidth?: number
     children: ReactNode
 }
@@ -145,7 +143,7 @@ function DeleteIcon() {
     )
 }
 
-function UsersScopedOverlay({ open, scopeRect, onClose, maxWidth = 600, children }: UsersScopedOverlayProps) {
+function UsersScopedOverlay({ open, scopeRect, onClose, darkMode, maxWidth = 600, children }: UsersScopedOverlayProps) {
     useEffect(() => {
         if (!open) {
             return
@@ -171,6 +169,7 @@ function UsersScopedOverlay({ open, scopeRect, onClose, maxWidth = 600, children
 
     return createPortal(
         <Box
+            className={darkMode ? 'app-shell-root--dark' : undefined}
             sx={{
                 position: 'fixed',
                 top: scopeRect.top,
@@ -211,9 +210,11 @@ function UsersScopedOverlay({ open, scopeRect, onClose, maxWidth = 600, children
                         maxHeight: `${availableHeight}px`,
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: '#fff',
+                        backgroundColor: darkMode ? '#182235' : '#fff',
                         borderRadius: '2px',
-                        boxShadow: '0 16px 40px rgba(15, 23, 42, 0.16)',
+                        color: darkMode ? '#e5edf5' : '#0f172a',
+                        border: darkMode ? '1px solid rgba(148, 163, 184, 0.2)' : undefined,
+                        boxShadow: darkMode ? '0 24px 64px rgba(2, 6, 23, 0.62)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
                         overflow: 'hidden',
                     }}
                 >
@@ -330,6 +331,8 @@ function mapUserRequestError(message: string, t: ReturnType<typeof useTranslatio
 }
 
 export function UsersPage() {
+    const { colorMode } = useAppColorMode()
+    const isDarkMode = colorMode === 'dark'
     const { t, i18n } = useTranslation('shell')
     const location = useLocation()
     const navigate = useNavigate()
@@ -356,6 +359,47 @@ export function UsersPage() {
     const [showEditPassword, setShowEditPassword] = useState(false)
     const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
+
+    const palette = {
+        pageBg: isDarkMode ? '#0f172a' : '#ffffff',
+        cardBg: isDarkMode ? '#111827' : '#ffffff',
+        tableHead: isDarkMode ? '#162033' : '#f8fafc',
+        text: isDarkMode ? '#f8fafc' : '#0f172a',
+        subtleText: isDarkMode ? '#94a3b8' : '#64748b',
+        actionText: isDarkMode ? '#f8fafc' : '#475569',
+        border: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.95)',
+        borderStrong: isDarkMode ? 'rgba(148, 163, 184, 0.2)' : 'rgba(203, 213, 225, 0.9)',
+        idleBg: isDarkMode ? '#111827' : '#ffffff',
+        idleHover: isDarkMode ? '#162033' : '#f8fafc',
+        buttonHover: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(145, 158, 171, 0.12)',
+    } as const
+
+    const surfaceCardSx = {
+        borderRadius: '2px',
+        border: `1px solid ${palette.border}`,
+        background: palette.cardBg,
+        boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.28)' : '0 8px 24px rgba(15, 23, 42, 0.05)',
+    } as const
+
+    const topActionButtonSx = {
+        borderRadius: 0,
+        textTransform: 'none',
+        px: 1.25,
+        color: palette.actionText,
+        fontWeight: 600,
+        backgroundColor: 'transparent',
+        '&:hover': {
+            backgroundColor: palette.buttonHover,
+        },
+    } as const
+    const isChinese = i18n.resolvedLanguage === 'zh-CN'
+    const copy = isChinese
+        ? {
+            pageDescription: '查看并管理平台用户账号。',
+        }
+        : {
+            pageDescription: 'View and manage platform user accounts.',
+        }
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
 
     const { data, error, isLoading, isFetching, refetch } = useQuery<ProductAuthUsersResponse, Error>({
@@ -418,12 +462,39 @@ export function UsersPage() {
                         borderRadius: 0,
                         mt: 0.5,
                         zIndex: 1501,
+                        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+                        color: isDarkMode ? '#e5edf5' : '#0f172a',
                     },
                 },
             },
         }),
-        [],
+        [isDarkMode],
     )
+
+    const dialogSectionSx = {
+        px: { xs: 2, md: 2.5 },
+        py: { xs: 1.75, md: 2 },
+        flexShrink: 0,
+        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+    } as const
+
+    const dialogContentSx = {
+        px: 0,
+        py: 0,
+        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+        '&.MuiDialogContent-dividers': {
+            borderTopColor: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)',
+            borderBottomColor: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)',
+        },
+    } as const
+
+    const dialogActionsSx = {
+        px: 2.5,
+        py: 2,
+        flexShrink: 0,
+        borderTop: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)'}`,
+        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+    } as const
 
     const computedCreateErrors = useMemo<UserFieldErrors>(() => {
         const errors: UserFieldErrors = {}
@@ -743,9 +814,22 @@ export function UsersPage() {
     }
 
     return (
-        <Box className="users-page-shell" ref={pageShellRef}>
+        <Box
+            className="users-page-shell"
+            ref={pageShellRef}
+            sx={{
+                minHeight: 0,
+                position: 'relative',
+                mx: { xs: -1, md: -3 },
+                my: { xs: -1.25, md: -2.25 },
+                px: { xs: 2, md: 3 },
+                py: { xs: 1.25, md: 1.5 },
+                backgroundColor: palette.pageBg,
+                overflowY: 'visible',
+                overflowX: 'hidden',
+            }}
+        >
             <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
-
                 {!status?.enabled ? (
                     <Alert severity="info" variant="outlined">
                         {t('usersPage.states.authDisabled')}
@@ -766,163 +850,189 @@ export function UsersPage() {
                     </Alert>
                 ) : null}
 
+                <PageDescriptionHeader title={t('nav.users.label')} description={copy.pageDescription} descriptionColor={palette.subtleText} />
+
                 <Box className="users-page-grid">
-                    <Paper className="users-toolbar-panel" elevation={0}>
-                        <Box className="users-toolbar-row">
-                            <Box className="users-toolbar">
-                                <TextField
-                                    className="users-toolbar-field users-toolbar-search"
-                                    onChange={(event) => setSearchValue(event.target.value)}
-                                    placeholder={t('usersPage.filters.searchPlaceholder')}
-                                    size="small"
-                                    value={searchValue}
-                                />
-                                {currentUserIsSystem ? (
-                                    <Button className="users-toolbar-button" onClick={openCreateDialog} variant="contained">
-                                        {t('usersPage.create.submit')}
-                                    </Button>
-                                ) : null}
-                                <IconButton className="users-toolbar-icon-button" onClick={() => void refetch()} disabled={isFetching} size="small" title={t('usersPage.actions.refresh')}>
-                                    {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-                                </IconButton>
-                            </Box>
-                        </Box>
-                    </Paper>
-
-                    <Paper className="users-panel" elevation={0}>
-                        {showLoadingCard ? <SurfaceStateCard detail={t('usersPage.states.loading')} loading /> : null}
-
-                        {!showLoadingCard ? (
-                            <TableContainer className="users-table-container">
-                                <Table className="users-table">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>{t('usersPage.columns.username')}</TableCell>
-                                            <TableCell>{t('usersPage.columns.displayName')}</TableCell>
-                                            <TableCell>{t('usersPage.columns.language')}</TableCell>
-                                            <TableCell>{t('usersPage.columns.status')}</TableCell>
-                                            <TableCell>{t('usersPage.columns.createdAt')}</TableCell>
-                                            <TableCell align="right">{t('usersPage.columns.actions')}</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {showRefreshRow ? (
-                                            <TableRow>
-                                                <TableCell className="users-table-state-cell" colSpan={6}>
-                                                    <Box className="users-table-state">
-                                                        <CircularProgress size={18} />
-                                                        <Typography color="text.secondary" variant="body2">
-                                                            {t('usersPage.states.refreshing')}
-                                                        </Typography>
-                                                    </Box>
-                                                </TableCell>
-                                            </TableRow>
+                    <Card elevation={0} sx={surfaceCardSx}>
+                        <CardContent sx={{ pt: 3, pb: 2 }}>
+                            <Stack spacing={1.5} sx={{ minHeight: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
+                                    <Box className="users-toolbar">
+                                        <TextField
+                                            className="users-toolbar-field users-toolbar-search"
+                                            onChange={(event) => setSearchValue(event.target.value)}
+                                            placeholder={t('usersPage.filters.searchPlaceholder')}
+                                            size="small"
+                                            value={searchValue}
+                                        />
+                                        {currentUserIsSystem ? (
+                                            <Button className="users-toolbar-button" onClick={openCreateDialog} variant="contained" sx={{ borderRadius: 0, boxShadow: 'none', textTransform: 'none', fontWeight: 600 }}>
+                                                {t('usersPage.create.submit')}
+                                            </Button>
                                         ) : null}
+                                        <IconButton className="users-toolbar-icon-button" onClick={() => void refetch()} disabled={isFetching} size="small" title={t('usersPage.actions.refresh')} sx={topActionButtonSx}>
+                                            {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                        </IconButton>
+                                    </Box>
+                                </Box>
 
-                                        {!showRefreshRow && users.length === 0 ? (
-                                            <TableRow>
-                                                <TableCell className="users-table-state-cell" colSpan={6}>
-                                                    <Box className="users-table-state users-table-state-box">
-                                                        <Typography variant="subtitle1">{t('usersPage.states.empty')}</Typography>
-                                                    </Box>
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : null}
+                                {showLoadingCard ? <SurfaceStateCard detail={t('usersPage.states.loading')} loading /> : null}
 
-                                        {!showRefreshRow && users.length > 0 && filteredUsers.length === 0 ? (
-                                            <TableRow>
-                                                <TableCell className="users-table-state-cell" colSpan={6}>
-                                                    <Box className="users-table-state users-table-state-box">
-                                                        <Typography variant="subtitle1">{t('usersPage.states.noResults')}</Typography>
-                                                    </Box>
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : null}
+                                {!showLoadingCard ? (
+                                    <Box sx={{ overflowX: 'auto', border: `1px solid ${palette.border}` }}>
+                                        <Box sx={{ minWidth: 1080 }}>
+                                            <Box
+                                                sx={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1.1fr 1fr .75fr .78fr .9fr 1fr',
+                                                    alignItems: 'center',
+                                                    minHeight: 52,
+                                                    px: 1.25,
+                                                    borderBottom: `1px solid ${palette.border}`,
+                                                    background: palette.tableHead,
+                                                }}
+                                            >
+                                                {[
+                                                    t('usersPage.columns.username'),
+                                                    t('usersPage.columns.displayName'),
+                                                    t('usersPage.columns.language'),
+                                                    t('usersPage.columns.status'),
+                                                    t('usersPage.columns.createdAt'),
+                                                    t('usersPage.columns.actions'),
+                                                ].map((column, index) => (
+                                                    <Typography
+                                                        key={column}
+                                                        sx={{
+                                                            fontSize: 13,
+                                                            fontWeight: 700,
+                                                            color: palette.subtleText,
+                                                            textAlign: index === 5 ? 'right' : 'left',
+                                                        }}
+                                                    >
+                                                        {column}
+                                                    </Typography>
+                                                ))}
+                                            </Box>
 
-                                        {!showRefreshRow
-                                            ? filteredUsers.map((user) => {
-                                                const isCurrentUser = currentUserId === user.id
-                                                const canEditUser = currentUserIsSystem || isCurrentUser
-                                                const canDeleteUser = currentUserIsSystem && user.delete_eligible
-                                                const canToggleUser = currentUserIsSystem && user.delete_eligible && !isCurrentUser
-                                                return (
-                                                    <TableRow key={user.id}>
-                                                        <TableCell>
-                                                            <Stack className="users-identity-cell" spacing={0.75}>
+                                            {showRefreshRow ? (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.25, minHeight: 140, px: 3, color: palette.subtleText }}>
+                                                    <CircularProgress size={18} />
+                                                    <Typography sx={{ fontSize: 14, color: palette.subtleText }}>
+                                                        {t('usersPage.states.refreshing')}
+                                                    </Typography>
+                                                </Box>
+                                            ) : null}
+
+                                            {!showRefreshRow && users.length === 0 ? (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
+                                                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{t('usersPage.states.empty')}</Typography>
+                                                </Box>
+                                            ) : null}
+
+                                            {!showRefreshRow && users.length > 0 && filteredUsers.length === 0 ? (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
+                                                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{t('usersPage.states.noResults')}</Typography>
+                                                </Box>
+                                            ) : null}
+
+                                            {!showRefreshRow
+                                                ? filteredUsers.map((user) => {
+                                                    const isCurrentUser = currentUserId === user.id
+                                                    const canEditUser = currentUserIsSystem || isCurrentUser
+                                                    const canDeleteUser = currentUserIsSystem && user.delete_eligible
+                                                    const canToggleUser = currentUserIsSystem && user.delete_eligible && !isCurrentUser
+                                                    return (
+                                                        <Box
+                                                            key={user.id}
+                                                            sx={{
+                                                                display: 'grid',
+                                                                gridTemplateColumns: '1.1fr 1fr .75fr .78fr .9fr 1fr',
+                                                                alignItems: 'center',
+                                                                gap: 1.25,
+                                                                px: 1.25,
+                                                                py: 1.35,
+                                                                borderBottom: `1px solid ${palette.borderStrong}`,
+                                                                backgroundColor: palette.idleBg,
+                                                                '&:hover': {
+                                                                    backgroundColor: palette.idleHover,
+                                                                },
+                                                            }}
+                                                        >
+                                                            <Stack className="users-identity-cell" spacing={0.75} sx={{ minWidth: 0 }}>
                                                                 <Typography className="users-linkish">{user.username}</Typography>
                                                                 <Box className="users-inline-tags">
-                                                                    {isCurrentUser ? <Chip label={t('usersPage.badges.current')} size="small" /> : null}
+                                                                    {isCurrentUser ? <Chip label={t('usersPage.badges.current')} size="small" sx={{ borderRadius: 0 }} /> : null}
                                                                     {!user.delete_eligible ? (
-                                                                        <Chip color="warning" label={t('usersPage.badges.initialized')} size="small" variant="outlined" />
+                                                                        <Chip color="warning" label={t('usersPage.badges.initialized')} size="small" variant="outlined" sx={{ borderRadius: 0 }} />
                                                                     ) : null}
                                                                 </Box>
                                                             </Stack>
-                                                        </TableCell>
-                                                        <TableCell>{user.display_name}</TableCell>
-                                                        <TableCell>{formatUserLocale(user.locale)}</TableCell>
-                                                        <TableCell>
-                                                            <Chip
-                                                                className={`users-status-chip ${user.disabled ? 'users-status-chip-disabled' : 'users-status-chip-enabled'}`}
-                                                                label={user.disabled ? t('usersPage.status.disabled') : t('usersPage.status.enabled')}
-                                                                size="small"
-                                                                variant="filled"
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell>{dateFormatter.format(new Date(user.created_at))}</TableCell>
-                                                        <TableCell align="right">
-                                                            {canEditUser || canDeleteUser || canToggleUser ? (
-                                                                <Box className="users-row-actions">
-                                                                    {canEditUser ? (
-                                                                        <Tooltip title={t('usersPage.actions.edit')}>
-                                                                            <span>
-                                                                                <IconButton aria-label={t('usersPage.actions.edit')} className="users-row-action-button" disabled={isSubmitting} onClick={() => openEditDialog(user)} size="small">
-                                                                                    <EditIcon />
-                                                                                </IconButton>
-                                                                            </span>
-                                                                        </Tooltip>
-                                                                    ) : null}
-                                                                    {canToggleUser ? (
-                                                                        <Tooltip title={user.disabled ? t('usersPage.actions.enable') : t('usersPage.actions.disable')}>
-                                                                            <span>
-                                                                                <IconButton
-                                                                                    aria-label={user.disabled ? t('usersPage.actions.enable') : t('usersPage.actions.disable')}
-                                                                                    className={`users-row-action-button ${user.disabled ? 'users-row-action-button-success' : 'users-row-action-button-warning'}`}
-                                                                                    disabled={isSubmitting}
-                                                                                    onClick={() => void handleToggleUserEnabled(user)}
-                                                                                    size="small"
-                                                                                >
-                                                                                    {user.disabled ? <EnableUserIcon /> : <DisableUserIcon />}
-                                                                                </IconButton>
-                                                                            </span>
-                                                                        </Tooltip>
-                                                                    ) : null}
-                                                                    {canDeleteUser ? (
-                                                                        <Tooltip title={t('usersPage.actions.delete')}>
-                                                                            <span>
-                                                                                <IconButton
-                                                                                    aria-label={t('usersPage.actions.delete')}
-                                                                                    className="users-row-action-button users-row-action-button-danger"
-                                                                                    disabled={isSubmitting}
-                                                                                    onClick={() => setActiveDialog({ type: 'delete', user })}
-                                                                                    size="small"
-                                                                                >
-                                                                                    <DeleteIcon />
-                                                                                </IconButton>
-                                                                            </span>
-                                                                        </Tooltip>
-                                                                    ) : null}
-                                                                </Box>
-                                                            ) : null}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )
-                                            })
-                                            : null}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        ) : null}
-                    </Paper>
+                                                            <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: palette.text }}>{user.display_name}</Typography>
+                                                            <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{formatUserLocale(user.locale)}</Typography>
+                                                            <Box>
+                                                                <Chip
+                                                                    className={`users-status-chip ${user.disabled ? 'users-status-chip-disabled' : 'users-status-chip-enabled'}`}
+                                                                    label={user.disabled ? t('usersPage.status.disabled') : t('usersPage.status.enabled')}
+                                                                    size="small"
+                                                                    variant="filled"
+                                                                />
+                                                            </Box>
+                                                            <Typography sx={{ fontSize: 13, color: palette.subtleText }}>{dateFormatter.format(new Date(user.created_at))}</Typography>
+                                                            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                                {canEditUser || canDeleteUser || canToggleUser ? (
+                                                                    <Box className="users-row-actions">
+                                                                        {canEditUser ? (
+                                                                            <Tooltip title={t('usersPage.actions.edit')}>
+                                                                                <span>
+                                                                                    <IconButton aria-label={t('usersPage.actions.edit')} className="users-row-action-button" disabled={isSubmitting} onClick={() => openEditDialog(user)} size="small">
+                                                                                        <EditIcon />
+                                                                                    </IconButton>
+                                                                                </span>
+                                                                            </Tooltip>
+                                                                        ) : null}
+                                                                        {canToggleUser ? (
+                                                                            <Tooltip title={user.disabled ? t('usersPage.actions.enable') : t('usersPage.actions.disable')}>
+                                                                                <span>
+                                                                                    <IconButton
+                                                                                        aria-label={user.disabled ? t('usersPage.actions.enable') : t('usersPage.actions.disable')}
+                                                                                        className={`users-row-action-button ${user.disabled ? 'users-row-action-button-success' : 'users-row-action-button-warning'}`}
+                                                                                        disabled={isSubmitting}
+                                                                                        onClick={() => void handleToggleUserEnabled(user)}
+                                                                                        size="small"
+                                                                                    >
+                                                                                        {user.disabled ? <EnableUserIcon /> : <DisableUserIcon />}
+                                                                                    </IconButton>
+                                                                                </span>
+                                                                            </Tooltip>
+                                                                        ) : null}
+                                                                        {canDeleteUser ? (
+                                                                            <Tooltip title={t('usersPage.actions.delete')}>
+                                                                                <span>
+                                                                                    <IconButton
+                                                                                        aria-label={t('usersPage.actions.delete')}
+                                                                                        className="users-row-action-button users-row-action-button-danger"
+                                                                                        disabled={isSubmitting}
+                                                                                        onClick={() => setActiveDialog({ type: 'delete', user })}
+                                                                                        size="small"
+                                                                                    >
+                                                                                        <DeleteIcon />
+                                                                                    </IconButton>
+                                                                                </span>
+                                                                            </Tooltip>
+                                                                        ) : null}
+                                                                    </Box>
+                                                                ) : null}
+                                                            </Box>
+                                                        </Box>
+                                                    )
+                                                })
+                                                : null}
+                                        </Box>
+                                    </Box>
+                                ) : null}
+                            </Stack>
+                        </CardContent>
+                    </Card>
                 </Box>
             </Stack>
 
@@ -933,10 +1043,11 @@ export function UsersPage() {
                         setActiveDialog(null)
                     }
                 }}
+                darkMode={isDarkMode}
                 scopeRect={contentScopeRect}
                 maxWidth={720}
             >
-                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0 }}>
+                <DialogTitle sx={dialogSectionSx}>
                     <Box className="users-dialog-hero">
                         <Box className="users-dialog-hero-icon-shell">
                             <Box className="users-dialog-hero-icon">
@@ -952,7 +1063,7 @@ export function UsersPage() {
                         </IconButton>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ px: 0, py: 0, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                <DialogContent dividers sx={dialogContentSx}>
                     <Box className="users-dialog-form-grid">
                         <Box>
                             <Typography className="users-dialog-field-label">{t('auth.fields.username')}</Typography>
@@ -1082,7 +1193,7 @@ export function UsersPage() {
                         </Box>
                     </Box>
                 </DialogContent>
-                <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                <DialogActions sx={dialogActionsSx}>
                     <Button onClick={() => setActiveDialog(null)}>{t('usersPage.dialogs.cancel')}</Button>
                     <Button
                         disabled={isSubmitting || createFormInvalid}
@@ -1102,10 +1213,11 @@ export function UsersPage() {
                         setActiveDialog(null)
                     }
                 }}
+                darkMode={isDarkMode}
                 scopeRect={contentScopeRect}
                 maxWidth={720}
             >
-                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0 }}>
+                <DialogTitle sx={dialogSectionSx}>
                     <Box className="users-dialog-hero">
                         <Box className="users-dialog-hero-icon-shell">
                             <Box className="users-dialog-hero-icon users-dialog-hero-icon-accent">
@@ -1123,7 +1235,7 @@ export function UsersPage() {
                         </IconButton>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ px: 0, py: 0, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                <DialogContent dividers sx={dialogContentSx}>
                     <Box className="users-dialog-form-grid">
                         <Box>
                             <Typography className="users-dialog-field-label">{t('auth.fields.username')}</Typography>
@@ -1249,7 +1361,7 @@ export function UsersPage() {
                         </Box>
                     </Box>
                 </DialogContent>
-                <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                <DialogActions sx={dialogActionsSx}>
                     <Button onClick={() => setActiveDialog(null)}>{t('usersPage.dialogs.cancel')}</Button>
                     <Button disabled={isSubmitting || !hasEditChanges || editFormInvalid} onClick={() => void handleEditUser()} variant="contained" sx={{ borderRadius: 0 }}>
                         {isSubmitting ? t('usersPage.dialogs.saving') : t('usersPage.dialogs.confirmEdit')}
@@ -1264,23 +1376,24 @@ export function UsersPage() {
                         setActiveDialog(null)
                     }
                 }}
+                darkMode={isDarkMode}
                 scopeRect={contentScopeRect}
                 maxWidth={480}
             >
-                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0 }}>
+                <DialogTitle sx={dialogSectionSx}>
                     <Box className="users-dialog-title-stack">
                         <Typography className="users-dialog-title">{t('usersPage.dialogs.deleteTitle')}</Typography>
                         <Typography className="users-dialog-description">{activeDialog?.type === 'delete' ? t('usersPage.dialogs.deleteDescription', { username: activeDialog.user.username }) : ''}</Typography>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ px: 0, py: 0, '&.MuiDialogContent-dividers': { borderTopColor: 'rgba(226, 232, 240, 0.9)', borderBottomColor: 'rgba(226, 232, 240, 0.9)' } }}>
+                <DialogContent dividers sx={dialogContentSx}>
                     <Box className="users-dialog-form-grid">
                         <Alert severity="warning" variant="outlined">
                             {activeDialog?.type === 'delete' ? t('usersPage.dialogs.deleteBody', { username: activeDialog.user.username }) : ''}
                         </Alert>
                     </Box>
                 </DialogContent>
-                <DialogActions sx={{ px: 2.5, py: 2, flexShrink: 0, borderTop: '1px solid rgba(226, 232, 240, 0.9)' }}>
+                <DialogActions sx={dialogActionsSx}>
                     <Button onClick={() => setActiveDialog(null)}>{t('usersPage.dialogs.cancel')}</Button>
                     <Button color="error" disabled={isSubmitting} onClick={() => void handleDeleteUser()} variant="contained" sx={{ borderRadius: 0 }}>
                         {isSubmitting ? t('usersPage.dialogs.deleting') : t('usersPage.dialogs.confirmDelete')}

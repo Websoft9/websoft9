@@ -33,6 +33,12 @@ type SurfaceFeedbackToastProps = {
     scopeRect?: SurfaceScopeRect | null
 }
 
+type SurfaceStatusBadgeProps = {
+    label: string
+    tone: 'success' | 'warning' | 'error'
+    darkMode?: boolean
+}
+
 type SurfaceDialogProps = DialogProps & {
     paperSx?: SxProps<Theme>
     scope?: SurfaceLayerScope
@@ -152,6 +158,39 @@ export function SurfaceStateCard({ title, detail, loading = false }: SurfaceStat
                 </Box>
             </CardContent>
         </Card>
+    )
+}
+
+export function SurfaceStatusBadge({ label, tone, darkMode = false }: SurfaceStatusBadgeProps) {
+    const palette =
+        tone === 'success'
+            ? darkMode
+                ? { color: '#dcfce7', backgroundColor: 'rgba(34, 197, 94, 0.24)', border: '1px solid rgba(74, 222, 128, 0.24)' }
+                : { color: '#166534', backgroundColor: 'rgba(34, 197, 94, 0.14)', border: '1px solid rgba(34, 197, 94, 0.16)' }
+            : tone === 'warning'
+                ? darkMode
+                    ? { color: '#fef3c7', backgroundColor: 'rgba(245, 158, 11, 0.24)', border: '1px solid rgba(251, 191, 36, 0.24)' }
+                    : { color: '#b45309', backgroundColor: 'rgba(245, 158, 11, 0.16)', border: '1px solid rgba(245, 158, 11, 0.16)' }
+                : darkMode
+                    ? { color: '#fee2e2', backgroundColor: 'rgba(239, 68, 68, 0.24)', border: '1px solid rgba(248, 113, 113, 0.24)' }
+                    : { color: '#b91c1c', backgroundColor: 'rgba(239, 68, 68, 0.14)', border: '1px solid rgba(239, 68, 68, 0.14)' }
+
+    return (
+        <Box
+            sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: 24,
+                px: 1,
+                borderRadius: '999px',
+                fontSize: 12,
+                lineHeight: 1.2,
+                fontWeight: 700,
+                ...palette,
+            }}
+        >
+            {label}
+        </Box>
     )
 }
 

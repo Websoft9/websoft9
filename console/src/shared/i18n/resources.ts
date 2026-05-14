@@ -93,11 +93,14 @@ export const shellResources = {
                 dashboard: {
                     label: 'Overview',
                 },
+                applications: {
+                    label: 'Application Deploy',
+                },
                 appStore: {
-                    label: 'Install Apps',
+                    label: 'App Store',
                 },
                 myApps: {
-                    label: 'Applications',
+                    label: 'My Apps',
                 },
                 containers: {
                     label: 'Containers',
@@ -125,6 +128,34 @@ export const shellResources = {
                 },
                 settings: {
                     label: 'Settings',
+                },
+            },
+            applicationsHubPage: {
+                hero: {
+                    title: 'App Deployment',
+                    description: 'Choose how you want to deploy an application.',
+                },
+                menu: {
+                    action: 'Deploy App',
+                    title: 'Deployment method',
+                    marketplace: 'App Store',
+                    customInstall: 'Custom deployment',
+                    runtime: 'Runtime environment',
+                },
+                cards: {
+                    deploy: {
+                        title: 'App Deployment',
+                    },
+                    customInstall: {
+                        title: 'Custom Install',
+                        description: 'Write and validate a custom Docker Compose deployment.',
+                        action: 'Open Custom Install',
+                    },
+                    runtime: {
+                        title: 'Runtime Deploy',
+                        description: 'Prepare source deployment for a supported runtime.',
+                        action: 'Open Runtime Deploy',
+                    },
                 },
             },
             pages: {
@@ -320,7 +351,7 @@ export const shellResources = {
                 },
                 eyebrow: 'Websoft9 overview',
                 title: 'One screen for product status, operational signals, and next actions.',
-                description: 'Overview keeps the homepage focused on Websoft9 itself: edition, install capacity, runtime health, and the signals operators should review first.',
+                description: 'View product status, resource health, and app activity.',
                 generatedAt: 'Updated {{value}}',
                 waitingForData: 'Waiting for the first overview snapshot...',
                 badges: {
@@ -438,25 +469,65 @@ export const shellResources = {
             },
             appStorePage: {
                 hero: {
-                    title: 'Install applications',
-                    description: 'Choose an installation source first, then continue with marketplace apps, custom compose, or runtime deployment.',
+                    title: 'App Store',
+                    description: 'Browse available apps and start standard installs.',
                 },
                 sources: {
                     marketplace: {
                         label: 'Marketplace',
-                        description: 'Browse curated application templates and install them through the standard App Store flow.',
+                        description: 'Install apps through the standard App Store flow.',
                     },
                     compose: {
                         label: 'Custom Compose',
-                        description: 'Use this source for uploaded or inline-authored Docker Compose application installs.',
+                        description: 'Prepare a custom install from Docker Compose.',
+                        heroTitle: 'Custom Install',
+                        heroDescription: 'Write and validate a custom Docker Compose deployment.',
                         emptyTitle: 'Custom Compose install entry',
                         emptyDetail: 'This source is now exposed as a first-class install path. The dedicated compose workspace is the next implementation slice.',
+                        workspace: {
+                            title: 'Custom Compose workspace',
+                            description: 'Upload or edit Compose content and validate it before installation.',
+                            metadataTitle: 'Install metadata',
+                            metadataDetail: 'Define the application ID, display name, and optional access domain for this custom deployment.',
+                            composeTitle: 'Compose content',
+                            composeDetail: 'Paste or upload a single Docker Compose file. This workspace stays extensible for later multi-file expansion.',
+                            envTitle: 'Environment variables',
+                            envDetail: 'Provide explicit key/value pairs that belong outside the compose body.',
+                            appIdLabel: 'Application ID',
+                            appIdPlaceholder: 'For example: customnginx',
+                            displayNameLabel: 'Display name',
+                            displayNamePlaceholder: 'For example: Custom Nginx',
+                            domainLabel: 'Access domain (optional)',
+                            domainPlaceholder: 'For example: app.example.com',
+                            composeLabel: 'Compose YAML',
+                            composePlaceholder: 'Paste Docker Compose YAML here or upload a compose file.',
+                            upload: 'Upload compose file',
+                            replaceUpload: 'Replace upload',
+                            addEnv: 'Add variable',
+                            removeEnv: 'Remove',
+                            envKeyLabel: 'Key',
+                            envValueLabel: 'Value',
+                            validate: 'Validate compose',
+                            validating: 'Validating...',
+                            validatedTitle: 'Validation passed',
+                            validatedDetail: 'AppHub accepted the compose structure and found {{count}} service(s).',
+                            services: 'Services',
+                            validationOnly: 'This workspace currently validates content only. Installation execution is not connected yet.',
+                            noServices: 'No services reported yet.',
+                            validationFailedTitle: 'Validation failed',
+                            appIdRequired: 'Please enter an application ID.',
+                            displayNameRequired: 'Please enter a display name.',
+                            composeRequired: 'Please provide compose content before validating.',
+                            envKeyRequired: 'Environment variable keys cannot be empty when a value is provided.',
+                        },
                     },
                     runtime: {
                         label: 'Runtime Deploy',
-                        description: 'Use this source for curated runtime-based deployments such as PHP project bundles.',
+                        description: 'Prepare a source deployment for a supported runtime.',
+                        heroTitle: 'Runtime Deploy',
+                        heroDescription: 'Choose a runtime template and prepare a source deployment.',
                         emptyTitle: 'Runtime deployment entry',
-                        emptyDetail: 'This source is now reserved in the install IA. The structured runtime deployment workspace lands in the next implementation slice.',
+                        emptyDetail: 'This deployment path is being prepared as a dedicated runtime workspace.',
                     },
                 },
                 filters: {
@@ -529,6 +600,7 @@ export const shellResources = {
                     customDomainPlaceholder: 'For example: blog.example.com',
                     customDomainHelper: 'Users will open the app with this address. Leave it empty to use the default address generated by Websoft9. Do not include http://, https://, ports, or paths.',
                     defaultDomainHelper: 'If enabled, Websoft9 will also create the default access address {{domain}}.',
+                    proxyManagedPortHelper: 'When a custom access address is provided, external traffic goes through the proxy. Clear the custom address if you still need to change this host port.',
                     disableDomain: 'Disable',
                     enableDomain: 'Enable',
                     validation: {
@@ -553,6 +625,7 @@ export const shellResources = {
                     install: 'Install',
                     openInstalledApps: 'Open installed apps',
                     backToMarketplace: 'Back to marketplace',
+                    backToApplications: 'Back to applications',
                     favorite: 'Add to favorites',
                     unfavorite: 'Remove from favorites',
                     favoriteListLabel: 'My favorites',
@@ -570,7 +643,7 @@ export const shellResources = {
                     eyebrow: 'Application continuity',
                     title: 'Track installed apps and in-flight setup from one surface.',
                     description:
-                        'My Apps now consumes the shared AppHub inventory so installs can hand off here immediately and keep refreshing while setup is still running.',
+                        'Manage installed apps, install progress, and error logs in one place.',
                     refresh: 'Refresh',
                     addApplication: 'Add application',
                 },
@@ -919,6 +992,7 @@ export const shellResources = {
             settingsPage: {
                 hero: {
                     title: 'System Settings',
+                    description: 'Manage platform configuration and global settings.',
                 },
                 states: {
                     loading: 'Loading product settings...',
@@ -1257,7 +1331,7 @@ export const shellResources = {
                 hero: {
                     eyebrow: 'Runtime console',
                     title: 'Runtime logs',
-                    description: 'Inspect Websoft9 runtime-console events from the single product container without mixing in raw bundled-service logs.',
+                    description: 'View platform runtime logs and filter the event stream.',
                     sourceBadge: 'Runtime Console',
                     refreshHint: 'Auto-refresh every 15 seconds while enabled.',
                 },
@@ -1324,10 +1398,10 @@ export const shellResources = {
                     searchPlaceholder: 'Search by service name or description',
                     stateLabel: 'Filter state',
                     stateOptions: {
-                        all: 'All services',
-                        running: 'Runtime: Running',
-                        starting: 'Runtime: Starting',
-                        stopped: 'Runtime: Stopped',
+                        all: 'All states',
+                        running: 'Running',
+                        starting: 'Starting',
+                        stopped: 'Stopped',
                         unavailable: 'Unavailable',
                     },
                 },
@@ -1588,11 +1662,14 @@ export const shellResources = {
                 dashboard: {
                     label: '概览',
                 },
+                applications: {
+                    label: '应用部署',
+                },
                 appStore: {
-                    label: '安装应用',
+                    label: '应用商店',
                 },
                 myApps: {
-                    label: '应用管理',
+                    label: '我的应用',
                 },
                 containers: {
                     label: '容器',
@@ -1620,6 +1697,34 @@ export const shellResources = {
                 },
                 settings: {
                     label: '设置',
+                },
+            },
+            applicationsHubPage: {
+                hero: {
+                    title: '应用部署',
+                    description: '选择应用的部署方式。',
+                },
+                menu: {
+                    action: '部署应用',
+                    title: '部署方式',
+                    marketplace: '应用商店',
+                    customInstall: '自定义部署',
+                    runtime: '运行环境',
+                },
+                cards: {
+                    deploy: {
+                        title: '应用部署',
+                    },
+                    customInstall: {
+                        title: '自定义安装',
+                        description: '编写并校验自定义 Compose 部署。',
+                        action: '进入自定义安装',
+                    },
+                    runtime: {
+                        title: '运行环境部署',
+                        description: '为受支持运行环境准备源码部署。',
+                        action: '进入运行环境部署',
+                    },
                 },
             },
             pages: {
@@ -1815,7 +1920,7 @@ export const shellResources = {
                 },
                 eyebrow: 'Websoft9 概览',
                 title: '用一个首页看清产品状态、运行信号和下一步动作。',
-                description: '概览首页聚焦 Websoft9 自身：版本与版本线、安装上限、运行资源健康，以及操作员应该优先查看的关键信号。',
+                description: '查看产品状态、资源健康和应用情况。',
                 generatedAt: '最近更新：{{value}}',
                 waitingForData: '正在等待第一份概览快照...',
                 badges: {
@@ -1933,25 +2038,65 @@ export const shellResources = {
             },
             appStorePage: {
                 hero: {
-                    title: '安装应用',
-                    description: '先选择安装来源，再继续使用市场模板、自定义 Compose 或运行环境部署。',
+                    title: '应用商店',
+                    description: '浏览可安装应用并发起标准安装。',
                 },
                 sources: {
                     marketplace: {
                         label: '应用市场',
-                        description: '浏览平台维护的应用模板，并沿用标准安装流程完成安装。',
+                        description: '沿用标准应用商店流程安装应用。',
                     },
                     compose: {
                         label: '自定义 Compose',
-                        description: '用于上传或在线编辑 Docker Compose，并作为自定义应用安装来源。',
+                        description: '从 Docker Compose 准备自定义安装。',
+                        heroTitle: '自定义安装',
+                        heroDescription: '编写并校验自定义 Compose 部署。',
                         emptyTitle: '自定义 Compose 安装入口',
                         emptyDetail: '这个安装来源已经在信息架构中成为一级入口，专用 Compose 工作区会在下一实现切片中落地。',
+                        workspace: {
+                            title: '自定义 Compose 工作区',
+                            description: '上传或编辑 Compose 内容，并在安装前完成校验。',
+                            metadataTitle: '安装元数据',
+                            metadataDetail: '定义这个自定义部署的应用 ID、显示名称，以及可选的访问域名。',
+                            composeTitle: 'Compose 内容',
+                            composeDetail: '粘贴或上传单个 Docker Compose 文件，当前工作区也为后续多文件扩展保留了结构。',
+                            envTitle: '环境变量',
+                            envDetail: '把应该独立于 compose 主体的变量作为显式的键值对维护。',
+                            appIdLabel: '应用 ID',
+                            appIdPlaceholder: '例如：customnginx',
+                            displayNameLabel: '显示名称',
+                            displayNamePlaceholder: '例如：Custom Nginx',
+                            domainLabel: '访问域名（可选）',
+                            domainPlaceholder: '例如：app.example.com',
+                            composeLabel: 'Compose YAML',
+                            composePlaceholder: '在这里粘贴 Docker Compose YAML，或者上传 compose 文件。',
+                            upload: '上传 compose 文件',
+                            replaceUpload: '重新上传',
+                            addEnv: '新增变量',
+                            removeEnv: '删除',
+                            envKeyLabel: '键',
+                            envValueLabel: '值',
+                            validate: '校验 compose',
+                            validating: '校验中...',
+                            validatedTitle: '校验通过',
+                            validatedDetail: 'AppHub 已接受当前 compose 结构，并识别到 {{count}} 个服务。',
+                            services: '服务',
+                            validationOnly: '当前工作区只支持内容校验，安装执行尚未接通。',
+                            noServices: '当前还没有返回服务列表。',
+                            validationFailedTitle: '校验失败',
+                            appIdRequired: '请输入应用 ID。',
+                            displayNameRequired: '请输入显示名称。',
+                            composeRequired: '请先提供 compose 内容再执行校验。',
+                            envKeyRequired: '如果填写了环境变量值，则变量键不能为空。',
+                        },
                     },
                     runtime: {
                         label: '运行环境部署',
-                        description: '用于 PHP 等受控运行环境的源码包部署入口。',
+                        description: '为受支持运行环境准备源码部署。',
+                        heroTitle: '运行环境部署',
+                        heroDescription: '选择运行环境模板并准备源码部署。',
                         emptyTitle: '运行环境部署入口',
-                        emptyDetail: '这个安装来源已经在安装 IA 中预留完成，结构化运行环境工作区会在下一实现切片中落地。',
+                        emptyDetail: '这个部署方式正在整理为独立的运行环境工作区。',
                     },
                 },
                 filters: {
@@ -2024,6 +2169,7 @@ export const shellResources = {
                     customDomainPlaceholder: '例如：blog.example.com',
                     customDomainHelper: '用户将通过这个地址访问应用。留空时，Websoft9 会使用默认生成的访问地址。不要输入 http://、https://、端口或路径。',
                     defaultDomainHelper: '启用后，Websoft9 还会同时生成默认访问地址 {{domain}}。',
+                    proxyManagedPortHelper: '填写自定义访问地址后，外部访问会优先走代理。如需修改这个宿主端口，请先清空自定义访问地址。',
                     disableDomain: '禁用',
                     enableDomain: '启用',
                     validation: {
@@ -2048,6 +2194,7 @@ export const shellResources = {
                     install: '安装',
                     openInstalledApps: '打开已安装应用',
                     backToMarketplace: '返回应用市场',
+                    backToApplications: '返回应用中心',
                     favorite: '收藏',
                     unfavorite: '取消收藏',
                     favoriteListLabel: '我的收藏',
@@ -2065,7 +2212,7 @@ export const shellResources = {
                     eyebrow: '应用连续性',
                     title: '在同一表面跟踪已安装应用与正在执行的安装任务。',
                     description:
-                        'My Apps 现在直接消费共享的 AppHub 应用清单，安装提交后可以立刻在这里承接，并在安装仍在执行时持续刷新。',
+                        '统一管理已安装应用、安装进度和错误日志。',
                     refresh: '刷新',
                     addApplication: '新增应用',
                 },
@@ -2414,6 +2561,7 @@ export const shellResources = {
             settingsPage: {
                 hero: {
                     title: '系统设置',
+                    description: '管理平台配置和全局设置。',
                 },
                 states: {
                     loading: '正在加载产品设置...',
@@ -2752,7 +2900,7 @@ export const shellResources = {
                 hero: {
                     eyebrow: '运行时控制台',
                     title: '运行时日志',
-                    description: '查看来自单产品容器的 Websoft9 runtime-console 事件，而不混入 bundled service 的原始日志。',
+                    description: '查看平台运行时日志并筛选事件流。',
                     sourceBadge: '运行时控制台',
                     refreshHint: '开启后每 15 秒自动刷新一次。',
                 },
@@ -2819,10 +2967,10 @@ export const shellResources = {
                     searchPlaceholder: '按服务名称或说明搜索',
                     stateLabel: '状态筛选',
                     stateOptions: {
-                        all: '全部服务',
-                        running: '运行状态：运行中',
-                        starting: '运行状态：启动中',
-                        stopped: '运行状态：已停止',
+                        all: '全部状态',
+                        running: '运行中',
+                        starting: '启动中',
+                        stopped: '已停止',
                         unavailable: '不可用',
                     },
                 },

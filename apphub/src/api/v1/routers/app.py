@@ -10,6 +10,7 @@ from src.core import logger
 from src.core.exception import CustomException
 from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
+from src.schemas.appComposeInstall import ComposeValidationRequest, ComposeValidationResponse
 from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
 from src.schemas.appInstall import appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
@@ -17,6 +18,7 @@ from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_manager import AppManger
+from src.services.compose_install import validate_compose_installation
 from src.services.common_check import install_validate
 from threading import Thread
 
@@ -150,6 +152,24 @@ async def apps_install(
         app_id=tracked_app_id,
         tracking_id=tracking_id,
     )
+
+
+@router.post(
+    "/apps/install/compose/validate",
+    summary="Validate Custom Compose Installation",
+    response_model=ComposeValidationResponse,
+    response_model_exclude_defaults=True,
+    description="Validate uploaded or inline-authored Docker Compose content through AppHub-owned parsing.",
+    responses={
+        200: {"model": ComposeValidationResponse},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def validate_compose_install(
+    payload: ComposeValidationRequest,
+):
+    return validate_compose_installation(payload)
 
     # async def log_generator(queue: asyncio.Queue):
     #     while True:

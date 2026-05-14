@@ -2,33 +2,30 @@ import {
     Alert,
     Box,
     Button,
-    Chip,
+    Card,
+    CardContent,
     CircularProgress,
-    Dialog,
     DialogContent,
     DialogTitle,
     FormControlLabel,
     IconButton,
     MenuItem,
-    Paper,
     Stack,
     Switch,
     SvgIcon,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     TextField,
     Tooltip,
     Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
+import { SurfaceStateCard, SurfaceStatusBadge } from '../../shared/design-system/standard-surfaces'
+import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { useAppColorMode } from '../../app/providers/color-mode'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './services-page.css'
 
@@ -81,6 +78,22 @@ type LogLoadMoreAnchor = {
     firstNewEntryIndex: number
 }
 
+type ContentScopeRect = {
+    top: number
+    left: number
+    width: number
+    height: number
+}
+
+type ServicesScopedOverlayProps = {
+    open: boolean
+    scopeRect: ContentScopeRect | null
+    onClose: () => void
+    darkMode: boolean
+    maxWidth?: number
+    children: ReactNode
+}
+
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
         credentials: 'include',
@@ -118,17 +131,14 @@ function buildServiceLogsUrl(serviceKey: string, filters: { limit: number; keywo
     return `/api/services/${serviceKey}/logs?${params.toString()}`
 }
 
-function chipColorFromState(state: string): 'default' | 'success' | 'warning' | 'error' {
+function getServiceStatusTone(state: string): 'success' | 'warning' | 'error' {
     if (state === 'running' || state === 'healthy') {
         return 'success'
     }
     if (state === 'starting' || state === 'degraded') {
         return 'warning'
     }
-    if (state === 'stopped' || state === 'unavailable') {
-        return 'error'
-    }
-    return 'default'
+    return 'error'
 }
 
 function formatDateTime(value: string | null, formatter: Intl.DateTimeFormat): string {
@@ -157,13 +167,100 @@ function getServiceDescription(serviceKey: string, description: string, t: (key:
     return t(`servicesPage.descriptions.${serviceKey}`, { defaultValue: description })
 }
 
+function ServicesScopedOverlay({ open, scopeRect, onClose, darkMode, maxWidth = 1100, children }: ServicesScopedOverlayProps) {
+    useEffect(() => {
+        if (!open) {
+            return
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [onClose, open])
+
+    if (!open || !scopeRect || typeof document === 'undefined') {
+        return null
+    }
+
+    const availableHeight = Math.max(Math.round(scopeRect.height) - 16, 240)
+
+    return createPortal(
+        <Box
+            className={darkMode ? 'app-shell-root--dark' : undefined}
+            sx={{
+                position: 'fixed',
+                top: scopeRect.top,
+                left: scopeRect.left,
+                width: scopeRect.width,
+                height: scopeRect.height,
+                zIndex: 1400,
+            }}
+        >
+            <Box
+                onClick={onClose}
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.18)',
+                }}
+            />
+            <Box
+                sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center',
+                    px: { xs: 1.5, md: 3 },
+                    py: { xs: 0.75, md: 1 },
+                    pointerEvents: 'none',
+                }}
+            >
+                <Box
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={(event) => event.stopPropagation()}
+                    className="services-page-dialog-paper"
+                    sx={{
+                        pointerEvents: 'auto',
+                        width: { xs: 'min(100%, 1100px)', md: `min(${maxWidth}px, calc(100% - 16px))` },
+                        maxWidth: `${maxWidth}px`,
+                        height: `${availableHeight}px`,
+                        maxHeight: `${availableHeight}px`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        backgroundColor: darkMode ? '#182235' : '#ffffff',
+                        color: darkMode ? '#e5edf5' : '#0f172a',
+                        borderRadius: '2px',
+                        border: darkMode ? '1px solid rgba(148, 163, 184, 0.2)' : undefined,
+                        boxShadow: darkMode ? '0 24px 64px rgba(2, 6, 23, 0.62)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {children}
+                </Box>
+            </Box>
+        </Box>,
+        document.body,
+    )
+}
+
 export function ServicesPage() {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
+    const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const logBodyRef = useRef<HTMLDivElement | null>(null)
     const logLoadMoreAnchorRef = useRef<LogLoadMoreAnchor | null>(null)
-    const [contentAreaElement, setContentAreaElement] = useState<HTMLElement | null>(null)
+    const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
     const [activeLogServiceKey, setActiveLogServiceKey] = useState<string | null>(null)
     const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
     const [searchValue, setSearchValue] = useState('')
@@ -252,9 +349,126 @@ export function ServicesPage() {
     const canLoadMoreLogs = logEntries.length >= logLimit && logLimit < 20000
     const showInventoryLoadingCard = isLoading && !data
     const showInventoryRefreshRow = isFetching && Boolean(data)
+    const isChinese = i18n.resolvedLanguage === 'zh-CN'
 
-    useEffect(() => {
-        setContentAreaElement(pageShellRef.current?.closest('main') ?? null)
+    const palette = {
+        pageBg: isDarkMode ? '#0f172a' : '#ffffff',
+        cardBg: isDarkMode ? '#111827' : '#ffffff',
+        cardSoft: isDarkMode ? '#0b1220' : '#f8fafc',
+        tableHead: isDarkMode ? '#162033' : '#f8fafc',
+        text: isDarkMode ? '#f8fafc' : '#0f172a',
+        subtleText: isDarkMode ? '#94a3b8' : '#64748b',
+        actionText: isDarkMode ? '#f8fafc' : '#475569',
+        border: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.95)',
+        borderStrong: isDarkMode ? 'rgba(148, 163, 184, 0.2)' : 'rgba(203, 213, 225, 0.9)',
+        idleBg: isDarkMode ? '#111827' : '#ffffff',
+        idleHover: isDarkMode ? '#162033' : '#f8fafc',
+        idleText: isDarkMode ? '#e5edf5' : '#334155',
+        buttonHover: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(145, 158, 171, 0.12)',
+    } as const
+
+    const surfaceCardSx = {
+        borderRadius: '2px',
+        border: `1px solid ${palette.border}`,
+        background: palette.cardBg,
+        boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.28)' : '0 8px 24px rgba(15, 23, 42, 0.05)',
+    } as const
+
+    const topActionButtonSx = {
+        borderRadius: 0,
+        textTransform: 'none',
+        px: 1.25,
+        color: palette.actionText,
+        fontWeight: 600,
+        backgroundColor: 'transparent',
+        '&:hover': {
+            backgroundColor: palette.buttonHover,
+        },
+    } as const
+
+    const serviceFilterSelectSx = {
+        '& .MuiOutlinedInput-root': {
+            borderRadius: '4px',
+            backgroundColor: palette.cardBg,
+            minHeight: 42,
+            border: `1px solid ${palette.borderStrong}`,
+            boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(15, 23, 42, 0.04)',
+        },
+        '& .MuiSelect-select': {
+            color: isDarkMode ? '#cbd5e1' : '#334155',
+            fontSize: 14,
+            fontWeight: 400,
+            lineHeight: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: '42px !important',
+            py: 0,
+        },
+    } as const
+
+    const controlMenuItemSx = {
+        fontSize: 14,
+        fontWeight: 400,
+        minHeight: 40,
+        color: isDarkMode ? '#e5edf5' : '#0f172a',
+    } as const
+
+    const filterMenuProps = useMemo(
+        () => ({
+            disablePortal: true,
+            slotProps: {
+                paper: {
+                    sx: {
+                        borderRadius: 0,
+                        mt: 0.5,
+                        zIndex: 1501,
+                        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+                        color: isDarkMode ? '#e5edf5' : '#0f172a',
+                        border: isDarkMode ? '1px solid rgba(148, 163, 184, 0.2)' : '1px solid rgba(226, 232, 240, 0.9)',
+                        boxShadow: isDarkMode ? '0 24px 64px rgba(2, 6, 23, 0.48)' : '0 12px 32px rgba(15, 23, 42, 0.12)',
+                        '& .MuiMenuItem-root': controlMenuItemSx,
+                    },
+                },
+            },
+        }),
+        [controlMenuItemSx, isDarkMode],
+    )
+
+    const copy = isChinese
+        ? {
+            pageDescription: '查看平台核心服务的状态和健康情况。',
+        }
+        : {
+            pageDescription: 'View status and health for core platform services.',
+        }
+
+    useLayoutEffect(() => {
+        const shellElement = pageShellRef.current
+        const mainElement = shellElement?.closest('main')
+        if (!shellElement || !(mainElement instanceof HTMLElement)) {
+            return
+        }
+
+        const updateScopeRect = () => {
+            const rect = mainElement.getBoundingClientRect()
+            setContentScopeRect({
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+            })
+        }
+
+        updateScopeRect()
+
+        const resizeObserver = new ResizeObserver(() => updateScopeRect())
+        resizeObserver.observe(mainElement)
+        window.addEventListener('resize', updateScopeRect)
+
+        return () => {
+            resizeObserver.disconnect()
+            window.removeEventListener('resize', updateScopeRect)
+        }
     }, [])
 
     useEffect(() => {
@@ -318,7 +532,21 @@ export function ServicesPage() {
     }
 
     return (
-        <Box className="services-page-shell" ref={pageShellRef}>
+        <Box
+            className="services-page-shell"
+            ref={pageShellRef}
+            sx={{
+                minHeight: 0,
+                position: 'relative',
+                mx: { xs: -1, md: -3 },
+                my: { xs: -1.25, md: -2.25 },
+                px: { xs: 2, md: 3 },
+                py: { xs: 1.25, md: 1.5 },
+                backgroundColor: palette.pageBg,
+                overflowY: 'visible',
+                overflowX: 'hidden',
+            }}
+        >
             <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
                 {!status?.enabled ? <Alert severity="info">{t('servicesPage.states.authDisabled')}</Alert> : null}
 
@@ -335,165 +563,172 @@ export function ServicesPage() {
                     </Alert>
                 ) : null}
 
+                <PageDescriptionHeader title={t('nav.services.label')} description={copy.pageDescription} descriptionColor={palette.subtleText} />
+
                 <Box className="services-page-grid">
-                    <Paper className="services-page-toolbar-panel" elevation={0}>
-                        <Stack className="services-page-toolbar-row" direction={{ xs: 'column', lg: 'row' }} spacing={2}>
-                            <Stack className="services-page-toolbar" direction={{ xs: 'column', md: 'row' }} spacing={1.25}>
-                                <TextField
-                                    className="services-page-toolbar-field services-page-toolbar-search"
-                                    onChange={(event) => setSearchValue(event.target.value)}
-                                    placeholder={t('servicesPage.filters.searchPlaceholder')}
-                                    size="small"
-                                    slotProps={{ inputLabel: { shrink: false } }}
-                                    value={searchValue}
-                                />
-                                <TextField
-                                    className="services-page-toolbar-field services-page-toolbar-select"
-                                    onChange={(event) => setStateFilter(event.target.value)}
-                                    select
-                                    size="small"
-                                    value={stateFilter}
-                                >
-                                    <MenuItem value="all">{t('servicesPage.filters.stateOptions.all')}</MenuItem>
-                                    <MenuItem value="running">{t('servicesPage.filters.stateOptions.running')}</MenuItem>
-                                    <MenuItem value="starting">{t('servicesPage.filters.stateOptions.starting')}</MenuItem>
-                                    <MenuItem value="stopped">{t('servicesPage.filters.stateOptions.stopped')}</MenuItem>
-                                    <MenuItem value="unavailable">{t('servicesPage.filters.stateOptions.unavailable')}</MenuItem>
-                                </TextField>
-                                <Tooltip title={isFetching ? t('servicesPage.states.loading') : t('servicesPage.actions.refresh')}>
-                                    <span>
-                                        <IconButton className="services-page-icon-button" onClick={() => { void refetch() }} disabled={isFetching} size="small">
-                                            {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-                                        </IconButton>
-                                    </span>
-                                </Tooltip>
-                            </Stack>
-                        </Stack>
-                    </Paper>
+                    <Card elevation={0} sx={surfaceCardSx}>
+                        <CardContent sx={{ pt: 2.5, pb: 2 }}>
+                            <Stack spacing={1.5} sx={{ minHeight: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
+                                    <Stack className="services-page-toolbar" direction={{ xs: 'column', md: 'row' }} spacing={1.25}>
+                                        <TextField
+                                            className="services-page-toolbar-field services-page-toolbar-search"
+                                            onChange={(event) => setSearchValue(event.target.value)}
+                                            placeholder={t('servicesPage.filters.searchPlaceholder')}
+                                            size="small"
+                                            slotProps={{ inputLabel: { shrink: false } }}
+                                            value={searchValue}
+                                        />
+                                        <TextField
+                                            className="services-page-toolbar-field services-page-toolbar-select"
+                                            onChange={(event) => setStateFilter(event.target.value)}
+                                            select
+                                            size="small"
+                                            value={stateFilter}
+                                            sx={serviceFilterSelectSx}
+                                            slotProps={{
+                                                select: {
+                                                    MenuProps: filterMenuProps,
+                                                },
+                                            }}
+                                        >
+                                            <MenuItem value="all">{t('servicesPage.filters.stateOptions.all')}</MenuItem>
+                                            <MenuItem value="running">{t('servicesPage.filters.stateOptions.running')}</MenuItem>
+                                            <MenuItem value="starting">{t('servicesPage.filters.stateOptions.starting')}</MenuItem>
+                                            <MenuItem value="stopped">{t('servicesPage.filters.stateOptions.stopped')}</MenuItem>
+                                            <MenuItem value="unavailable">{t('servicesPage.filters.stateOptions.unavailable')}</MenuItem>
+                                        </TextField>
+                                        <Tooltip title={isFetching ? t('servicesPage.states.loading') : t('servicesPage.actions.refresh')}>
+                                            <span>
+                                                <IconButton className="services-page-icon-button" onClick={() => { void refetch() }} disabled={isFetching} size="small" sx={topActionButtonSx}>
+                                                    {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                    </Stack>
+                                </Box>
 
-                    <Paper className="services-page-panel services-page-list" elevation={0}>
-                        <Stack spacing={1.5} sx={{ minHeight: 0 }}>
-                            {showInventoryLoadingCard ? (
-                                <SurfaceStateCard detail={t('servicesPage.states.loading')} loading />
-                            ) : null}
+                                {showInventoryLoadingCard ? (
+                                    <SurfaceStateCard detail={t('servicesPage.states.loading')} loading />
+                                ) : null}
 
-                            {!showInventoryLoadingCard ? (
-                                <TableContainer className="services-page-table-container">
-                                    <Table className="services-page-table">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>{t('servicesPage.columns.service')}</TableCell>
-                                                <TableCell>{t('servicesPage.columns.description')}</TableCell>
-                                                <TableCell>{t('servicesPage.columns.runtime')}</TableCell>
-                                                <TableCell>{t('servicesPage.columns.health')}</TableCell>
-                                                <TableCell>{t('servicesPage.columns.updatedAt')}</TableCell>
-                                                <TableCell align="right">{t('servicesPage.columns.actions')}</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
+                                {!showInventoryLoadingCard ? (
+                                    <Box sx={{ overflowX: 'auto', border: `1px solid ${palette.border}` }}>
+                                        <Box sx={{ minWidth: 1080 }}>
+                                            <Box
+                                                sx={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1.05fr 1.7fr .78fr .78fr .92fr .72fr',
+                                                    alignItems: 'center',
+                                                    minHeight: 52,
+                                                    px: 1.25,
+                                                    borderBottom: `1px solid ${palette.border}`,
+                                                    background: palette.tableHead,
+                                                }}
+                                            >
+                                                {[
+                                                    t('servicesPage.columns.service'),
+                                                    t('servicesPage.columns.description'),
+                                                    t('servicesPage.columns.runtime'),
+                                                    t('servicesPage.columns.health'),
+                                                    t('servicesPage.columns.updatedAt'),
+                                                    t('servicesPage.columns.actions'),
+                                                ].map((column, index) => (
+                                                    <Typography
+                                                        key={column}
+                                                        sx={{
+                                                            fontSize: 13,
+                                                            fontWeight: 700,
+                                                            color: palette.subtleText,
+                                                            textAlign: index === 5 ? 'right' : 'left',
+                                                        }}
+                                                    >
+                                                        {column}
+                                                    </Typography>
+                                                ))}
+                                            </Box>
+
                                             {showInventoryRefreshRow ? (
-                                                <TableRow>
-                                                    <TableCell className="services-page-table-state-cell" colSpan={6}>
-                                                        <Box className="services-page-table-state">
-                                                            <CircularProgress size={18} />
-                                                            <Typography color="text.secondary" variant="body2">
-                                                                {t('servicesPage.states.loading')}
-                                                            </Typography>
-                                                        </Box>
-                                                    </TableCell>
-                                                </TableRow>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.25, minHeight: 140, px: 3, color: palette.subtleText }}>
+                                                    <CircularProgress size={18} />
+                                                    <Typography sx={{ fontSize: 14, color: palette.subtleText }}>
+                                                        {t('servicesPage.states.loading')}
+                                                    </Typography>
+                                                </Box>
                                             ) : null}
 
                                             {!showInventoryRefreshRow && filteredServices.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell className="services-page-table-state-cell" colSpan={6}>
-                                                        <Box className="services-page-empty-state services-page-table-state-box">
-                                                            <Typography variant="subtitle1">{t('servicesPage.states.emptyTitle')}</Typography>
-                                                            <Typography color="text.secondary" variant="body2">
-                                                                {services.length > 0 ? t('servicesPage.states.noResults') : t('servicesPage.states.empty')}
-                                                            </Typography>
-                                                        </Box>
-                                                    </TableCell>
-                                                </TableRow>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
+                                                    <Stack spacing={1} sx={{ alignItems: 'center', textAlign: 'center' }}>
+                                                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{t('servicesPage.states.emptyTitle')}</Typography>
+                                                        <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>
+                                                            {services.length > 0 ? t('servicesPage.states.noResults') : t('servicesPage.states.empty')}
+                                                        </Typography>
+                                                    </Stack>
+                                                </Box>
                                             ) : null}
 
                                             {!showInventoryRefreshRow ? filteredServices.map((service) => (
-                                                <TableRow key={service.key}>
-                                                    <TableCell>
-                                                        <Stack className="services-page-service-cell" spacing={0.5}>
-                                                            <Typography className="services-page-service-title">{service.label}</Typography>
-                                                        </Stack>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography className="services-page-service-description">{getServiceDescription(service.key, service.description, t)}</Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Chip color={chipColorFromState(service.runtime_state)} label={t(`servicesPage.runtimeStates.${service.runtime_state}`)} size="small" />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Chip color={chipColorFromState(service.health_state)} label={t(`servicesPage.healthStates.${service.health_state}`)} size="small" />
-                                                    </TableCell>
-                                                    <TableCell className="services-page-updated-at-cell">{formatDateTime(service.updated_at, dateFormatter)}</TableCell>
-                                                    <TableCell align="right">
-                                                        <Box className="services-page-row-actions">
-                                                            <Button
-                                                                className="services-page-action-button"
-                                                                disabled={!service.logs_available}
-                                                                onClick={() => handleOpenLogs(service.key)}
-                                                                size="small"
-                                                                variant="outlined"
-                                                            >
-                                                                {t('servicesPage.actions.viewLogs')}
-                                                            </Button>
-                                                        </Box>
-                                                    </TableCell>
-                                                </TableRow>
+                                                <Box
+                                                    key={service.key}
+                                                    sx={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: '1.05fr 1.7fr .78fr .78fr .92fr .72fr',
+                                                        alignItems: 'center',
+                                                        gap: 1.25,
+                                                        px: 1.25,
+                                                        py: 1.35,
+                                                        borderBottom: `1px solid ${palette.borderStrong}`,
+                                                        backgroundColor: palette.idleBg,
+                                                        '&:hover': {
+                                                            backgroundColor: palette.idleHover,
+                                                        },
+                                                    }}
+                                                >
+                                                    <Stack spacing={0.45} sx={{ minWidth: 0 }}>
+                                                        <Typography sx={{ fontSize: 14, fontWeight: 400, color: palette.text }}>{service.label}</Typography>
+                                                    </Stack>
+                                                    <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: palette.subtleText }}>
+                                                        {getServiceDescription(service.key, service.description, t)}
+                                                    </Typography>
+                                                    <Box>
+                                                        <SurfaceStatusBadge label={t(`servicesPage.runtimeStates.${service.runtime_state}`)} tone={getServiceStatusTone(service.runtime_state)} darkMode={isDarkMode} />
+                                                    </Box>
+                                                    <Box>
+                                                        <SurfaceStatusBadge label={t(`servicesPage.healthStates.${service.health_state}`)} tone={getServiceStatusTone(service.health_state)} darkMode={isDarkMode} />
+                                                    </Box>
+                                                    <Typography sx={{ fontSize: 13, color: palette.subtleText }}>{formatDateTime(service.updated_at, dateFormatter)}</Typography>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                        <Button
+                                                            className="services-page-action-button"
+                                                            disabled={!service.logs_available}
+                                                            onClick={() => handleOpenLogs(service.key)}
+                                                            size="small"
+                                                            variant="outlined"
+                                                            sx={topActionButtonSx}
+                                                        >
+                                                            {t('servicesPage.actions.viewLogs')}
+                                                        </Button>
+                                                    </Box>
+                                                </Box>
                                             )) : null}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            ) : null}
-                        </Stack>
-                    </Paper>
+                                        </Box>
+                                    </Box>
+                                ) : null}
+                            </Stack>
+                        </CardContent>
+                    </Card>
                 </Box>
             </Stack>
 
-            <Dialog
-                fullWidth
-                maxWidth="lg"
-                open={Boolean(activeLogService)}
+            <ServicesScopedOverlay
+                darkMode={isDarkMode}
+                maxWidth={1100}
                 onClose={() => setActiveLogServiceKey(null)}
-                disablePortal
-                container={contentAreaElement}
-                sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    '& .MuiBackdrop-root': {
-                        position: 'absolute',
-                        inset: 0,
-                        backgroundColor: 'rgba(15, 23, 42, 0.18)',
-                    },
-                    '& .MuiDialog-container': {
-                        position: 'absolute',
-                        inset: 0,
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        px: { xs: 1.5, md: 3 },
-                        py: { xs: 1.5, md: 2.5 },
-                        overflow: 'hidden',
-                    },
-                }}
-                slotProps={{
-                    paper: {
-                        className: 'services-page-dialog-paper',
-                        square: true,
-                        sx: {
-                            borderRadius: '2px !important',
-                        },
-                    },
-                }}
+                open={Boolean(activeLogService)}
+                scopeRect={contentScopeRect}
             >
-                <DialogTitle>
+                <DialogTitle sx={{ px: 3, py: 2, backgroundColor: isDarkMode ? '#182235' : '#ffffff', borderBottom: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)'}` }}>
                     <Box className="services-page-dialog-titlebar">
                         <Typography className="services-page-log-title" variant="subtitle1">
                             {activeLogService ? t('servicesPage.dialogs.logsTitle', { service: activeLogService.label }) : t('servicesPage.dialogs.logsFallbackTitle')}
@@ -505,7 +740,7 @@ export function ServicesPage() {
                         </Stack>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', px: 3, py: 2 }}>
+                <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', px: 3, py: 2, backgroundColor: isDarkMode ? '#182235' : '#ffffff', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottom: 'none' } }}>
                     <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
                         <Stack
                             className="services-page-log-toolbar"
@@ -526,6 +761,11 @@ export function ServicesPage() {
                                 size="small"
                                 value={logTimeRange}
                                 onChange={(event) => setLogTimeRange(event.target.value)}
+                                slotProps={{
+                                    select: {
+                                        MenuProps: filterMenuProps,
+                                    },
+                                }}
                             >
                                 <MenuItem value="all">{t('servicesPage.logs.timeRanges.all')}</MenuItem>
                                 <MenuItem value="15m">{t('servicesPage.logs.timeRanges.15m')}</MenuItem>
@@ -540,6 +780,11 @@ export function ServicesPage() {
                                 size="small"
                                 value={logLevel}
                                 onChange={(event) => setLogLevel(event.target.value)}
+                                slotProps={{
+                                    select: {
+                                        MenuProps: filterMenuProps,
+                                    },
+                                }}
                             >
                                 <MenuItem value="all">{t('servicesPage.logs.levels.all')}</MenuItem>
                                 <MenuItem value="info">{t('servicesPage.logs.levels.info')}</MenuItem>
@@ -623,7 +868,7 @@ export function ServicesPage() {
                         ) : null}
                     </Stack>
                 </DialogContent>
-            </Dialog>
+            </ServicesScopedOverlay>
         </Box>
     )
 }

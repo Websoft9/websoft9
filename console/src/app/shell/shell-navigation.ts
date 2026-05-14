@@ -4,6 +4,10 @@ export const shellNavigationItems = [
         pageKey: 'dashboard',
     },
     {
+        segment: 'applications',
+        pageKey: 'applications',
+    },
+    {
         segment: 'appstore',
         pageKey: 'appStore',
     },

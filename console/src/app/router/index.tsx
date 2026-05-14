@@ -5,8 +5,10 @@ import { ShellPlaceholderPage } from '../pages/shell-placeholder-page'
 import { AppShell } from '../shell/app-shell'
 import { shellNavigationItems } from '../shell/shell-navigation'
 import { AppStorePage } from '../../features/app-store/app-store-page'
+import { DeploymentHubPage } from '../../features/applications/applications-hub-page'
 import { MyAppDetailPage } from '../../features/my-apps/my-app-detail-page'
 import { MyAppsPage } from '../../features/my-apps/my-apps-page'
+import { RuntimeWorkspacePage } from '../../features/runtime/runtime-workspace-page'
 import { IntegrationsPage } from '../../features/integrations/integrations-page'
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
@@ -44,7 +46,14 @@ export function createAppRouter() {
         if (item.segment === 'appstore') {
             return {
                 path: item.segment,
-                element: <AppStorePage />,
+                element: <AppStorePage lockedInstallSource="marketplace" hideInstallSourceSelector />,
+            }
+        }
+
+        if (item.segment === 'applications') {
+            return {
+                path: item.segment,
+                element: <Navigate replace to="/applications/deploy" />,
             }
         }
 
@@ -146,6 +155,18 @@ export function createAppRouter() {
                         {
                             path: 'integrations/:integrationKey',
                             element: <IntegrationWorkspacePage showCatalogLink />,
+                        },
+                        {
+                            path: 'applications/deploy',
+                            element: <DeploymentHubPage />,
+                        },
+                        {
+                            path: 'applications/custom-install',
+                            element: <AppStorePage lockedInstallSource="compose" hideInstallSourceSelector />,
+                        },
+                        {
+                            path: 'applications/runtime',
+                            element: <RuntimeWorkspacePage />,
                         },
                         ...shellRoutes,
                     ],

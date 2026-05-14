@@ -16,7 +16,7 @@ export type IntegrationDefinition = {
 
 export const integrationDefinitions: IntegrationDefinition[] = [
     {
-        authMarkers: ['Sign In - Gitea', 'name="user_name"', 'name="_csrf"'],
+        authMarkers: ['Sign In - Gitea', 'name="user_name"'],
         authPaths: ['/user/login'],
         diagnosticsPath: '/w9git/',
         entrySegment: 'repository',

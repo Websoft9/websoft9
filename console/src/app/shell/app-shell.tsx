@@ -1,20 +1,24 @@
 import {
     Avatar,
     Box,
+    Button,
     IconButton,
     List,
     ListItemButton,
     Menu,
+    MenuItem,
+    Paper,
+    Popper,
     SvgIcon,
     Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAppColorMode } from '../providers/color-mode'
 import { useProductAuth } from '../../features/product-auth/product-auth-provider'
-import { normalizeSupportedLocale, supportedLocales } from '../../shared/i18n/i18n'
+import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { useIntegrationSessionPrewarm } from '../../features/integrations/integration-session-bootstrap'
 import { shellNavigationItems } from './shell-navigation'
@@ -23,11 +27,11 @@ import './app-shell.css'
 const navigationSections = [
     {
         key: 'system',
-        segments: ['dashboard', 'appstore', 'myapps', 'containers', 'gateway', 'repository', 'files', 'terminal'],
+        segments: ['dashboard', 'myapps', 'applications', 'containers', 'gateway', 'repository'],
     },
     {
         key: 'tools',
-        segments: ['services', 'logs', 'users', 'settings'],
+        segments: ['files', 'terminal', 'services', 'logs', 'users', 'settings'],
     },
 ] as const
 
@@ -38,10 +42,16 @@ function ShellNavIcon({ segment }: { segment: string }) {
     switch (segment) {
         case 'dashboard':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 4h7v7H4V4Zm9 0h7v5h-7V4ZM4 13h7v7H4v-7Zm9-2h7v9h-7v-9Z" /></SvgIcon>
+        case 'applications':
+            return <SvgIcon viewBox="0 0 24 24"><path d="M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Zm-7-6v2h3V7H6Zm9 0v2h3V7h-3Zm-9 8v2h3v-2H6Zm9 0v2h3v-2h-3Z" /></SvgIcon>
         case 'appstore':
             return <SvgIcon viewBox="0 0 24 24"><path d="M7 4h10l1 4h2v2h-1l-1 9H6L5 10H4V8h2l1-4Zm1.58 4h6.84l-.5-2H9.08l-.5 2ZM8 12v5h2v-5H8Zm6 0v5h2v-5h-2Z" /></SvgIcon>
         case 'myapps':
             return <SvgIcon viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4v10h12V8H6Zm2 2h4v4H8v-4Z" /></SvgIcon>
+        case 'custom-install':
+            return <SvgIcon viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H11v2H6.5a.5.5 0 0 0-.5.5V11H4V6.5Zm9-2.5h4.5A2.5 2.5 0 0 1 20 6.5V11h-2V6.5a.5.5 0 0 0-.5-.5H13V4ZM4 13h2v4.5a.5.5 0 0 0 .5.5H11v2H6.5A2.5 2.5 0 0 1 4 17.5V13Zm14 0h2v4.5a2.5 2.5 0 0 1-2.5 2.5H13v-2h4.5a.5.5 0 0 0 .5-.5V13Zm-7-4 5 3-5 3V9Z" /></SvgIcon>
+        case 'runtime-env':
+            return <SvgIcon viewBox="0 0 24 24"><path d="M12 2 4 6.5V17.5L12 22l8-4.5V6.5L12 2Zm0 2.3 5.91 3.32L12 10.93 6.09 7.62 12 4.3Zm-6 5.04 5 2.8v6.48l-5-2.81V9.34Zm7 9.28v-6.48l5-2.8v6.47l-5 2.81Z" /></SvgIcon>
         case 'containers':
             return <SvgIcon viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5V16l-9 5-9-5V7.5Zm2 1.24V14.8l6 3.33V12L5 8.74Zm14 0L13 12v6.13l6-3.33V8.74ZM12 10.26l6.02-3.01L12 4.24 5.98 7.25 12 10.26Z" /></SvgIcon>
         case 'gateway':
@@ -65,12 +75,20 @@ function ShellNavIcon({ segment }: { segment: string }) {
     }
 }
 
-function ChevronLeftIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="m14.41 7.41-1.41-1.41L7.59 11.41 13 16.83l1.41-1.42L10.41 11l4-3.59Z" /></SvgIcon>
+function SidebarCollapseIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M4 5h2v14H4V5Zm5 2h9v1.5H9V7Zm0 4.25h7v1.5H9v-1.5Zm0 4.25h9v1.5H9V15.5Z" /></SvgIcon>
 }
 
-function ChevronRightIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="m9.59 16.59 1.41 1.41 5.41-5.41L11 7.17 9.59 8.59 13.59 12l-4 4.59Z" /></SvgIcon>
+function SidebarExpandIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M18 5h2v14h-2V5ZM6 7h9v1.5H6V7Zm0 4.25h7v1.5H6v-1.5ZM6 15.5h9V17H6v-1.5Z" /></SvgIcon>
+}
+
+function ExpandMoreIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="m7 10 5 5 5-5H7Z" /></SvgIcon>
+}
+
+function ChevronSmallRightIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="m10 7 5 5-5 5V7Z" /></SvgIcon>
 }
 
 function SunIcon() {
@@ -89,12 +107,12 @@ function LocaleBadgeIcon({ label }: { label: string }) {
     return <Box className="app-shell-locale-badge">{label}</Box>
 }
 
-function LogoutIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5Zm8 2h-6v-2h6V7h-6V5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z" /></SvgIcon>
+function ChevronDownIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="m7 10 5 5 5-5H7Z" /></SvgIcon>
 }
 
-function SelectedIndicatorIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="m9.55 16.6-3.9-3.9 1.4-1.4 2.5 2.5 7.4-7.4 1.4 1.4-8.8 8.8Z" /></SvgIcon>
+function LogoutIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5Zm8 2h-6v-2h6V7h-6V5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z" /></SvgIcon>
 }
 
 export function AppShell() {
@@ -103,6 +121,11 @@ export function AppShell() {
     const location = useLocation()
     const { isSubmitting, logout, refresh, status } = useProductAuth()
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
+    const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
+    const [appearanceMenuAnchor, setAppearanceMenuAnchor] = useState<HTMLElement | null>(null)
+    const [deployMenuAnchor, setDeployMenuAnchor] = useState<HTMLElement | null>(null)
+    const [collapsedApplicationsAnchor, setCollapsedApplicationsAnchor] = useState<HTMLElement | null>(null)
+    const collapsedApplicationsCloseTimerRef = useRef<number | null>(null)
     const { colorMode, setColorMode } = useAppColorMode()
     const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
         if (typeof window === 'undefined') {
@@ -111,11 +134,16 @@ export function AppShell() {
 
         return window.localStorage.getItem(SHELL_NAV_COLLAPSED_STORAGE_KEY) === 'true'
     })
+    const [applicationsExpanded, setApplicationsExpanded] = useState(true)
 
-    const resolvedLocale = i18n.resolvedLanguage ?? supportedLocales[0]
+    const resolvedLocale = i18n.resolvedLanguage ?? 'en'
     const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
     const useWhiteWorkspaceSurface =
+        location.pathname === '/applications' ||
+        location.pathname.startsWith('/applications/') ||
         location.pathname === '/appstore' ||
+        location.pathname === '/myapps' ||
+        location.pathname.startsWith('/myapps/') ||
         location.pathname === '/dashboard' ||
         location.pathname === '/files' ||
         location.pathname === '/services' ||
@@ -123,6 +151,10 @@ export function AppShell() {
         location.pathname === '/users' ||
         location.pathname === '/settings'
     const isChineseLocale = resolvedLocale === 'zh-CN'
+    const currentUserLabel = status?.current_user?.username || status?.current_user?.display_name || t('user.menu.profile')
+    const normalizedLocale = normalizeSupportedLocale(resolvedLocale)
+    const currentLocaleLabel = t(`locales.${normalizedLocale}`)
+    const currentAppearanceLabel = colorMode === 'light' ? t('preferences.light') : t('preferences.dark')
     const footerLinks = useMemo(
         () => [
             {
@@ -183,6 +215,103 @@ export function AppShell() {
 
         return window.sessionStorage.getItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
     }, [location.pathname, location.search])
+    const isApplicationsContext = /^\/(applications|appstore)(\/|$)/.test(location.pathname)
+    const applicationSubNavigation = useMemo(
+        () => [
+            {
+                key: 'appstore',
+                label: t('nav.appStore.label'),
+                to: '/appstore',
+                active: location.pathname === '/appstore',
+                icon: 'appstore',
+            },
+            {
+                key: 'custom-install',
+                label: resolvedLocale === 'zh-CN' ? '自定义' : t('applicationsHubPage.cards.customInstall.title'),
+                to: '/applications/custom-install',
+                active: location.pathname === '/applications/custom-install',
+                icon: 'custom-install',
+            },
+            {
+                key: 'runtime',
+                label: resolvedLocale === 'zh-CN' ? '运行环境' : t('applicationsHubPage.cards.runtime.title'),
+                to: '/applications/runtime',
+                active: location.pathname === '/applications/runtime',
+                icon: 'runtime-env',
+            },
+        ],
+        [location.pathname, resolvedLocale, t],
+    )
+    const myAppsDeployTargets = useMemo(
+        () => [
+            {
+                key: 'appstore',
+                label: t('applicationsHubPage.menu.marketplace'),
+                to: '/appstore',
+                icon: 'appstore',
+            },
+            {
+                key: 'custom-install',
+                label: t('applicationsHubPage.menu.customInstall'),
+                to: '/applications/custom-install',
+                icon: 'custom-install',
+            },
+            {
+                key: 'runtime',
+                label: t('applicationsHubPage.menu.runtime'),
+                to: '/applications/runtime',
+                icon: 'runtime-env',
+            },
+        ],
+        [t],
+    )
+
+    useEffect(() => {
+        if (isApplicationsContext) {
+            setApplicationsExpanded(true)
+        }
+    }, [isApplicationsContext])
+
+    useEffect(() => {
+        if (!navCollapsed && collapsedApplicationsAnchor) {
+            setCollapsedApplicationsAnchor(null)
+        }
+    }, [collapsedApplicationsAnchor, navCollapsed])
+
+    useEffect(() => {
+        setCollapsedApplicationsAnchor(null)
+        setDeployMenuAnchor(null)
+        setLocaleMenuAnchor(null)
+        setAppearanceMenuAnchor(null)
+    }, [location.pathname])
+
+    useEffect(() => {
+        return () => {
+            if (collapsedApplicationsCloseTimerRef.current) {
+                window.clearTimeout(collapsedApplicationsCloseTimerRef.current)
+            }
+        }
+    }, [])
+
+    function openCollapsedApplicationsMenu(anchor: HTMLElement) {
+        if (collapsedApplicationsCloseTimerRef.current) {
+            window.clearTimeout(collapsedApplicationsCloseTimerRef.current)
+            collapsedApplicationsCloseTimerRef.current = null
+        }
+
+        setCollapsedApplicationsAnchor(anchor)
+    }
+
+    function closeCollapsedApplicationsMenuWithDelay() {
+        if (collapsedApplicationsCloseTimerRef.current) {
+            window.clearTimeout(collapsedApplicationsCloseTimerRef.current)
+        }
+
+        collapsedApplicationsCloseTimerRef.current = window.setTimeout(() => {
+            setCollapsedApplicationsAnchor(null)
+            collapsedApplicationsCloseTimerRef.current = null
+        }, 220)
+    }
 
     async function persistCurrentUserLocale(locale: string) {
         const currentUser = status?.current_user
@@ -206,8 +335,32 @@ export function AppShell() {
         await refresh()
     }
 
+    function handleSelectColorMode(nextMode: 'light' | 'dark') {
+        setAppearanceMenuAnchor(null)
+        setColorMode(nextMode)
+    }
+
+    function handleSelectLocale(nextLocale: 'en' | 'zh-CN') {
+        const nextNormalizedLocale = normalizeSupportedLocale(nextLocale)
+        setLocaleMenuAnchor(null)
+        void i18n.changeLanguage(nextNormalizedLocale)
+        void persistCurrentUserLocale(nextNormalizedLocale)
+    }
+
     return (
         <Box className={`app-shell-root app-shell-root--${colorMode} ${navCollapsed ? 'app-shell-root--collapsed' : ''}`}>
+            <IconButton
+                color="inherit"
+                className="app-shell-sidebar-toggle"
+                onClick={() => {
+                    setNavCollapsed((currentValue) => !currentValue)
+                }}
+                aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
+                title={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
+            >
+                {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
+            </IconButton>
+
             <Box className="app-shell-frame">
                 <Box component="aside" className="app-shell-sidebar">
                     <Box className="app-shell-sidebar-inner">
@@ -234,12 +387,137 @@ export function AppShell() {
                                                 return null
                                             }
 
+                                            if (item.segment === 'applications') {
+                                                return (
+                                                    <Box key={item.segment} className="app-shell-nav-group">
+                                                        <ListItemButton
+                                                            className={`app-shell-nav-item app-shell-nav-item--parent ${(isApplicationsContext || Boolean(collapsedApplicationsAnchor)) ? 'active' : ''}`}
+                                                            component={NavLink}
+                                                            to="/applications/deploy"
+                                                            onMouseEnter={(event) => {
+                                                                if (navCollapsed) {
+                                                                    openCollapsedApplicationsMenu(event.currentTarget)
+                                                                }
+                                                            }}
+                                                            onMouseLeave={() => {
+                                                                if (navCollapsed) {
+                                                                    closeCollapsedApplicationsMenuWithDelay()
+                                                                }
+                                                            }}
+                                                            onClick={() => {
+                                                                if (!navCollapsed) {
+                                                                    setApplicationsExpanded(true)
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Box className="app-shell-nav-item-leading" aria-hidden="true">
+                                                                <Box className="app-shell-nav-item-icon">
+                                                                    <ShellNavIcon segment={item.segment} />
+                                                                </Box>
+                                                                {navCollapsed ? (
+                                                                    <Box className="app-shell-nav-item-collapsed-indicator">
+                                                                        <ChevronSmallRightIcon />
+                                                                    </Box>
+                                                                ) : null}
+                                                            </Box>
+                                                            <Typography className="app-shell-nav-item-label" variant="body2">
+                                                                {t(`nav.${item.pageKey}.label`)}
+                                                            </Typography>
+                                                            {!navCollapsed ? (
+                                                                <Box
+                                                                    className="app-shell-nav-item-trailing"
+                                                                    aria-hidden="true"
+                                                                    onClick={(event) => {
+                                                                        event.preventDefault()
+                                                                        event.stopPropagation()
+                                                                        setApplicationsExpanded((currentValue) => !currentValue)
+                                                                    }}
+                                                                >
+                                                                    {applicationsExpanded ? <ExpandMoreIcon /> : <ChevronSmallRightIcon />}
+                                                                </Box>
+                                                            ) : null}
+                                                        </ListItemButton>
+
+                                                        {!navCollapsed && applicationsExpanded ? (
+                                                            <Box className="app-shell-subnav">
+                                                                {applicationSubNavigation.map((subItem) => (
+                                                                    <ListItemButton
+                                                                        component={NavLink}
+                                                                        key={subItem.key}
+                                                                        className={`app-shell-nav-item app-shell-nav-item--secondary ${subItem.active ? 'active' : ''}`}
+                                                                        to={subItem.to}
+                                                                    >
+                                                                        <Box className="app-shell-nav-item-icon" aria-hidden="true">
+                                                                            <ShellNavIcon segment={subItem.icon} />
+                                                                        </Box>
+                                                                        <Typography className="app-shell-nav-item-label app-shell-nav-item-label--secondary" variant="body2">
+                                                                            {subItem.label}
+                                                                        </Typography>
+                                                                    </ListItemButton>
+                                                                ))}
+                                                            </Box>
+                                                        ) : null}
+
+                                                        {navCollapsed ? (
+                                                            <Popper
+                                                                anchorEl={collapsedApplicationsAnchor}
+                                                                open={Boolean(collapsedApplicationsAnchor)}
+                                                                placement="right"
+                                                                sx={{ zIndex: 1400 }}
+                                                                modifiers={[
+                                                                    {
+                                                                        name: 'offset',
+                                                                        options: {
+                                                                            offset: [0, 0],
+                                                                        },
+                                                                    },
+                                                                ]}
+                                                            >
+                                                                <Paper
+                                                                    elevation={0}
+                                                                    className={`app-shell-collapsed-submenu app-shell-collapsed-submenu--${colorMode}`}
+                                                                    onMouseEnter={() => {
+                                                                        if (collapsedApplicationsCloseTimerRef.current) {
+                                                                            window.clearTimeout(collapsedApplicationsCloseTimerRef.current)
+                                                                            collapsedApplicationsCloseTimerRef.current = null
+                                                                        }
+                                                                    }}
+                                                                    onMouseLeave={() => {
+                                                                        closeCollapsedApplicationsMenuWithDelay()
+                                                                    }}
+                                                                >
+                                                                    <Box className="app-shell-collapsed-submenu-list">
+                                                                        {applicationSubNavigation.map((subItem) => (
+                                                                            <ListItemButton
+                                                                                component={NavLink}
+                                                                                key={subItem.key}
+                                                                                className={`app-shell-collapsed-submenu-item ${subItem.active ? 'active' : ''}`}
+                                                                                to={subItem.to}
+                                                                                onClick={() => {
+                                                                                    setCollapsedApplicationsAnchor(null)
+                                                                                }}
+                                                                            >
+                                                                                <Box className="app-shell-collapsed-submenu-icon" aria-hidden="true">
+                                                                                    <ShellNavIcon segment={subItem.icon} />
+                                                                                </Box>
+                                                                                <Typography className="app-shell-collapsed-submenu-label">
+                                                                                    {subItem.label}
+                                                                                </Typography>
+                                                                            </ListItemButton>
+                                                                        ))}
+                                                                    </Box>
+                                                                </Paper>
+                                                            </Popper>
+                                                        ) : null}
+                                                    </Box>
+                                                )
+                                            }
+
                                             return (
                                                 <ListItemButton
                                                     component={NavLink}
                                                     key={item.segment}
                                                     className="app-shell-nav-item"
-                                                    title={t(`nav.${item.pageKey}.label`)}
                                                     to={item.segment === 'myapps' && rememberedMyAppDetailRoute && !location.pathname.startsWith('/myapps')
                                                         ? rememberedMyAppDetailRoute
                                                         : `/${item.segment}`}
@@ -257,70 +535,72 @@ export function AppShell() {
                                 </Box>
                             ))}
                         </Box>
+
                     </Box>
                 </Box>
-
-                <IconButton
-                    color="inherit"
-                    className="app-shell-sidebar-toggle"
-                    sx={{
-                        position: 'absolute',
-                        top: 'calc(var(--shell-topbar-height) / 2)',
-                        left: 'var(--shell-sidebar-width)',
-                        transform: 'translate(-50%, -50%)',
-                        border: '1px solid var(--shell-topbar-border)',
-                        backgroundColor: 'var(--shell-surface-bg)',
-                        boxShadow: '0 8px 18px rgba(145, 158, 171, 0.18)',
-                        '&:hover': {
-                            backgroundColor: 'var(--shell-surface-soft)',
-                        },
-                    }}
-                    onClick={() => {
-                        setNavCollapsed((currentValue) => !currentValue)
-                    }}
-                    aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-                    title={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-                >
-                    {navCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-                </IconButton>
 
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
                         <Box className="app-shell-topbar-actions">
-                            <Box className="app-shell-user-anchor">
-                                <IconButton
-                                    color="inherit"
-                                    onClick={(event) => {
-                                        if (userMenuAnchor) {
-                                            setUserMenuAnchor(null)
-                                            return
-                                        }
+                            <Button
+                                color="inherit"
+                                onClick={(event) => {
+                                    setLocaleMenuAnchor(event.currentTarget)
+                                }}
+                                size="small"
+                                className="app-shell-topbar-pill"
+                                title={t('preferences.language')}
+                                startIcon={<LocaleBadgeIcon label={normalizedLocale === 'zh-CN' ? '中' : 'EN'} />}
+                                endIcon={<ChevronDownIcon />}
+                            >
+                                {currentLocaleLabel}
+                            </Button>
+                            <Button
+                                color="inherit"
+                                onClick={(event) => {
+                                    setAppearanceMenuAnchor(event.currentTarget)
+                                }}
+                                className="app-shell-topbar-pill app-shell-topbar-pill--appearance"
+                                aria-label={t('preferences.appearance')}
+                                title={t('preferences.appearance')}
+                                startIcon={colorMode === 'light' ? <SunIcon /> : <MoonIcon />}
+                                endIcon={<ChevronDownIcon />}
+                            >
+                                {currentAppearanceLabel}
+                            </Button>
+                            <Button
+                                color="inherit"
+                                onClick={(event) => {
+                                    if (userMenuAnchor) {
+                                        setUserMenuAnchor(null)
+                                        return
+                                    }
 
-                                        setUserMenuAnchor(event.currentTarget)
-                                    }}
-                                    className="app-shell-user-trigger"
-                                    aria-label={t('user.menu.profile')}
-                                    title={t('user.menu.profile')}
-                                >
-                                    <Avatar className="app-shell-user-avatar">
+                                    setUserMenuAnchor(event.currentTarget)
+                                }}
+                                className="app-shell-user-trigger app-shell-user-trigger--topbar"
+                                aria-label={t('user.menu.profile')}
+                                title={currentUserLabel}
+                                startIcon={
+                                    <Avatar className="app-shell-user-avatar app-shell-user-avatar--topbar">
                                         <PersonIcon />
                                     </Avatar>
-                                </IconButton>
-                                <Typography className="app-shell-user-name" component="span">
-                                    {status?.current_user?.username ?? 'guest'}
-                                </Typography>
-                            </Box>
+                                }
+                            >
+                                <Box className="app-shell-user-trigger-copy">
+                                    <Typography className="app-shell-user-trigger-name">{currentUserLabel}</Typography>
+                                </Box>
+                            </Button>
                         </Box>
                     </Box>
-
                     <Box
                         component="main"
                         className={`app-shell-main ${location.pathname === '/dashboard' ? 'app-shell-main--dashboard' : ''} ${useWhiteWorkspaceSurface ? 'app-shell-main--white-surface' : ''}`}
                         id="app-shell-main"
                         sx={{
                             px: activeIntegrationRoute ? 0 : { xs: 2, md: 3 },
-                            py: activeIntegrationRoute ? 0 : { xs: 2, md: 2.5 },
-                            overflowY: activeIntegrationRoute ? 'hidden' : 'auto',
+                            py: activeIntegrationRoute ? 0 : location.pathname === '/dashboard' ? { xs: 2, md: 2.25 } : { xs: 2.5, md: 3 },
+                            overflowY: activeIntegrationRoute ? 'hidden' : location.pathname === '/dashboard' ? 'hidden' : 'auto',
                         }}
                     >
                         <Box className="app-shell-main-body">
@@ -346,6 +626,133 @@ export function AppShell() {
             </Box>
 
             <Menu
+                anchorEl={localeMenuAnchor}
+                open={Boolean(localeMenuAnchor)}
+                onClose={() => {
+                    setLocaleMenuAnchor(null)
+                }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                slotProps={{
+                    paper: {
+                        className: `app-shell-account-menu app-shell-account-menu--${colorMode}`,
+                    },
+                }}
+            >
+                <Box className="app-shell-account-panel">
+                    <Typography className="app-shell-account-section-label">{t('preferences.language')}</Typography>
+                    <List disablePadding className="app-shell-account-links">
+                        {(['zh-CN', 'en'] as const).map((locale) => {
+                            const active = normalizedLocale === locale
+
+                            return (
+                                <ListItemButton
+                                    key={locale}
+                                    className={`app-shell-account-link ${active ? 'app-shell-account-link--selected' : ''}`}
+                                    onClick={() => {
+                                        handleSelectLocale(locale)
+                                    }}
+                                >
+                                    <Box className="app-shell-account-link-icon">
+                                        <LocaleBadgeIcon label={locale === 'zh-CN' ? '中' : 'EN'} />
+                                    </Box>
+                                    <Typography className="app-shell-account-link-title">{t(`locales.${locale}`)}</Typography>
+                                </ListItemButton>
+                            )
+                        })}
+                    </List>
+                </Box>
+            </Menu>
+
+            <Menu
+                anchorEl={appearanceMenuAnchor}
+                open={Boolean(appearanceMenuAnchor)}
+                onClose={() => {
+                    setAppearanceMenuAnchor(null)
+                }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                slotProps={{
+                    paper: {
+                        className: `app-shell-account-menu app-shell-account-menu--${colorMode}`,
+                    },
+                }}
+            >
+                <Box className="app-shell-account-panel">
+                    <Typography className="app-shell-account-section-label">{t('preferences.appearance')}</Typography>
+                    <List disablePadding className="app-shell-account-links">
+                        {(['light', 'dark'] as const).map((mode) => {
+                            const active = colorMode === mode
+
+                            return (
+                                <ListItemButton
+                                    key={mode}
+                                    className={`app-shell-account-link ${active ? 'app-shell-account-link--selected' : ''}`}
+                                    onClick={() => {
+                                        handleSelectColorMode(mode)
+                                    }}
+                                >
+                                    <Box className="app-shell-account-link-icon">
+                                        {mode === 'light' ? <SunIcon /> : <MoonIcon />}
+                                    </Box>
+                                    <Typography className="app-shell-account-link-title">{t(`preferences.${mode}`)}</Typography>
+                                </ListItemButton>
+                            )
+                        })}
+                    </List>
+                </Box>
+            </Menu>
+
+            <Menu
+                anchorEl={deployMenuAnchor}
+                open={Boolean(deployMenuAnchor)}
+                onClose={() => {
+                    setDeployMenuAnchor(null)
+                }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                slotProps={{
+                    paper: {
+                        sx: {
+                            mt: 0.75,
+                            minWidth: 196,
+                            borderRadius: '4px',
+                            border: '1px solid rgba(203, 213, 225, 0.9)',
+                            boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)',
+                        },
+                    },
+                }}
+            >
+                <Box sx={{ px: 1.5, pt: 1.25, pb: 0.75 }}>
+                    <Typography sx={{ fontSize: 11, lineHeight: 1.3, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8' }}>
+                        {t('applicationsHubPage.menu.title')}
+                    </Typography>
+                </Box>
+                <Box sx={{ borderTop: '1px solid rgba(226, 232, 240, 0.9)' }} />
+                {myAppsDeployTargets.map((item) => (
+                    <MenuItem
+                        key={item.key}
+                        onClick={() => {
+                            setDeployMenuAnchor(null)
+                            navigate(item.to)
+                        }}
+                        sx={{
+                            gap: 1,
+                            minHeight: 42,
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: '#334155',
+                        }}
+                    >
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                            <ShellNavIcon segment={item.icon} />
+                        </Box>
+                        <Typography sx={{ fontSize: 14, fontWeight: 500, color: 'inherit' }}>{item.label}</Typography>
+                    </MenuItem>
+                ))}
+            </Menu>
+
+            <Menu
                 anchorEl={userMenuAnchor}
                 open={Boolean(userMenuAnchor)}
                 onClose={() => {
@@ -360,11 +767,8 @@ export function AppShell() {
                 }}
             >
                 <Box className="app-shell-account-panel">
+                    <Typography className="app-shell-account-section-label">{t('nav.users.label')}</Typography>
                     <List disablePadding className="app-shell-account-links">
-                        <Typography className="app-shell-account-section-label">
-                            {t('user.menu.session')}
-                        </Typography>
-
                         <ListItemButton
                             className={`app-shell-account-link ${location.pathname.startsWith('/users') ? 'active' : ''}`}
                             onClick={() => {
@@ -400,64 +804,6 @@ export function AppShell() {
                             <Typography className="app-shell-account-link-title">{t('user.menu.signOut')}</Typography>
                         </ListItemButton>
 
-                        <Typography className="app-shell-account-section-label">
-                            {t('preferences.language')}
-                        </Typography>
-
-                        {supportedLocales.map((locale) => {
-                            const isActive = resolvedLocale === locale
-
-                            return (
-                                <ListItemButton
-                                    key={locale}
-                                    className={`app-shell-account-link ${isActive ? 'active app-shell-account-link--selected' : ''}`}
-                                    onClick={() => {
-                                        const normalizedLocale = normalizeSupportedLocale(locale)
-                                        if (normalizedLocale === normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en')) {
-                                            return
-                                        }
-
-                                        setUserMenuAnchor(null)
-                                        void i18n.changeLanguage(normalizedLocale)
-                                        void persistCurrentUserLocale(normalizedLocale)
-                                    }}
-                                >
-                                    <Box className="app-shell-account-link-icon">
-                                        {locale === 'en' ? <LocaleBadgeIcon label="EN" /> : <LocaleBadgeIcon label="中" />}
-                                    </Box>
-                                    <Typography className="app-shell-account-link-title">{t(`locales.${locale}`)}</Typography>
-                                    {isActive ? <Box className="app-shell-account-link-trailing"><SelectedIndicatorIcon /></Box> : null}
-                                </ListItemButton>
-                            )
-                        })}
-
-                        <Typography className="app-shell-account-section-label">
-                            {t('preferences.appearance')}
-                        </Typography>
-
-                        <ListItemButton
-                            className={`app-shell-account-link ${colorMode === 'light' ? 'active app-shell-account-link--selected' : ''}`}
-                            onClick={() => {
-                                setUserMenuAnchor(null)
-                                setColorMode('light')
-                            }}
-                        >
-                            <Box className="app-shell-account-link-icon"><SunIcon /></Box>
-                            <Typography className="app-shell-account-link-title">{t('preferences.light')}</Typography>
-                            {colorMode === 'light' ? <Box className="app-shell-account-link-trailing"><SelectedIndicatorIcon /></Box> : null}
-                        </ListItemButton>
-
-                        <ListItemButton
-                            className={`app-shell-account-link ${colorMode === 'dark' ? 'active app-shell-account-link--selected' : ''}`}
-                            onClick={() => {
-                                setUserMenuAnchor(null)
-                                setColorMode('dark')
-                            }}
-                        >
-                            <Box className="app-shell-account-link-icon"><MoonIcon /></Box>
-                            <Typography className="app-shell-account-link-title">{t('preferences.dark')}</Typography>
-                            {colorMode === 'dark' ? <Box className="app-shell-account-link-trailing"><SelectedIndicatorIcon /></Box> : null}
-                        </ListItemButton>
                     </List>
                 </Box>
             </Menu>

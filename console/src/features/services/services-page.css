@@ -7,6 +7,10 @@
     overflow: hidden;
 }
 
+.app-shell-root--dark .services-page-shell {
+    color: #e5edf5;
+}
+
 .services-page-panel,
 .services-page-panel.MuiPaper-root,
 .services-page-toolbar-panel,
@@ -18,6 +22,17 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.app-shell-root--dark .services-page-panel,
+.app-shell-root--dark .services-page-panel.MuiPaper-root,
+.app-shell-root--dark .services-page-toolbar-panel,
+.app-shell-root--dark .services-page-toolbar-panel.MuiPaper-root,
+.app-shell-root--dark .services-page-log-panel,
+.app-shell-root--dark .services-page-log-panel.MuiPaper-root {
+    border-color: rgba(71, 85, 105, 0.65);
+    background: #111827;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+}
+
 .services-page-toolbar-panel,
 .services-page-toolbar-panel.MuiPaper-root,
 .services-page-panel,
@@ -26,6 +41,14 @@
     border-radius: 2px !important;
     background: #ffffff;
     background-color: #ffffff;
+}
+
+.app-shell-root--dark .services-page-toolbar-panel,
+.app-shell-root--dark .services-page-toolbar-panel.MuiPaper-root,
+.app-shell-root--dark .services-page-panel,
+.app-shell-root--dark .services-page-panel.MuiPaper-root {
+    background: #111827;
+    background-color: #111827;
 }
 
 .services-page-toolbar-panel,
@@ -115,6 +138,13 @@
     line-height: 1.25;
 }
 
+.app-shell-root--dark .services-page-dialog-close-glyph,
+.app-shell-root--dark .services-page-log-title,
+.app-shell-root--dark .services-page-service-title,
+.app-shell-root--dark .services-page-service-title.MuiTypography-root {
+    color: #f8fafc;
+}
+
 .services-page-toolbar-search {
     flex: 0 0 auto;
     width: clamp(380px, 32vw, 460px);
@@ -128,9 +158,14 @@
 
 .services-page-toolbar-field .MuiOutlinedInput-root {
     background: #fff;
-    border-radius: 2px;
-    min-height: 36px;
+    border-radius: 4px;
+    min-height: 42px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell-root--dark .services-page-toolbar-field .MuiOutlinedInput-root {
+    background: #0f172a;
+    box-shadow: none;
 }
 
 .services-page-toolbar-field .MuiInputBase-input,
@@ -139,8 +174,22 @@
     font-size: 14px;
     font-weight: 400;
     min-height: auto;
-    padding-bottom: 6.5px;
-    padding-top: 6.5px;
+    padding-bottom: 9px;
+    padding-top: 9px;
+}
+
+.app-shell-root--dark .services-page-toolbar-field .MuiInputBase-input,
+.app-shell-root--dark .services-page-toolbar-field .MuiSelect-select,
+.app-shell-root--dark .services-page-autorefresh-toggle .MuiFormControlLabel-label,
+.app-shell-root--dark .services-page-table .MuiTableCell-head,
+.app-shell-root--dark .services-page-table .MuiTableCell-body,
+.app-shell-root--dark .services-page-service-description,
+.app-shell-root--dark .services-page-service-description.MuiTypography-root,
+.app-shell-root--dark .services-page-service-updated,
+.app-shell-root--dark .services-page-service-updated.MuiTypography-root,
+.app-shell-root--dark .services-page-updated-at-cell,
+.app-shell-root--dark .services-page-log-time {
+    color: #cbd5e1;
 }
 
 .services-page-toolbar-field .MuiInputBase-input::placeholder {
@@ -148,8 +197,16 @@
     opacity: 1;
 }
 
+.app-shell-root--dark .services-page-toolbar-field .MuiInputBase-input::placeholder {
+    color: #64748b;
+}
+
 .services-page-toolbar-field .MuiOutlinedInput-notchedOutline {
     border-color: rgba(203, 213, 225, 0.9);
+}
+
+.app-shell-root--dark .services-page-toolbar-field .MuiOutlinedInput-notchedOutline {
+    border-color: rgba(71, 85, 105, 0.8);
 }
 
 .services-page-toolbar-field:hover .MuiOutlinedInput-notchedOutline {
@@ -177,12 +234,28 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
 }
 
+.app-shell-root--dark .services-page-icon-button,
+.app-shell-root--dark .services-page-icon-button.MuiIconButton-root {
+    border-color: rgba(71, 85, 105, 0.8) !important;
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    box-shadow: none !important;
+}
+
 .services-page-icon-button:hover,
 .services-page-icon-button.MuiIconButton-root:hover {
     background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
     border-color: rgba(148, 163, 184, 0.95);
     color: #334155;
     box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell-root--dark .services-page-icon-button:hover,
+.app-shell-root--dark .services-page-icon-button.MuiIconButton-root:hover {
+    background: #162033 !important;
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
 }
 
 .services-page-icon-button.Mui-disabled,
@@ -230,6 +303,11 @@
     font-family: inherit;
 }
 
+.app-shell-root--dark .services-page-table .MuiTableCell-head {
+    background: #162033;
+    border-bottom-color: rgba(71, 85, 105, 0.65);
+}
+
 .services-page-table .MuiChip-root {
     border-radius: 2px;
     height: 24px;
@@ -251,6 +329,10 @@
     font-size: 14px;
     line-height: 1.5;
     font-family: inherit;
+}
+
+.app-shell-root--dark .services-page-table .MuiTableCell-body {
+    border-bottom-color: rgba(71, 85, 105, 0.45);
 }
 
 .services-page-service-cell {
@@ -320,6 +402,27 @@
     color: #991b1b;
 }
 
+.app-shell-root--dark .services-page-indicator {
+    background: rgba(148, 163, 184, 0.16);
+    color: #e2e8f0;
+}
+
+.app-shell-root--dark .services-page-indicator-ok {
+    background: rgba(34, 197, 94, 0.24);
+    color: #dcfce7;
+}
+
+.app-shell-root--dark .services-page-indicator-degraded,
+.app-shell-root--dark .services-page-indicator-missing {
+    background: rgba(245, 158, 11, 0.22);
+    color: #fef3c7;
+}
+
+.app-shell-root--dark .services-page-indicator-error {
+    background: rgba(239, 68, 68, 0.22);
+    color: #fee2e2;
+}
+
 .services-page-log-panel {
     display: flex;
     flex: 1 1 auto;
@@ -338,6 +441,12 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.app-shell-root--dark .services-page-dialog-paper {
+    background: #182235;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 24px 64px rgba(2, 6, 23, 0.62);
 }
 
 @media (max-width: 768px) {
@@ -386,6 +495,11 @@
     height: 100%;
 }
 
+.app-shell-root--dark .services-page-log-body-dialog {
+    background: #111827;
+    border-color: rgba(71, 85, 105, 0.65);
+}
+
 .services-page-log-entry {
     display: block;
     padding: 4px 12px;
@@ -396,6 +510,10 @@
 .services-page-log-message {
     font-family: 'IBM Plex Mono', 'Fira Code', monospace;
     font-size: 15px;
+}
+
+.app-shell-root--dark .services-page-log-message {
+    color: #e5edf5;
 }
 
 .services-page-log-time {

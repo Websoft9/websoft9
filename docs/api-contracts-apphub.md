@@ -44,6 +44,13 @@
 - 当前特点: 校验后仍在线程中异步调用安装，不是完整显式任务系统。
 - 当前过渡契约: 成功受理后会立即返回 `app_id` 与 `tracking_id`，前端可据此从 App Store 自然切到 My Apps 跟踪安装中、失败和最终落库后的应用状态。
 
+### POST /apps/install/compose/validate
+
+- 用途: 校验自定义 compose 安装请求的基础结构与 YAML 语法。
+- 当前特点: 这是 Story 3.3A 引入的 AppHub-owned 校验端点，只负责解析单个 compose 文本、确认存在至少一个 service，并回显环境变量键与服务列表。
+- 当前返回: 成功时返回 `services`、`environment_keys` 和可读 `details`；失败时返回 400，并把 YAML 语法或缺失 services 等问题作为可操作错误透出。
+- 当前边界: 该端点不执行真实 compose 安装，也不承担最终策略准入和任务提交；真正执行路径继续留给后续 compose 安装故事。
+
 ### POST /apps/{app_id}/start
 ### POST /apps/{app_id}/stop
 ### POST /apps/{app_id}/restart

@@ -7,6 +7,10 @@
     overflow: hidden;
 }
 
+.app-shell-root--dark .users-page-shell {
+    color: #e5edf5;
+}
+
 .users-page-grid {
     flex: 1 1 auto;
     display: flex;
@@ -24,6 +28,15 @@
     border: 1px solid var(--shell-surface-border);
     border-radius: 2px !important;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell-root--dark .users-toolbar-panel,
+.app-shell-root--dark .users-toolbar-panel.MuiPaper-root,
+.app-shell-root--dark .users-panel,
+.app-shell-root--dark .users-panel.MuiPaper-root {
+    background: #111827;
+    border-color: rgba(71, 85, 105, 0.65);
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
 }
 
 .users-toolbar-panel,
@@ -56,9 +69,16 @@
 
 .users-toolbar-field .MuiOutlinedInput-root {
     background: #fff;
-    border-radius: 2px;
-    min-height: 36px;
+    border-radius: 4px;
+    min-height: 42px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell-root--dark .users-toolbar-field .MuiOutlinedInput-root,
+.app-shell-root--dark .users-dialog-field .MuiOutlinedInput-root {
+    background: #0f172a;
+    border: 1px solid rgba(71, 85, 105, 0.82);
+    box-shadow: none;
 }
 
 .users-toolbar-field .MuiInputBase-input {
@@ -66,8 +86,19 @@
     font-size: 14px;
     font-weight: 400;
     min-height: auto;
-    padding-bottom: 6.5px;
-    padding-top: 6.5px;
+    padding-bottom: 9px;
+    padding-top: 9px;
+}
+
+.app-shell-root--dark .users-toolbar-field .MuiInputBase-input,
+.app-shell-root--dark .users-table .MuiTableCell-head,
+.app-shell-root--dark .users-table .MuiTableCell-body,
+.app-shell-root--dark .users-linkish,
+.app-shell-root--dark .users-dialog-title,
+.app-shell-root--dark .users-dialog-field .MuiSvgIcon-root,
+.app-shell-root--dark .users-dialog-field .MuiInputBase-input,
+.app-shell-root--dark .users-dialog-field .MuiSelect-select {
+    color: #e5edf5;
 }
 
 .users-toolbar-field .MuiInputBase-input::placeholder {
@@ -75,8 +106,18 @@
     opacity: 1;
 }
 
+.app-shell-root--dark .users-toolbar-field .MuiInputBase-input::placeholder,
+.app-shell-root--dark .users-dialog-field .MuiInputBase-input::placeholder {
+    color: #64748b;
+}
+
 .users-toolbar-field .MuiOutlinedInput-notchedOutline {
     border-color: rgba(203, 213, 225, 0.9);
+}
+
+.app-shell-root--dark .users-toolbar-field .MuiOutlinedInput-notchedOutline,
+.app-shell-root--dark .users-dialog-field .MuiOutlinedInput-notchedOutline {
+    border-color: rgba(71, 85, 105, 0.8);
 }
 
 .users-toolbar-field:hover .MuiOutlinedInput-notchedOutline {
@@ -98,12 +139,31 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
 }
 
+.app-shell-root--dark .users-toolbar-icon-button,
+.app-shell-root--dark .users-toolbar-icon-button.MuiIconButton-root,
+.app-shell-root--dark .users-row-action-button,
+.app-shell-root--dark .users-row-action-button.MuiIconButton-root {
+    border-color: rgba(71, 85, 105, 0.8) !important;
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    box-shadow: none !important;
+}
+
 .users-toolbar-icon-button:hover,
 .users-toolbar-icon-button.MuiIconButton-root:hover {
     background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
     border-color: rgba(148, 163, 184, 0.95);
     color: #334155;
     box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.app-shell-root--dark .users-toolbar-icon-button:hover,
+.app-shell-root--dark .users-toolbar-icon-button.MuiIconButton-root:hover,
+.app-shell-root--dark .users-row-action-button:hover,
+.app-shell-root--dark .users-row-action-button.MuiIconButton-root:hover {
+    background: #162033 !important;
+    border-color: rgba(148, 163, 184, 0.28) !important;
+    color: #ffffff !important;
 }
 
 .users-toolbar-icon-button.Mui-disabled,
@@ -114,10 +174,10 @@
 
 .users-toolbar-button,
 .users-toolbar-button.MuiButton-root {
-    border-radius: 2px;
+    border-radius: 4px;
     box-shadow: none;
     color: #fff;
-    min-height: 36px;
+    min-height: 42px;
     min-width: 110px;
     padding: 0.375rem 0.9rem;
     text-transform: none;
@@ -160,12 +220,21 @@
     font-weight: 600;
 }
 
+.app-shell-root--dark .users-table .MuiTableCell-head {
+    background: #162033;
+    border-bottom-color: rgba(71, 85, 105, 0.65);
+}
+
 .users-table .MuiTableCell-body {
     border-bottom: 1px solid #e2e8f0;
     vertical-align: top;
     color: #334155;
     font-size: 14px;
     line-height: 1.5;
+}
+
+.app-shell-root--dark .users-table .MuiTableCell-body {
+    border-bottom-color: rgba(71, 85, 105, 0.45);
 }
 
 .users-table .MuiChip-root,
@@ -191,10 +260,22 @@
     color: #166534;
 }
 
+.app-shell-root--dark .users-status-chip-enabled,
+.app-shell-root--dark .users-status-chip-enabled.MuiChip-root {
+    background: rgba(34, 197, 94, 0.24);
+    color: #dcfce7;
+}
+
 .users-status-chip-disabled,
 .users-status-chip-disabled.MuiChip-root {
     background: #fee2e2;
     color: #b91c1c;
+}
+
+.app-shell-root--dark .users-status-chip-disabled,
+.app-shell-root--dark .users-status-chip-disabled.MuiChip-root {
+    background: rgba(239, 68, 68, 0.22);
+    color: #fee2e2;
 }
 
 .users-table .MuiChip-label {
@@ -292,6 +373,12 @@
     text-align: right;
 }
 
+.app-shell-root--dark .users-row-note,
+.app-shell-root--dark .users-dialog-description,
+.app-shell-root--dark .users-dialog-field-label {
+    color: #94a3b8;
+}
+
 .users-dialog-title-stack {
     display: grid;
     gap: 4px;
@@ -323,6 +410,12 @@
     background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
     color: #2563eb;
     border: 1px solid rgba(147, 197, 253, 0.65);
+}
+
+.app-shell-root--dark .users-dialog-hero-icon {
+    background: linear-gradient(180deg, #162033 0%, #1d4ed8 100%);
+    color: #dbeafe;
+    border-color: rgba(96, 165, 250, 0.28);
 }
 
 .users-dialog-hero-icon svg {
@@ -416,8 +509,43 @@
     line-height: 1.35;
 }
 
+.app-shell-root--dark .users-dialog-field .MuiFormHelperText-root {
+    color: #94a3b8;
+}
+
+.app-shell-root--dark .users-dialog-field .MuiFormHelperText-root.Mui-error {
+    color: #fda4af;
+}
+
+.app-shell-root--dark .users-dialog-field .MuiOutlinedInput-root.Mui-error {
+    border-color: rgba(251, 113, 133, 0.58);
+}
+
+.app-shell-root--dark .users-dialog-field .MuiOutlinedInput-root.Mui-error .MuiOutlinedInput-notchedOutline {
+    border-color: rgba(251, 113, 133, 0.58);
+}
+
+.app-shell-root--dark .users-dialog-field .MuiIconButton-root {
+    color: #cbd5e1;
+}
+
 .users-dialog-field-readonly .MuiOutlinedInput-root {
     background: #f8fafc;
+}
+
+.app-shell-root--dark .users-dialog-field-readonly .MuiOutlinedInput-root {
+    background: #162033;
+}
+
+.app-shell-root--dark .users-dialog-close-button,
+.app-shell-root--dark .users-dialog-close-button.MuiIconButton-root {
+    color: #94a3b8 !important;
+}
+
+.app-shell-root--dark .users-dialog-close-button:hover,
+.app-shell-root--dark .users-dialog-close-button.MuiIconButton-root:hover {
+    background: rgba(148, 163, 184, 0.12) !important;
+    color: #f8fafc !important;
 }
 
 @media (max-width: 899px) {

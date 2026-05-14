@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
+import { useAppColorMode } from '../../app/providers/color-mode'
 import { getIntegrationDefinition, getIntegrationDefinitionByEntrySegment, integrationDefinitions, type IntegrationKey } from './integration-model'
 import { useIntegrationSession } from './use-integration-session'
 import { useIntegrationStatuses } from './use-integration-status'
@@ -75,85 +76,24 @@ type IntegrationWorkspaceContentProps = {
     showCatalogLink: boolean
 }
 
-const embeddedShellStyles: Record<IntegrationKey, string> = {
-    gitea: `
-        body,
-        .full.height,
-        #page-body {
-            background: #ffffff !important;
-        }
-
-        .page-footer {
-            background: transparent !important;
-            border-top: 1px solid rgba(15, 23, 42, 0.06) !important;
-            box-shadow: none !important;
-            padding: 12px 24px !important;
-            color: #64748b !important;
-        }
-
-        .page-footer a {
-            color: #64748b !important;
-        }
-    `,
-    npm: `
-        body,
-        .page,
-        .page-wrapper,
-        .page-body {
-            background: #ffffff !important;
-        }
-
-        footer,
-        .footer,
-        .page-footer {
-            background: transparent !important;
-            border-top: 1px solid rgba(15, 23, 42, 0.06) !important;
-            box-shadow: none !important;
-            margin-top: 24px !important;
-            padding: 12px 24px !important;
-            color: #64748b !important;
-        }
-
-        footer a,
-        .footer a,
-        .page-footer a {
-            color: #64748b !important;
-        }
-    `,
-    portainer: `
-        body,
-        #content-wrapper,
-        .page-content,
-        .page-wrapper {
-            background: #ffffff !important;
-        }
-    `,
-}
-
-function applyEmbeddedShellStyle(frame: HTMLIFrameElement, integrationKey: IntegrationKey) {
-    const styleText = embeddedShellStyles[integrationKey]
-    if (!styleText) {
-        return
-    }
-
+function applyEmbeddedShellStyle(frame: HTMLIFrameElement, integrationKey: IntegrationKey, options: { locale: string; colorMode: 'light' | 'dark' }) {
     try {
         const doc = frame.contentDocument
-        if (!doc?.head) {
-            return
+        if (doc?.documentElement) {
+            doc.documentElement.lang = options.locale
         }
 
-        const styleId = 'websoft9-embedded-shell-style'
-        let style = doc.getElementById(styleId) as HTMLStyleElement | null
-
-        if (!style) {
-            style = doc.createElement('style')
-            style.id = styleId
-            doc.head.appendChild(style)
-        }
-
-        style.textContent = styleText
+        frame.contentWindow?.postMessage(
+            {
+                type: 'websoft9:host-preferences',
+                integrationKey,
+                locale: options.locale,
+                colorMode: options.colorMode,
+            },
+            window.location.origin,
+        )
     } catch {
-        // Embedded integrations are expected to remain same-origin under product-owned paths.
+        // Best-effort sync only; embedded apps may ignore these hints.
     }
 }
 
@@ -161,13 +101,41 @@ function getIntegrationWorkspaceStorageKey(integrationKey: IntegrationKey) {
     return `websoft9:integration-workspace:${integrationKey}:last-src`
 }
 
-function resolveWorkspaceTarget(definition: IntegrationWorkspaceContentProps['definition'], requestedTarget: string | null, rememberedWorkspaceSrc: string | null) {
-    if (requestedTarget && (requestedTarget.startsWith(definition.probePath) || requestedTarget.startsWith(definition.directPath))) {
-        return requestedTarget
+function getRememberedIntegrationTarget(integrationKey: IntegrationKey) {
+    if (typeof window === 'undefined') {
+        return null
     }
 
-    if (rememberedWorkspaceSrc && (rememberedWorkspaceSrc.startsWith(definition.probePath) || rememberedWorkspaceSrc.startsWith(definition.directPath))) {
-        return rememberedWorkspaceSrc
+    return window.sessionStorage.getItem(getIntegrationWorkspaceStorageKey(integrationKey))
+}
+
+function normalizeIntegrationTarget(definition: IntegrationWorkspaceContentProps['definition'], target: string | null) {
+    if (!target) {
+        return null
+    }
+
+    try {
+        const parsedUrl = new URL(target, window.location.origin)
+        const redirectTarget = parsedUrl.searchParams.get('redirect_to')
+        if (redirectTarget && (redirectTarget.startsWith(definition.probePath) || redirectTarget.startsWith(definition.directPath))) {
+            return redirectTarget
+        }
+    } catch {
+        // Fall back to the raw target when the URL cannot be parsed.
+    }
+
+    return target
+}
+
+function resolveWorkspaceTarget(definition: IntegrationWorkspaceContentProps['definition'], requestedTarget: string | null, rememberedWorkspaceSrc: string | null) {
+    const normalizedRequestedTarget = normalizeIntegrationTarget(definition, requestedTarget)
+    if (normalizedRequestedTarget && (normalizedRequestedTarget.startsWith(definition.probePath) || normalizedRequestedTarget.startsWith(definition.directPath))) {
+        return normalizedRequestedTarget
+    }
+
+    const normalizedRememberedWorkspaceSrc = normalizeIntegrationTarget(definition, rememberedWorkspaceSrc)
+    if (normalizedRememberedWorkspaceSrc && (normalizedRememberedWorkspaceSrc.startsWith(definition.probePath) || normalizedRememberedWorkspaceSrc.startsWith(definition.directPath))) {
+        return normalizedRememberedWorkspaceSrc
     }
 
     return definition.workspacePath
@@ -183,8 +151,11 @@ function rememberIntegrationTarget(definition: IntegrationWorkspaceContentProps[
     }
 }
 
+function resolveRecoveryTarget(definition: IntegrationWorkspaceContentProps['definition'], target: string | null, fallbackTarget: string) {
+    return normalizeIntegrationTarget(definition, target) ?? fallbackTarget
+}
+
 function handleIntegrationFrameLoad(frame: HTMLIFrameElement, definition: IntegrationWorkspaceContentProps['definition']) {
-    applyEmbeddedShellStyle(frame, definition.key)
     try {
         const currentLocation = frame.contentWindow?.location
         const nextPath = currentLocation ? `${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}` : null
@@ -249,6 +220,7 @@ function DirectIntegrationWorkspaceFrame({
     snapshot: ReturnType<typeof useIntegrationStatuses>['snapshots'][IntegrationKey]
 }) {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
     const [searchParams] = useSearchParams()
     const [hasInitializedFrame, setHasInitializedFrame] = useState(false)
     const [frameVersion, setFrameVersion] = useState(0)
@@ -265,13 +237,7 @@ function DirectIntegrationWorkspaceFrame({
         recoveryState !== 'error' &&
         (snapshot.status === 'available' || snapshot.status === 'session-error')
     const requestedTarget = active ? searchParams.get('target') : null
-    const rememberedWorkspaceSrc = useMemo(() => {
-        if (typeof window === 'undefined') {
-            return null
-        }
-
-        return window.sessionStorage.getItem(getIntegrationWorkspaceStorageKey(definition.key))
-    }, [definition.key])
+    const rememberedWorkspaceSrc = getRememberedIntegrationTarget(definition.key)
     const iframeSrc = resolveWorkspaceTarget(definition, requestedTarget, rememberedWorkspaceSrc)
 
     useEffect(() => {
@@ -300,7 +266,7 @@ function DirectIntegrationWorkspaceFrame({
     }, [])
 
     async function recoverIntegrationSession(target: string | null, options?: { force?: boolean }) {
-        const recoveryTarget = target || iframeSrc
+        const recoveryTarget = resolveRecoveryTarget(definition, target, iframeSrc)
         if (recoveryState === 'recovering') {
             return
         }
@@ -314,6 +280,7 @@ function DirectIntegrationWorkspaceFrame({
         setRecoveryState('recovering')
         setRecoveryError(null)
         setLastRecoveryTarget(recoveryTarget)
+        rememberIntegrationTarget(definition, recoveryTarget)
 
         try {
             await bootstrapIntegrationSession(definition.key, locale)
@@ -342,6 +309,7 @@ function DirectIntegrationWorkspaceFrame({
                 }
 
                 handleIntegrationFrameLoad(event.currentTarget, definition)
+                applyEmbeddedShellStyle(event.currentTarget, definition.key, { locale, colorMode })
 
                 const inspectFrame = () => {
                     const inspection = inspectIntegrationFrame(event.currentTarget, definition)
@@ -368,7 +336,7 @@ function DirectIntegrationWorkspaceFrame({
             }}
             sx={{
                 width: '100%',
-                height: 'calc(100vh - 76px)',
+                height: 'calc(100vh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))',
                 border: 0,
                 display: 'block',
                 backgroundColor: '#fff',
@@ -379,7 +347,7 @@ function DirectIntegrationWorkspaceFrame({
         <Stack
             spacing={1.25}
             sx={{
-                height: 'calc(100vh - 76px)',
+                height: 'calc(100vh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))',
                 alignItems: 'center',
                 justifyContent: 'center',
                 px: 3,
@@ -426,10 +394,11 @@ function DirectIntegrationWorkspaceFrame({
 }
 
 function IntegrationWorkspaceContent({ definition, showCatalogLink }: IntegrationWorkspaceContentProps) {
-    const { t } = useTranslation('shell')
+    const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
     const [searchParams] = useSearchParams()
     const { refresh, snapshots } = useIntegrationStatuses()
-    const directWorkspaceViewportHeight = 'calc(100vh - 76px)'
+    const directWorkspaceViewportHeight = 'calc(100vh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))'
 
     const snapshot = snapshots[definition.key]
     const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt)
@@ -441,14 +410,9 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
     const isDirectWorkspace = definition.key === 'gitea' || definition.key === 'npm' || definition.key === 'portainer'
     const renderDirectWorkspace = isDirectWorkspace && shouldRenderFrame
     const requestedTarget = searchParams.get('target')
-    const rememberedWorkspaceSrc = useMemo(() => {
-        if (typeof window === 'undefined') {
-            return null
-        }
-
-        return window.sessionStorage.getItem(getIntegrationWorkspaceStorageKey(definition.key))
-    }, [definition.key])
+    const rememberedWorkspaceSrc = getRememberedIntegrationTarget(definition.key)
     const iframeSrc = resolveWorkspaceTarget(definition, requestedTarget, rememberedWorkspaceSrc)
+    const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
 
     useEffect(() => {
         rememberIntegrationTarget(definition, requestedTarget)
@@ -470,6 +434,7 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                         src={iframeSrc}
                         onLoad={(event) => {
                             handleIntegrationFrameLoad(event.currentTarget, definition)
+                            applyEmbeddedShellStyle(event.currentTarget, definition.key, { locale, colorMode })
                         }}
                         sx={{
                             width: '100%',
@@ -600,7 +565,7 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                         component="iframe"
                         src={iframeSrc}
                         onLoad={(event) => {
-                            applyEmbeddedShellStyle(event.currentTarget, definition.key)
+                            applyEmbeddedShellStyle(event.currentTarget, definition.key, { locale, colorMode })
                             try {
                                 const currentLocation = event.currentTarget.contentWindow?.location
                                 const nextPath = currentLocation ? `${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}` : null
