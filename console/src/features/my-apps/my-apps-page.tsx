@@ -11,21 +11,21 @@ import {
     DialogTitle,
     FormControlLabel,
     IconButton,
-    ListItemIcon,
-    ListItemText,
     Menu,
     MenuItem,
     Snackbar,
     Switch,
+    Tooltip,
     Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { useMyApps, type MyApp } from './use-my-apps'
 import { fetchMyAppDetail } from './use-my-app-detail'
 import { LegacyMyAppLogo } from './my-app-media'
@@ -36,24 +36,9 @@ import './my-apps-page.css'
 // =====================
 type StatusFilter = 'all' | '1' | '2' | '3' | '4'
 type RemoveType = 'inactive' | 'error'
-type AppSourceKey = 'marketplace' | 'compose' | 'runtime'
-type SourceFilter = 'all' | AppSourceKey
 type ActionFeedback = {
     severity: 'success' | 'error' | 'info'
     message: string
-}
-
-// =====================
-// Status helpers
-// =====================
-function getStatusBadgeClass(status: number): string {
-    switch (status) {
-        case 1: return 'bg-success'
-        case 2: return 'bg-warning'
-        case 3: return 'bg-info'
-        case 4: return 'bg-danger'
-        default: return 'bg-dark'
-    }
 }
 
 function getStatusLabel(status: number): string {
@@ -66,25 +51,14 @@ function getStatusLabel(status: number): string {
     }
 }
 
-function resolveAppSource(app: MyApp): AppSourceKey {
-    if (app.app_official) {
-        return 'marketplace'
+function getStatusBadgeClass(status: number): string {
+    switch (status) {
+        case 1: return 'bg-success'
+        case 2: return 'bg-dark'
+        case 3: return 'bg-warning'
+        case 4: return 'bg-danger'
+        default: return 'bg-info'
     }
-
-    const haystack = [
-        app.app_dist,
-        JSON.stringify(app.env ?? {}),
-        JSON.stringify(app.gitConfig ?? {}),
-    ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-
-    if (/(runtime|python|php|java|node|go|dotnet|gunicorn|tomcat|pm2)/.test(haystack)) {
-        return 'runtime'
-    }
-
-    return 'compose'
 }
 
 // =====================
@@ -120,15 +94,6 @@ function IconCompose() {
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
             <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             <path d="M7 5v14M17 5v14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.7" />
-        </svg>
-    )
-}
-
-function IconRuntime() {
-    return (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
-            <path d="M12 2 4 6.5V17.5L12 22l8-4.5V6.5L12 2Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-            <path d="M12 7v10M7.5 9.5 12 12l4.5-2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
     )
 }
@@ -237,21 +202,25 @@ async function runRedeployRequest(appId: string, pullImage: boolean) {
 // Max sub-log lines shown inside the active stage (tail view, no scroll)
 const MAX_STAGE_LOG_LINES = 24
 
-function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void }) {
+function LogDialog({
+    app,
+    onClose,
+}: {
+    app: MyApp | null
+    onClose: () => void
+}) {
     const { t } = useTranslation('shell')
     const isError = Boolean(app?.error)
     const isInstalling = app?.status === 3
-
-    // stages from backend; last stage with sub_logs is the "active" one
     const stages = app?.logs ?? []
-    const hasLogs = stages.some((s) => s.sub_logs && s.sub_logs.length > 0)
+    const hasLogs = stages.some((stage) => stage.sub_logs && stage.sub_logs.length > 0)
 
     return (
         <Dialog
-            fullWidth
             maxWidth="md"
-            open={Boolean(app)}
+            fullWidth
             onClose={onClose}
+            open={Boolean(app)}
             sx={{
                 '& .MuiDialog-paper': {
                     borderRadius: '4px',
@@ -262,7 +231,6 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                 },
             }}
         >
-            {/* ── Header ── */}
             <DialogTitle
                 sx={{
                     backgroundColor: isError ? '#fa5c7c' : '#39afd1',
@@ -278,26 +246,17 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                     fontWeight: 600,
                 }}
             >
-                {isInstalling && (
-                    <CircularProgress size={15} thickness={5} sx={{ color: 'rgba(255,255,255,0.85)', flexShrink: 0 }} />
-                )}
+                {isInstalling ? <CircularProgress size={15} thickness={5} sx={{ color: 'rgba(255,255,255,0.85)', flexShrink: 0 }} /> : null}
                 <span style={{ flex: 1 }}>
-                    {isError
-                        ? `${t('myAppsPage.dialog.errorTitle')} — ${app?.app_id}`
-                        : `${t('myAppsPage.dialog.logsTitle')} — ${app?.app_id}`}
+                    {isError ? `${t('myAppsPage.dialog.errorTitle')} — ${app?.app_id}` : `${t('myAppsPage.dialog.logsTitle')} — ${app?.app_id}`}
                 </span>
-                <IconButton
-                    size="small"
-                    onClick={onClose}
-                    sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.15)' } }}
-                >
+                <IconButton size="small" onClick={onClose} sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.15)' } }}>
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
                 </IconButton>
             </DialogTitle>
 
-            {/* ── Error message panel ── */}
             {isError && app?.error ? (
                 <div style={{
                     flexShrink: 0,
@@ -340,11 +299,8 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                 </div>
             ) : null}
 
-            {/* ── Log body: 3-step stage list + tail log area ── */}
             <DialogContent sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: '#f8f9fa' }}>
-
-                {/* Stage tracker strip */}
-                {stages.length > 0 && (
+                {stages.length > 0 ? (
                     <div style={{
                         flexShrink: 0,
                         display: 'flex',
@@ -358,33 +314,34 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                             const isActive = idx === stages.length - 1 && isInstalling
                             const isDone = !isInstalling || idx < stages.length - 1
                             return (
-                                <div key={idx} style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    padding: '8px 14px 8px 0',
-                                    marginRight: 16,
-                                    borderBottom: isActive ? '2px solid #39afd1' : isDone ? '2px solid #0acf97' : '2px solid transparent',
-                                    fontSize: '12px',
-                                    fontWeight: isActive ? 700 : 500,
-                                    color: isActive ? '#39afd1' : isDone ? '#0acf97' : '#adb5bd',
-                                    userSelect: 'none',
-                                    whiteSpace: 'nowrap',
-                                }}>
+                                <div
+                                    key={idx}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '8px 14px 8px 0',
+                                        marginRight: 16,
+                                        borderBottom: isActive ? '2px solid #39afd1' : isDone ? '2px solid #0acf97' : '2px solid transparent',
+                                        fontSize: '12px',
+                                        fontWeight: isActive ? 700 : 500,
+                                        color: isActive ? '#39afd1' : isDone ? '#0acf97' : '#adb5bd',
+                                        userSelect: 'none',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
                                     {isActive
                                         ? <CircularProgress size={11} thickness={6} sx={{ color: '#39afd1', flexShrink: 0 }} />
                                         : isDone
                                             ? <svg viewBox="0 0 24 24" width="12" height="12" fill="#0acf97"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
-                                            : <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #dee2e6', display: 'inline-block' }} />
-                                    }
+                                            : <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #dee2e6', display: 'inline-block' }} />}
                                     <span>{`${idx + 1}. ${stage.title}`}</span>
                                 </div>
                             )
                         })}
                     </div>
-                )}
+                ) : null}
 
-                {/* Active stage sub-logs (tail view, no scroll) */}
                 <div style={{
                     flex: 1,
                     overflow: 'hidden',
@@ -397,7 +354,7 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                     padding: '10px 16px 10px 16px',
                     boxSizing: 'border-box',
                 }}>
-                    {!hasLogs && !isError && (
+                    {!hasLogs && !isError ? (
                         <div style={{
                             flex: 1,
                             display: 'flex',
@@ -415,31 +372,25 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                                     </span>
                                 </>
                             ) : (
-                                <span style={{ fontSize: '12px', color: '#adb5bd' }}>
-                                    {t('myAppsPage.dialog.noSubLogs')}
-                                </span>
+                                <span style={{ fontSize: '12px', color: '#adb5bd' }}>{t('myAppsPage.dialog.noSubLogs')}</span>
                             )}
                         </div>
-                    )}
+                    ) : null}
 
-                    {/* Show logs of the last stage that has sub_logs */}
                     {(() => {
-                        // find last stage with sub_logs
-                        const activeStage = [...stages].reverse().find((s) => s.sub_logs && s.sub_logs.length > 0)
-                        if (!activeStage) return null
-                        const lines = (activeStage.sub_logs ?? []).filter((l) => l != null)
+                        const activeStage = [...stages].reverse().find((stage) => stage.sub_logs && stage.sub_logs.length > 0)
+                        if (!activeStage) {
+                            return null
+                        }
+
+                        const lines = (activeStage.sub_logs ?? []).filter((line) => line != null)
                         const tail = lines.slice(-MAX_STAGE_LOG_LINES)
-                        const offset = lines.length - tail.length // for line numbers
-                        return tail.map((line, i) => (
-                            <div key={i} style={{
-                                display: 'flex',
-                                gap: 10,
-                                padding: '1px 0',
-                                color: '#313a46',
-                                borderBottom: '1px solid rgba(0,0,0,0.04)',
-                            }}>
+                        const offset = lines.length - tail.length
+
+                        return tail.map((line, index) => (
+                            <div key={index} style={{ display: 'flex', gap: 10, padding: '1px 0', color: '#313a46', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
                                 <span style={{ color: '#adb5bd', userSelect: 'none', minWidth: 28, textAlign: 'right', flexShrink: 0, fontSize: '11px' }}>
-                                    {offset + i + 1}
+                                    {offset + index + 1}
                                 </span>
                                 <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', flex: 1, overflow: 'hidden' }}>
                                     {formatInstallLogLine(line)}
@@ -448,30 +399,29 @@ function LogDialog({ app, onClose }: { app: MyApp | null; onClose: () => void })
                         ))
                     })()}
 
-                    {isInstalling && hasLogs && (
+                    {isInstalling && hasLogs ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#39afd1', marginTop: 4 }}>
                             <CircularProgress size={10} thickness={6} sx={{ color: '#39afd1' }} />
                             <span style={{ fontSize: '11px' }}>installing…</span>
                         </div>
-                    )}
+                    ) : null}
                 </div>
             </DialogContent>
 
-            {/* ── Footer ── */}
             <DialogActions sx={{ borderTop: '1px solid #dee2e6', px: 2, py: 1, backgroundColor: '#fff', flexShrink: 0 }}>
-                <Button onClick={onClose} size="small" variant="outlined" color="inherit" sx={{ color: '#6c757d', borderColor: '#ced4da' }}>
+                <Button color="inherit" onClick={onClose} size="small" sx={{ color: '#6c757d', borderColor: '#ced4da' }} variant="outlined">
                     {t('myAppsPage.dialog.close')}
                 </Button>
-                {isError && (
+                {isError ? (
                     <Button
+                        onClick={() => window.open('https://www.websoft9.com/ticket', '_blank')}
                         size="small"
                         variant="contained"
                         sx={{ backgroundColor: '#fa5c7c', '&:hover': { backgroundColor: '#e04a68' } }}
-                        onClick={() => window.open('https://www.websoft9.com/ticket', '_blank')}
                     >
                         {t('myAppsPage.dialog.support')}
                     </Button>
-                )}
+                ) : null}
             </DialogActions>
         </Dialog>
     )
@@ -488,7 +438,6 @@ export function MyAppsPage() {
     const isDarkMode = colorMode === 'dark'
     const [searchValue, setSearchValue] = useState('')
     const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
-    const [selectedSource, setSelectedSource] = useState<SourceFilter>('all')
     // Store only the identifier so the dialog always reads live data from the query
     const [logDialogKey, setLogDialogKey] = useState<string | null>(null)
     const [removeApp, setRemoveApp] = useState<MyApp | null>(null)
@@ -503,14 +452,7 @@ export function MyAppsPage() {
     const { data, error, isLoading, refetch } = useMyApps()
     const apps = data ?? []
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
-    const palette = {
-        pageBg: isDarkMode ? '#0f172a' : '#ffffff',
-        panelBg: isDarkMode ? '#111827' : '#ffffff',
-        panelSoft: isDarkMode ? '#162033' : '#f8fafc',
-        border: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(15, 23, 42, 0.08)',
-        text: isDarkMode ? '#f8fafc' : '#111827',
-        subtleText: isDarkMode ? '#94a3b8' : '#64748b',
-    } as const
+    const palette = getSurfacePalette(isDarkMode)
 
     async function handleManualRefresh() {
         setManualRefreshing(true)
@@ -519,10 +461,6 @@ export function MyAppsPage() {
         } finally {
             setManualRefreshing(false)
         }
-    }
-
-    function getSourceLabel(source: AppSourceKey) {
-        return t(`myAppsPage.source.${source}`)
     }
 
     useEffect(() => {
@@ -568,22 +506,18 @@ export function MyAppsPage() {
     const filteredApps = useMemo(
         () => apps.filter((app) => {
             const matchesStatus = selectedStatus === 'all' || String(app.status) === selectedStatus
-            const source = resolveAppSource(app)
-            const matchesSource = selectedSource === 'all' || source === selectedSource
             const searchText = [app.app_name, app.app_id, app.app_version, app.error, app.app_dist].filter(Boolean).join(' ').toLowerCase()
             const matchesSearch = !searchValue.trim() || searchText.includes(searchValue.trim().toLowerCase())
-            return matchesStatus && matchesSource && matchesSearch
+            return matchesStatus && matchesSearch
         }),
-        [apps, searchValue, selectedSource, selectedStatus],
+        [apps, searchValue, selectedStatus],
     )
 
-    const marketplaceApps = useMemo(() => filteredApps.filter((app) => resolveAppSource(app) === 'marketplace'), [filteredApps])
-    const runtimeApps = useMemo(() => filteredApps.filter((app) => resolveAppSource(app) === 'runtime'), [filteredApps])
-    const composeApps = useMemo(() => filteredApps.filter((app) => resolveAppSource(app) === 'compose'), [filteredApps])
+    const platformApps = useMemo(() => filteredApps.filter((app) => app.app_official), [filteredApps])
+    const otherApps = useMemo(() => filteredApps.filter((app) => !app.app_official), [filteredApps])
 
-    const hasVisibleMarketplaceApps = marketplaceApps.length > 0
-    const hasVisibleRuntimeApps = runtimeApps.length > 0
-    const hasVisibleComposeApps = composeApps.length > 0
+    const hasVisiblePlatformApps = platformApps.length > 0
+    const hasVisibleOtherApps = otherApps.length > 0
 
     function handleCardClick(app: MyApp) {
         if (!app.app_official) return
@@ -636,125 +570,108 @@ export function MyAppsPage() {
     }
 
     function renderCards(appList: MyApp[]) {
-        return appList.map((app) => (
-            <div
-                key={`${app.app_id}-${app.tracking_id ?? 'stable'}`}
-                className="appstore-item"
-            >
-                <div
-                    className={`appstore-item-content text-align-center${app.app_official ? ' highlight' : ''}`}
-                    onClick={() => handleCardClick(app)}
-                    style={{ cursor: app.app_official ? 'pointer' : 'default' }}
-                >
-                    {/* Top-right action icons */}
-                    {app.status === 2 ? (
-                        <>
-                            <div className="float-end arrow-none card-drop p-0">
-                                <span
-                                    className="noti-icon"
-                                    title={t('myAppsDetailPage.actions.redeploy')}
-                                    style={{ marginRight: '10px' }}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setRedeployApp(app)
-                                        setPullImage(false)
-                                    }}
-                                >
-                                    <IconRedeploy />
-                                </span>
-                                <span
-                                    className="noti-icon"
-                                    title={t('myAppsDetailPage.actions.uninstall')}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setRemoveApp(app)
-                                        setRemoveType('inactive')
-                                    }}
-                                >
-                                    <IconTrash />
-                                </span>
-                            </div>
-                            <div className="clearfix"></div>
-                        </>
-                    ) : app.status === 4 ? (
-                        <>
-                            <div className="float-end arrow-none card-drop p-0">
-                                <span
-                                    className="noti-icon"
-                                    title={t('myAppsPage.card.openError', { defaultValue: 'Error Info' })}
-                                    style={{ paddingRight: '10px' }}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setLogDialogKey(app.tracking_id ?? app.app_id)
-                                    }}
-                                >
-                                    <IconInfo />
-                                </span>
-                                <span
-                                    className="noti-icon"
-                                    title={t('myAppsDetailPage.actions.uninstall')}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setRemoveApp(app)
-                                        setRemoveType('error')
-                                    }}
-                                >
-                                    <IconTrash />
-                                </span>
-                            </div>
-                            <div className="clearfix"></div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="float-end arrow-none card-drop p-0">
-                                <span className="noti-icon" style={{ opacity: 0, pointerEvents: 'none' }}>
-                                    <IconInfo />
-                                </span>
-                            </div>
-                            <div className="clearfix"></div>
-                        </>
-                    )}
+        return appList.map((app) => {
+            const canOpenDetail = app.app_official
 
-                    {/* App icon */}
-                    <div>
+            const statusNode = canOpenDetail ? (
+                <span className={`badge ${getStatusBadgeClass(app.status)}`}>
+                    {app.status === 3 ? <CircularProgress size={8} sx={{ mr: 0.5, verticalAlign: 'middle', color: 'inherit' }} /> : null}
+                    {getStatusLabel(app.status)}
+                </span>
+            ) : undefined
+
+            let actionsNode: ReactNode | undefined
+            if (app.status === 2) {
+                actionsNode = (
+                    <>
+                        <Tooltip title={t('myAppsDetailPage.actions.redeploy')}>
+                            <button
+                                type="button"
+                                className="myapps-card-icon-btn noti-icon"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    setRedeployApp(app)
+                                    setPullImage(false)
+                                }}
+                            >
+                                <IconRedeploy />
+                            </button>
+                        </Tooltip>
+                        <Tooltip title={t('myAppsDetailPage.actions.uninstall')}>
+                            <button
+                                type="button"
+                                className="myapps-card-icon-btn noti-icon"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    setRemoveApp(app)
+                                    setRemoveType('inactive')
+                                }}
+                            >
+                                <IconTrash />
+                            </button>
+                        </Tooltip>
+                    </>
+                )
+            } else if (app.status === 4) {
+                actionsNode = (
+                    <>
+                        <Tooltip title={t('myAppsPage.card.openError', { defaultValue: 'Error Info' })}>
+                            <button
+                                type="button"
+                                className="myapps-card-icon-btn noti-icon"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    setLogDialogKey(app.tracking_id ?? app.app_id)
+                                }}
+                            >
+                                <IconInfo />
+                            </button>
+                        </Tooltip>
+                        <Tooltip title={t('myAppsDetailPage.actions.uninstall')}>
+                            <button
+                                type="button"
+                                className="myapps-card-icon-btn noti-icon"
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    setRemoveApp(app)
+                                    setRemoveType('error')
+                                }}
+                            >
+                                <IconTrash />
+                            </button>
+                        </Tooltip>
+                    </>
+                )
+            }
+
+            return (
+                <div
+                    key={`${app.app_id}-${app.tracking_id ?? 'stable'}`}
+                    className={`myapps-vcard${canOpenDetail ? ' highlight' : ''}`}
+                    onClick={canOpenDetail ? () => handleCardClick(app) : undefined}
+                    role={canOpenDetail ? 'button' : undefined}
+                    tabIndex={canOpenDetail ? 0 : undefined}
+                    onKeyDown={canOpenDetail ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(app) } : undefined}
+                >
+                    <div className="myapps-vcard-icon">
                         <LegacyMyAppLogo
                             appId={app.app_id}
                             appName={app.app_name}
                             locale={locale}
-                            size={80}
-                            marginY={2.5}
-                            title={app.app_name || app.app_id}
+                            size={114}
+                            marginY={0}
                         />
                     </div>
-
-                    {/* App title + status */}
-                    <div>
-                        <h3 className="appstore-item-content-title" style={{ color: '#2196f3', margin: '0 0 4px' }}>
-                            {app.app_id}
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                            {app.app_official ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {app.status === 3 ? <span className="spinner-border-sm me-1" /> : null}
-                                    <div className="m-2">
-                                        <span className={`badge ${getStatusBadgeClass(app.status)}`}>
-                                            {getStatusLabel(app.status)}
-                                        </span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div style={{ visibility: 'hidden', display: 'flex' }}>
-                                    <div className="m-2">&nbsp;</div>
-                                </div>
-                            )}
-                            <div style={{ fontSize: 12, lineHeight: 1.45, color: palette.subtleText }}>
-                                {getSourceLabel(resolveAppSource(app))}
-                            </div>
-                        </div>
+                    <div
+                        className={`myapps-vcard-name${canOpenDetail ? ' is-official' : ''}`}
+                    >
+                        {app.app_id}
                     </div>
+                    {statusNode && <div className="myapps-vcard-badge">{statusNode}</div>}
+                    {actionsNode && <div className="myapps-vcard-actions">{actionsNode}</div>}
                 </div>
-            </div>
-        ))
+            )
+        })
     }
 
     return (
@@ -813,37 +730,31 @@ export function MyAppsPage() {
                 anchorEl={deployMenuAnchor}
                 open={Boolean(deployMenuAnchor)}
                 onClose={() => setDeployMenuAnchor(null)}
+                sx={{ zIndex: 1700 }}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                slotProps={{
+                    paper: {
+                        className: `app-shell-account-menu app-shell-account-menu--${isDarkMode ? 'dark' : 'light'}`,
+                        sx: { mt: 0.75, minWidth: 196 },
+                    },
+                }}
             >
-                <MenuItem onClick={() => { setDeployMenuAnchor(null); navigate('/appstore') }}>
-                    <ListItemIcon><IconAppStore /></ListItemIcon>
-                    <ListItemText>{t('applicationsHubPage.menu.marketplace')}</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={() => { setDeployMenuAnchor(null); navigate('/applications/custom-install') }}>
-                    <ListItemIcon><IconCompose /></ListItemIcon>
-                    <ListItemText>{t('applicationsHubPage.menu.customInstall')}</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={() => { setDeployMenuAnchor(null); navigate('/applications/runtime') }}>
-                    <ListItemIcon><IconRuntime /></ListItemIcon>
-                    <ListItemText>{t('applicationsHubPage.menu.runtime')}</ListItemText>
-                </MenuItem>
+                <Box className="app-shell-account-panel">
+                    <Typography className="app-shell-account-section-label">{t('applicationsHubPage.menu.title')}</Typography>
+                    <MenuItem className="app-shell-account-link" onClick={() => { setDeployMenuAnchor(null); navigate('/appstore') }}>
+                        <Box className="app-shell-account-link-icon"><IconAppStore /></Box>
+                        <Typography className="app-shell-account-link-title">{t('applicationsHubPage.menu.marketplace')}</Typography>
+                    </MenuItem>
+                    <MenuItem className="app-shell-account-link" onClick={() => { setDeployMenuAnchor(null); navigate('/applications/custom-install') }}>
+                        <Box className="app-shell-account-link-icon"><IconCompose /></Box>
+                        <Typography className="app-shell-account-link-title">{t('applicationsHubPage.menu.customInstall')}</Typography>
+                    </MenuItem>
+                </Box>
             </Menu>
 
             {/* Toolbar */}
             <div className="myapps-toolbar">
-                <div className="myapps-toolbar-select">
-                    <select
-                        className="form-select"
-                        value={selectedSource}
-                        onChange={(e) => setSelectedSource(e.target.value as SourceFilter)}
-                    >
-                        <option value="all">{t('myAppsPage.filters.allSources')}</option>
-                        <option value="marketplace">{t('myAppsPage.filters.marketplaceSource')}</option>
-                        <option value="compose">{t('myAppsPage.filters.composeSource')}</option>
-                        <option value="runtime">{t('myAppsPage.filters.runtimeSource')}</option>
-                    </select>
-                </div>
                 <div className="myapps-toolbar-select">
                     <select
                         className="form-select"
@@ -916,38 +827,29 @@ export function MyAppsPage() {
                                     </Typography>
                                     <button
                                         className="myapps-empty-btn"
-                                        onClick={() => navigate('/applications/deploy')}
+                                        onClick={() => navigate('/appstore')}
                                     >
-                                        {t('applicationsHubPage.menu.action')}
+                                        {t('myAppsPage.states.goToAppStore')}
                                     </button>
                                 </div>
                             </CardContent>
                         </Card>
                     ) : (
                         <>
-                            {hasVisibleMarketplaceApps ? (
+                            {hasVisiblePlatformApps ? (
                                 <div>
-                                    <h4 className="myapps-section-heading">{t('myAppsPage.sections.officialApps')}</h4>
+                                    <h4 className="myapps-section-heading">{t('nav.myApps.label')}</h4>
                                     <div className="myapps-card-grid">
-                                        {renderCards(marketplaceApps)}
+                                        {renderCards(platformApps)}
                                     </div>
                                 </div>
                             ) : null}
 
-                            {hasVisibleRuntimeApps ? (
-                                <div>
-                                    <h4 className="myapps-section-heading is-secondary">{t('applicationsHubPage.menu.runtime')}</h4>
-                                    <div className="myapps-card-grid">
-                                        {renderCards(runtimeApps)}
-                                    </div>
-                                </div>
-                            ) : null}
-
-                            {hasVisibleComposeApps ? (
+                            {hasVisibleOtherApps ? (
                                 <div>
                                     <h4 className="myapps-section-heading is-secondary">{t('myAppsPage.sections.otherApps')}</h4>
                                     <div className="myapps-card-grid">
-                                        {renderCards(composeApps)}
+                                        {renderCards(otherApps)}
                                     </div>
                                 </div>
                             ) : null}
@@ -964,10 +866,10 @@ export function MyAppsPage() {
 
             {/* Remove confirm dialog */}
             <Dialog
-                fullWidth
                 maxWidth="sm"
-                open={Boolean(removeApp)}
+                fullWidth
                 onClose={() => setRemoveApp(null)}
+                open={Boolean(removeApp)}
                 sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}
             >
                 <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>
@@ -993,10 +895,10 @@ export function MyAppsPage() {
 
             {/* Redeploy confirm dialog */}
             <Dialog
-                fullWidth
                 maxWidth="sm"
-                open={Boolean(redeployApp)}
+                fullWidth
                 onClose={() => setRedeployApp(null)}
+                open={Boolean(redeployApp)}
                 sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}
             >
                 <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>
@@ -1026,21 +928,23 @@ export function MyAppsPage() {
 
             {/* Feedback toast */}
             <Snackbar
-                open={Boolean(feedback)}
-                autoHideDuration={3000}
-                onClose={() => setFeedback(null)}
                 anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+                autoHideDuration={3000}
+                open={Boolean(feedback)}
+                onClose={() => setFeedback(null)}
             >
                 <Alert
+                    elevation={6}
                     onClose={() => setFeedback(null)}
                     severity={feedback?.severity ?? 'info'}
-                    variant="filled"
-                    elevation={6}
                     sx={{ width: '100%' }}
+                    variant="filled"
                 >
                     {feedback?.message}
                 </Alert>
             </Snackbar>
+
+            <Outlet />
         </Box>
     )
 }

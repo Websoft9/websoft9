@@ -1,0 +1,185 @@
+#!/bin/sh
+
+# Strictly compatible with legacy SysVinit systems (RHEL 6.x, Ubuntu 14.04+)
+
+### BEGIN INIT INFO
+# Provides:          1panel-agent
+# Required-Start:    $network $local_fs $syslog
+# Required-Stop:     $network $local_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: 1Panel Agent Service Daemon
+### END INIT INFO
+
+NAME="1panel-agent"
+DAEMON="/usr/bin/1panel-agent"
+PIDFILE="/var/run/${NAME}.pid"
+LOCKFILE="/var/lock/subsys/$NAME"
+LOGFILE="/var/log/${NAME}.log"
+RETVAL=0
+
+[ -x "$DAEMON" ] || {
+    echo "$DAEMON not found or not executable" >&2
+    exit 1
+}
+
+if [ -f /etc/redhat-release ]; then
+    . /etc/init.d/functions
+else
+    killproc() {
+        local pid sig=$1 name=$2
+        [ -f "$PIDFILE" ] && pid=$(cat "$PIDFILE")
+        [ -z "$pid" ] && return 1
+        kill -$sig $pid >/dev/null 2>&1
+    }
+    status() {
+        if [ -f "$PIDFILE" ]; then
+            pid=$(cat "$PIDFILE")
+            if [ -d "/proc/$pid" ]; then
+                echo "$NAME (pid $pid) is running..."
+                return 0
+            else
+                echo "$NAME dead but pid file exists"
+                return 1
+            fi
+        else
+            echo "$NAME is stopped"
+            return 3
+        fi
+    }
+fi
+
+start() {
+    echo -n $"Starting $NAME: "
+    
+    if [ -f "$LOCKFILE" ]; then
+        if [ -f "$PIDFILE" ]; then
+            pid=$(cat "$PIDFILE")
+            if [ -d "/proc/$pid" ]; then
+                echo_success
+                echo
+                return 0
+            else
+                rm -f "$PIDFILE" "$LOCKFILE"
+            fi
+        fi
+    fi
+    
+    if type daemon >/dev/null 2>&1; then
+        daemon --pidfile="$PIDFILE" $DAEMON >> "$LOGFILE" 2>&1 &
+    else
+        $DAEMON >> "$LOGFILE" 2>&1 &
+        echo $! > "$PIDFILE"
+    fi
+    
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && touch "$LOCKFILE"
+    [ $RETVAL -eq 0 ] && echo_success || echo_failure
+    echo
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping $NAME: "
+    
+    if [ ! -f "$PIDFILE" ]; then
+        echo_failure
+        echo "PID file $PIDFILE not found"
+        return 1
+    fi
+    
+    killproc -TERM $NAME
+    RETVAL=$?
+    timeout=10
+    while [ $timeout -gt 0 ]; do
+        if [ ! -d "/proc/$(cat $PIDFILE 2>/dev/null)" ]; then
+            rm -f "$PIDFILE" "$LOCKFILE"
+            echo_success
+            echo
+            return 0
+        fi
+        sleep 1
+        timeout=$((timeout-1))
+    done
+    
+    echo_failure
+    echo "Failed to stop $NAME"
+    return 1
+}
+
+enable() {
+    if ! [ -x "$0" ]; then
+        log_error "Script $0 is not executable"
+        return 1
+    fi
+    
+    local enabled=0
+    if command -v systemctl >/dev/null; then
+        systemctl enable "$NAME" && enabled=1
+    elif command -v update-rc.d >/dev/null; then
+        update-rc.d "$NAME" defaults && enabled=1
+    elif command -v chkconfig >/dev/null; then
+        chkconfig --add "$NAME" && chkconfig "$NAME" on && enabled=1
+    else
+        local rc_dirs=(
+            /etc/rc*.d 
+            /etc/rc.d/rc*.d 
+            /etc/rc.d 
+            /etc/init.d/rc*.d 
+        )
+        for level in 2 3 4 5; do
+            for dir in "${rc_dirs[@]}"; do
+                [ -d "$dir" ] || continue
+                ln -sf "$(readlink -f "$0")" "${dir}/S95${NAME}" 2>/dev/null && enabled=1
+            done
+        done
+    fi
+    
+    [ $enabled -eq 1 ] && echo "Enabled $NAME" || log_error "Failed to enable service"
+    return $((!enabled))
+}
+
+disable() {
+    local disabled=0
+    if command -v systemctl >/dev/null; then
+        systemctl disable "$NAME" && disabled=1
+    elif command -v update-rc.d >/dev/null; then
+        update-rc.d -f "$NAME" remove && disabled=1
+    elif command -v chkconfig >/dev/null; then
+        chkconfig "$NAME" off && chkconfig --del "$NAME" && disabled=1
+    else
+        find /etc/rc*.d  -name "*$NAME" -exec rm -fv {} \; && disabled=1
+    fi
+    
+    [ $disabled -eq 1 ] && echo "Disabled $NAME" || log_error "Failed to disable service"
+    return $((!disabled))
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        stop
+        sleep 3
+        start
+        ;;
+    status)
+        status
+        RETVAL=$?
+        ;;
+    enable)
+        enable
+        ;;
+    disable)
+        disable
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|restart|status|enable|disable}"
+        exit 2
+esac
+
+exit $RETVAL

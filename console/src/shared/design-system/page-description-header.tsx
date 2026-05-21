@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 
 type PageDescriptionHeaderProps = {
     title?: string
-    description: string
+    description?: string
     actions?: ReactNode
     descriptionColor?: string
     titleColor?: string
@@ -41,9 +41,11 @@ export function PageDescriptionHeader({
                         {title}
                     </Typography>
                 ) : null}
-                <Typography sx={{ maxWidth: descriptionMaxWidth, fontSize: 14, lineHeight: 1.6, color: descriptionColor }}>
-                    {description}
-                </Typography>
+                {description ? (
+                    <Typography sx={{ maxWidth: descriptionMaxWidth, fontSize: 14, lineHeight: 1.6, color: descriptionColor }}>
+                        {description}
+                    </Typography>
+                ) : null}
             </Box>
             {actions ? (
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1, flexWrap: 'wrap' }}>

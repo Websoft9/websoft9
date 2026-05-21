@@ -2,6 +2,8 @@ import { Alert, Box, Card, CardContent, CircularProgress, Dialog, Snackbar, Typo
 import type { AlertColor, DialogProps, SnackbarCloseReason, SxProps, Theme } from '@mui/material'
 import type { ReactNode, SyntheticEvent } from 'react'
 
+import { getSurfacePalette } from './surface-theme'
+
 type SurfaceLayerScope = 'viewport' | 'content'
 
 type SurfaceScopeRect = {
@@ -15,6 +17,7 @@ type SurfaceStateCardProps = {
     title?: string
     detail: string
     loading?: boolean
+    darkMode?: boolean
 }
 
 type SurfaceNoticeAlertProps = {
@@ -22,6 +25,7 @@ type SurfaceNoticeAlertProps = {
     title: string
     detail: string
     action?: ReactNode
+    darkMode?: boolean
 }
 
 type SurfaceFeedbackToastProps = {
@@ -31,6 +35,7 @@ type SurfaceFeedbackToastProps = {
     onClose: (event?: Event | SyntheticEvent, reason?: SnackbarCloseReason) => void
     scope?: SurfaceLayerScope
     scopeRect?: SurfaceScopeRect | null
+    darkMode?: boolean
 }
 
 type SurfaceStatusBadgeProps = {
@@ -44,37 +49,35 @@ type SurfaceDialogProps = DialogProps & {
     scope?: SurfaceLayerScope
     scopeRect?: SurfaceScopeRect | null
     contentStrategy?: 'container-absolute' | 'viewport-fixed'
+    darkMode?: boolean
 }
 
-export function SurfaceDialog({ children, paperSx, scope = 'viewport', scopeRect, sx, contentStrategy = 'container-absolute', ...props }: SurfaceDialogProps) {
-    const isViewportFixedContent = scope === 'content' && scopeRect && contentStrategy === 'viewport-fixed'
+export function SurfaceDialog({ children, paperSx, scope = 'viewport', scopeRect, sx, contentStrategy = 'container-absolute', darkMode = false, ...props }: SurfaceDialogProps) {
+    const palette = getSurfacePalette(darkMode)
     const contentScopeSx =
         scope === 'content' && scopeRect
             ? {
                 position: contentStrategy === 'viewport-fixed' ? ('fixed' as const) : ('absolute' as const),
-                top: 0,
-                left: 0,
+                top: contentStrategy === 'viewport-fixed' ? scopeRect.top : 0,
+                left: contentStrategy === 'viewport-fixed' ? scopeRect.left : 0,
                 width: scopeRect.width,
                 height: scopeRect.height,
-                inset: 'auto',
-                transform: isViewportFixedContent ? `translate(${scopeRect.left}px, ${scopeRect.top}px)` : 'none',
+                ...(contentStrategy === 'viewport-fixed' ? {} : { inset: 'auto' }),
                 zIndex: 5,
                 '& .MuiBackdrop-root': {
-                    position: contentStrategy === 'viewport-fixed' ? ('fixed' as const) : ('absolute' as const),
+                    position: 'absolute' as const,
                     top: 0,
                     left: 0,
-                    width: scopeRect.width,
-                    height: scopeRect.height,
-                    transform: isViewportFixedContent ? `translate(${scopeRect.left}px, ${scopeRect.top}px)` : 'none',
+                    width: '100%',
+                    height: '100%',
                 },
                 '& .MuiDialog-container': {
-                    position: contentStrategy === 'viewport-fixed' ? ('fixed' as const) : ('absolute' as const),
+                    position: 'absolute' as const,
                     top: 0,
                     left: 0,
-                    width: scopeRect.width,
-                    height: scopeRect.height,
+                    width: '100%',
+                    height: '100%',
                     inset: 'auto',
-                    transform: isViewportFixedContent ? `translate(${scopeRect.left}px, ${scopeRect.top}px)` : 'none',
                     alignItems: 'center',
                     justifyContent: 'center',
                 },
@@ -105,7 +108,7 @@ export function SurfaceDialog({ children, paperSx, scope = 'viewport', scopeRect
             sx={[
                 {
                     '& .MuiBackdrop-root': {
-                        backgroundColor: scope === 'content' ? 'rgba(15, 23, 42, 0.12)' : 'rgba(15, 23, 42, 0.24)',
+                        backgroundColor: scope === 'content' ? palette.overlay : darkMode ? 'rgba(2, 6, 23, 0.42)' : 'rgba(15, 23, 42, 0.24)',
                         backdropFilter: scope === 'content' ? 'none' : 'blur(2px)',
                     },
                     '& .MuiDialog-container': {
@@ -133,6 +136,9 @@ export function SurfaceDialog({ children, paperSx, scope = 'viewport', scopeRect
                             margin: 0,
                             borderRadius: '2px',
                             boxShadow: '0 16px 40px rgba(15, 23, 42, 0.16)',
+                            backgroundColor: palette.dialogBg,
+                            color: palette.text,
+                            border: `1px solid ${palette.borderStrong}`,
                             overflow: 'hidden',
                         },
                         ...(Array.isArray(paperSx) ? paperSx : paperSx ? [paperSx] : []),
@@ -145,14 +151,16 @@ export function SurfaceDialog({ children, paperSx, scope = 'viewport', scopeRect
     )
 }
 
-export function SurfaceStateCard({ title, detail, loading = false }: SurfaceStateCardProps) {
+export function SurfaceStateCard({ title, detail, loading = false, darkMode = false }: SurfaceStateCardProps) {
+    const palette = getSurfacePalette(darkMode)
+
     return (
-        <Card elevation={0} sx={{ border: '1px solid rgba(15, 23, 42, 0.08)', borderRadius: '2px' }}>
+        <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, borderRadius: '2px', backgroundColor: palette.panelBg, color: palette.text }}>
             <CardContent>
                 <Box sx={{ display: 'grid', justifyItems: 'center', gap: 1.5, py: 4.5, textAlign: 'center' }}>
                     {loading ? <CircularProgress size={28} /> : null}
-                    {title ? <Typography sx={{ fontSize: 16, fontWeight: 600, color: '#0f172a' }}>{title}</Typography> : null}
-                    <Typography color="text.secondary" variant="body2">
+                    {title ? <Typography sx={{ fontSize: 16, fontWeight: 600, color: palette.text }}>{title}</Typography> : null}
+                    <Typography variant="body2" sx={{ color: palette.subtleText }}>
                         {detail}
                     </Typography>
                 </Box>
@@ -194,16 +202,20 @@ export function SurfaceStatusBadge({ label, tone, darkMode = false }: SurfaceSta
     )
 }
 
-export function SurfaceNoticeAlert({ severity, title, detail, action }: SurfaceNoticeAlertProps) {
+export function SurfaceNoticeAlert({ severity, title, detail, action, darkMode = false }: SurfaceNoticeAlertProps) {
+    const palette = getSurfacePalette(darkMode)
+
     return (
-        <Alert action={action} severity={severity} variant="outlined" sx={{ borderRadius: '2px', alignItems: 'flex-start' }}>
-            <Typography sx={{ fontWeight: 600 }}>{title}</Typography>
-            <Typography variant="body2">{detail}</Typography>
+        <Alert action={action} severity={severity} variant="outlined" sx={{ borderRadius: '2px', alignItems: 'flex-start', backgroundColor: palette.panelBg, color: palette.text, borderColor: palette.borderStrong }}>
+            <Typography sx={{ fontWeight: 600, color: palette.text }}>{title}</Typography>
+            <Typography variant="body2" sx={{ color: palette.subtleText }}>{detail}</Typography>
         </Alert>
     )
 }
 
-export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect }: SurfaceFeedbackToastProps) {
+export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect, darkMode = false }: SurfaceFeedbackToastProps) {
+    const palette = getSurfacePalette(darkMode)
+
     return (
         <Snackbar
             autoHideDuration={4000}
@@ -244,7 +256,30 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
                 onClose={onClose}
                 severity={severity}
                 variant="filled"
-                sx={{ width: 'auto', maxWidth: 'min(560px, calc(100% - 32px))', borderRadius: '12px', boxShadow: '0 10px 24px rgba(15, 23, 42, 0.18)' }}
+                sx={{
+                    width: 'fit-content',
+                    minWidth: 0,
+                    maxWidth: 'min(760px, calc(100% - 24px))',
+                    borderRadius: '12px',
+                    boxShadow: darkMode ? `0 10px 24px ${palette.overlay}` : '0 10px 24px rgba(15, 23, 42, 0.18)',
+                    overflow: 'visible',
+                    scrollbarWidth: 'none',
+                    '&::-webkit-scrollbar': {
+                        display: 'none',
+                        width: 0,
+                        height: 0,
+                    },
+                    '& .MuiAlert-message': {
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        overflow: 'visible',
+                        minWidth: 0,
+                    },
+                    '& .MuiAlert-action': {
+                        alignItems: 'center',
+                        overflow: 'visible',
+                    },
+                }}
             >
                 {message}
             </Alert>

@@ -112,8 +112,8 @@ The current system has the following root problems:
 2. Preserve the current AppHub-centered backend responsibility model while converging AppHub, Portainer, Gitea, and Nginx Proxy Manager into a single product container that runs multiple internal services.
 3. Add the minimum product-side session, operator, and initialization capability required by migrated flows, while deferring broader user and permission redesign.
 4. Preserve the main information architecture from the current menus to reduce the learning cost after upgrade.
-5. Refactor file management around container-mounted files.
-6. Provide a controlled host terminal access solution.
+5. Refactor file management around current-host files accessed through a controlled SSH/SFTP bridge.
+6. Provide a controlled host terminal access solution through the same current-host bridge.
 7. Display only Websoft9 core service status and Websoft9 runtime logs.
 8. Preserve API integration, automatic login, and full UI access for Gitea, Portainer, and Nginx Proxy Manager.
 9. Provide a complete direct upgrade path from the current version to the refactored version.
@@ -301,17 +301,19 @@ The system must provide settings pages related to Websoft9’s own operation.
 
 ### 6.5 File Management
 
-#### FR-FILE-001: Container-Mounted File Management
+#### FR-FILE-001: Current-Host File Management
 
-The system must provide a file management page, but the managed objects are limited to Websoft9-managed application volumes, mount directories, and controlled file spaces rather than the full host file tree.
+The system must provide a file management page for the current host, but file access must be established through a controlled SSH/SFTP bridge owned by Websoft9 rather than by exposing raw host paths, direct browser SSH/SFTP access, or unrestricted host filesystem browsing.
 
 **Acceptance Criteria:**
 
-- If the current Cockpit file manager module or reusable parts of it can be used directly, reuse should be preferred to reduce development cost.
-- Users can browse, upload, download, create, rename, and delete files in mounted directories.
-- The file view must clearly show the owning application, volume, or mount point.
+- If the current Cockpit file manager module or reusable parts of it can be used behind a product-owned SSH/SFTP bridge, reuse should be preferred to reduce development cost.
+- Users can browse, upload, download, create, rename, and delete files on the current host through Websoft9-owned APIs.
+- The file view must clearly show the current host path context and any product-imposed boundary such as a locked root or recommended working directory.
 - Text files support basic online editing.
-- File operations must be restricted to Websoft9-managed mounted directories and controlled file spaces.
+- File operations must be executed by AppHub over the bound SFTP session and must not expose raw SSH/SFTP connectivity to the browser.
+- If terminal and file management share one current-host SSH authorization, host permissions must derive from the bound SSH user rather than from a second internal Websoft9 permission model.
+- This host-file workspace does not replace the existing application-detail volume browser. Websoft9 must continue to let operators browse and edit the current application's volumes from My Apps or application detail views through product-owned volume-scoped APIs.
 
 ### 6.6 Host Terminal Access
 
@@ -322,13 +324,14 @@ The system must provide host terminal capability, but it must be implemented thr
 **Acceptance Criteria:**
 
 - Terminal capability requires at least authenticated session protection.
+- Terminal and file management may reuse one current-host SSH authorization flow so the operator authorizes once and reuses it across host-access features.
 - If the terminal solution uses SSH login, the session inherits the host permissions of the logged-in user, and Websoft9 does not introduce an additional permission system at this layer.
 - The system can record session metadata such as start time, user, and source.
 - The connection solution must support basic records for session establishment, disconnection, and failure cases.
 
 **Design Constraint:**
 
-The concrete terminal implementation can be determined in the architecture phase, but the PRD explicitly requires a controlled bridge capability rather than a simple Cockpit replacement. Finer-grained permission details are deferred to the execution phase.
+The concrete terminal and file implementation can be determined in the architecture and story phases, but the PRD explicitly requires a controlled bridge capability rather than a simple Cockpit replacement. If SSH is used for the current host, the browser still talks only to Websoft9-owned APIs while AppHub owns the SSH PTY and SFTP transport details. Finer-grained permission details are deferred to the execution phase.
 
 ### 6.7 Core Services and Logs
 
@@ -477,8 +480,8 @@ The system must handle the transition of old plugins, old entries, and old depen
 - PHP runtime-based source deployment as the first curated runtime profile
 - App lifecycle management
 - Gitea, Portainer, and Nginx Proxy Manager API integration, automatic login, and full UI access
-- Container-mounted file management
-- Minimal controlled host terminal bridge
+- Current-host file management through a controlled SSH/SFTP bridge
+- Minimal controlled host terminal bridge with shared current-host authorization
 - Websoft9 core service status
 - Websoft9 runtime logs
 - Basic proxy and certificate capability
@@ -508,8 +511,8 @@ The system must handle the transition of old plugins, old entries, and old depen
 The following questions must be clarified during the Create Architecture phase:
 
 1. The exact extension boundary between current AppHub services and newly added migration-critical capabilities inside the single product container.
-2. The communication and authentication model for the host terminal bridge.
-3. The resource model, isolation boundary, and editing capability of container file management.
+2. The storage, rotation, and recovery policy for the shared current-host SSH authorization profile.
+3. The root-path policy, safe editing boundary, and audit depth for current-host file management.
 4. How old Gitea, Portainer, and Nginx Proxy Manager data, API integration, and entry points are converted and carried forward during upgrade.
 5. The minimum Phase 1 authentication, initialization, and permission scope required by migrated flows, and which broader user-model concerns remain deferred.
 6. The normalized installation domain model for marketplace templates, custom compose deployments, and runtime-based source deployments.

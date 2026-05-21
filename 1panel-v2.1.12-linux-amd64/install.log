@@ -1,0 +1,29 @@
+[0;34m[1Panel 2026-05-15 14:05:27 install Log]: ======================= 开始安装 ======================= [0m
+[0;34m[1Panel 2026-05-15 14:05:29 install Log]: 已选择安装路径： /opt [0m
+[0;34m[1Panel 2026-05-15 14:05:38 install Log]: 已设置端口： 9999 [0m
+[0;34m[1Panel 2026-05-15 14:05:44 install Log]: 正在打开防火墙端口 9999 [0m
+[0;34m[1Panel 2026-05-15 14:07:09 install Log]: 已设置面板安全入口： index [0m
+[0;34m[1Panel 2026-05-15 14:07:16 install Log]: 已设置面板用户名： root [0m
+[0;34m[1Panel 2026-05-15 14:07:16 install Log]: 设置 1Panel 面板密码，设置后按回车继续（默认： 163f778dfa):  [0m
+[0;34m[1Panel 2026-05-15 14:07:23 install Log]: 正在配置 1Panel 服务 [0m
+[0;34m[1Panel 2026-05-15 14:07:25 install Log]: 正在启动 1Panel 服务 [0m
+[0;32m[1Panel 2026-05-15 14:07:26 install Log]: 1Panel 服务已成功启动，正在继续执行后续配置，请稍候... [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]:  [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: =================感谢您的耐心等待，安装已完成================== [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]:  [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 请使用您的浏览器访问面板： [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 外部地址： http://141.148.51.221:9999/index [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 内部地址： http://172.26.72.251:9999/index [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 面板用户： root [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 面板密码： **********
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]:  [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 官方网站：https://1panel.cn [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 项目文档：https://1panel.cn/docs [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 代码仓库：https://github.com/1Panel-dev/1Panel [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 前往 1Panel 官方论坛获取帮助：https://bbs.fit2cloud.com/c/1p/7 [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]:  [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 如果您使用的是云服务器，请在安全组中打开端口 9999 [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]:  [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: 为了您的服务器安全，离开此屏幕后您将无法再次看到您的密码，请记住您的密码。 [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]:  [0m
+[0;34m[1Panel 2026-05-15 14:07:36 install Log]: ================================================================ [0m

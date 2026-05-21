@@ -51,6 +51,18 @@
 - 当前返回: 成功时返回 `services`、`environment_keys` 和可读 `details`；失败时返回 400，并把 YAML 语法或缺失 services 等问题作为可操作错误透出。
 - 当前边界: 该端点不执行真实 compose 安装，也不承担最终策略准入和任务提交；真正执行路径继续留给后续 compose 安装故事。
 
+### POST /apps/install/runtime/validate
+
+- 用途: 校验运行环境部署请求，并把运行环境参数归一化到 AppHub 的统一安装域。
+- 当前特点: 该端点把 `runtime_key`、版本、外部端口、内部端口、访问域名，以及模板高级参数 `runtime_url`、`network_name`、`url_replace` 解析成标准模板安装请求；其中 PHP 运行环境还支持通过 `template_app_name` 在 `php`、`phpfpmnginx`、`phpfpmapache` 三个模板之间切换。
+- 当前返回: 成功时返回 `template_app_name`、`settings`、`proxy_enabled`、`domain_names`，以及归一化后的 `runtime_url`、`network_name`、`url_replace`；失败时返回 400，并透出缺失内部端口、版本不受支持等输入问题。
+
+### POST /apps/install/runtime
+
+- 用途: 通过 AppHub 统一入口安装运行环境模板。
+- 当前特点: 该端点不会绕过现有安装链路，而是把运行环境请求转换为标准 `/apps/install` 模型，再继续走 Gitea 仓库初始化、镜像拉取、Portainer stack 创建和 My Apps 任务反馈；运行环境专有参数会被写入标准 `settings` 字段统一下发。
+- 当前边界: 当前实现聚焦“先安装运行环境容器模板”这一统一入口，不覆盖源码包上传、仓库内容同步或运行时内应用代码分发。
+
 ### POST /apps/{app_id}/start
 ### POST /apps/{app_id}/stop
 ### POST /apps/{app_id}/restart

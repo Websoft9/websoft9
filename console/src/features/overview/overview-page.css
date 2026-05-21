@@ -58,7 +58,7 @@
     margin-top: 4px;
     font-size: 34px !important;
     line-height: 1 !important;
-    font-weight: 900 !important;
+    font-weight: 500 !important;
     letter-spacing: -0.05em;
     color: var(--overview-title);
 }
@@ -69,7 +69,7 @@
     margin-top: 6px;
     font-size: 13px !important;
     line-height: 1.35 !important;
-    font-weight: 700 !important;
+    font-weight: 500 !important;
     color: var(--overview-text);
 }
 

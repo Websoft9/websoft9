@@ -1,0 +1,25 @@
+[Unit]
+Description=1Panel, a modern open source linux panel
+After=syslog.target network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/1panel-core
+ExecReload=/bin/kill -s HUP $MAINPID
+
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+StartLimitAction=none
+
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=1048576
+Delegate=yes
+
+KillMode=mixed
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

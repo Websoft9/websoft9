@@ -1,4 +1,5 @@
 import json
+import time
 from src.core.exception import CustomException
 from src.external.portainer_api import PortainerAPI
 from src.core.logger import logger
@@ -510,6 +511,28 @@ class PortainerManager:
         else:
             logger.error(f"Get containers by stack name:{stack_name} error: {response.status_code}:{response.text}")
             raise CustomException()
+
+    def wait_for_stack_containers(self, stack_name: str, endpoint_id: int, timeout_seconds: int = 30, poll_interval: int = 2):
+        """
+        Wait for containers to appear for a newly created stack.
+
+        Args:
+            stack_name (str): stack name
+            endpoint_id (int): endpoint id
+            timeout_seconds (int): max wait time
+            poll_interval (int): polling interval in seconds
+
+        Returns:
+            list: containers info, empty when timeout expires without containers
+        """
+        deadline = time.monotonic() + max(timeout_seconds, 0)
+        while True:
+            containers = self.get_containers_by_stack_name(stack_name, endpoint_id)
+            if containers:
+                return containers
+            if time.monotonic() >= deadline:
+                return []
+            time.sleep(max(poll_interval, 1))
         
     def get_container_by_id(self, endpoint_id: int, container_id: str):
         """

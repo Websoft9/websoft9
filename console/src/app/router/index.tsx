@@ -1,14 +1,12 @@
-import { Navigate, Outlet, createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
 
 import { AppRouteBoundary } from './app-route-boundary'
 import { ShellPlaceholderPage } from '../pages/shell-placeholder-page'
 import { AppShell } from '../shell/app-shell'
-import { shellNavigationItems } from '../shell/shell-navigation'
+import { shellNavigationItems, type ShellPageKey } from '../shell/shell-navigation'
 import { AppStorePage } from '../../features/app-store/app-store-page'
-import { DeploymentHubPage } from '../../features/applications/applications-hub-page'
 import { MyAppDetailPage } from '../../features/my-apps/my-app-detail-page'
 import { MyAppsPage } from '../../features/my-apps/my-apps-page'
-import { RuntimeWorkspacePage } from '../../features/runtime/runtime-workspace-page'
 import { IntegrationsPage } from '../../features/integrations/integrations-page'
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
@@ -18,10 +16,13 @@ import { FilesPage } from '../../features/files/files-page'
 import { LogsPage } from '../../features/logs/logs-page'
 import { OverviewPage } from '../../features/overview/overview-page'
 import { ServicesPage } from '../../features/services/services-page'
+import { TerminalPage } from '../../features/terminal/terminal-page'
 import { UsersPage } from '../../features/users/users-page'
 
 export function createAppRouter() {
-    const shellRoutes: RouteObject[] = shellNavigationItems.map((item) => {
+    const shellRoutes: RouteObject[] = shellNavigationItems.map((navItem) => {
+        const item: { segment: string; pageKey: ShellPageKey } = navItem
+
         if (item.segment === 'containers') {
             return {
                 path: item.segment,
@@ -53,19 +54,15 @@ export function createAppRouter() {
         if (item.segment === 'applications') {
             return {
                 path: item.segment,
-                element: <Navigate replace to="/applications/deploy" />,
+                element: <Navigate replace to="/myapps" />,
             }
         }
 
         if (item.segment === 'myapps') {
             return {
                 path: item.segment,
-                element: <Outlet />,
+                element: <MyAppsPage />,
                 children: [
-                    {
-                        index: true,
-                        element: <MyAppsPage />,
-                    },
                     {
                         path: ':appId',
                         element: <MyAppDetailPage />,
@@ -92,6 +89,13 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <ProductAuthRouteGuard routeSegment={item.segment}><FilesPage /></ProductAuthRouteGuard>,
+            }
+        }
+
+        if (item.segment === 'terminal') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><TerminalPage /></ProductAuthRouteGuard>,
             }
         }
 
@@ -158,15 +162,11 @@ export function createAppRouter() {
                         },
                         {
                             path: 'applications/deploy',
-                            element: <DeploymentHubPage />,
+                            element: <Navigate replace to="/myapps" />,
                         },
                         {
                             path: 'applications/custom-install',
                             element: <AppStorePage lockedInstallSource="compose" hideInstallSourceSelector />,
-                        },
-                        {
-                            path: 'applications/runtime',
-                            element: <RuntimeWorkspacePage />,
                         },
                         ...shellRoutes,
                     ],

@@ -1,11 +1,13 @@
 .app-shell-root {
-    --shell-sidebar-width: 280px;
-    --shell-sidebar-collapsed-width: 98px;
+    --shell-sidebar-width: 220px;
+    --shell-sidebar-collapsed-width: 68px;
     --shell-topbar-height: 60px;
     --shell-footer-height: 40px;
     position: relative;
     overflow: hidden;
+    height: 100dvh;
     min-height: 100vh;
+    min-height: 100dvh;
     background: var(--shell-bg);
     color: var(--shell-text);
 }
@@ -55,17 +57,17 @@
 .app-shell-frame {
     position: relative;
     display: flex;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
 }
 
 .app-shell-sidebar {
     width: var(--shell-sidebar-width);
-    height: 100vh;
+    height: 100%;
     flex-shrink: 0;
     background: var(--shell-sidebar-bg);
     color: var(--shell-sidebar-text);
-    padding: 0 14px 18px;
+    padding: 0 6px 14px;
     border-right: 1px solid var(--shell-topbar-border);
     backdrop-filter: blur(18px);
     transition: width 180ms ease, padding 180ms ease;
@@ -84,33 +86,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-}
-
-.app-shell-sidebar-toggle,
-.app-shell-sidebar-toggle.MuiIconButton-root {
-    position: absolute;
-    top: calc(var(--shell-topbar-height) / 2);
-    left: calc(var(--shell-sidebar-width) + 14px);
-    transform: translateY(-50%);
-    min-width: 36px;
-    width: 36px;
-    height: 36px;
-    border-radius: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-    color: var(--shell-subtle-text);
-    padding: 0;
-    flex-shrink: 0;
-    z-index: 4;
-}
-
-.app-shell-sidebar-toggle:hover {
-    background: rgba(145, 158, 171, 0.12);
-}
-
-.app-shell-sidebar-toggle .MuiSvgIcon-root {
-    font-size: 24px;
 }
 
 .app-shell-brand {
@@ -153,9 +128,35 @@
 .app-shell-nav-scroll {
     flex: 1;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: 2px;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+.app-shell-divider-toggle,
+.app-shell-divider-toggle.MuiIconButton-root {
+    position: absolute;
+    left: calc(var(--shell-sidebar-width) - 13px);
+    top: calc(var(--shell-topbar-height) / 2 - 13px);
+    min-width: 26px;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1px solid var(--shell-topbar-border);
+    background: var(--shell-topbar-bg);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    color: var(--shell-subtle-text);
+    padding: 0;
+    z-index: 6;
+}
+
+.app-shell-divider-toggle:hover {
+    background: var(--shell-surface-bg);
+    color: var(--shell-strong-text);
+}
+
+.app-shell-divider-toggle .MuiSvgIcon-root {
+    font-size: 17px;
 }
 
 .app-shell-nav-scroll::-webkit-scrollbar {
@@ -182,10 +183,10 @@
 }
 
 .app-shell-nav-item {
-    min-height: 48px;
+    min-height: 44px;
     border-radius: 12px;
     margin-bottom: 6px;
-    padding: 10px 12px;
+    padding: 8px 9px;
     color: var(--shell-sidebar-text);
     display: flex;
     align-items: center;
@@ -209,7 +210,7 @@
 .app-shell-subnav {
     display: grid;
     gap: 6px;
-    padding: 6px 0 6px 14px;
+    padding: 4px 0 4px 8px;
 }
 
 .app-shell-collapsed-submenu {
@@ -309,9 +310,9 @@
 }
 
 .app-shell-nav-item--secondary {
-    min-height: 44px;
+    min-height: 40px;
     margin-bottom: 0;
-    padding: 9px 12px 9px 28px;
+    padding: 7px 9px 7px 18px;
     border-radius: 12px;
 }
 
@@ -327,7 +328,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-right: 14px;
+    margin-right: 10px;
     flex-shrink: 0;
 }
 
@@ -348,7 +349,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
 }
 
@@ -460,7 +461,8 @@
     background: rgba(145, 158, 171, 0.12);
 }
 
-.app-shell-root--dark .app-shell-sidebar-toggle:hover,
+.app-shell-root--dark .app-shell-sidebar-footer-toggle:hover,
+.app-shell-root--dark .app-shell-divider-toggle:hover,
 .app-shell-root--dark .app-shell-topbar-pill:hover,
 .app-shell-root--dark .app-shell-user-trigger--topbar:hover,
 .app-shell-root--dark .app-shell-icon-button:hover {
@@ -1168,11 +1170,13 @@
 @media (max-width: 767px) {
     .app-shell-root {
         --shell-footer-height: 64px;
+        height: auto;
+        min-height: 100dvh;
     }
 
     .app-shell-content {
         height: auto;
-        min-height: 100vh;
+        min-height: 100%;
     }
 
     .app-shell-footer {
@@ -1189,8 +1193,8 @@
 
 .app-shell-root--collapsed .app-shell-sidebar {
     width: var(--shell-sidebar-width);
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 6px;
+    padding-right: 6px;
 }
 
 .app-shell-root--collapsed .app-shell-sidebar-header {
@@ -1222,8 +1226,8 @@
 
 .app-shell-root--collapsed .app-shell-sidebar {
     width: var(--shell-sidebar-width);
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 6px;
+    padding-right: 6px;
 }
 
 .app-shell-root--collapsed .app-shell-sidebar-header {
@@ -1248,11 +1252,11 @@
 }
 
 .app-shell-root--collapsed .app-shell-nav-item {
-    min-height: 68px;
+    min-height: 60px;
     flex-direction: column;
     justify-content: center;
-    gap: 6px;
-    padding: 10px 6px 8px;
+    gap: 4px;
+    padding: 7px 3px 5px;
     text-align: center;
 }
 
@@ -1262,8 +1266,8 @@
 
 .app-shell-root--collapsed .app-shell-nav-item-icon {
     margin-right: 0;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
 }
 
 .app-shell-root--collapsed .app-shell-nav-item-collapsed-indicator {
@@ -1273,10 +1277,22 @@
 .app-shell-root--collapsed .app-shell-nav-item-label {
     display: block;
     max-width: 100%;
-    font-size: 11px !important;
+    font-size: 10px !important;
     line-height: 1.2 !important;
     white-space: normal;
     word-break: break-word;
+}
+
+.app-shell-root--collapsed .app-shell-sidebar-footer-toggle,
+.app-shell-root--collapsed .app-shell-sidebar-footer-toggle.MuiButton-root {
+    min-height: var(--shell-footer-height);
+    justify-content: center;
+    padding: 0;
+    border-radius: 0;
+}
+
+.app-shell-root--collapsed .app-shell-sidebar-footer-toggle {
+    color: transparent;
 }
 
 .app-shell-root--collapsed .app-shell-subnav {
@@ -1293,7 +1309,7 @@
         padding-bottom: 10px;
     }
 
-    .app-shell-sidebar-toggle {
+    .app-shell-divider-toggle {
         display: none;
     }
 

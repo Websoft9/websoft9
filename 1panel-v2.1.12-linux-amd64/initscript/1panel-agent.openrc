@@ -1,0 +1,39 @@
+#!/sbin/openrc-run
+
+name="1panel-agent"
+description="1Panel Agent Service Daemon"
+command="/usr/bin/1panel-agent"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+respawn_delay=5
+respawn_max=0
+
+depend() {
+    after syslog network-online 1panel-core
+}
+
+start_pre() {
+    checkpath -d -m 0755 -o root:root /run
+}
+
+reload() {
+    ebegin "Reloading $RC_SVCNAME"
+    kill -HUP $(cat "$pidfile") 2>/dev/null
+    eend $?
+}
+
+status() {
+    if [ -e "$pidfile" ]; then
+        local pid=$(cat "$pidfile")
+        if kill -0 "$pid" 2>/dev/null; then
+            echo " * $RC_SVCNAME is running [PID $pid]"
+            return 0
+        else
+            echo " * $RC_SVCNAME pid file exists but process not running"
+            return 1
+        fi
+    else
+        echo " * $RC_SVCNAME is stopped"
+        return 3
+    fi
+}

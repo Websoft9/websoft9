@@ -21,7 +21,17 @@
     --myapps-muted: #6c757d;
     --myapps-heading: #6c757d;
     --myapps-input-bg: #ffffff;
-    --myapps-primary: #727cf5;
+    --myapps-primary: #1767d1;
+    --myapps-badge-success-bg: rgba(22, 163, 74, 0.12);
+    --myapps-badge-success-text: #166534;
+    --myapps-badge-warning-bg: rgba(180, 83, 9, 0.12);
+    --myapps-badge-warning-text: #92400e;
+    --myapps-badge-info-bg: rgba(37, 99, 235, 0.1);
+    --myapps-badge-info-text: #1d4ed8;
+    --myapps-badge-danger-bg: rgba(220, 38, 38, 0.1);
+    --myapps-badge-danger-text: #b91c1c;
+    --myapps-badge-dark-bg: rgba(51, 65, 85, 0.12);
+    --myapps-badge-dark-text: #334155;
 }
 
 .app-shell-root--dark .myapps-page-shell {
@@ -33,7 +43,26 @@
     --myapps-muted: #94a3b8;
     --myapps-heading: #cbd5e1;
     --myapps-input-bg: #0f172a;
-    --myapps-primary: #93c5fd;
+    --myapps-primary: #1767d1;
+    --myapps-badge-success-bg: rgba(74, 222, 128, 0.14);
+    --myapps-badge-success-text: #bbf7d0;
+    --myapps-badge-warning-bg: rgba(251, 191, 36, 0.14);
+    --myapps-badge-warning-text: #fde68a;
+    --myapps-badge-info-bg: rgba(96, 165, 250, 0.14);
+    --myapps-badge-info-text: #dbeafe;
+    --myapps-badge-danger-bg: rgba(248, 113, 113, 0.14);
+    --myapps-badge-danger-text: #fecaca;
+    --myapps-badge-dark-bg: rgba(148, 163, 184, 0.14);
+    --myapps-badge-dark-text: #e2e8f0;
+}
+
+.myapps-page-shell,
+.myapps-page-shell .MuiTypography-root,
+.myapps-page-shell .MuiButtonBase-root,
+.myapps-page-shell .form-select,
+.myapps-page-shell .form-control,
+.myapps-page-shell .btn {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .myapps-toolbar-select {
@@ -112,11 +141,94 @@
     cursor: not-allowed;
 }
 
-/* ── Card grid (Bootstrap Col xxl=2 md=3 equivalent) ── */
+/* ── Card grid ── */
 .myapps-card-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+}
+
+@media (min-width: 640px) {
+    .myapps-card-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 900px) {
+    .myapps-card-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1100px) {
+    .myapps-card-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}
+
+/* ── Vertical app card ── */
+.myapps-vcard {
+    background-color: var(--myapps-surface);
+    border: 1px solid var(--myapps-border);
+    border-radius: 6px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    padding: 32px 14px 24px;
     display: flex;
-    flex-wrap: wrap;
-    margin: 0 -10px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: default;
+    position: relative;
+    transition: box-shadow 0.15s, background-color 0.15s;
+    min-height: 258px;
+    justify-content: center;
+}
+
+.myapps-vcard.highlight {
+    cursor: pointer;
+}
+
+.myapps-vcard.highlight:hover {
+    background-color: var(--myapps-surface-hover);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.myapps-vcard-icon {
+    margin-bottom: 16px;
+}
+
+.myapps-vcard-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--myapps-text);
+    word-break: break-all;
+    margin-bottom: 8px;
+    line-height: 1.25;
+    max-width: 100%;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.myapps-vcard-name.is-official {
+    color: var(--myapps-primary);
+}
+
+.app-shell-root--dark .myapps-vcard-name.is-official {
+    color: var(--myapps-primary);
+}
+
+.myapps-vcard-badge {
+    margin-bottom: 4px;
+}
+
+.myapps-vcard-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin-top: 8px;
 }
 
 /* Each card slot: full width on small, 4-up on md, 6-up on xxl */
@@ -226,6 +338,18 @@
     fill: currentColor;
 }
 
+.myapps-card-icon-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0 0 0 10px;
+}
+
+.myapps-card-icon-btn-placeholder {
+    margin-left: 0;
+    visibility: hidden;
+}
+
 /* ── App icon in card ── */
 .app-icon {
     min-height: 80px;
@@ -243,6 +367,29 @@
     overflow: hidden;
 }
 
+.myapps-card-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--myapps-text);
+}
+
+.myapps-card-title.is-official {
+    color: var(--myapps-primary);
+}
+
+.app-shell-root--dark .myapps-card-title.is-official {
+    color: var(--myapps-primary);
+}
+
+.myapps-card-status-row,
+.myapps-card-status-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+}
+
 /* ── Bootstrap-like status badges ── */
 .badge {
     display: inline-block;
@@ -250,36 +397,42 @@
     font-size: 75%;
     font-weight: 700;
     line-height: 1;
-    color: #fff;
+    color: var(--myapps-badge-info-text);
     text-align: center;
     white-space: nowrap;
     vertical-align: baseline;
     border-radius: 0.25rem;
+    border: 1px solid transparent;
 }
 
 .bg-success {
-    background-color: #0acf97;
-    color: #fff;
+    background-color: var(--myapps-badge-success-bg);
+    color: var(--myapps-badge-success-text);
+    border-color: color-mix(in srgb, var(--myapps-badge-success-text) 18%, transparent);
 }
 
 .bg-warning {
-    background-color: #ffbc00;
-    color: #313a46;
+    background-color: var(--myapps-badge-warning-bg);
+    color: var(--myapps-badge-warning-text);
+    border-color: color-mix(in srgb, var(--myapps-badge-warning-text) 18%, transparent);
 }
 
 .bg-info {
-    background-color: #39afd1;
-    color: #fff;
+    background-color: var(--myapps-badge-info-bg);
+    color: var(--myapps-badge-info-text);
+    border-color: color-mix(in srgb, var(--myapps-badge-info-text) 18%, transparent);
 }
 
 .bg-danger {
-    background-color: #fa5c7c;
-    color: #fff;
+    background-color: var(--myapps-badge-danger-bg);
+    color: var(--myapps-badge-danger-text);
+    border-color: color-mix(in srgb, var(--myapps-badge-danger-text) 18%, transparent);
 }
 
 .bg-dark {
-    background-color: #313a46;
-    color: #fff;
+    background-color: var(--myapps-badge-dark-bg);
+    color: var(--myapps-badge-dark-text);
+    border-color: color-mix(in srgb, var(--myapps-badge-dark-text) 18%, transparent);
 }
 
 /* ── Utility spacing ── */

@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+websockets
 keyring
 keyrings.alt
 requests
@@ -11,3 +12,4 @@ PyYAML
 docker
 tenacity
 aiodocker
+paramiko

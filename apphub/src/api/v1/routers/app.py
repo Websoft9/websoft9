@@ -10,7 +10,7 @@ from src.core import logger
 from src.core.exception import CustomException
 from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
-from src.schemas.appComposeInstall import ComposeValidationRequest, ComposeValidationResponse
+from src.schemas.appComposeInstall import ComposeInstallAcceptedResponse, ComposeInstallRequest, ComposeValidationRequest, ComposeValidationResponse
 from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
 from src.schemas.appInstall import appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
@@ -18,7 +18,7 @@ from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_manager import AppManger
-from src.services.compose_install import validate_compose_installation
+from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
 from threading import Thread
 
@@ -149,6 +149,33 @@ async def apps_install(
     return AppInstallAcceptedResponse(
         message="Success",
         details="The app is installing and can be viewed through 'My Apps.'",
+        app_id=tracked_app_id,
+        tracking_id=tracking_id,
+    )
+
+
+@router.post(
+    "/apps/install/compose",
+    summary="Install Custom Compose Application",
+    response_model=ComposeInstallAcceptedResponse,
+    response_model_exclude_defaults=True,
+    description="Install a custom Docker Compose application through the same AppHub-managed repository and stack pipeline used by the marketplace.",
+    responses={
+        200: {"model": ComposeInstallAcceptedResponse},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def install_compose_app(
+    payload: ComposeInstallRequest,
+    endpointId: int = Query(None, description="Endpoint ID to install on. If not set, install on the local endpoint"),
+):
+    validate_compose_installation(payload)
+    tracked_app_id, tracking_id = prepare_compose_install_tracking(payload)
+    Thread(target=install_compose_application, args=(payload, endpointId, tracked_app_id, tracking_id), daemon=True).start()
+    return ComposeInstallAcceptedResponse(
+        message="Success",
+        details="The compose application is installing and can be viewed through 'My Apps'.",
         app_id=tracked_app_id,
         tracking_id=tracking_id,
     )

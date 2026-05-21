@@ -1,89 +1,194 @@
 
-from datetime import datetime
-import os
+from __future__ import annotations
+
+import contextvars
 import logging
-from logging.handlers import TimedRotatingFileHandler
+import logging.config
+import os
+import sys
+from pathlib import Path
 
 
-class SingletonMeta(type):
-    """Singleton Metaclass to ensure only one instance of Logger"""
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        """Create an instance if not exist, otherwise return the existing instance"""
-        if cls not in cls._instances:
-            instance = super().__call__(*args, **kwargs)
-            cls._instances[cls] = instance
-        return cls._instances[cls]
+_request_id_var = contextvars.ContextVar("apphub_request_id", default="-")
+_tracking_id_var = contextvars.ContextVar("apphub_tracking_id", default="-")
+_stage_var = contextvars.ContextVar("apphub_stage", default="-")
 
 
-class Logger(metaclass=SingletonMeta):
-    """Custom Logger class for creating and managing two types of loggers: 'access' and 'error'
+class ContextDefaultsFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = getattr(record, "request_id", _request_id_var.get())
+        record.tracking_id = getattr(record, "tracking_id", _tracking_id_var.get())
+        record.stage = getattr(record, "stage", _stage_var.get())
+        return True
 
-    Usage:
-        from app.core.logger import logger
 
-        # Use the 'access' logger to log info level messages
-        logger.access('This is an info message for access logs')
+def set_request_id(request_id: str | None) -> None:
+    _request_id_var.set(request_id or "-")
 
-        # Use the 'error' logger to log error level messages
-        logger.error('This is an error message for error logs')
-    """
 
-    def __init__(self):
-        """Initialize method to create 'access' and 'error' loggers"""
-        self._access_logger = self._configure_logger("access")
-        self._error_logger = self._configure_logger("error")
+def set_tracking_context(tracking_id: str | None = None, stage: str | None = None) -> None:
+    _tracking_id_var.set(tracking_id or "-")
+    _stage_var.set(stage or "-")
 
-    def _configure_logger(self, log_type):
-        """
-        Configure the logger.
 
-        Args:
-            log_type (str): Type of the log, either 'access' or 'error'
+def clear_logging_context() -> None:
+    _request_id_var.set("-")
+    _tracking_id_var.set("-")
+    _stage_var.set("-")
 
-        Returns:
-            logger: Configured logger
-        """
-        logger = logging.getLogger(log_type)
-        logger.setLevel(logging.DEBUG)
 
-        formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(message)s')
+class Logger:
+    def __init__(self) -> None:
+        self._configure_logging()
+        self._app_logger = logging.getLogger("apphub")
+        self._access_logger = logging.getLogger("apphub.access")
+        self._error_logger = logging.getLogger("apphub.error")
+        self._install_logger = logging.getLogger("apphub.install")
 
-        log_folder = os.path.join(os.getcwd(), "logs")
-        os.makedirs(log_folder, exist_ok=True)
+    def _configure_logging(self) -> None:
+        log_folder = Path(os.getenv("WEBSOFT9_LOG_DIR") or os.path.join(os.getcwd(), "logs"))
+        log_folder.mkdir(parents=True, exist_ok=True)
 
-        # current_time = datetime.now().strftime('%Y_%m_%d')        
-        # log_file = os.path.join(log_folder, f"{log_type}_{current_time}.log")
+        formatter = {
+            "format": "%(asctime)s %(levelname)s [%(name)s] request_id=%(request_id)s tracking_id=%(tracking_id)s stage=%(stage)s %(message)s",
+            "datefmt": "%Y-%m-%dT%H:%M:%S%z",
+        }
 
-        log_file = os.path.join(log_folder, f"apphub_{log_type}.log")
-
-        file_handler = TimedRotatingFileHandler(
-            filename=log_file,
-            when="D",
-            interval=1,
-            backupCount=30,  # Keep logs for 30 days
-            encoding="utf-8"
+        logging.config.dictConfig(
+            {
+                "version": 1,
+                "disable_existing_loggers": False,
+                "filters": {
+                    "context_defaults": {
+                        "()": ContextDefaultsFilter,
+                    }
+                },
+                "formatters": {
+                    "standard": formatter,
+                },
+                "handlers": {
+                    "console": {
+                        "class": "logging.StreamHandler",
+                        "level": "INFO",
+                        "formatter": "standard",
+                        "filters": ["context_defaults"],
+                        "stream": "ext://sys.stdout",
+                    },
+                    "app_file": {
+                        "class": "logging.handlers.TimedRotatingFileHandler",
+                        "level": "INFO",
+                        "formatter": "standard",
+                        "filters": ["context_defaults"],
+                        "filename": str(log_folder / "apphub.log"),
+                        "when": "midnight",
+                        "interval": 1,
+                        "backupCount": 30,
+                        "encoding": "utf-8",
+                    },
+                    "access_file": {
+                        "class": "logging.handlers.TimedRotatingFileHandler",
+                        "level": "INFO",
+                        "formatter": "standard",
+                        "filters": ["context_defaults"],
+                        "filename": str(log_folder / "apphub_access.log"),
+                        "when": "midnight",
+                        "interval": 1,
+                        "backupCount": 30,
+                        "encoding": "utf-8",
+                    },
+                    "error_file": {
+                        "class": "logging.handlers.TimedRotatingFileHandler",
+                        "level": "ERROR",
+                        "formatter": "standard",
+                        "filters": ["context_defaults"],
+                        "filename": str(log_folder / "apphub_error.log"),
+                        "when": "midnight",
+                        "interval": 1,
+                        "backupCount": 30,
+                        "encoding": "utf-8",
+                    },
+                    "install_file": {
+                        "class": "logging.handlers.TimedRotatingFileHandler",
+                        "level": "INFO",
+                        "formatter": "standard",
+                        "filters": ["context_defaults"],
+                        "filename": str(log_folder / "apphub_install.log"),
+                        "when": "midnight",
+                        "interval": 1,
+                        "backupCount": 30,
+                        "encoding": "utf-8",
+                    },
+                },
+                "loggers": {
+                    "apphub": {
+                        "handlers": ["console", "app_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                    "apphub.access": {
+                        "handlers": ["console", "access_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                    "apphub.error": {
+                        "handlers": ["console", "error_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                    "apphub.install": {
+                        "handlers": ["console", "install_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                    "uvicorn": {
+                        "handlers": ["console", "app_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                    "uvicorn.access": {
+                        "handlers": ["console", "access_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                    "uvicorn.error": {
+                        "handlers": ["console", "error_file"],
+                        "level": "INFO",
+                        "propagate": False,
+                    },
+                },
+                "root": {
+                    "handlers": ["console", "app_file"],
+                    "level": "INFO",
+                },
+            }
         )
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(logging.DEBUG)
 
-        #logger.propagate = False
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.reconfigure(line_buffering=True)
+            except Exception:
+                pass
 
-        logger.addHandler(file_handler)
-        return logger
+    def access(self, message: str, *args, **kwargs) -> None:
+        self._access_logger.info(message, *args, **kwargs)
 
-    @property
-    def access(self):
-        """Property to access 'access' logger"""
-        return self._access_logger.info
+    def info(self, message: str, *args, **kwargs) -> None:
+        self._app_logger.info(message, *args, **kwargs)
 
-    @property
-    def error(self):
-        """Property to access 'error' logger"""
-        return self._error_logger.error
+    def warning(self, message: str, *args, **kwargs) -> None:
+        self._app_logger.warning(message, *args, **kwargs)
+
+    def debug(self, message: str, *args, **kwargs) -> None:
+        self._app_logger.debug(message, *args, **kwargs)
+
+    def error(self, message: str, *args, **kwargs) -> None:
+        self._error_logger.error(message, *args, **kwargs)
+
+    def exception(self, message: str, *args, **kwargs) -> None:
+        self._error_logger.exception(message, *args, **kwargs)
+
+    def install(self, message: str, *args, **kwargs) -> None:
+        self._install_logger.info(message, *args, **kwargs)
 
 
-# Create Logger instance
 logger = Logger()

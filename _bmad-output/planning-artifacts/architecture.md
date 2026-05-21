@@ -34,7 +34,7 @@ _This document records the final architecture decisions for the current refactor
 
 **Functional Requirements:**
 
-The PRD defines a control-plane refactor around three capability families: product-owned app workflows such as catalog, install, My Apps, backup, proxy, and settings; controlled operational capability such as product-scoped logs, services, mounted-file management, and a host terminal bridge; and continuity capability such as direct upgrade plus continuous entry into Gitea, Portainer, and Nginx Proxy Manager. The application-workflow family now also expands the install model into three source types: marketplace templates, user-authored Docker Compose deployment, and curated runtime-based source deployment starting with PHP projects. The product is therefore not a generic server panel. It is an application-focused control plane with explicit host-interaction boundaries and one normalized installation domain. App Store and My Apps remain the primary spine and take priority over secondary modules.
+The PRD defines a control-plane refactor around three capability families: product-owned app workflows such as catalog, install, My Apps, backup, proxy, and settings; controlled operational capability such as product-scoped logs, services, current-host file management, and a host terminal bridge; and continuity capability such as direct upgrade plus continuous entry into Gitea, Portainer, and Nginx Proxy Manager. The application-workflow family now also expands the install model into three source types: marketplace templates, user-authored Docker Compose deployment, and curated runtime-based source deployment starting with PHP projects. The product is therefore not a generic server panel. It is an application-focused control plane with explicit host-interaction boundaries and one normalized installation domain. App Store and My Apps remain the primary spine and take priority over secondary modules.
 
 **Non-Functional Requirements:**
 
@@ -212,7 +212,7 @@ The backend will enforce secure cookie settings, CSRF protection for mutating re
 
 **API Security Strategy:**
 
-Authentication endpoints, terminal bridges, file bridges, backup restore endpoints, upgrade actions, and flexible-installation submission endpoints must receive stricter protection than general reads. Coarse rate limiting should be applied at the proxy layer, while app-level throttling and explicit guards protect sensitive command endpoints. If terminal access is implemented through SSH-backed session establishment, Websoft9 authorization gates the creation of the terminal session, while host-level permissions continue to derive from the bound SSH user rather than from a second internal shell permission model. Compose policy validation must reject unsupported directives such as unrestricted host-path mounts, privileged containers, and disallowed network modes unless a future product policy explicitly introduces controlled exceptions.
+Authentication endpoints, terminal bridges, file bridges, backup restore endpoints, upgrade actions, and flexible-installation submission endpoints must receive stricter protection than general reads. Coarse rate limiting should be applied at the proxy layer, while app-level throttling and explicit guards protect sensitive command endpoints. If current-host terminal and file access are implemented through shared SSH-backed session establishment, Websoft9 authorization gates the creation of that host-access session, while host-level permissions continue to derive from the bound SSH user rather than from a second internal shell permission model. Compose policy validation must reject unsupported directives such as unrestricted host-path mounts, privileged containers, and disallowed network modes unless a future product policy explicitly introduces controlled exceptions.
 
 **Decision Record:**
 
@@ -261,7 +261,9 @@ Product entry and internal-service routing are owned by the Websoft9 platform ga
 
 MVP will avoid premature service decomposition. Internal communication stays in-process between domain modules, while external calls to Docker, Portainer, Gitea, and Nginx Proxy Manager pass through explicit gateway/adaptor layers with typed request and error translation boundaries.
 
-The approved exception is the privileged file bridge. File browsing and mutation continue to enter through AppHub-owned REST endpoints, but AppHub may delegate low-level file execution to a long-lived internal sidecar running in the current container topology rather than launching an ephemeral helper container per request. That sidecar must not become a second product API. It is reachable only from AppHub over an internal channel such as localhost or a Unix socket, and it receives already-authorized, already-canonicalized operations scoped to approved Docker-volume roots.
+The approved bridge model for host interaction is current-host SSH access owned by AppHub. Terminal sessions continue to enter through AppHub-owned WebSocket endpoints, while file browsing and mutation continue to enter through AppHub-owned REST endpoints. AppHub binds one current-host SSH authorization profile, opens PTY sessions for terminal use, and opens short-lived SFTP sessions for file operations. The browser never speaks SSH or SFTP directly, and host permissions derive from the bound SSH user. This bridge must not become a second public API surface or an uncontrolled host-management tunnel.
+
+This host-file workspace is additive rather than replacing the existing application-volume capability. When an operator opens file browsing from an application detail surface, AppHub may continue to serve product-owned, volume-scoped file operations for that application's container volumes through the already-approved internal execution path, provided the browser still stays behind AppHub-owned contracts and the scope remains limited to the selected application volume boundary.
 
 **Decision Record:**
 
@@ -346,7 +348,7 @@ The architecture is intentionally optimized for vertical scaling first. Stateles
 4. Make the product-entry routing boundary and app-access routing boundary explicit before proxy-sensitive feature migration, initially reusing the retained gateway and Nginx Proxy Manager topology where practical.
 5. Introduce the task orchestration model plus SSE status streaming through AppHub as the unified API layer.
 6. Migrate App Store and My Apps onto the new product shell and AppHub-backed typed API contracts.
-7. Rebuild terminal, files, backup, restore, and upgrade bridges behind explicit safety boundaries, adding only the minimum guards required for each migrated flow. For file management specifically, replace per-request helper-container execution with a long-lived internal file-execution sidecar or equivalent warm bridge inside the product runtime.
+7. Rebuild terminal, files, backup, restore, and upgrade bridges behind explicit safety boundaries, adding only the minimum guards required for each migrated flow. For current-host terminal and file access specifically, converge on one AppHub-owned SSH/SFTP bridge profile for the current host instead of exposing browser-direct host access or requiring an extra host agent installation.
 8. Complete integration adapters, auto-login workspaces, direct-upgrade tooling, and other migration-critical compatibility work.
 9. After core migration stabilizes, address deferred legacy optimization topics such as API key governance, user/account redesign, credential hardening, and richer authorization models.
 

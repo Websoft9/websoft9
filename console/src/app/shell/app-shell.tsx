@@ -6,7 +6,6 @@ import {
     List,
     ListItemButton,
     Menu,
-    MenuItem,
     Paper,
     Popper,
     SvgIcon,
@@ -27,7 +26,7 @@ import './app-shell.css'
 const navigationSections = [
     {
         key: 'system',
-        segments: ['dashboard', 'myapps', 'applications', 'containers', 'gateway', 'repository'],
+        segments: ['dashboard', 'applications', 'containers', 'gateway', 'repository'],
     },
     {
         key: 'tools',
@@ -50,8 +49,6 @@ function ShellNavIcon({ segment }: { segment: string }) {
             return <SvgIcon viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4v10h12V8H6Zm2 2h4v4H8v-4Z" /></SvgIcon>
         case 'custom-install':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H11v2H6.5a.5.5 0 0 0-.5.5V11H4V6.5Zm9-2.5h4.5A2.5 2.5 0 0 1 20 6.5V11h-2V6.5a.5.5 0 0 0-.5-.5H13V4ZM4 13h2v4.5a.5.5 0 0 0 .5.5H11v2H6.5A2.5 2.5 0 0 1 4 17.5V13Zm14 0h2v4.5a2.5 2.5 0 0 1-2.5 2.5H13v-2h4.5a.5.5 0 0 0 .5-.5V13Zm-7-4 5 3-5 3V9Z" /></SvgIcon>
-        case 'runtime-env':
-            return <SvgIcon viewBox="0 0 24 24"><path d="M12 2 4 6.5V17.5L12 22l8-4.5V6.5L12 2Zm0 2.3 5.91 3.32L12 10.93 6.09 7.62 12 4.3Zm-6 5.04 5 2.8v6.48l-5-2.81V9.34Zm7 9.28v-6.48l5-2.8v6.47l-5 2.81Z" /></SvgIcon>
         case 'containers':
             return <SvgIcon viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5V16l-9 5-9-5V7.5Zm2 1.24V14.8l6 3.33V12L5 8.74Zm14 0L13 12v6.13l6-3.33V8.74ZM12 10.26l6.02-3.01L12 4.24 5.98 7.25 12 10.26Z" /></SvgIcon>
         case 'gateway':
@@ -76,11 +73,11 @@ function ShellNavIcon({ segment }: { segment: string }) {
 }
 
 function SidebarCollapseIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="M4 5h2v14H4V5Zm5 2h9v1.5H9V7Zm0 4.25h7v1.5H9v-1.5Zm0 4.25h9v1.5H9V15.5Z" /></SvgIcon>
+    return <SvgIcon viewBox="0 0 24 24"><path d="m14.41 7.41-1.41-1.41L7.59 11.41a.83.83 0 0 0 0 1.18L13 18l1.41-1.41L9.83 12l4.58-4.59Z" /></SvgIcon>
 }
 
 function SidebarExpandIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="M18 5h2v14h-2V5ZM6 7h9v1.5H6V7Zm0 4.25h7v1.5H6v-1.5ZM6 15.5h9V17H6v-1.5Z" /></SvgIcon>
+    return <SvgIcon viewBox="0 0 24 24"><path d="m9.59 16.59 1.41 1.41 5.41-5.41a.83.83 0 0 0 0-1.18L11 6l-1.41 1.41L14.17 12l-4.58 4.59Z" /></SvgIcon>
 }
 
 function ExpandMoreIcon() {
@@ -138,6 +135,7 @@ export function AppShell() {
 
     const resolvedLocale = i18n.resolvedLanguage ?? 'en'
     const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
+    const terminalRoute = location.pathname === '/terminal'
     const useWhiteWorkspaceSurface =
         location.pathname === '/applications' ||
         location.pathname.startsWith('/applications/') ||
@@ -146,6 +144,7 @@ export function AppShell() {
         location.pathname.startsWith('/myapps/') ||
         location.pathname === '/dashboard' ||
         location.pathname === '/files' ||
+        location.pathname === '/terminal' ||
         location.pathname === '/services' ||
         location.pathname === '/logs' ||
         location.pathname === '/users' ||
@@ -215,9 +214,16 @@ export function AppShell() {
 
         return window.sessionStorage.getItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
     }, [location.pathname, location.search])
-    const isApplicationsContext = /^\/(applications|appstore)(\/|$)/.test(location.pathname)
+    const isApplicationsContext = /^\/(applications|appstore|myapps)(\/|$)/.test(location.pathname)
     const applicationSubNavigation = useMemo(
         () => [
+            {
+                key: 'myapps',
+                label: t('nav.myApps.label'),
+                to: '/myapps',
+                active: location.pathname === '/myapps' || location.pathname.startsWith('/myapps/'),
+                icon: 'myapps',
+            },
             {
                 key: 'appstore',
                 label: t('nav.appStore.label'),
@@ -227,20 +233,13 @@ export function AppShell() {
             },
             {
                 key: 'custom-install',
-                label: resolvedLocale === 'zh-CN' ? '自定义' : t('applicationsHubPage.cards.customInstall.title'),
+                label: t('applicationsHubPage.menu.customInstall'),
                 to: '/applications/custom-install',
                 active: location.pathname === '/applications/custom-install',
                 icon: 'custom-install',
             },
-            {
-                key: 'runtime',
-                label: resolvedLocale === 'zh-CN' ? '运行环境' : t('applicationsHubPage.cards.runtime.title'),
-                to: '/applications/runtime',
-                active: location.pathname === '/applications/runtime',
-                icon: 'runtime-env',
-            },
         ],
-        [location.pathname, resolvedLocale, t],
+        [location.pathname, t],
     )
     const myAppsDeployTargets = useMemo(
         () => [
@@ -255,12 +254,6 @@ export function AppShell() {
                 label: t('applicationsHubPage.menu.customInstall'),
                 to: '/applications/custom-install',
                 icon: 'custom-install',
-            },
-            {
-                key: 'runtime',
-                label: t('applicationsHubPage.menu.runtime'),
-                to: '/applications/runtime',
-                icon: 'runtime-env',
             },
         ],
         [t],
@@ -349,18 +342,6 @@ export function AppShell() {
 
     return (
         <Box className={`app-shell-root app-shell-root--${colorMode} ${navCollapsed ? 'app-shell-root--collapsed' : ''}`}>
-            <IconButton
-                color="inherit"
-                className="app-shell-sidebar-toggle"
-                onClick={() => {
-                    setNavCollapsed((currentValue) => !currentValue)
-                }}
-                aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-                title={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-            >
-                {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
-            </IconButton>
-
             <Box className="app-shell-frame">
                 <Box component="aside" className="app-shell-sidebar">
                     <Box className="app-shell-sidebar-inner">
@@ -393,7 +374,7 @@ export function AppShell() {
                                                         <ListItemButton
                                                             className={`app-shell-nav-item app-shell-nav-item--parent ${(isApplicationsContext || Boolean(collapsedApplicationsAnchor)) ? 'active' : ''}`}
                                                             component={NavLink}
-                                                            to="/applications/deploy"
+                                                            to="/myapps"
                                                             onMouseEnter={(event) => {
                                                                 if (navCollapsed) {
                                                                     openCollapsedApplicationsMenu(event.currentTarget)
@@ -539,6 +520,18 @@ export function AppShell() {
                     </Box>
                 </Box>
 
+                <IconButton
+                    color="inherit"
+                    className="app-shell-divider-toggle"
+                    onClick={() => {
+                        setNavCollapsed((currentValue) => !currentValue)
+                    }}
+                    aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
+                    title={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
+                >
+                    {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
+                </IconButton>
+
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
                         <Box className="app-shell-topbar-actions">
@@ -599,8 +592,9 @@ export function AppShell() {
                         id="app-shell-main"
                         sx={{
                             px: activeIntegrationRoute ? 0 : { xs: 2, md: 3 },
-                            py: activeIntegrationRoute ? 0 : location.pathname === '/dashboard' ? { xs: 2, md: 2.25 } : { xs: 2.5, md: 3 },
-                            overflowY: activeIntegrationRoute ? 'hidden' : location.pathname === '/dashboard' ? 'hidden' : 'auto',
+                            py: activeIntegrationRoute ? 0 : terminalRoute ? { xs: 1, md: 1.25 } : location.pathname === '/dashboard' ? { xs: 2, md: 2.25 } : { xs: 2.5, md: 3 },
+                            overflowX: terminalRoute ? 'hidden' : undefined,
+                            overflowY: activeIntegrationRoute ? 'hidden' : location.pathname === '/dashboard' || terminalRoute ? 'hidden' : 'auto',
                         }}
                     >
                         <Box className="app-shell-main-body">
@@ -631,6 +625,7 @@ export function AppShell() {
                 onClose={() => {
                     setLocaleMenuAnchor(null)
                 }}
+                sx={{ zIndex: 1700 }}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 slotProps={{
@@ -670,6 +665,7 @@ export function AppShell() {
                 onClose={() => {
                     setAppearanceMenuAnchor(null)
                 }}
+                sx={{ zIndex: 1700 }}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 slotProps={{
@@ -709,47 +705,38 @@ export function AppShell() {
                 onClose={() => {
                     setDeployMenuAnchor(null)
                 }}
+                sx={{ zIndex: 1700 }}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 slotProps={{
                     paper: {
-                        sx: {
-                            mt: 0.75,
-                            minWidth: 196,
-                            borderRadius: '4px',
-                            border: '1px solid rgba(203, 213, 225, 0.9)',
-                            boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)',
-                        },
+                        className: `app-shell-account-menu app-shell-account-menu--${colorMode}`,
+                        sx: { mt: 0.75, minWidth: 196 },
                     },
                 }}
             >
-                <Box sx={{ px: 1.5, pt: 1.25, pb: 0.75 }}>
-                    <Typography sx={{ fontSize: 11, lineHeight: 1.3, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8' }}>
+                <Box className="app-shell-account-panel">
+                    <Typography className="app-shell-account-section-label">
                         {t('applicationsHubPage.menu.title')}
                     </Typography>
+                    <List disablePadding className="app-shell-account-links">
+                        {myAppsDeployTargets.map((item) => (
+                            <ListItemButton
+                                key={item.key}
+                                className="app-shell-account-link"
+                                onClick={() => {
+                                    setDeployMenuAnchor(null)
+                                    navigate(item.to)
+                                }}
+                            >
+                                <Box className="app-shell-account-link-icon">
+                                    <ShellNavIcon segment={item.icon} />
+                                </Box>
+                                <Typography className="app-shell-account-link-title">{item.label}</Typography>
+                            </ListItemButton>
+                        ))}
+                    </List>
                 </Box>
-                <Box sx={{ borderTop: '1px solid rgba(226, 232, 240, 0.9)' }} />
-                {myAppsDeployTargets.map((item) => (
-                    <MenuItem
-                        key={item.key}
-                        onClick={() => {
-                            setDeployMenuAnchor(null)
-                            navigate(item.to)
-                        }}
-                        sx={{
-                            gap: 1,
-                            minHeight: 42,
-                            fontSize: 14,
-                            fontWeight: 500,
-                            color: '#334155',
-                        }}
-                    >
-                        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                            <ShellNavIcon segment={item.icon} />
-                        </Box>
-                        <Typography sx={{ fontSize: 14, fontWeight: 500, color: 'inherit' }}>{item.label}</Typography>
-                    </MenuItem>
-                ))}
             </Menu>
 
             <Menu
@@ -758,6 +745,7 @@ export function AppShell() {
                 onClose={() => {
                     setUserMenuAnchor(null)
                 }}
+                sx={{ zIndex: 1700 }}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 slotProps={{

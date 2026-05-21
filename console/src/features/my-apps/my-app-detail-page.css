@@ -3,23 +3,113 @@
    ============================================ */
 
 .myapps-detail-overlay {
-    background-color: rgba(15, 23, 42, 0.18);
+    --myapps-detail-overlay: rgba(15, 23, 42, 0.18);
+    --myapps-detail-shell-bg: #ffffff;
+    --myapps-detail-surface: #ffffff;
+    --myapps-detail-surface-soft: #f8f9fc;
+    --myapps-detail-surface-muted: #edf2f7;
+    --myapps-detail-border: #eef2f7;
+    --myapps-detail-border-strong: #ced4da;
+    --myapps-detail-text: #364a63;
+    --myapps-detail-text-strong: #212529;
+    --myapps-detail-muted: #6c757d;
+    --myapps-detail-subtle: #98a6ad;
+    --myapps-detail-accent: #1767d1;
+    --myapps-detail-accent-hover: #1767d1;
+    --myapps-detail-accent-soft: rgba(23, 103, 209, 0.1);
+    --myapps-detail-accent-disabled: #dce9f8;
+    --myapps-detail-accent-contrast: #ffffff;
+    --myapps-detail-danger: #fa5c7c;
+    --myapps-detail-warning: #ffbc00;
+    --myapps-detail-warning-text: #313a46;
+    --myapps-detail-shadow-accent: 0 2px 6px rgba(114, 124, 245, 0.22);
+    --myapps-detail-shadow-accent-strong: 0 2px 6px rgba(104, 115, 236, 0.26);
+    --myapps-detail-shadow-focus-inner: rgba(255, 255, 255, 0.95);
+    --myapps-detail-shadow-focus-outer: rgba(114, 124, 245, 0.34);
+    --myapps-detail-shadow-card: 0 2px 8px rgba(15, 23, 42, 0.04);
+    --myapps-detail-shadow-shell: 0 16px 40px rgba(15, 23, 42, 0.16);
+    --myapps-detail-icon-shadow: 0 1px 0 rgba(34, 46, 156, 0.26);
+    --myapps-detail-action-bg: #eef2f7;
+    --myapps-detail-action-hover: #e2e8f0;
+    --myapps-detail-action-border: rgba(15, 23, 42, 0.08);
+    --myapps-detail-action-border-strong: rgba(203, 213, 225, 0.9);
+    --myapps-detail-action-text: #64748b;
+    --myapps-detail-action-text-hover: #111827;
+    --myapps-detail-action-disabled-bg: #eef2f6;
+    --myapps-detail-action-disabled-text: #94a3b8;
+    --myapps-detail-nav-hover-bg: #eef2f7;
+    --myapps-detail-nav-active-bg: rgba(59, 130, 246, 0.12);
+    --myapps-detail-nav-active-text: #2563eb;
+    background-color: var(--myapps-detail-overlay);
     padding: 24px 16px;
     overflow: auto;
     box-sizing: border-box;
 }
 
+.app-shell-root--dark .myapps-detail-overlay,
+.myapps-detail-overlay.is-dark {
+    --myapps-detail-overlay: rgba(2, 6, 23, 0.3);
+    --myapps-detail-shell-bg: #111827;
+    --myapps-detail-surface: #182235;
+    --myapps-detail-surface-soft: #162033;
+    --myapps-detail-surface-muted: #0f172a;
+    --myapps-detail-border: rgba(71, 85, 105, 0.52);
+    --myapps-detail-border-strong: rgba(71, 85, 105, 0.82);
+    --myapps-detail-text: #e5edf5;
+    --myapps-detail-text-strong: #f8fafc;
+    --myapps-detail-muted: #94a3b8;
+    --myapps-detail-subtle: #94a3b8;
+    --myapps-detail-accent: #1767d1;
+    --myapps-detail-accent-hover: #1767d1;
+    --myapps-detail-accent-soft: rgba(23, 103, 209, 0.2);
+    --myapps-detail-accent-disabled: rgba(23, 103, 209, 0.2);
+    --myapps-detail-accent-contrast: #ffffff;
+    --myapps-detail-danger: #fca5a5;
+    --myapps-detail-warning: rgba(251, 191, 36, 0.14);
+    --myapps-detail-warning-text: #fde68a;
+    --myapps-detail-shadow-accent: 0 2px 6px rgba(2, 6, 23, 0.28);
+    --myapps-detail-shadow-accent-strong: 0 2px 6px rgba(2, 6, 23, 0.34);
+    --myapps-detail-shadow-focus-inner: rgba(15, 23, 42, 0.95);
+    --myapps-detail-shadow-focus-outer: rgba(96, 165, 250, 0.32);
+    --myapps-detail-shadow-card: 0 2px 8px rgba(2, 6, 23, 0.2);
+    --myapps-detail-shadow-shell: 0 16px 40px rgba(2, 6, 23, 0.28);
+    --myapps-detail-icon-shadow: none;
+    --myapps-detail-action-bg: #1f2937;
+    --myapps-detail-action-hover: #334155;
+    --myapps-detail-action-border: rgba(255, 255, 255, 0.08);
+    --myapps-detail-action-border-strong: rgba(148, 163, 184, 0.22);
+    --myapps-detail-action-text: #9fb0c3;
+    --myapps-detail-action-text-hover: #e5edf5;
+    --myapps-detail-action-disabled-bg: #162033;
+    --myapps-detail-action-disabled-text: #64748b;
+    --myapps-detail-nav-hover-bg: #1f2937;
+    --myapps-detail-nav-active-bg: rgba(96, 165, 250, 0.16);
+    --myapps-detail-nav-active-text: #93c5fd;
+}
+
 .myapps-detail-shell {
     width: min(95%, 1440px);
     margin: 0 auto;
-    background: #fff;
-    font-family: 'Nunito', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+    background: var(--myapps-detail-shell-bg);
+    color: var(--myapps-detail-text);
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    box-shadow: var(--myapps-detail-shadow-shell);
+    border: 0;
+    border-radius: 0;
+}
+
+.myapps-detail-shell .MuiTypography-root,
+.myapps-detail-shell .MuiButtonBase-root,
+.myapps-detail-shell input,
+.myapps-detail-shell textarea,
+.myapps-detail-shell select {
+    font-family: inherit;
 }
 
 .myapps-detail-header {
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--myapps-detail-border);
     padding: 0;
+    background: var(--myapps-detail-shell-bg);
 }
 
 .myapps-detail-header-row {
@@ -46,18 +136,12 @@
     padding: 0 12px;
 }
 
-.myapps-detail-shell .appstore-item-content-title {
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
 .myapps-detail-title {
     margin: 2px 0 0;
-    font-size: 1.8rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    line-height: 1.15;
-    color: #364a63;
+    line-height: 1.25;
+    color: var(--myapps-detail-text);
 }
 
 .myapps-detail-status {
@@ -68,7 +152,7 @@
 }
 
 .myapps-detail-status-meta {
-    color: #98a6ad;
+    color: var(--myapps-detail-subtle);
     font-weight: 500;
 }
 
@@ -84,7 +168,7 @@
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
-    gap: 0;
+    gap: 8px;
     margin-left: auto;
     padding-right: 2px;
 }
@@ -95,11 +179,12 @@
     justify-content: center;
     width: auto;
     height: 36px;
-    padding: 6px 10px;
+    padding: 6px 12px;
     border-radius: 3px;
-    border: 1px solid #727cf5;
-    background: #727cf5;
-    color: #fff;
+    border: 1px solid var(--myapps-detail-accent) !important;
+    background-image: none !important;
+    background-color: var(--myapps-detail-accent) !important;
+    color: var(--myapps-detail-accent-contrast) !important;
     cursor: pointer;
     text-decoration: none;
     min-width: 36px;
@@ -108,7 +193,7 @@
     font-size: 14px;
     line-height: 1;
     margin-right: 10px;
-    box-shadow: 0 2px 6px rgba(114, 124, 245, 0.22);
+    box-shadow: none;
     flex: 0 0 auto;
     appearance: none;
     transform: none;
@@ -120,22 +205,24 @@
 .myapps-action-btn:focus-visible,
 .myapps-action-btn:active,
 .myapps-action-btn.is-busy {
-    background: #6873ec;
-    border-color: #6873ec;
-    color: #fff;
-    box-shadow: 0 2px 6px rgba(104, 115, 236, 0.26);
+    background-image: none !important;
+    background-color: var(--myapps-detail-accent-hover) !important;
+    border-color: var(--myapps-detail-accent-hover) !important;
+    color: var(--myapps-detail-accent-contrast) !important;
+    box-shadow: none;
     outline: none;
     transform: none;
 }
 
 .myapps-action-btn:focus-visible {
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 4px rgba(114, 124, 245, 0.34);
+    box-shadow: 0 0 0 2px var(--myapps-detail-shadow-focus-inner), 0 0 0 4px var(--myapps-detail-shadow-focus-outer);
 }
 
 .myapps-action-btn:disabled {
-    background: #cfd5ff;
-    border-color: #c7ceff;
-    color: #fff;
+    background-image: none !important;
+    background-color: var(--myapps-detail-accent-disabled) !important;
+    border-color: var(--myapps-detail-accent-disabled) !important;
+    color: var(--myapps-detail-accent-contrast) !important;
     opacity: 1;
     cursor: default;
     pointer-events: none;
@@ -143,17 +230,36 @@
 }
 
 .myapps-action-btn.is-state-disabled {
-    background: #cfd5ff;
-    border-color: #c7ceff;
-    color: #fff;
+    background-image: none !important;
+    background-color: var(--myapps-detail-accent-disabled) !important;
+    border-color: var(--myapps-detail-accent-disabled) !important;
+    color: var(--myapps-detail-accent-contrast) !important;
     box-shadow: none;
 }
 
 .myapps-action-btn.is-busy:disabled {
-    background: #6873ec;
-    border-color: #6873ec;
-    color: #fff;
-    box-shadow: 0 2px 6px rgba(104, 115, 236, 0.26);
+    background-image: none !important;
+    background-color: var(--myapps-detail-accent-hover) !important;
+    border-color: var(--myapps-detail-accent-hover) !important;
+    color: var(--myapps-detail-accent-contrast) !important;
+    box-shadow: none;
+}
+
+.myapps-action-btn-secondary {
+    border-color: var(--myapps-detail-action-border) !important;
+    background-image: none !important;
+    background-color: var(--myapps-detail-action-bg) !important;
+    color: var(--myapps-detail-action-text) !important;
+}
+
+.myapps-action-btn-secondary:hover,
+.myapps-action-btn-secondary:focus,
+.myapps-action-btn-secondary:focus-visible,
+.myapps-action-btn-secondary:active {
+    background-image: none !important;
+    background-color: var(--myapps-detail-action-hover) !important;
+    border-color: var(--myapps-detail-action-border-strong) !important;
+    color: var(--myapps-detail-action-text-hover) !important;
 }
 
 .myapps-action-btn .noti-icon,
@@ -169,7 +275,7 @@
 .myapps-action-btn .noti-icon {
     font-size: 16px;
     color: inherit;
-    text-shadow: 0 1px 0 rgba(34, 46, 156, 0.26);
+    text-shadow: none;
 }
 
 .myapps-action-btn:disabled .noti-icon,
@@ -181,20 +287,27 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: none !important;
-    border: none !important;
-    color: #98a6ad;
+    width: 38px;
+    height: 38px;
+    background-image: none !important;
+    background-color: var(--myapps-detail-action-bg) !important;
+    border: 1px solid var(--myapps-detail-action-border) !important;
+    color: var(--myapps-detail-action-text);
     cursor: pointer;
-    padding: 0 2px 0 4px;
+    padding: 0;
     margin-left: 0;
-    border-radius: 2px;
+    border-radius: 3px;
     font-size: 24px;
     line-height: 1;
     font-weight: 400;
+    box-shadow: none;
 }
 
 .myapps-close-btn:hover {
-    color: #495057;
+    background-image: none !important;
+    background-color: var(--myapps-detail-action-hover) !important;
+    border-color: var(--myapps-detail-action-border-strong) !important;
+    color: var(--myapps-detail-action-text-hover);
 }
 
 .myapps-detail-body {
@@ -244,45 +357,51 @@
     display: block;
     width: 100%;
     text-align: left;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     padding: 0.62rem 0.95rem;
     font-size: 0.9375rem;
-    font-weight: 400;
-    color: #727cf5;
-    border-radius: 3px;
+    font-weight: 500;
+    color: var(--myapps-detail-text);
+    border-radius: 0;
     cursor: pointer;
     line-height: 1.5;
     margin-bottom: 0;
     font-family: inherit;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .myapps-detail-nav-col .nav-link:hover {
-    background-color: rgba(114, 124, 245, 0.1);
-    color: #727cf5;
+    background-color: var(--myapps-detail-nav-hover-bg);
+    border-color: var(--myapps-detail-action-border);
+    color: var(--myapps-detail-text);
 }
 
 .myapps-detail-nav-col .nav-link.active {
-    background-color: #727cf5;
-    color: #fff;
+    background-color: var(--myapps-detail-nav-active-bg);
+    border-color: var(--myapps-detail-nav-active-bg);
+    color: var(--myapps-detail-nav-active-text);
     font-weight: 600;
 }
 
 .myapps-detail-nav-col .nav-link.active:hover {
-    background-color: #727cf5;
-    color: #fff;
+    background-color: var(--myapps-detail-nav-active-bg);
+    border-color: var(--myapps-detail-nav-active-bg);
+    color: var(--myapps-detail-nav-active-text);
 }
 
 .myapps-panel-header {
-    border-bottom: 1px solid #eef2f7;
-    padding-bottom: 12px;
+    border-bottom: 1px solid var(--myapps-detail-border);
+    background: transparent;
+    box-shadow: none;
+    padding: 0 0 12px;
     margin-bottom: 16px;
 }
 
 .myapps-panel-title {
     font-size: 1.05rem;
     font-weight: 600;
-    color: #495057;
+    color: var(--myapps-detail-text);
     margin: 0;
 }
 
@@ -294,30 +413,31 @@
     width: 210px;
     min-width: 210px;
     font-weight: 600;
-    color: #495057;
+    color: var(--myapps-detail-text);
     font-size: 14px;
     padding-right: 22px;
 }
 
 .myapps-overview-value {
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     font-size: 14px;
     word-break: break-all;
 }
 
 .myapps-card {
-    border: 1px solid #eef2f7;
-    background: #fff;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    border: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+    box-shadow: var(--myapps-detail-shadow-card);
 }
 
 .myapps-card-header {
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--myapps-detail-border);
     padding: 12px 18px 11px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    background: transparent;
 }
 
 .myapps-card-header-compact {
@@ -327,7 +447,7 @@
 .myapps-overview-title {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #364a63;
+    color: var(--myapps-detail-text);
     line-height: 1.35;
 }
 
@@ -344,7 +464,7 @@
 
 .myapps-overview-row td {
     padding: 16px 14px 16px 0;
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--myapps-detail-border);
     vertical-align: middle;
 }
 
@@ -352,13 +472,13 @@
     margin: 0 0 6px;
     font-size: 1rem;
     font-weight: 700;
-    color: #495057;
+    color: var(--myapps-detail-text);
     line-height: 1.35;
 }
 
 .myapps-uninstall-desc {
     margin: 0;
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     line-height: 1.5;
 }
 
@@ -387,10 +507,10 @@
     min-width: 58px;
     height: 32px;
     padding: 5px 12px;
-    border: 1px solid #ffbc00;
+    border: 1px solid var(--myapps-detail-warning);
     border-radius: 3px;
-    background: #ffbc00;
-    color: #313a46;
+    background: var(--myapps-detail-warning);
+    color: var(--myapps-detail-warning-text);
     font-size: 14px;
     font-weight: 400;
     cursor: pointer;
@@ -424,17 +544,17 @@
 .myapps-php-module-title {
     display: block;
     margin-bottom: 6px;
-    color: #495057;
+    color: var(--myapps-detail-text);
 }
 
 .myapps-php-module-list {
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     line-height: 1.65;
 }
 
 .myapps-php-module-divider {
     margin-top: 10px;
-    border-top: 1px solid #eef2f7;
+    border-top: 1px solid var(--myapps-detail-border);
 }
 
 .myapps-php-switch-row {
@@ -445,15 +565,15 @@
 }
 
 .myapps-php-switch-note {
-    color: #98a6ad;
+    color: var(--myapps-detail-subtle);
     font-style: italic;
 }
 
 .myapps-php-request-box {
     margin-top: 16px;
     padding: 14px 16px;
-    background: #f8f9fc;
-    border: 1px solid #e9ecef;
+    background: var(--myapps-detail-surface-soft);
+    border: 1px solid var(--myapps-detail-border);
     border-radius: 4px;
 }
 
@@ -471,7 +591,7 @@
 .myapps-php-request-label {
     width: 150px;
     min-width: 150px;
-    color: #495057;
+    color: var(--myapps-detail-text);
     font-size: 14px;
 }
 
@@ -479,11 +599,11 @@
 .myapps-php-request-textarea {
     width: 100%;
     max-width: 360px;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--myapps-detail-border-strong);
     border-radius: 4px;
     padding: 8px 12px;
-    color: #495057;
-    background: #fff;
+    color: var(--myapps-detail-text);
+    background: var(--myapps-detail-surface);
     font: inherit;
 }
 
@@ -514,20 +634,20 @@
 .myapps-database-table th,
 .myapps-database-table td {
     padding: 18px 10px;
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--myapps-detail-border);
     vertical-align: middle;
     text-align: left;
-    color: #495057;
+    color: var(--myapps-detail-text);
     font-size: 14px;
 }
 
 .myapps-database-table th {
     font-weight: 700;
-    color: #495057;
+    color: var(--myapps-detail-text);
 }
 
 .myapps-database-table td {
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
 }
 
 .myapps-database-password-cell {
@@ -544,7 +664,7 @@
 .myapps-database-icon-btn {
     background: none;
     border: none;
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     cursor: pointer;
     padding: 2px 4px;
     display: inline-flex;
@@ -560,12 +680,12 @@
 .myapps-card-title {
     font-size: 26px;
     font-weight: 700;
-    color: #364a63;
+    color: var(--myapps-detail-text);
     line-height: 1.2;
 }
 
 .myapps-card-desc {
-    color: #526484;
+    color: var(--myapps-detail-muted);
     font-size: 15px;
     margin-top: 4px;
 }
@@ -573,13 +693,13 @@
 .myapps-section-title {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #364a63;
+    color: var(--myapps-detail-text);
     line-height: 1.35;
 }
 
 .myapps-section-desc {
     margin-top: 4px;
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     font-size: 0.95rem;
     line-height: 1.5;
 }
@@ -590,19 +710,37 @@
     justify-content: center;
     height: 32px;
     padding: 5px 12px;
-    border: 1px solid #727cf5;
+    border: 1px solid var(--myapps-detail-accent);
     border-radius: 3px;
-    background: #727cf5;
-    color: #fff;
+    background: var(--myapps-detail-accent);
+    color: var(--myapps-detail-accent-contrast);
     text-decoration: none;
     cursor: pointer;
     font-size: 14px;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.myapps-card-header-btn:hover,
+.myapps-card-header-btn:focus,
+.myapps-card-header-btn:focus-visible {
+    background: var(--myapps-detail-accent-hover);
+    border-color: var(--myapps-detail-accent-hover);
+    color: var(--myapps-detail-accent-contrast);
+    outline: none;
 }
 
 .myapps-card-header-btn-secondary {
-    background: #fff;
-    color: #6c757d;
-    border-color: #ced4da;
+    background: var(--myapps-detail-action-bg);
+    color: var(--myapps-detail-action-text);
+    border-color: var(--myapps-detail-action-border);
+}
+
+.myapps-card-header-btn-secondary:hover,
+.myapps-card-header-btn-secondary:focus,
+.myapps-card-header-btn-secondary:focus-visible {
+    background: var(--myapps-detail-action-hover);
+    color: var(--myapps-detail-action-text-hover);
+    border-color: var(--myapps-detail-action-border-strong);
 }
 
 .myapps-card-header-actions {
@@ -624,7 +762,7 @@
 .myapps-detail-table th,
 .myapps-detail-table td {
     padding: 16px 14px;
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--myapps-detail-border);
     text-align: left;
     vertical-align: middle;
     font-size: 14px;
@@ -632,11 +770,11 @@
 
 .myapps-detail-table th {
     font-weight: 700;
-    color: #495057;
+    color: var(--myapps-detail-text);
 }
 
 .myapps-detail-table td {
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
 }
 
 .myapps-cell-center {
@@ -658,18 +796,18 @@
     padding: 0;
     border: none;
     background: none;
-    color: #727cf5;
+    color: var(--myapps-detail-accent);
     cursor: pointer;
     font-size: 14px;
 }
 
 .myapps-inline-link-danger {
-    color: #fa5c7c;
+    color: var(--myapps-detail-danger);
 }
 
 .myapps-empty-cell {
     padding: 32px 12px !important;
-    color: #98a6ad !important;
+    color: var(--myapps-detail-subtle) !important;
     text-align: center !important;
 }
 
@@ -693,7 +831,7 @@
 
 .myapps-compose-config-version {
     margin: 0 0 16px;
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     font-size: 14px;
 }
 
@@ -702,13 +840,13 @@
     padding: 0;
     border: none;
     background: none;
-    color: #98a6ad;
+    color: var(--myapps-detail-subtle);
     cursor: pointer;
     font-size: 14px;
 }
 
 .myapps-compose-back-btn:disabled {
-    color: #ced4da;
+    color: var(--myapps-detail-border-strong);
     cursor: default;
 }
 
@@ -736,11 +874,11 @@
 .myapps-access-summary-title {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #212529;
+    color: var(--myapps-detail-text-strong);
 }
 
 .myapps-access-summary-desc {
-    color: #495057;
+    color: var(--myapps-detail-text);
     font-size: 14px;
     line-height: 1.5;
 }
@@ -749,13 +887,13 @@
     border: none;
     background: none;
     padding: 0;
-    color: #727cf5;
+    color: var(--myapps-detail-accent);
     cursor: pointer;
     font-size: 14px;
 }
 
 .myapps-access-card {
-    border-color: #e6e9ef;
+    border-color: var(--myapps-detail-border);
 }
 
 .myapps-access-card-header {
@@ -778,11 +916,11 @@
 .myapps-access-domain-field {
     flex: 1;
     min-height: 38px;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--myapps-detail-border-strong);
     border-radius: 4px;
     padding: 8px 12px;
-    color: #495057;
-    background: #fff;
+    color: var(--myapps-detail-text);
+    background: var(--myapps-detail-surface);
     text-decoration: none;
     display: flex;
     align-items: center;
@@ -806,7 +944,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #6c757d;
+    color: var(--myapps-detail-muted);
     font-size: 14px;
 }
 
@@ -815,7 +953,7 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 12px;
-    color: #495057;
+    color: var(--myapps-detail-text);
 }
 
 .myapps-access-link-label {
@@ -836,7 +974,7 @@
 
 .myapps-access-account-label {
     width: 170px;
-    color: #212529;
+    color: var(--myapps-detail-text-strong);
     font-weight: 700;
     font-size: 15px;
 }
@@ -852,11 +990,11 @@
     flex: 1;
     min-width: 0;
     height: 38px;
-    border: 1px solid #ced4da;
+    border: 1px solid var(--myapps-detail-border-strong);
     border-radius: 4px;
     padding: 0 12px;
-    color: #6c757d;
-    background: #edf2f7;
+    color: var(--myapps-detail-muted);
+    background: var(--myapps-detail-surface-muted);
 }
 
 .myapps-access-account-actions {
@@ -866,14 +1004,14 @@
 }
 
 .myapps-table-action-link {
-    color: #727cf5;
+    color: var(--myapps-detail-accent);
     text-decoration: none;
     display: inline-flex;
     align-items: center;
 }
 
 .myapps-table-action-link:hover {
-    color: #626be6;
+    color: var(--myapps-detail-accent-hover);
 }
 
 .myapps-detail-shell .noti-icon {
@@ -932,6 +1070,10 @@
 }
 
 @media (max-width: 900px) {
+    .myapps-detail-body {
+        padding: 16px;
+    }
+
     .myapps-detail-layout {
         flex-direction: column;
     }
@@ -947,7 +1089,6 @@
 
     .myapps-detail-actions {
         justify-content: flex-start;
-        flex-wrap: wrap;
     }
 
     .myapps-card-header {

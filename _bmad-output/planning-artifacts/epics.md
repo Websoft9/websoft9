@@ -670,39 +670,44 @@ so that core protection and recovery flows remain available before upgrade work 
 
 ### Story 4.5: Build the controlled file-management workspace
 
-As an operator maintaining application mounts and managed files,
-I want a controlled file-management workspace,
-so that configuration maintenance remains possible without exposing the full host filesystem.
+As an operator maintaining current-host application files and configuration,
+I want a controlled file-management workspace backed by the current host,
+so that configuration maintenance remains possible through Websoft9 without exposing raw SSH/SFTP access to the browser.
 
 **Acceptance Criteria:**
 
-**Given** the user opens file management
-**When** a target application, volume, or mount is selected
-**Then** the UI only exposes Websoft9-managed volumes, mount paths, or controlled file areas
-**And** the workspace clearly labels the application or mount ownership boundary.
+**Given** the user opens host file management for the first time
+**When** no current-host authorization is bound yet
+**Then** Websoft9 asks for one current-host SSH authorization flow
+**And** reuses that authorization for later host file operations.
 
-**Given** the user uploads, downloads, creates, renames, edits, or deletes files
+**Given** the user browses, uploads, downloads, creates, renames, edits, or deletes host files
 **When** the action completes
-**Then** the operation stays inside the controlled boundary
-**And** the system does not expose the full host file tree.
+**Then** AppHub executes the operation through a product-owned SSH/SFTP bridge to the current host
+**And** the browser never receives direct SSH/SFTP connectivity.
+
+**Given** the user opens file browsing from the current application's detail surface
+**When** the target is one of that application's managed volumes
+**Then** Websoft9 preserves the existing volume-scoped file capability for that application
+**And** the browser still stays behind AppHub-owned APIs without expanding into unrestricted host browsing.
 
 ### Story 4.6: Build the controlled terminal bridge and session audit
 
 As an operator performing advanced diagnostics,
-I want a controlled terminal bridge with session records,
-so that necessary terminal access is preserved without collapsing security boundaries.
+I want a controlled terminal workspace with shared current-host authorization and session records,
+so that necessary terminal access is preserved without collapsing security boundaries and can later converge with host file access under one menu.
 
 **Acceptance Criteria:**
 
-**Given** the user is authorized to open terminal access
-**When** the terminal workspace starts
-**Then** Websoft9 establishes the session through a controlled bridge
-**And** the capability remains protected by the login context.
+**Given** the user opens the terminal workspace and no current-host authorization has been bound yet
+**When** the authorization succeeds
+**Then** Websoft9 stores one current-host SSH authorization profile under the product-auth boundary
+**And** the terminal workspace can reuse it without prompting on every entry.
 
 **Given** a terminal session starts, exits, or fails
-**When** the session metadata is recorded
+**When** Websoft9 establishes the PTY session through the SSH bridge
 **Then** the system records at least user, source, start time, and result
-**And** host shell permissions are not reimplemented as a second internal permission model.
+**And** host shell permissions continue to derive from the bound SSH user rather than from a second internal permission model.
 
 ### Story 4.7: Build the core services view and log drilldown
 

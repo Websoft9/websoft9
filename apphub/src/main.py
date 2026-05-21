@@ -1,11 +1,14 @@
 import logging, os, sys
-from fastapi import FastAPI, Request,Security,Depends
+from uuid import uuid4
+from fastapi import FastAPI, Request, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
+from starlette.requests import HTTPConnection
 from src.api.v1.routers import app as api_app
 from src.api.v1.routers import auth as api_auth
 from src.api.v1.routers import files as api_files
+from src.api.v1.routers import host_access as api_host_access
 from src.api.v1.routers import integrations as api_integrations
 from src.api.v1.routers import logs as api_logs
 from src.api.v1.routers import overview as api_overview
@@ -16,35 +19,32 @@ from src.api.v1.routers import backup as api_backup
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.api_key_auth import should_skip_api_key_auth
-from src.core.logger import logger
+from src.core.logger import clear_logging_context, logger, set_request_id
 from src.core.request_auth import has_valid_internal_gateway_auth
 from src.schemas.errorResponse import ErrorResponse
-from fastapi.security.api_key import APIKeyHeader
 
-# set uvicorn logger to stdout
 uvicorn_logger = logging.getLogger("uvicorn")
-stdout_handler = logging.StreamHandler(sys.stdout)
-uvicorn_logger.addHandler(stdout_handler)
 uvicorn_logger.setLevel(logging.INFO)
 
 API_KEY_NAME = "x-api-key"
 INTERNAL_GATEWAY_TRUST_KEY_FILE = os.getenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", "/etc/custom/internal-gateway-auth/trust_key")
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
-async def verify_key(request: Request, api_key_header: str = Security(api_key_header)):
+async def verify_key(connection: HTTPConnection):
     # logger.access("request.url.path: "+request.url.path)
     """
     Verify API Key
     """
-    if should_skip_api_key_auth(request.url.path):
+    if should_skip_api_key_auth(connection.url.path):
         return None
+
+    api_key_header = connection.headers.get(API_KEY_NAME)
 
     internal_gateway_secret = None
     if os.path.exists(INTERNAL_GATEWAY_TRUST_KEY_FILE):
         with open(INTERNAL_GATEWAY_TRUST_KEY_FILE, "r", encoding="utf-8") as handle:
             internal_gateway_secret = handle.read().strip() or None
 
-    if has_valid_internal_gateway_auth(request.headers, internal_gateway_secret):
+    if has_valid_internal_gateway_auth(connection.headers, internal_gateway_secret):
         return None
 
     # validate api key is provided
@@ -86,6 +86,18 @@ app = FastAPI(
         servers=[{"url": "/api"}],
         dependencies=[Depends(verify_key)],
     )
+
+
+@app.middleware("http")
+async def request_logging_context(request: Request, call_next):
+    request_id = request.headers.get("x-request-id") or str(uuid4())
+    set_request_id(request_id)
+    try:
+        response = await call_next(request)
+        response.headers.setdefault("x-request-id", request_id)
+        return response
+    finally:
+        clear_logging_context()
 
 @app.get("/healthz", include_in_schema=False)
 async def healthz():
@@ -136,6 +148,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(api_app.router,tags=["apps"])
 app.include_router(api_auth.router,tags=["auth"])
 app.include_router(api_files.router,tags=["files"])
+app.include_router(api_host_access.router,tags=["host-access"])
 app.include_router(api_integrations.router,tags=["integrations"])
 app.include_router(api_logs.router,tags=["logs"])
 app.include_router(api_overview.router,tags=["overview"])

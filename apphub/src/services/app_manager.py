@@ -45,6 +45,7 @@ class AppManger:
     _cache = {}
     _cache_timestamps = {}
     _cache_ttl = 300  # 5分钟缓存
+    _missing_stack_containers_error = "No containers were created for this stack."
     
     @classmethod
     def clear_cache(cls):
@@ -126,6 +127,26 @@ class AppManger:
                 proxy_hosts_by_app.setdefault(app_id, []).append(proxy_host)
         return proxy_hosts_by_app
 
+    def _get_proxy_hosts_safe(self) -> list[dict]:
+        try:
+            return ProxyManager().get_proxy_hosts()
+        except CustomException as exc:
+            logger.warning(f"Proxy host listing unavailable during app inventory: {exc.details or exc.message}")
+            return []
+        except Exception as exc:
+            logger.warning(f"Proxy host listing unavailable during app inventory: {exc}")
+            return []
+
+    def _get_proxy_host_by_app_safe(self, app_id: str) -> list[dict]:
+        try:
+            return ProxyManager().get_proxy_host_by_app(app_id)
+        except CustomException as exc:
+            logger.warning(f"Proxy host lookup unavailable for app {app_id}: {exc.details or exc.message}")
+            return []
+        except Exception as exc:
+            logger.warning(f"Proxy host lookup unavailable for app {app_id}: {exc}")
+            return []
+
     def _group_volumes_by_app(self, volumes: list[dict] | None) -> dict[str, list[dict]]:
         volumes_by_app: dict[str, list[dict]] = {}
         for volume in volumes or []:
@@ -148,6 +169,11 @@ class AppManger:
     def _normalize_locale(self, locale: str | None) -> str:
         normalized_locale = (locale or "en").strip().lower()
         return "zh" if normalized_locale.startswith("zh") else "en"
+
+    def _resolve_stack_runtime_state(self, stack_status: int, stack_containers: list[dict] | None) -> Tuple[int, str | None]:
+        if stack_status == 1 and not stack_containers:
+            return 4, self._missing_stack_containers_error
+        return stack_status, None
 
     def _ensure_media_asset(self, file_name: str) -> str:
         base_path = ConfigManager("system.ini").get_value("app_media", "path")
@@ -521,7 +547,7 @@ class AppManger:
             # Get the stacks by endpointId from portainer
             stacks = portainerManager.get_stacks(endpointId)
             all_containers = portainerManager.get_containers(endpointId)
-            proxy_hosts_by_app = self._group_proxy_hosts_by_app(ProxyManager().get_proxy_hosts())
+            proxy_hosts_by_app = self._group_proxy_hosts_by_app(self._get_proxy_hosts_safe())
 
             stack_names = {
                 stack.get("Name")
@@ -550,6 +576,7 @@ class AppManger:
                     is_php_app, is_monitor_app = self._get_capability_flags(app_name)
                     app_env_format: dict[str, str] = {}
                     stack_containers = containers_by_project.get(stack_name, [])
+                    stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, stack_containers)
                     stack_volumes = portainerManager.get_volumes_by_stack_name(stack_name, endpointId, False)
 
                     app_info = AppResponse(
@@ -569,6 +596,7 @@ class AppManger:
                         containers=stack_containers,
                         volumes=stack_volumes,
                         env=app_env_format,
+                        error=stack_error,
                     )
                     apps_info.append(app_info)
 
@@ -638,7 +666,7 @@ class AppManger:
                     app_name=app.get("app_name", None),
                     app_official=app.get("app_official", None),
                     error=app.get("error", None),
-                    logs=None
+                    logs=app.get("logs", None),
                 )
                 apps_info.append(app_response)
 
@@ -672,7 +700,7 @@ class AppManger:
                 fallback_app = next((app for app in self.get_apps(endpointId) if app.app_id == app_id), None)
                 if fallback_app is not None:
                     return fallback_app
-                domain_names = ProxyManager().get_proxy_host_by_app(app_id)
+                domain_names = self._get_proxy_host_by_app_safe(app_id)
                 proxy_enabled = len(domain_names) > 0
                 app_name = self._guess_app_name_from_app_id(app_id)
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
@@ -710,7 +738,7 @@ class AppManger:
             # Get the creationDate
             creationDate = stack_info.get("CreationDate","")
             # Get the domain_names by app_id from nginx proxy manager
-            domain_names = ProxyManager().get_proxy_host_by_app(app_id)
+            domain_names = self._get_proxy_host_by_app_safe(app_id)
             # Set the proxy_enabled
             if not domain_names:
                 proxy_enabled = False
@@ -718,12 +746,11 @@ class AppManger:
                 proxy_enabled = True
             # Get the volumes by app_id from portainer
             app_volumes = portainerManager.get_volumes_by_stack_name(app_id,endpointId,False)
+            app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId) if stack_status == 1 else []
+            stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, app_containers)
 
             # if stack is empty(status=2-inactive),can not get it
             if stack_status == 1:
-                # Get the containers by app_id from portainer
-                app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId)
-                
                 # Get the main container
                 main_container_id = None
                 app_env = []
@@ -760,27 +787,31 @@ class AppManger:
                     gitConfig = gitConfig,
                     containers = app_containers,
                     volumes = app_volumes,
-                    env = app_env_format
+                    env = app_env_format,
+                    error = stack_error,
                 )
                 return appResponse
             else:
+                app_name = self._guess_app_name_from_app_id(app_id)
+                is_php_app, is_monitor_app = self._get_capability_flags(app_name)
                 appResponse = AppResponse(
                     app_id = app_id,
                     endpointId = endpointId,
-                    app_name = "",
+                    app_name = app_name,
                     app_dist = "",
                     app_version = "",
                     app_official = True,
-                    is_php_app = False,
-                    is_monitor_app = False,
+                    is_php_app = is_php_app,
+                    is_monitor_app = is_monitor_app,
                     proxy_enabled = proxy_enabled,
                     domain_names = domain_names,
                     status = stack_status,
                     creationDate = creationDate,
                     gitConfig = gitConfig,
-                    containers = [],
+                    containers = app_containers,
                     volumes = app_volumes,
-                    env = {}
+                    env = {},
+                    error = stack_error,
                 )
                 return appResponse
         except CustomException as e:
@@ -943,6 +974,8 @@ class AppManger:
             logger.error(f"Pull docker image error: {e}")
             raise CustomException()
 
+        stack_id = None
+
         # Install app - Step 4 : create stack in portainer
         try:
             add_installing_logs(app_uuid,"Starting the services","")
@@ -956,11 +989,24 @@ class AppManger:
 
             # Get the stack_id
             stack_id = stack_info.get("Id")
+            stack_containers = portainerManager.wait_for_stack_containers(app_id, endpointId)
+            if not stack_containers:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=self._missing_stack_containers_error,
+                )
         except CustomException as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
-            # Remove volumes
-            portainerManager.remove_vloumes(app_id,endpointId)
+            # Remove stack and volumes when a stack record was already created.
+            if stack_id is not None:
+                try:
+                    portainerManager.remove_stack_and_volumes(stack_id,endpointId)
+                except Exception:
+                    portainerManager.remove_vloumes(app_id,endpointId)
+            else:
+                portainerManager.remove_vloumes(app_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,e.details)
             remove_installation_logs(app_uuid)
@@ -968,8 +1014,14 @@ class AppManger:
         except Exception as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
-            # Remove volumes
-            portainerManager.remove_vloumes(app_id,endpointId)
+            # Remove stack and volumes when a stack record was already created.
+            if stack_id is not None:
+                try:
+                    portainerManager.remove_stack_and_volumes(stack_id,endpointId)
+                except Exception:
+                    portainerManager.remove_vloumes(app_id,endpointId)
+            else:
+                portainerManager.remove_vloumes(app_id,endpointId)
             # modify app status: error
             modify_app_information(app_uuid,"Create stack error")
             remove_installation_logs(app_uuid)

@@ -1,0 +1,424 @@
+#!/bin/bash
+
+action=$1
+target=$2
+args=$@
+
+BASE_DIR=directory
+ORIGINAL_PORT=port
+ORIGINAL_VERSION=v2.1.12
+ORIGINAL_ENTRANCE=entrance
+ORIGINAL_USERNAME=username
+ORIGINAL_PASSWORD=password
+LANGUAGE=en
+PANEL_EDITION=cn
+
+if [ -f "/usr/local/bin/lang/$LANGUAGE.sh" ]; then
+    source "/usr/local/bin/lang/$LANGUAGE.sh"
+else
+    LANGUAGE=en
+fi
+
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        echo "$TXT_RUN_AS_ROOT"
+        exit 1
+    fi
+}
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+generate_border_line() {
+    local width="$1"
+    local char="${2:-=}"
+    local color="${3:-$NC}"
+    printf "${color}%${width}s${NC}\n" | tr ' ' "$char"
+}
+
+print_centered_title() {
+    local title="$1"
+    local total_width="${2:-50}"
+    local border_char="${3:-=}"
+    local color="${4:-$NC}"
+    local title_length=${#title}
+    local padding=$(( (total_width - title_length) / 2 ))
+    local border_line=$(generate_border_line "$total_width" "$border_char" "$color")
+
+    echo "$border_line"
+    printf "${color}%*s%s${NC}\n" $padding "" "$title"
+    echo "$border_line"
+}
+
+function usage() {
+    print_centered_title "$TXT_PANEL_CONTROL_SCRIPT" 60 "-" "$BLUE"
+    echo -e  "${YELLOW}Usage:${NC}"
+    echo "  ./1pctl [COMMAND] [ARGS...]"
+    echo "  ./1pctl --help"
+    echo
+    echo -e "${YELLOW}Commands:${NC}"
+    echo -e "  ${GREEN}status${NC} [core|agent]         ${YELLOW}$TXT_PANEL_SERVICE_STATUS${NC}"
+    echo -e "  ${GREEN}start${NC} [core|agent|all]      ${YELLOW}$TXT_PANEL_SERVICE_START${NC}"
+    echo -e "  ${GREEN}stop${NC} [core|agent|all]       ${YELLOW}$TXT_PANEL_SERVICE_STOP${NC}"
+    echo -e "  ${GREEN}restart${NC} [core|agent|all]    ${YELLOW}$TXT_PANEL_SERVICE_RESTART${NC}"
+    echo -e "  ${RED}uninstall${NC}                   ${YELLOW}$TXT_PANEL_SERVICE_UNINSTALL${NC}"
+    echo -e "  ${GREEN}user-info${NC}                   ${YELLOW}$TXT_PANEL_SERVICE_USER_INFO${NC}"
+    echo -e "  ${GREEN}listen-ip${NC}                   ${YELLOW}$TXT_PANEL_SERVICE_LISTEN_IP${NC}"
+    echo -e "  ${GREEN}version${NC}                     ${YELLOW}$TXT_PANEL_SERVICE_VERSION${NC}"
+    echo -e "  ${GREEN}update${NC}                      ${YELLOW}$TXT_PANEL_SERVICE_UPDATE${NC}"
+    echo -e "  ${RED}reset${NC}                       ${YELLOW}$TXT_PANEL_SERVICE_RESET${NC}"
+    echo -e "  ${RED}restore${NC}                     ${YELLOW}$TXT_PANEL_SERVICE_RESTORE${NC}"
+    generate_border_line 60 "-" "$BLUE"
+}
+
+_service_manager() {
+    local service_name=$1
+    if command -v systemctl &>/dev/null; then
+        service_manager="systemctl"
+        service_target="${service_name}.service"
+    elif command -v rc-service &>/dev/null; then
+        service_manager="openrc"
+        service_target="${service_name}"
+    else
+        service_manager="sysvinit"
+        service_target="${service_name}"
+    fi
+}
+
+_service_cmd() {
+    local service_name=$1
+    local cmd=$2
+    local success_msg=$3
+    local error_msg=$4
+
+    _service_manager $service_name
+
+    case $service_manager in
+    systemctl)
+        if  systemctl "$cmd" "$service_target" >/dev/null 2>&1; then echo "$success_msg"; else echo "$error_msg"; fi
+        ;;
+    openrc)
+        if rc-service "$service_target" "$cmd" >/dev/null 2>&1; then echo "$success_msg"; else echo "$error_msg"; fi
+        ;;
+    *)
+        if service "$service_target" "$cmd" >/dev/null 2>&1; then echo "$success_msg"; else echo "$error_msg"; fi
+        ;;
+    esac
+}
+
+function require_core_agent_or_all() {
+    echo -e "$TXT_PANEL_SERVICE_REQUIRE_CORE_AGENT_OR_ALL"
+    exit 1
+}
+
+function status() {
+    print_centered_title "$TXT_PANEL_SERVICE_STATUS" 60 "-" "$BLUE"
+    if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
+        for svc in core agent; do
+            _service_cmd 1panel-$svc "status" \
+                "🟢[OK]$TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_PANEL_GEN_STATUS_RUNNING" \
+                "🔴[FAIL]$TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_PANEL_GEN_STATUS_STOPPED"
+        done
+
+    else
+        case "$target" in
+            core|agent)
+                _service_cmd 1panel-$target "status" \
+                    "🟢[OK]$TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_PANEL_GEN_STATUS_RUNNING" \
+                    "🔴[FAIL]$TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_PANEL_GEN_STATUS_STOPPED"
+                ;;
+            *)
+                require_core_agent_or_all
+                ;;
+        esac
+    fi
+    generate_border_line 60 "-" "$BLUE"
+}
+
+function start() {
+    print_centered_title "$TXT_PANEL_SERVICE_START" 60 "-" "$BLUE"
+    if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
+        for svc in core agent; do
+            _service_cmd 1panel-$svc "start" \
+                "🟢[OK]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_SUCCESSFULLY_MESSAGE" \
+                "🔴[FAIL]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_FAIELD_MESSAGE"
+        done
+    else
+        case "$target" in
+            core|agent)
+                _service_cmd 1panel-$target "start" \
+                "🟢[OK]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_SUCCESSFULLY_MESSAGE" \
+                "🔴[FAIL]$TXT_PANEL_GEN_START $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_FAIELD_MESSAGE"
+                ;;
+            *)
+                require_core_agent_or_all
+                ;;
+        esac
+    fi
+    generate_border_line 60 "-" "$BLUE"
+}
+
+function stop() {
+    print_centered_title "$TXT_PANEL_SERVICE_STOP" 60 "=" "$RED"
+    check_root
+    if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
+        for svc in core agent; do
+            _service_cmd 1panel-$svc "stop" \
+                "🟢[OK]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_SUCCESSFULLY_MESSAGE" \
+                "🔴[FAIL]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_FAIELD_MESSAGE"
+        done
+    else
+        _service_cmd 1panel-$target "stop" \
+        "🟢[OK]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_SUCCESSFULLY_MESSAGE" \
+        "🔴[FAIL]$TXT_PANEL_GEN_STOP $TXT_PANEL_GEN_SERVICE_NAME${target^}: $TXT_FAIELD_MESSAGE"
+    fi
+    generate_border_line 60 "-" "$RED"
+}
+
+function restart() {
+    print_centered_title "$TXT_PANEL_SERVICE_RESTART" 60 "+" "$YELLOW"
+    check_root
+    if [[ -z "$target" ]] || [[ "$target" == "all" ]]; then
+        for svc in core agent; do
+            _service_cmd 1panel-$svc "restart" \
+                "🟢[OK]$TXT_PANEL_GEN_RESTART $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_SUCCESSFULLY_MESSAGE" \
+                "🔴[FAIL]$TXT_PANEL_GEN_RESTART $TXT_PANEL_GEN_SERVICE_NAME${svc^}: $TXT_FAIELD_MESSAGE"
+        done
+    else
+        _service_cmd 1panel-$target "restart" \
+        "🟢[OK]$TXT_PANEL_GEN_RESTART 1Panel-$target: $TXT_SUCCESSFULLY_MESSAGE" \
+        "🔴[FAIL]$TXT_PANEL_GEN_RESTART 1Panel-$target: $TXT_FAIELD_MESSAGE"
+    fi
+    generate_border_line 60 "-" "$YELLOW"
+}
+
+function uninstall() {
+    print_centered_title "$TXT_PANEL_SERVICE_UNINSTALL" 60 "=" "$RED"
+    check_root
+    while true; do
+        read -p "$TXT_PANEL_SERVICE_UNINSTALL_NOTICE" yn
+        case $yn in
+            [Yy] )
+                echo -e "$TXT_PANEL_SERVICE_UNINSTALL_START"
+                _service_manager
+                
+                case $service_manager in
+                    systemctl)
+                        systemctl stop 1panel-core.service
+                        systemctl stop 1panel-agent.service
+                        systemctl disable 1panel-core.service >/dev/null 2>&1
+                        systemctl disable 1panel-agent.service >/dev/null 2>&1
+                        rm -rf /etc/systemd/system/{1panel-core.service,1panel-agent.service}
+                        echo -e "$TXT_PANEL_SERVICE_UNINSTALL_REMOVE_CONFIG"
+                        systemctl daemon-reload
+                        systemctl reset-failed
+                        ;;
+                    openrc)
+                        rc-service 1panel-core stop
+                        rc-service 1panel-agent stop
+                        rc-update del 1panel-core >/dev/null 2>&1
+                        rc-update del 1panel-agent >/dev/null 2>&1
+                        rm -rf /etc/init.d/{1panel-core,1panel-agent}
+                        ;;
+                    *)
+                        service 1panel-core stop
+                        service 1panel-agent stop
+                        rm -rf /etc/init.d/{1panel-core,1panel-agent}
+                        ;;
+                esac
+
+                rm -rf /usr/local/bin/{1pctl,1panel-core,1panel-agent,lang} \
+                        /usr/bin/{1pctl,1panel,1panel-core,1panel-agent} \
+                        /etc/1panel
+
+                while true; do
+                    read -p "$TXT_PANEL_DATA_KEEP_PROMPT" keep_data
+                    case $keep_data in
+                        [Yy] )
+                            echo "$TXT_PANEL_DATA_DELETE"
+                            rm -rf $BASE_DIR/1panel
+                            break
+                            ;;
+                        [Nn] )
+                            echo "$TXT_PANEL_DATA_KEEP"
+                            break
+                            ;;
+                        * )
+                            echo "$TXT_INVALID_YN_INPUT"
+                            ;;
+                    esac
+                done
+
+                echo -e "$TXT_PANEL_SERVICE_UNINSTALL_REMOVE_SUCCESS"
+                break
+                ;;
+            [Nn] )
+                exit 0
+                ;;
+            * )
+                echo "$TXT_INVALID_YN_INPUT"
+                ;;
+        esac
+    done
+    generate_border_line 60 "-" "$NC"
+}
+
+function user-info() {
+    print_centered_title "$TXT_PANEL_SERVICE_USER_INFO" 60 "=" "$BLUE"
+    1panel -l $LANGUAGE user-info
+    generate_border_line 60 "-" "$BLUE"
+}
+
+function listen-ip() {
+    print_centered_title "$TXT_PANEL_SERVICE_LISTEN_IP" 60 "=" "$BLUE"
+    case "${target}" in
+        ipv4)
+            1panel -l $LANGUAGE listen-ip ipv4
+            target=all
+            restart
+            ;;
+        ipv6)
+            1panel -l $LANGUAGE listen-ip ipv6
+            target=all
+            restart
+            ;;
+        *)
+            1panel -l $LANGUAGE listen-ip
+            ;;
+    esac
+    generate_border_line 60 "-" "$BLUE"
+}
+
+function restore() {
+    print_centered_title "$TXT_PANEL_SERVICE_RESTORE" 60 "=" "$YELLOW"
+    check_root
+    while true; do
+        read -p "$TXT_PANEL_SERVICE_RESTORE_NOTICE" yn
+        case "$yn" in
+            [Yy])
+                1panel -l $LANGUAGE restore
+                read -t 0.1 _ || true
+                break
+                ;;
+            [Nn])
+                exit 0
+                ;;
+            *)
+                echo -e "$TXT_INVALID_YN_INPUT"
+                ;;
+        esac
+    done
+    generate_border_line 60 "-" "$YELLOW"
+}
+
+function version() {
+    print_centered_title "$TXT_PANEL_SERVICE_VERSION" 60 "-" "$BLUE"
+    1panel -l $LANGUAGE version
+    generate_border_line 60 "-" "$BLUE"
+}
+
+function reset() {
+    print_centered_title "$TXT_PANEL_SERVICE_RESET" 60 "=" "$YELLOW"
+    check_root
+    case "${target}" in
+        domain)
+            1panel -l $LANGUAGE reset domain
+            ;;
+        entrance)
+            1panel -l $LANGUAGE reset entrance
+            ;;
+        https)
+            1panel -l $LANGUAGE reset https
+            target=all
+            restart
+            ;;
+        ips)
+            1panel -l $LANGUAGE reset ips
+            ;;
+        mfa)
+            1panel -l $LANGUAGE reset mfa
+            ;;
+        passkey)
+            1panel -l $LANGUAGE reset passkey
+            ;;
+        *)
+            1panel -l $LANGUAGE reset
+            ;;
+    esac
+    generate_border_line 60 "-" "$YELLOW"
+}
+
+function update() {
+    print_centered_title "$TXT_PANEL_SERVICE_UPDATE" 60 "=" "$YELLOW"
+    check_root
+    case "${target}" in
+        username)
+            1panel -l $LANGUAGE update username
+            ;;
+        password)
+            1panel -l $LANGUAGE update password
+            ;;
+        port)
+            1panel -l $LANGUAGE update port
+            ;;
+        *)
+            1panel -l $LANGUAGE update
+            ;;
+    esac
+    generate_border_line 60 "-" "$YELLOW"
+}
+
+function main() {
+    case "${action}" in
+        status)
+            status
+            ;;
+        start)
+            start
+            ;;
+        stop)
+            stop
+            ;;
+        restart)
+            restart
+            ;;
+        restore)
+            restore
+            ;;
+        uninstall)
+            uninstall
+            ;;
+        user-info)
+            user-info
+            ;;
+        listen-ip)
+            listen-ip
+            ;;
+        version)
+            version
+            ;;
+        reset)
+            reset
+            ;;
+        update)
+            update
+            ;;
+        help)
+            usage
+            ;;
+        --help)
+            usage
+            ;;
+        "")
+            usage
+            ;;
+        *)
+            echo "$TXT_PANEL_SERVICE_UNSUPPORTED_PARAMETER"
+            ;;
+    esac
+}
+
+main
