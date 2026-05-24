@@ -1,0 +1,31 @@
+services:
+  gateway:
+    image: python:3.12-alpine
+    command:
+      - sh
+      - -c
+      - |
+          mkdir -p /srv
+          echo 'gateway-ok' > /srv/index.html
+          python -m http.server 80 -d /srv &
+          exec python -m http.server 8081 -d /srv
+    ports:
+      - "18080:80"
+      - "18081:8081"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  app:
+    image: traefik/whoami:v1.10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

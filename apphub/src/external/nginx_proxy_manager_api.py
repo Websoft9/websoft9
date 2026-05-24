@@ -108,6 +108,7 @@ class NginxProxyManagerAPI:
         forward_port: int,
         advanced_config: str,
         certificate_id: int | None = None,
+        ssl_forced: bool = False,
     ):
         """
         Create a new proxy host
@@ -139,7 +140,7 @@ class NginxProxyManagerAPI:
                 "http2_support": False,
                 "hsts_enabled": False,
                 "hsts_subdomains": False,
-                "ssl_forced": False,
+                "ssl_forced": ssl_forced,
                 "locations": [],
             },
         )
@@ -184,4 +185,27 @@ class NginxProxyManagerAPI:
         """
         return self.api.get(
             path="nginx/certificates", params={"expand": "owner,proxy_hosts,dead_hosts,redirection_hosts"}
+        )
+
+    def create_certificate(self, domain_names: List[str], email: str):
+        """
+        Request a Let's Encrypt certificate.
+
+        Args:
+            domain_names (List[str]): Domain names to include in the certificate
+            email (str): Let's Encrypt account email
+
+        Returns:
+            Response: Response from Nginx Proxy Manager API
+        """
+        return self.api.post(
+            path="nginx/certificates",
+            json={
+                "provider": "letsencrypt",
+                "domain_names": domain_names,
+                "meta": {
+                    "letsencrypt_email": email,
+                    "letsencrypt_agree": True,
+                },
+            },
         )

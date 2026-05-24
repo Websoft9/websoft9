@@ -145,6 +145,22 @@ class FileManagerRenameRequest(BaseModel):
         return _normalize_name(value)
 
 
+class FileManagerCopyItemRequest(BaseModel):
+    volume_id: str = Field(min_length=1, max_length=256)
+    source_path: str = Field(min_length=1, max_length=4096)
+    destination_path: str = Field(min_length=1, max_length=4096)
+
+    @field_validator("volume_id", mode="before")
+    @classmethod
+    def normalize_volume_id(cls, value: str) -> str:
+        return _normalize_volume_id(value)
+
+    @field_validator("source_path", "destination_path", mode="before")
+    @classmethod
+    def normalize_paths(cls, value: Optional[str]) -> str:
+        return _normalize_path(value)
+
+
 class FileManagerDeleteRequest(BaseModel):
     volume_id: str = Field(min_length=1, max_length=256)
     path: str = Field(min_length=1, max_length=4096)
@@ -160,10 +176,59 @@ class FileManagerDeleteRequest(BaseModel):
         return _normalize_path(value)
 
 
+class FileManagerPermissionBits(BaseModel):
+    read: bool = False
+    write: bool = False
+    execute: bool = False
+
+
+class FileManagerUpdateAttributesRequest(BaseModel):
+    volume_id: str = Field(min_length=1, max_length=256)
+    source_path: str = Field(min_length=1, max_length=4096)
+    target_name: Optional[str] = Field(default=None, max_length=255)
+    owner: Optional[str] = Field(default=None, max_length=128)
+    group: Optional[str] = Field(default=None, max_length=128)
+    owner_permissions: FileManagerPermissionBits = Field(default_factory=FileManagerPermissionBits)
+    group_permissions: FileManagerPermissionBits = Field(default_factory=FileManagerPermissionBits)
+    other_permissions: FileManagerPermissionBits = Field(default_factory=FileManagerPermissionBits)
+
+    @field_validator("volume_id", mode="before")
+    @classmethod
+    def normalize_volume_id(cls, value: str) -> str:
+        return _normalize_volume_id(value)
+
+    @field_validator("source_path", mode="before")
+    @classmethod
+    def normalize_source_path(cls, value: Optional[str]) -> str:
+        return _normalize_path(value)
+
+    @field_validator("target_name", mode="before")
+    @classmethod
+    def normalize_target_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        if not normalized:
+            return None
+        return _normalize_name(normalized)
+
+    @field_validator("owner", "group", mode="before")
+    @classmethod
+    def normalize_identity_value(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+
 class FileManagerMutationResponse(BaseModel):
     volume_name: str
     path: str
     operation: str
+
+
+class FileManagerAttributesMutationResponse(FileManagerMutationResponse):
+    metadata: FileManagerMetadataResponse
 
 
 FileManagerDirectoryResponse.model_rebuild()

@@ -2,6 +2,7 @@ import os
 import random
 import shutil
 import tempfile
+import json
 from datetime import datetime
 
 import yaml
@@ -19,7 +20,62 @@ from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
 
 
+COMPOSE_METADATA_PATH = ".websoft9/compose-metadata.json"
+
+
+def _validate_service_spec(services: dict) -> None:
+    """Validate that service fields match Docker Compose schema types."""
+    # These fields must be a list or mapping — not a plain scalar
+    list_or_dict_fields = ['environment', 'volumes', 'labels', 'extra_hosts', 'sysctls', 'ulimits', 'depends_on']
+    # These fields must be a list
+    list_only_fields = ['ports', 'expose']
+    for service_name, service_spec in services.items():
+        if not isinstance(service_spec, dict):
+            raise CustomException(
+                400, "Invalid Request",
+                f"Service '{service_name}' must be a mapping."
+            )
+        for field in list_or_dict_fields:
+            if field in service_spec and service_spec[field] is not None:
+                val = service_spec[field]
+                if not isinstance(val, (list, dict)):
+                    raise CustomException(
+                        400, "Invalid Request",
+                        f"Service '{service_name}': field '{field}' must be a list or mapping, not a {type(val).__name__}. "
+                        f"Tip: list items need a leading '- ' dash."
+                    )
+        for field in list_only_fields:
+            if field in service_spec and service_spec[field] is not None:
+                val = service_spec[field]
+                if not isinstance(val, list):
+                    raise CustomException(
+                        400, "Invalid Request",
+                        f"Service '{service_name}': field '{field}' must be a list, not a {type(val).__name__}. "
+                        f"Tip: list items need a leading '- ' dash."
+                    )
+
+
+def _check_variable_interpolation(compose_content: str) -> None:
+    """Detect unclosed ${...} variable substitution patterns that Docker Compose would reject."""
+    for line_no, line in enumerate(compose_content.split('\n'), 1):
+        pos = 0
+        while True:
+            start = line.find('${', pos)
+            if start == -1:
+                break
+            close = line.find('}', start + 2)
+            if close == -1:
+                snippet = line[start:].rstrip()
+                raise CustomException(
+                    400, "Invalid Request",
+                    f"Line {line_no}: unclosed variable substitution '{snippet}' — "
+                    f"expected closing '}}'. Use '${{VAR_NAME}}' format."
+                )
+            pos = close + 1
+
+
 def _load_compose_document(compose_content: str) -> dict:
+    _check_variable_interpolation(compose_content)
     try:
         compose_document = yaml.safe_load(compose_content)
     except yaml.YAMLError as exc:
@@ -31,6 +87,8 @@ def _load_compose_document(compose_content: str) -> dict:
     services = compose_document.get("services")
     if not isinstance(services, dict) or not services:
         raise CustomException(400, "Invalid Request", "Compose content must define at least one service.")
+
+    _validate_service_spec(services)
 
     return compose_document
 
@@ -98,7 +156,6 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
     portainer_manager = PortainerManager()
     gitea_manager = GiteaManager()
     repo_url = None
-    stack_id = None
     workspace_path = None
 
     if endpoint_id is None:
@@ -115,17 +172,25 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
 
         FileHelper.write_file(os.path.join(workspace_path, "docker-compose.yml"), payload.compose_content)
 
-        env_lines = [
-            f"W9_ID={app_id}",
-            f"W9_APP_NAME={payload.app_id}",
-            "W9_DIST=compose",
-            "W9_VERSION=custom",
-        ]
-        if payload.domain:
-            env_lines.append(f"W9_URL={payload.domain}")
-        for entry in payload.env:
-            env_lines.append(f"{entry.key}={entry.value}")
+        env_lines = [f"{entry.key}={entry.value}" for entry in payload.env]
         FileHelper.write_file(os.path.join(workspace_path, ".env"), "\n".join(env_lines) + "\n")
+
+        metadata_path = os.path.join(workspace_path, COMPOSE_METADATA_PATH)
+        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+        FileHelper.write_file(
+            metadata_path,
+            json.dumps(
+                {
+                    "dist": "compose",
+                    "app_name": payload.app_id,
+                    "version": "custom",
+                    "domain": payload.domain,
+                    "tracked_app_id": app_id,
+                },
+                ensure_ascii=True,
+                indent=2,
+            ) + "\n",
+        )
 
         for mount in payload.mounts:
             target_path = os.path.join(workspace_path, mount.path)
@@ -140,7 +205,6 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
         add_installing_logs(install_tracking_id, "Starting the services", "")
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
         stack_info = portainer_manager.create_stack_from_repository(app_id, endpoint_id, repo_url, credentials.username, credentials.password)
-        stack_id = stack_info.get("Id")
         stack_containers = portainer_manager.wait_for_stack_containers(app_id, endpoint_id)
         if not stack_containers:
             raise CustomException(400, "Invalid Request", compose_manager._missing_stack_containers_error)
@@ -156,43 +220,13 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
             else:
                 ProxyManager().create_proxy_by_app([payload.domain], app_id, str(forward_port), forward_scheme="http")
 
-        remove_app_installation(install_tracking_id)
         add_installing_logs(install_tracking_id, "Installation complete", "")
+        remove_app_installation(install_tracking_id)
     except CustomException as exc:
-        if repo_url:
-            try:
-                gitea_manager.remove_repo(app_id)
-            except Exception:
-                logger.warning(f"Failed to rollback compose repo {app_id}")
-        if stack_id is not None:
-            try:
-                portainer_manager.remove_stack_and_volumes(stack_id, endpoint_id)
-            except Exception:
-                portainer_manager.remove_vloumes(app_id, endpoint_id)
-        else:
-            try:
-                portainer_manager.remove_vloumes(app_id, endpoint_id)
-            except Exception:
-                logger.warning(f"Failed to rollback compose volumes for {app_id}")
         modify_app_information(install_tracking_id, exc.details)
         remove_installation_logs(install_tracking_id)
         raise
     except Exception as exc:
-        if repo_url:
-            try:
-                gitea_manager.remove_repo(app_id)
-            except Exception:
-                logger.warning(f"Failed to rollback compose repo {app_id}")
-        if stack_id is not None:
-            try:
-                portainer_manager.remove_stack_and_volumes(stack_id, endpoint_id)
-            except Exception:
-                portainer_manager.remove_vloumes(app_id, endpoint_id)
-        else:
-            try:
-                portainer_manager.remove_vloumes(app_id, endpoint_id)
-            except Exception:
-                logger.warning(f"Failed to rollback compose volumes for {app_id}")
         modify_app_information(install_tracking_id, "Compose installation failed")
         remove_installation_logs(install_tracking_id)
         logger.error(f"Compose installation failed for {app_id}: {exc}")

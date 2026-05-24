@@ -16,6 +16,7 @@ from src.api.v1.routers import services as api_services
 from src.api.v1.routers import settings as api_settings
 from src.api.v1.routers import proxy as api_proxy
 from src.api.v1.routers import backup as api_backup
+from src.api.v1.routers import compose_app as api_compose_app
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.api_key_auth import should_skip_api_key_auth
@@ -156,5 +157,6 @@ app.include_router(api_services.router,tags=["services"])
 app.include_router(api_proxy.router,tags=["proxys"])
 app.include_router(api_backup.router,tags=["backup"])
 app.include_router(api_settings.router,tags=["settings"])
+app.include_router(api_compose_app.router,tags=["compose-apps"])
 
 remove_422_responses()

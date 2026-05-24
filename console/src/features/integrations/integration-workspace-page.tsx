@@ -109,6 +109,14 @@ function getRememberedIntegrationTarget(integrationKey: IntegrationKey) {
     return window.sessionStorage.getItem(getIntegrationWorkspaceStorageKey(integrationKey))
 }
 
+function clearRememberedIntegrationTarget(integrationKey: IntegrationKey) {
+    if (typeof window === 'undefined') {
+        return
+    }
+
+    window.sessionStorage.removeItem(getIntegrationWorkspaceStorageKey(integrationKey))
+}
+
 function normalizeIntegrationTarget(definition: IntegrationWorkspaceContentProps['definition'], target: string | null) {
     if (!target) {
         return null
@@ -127,14 +135,27 @@ function normalizeIntegrationTarget(definition: IntegrationWorkspaceContentProps
     return target
 }
 
+function isIntegrationAuthTarget(definition: IntegrationWorkspaceContentProps['definition'], target: string | null) {
+    const normalizedTarget = normalizeIntegrationTarget(definition, target)
+    return Boolean(normalizedTarget && definition.authPaths.some((authPath) => normalizedTarget.includes(authPath)))
+}
+
 function resolveWorkspaceTarget(definition: IntegrationWorkspaceContentProps['definition'], requestedTarget: string | null, rememberedWorkspaceSrc: string | null) {
     const normalizedRequestedTarget = normalizeIntegrationTarget(definition, requestedTarget)
-    if (normalizedRequestedTarget && (normalizedRequestedTarget.startsWith(definition.probePath) || normalizedRequestedTarget.startsWith(definition.directPath))) {
+    if (
+        normalizedRequestedTarget &&
+        !isIntegrationAuthTarget(definition, normalizedRequestedTarget) &&
+        (normalizedRequestedTarget.startsWith(definition.probePath) || normalizedRequestedTarget.startsWith(definition.directPath))
+    ) {
         return normalizedRequestedTarget
     }
 
     const normalizedRememberedWorkspaceSrc = normalizeIntegrationTarget(definition, rememberedWorkspaceSrc)
-    if (normalizedRememberedWorkspaceSrc && (normalizedRememberedWorkspaceSrc.startsWith(definition.probePath) || normalizedRememberedWorkspaceSrc.startsWith(definition.directPath))) {
+    if (
+        normalizedRememberedWorkspaceSrc &&
+        !isIntegrationAuthTarget(definition, normalizedRememberedWorkspaceSrc) &&
+        (normalizedRememberedWorkspaceSrc.startsWith(definition.probePath) || normalizedRememberedWorkspaceSrc.startsWith(definition.directPath))
+    ) {
         return normalizedRememberedWorkspaceSrc
     }
 
@@ -143,6 +164,11 @@ function resolveWorkspaceTarget(definition: IntegrationWorkspaceContentProps['de
 
 function rememberIntegrationTarget(definition: IntegrationWorkspaceContentProps['definition'], target: string | null) {
     if (typeof window === 'undefined' || !target) {
+        return
+    }
+
+    if (detectExplicitWorkspaceLogout(target) || isIntegrationAuthTarget(definition, target)) {
+        clearRememberedIntegrationTarget(definition.key)
         return
     }
 
@@ -193,6 +219,24 @@ function inspectIntegrationFrame(frame: HTMLIFrameElement, definition: Integrati
     }
 }
 
+function detectExplicitWorkspaceLogout(target: string | null) {
+    return Boolean(target && /(?:^|[/#?&=\-_])(logout|signout|sign-out)(?:[/?#&=\-_]|$)/i.test(target))
+}
+
+function mapWorkspaceErrorMessage(errorMessage: string | null, t: (key: string) => string) {
+    if (!errorMessage) {
+        return null
+    }
+
+    const normalizedMessage = errorMessage.trim().toLowerCase()
+
+    if (normalizedMessage.includes('unable to restore the embedded gateway session automatically')) {
+        return t('integrations.workspace.gatewayRecoveryFailed')
+    }
+
+    return errorMessage
+}
+
 async function bootstrapIntegrationSession(integrationKey: IntegrationKey, locale: string) {
     const response = await fetch(`/api/integrations/${integrationKey}/session`, {
         method: 'POST',
@@ -205,6 +249,26 @@ async function bootstrapIntegrationSession(integrationKey: IntegrationKey, local
     if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { details?: string; message?: string } | null
         throw new Error(payload?.details ?? payload?.message ?? `HTTP ${response.status}`)
+    }
+}
+
+function isTransientBootstrapFetchError(error: unknown) {
+    return error instanceof Error && error.message.trim().toLowerCase() === 'failed to fetch'
+}
+
+async function bootstrapIntegrationSessionWithRetry(integrationKey: IntegrationKey, locale: string) {
+    try {
+        await bootstrapIntegrationSession(integrationKey, locale)
+    } catch (error) {
+        if (!isTransientBootstrapFetchError(error)) {
+            throw error
+        }
+
+        await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 300)
+        })
+
+        await bootstrapIntegrationSession(integrationKey, locale)
     }
 }
 
@@ -224,7 +288,7 @@ function DirectIntegrationWorkspaceFrame({
     const [searchParams] = useSearchParams()
     const [hasInitializedFrame, setHasInitializedFrame] = useState(false)
     const [frameVersion, setFrameVersion] = useState(0)
-    const [recoveryState, setRecoveryState] = useState<'idle' | 'recovering' | 'error'>('idle')
+    const [recoveryState, setRecoveryState] = useState<'idle' | 'recovering' | 'error' | 'signed-out'>('idle')
     const [recoveryError, setRecoveryError] = useState<string | null>(null)
     const [lastRecoveryTarget, setLastRecoveryTarget] = useState<string | null>(null)
     const inspectionTimeoutRef = useRef<number | null>(null)
@@ -235,6 +299,7 @@ function DirectIntegrationWorkspaceFrame({
         sessionState === 'ready' &&
         recoveryState !== 'recovering' &&
         recoveryState !== 'error' &&
+        recoveryState !== 'signed-out' &&
         (snapshot.status === 'available' || snapshot.status === 'session-error')
     const requestedTarget = active ? searchParams.get('target') : null
     const rememberedWorkspaceSrc = getRememberedIntegrationTarget(definition.key)
@@ -265,6 +330,14 @@ function DirectIntegrationWorkspaceFrame({
         }
     }, [])
 
+    function finalizeRecoveredWorkspace() {
+        setRecoveryState('idle')
+        setRecoveryError(null)
+        setLastRecoveryTarget(null)
+        setHasInitializedFrame(true)
+        setFrameVersion((current) => current + 1)
+    }
+
     async function recoverIntegrationSession(target: string | null, options?: { force?: boolean }) {
         const recoveryTarget = resolveRecoveryTarget(definition, target, iframeSrc)
         if (recoveryState === 'recovering') {
@@ -283,10 +356,8 @@ function DirectIntegrationWorkspaceFrame({
         rememberIntegrationTarget(definition, recoveryTarget)
 
         try {
-            await bootstrapIntegrationSession(definition.key, locale)
-            setRecoveryState('idle')
-            setRecoveryError(null)
-            setFrameVersion((current) => current + 1)
+            await bootstrapIntegrationSessionWithRetry(definition.key, locale)
+            finalizeRecoveredWorkspace()
         } catch (error) {
             setRecoveryState('error')
             setRecoveryError(error instanceof Error ? error.message : t('integrations.workspace.sessionRefreshFailedDetail'))
@@ -320,10 +391,18 @@ function DirectIntegrationWorkspaceFrame({
                         return
                     }
 
+                    if (detectExplicitWorkspaceLogout(inspection.resolvedTarget)) {
+                        setRecoveryState('signed-out')
+                        setRecoveryError(null)
+                        setLastRecoveryTarget(inspection.resolvedTarget)
+                        clearRememberedIntegrationTarget(definition.key)
+                        return
+                    }
+
                     void recoverIntegrationSession(inspection.resolvedTarget)
                 }
 
-                const inspectionDelayMs = definition.key === 'portainer' ? 2000 : 0
+                const inspectionDelayMs = definition.key === 'portainer' ? 2000 : definition.key === 'npm' ? 1000 : 0
                 if (inspectionDelayMs > 0) {
                     inspectionTimeoutRef.current = window.setTimeout(() => {
                         inspectionTimeoutRef.current = null
@@ -365,17 +444,27 @@ function DirectIntegrationWorkspaceFrame({
                 <>
                     <Chip color="warning" label={t('integrations.workspace.sessionRefreshFailed')} />
                     <Typography color="text.secondary" variant="body2">
-                        {recoveryError ?? t('integrations.workspace.sessionRefreshFailedDetail')}
+                        {mapWorkspaceErrorMessage(recoveryError, t) ?? t('integrations.workspace.sessionRefreshFailedDetail')}
                     </Typography>
                     <Button onClick={() => void recoverIntegrationSession(null, { force: true })} variant="outlined">
                         {t('integrations.workspace.retryProbe')}
+                    </Button>
+                </>
+            ) : recoveryState === 'signed-out' ? (
+                <>
+                    <Chip color="default" label={t('integrations.workspace.workspaceSignedOut')} />
+                    <Typography color="text.secondary" variant="body2">
+                        {t('integrations.workspace.workspaceSignedOutDetail')}
+                    </Typography>
+                    <Button onClick={() => void recoverIntegrationSession(lastRecoveryTarget, { force: true })} variant="outlined">
+                        {t('integrations.workspace.reconnectWorkspace')}
                     </Button>
                 </>
             ) : sessionState === 'error' ? (
                 <>
                     <Chip color="warning" label={t('integrations.workspace.sessionBootstrapFailed')} />
                     <Typography color="text.secondary" variant="body2">
-                        {errorMessage ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
+                        {mapWorkspaceErrorMessage(errorMessage, t) ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
                     </Typography>
                     <Button onClick={refresh} variant="outlined">
                         {t('integrations.workspace.retryProbe')}

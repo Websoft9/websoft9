@@ -172,3 +172,24 @@ class GiteaAPI:
                 "message": f"Update {file_path}",
             },
         )
+
+    def create_file_content_in_repo(self, repo_name: str, file_path: str, content: str):
+        """
+        Create file content in repository
+
+        Args:
+            repo_name (str): Repository name
+            file_path (str): File path
+            content (str): Content: base64 encoded
+
+        Returns:
+            Response: Response from Gitea API
+        """
+        return self.api.post(
+            path=f"repos/{self.owner}/{repo_name}/contents/{file_path}",
+            json={
+                "branch": "main",
+                "content": content,
+                "message": f"Create {file_path}",
+            },
+        )

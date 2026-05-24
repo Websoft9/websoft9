@@ -1,6 +1,6 @@
 .ws-page-shell {
     min-height: calc(100vh - 120px);
-    padding: 24px 28px 32px;
+    padding: var(--ds-spacing-6) var(--ds-spacing-7) 32px;
 }
 
 .ws-page-hero {
@@ -29,31 +29,31 @@
     line-height: 1.08;
     font-weight: 700;
     letter-spacing: -0.035em;
-    color: #111827;
+    color: var(--ds-color-text-strong);
 }
 
 .ws-page-description {
     max-width: 680px;
     font-size: 14px;
     line-height: 1.7;
-    color: #6b7280;
+    color: var(--ds-color-text-muted);
 }
 
 .ws-page-section {
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(226, 232, 240, 0.95);
-    border-radius: 16px;
-    background: #ffffff;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-radius-panel);
+    background: var(--ds-color-surface-bg);
+    box-shadow: var(--ds-shadow-md);
 }
 
 .ws-page-section__header {
-    padding: 18px 20px 0;
+    padding: 18px var(--ds-spacing-5) 0;
 }
 
 .ws-page-section__title {
-    color: #111827;
+    color: var(--ds-color-text-strong);
     font-size: 16px;
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -62,11 +62,11 @@
 .ws-page-section__caption {
     font-size: 13px;
     line-height: 1.5;
-    color: #6b7280;
+    color: var(--ds-color-text-muted);
 }
 
 .ws-page-section__body {
-    padding: 20px;
+    padding: var(--ds-spacing-5);
 }
 
 @media (max-width: 599px) {

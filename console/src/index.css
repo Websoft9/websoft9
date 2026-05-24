@@ -1,3 +1,5 @@
+@import './shared/theme/design-tokens.css';
+
 html,
 body {
   height: 100%;

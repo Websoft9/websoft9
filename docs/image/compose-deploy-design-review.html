@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compose Deploy Design Review</title>
+    <style>
+        :root {
+            --bg: #eef3f8;
+            --panel: rgba(255, 255, 255, 0.92);
+            --panel-strong: #ffffff;
+            --border: #d9e3ee;
+            --border-strong: #c6d4e1;
+            --text: #102033;
+            --muted: #5f7288;
+            --soft: #f7fafc;
+            --accent: #1769aa;
+            --accent-soft: #e7f1fb;
+            --success: #0f7b6c;
+            --success-soft: #e8f7f2;
+            --shadow: 0 18px 50px rgba(28, 50, 79, 0.10);
+            --radius-xl: 16px;
+            --radius-lg: 10px;
+            --radius-md: 8px;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+            --sans: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--sans);
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(23, 105, 170, 0.16), transparent 30%),
+                linear-gradient(180deg, #f7fafd 0%, var(--bg) 100%);
+        }
+
+        .page {
+            padding: 28px;
+            display: grid;
+            gap: 28px;
+        }
+
+        .hero {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 0 6px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .hero p {
+            margin: 10px 0 0;
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .note {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 999px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .boards {
+            display: grid;
+            gap: 28px;
+        }
+
+        .board {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(250, 252, 255, 0.88));
+            border: 1px solid rgba(198, 212, 225, 0.8);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .board-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 6px 18px;
+            gap: 18px;
+        }
+
+        .board-title {
+            display: grid;
+            gap: 6px;
+        }
+
+        .board-title strong {
+            font-size: 20px;
+        }
+
+        .board-title span {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .board-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag {
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--muted);
+        }
+
+        .shell {
+            background: linear-gradient(180deg, #fbfdff 0%, #f6f9fc 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            height: 860px;
+            display: grid;
+            grid-template-columns: 236px minmax(0, 1fr);
+            overflow: hidden;
+        }
+
+        .sidebar {
+            background: linear-gradient(180deg, #102234 0%, #12283f 100%);
+            color: rgba(255, 255, 255, 0.92);
+            padding: 22px 16px;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 18px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 10px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .brand-mark {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #34a0ff, #0d73c7);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+
+        .nav-group {
+            display: grid;
+            gap: 8px;
+        }
+
+        .nav-caption {
+            padding: 8px 10px 4px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: rgba(255, 255, 255, 0.45);
+            text-transform: uppercase;
+        }
+
+        .nav-item,
+        .nav-sub {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 12px;
+            border-radius: 14px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.86);
+            background: transparent;
+        }
+
+        .nav-item.active,
+        .nav-sub.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .nav-stack {
+            display: grid;
+            gap: 6px;
+            padding-left: 10px;
+        }
+
+        .nav-sub {
+            padding-left: 18px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-rows: auto auto minmax(0, 1fr);
+            gap: 14px;
+            padding: 20px;
+            min-height: 0;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 2px 2px 0;
+        }
+
+        .page-header h2 {
+            margin: 0;
+            font-size: 24px;
+            line-height: 1.2;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .page-header p {
+            margin: 6px 0 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--muted);
+        }
+
+        .toolbar {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.7fr) auto;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 12px;
+            backdrop-filter: blur(8px);
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .field label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .input {
+            height: 44px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: #fff;
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            font-size: 14px;
+            color: var(--text);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+        }
+
+        .btn {
+            align-self: end;
+            height: 44px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 16px;
+            background: #fff;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .btn.primary {
+            background: linear-gradient(180deg, #2383d7 0%, #1769aa 100%);
+            border-color: #1769aa;
+            color: #fff;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: minmax(0, 1.55fr) minmax(350px, 0.95fr);
+            gap: 16px;
+            min-height: 0;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        .editor-card,
+        .side-card {
+            background: var(--panel-strong);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .editor-card {
+            display: grid;
+            grid-template-rows: 3px auto minmax(0, 1fr) auto;
+        }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(248, 251, 254, 0.95);
+        }
+
+        .card-head strong {
+            font-size: 15px;
+        }
+
+        .card-head span {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .mini-btn {
+            height: 34px;
+            padding: 0 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .code-area {
+            height: 100%;
+            padding: 0;
+            background:
+                linear-gradient(180deg, #fbfdff 0%, #f6f9fd 100%),
+                repeating-linear-gradient(180deg, rgba(16, 32, 51, 0.04) 0 1px, transparent 1px 34px);
+            font-family: var(--mono);
+            font-size: 13px;
+            line-height: 34px;
+            color: #23405d;
+            display: grid;
+            grid-template-columns: 54px minmax(0, 1fr);
+            min-height: 0;
+        }
+
+        .line-nos {
+            background: rgba(235, 242, 249, 0.9);
+            border-right: 1px solid var(--border);
+            color: #7a8ba0;
+            text-align: right;
+            padding: 18px 10px 18px 0;
+        }
+
+        .code {
+            padding: 18px 18px 18px 16px;
+            white-space: pre;
+            overflow: auto;
+        }
+
+        .side-stack {
+            display: grid;
+            gap: 16px;
+            min-height: 0;
+            grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        .collapse-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            background: rgba(248, 251, 254, 0.95);
+        }
+
+        .collapse-head strong {
+            font-size: 15px;
+        }
+
+        .collapse-head .toggle {
+            color: var(--muted);
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        .collapsed {
+            padding: 14px 16px;
+            color: var(--muted);
+            font-size: 13px;
+            border-top: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.9);
+            height: calc(100% - 50px);
+        }
+
+        .section-body {
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+            border-top: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.94);
+            min-height: 0;
+            grid-template-rows: auto minmax(0, 1fr);
+        }
+
+        .row-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .mini-chip {
+            height: 34px;
+            padding: 0 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--soft);
+            display: inline-flex;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .env-item {
+            display: grid;
+            grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) auto;
+            gap: 10px;
+            padding: 10px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            background: #fff;
+        }
+
+        .env-list {
+            display: grid;
+            gap: 10px;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .mount-layout {
+            display: grid;
+            grid-template-columns: 150px minmax(0, 1fr);
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .mount-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .mount-item {
+            padding: 12px 12px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            background: var(--soft);
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .mount-item.active {
+            border-color: #8fc0eb;
+            background: var(--accent-soft);
+            color: #0d4f84;
+        }
+
+        .mount-editor {
+            display: grid;
+            gap: 10px;
+            min-height: 0;
+        }
+
+        .mount-code {
+            height: 210px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            background: linear-gradient(180deg, #fbfdff 0%, #f6f9fd 100%);
+            font-family: var(--mono);
+            font-size: 13px;
+            color: #23405d;
+            padding: 16px;
+            white-space: pre;
+            overflow: auto;
+        }
+
+        .hint {
+            padding: 12px 14px;
+            border-top: 1px solid var(--border);
+            background: rgba(248, 251, 254, 0.95);
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .accent-bar {
+            height: 3px;
+            background: linear-gradient(90deg, #1769aa 0%, #5bb6ff 100%);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="hero">
+            <div>
+                <h1>Compose 部署设计稿</h1>
+                <p>先审结构和视觉，不进入代码实现。重点是安装主流程、编辑主区域、折叠式环境变量与挂载区。</p>
+            </div>
+            <div class="note">审核目标：像“安装页”，不是“说明页”</div>
+        </div>
+
+        <div class="boards">
+            <section class="board">
+                <div class="board-head">
+                    <div class="board-title">
+                        <strong>方案 A · 默认安装态</strong>
+                        <span>首屏只保留安装入口和 Compose 主编辑器，二级内容默认收起。</span>
+                    </div>
+                    <div class="board-tags">
+                        <div class="tag">统一控制台风格</div>
+                        <div class="tag">默认不拥挤</div>
+                        <div class="tag">安装动作置顶</div>
+                    </div>
+                </div>
+                <div class="shell">
+                    <aside class="sidebar">
+                        <div class="brand">
+                            <div class="brand-mark"></div>
+                            <div>
+                                <div style="font-weight:800; font-size:15px;">Websoft9</div>
+                                <div style="font-size:12px; color:rgba(255,255,255,0.56);">Console</div>
+                            </div>
+                        </div>
+                        <div class="nav-group">
+                            <div class="nav-caption">Workspace</div>
+                            <div class="nav-item">概览</div>
+                            <div class="nav-item active">应用</div>
+                            <div class="nav-stack">
+                                <div class="nav-sub">我的应用</div>
+                                <div class="nav-sub">应用商店</div>
+                                <div class="nav-sub active">Compose部署</div>
+                            </div>
+                            <div class="nav-item">容器</div>
+                            <div class="nav-item">网关</div>
+                            <div class="nav-item">仓库</div>
+                        </div>
+                    </aside>
+
+                    <main class="workspace">
+                        <div class="page-header">
+                            <div>
+                                <h2>Compose部署</h2>
+                                <p>使用 Compose 文件完成应用安装，可按需补充环境变量和挂载文件。</p>
+                            </div>
+                            <div class="btn primary">部署应用</div>
+                        </div>
+
+                        <div class="toolbar">
+                            <div class="field">
+                                <label>应用名称</label>
+                                <div class="input">wordpress-prod</div>
+                            </div>
+                            <div class="field">
+                                <label>访问域名（可选）</label>
+                                <div class="input">blog.example.com</div>
+                            </div>
+                            <div class="btn">重新上传</div>
+                        </div>
+
+                        <div class="content">
+                            <section class="editor-card">
+                                <div class="accent-bar"></div>
+                                <div class="card-head">
+                                    <div>
+                                        <strong>docker-compose.yml</strong>
+                                        <span>主编辑区</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <div class="mini-btn">上传文件</div>
+                                        <div class="mini-btn">示例模板</div>
+                                    </div>
+                                </div>
+                                <div class="code-area">
+                                    <div class="line-nos">
+                                        1<br />2<br />3<br />4<br />5<br />6<br />7<br />8<br />9<br />10<br />11<br />12<br />13<br />14<br />15
+                                    </div>
+                                    <div class="code">services:
+                                        wordpress:
+                                        image: wordpress:6.8
+                                        restart: unless-stopped
+                                        ports:
+                                        - "8080:80"
+                                        environment:
+                                        WORDPRESS_DB_HOST: db
+                                        WORDPRESS_DB_USER: wordpress
+                                        WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+                                        volumes:
+                                        - ./data:/var/www/html
+
+                                        db:
+                                        image: mysql:8.4
+                                        environment:
+                                        MYSQL_DATABASE: wordpress</div>
+                                </div>
+                                <div class="hint">页面整体始终铺满工作区。内容超出时只在编辑器内部滚动，不制造页面空白。</div>
+                            </section>
+
+                            <div class="side-stack">
+                                <section class="side-card">
+                                    <div class="collapse-head">
+                                        <strong>环境变量</strong>
+                                        <div class="toggle">+</div>
+                                    </div>
+                                    <div class="collapsed">默认收起，占位仍然铺满右侧区域；需要编辑时在卡片内部滚动。</div>
+                                </section>
+
+                                <section class="side-card">
+                                    <div class="collapse-head">
+                                        <strong>挂载文件</strong>
+                                        <div class="toggle">+</div>
+                                    </div>
+                                    <div class="collapsed">挂载作为辅助编辑区，不与 Compose 主区争抢首屏空间。</div>
+                                </section>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </section>
+
+            <section class="board">
+                <div class="board-head">
+                    <div class="board-title">
+                        <strong>方案 B · 展开编辑态</strong>
+                        <span>展示环境变量和挂载文件真正展开后的信息密度，避免“看起来整洁，展开就崩”。</span>
+                    </div>
+                    <div class="board-tags">
+                        <div class="tag">折叠展开</div>
+                        <div class="tag">一屏内可编辑</div>
+                        <div class="tag">右侧为辅助面板</div>
+                    </div>
+                </div>
+                <div class="shell">
+                    <aside class="sidebar">
+                        <div class="brand">
+                            <div class="brand-mark"></div>
+                            <div>
+                                <div style="font-weight:800; font-size:15px;">Websoft9</div>
+                                <div style="font-size:12px; color:rgba(255,255,255,0.56);">Console</div>
+                            </div>
+                        </div>
+                        <div class="nav-group">
+                            <div class="nav-caption">Workspace</div>
+                            <div class="nav-item">概览</div>
+                            <div class="nav-item active">应用</div>
+                            <div class="nav-stack">
+                                <div class="nav-sub">我的应用</div>
+                                <div class="nav-sub">应用商店</div>
+                                <div class="nav-sub active">Compose部署</div>
+                            </div>
+                            <div class="nav-item">容器</div>
+                            <div class="nav-item">网关</div>
+                            <div class="nav-item">仓库</div>
+                        </div>
+                    </aside>
+
+                    <main class="workspace">
+                        <div class="page-header">
+                            <div>
+                                <h2>Compose部署</h2>
+                                <p>使用 Compose 文件完成应用安装，可按需补充环境变量和挂载文件。</p>
+                            </div>
+                            <div class="btn primary">部署应用</div>
+                        </div>
+
+                        <div class="toolbar">
+                            <div class="field">
+                                <label>应用名称</label>
+                                <div class="input">nextcloud-team</div>
+                            </div>
+                            <div class="field">
+                                <label>访问域名（可选）</label>
+                                <div class="input">cloud.example.com</div>
+                            </div>
+                            <div class="btn">重新上传</div>
+                        </div>
+
+                        <div class="content">
+                            <section class="editor-card">
+                                <div class="accent-bar"></div>
+                                <div class="card-head">
+                                    <div>
+                                        <strong>docker-compose.yml</strong>
+                                        <span>主编辑区</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <div class="mini-btn">上传文件</div>
+                                        <div class="mini-btn">示例模板</div>
+                                    </div>
+                                </div>
+                                <div class="code-area">
+                                    <div class="line-nos">
+                                        1<br />2<br />3<br />4<br />5<br />6<br />7<br />8<br />9<br />10<br />11<br />12<br />13<br />14<br />15
+                                    </div>
+                                    <div class="code">services:
+                                        app:
+                                        image: nextcloud:31
+                                        restart: unless-stopped
+                                        environment:
+                                        NEXTCLOUD_TRUSTED_DOMAINS: ${APP_DOMAIN}
+                                        MYSQL_HOST: db
+                                        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+                                        volumes:
+                                        - ./nextcloud:/var/www/html
+
+                                        db:
+                                        image: mariadb:11
+                                        volumes:
+                                        - ./db:/var/lib/mysql
+                                        environment:
+                                        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}</div>
+                                </div>
+                                <div class="hint">左侧永远是主工作面。无论右侧展开多少，Compose 编辑区都保持第一优先级，并独立承担滚动。</div>
+                            </section>
+
+                            <div class="side-stack">
+                                <section class="side-card">
+                                    <div class="collapse-head">
+                                        <strong>环境变量</strong>
+                                        <div class="toggle">−</div>
+                                    </div>
+                                    <div class="section-body">
+                                        <div class="row-actions">
+                                            <div class="mini-chip">新增变量</div>
+                                            <div class="mini-chip">导入 .env</div>
+                                        </div>
+                                        <div class="env-list">
+                                            <div class="env-item">
+                                                <div class="input">MYSQL_PASSWORD</div>
+                                                <div class="input">••••••••••••</div>
+                                                <div class="mini-btn">删除</div>
+                                            </div>
+                                            <div class="env-item">
+                                                <div class="input">APP_DOMAIN</div>
+                                                <div class="input">cloud.example.com</div>
+                                                <div class="mini-btn">删除</div>
+                                            </div>
+                                            <div class="env-item">
+                                                <div class="input">REDIS_HOST</div>
+                                                <div class="input">redis</div>
+                                                <div class="mini-btn">删除</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section class="side-card">
+                                    <div class="collapse-head">
+                                        <strong>挂载文件</strong>
+                                        <div class="toggle">−</div>
+                                    </div>
+                                    <div class="section-body">
+                                        <div class="row-actions">
+                                            <div class="mini-chip">新增文件</div>
+                                            <div class="mini-chip">上传文件</div>
+                                        </div>
+                                        <div class="mount-layout">
+                                            <div class="mount-list">
+                                                <div class="mount-item active">config.php</div>
+                                                <div class="mount-item">redis.conf</div>
+                                                <div class="mount-item">php.ini</div>
+                                            </div>
+                                            <div class="mount-editor">
+                                                <div class="field">
+                                                    <label>容器内路径</label>
+                                                    <div class="input">/var/www/html/config/config.php</div>
+                                                </div>
+                                                <div class="mount-code">&lt;?php
+                                                    $CONFIG = array (
+                                                    'trusted_domains' =&gt;
+                                                    array (
+                                                    0 =&gt; 'cloud.example.com',
+                                                    ),
+                                                    'memcache.local' =&gt; '\\OC\\Memcache\\APCu',
+                                                    );</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </section>
+        </div>
+    </div>
+</body>
+
+</html>

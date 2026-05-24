@@ -7,6 +7,8 @@ from fastapi.responses import Response
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.fileManager import (
+    FileManagerAttributesMutationResponse,
+    FileManagerCopyItemRequest,
     FileManagerCreateFileRequest,
     FileManagerCreateFolderRequest,
     FileManagerDeleteRequest,
@@ -15,6 +17,7 @@ from src.schemas.fileManager import (
     FileManagerMutationResponse,
     FileManagerRenameRequest,
     FileManagerTextFileResponse,
+    FileManagerUpdateAttributesRequest,
     FileManagerUploadRequest,
     FileManagerVolumesResponse,
     FileManagerWriteTextRequest,
@@ -177,6 +180,59 @@ def rename_file_manager_item(
         volume_id=payload.volume_id,
         source_path=payload.source_path,
         target_name=payload.target_name,
+    )
+
+
+@router.post(
+    "/files/copy",
+    summary="Copy file or folder",
+    description="Copy a file-system item into another directory inside a selected Docker volume",
+    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def copy_file_manager_item(
+    payload: FileManagerCopyItemRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    return _get_file_manager_service().copy_path(
+        session_token=session_token,
+        volume_id=payload.volume_id,
+        source_path=payload.source_path,
+        destination_path=payload.destination_path,
+    )
+
+
+@router.post(
+    "/files/move",
+    summary="Move file or folder",
+    description="Move a file-system item into another directory inside a selected Docker volume",
+    responses={200: {"model": FileManagerMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def move_file_manager_item(
+    payload: FileManagerCopyItemRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    return _get_file_manager_service().move_path(
+        session_token=session_token,
+        volume_id=payload.volume_id,
+        source_path=payload.source_path,
+        destination_path=payload.destination_path,
+    )
+
+
+@router.put(
+    "/files/attributes",
+    summary="Update file or folder attributes",
+    description="Update name, owner, group, and permissions for a file-system item inside a selected Docker volume",
+    responses={200: {"model": FileManagerAttributesMutationResponse}, 400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def update_file_manager_item_attributes(
+    payload: FileManagerUpdateAttributesRequest,
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    return _get_file_manager_service().update_attributes(
+        session_token=session_token,
+        volume_id=payload.volume_id,
+        payload=payload.model_dump(),
     )
 
 

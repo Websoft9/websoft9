@@ -18,6 +18,8 @@ import { OverviewPage } from '../../features/overview/overview-page'
 import { ServicesPage } from '../../features/services/services-page'
 import { TerminalPage } from '../../features/terminal/terminal-page'
 import { UsersPage } from '../../features/users/users-page'
+import { ApplicationsDeployPage } from '../../features/applications/applications-deploy-page'
+import { ApplicationsCustomInstallPage } from '../../features/applications/applications-custom-install-page'
 
 export function createAppRouter() {
     const shellRoutes: RouteObject[] = shellNavigationItems.map((navItem) => {
@@ -41,13 +43,6 @@ export function createAppRouter() {
             return {
                 path: item.segment,
                 element: <IntegrationWorkspacePage integrationKey="gitea" shellPersistent />,
-            }
-        }
-
-        if (item.segment === 'appstore') {
-            return {
-                path: item.segment,
-                element: <AppStorePage lockedInstallSource="marketplace" hideInstallSourceSelector />,
             }
         }
 
@@ -161,12 +156,16 @@ export function createAppRouter() {
                             element: <IntegrationWorkspacePage showCatalogLink />,
                         },
                         {
+                            path: 'appstore',
+                            element: <AppStorePage lockedInstallSource="marketplace" hideInstallSourceSelector />,
+                        },
+                        {
                             path: 'applications/deploy',
-                            element: <Navigate replace to="/myapps" />,
+                            element: <ApplicationsDeployPage />,
                         },
                         {
                             path: 'applications/custom-install',
-                            element: <AppStorePage lockedInstallSource="compose" hideInstallSourceSelector />,
+                            element: <ApplicationsCustomInstallPage />,
                         },
                         ...shellRoutes,
                     ],

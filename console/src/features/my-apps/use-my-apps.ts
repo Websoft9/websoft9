@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 
 export type MyAppLogStage = {
     title: string
@@ -10,6 +11,7 @@ export type MyApp = {
     tracking_id?: string | null
     endpointId?: number
     app_name?: string | null
+    logo_url?: string | null
     app_dist?: string | null
     app_version?: string | null
     app_official: boolean
@@ -114,8 +116,12 @@ function deduplicateApps(apps: MyApp[]): MyApp[] {
     return [...map.values()]
 }
 
-async function fetchMyApps() {
-    const response = await fetch('/api/apps', {
+function mapLocaleToApiLocale(locale: string) {
+    return locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+}
+
+async function fetchMyApps(apiLocale: string) {
+    const response = await fetch(`/api/apps?locale=${encodeURIComponent(apiLocale)}`, {
         credentials: 'include',
         headers: {
             Accept: 'application/json',
@@ -132,9 +138,13 @@ async function fetchMyApps() {
 }
 
 export function useMyApps() {
+    const { i18n } = useTranslation('shell')
+    const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const apiLocale = mapLocaleToApiLocale(resolvedLocale)
+
     return useQuery<MyApp[], MyAppsError>({
-        queryKey: ['my-apps'],
-        queryFn: fetchMyApps,
+        queryKey: ['my-apps', apiLocale],
+        queryFn: () => fetchMyApps(apiLocale),
         select: (apps) => sortMyApps(deduplicateApps(apps)),
         staleTime: 2_000,
         refetchInterval: (query) => {

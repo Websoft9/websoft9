@@ -1,8 +1,10 @@
 import os
 import re
 import json
+import sqlite3
 from pathlib import Path
 from typing import Literal, Optional
+from datetime import datetime, timezone
 
 import requests
 
@@ -32,6 +34,7 @@ class IntegrationSessionBridge:
             "http://127.0.0.1:9004",
         ).rstrip("/")
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
+        self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", "/data/database.sqlite"))
 
     def bootstrap(self, integration_key: IntegrationKey, locale: Optional[str] = None) -> list[dict[str, object]]:
         if integration_key == "gitea":
@@ -198,11 +201,19 @@ class IntegrationSessionBridge:
         session = self._create_session()
 
         try:
-            response = session.post(
-                f"{self.gateway_origin}/w9proxy/api/tokens",
-                json={"identity": username, "scope": "user", "secret": password},
-                timeout=20,
-            )
+            response = self._request_npm_token(session, username, password)
+
+            if response.status_code in {401, 403} and self._repair_npm_password(username, password):
+                logger.warning("Nginx Proxy Manager credential drift detected; password hash was repaired from stored credential source")
+                response = self._request_npm_token(session, username, password)
+
+            if response.status_code in {401, 403}:
+                raise CustomException(
+                    status_code=502,
+                    message="Integration Session Bootstrap Failed",
+                    details="Unable to restore the embedded gateway session automatically",
+                )
+
             response.raise_for_status()
 
             token = response.json().get("token")
@@ -234,8 +245,65 @@ class IntegrationSessionBridge:
             raise CustomException(
                 status_code=502,
                 message="Integration Session Bootstrap Failed",
-                details="Unable to establish Nginx Proxy Manager session",
+                details="Unable to restore the embedded gateway session automatically",
             )
+
+    def _request_npm_token(self, session: requests.Session, username: str, password: str) -> requests.Response:
+        return session.post(
+            f"{self.gateway_origin}/w9proxy/api/tokens",
+            json={"identity": username, "scope": "user", "secret": password},
+            timeout=20,
+        )
+
+    def _repair_npm_password(self, username: str, password: str) -> bool:
+        if not self.npm_database_path.is_file():
+            return False
+
+        try:
+            import bcrypt  # type: ignore
+        except Exception as exc:
+            logger.warning(f"Nginx Proxy Manager password repair skipped because bcrypt is unavailable: {exc}")
+            return False
+
+        connection = sqlite3.connect(self.npm_database_path)
+        try:
+            connection.row_factory = sqlite3.Row
+            user_row = connection.execute(
+                'SELECT id, email FROM "user" WHERE lower(email) = lower(?) AND is_deleted = 0 ORDER BY id LIMIT 1',
+                (username,),
+            ).fetchone()
+            if user_row is None:
+                return False
+
+            auth_row = connection.execute(
+                "SELECT id, secret FROM auth WHERE user_id = ? AND type = 'password' AND is_deleted = 0 ORDER BY id DESC LIMIT 1",
+                (user_row["id"],),
+            ).fetchone()
+            if auth_row is None:
+                return False
+
+            secret = str(auth_row["secret"] or "")
+            if secret and bcrypt.checkpw(password.encode("utf-8"), secret.encode("utf-8")):
+                return True
+
+            repaired_secret = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=13)).decode("utf-8")
+            modified_on = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+            connection.execute(
+                "UPDATE auth SET secret = ?, modified_on = ? WHERE id = ?",
+                (repaired_secret, modified_on, auth_row["id"]),
+            )
+            connection.execute(
+                'UPDATE "user" SET modified_on = ? WHERE id = ?',
+                (modified_on, user_row["id"]),
+            )
+            connection.commit()
+            return True
+        except Exception as exc:
+            logger.warning(f"Nginx Proxy Manager password repair failed: {exc}")
+            return False
+        finally:
+            connection.close()
 
     def _create_session(self) -> requests.Session:
         session = requests.Session()

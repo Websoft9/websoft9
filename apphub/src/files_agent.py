@@ -1,6 +1,5 @@
 import base64
 import grp
-import mimetypes
 import os
 import pwd
 import shutil
@@ -20,38 +19,6 @@ from src.schemas.errorResponse import ErrorResponse
 
 
 TEXT_FILE_LIMIT_BYTES = 1024 * 1024
-TEXT_EDITABLE_EXTENSIONS = {
-    ".conf",
-    ".config",
-    ".crt",
-    ".cert",
-    ".css",
-    ".csv",
-    ".env",
-    ".gitignore",
-    ".html",
-    ".ini",
-    ".js",
-    ".json",
-    ".key",
-    ".log",
-    ".md",
-    ".pem",
-    ".properties",
-    ".py",
-    ".sh",
-    ".sql",
-    ".svg",
-    ".toml",
-    ".ts",
-    ".tsx",
-    ".txt",
-    ".xml",
-    ".yaml",
-    ".yml",
-}
-
-
 class AgentPathRequest(BaseModel):
     root_path: str = Field(min_length=1)
     path: str = Field(default="/")
@@ -66,6 +33,31 @@ class AgentRenameRequest(BaseModel):
     root_path: str = Field(min_length=1)
     source_path: str = Field(min_length=1)
     target_path: str = Field(min_length=1)
+    display_name: str = Field(default="")
+
+
+class AgentCopyRequest(BaseModel):
+    root_path: str = Field(min_length=1)
+    source_path: str = Field(min_length=1)
+    destination_path: str = Field(min_length=1)
+    display_name: str = Field(default="")
+
+
+class AgentPermissionBits(BaseModel):
+    read: bool = False
+    write: bool = False
+    execute: bool = False
+
+
+class AgentUpdateAttributesRequest(BaseModel):
+    root_path: str = Field(min_length=1)
+    source_path: str = Field(min_length=1)
+    target_name: str | None = Field(default=None)
+    owner: str | None = Field(default=None)
+    group: str | None = Field(default=None)
+    owner_permissions: AgentPermissionBits = Field(default_factory=AgentPermissionBits)
+    group_permissions: AgentPermissionBits = Field(default_factory=AgentPermissionBits)
+    other_permissions: AgentPermissionBits = Field(default_factory=AgentPermissionBits)
     display_name: str = Field(default="")
 
 
@@ -241,6 +233,96 @@ async def rename_path(payload: AgentRenameRequest):
     return {"status": "ok"}
 
 
+@app.post("/internal/files/copy")
+async def copy_path(payload: AgentCopyRequest):
+    root_path = _normalize_root_path(payload.root_path)
+    source_path = _resolve_target_path(root_path, payload.source_path, allow_root=False)
+    destination_path = _resolve_target_path(root_path, payload.destination_path)
+    if not os.path.exists(source_path):
+        raise CustomException(404, "File Not Found", "The source path does not exist")
+    if not os.path.isdir(destination_path):
+        raise CustomException(400, "Invalid Request", "The destination path must be an existing directory")
+
+    target_path = os.path.join(destination_path, os.path.basename(source_path.rstrip(os.sep)))
+    _ensure_inside_root(root_path, target_path, allow_root=False)
+    if os.path.realpath(target_path) == os.path.realpath(source_path):
+        raise CustomException(400, "Invalid Request", "The selected item is already in this directory")
+    if os.path.exists(target_path):
+        raise CustomException(400, "Invalid Request", "A file or directory with the same name already exists")
+    if os.path.isdir(source_path) and _is_within_root(target_path, source_path):
+        raise CustomException(400, "Invalid Request", "A directory cannot be copied into itself")
+
+    if os.path.isdir(source_path):
+        shutil.copytree(source_path, target_path)
+    else:
+        shutil.copy2(source_path, target_path)
+    return {"status": "ok"}
+
+
+@app.post("/internal/files/move")
+async def move_path(payload: AgentCopyRequest):
+    root_path = _normalize_root_path(payload.root_path)
+    source_path = _resolve_target_path(root_path, payload.source_path, allow_root=False)
+    destination_path = _resolve_target_path(root_path, payload.destination_path)
+    if not os.path.exists(source_path):
+        raise CustomException(404, "File Not Found", "The source path does not exist")
+    if not os.path.isdir(destination_path):
+        raise CustomException(400, "Invalid Request", "The destination path must be an existing directory")
+
+    target_path = os.path.join(destination_path, os.path.basename(source_path.rstrip(os.sep)))
+    _ensure_inside_root(root_path, target_path, allow_root=False)
+    if os.path.realpath(target_path) == os.path.realpath(source_path):
+        raise CustomException(400, "Invalid Request", "The selected item is already in this directory")
+    if os.path.exists(target_path):
+        raise CustomException(400, "Invalid Request", "A file or directory with the same name already exists")
+    if os.path.isdir(source_path) and _is_within_root(target_path, source_path):
+        raise CustomException(400, "Invalid Request", "A directory cannot be moved into itself")
+
+    shutil.move(source_path, target_path)
+    return {"status": "ok"}
+
+
+@app.put("/internal/files/attributes")
+async def update_attributes(payload: AgentUpdateAttributesRequest):
+    root_path = _normalize_root_path(payload.root_path)
+    source_path = _resolve_target_path(root_path, payload.source_path, allow_root=False)
+    if not os.path.exists(source_path):
+        raise CustomException(404, "File Not Found", "The source path does not exist")
+
+    target_path = source_path
+    target_name = (payload.target_name or "").strip() or None
+    if target_name and target_name != os.path.basename(source_path.rstrip(os.sep)):
+        target_relative_path = str(PurePosixPath(_normalize_relative_path(payload.source_path)).parent / target_name)
+        target_path = _resolve_target_path(root_path, target_relative_path, allow_root=False, require_exists=False)
+        if os.path.exists(target_path):
+            raise CustomException(400, "Invalid Request", "A file or directory with the same name already exists")
+        os.rename(source_path, target_path)
+
+    owner = _parse_owner_value(payload.owner)
+    group = _parse_group_value(payload.group)
+    if owner is not None or group is not None:
+        stat_result = os.stat(target_path, follow_symlinks=False)
+        os.chown(
+            target_path,
+            owner if owner is not None else stat_result.st_uid,
+            group if group is not None else stat_result.st_gid,
+            follow_symlinks=False,
+        )
+
+    permission_mode = _build_permission_mode(payload)
+    if permission_mode is not None:
+        os.chmod(target_path, permission_mode, follow_symlinks=False)
+
+    target_stat = os.stat(target_path, follow_symlinks=False)
+    return _build_metadata(
+        target_path,
+        root_path,
+        payload.display_name,
+        target_stat,
+        include_identity_ids=True,
+    )
+
+
 @app.delete("/internal/files/path")
 async def delete_path(payload: AgentPathRequest):
     root_path = _normalize_root_path(payload.root_path)
@@ -367,11 +449,9 @@ def _build_metadata(
 def _infer_text_editable(name: str, item_type: str, size: int, mode: int) -> bool:
     if item_type != "file" or size > TEXT_FILE_LIMIT_BYTES or not stat.S_ISREG(mode):
         return False
-    extension = os.path.splitext(name)[1].lower()
-    if extension in TEXT_EDITABLE_EXTENSIONS:
-        return True
-    guessed, _ = mimetypes.guess_type(name)
-    return guessed is None or guessed.startswith("text/") or guessed in {"application/json", "application/xml", "application/x-yaml"}
+    # Keep volume browsing aligned with host-access file manager: allow small regular
+    # files to enter the inline editor and let the read endpoint reject true binaries.
+    return True
 
 
 def _format_timestamp(timestamp: float) -> str:
@@ -402,6 +482,53 @@ def _lookup_owner(uid: int, include_id: bool = False) -> str:
 def _lookup_group(gid: int, include_id: bool = False) -> str:
     group = _lookup_group_name(gid)
     return f"{group} ({gid})" if include_id else group
+
+
+def _build_permission_mode(payload: AgentUpdateAttributesRequest) -> int | None:
+    permission_groups = (
+        payload.owner_permissions,
+        payload.group_permissions,
+        payload.other_permissions,
+    )
+    if not any(group.model_fields_set for group in permission_groups):
+        return None
+
+    def _bits(group: AgentPermissionBits) -> int:
+        bits = 0
+        if group.read:
+            bits |= 4
+        if group.write:
+            bits |= 2
+        if group.execute:
+            bits |= 1
+        return bits
+
+    return (_bits(permission_groups[0]) << 6) | (_bits(permission_groups[1]) << 3) | _bits(permission_groups[2])
+
+
+def _parse_owner_value(value: str | None) -> int | None:
+    return _parse_identity_value(value, kind="owner")
+
+
+def _parse_group_value(value: str | None) -> int | None:
+    return _parse_identity_value(value, kind="group")
+
+
+def _parse_identity_value(value: str | None, *, kind: str) -> int | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    if normalized.endswith(")") and " (" in normalized:
+        normalized = normalized.rsplit(" (", 1)[0].strip()
+    if normalized.isdigit():
+        return int(normalized)
+
+    try:
+        if kind == "owner":
+            return pwd.getpwnam(normalized).pw_uid
+        return grp.getgrnam(normalized).gr_gid
+    except KeyError:
+        raise CustomException(400, "Invalid Request", f"Unknown {kind}: {normalized}")
 
 
 @lru_cache(maxsize=1)

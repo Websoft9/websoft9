@@ -1,0 +1,91 @@
+:root {
+    --ds-color-page-bg: #f4f6f8;
+    --ds-color-surface-bg: #ffffff;
+    --ds-color-surface-soft: #f4f6f8;
+    --ds-color-border: rgba(145, 158, 171, 0.16);
+    --ds-color-border-strong: rgba(203, 213, 225, 0.9);
+    --ds-color-text-strong: #212b36;
+    --ds-color-text-muted: #637381;
+    --ds-color-floating-bg: rgba(255, 255, 255, 0.92);
+    --ds-color-accent: #1767d1;
+    --ds-color-accent-strong: #2563eb;
+    --ds-color-accent-soft: rgba(37, 99, 235, 0.18);
+    --ds-focus-ring: 0 0 0 0.2rem rgba(23, 103, 209, 0.15);
+    --ds-color-success-bg: rgba(22, 163, 74, 0.12);
+    --ds-color-success-text: #166534;
+    --ds-color-warning-bg: rgba(180, 83, 9, 0.12);
+    --ds-color-warning-text: #92400e;
+    --ds-color-info-bg: rgba(37, 99, 235, 0.1);
+    --ds-color-info-text: #1d4ed8;
+    --ds-color-danger-bg: rgba(220, 38, 38, 0.1);
+    --ds-color-danger-text: #b91c1c;
+    --ds-color-neutral-bg: rgba(51, 65, 85, 0.12);
+    --ds-color-neutral-text: #334155;
+    --ds-color-amber: #f59e0b;
+    --ds-color-amber-strong: #d97706;
+    --ds-color-amber-soft: rgba(245, 158, 11, 0.16);
+    --ds-color-teal: #14b8a6;
+    --ds-color-teal-strong: #0f766e;
+    --ds-color-teal-soft: rgba(20, 184, 166, 0.16);
+    --ds-color-green: #22c55e;
+    --ds-color-green-strong: #16a34a;
+    --ds-color-green-soft: rgba(34, 197, 94, 0.16);
+    --ds-color-violet: #8b5cf6;
+    --ds-color-violet-strong: #7c3aed;
+    --ds-color-violet-soft: rgba(139, 92, 246, 0.16);
+    --ds-shadow-sm: 0 2px 5px rgba(15, 23, 42, 0.08);
+    --ds-shadow-md: 0 10px 28px rgba(15, 23, 42, 0.06);
+    --ds-shadow-lg: 0 20px 40px rgba(145, 158, 171, 0.16);
+    --ds-radius-panel: 2px;
+    --ds-radius-field: 4px;
+    --ds-spacing-1: 4px;
+    --ds-spacing-2: 8px;
+    --ds-spacing-3: 12px;
+    --ds-spacing-4: 16px;
+    --ds-spacing-5: 20px;
+    --ds-spacing-6: 24px;
+    --ds-spacing-7: 28px;
+    --ds-form-height: 38px;
+    --ds-form-height-comfortable: 42px;
+}
+
+.app-shell-root {
+    --ds-color-page-bg: var(--shell-bg);
+    --ds-color-surface-bg: var(--shell-surface-bg);
+    --ds-color-surface-soft: var(--shell-surface-soft);
+    --ds-color-border: var(--shell-surface-border);
+    --ds-color-border-strong: color-mix(in srgb, var(--shell-surface-border) 65%, var(--shell-strong-text) 35%);
+    --ds-color-text-strong: var(--shell-strong-text);
+    --ds-color-text-muted: var(--shell-subtle-text);
+    --ds-color-floating-bg: var(--shell-floating-bg, var(--shell-surface-bg));
+    --ds-shadow-lg: var(--shell-floating-shadow, 0 20px 40px rgba(145, 158, 171, 0.16));
+}
+
+.app-shell-root--dark {
+    --ds-color-page-bg: var(--shell-bg);
+    --ds-color-accent: #60a5fa;
+    --ds-color-accent-strong: #93c5fd;
+    --ds-color-accent-soft: rgba(96, 165, 250, 0.18);
+    --ds-color-text-muted: #9aa4b2;
+    --ds-focus-ring: 0 0 0 0.2rem rgba(147, 197, 253, 0.18);
+    --ds-color-success-bg: rgba(74, 222, 128, 0.14);
+    --ds-color-success-text: #bbf7d0;
+    --ds-color-warning-bg: rgba(251, 191, 36, 0.14);
+    --ds-color-warning-text: #fde68a;
+    --ds-color-info-bg: rgba(96, 165, 250, 0.14);
+    --ds-color-info-text: #dbeafe;
+    --ds-color-danger-bg: rgba(248, 113, 113, 0.14);
+    --ds-color-danger-text: #fecaca;
+    --ds-color-neutral-bg: rgba(148, 163, 184, 0.14);
+    --ds-color-neutral-text: #e2e8f0;
+    --ds-color-amber-soft: rgba(251, 191, 36, 0.18);
+    --ds-color-amber-strong: #fcd34d;
+    --ds-color-teal-soft: rgba(45, 212, 191, 0.18);
+    --ds-color-teal-strong: #5eead4;
+    --ds-color-green-soft: rgba(74, 222, 128, 0.18);
+    --ds-color-green-strong: #86efac;
+    --ds-color-violet-soft: rgba(167, 139, 250, 0.18);
+    --ds-color-violet-strong: #c4b5fd;
+    --ds-shadow-sm: 0 12px 28px rgba(2, 6, 23, 0.24);
+    --ds-shadow-md: 0 16px 36px rgba(2, 6, 23, 0.28);
+}

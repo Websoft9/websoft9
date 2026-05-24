@@ -4,29 +4,20 @@ import { useEffect, useMemo, useState } from 'react'
 type LegacyMyAppLogoProps = {
     appName?: string | null
     appId?: string | null
+    logoUrl?: string | null
     locale?: string
     size?: number
     marginY?: number
     title?: string | null
 }
 
-function buildPrimaryLogoSource(appName?: string | null, appId?: string | null) {
-    const preferredValue = appName?.trim() || appId?.trim()
-    if (!preferredValue) return null
-    return `/media/logos/${preferredValue.toLowerCase()}-websoft9.png`
+function getDefaultImagePath(locale: string) {
+    return locale.startsWith('zh') ? '/default.png' : '/default-en.png'
 }
 
-function buildFallbackLogoDataUri(locale: string) {
-    const isChinese = locale.startsWith('zh')
-    const background = isChinese ? '#f3ead6' : '#e8eef7'
-    const accent = isChinese ? '#a35a1f' : '#2550a3'
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240"><rect width="240" height="240" rx="36" fill="${background}"/><circle cx="120" cy="78" r="28" fill="${accent}" fill-opacity="0.14"/><text x="120" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="${accent}">Websoft9</text><text x="120" y="154" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="${accent}">${isChinese ? '应用' : 'App'}</text></svg>`
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
-}
-
-export function LegacyMyAppLogo({ appName, appId, locale = 'en', size = 80, marginY = 2.5, title }: LegacyMyAppLogoProps) {
-    const fallbackImage = useMemo(() => buildFallbackLogoDataUri(locale), [locale])
-    const primarySource = useMemo(() => buildPrimaryLogoSource(appName, appId), [appId, appName])
+export function LegacyMyAppLogo({ appName, appId, logoUrl, locale = 'en', size = 80, marginY = 2.5, title }: LegacyMyAppLogoProps) {
+    const fallbackImage = useMemo(() => getDefaultImagePath(locale), [locale])
+    const primarySource = useMemo(() => logoUrl?.trim() || null, [logoUrl])
     const [imageFailed, setImageFailed] = useState(false)
     const src = !imageFailed && primarySource ? primarySource : fallbackImage
 
@@ -40,6 +31,7 @@ export function LegacyMyAppLogo({ appName, appId, locale = 'en', size = 80, marg
             src={src}
             alt={appName || appId || 'app'}
             title={title ?? appName ?? appId ?? undefined}
+            referrerPolicy="no-referrer"
             onError={() => {
                 setImageFailed(true)
             }}

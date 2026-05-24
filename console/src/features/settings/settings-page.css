@@ -1,21 +1,13 @@
 .settings-page {
-    --settings-surface: #ffffff;
-    --settings-surface-soft: #ffffff;
-    --settings-border: var(--shell-surface-border);
-    --settings-title: var(--shell-strong-text);
-    --settings-muted: var(--shell-subtle-text);
+    --settings-surface: var(--ds-color-surface-bg);
+    --settings-surface-soft: var(--ds-color-surface-soft);
+    --settings-border: var(--ds-color-border);
+    --settings-title: var(--ds-color-text-strong);
+    --settings-muted: var(--ds-color-text-muted);
     height: 100%;
     min-height: 0;
     padding: 0;
     background: transparent;
-}
-
-.app-shell-root--dark .settings-page {
-    --settings-surface: #111827;
-    --settings-surface-soft: #0f172a;
-    --settings-border: rgba(71, 85, 105, 0.65);
-    --settings-title: #f8fafc;
-    --settings-muted: #94a3b8;
 }
 
 .settings-page--loading {
@@ -35,34 +27,29 @@
     background: var(--settings-surface);
     background-color: var(--settings-surface) !important;
     border: 1px solid var(--settings-border);
-    border-radius: 0 !important;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08) !important;
+    border-radius: var(--ds-radius-panel) !important;
+    box-shadow: var(--ds-shadow-sm) !important;
 }
 
 .settings-toolbar-icon-button,
 .settings-toolbar-icon-button.MuiIconButton-root {
     width: 36px;
     height: 36px;
-    border-radius: 0 !important;
+    border-radius: var(--ds-radius-panel) !important;
     border: 1px solid var(--settings-border);
-    background: #fff;
+    background: var(--settings-surface);
     color: #475569;
 }
 
 .app-shell-root--dark .settings-toolbar-icon-button,
 .app-shell-root--dark .settings-toolbar-icon-button.MuiIconButton-root {
-    background: #0f172a;
-    color: #f8fafc;
+    background: var(--settings-surface-soft);
+    color: var(--settings-title);
 }
 
 .settings-toolbar-icon-button:hover,
 .settings-toolbar-icon-button.MuiIconButton-root:hover {
-    background: #f8fafc;
-}
-
-.app-shell-root--dark .settings-toolbar-icon-button:hover,
-.app-shell-root--dark .settings-toolbar-icon-button.MuiIconButton-root:hover {
-    background: #162033;
+    background: var(--settings-surface-soft);
 }
 
 .settings-panels-grid {
@@ -75,19 +62,11 @@
     overflow: hidden;
 }
 
-.settings-panel--system {
-    grid-column: 1 / -1;
-}
-
 .settings-panel-header {
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
-    background: #ffffff;
-}
-
-.app-shell-root--dark .settings-panel-header {
-    border-bottom-color: rgba(71, 85, 105, 0.65);
-    background: #111827;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--settings-border);
+    border-left: 3px solid #2563eb;
+    background: var(--settings-surface);
 }
 
 .settings-panel-header--with-action {
@@ -100,7 +79,7 @@
 .settings-panel-title {
     font-size: 15px !important;
     font-weight: 600 !important;
-    color: #111827;
+    color: var(--settings-title);
     line-height: 1.35 !important;
 }
 
@@ -109,7 +88,7 @@
 .app-shell-root--dark .settings-form-value--muted,
 .app-shell-root--dark .settings-field-helper,
 .app-shell-root--dark .settings-mirror-inline-input {
-    color: #e5edf5;
+    color: var(--ds-color-text-strong);
 }
 
 .settings-header-icon-button,
@@ -128,11 +107,11 @@
     gap: 12px;
     align-items: center;
     padding: 12px 16px;
-    border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+    border-bottom: 1px solid var(--ds-color-border);
 }
 
 .app-shell-root--dark .settings-form-row {
-    border-bottom-color: rgba(71, 85, 105, 0.45);
+    border-bottom-color: var(--ds-color-border);
 }
 
 .settings-form-row:last-child {
@@ -142,14 +121,14 @@
 .settings-form-label {
     font-size: 14px;
     font-weight: 400;
-    color: #475569;
+    color: var(--ds-color-text-muted);
     line-height: 1.45;
 }
 
 .app-shell-root--dark .settings-form-label,
 .app-shell-root--dark .settings-switch-label,
 .app-shell-root--dark .settings-form-meta {
-    color: #94a3b8;
+    color: var(--settings-muted);
 }
 
 .settings-form-control {
@@ -178,7 +157,7 @@
 
 .settings-form-control .MuiOutlinedInput-root,
 .settings-form-control .MuiOutlinedInput-root.Mui-disabled {
-    border-radius: 4px !important;
+    border-radius: var(--ds-radius-field) !important;
 }
 
 .settings-form-switch {
@@ -210,14 +189,14 @@
     min-height: 38px;
     justify-content: space-between;
     padding: 0 12px;
-    border: 1px solid rgba(203, 213, 225, 0.9);
-    border-radius: 4px;
-    background: #ffffff;
+    border: 1px solid var(--ds-color-border-strong);
+    border-radius: var(--ds-radius-field);
+    background: var(--ds-color-surface-bg);
 }
 
 .app-shell-root--dark .settings-switch-item--row {
-    border-color: rgba(71, 85, 105, 0.65);
-    background: #0f172a;
+    border-color: var(--ds-color-border);
+    background: var(--ds-color-surface-soft);
 }
 
 .settings-switch-item--rowless {
@@ -233,7 +212,7 @@
 .settings-switch-label {
     font-size: 14px !important;
     font-weight: 400 !important;
-    color: #475569;
+    color: var(--settings-muted);
     line-height: 1.4 !important;
 }
 
@@ -253,21 +232,21 @@
 .settings-form-value {
     font-size: 14px !important;
     font-weight: 400;
-    color: #475569;
+    color: var(--settings-muted);
     overflow-wrap: anywhere;
     line-height: 1.45 !important;
 }
 
 .settings-form-value--muted {
     font-weight: 400;
-    color: #475569;
+    color: var(--settings-muted);
 }
 
 .settings-field-helper {
     font-size: 14px !important;
     font-weight: 400 !important;
     line-height: 1.45 !important;
-    color: #475569;
+    color: var(--settings-muted);
 }
 
 .settings-field-helper--inline {
@@ -286,14 +265,14 @@
     min-height: 40px;
     padding: 7px 10px;
     flex: 0 0 620px;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    background: #ffffff;
+    border: 1px solid var(--ds-color-border);
+    background: var(--ds-color-surface-bg);
 }
 
 .app-shell-root--dark .settings-mirror-box,
 .app-shell-root--dark .settings-mirror-edit-box {
-    border-color: rgba(71, 85, 105, 0.65);
-    background: #0f172a;
+    border-color: var(--ds-color-border);
+    background: var(--ds-color-surface-soft);
 }
 
 .settings-mirror-chip {
@@ -301,10 +280,10 @@
     align-items: center;
     min-height: 28px;
     padding: 0 12px;
-    border: 1px solid rgba(148, 163, 184, 0.32);
+    border: 1px solid var(--ds-color-border);
     border-radius: 999px;
-    background: #ffffff;
-    color: #64748b;
+    background: var(--ds-color-surface-bg);
+    color: var(--settings-muted);
     font-size: 13px;
     line-height: 1.4;
 }
@@ -312,16 +291,16 @@
 .app-shell-root--dark .settings-mirror-chip,
 .app-shell-root--dark .settings-mirror-edit-chip,
 .app-shell-root--dark .settings-mirror-edit-chip.MuiChip-root {
-    background: #162033;
-    border-color: rgba(71, 85, 105, 0.65);
-    color: #cbd5e1;
+    background: var(--ds-color-surface-soft);
+    border-color: var(--ds-color-border);
+    color: var(--ds-color-text-strong);
 }
 
 .settings-mirror-edit-chip,
 .settings-mirror-edit-chip.MuiChip-root {
     border-radius: 999px;
-    background: #ffffff;
-    border: 1px solid rgba(148, 163, 184, 0.32);
+    background: var(--ds-color-surface-bg);
+    border: 1px solid var(--ds-color-border);
 }
 
 .settings-mirror-edit-box {
@@ -332,9 +311,9 @@
     min-height: 38px;
     flex: 0 0 620px;
     padding: 6px 10px;
-    border: 1px solid rgba(203, 213, 225, 0.9);
-    border-radius: 4px;
-    background: #ffffff;
+    border: 1px solid var(--ds-color-border-strong);
+    border-radius: var(--ds-radius-field);
+    background: var(--ds-color-surface-bg);
 }
 
 .settings-mirror-inline-input {

@@ -5,27 +5,21 @@ import {
     Card,
     CardContent,
     CircularProgress,
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogTitle,
-    FormControlLabel,
     IconButton,
-    Menu,
-    MenuItem,
-    Snackbar,
     Switch,
     Tooltip,
     Typography,
 } from '@mui/material'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { clearMyAppsDetailOverlayIntent, markMyAppsDetailOverlayIntent } from './my-app-detail-overlay-intent'
 import { useMyApps, type MyApp } from './use-my-apps'
 import { fetchMyAppDetail } from './use-my-app-detail'
 import { LegacyMyAppLogo } from './my-app-media'
@@ -37,8 +31,15 @@ import './my-apps-page.css'
 type StatusFilter = 'all' | '1' | '2' | '3' | '4'
 type RemoveType = 'inactive' | 'error'
 type ActionFeedback = {
-    severity: 'success' | 'error' | 'info'
+    severity: 'success' | 'warning' | 'info'
     message: string
+}
+
+type ContentScopeRect = {
+    top: number
+    left: number
+    width: number
+    height: number
 }
 
 function getStatusLabel(status: number): string {
@@ -53,11 +54,11 @@ function getStatusLabel(status: number): string {
 
 function getStatusBadgeClass(status: number): string {
     switch (status) {
-        case 1: return 'bg-success'
-        case 2: return 'bg-dark'
-        case 3: return 'bg-warning'
-        case 4: return 'bg-danger'
-        default: return 'bg-info'
+        case 1: return 'is-active'
+        case 2: return 'is-inactive'
+        case 3: return 'is-installing'
+        case 4: return 'is-error'
+        default: return 'is-unknown'
     }
 }
 
@@ -81,37 +82,10 @@ function IconRefresh() {
     )
 }
 
-function IconAppStore() {
-    return (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M7 4h10l1 4h2v2h-1l-1 9H6L5 10H4V8h2l1-4Zm1.58 4h6.84l-.5-2H9.08l-.5 2ZM8 12v5h2v-5H8Zm6 0v5h2v-5h-2Z" />
-        </svg>
-    )
-}
-
 function IconCompose() {
     return (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
-            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M7 5v14M17 5v14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.7" />
-        </svg>
-    )
-}
-
-function IconDeployMenu() {
-    return (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
-            <path d="M12 3v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="m8 9 4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M5 19h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-    )
-}
-
-function IconChevronDown() {
-    return (
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-            <path d="m7 10 5 5 5-5H7Z" />
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H11v2H6.5a.5.5 0 0 0-.5.5V11H4V6.5Zm9-2.5h4.5A2.5 2.5 0 0 1 20 6.5V11h-2V6.5a.5.5 0 0 0-.5-.5H13V4ZM4 13h2v4.5a.5.5 0 0 0 .5.5H11v2H6.5A2.5 2.5 0 0 1 4 17.5V13Zm14 0h2v4.5a2.5 2.5 0 0 1-2.5 2.5H13v-2h4.5a.5.5 0 0 0 .5-.5V13Zm-7-4 5 3-5 3V9Z" />
         </svg>
     )
 }
@@ -205,65 +179,73 @@ const MAX_STAGE_LOG_LINES = 24
 function LogDialog({
     app,
     onClose,
+    darkMode,
+    scopeRect,
 }: {
     app: MyApp | null
     onClose: () => void
+    darkMode: boolean
+    scopeRect: ContentScopeRect | null
 }) {
     const { t } = useTranslation('shell')
     const isError = Boolean(app?.error)
     const isInstalling = app?.status === 3
     const stages = app?.logs ?? []
     const hasLogs = stages.some((stage) => stage.sub_logs && stage.sub_logs.length > 0)
+    const dialogPalette = getSurfacePalette(darkMode)
 
     return (
-        <Dialog
-            maxWidth="md"
-            fullWidth
+        <SurfaceDialog
+            darkMode={darkMode}
             onClose={onClose}
             open={Boolean(app)}
-            sx={{
-                '& .MuiDialog-paper': {
-                    borderRadius: '4px',
-                    height: '62vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                },
+            scope="content"
+            scopeRect={scopeRect}
+            contentStrategy="viewport-fixed"
+            paperSx={{
+                width: { xs: 'min(100%, 880px)', md: 'min(880px, calc(100% - 20px))' },
+                maxWidth: '880px',
+                height: '62vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                backgroundColor: dialogPalette.dialogBg,
+                color: dialogPalette.text,
+                border: `1px solid ${dialogPalette.border}`,
+                boxShadow: darkMode ? '0 24px 64px rgba(2, 6, 23, 0.56)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
             }}
         >
-            <DialogTitle
+            <Box
                 sx={{
-                    backgroundColor: isError ? '#fa5c7c' : '#39afd1',
-                    color: '#fff',
+                    backgroundColor: dialogPalette.dialogBg,
+                    color: dialogPalette.text,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
-                    py: 1.2,
-                    px: 2,
+                    py: { xs: 1.5, md: 1.75 },
+                    px: { xs: 2, md: 2.5 },
                     flexShrink: 0,
                     userSelect: 'none',
-                    fontSize: '14px',
-                    fontWeight: 600,
+                    borderBottom: `1px solid ${dialogPalette.border}`,
                 }}
             >
-                {isInstalling ? <CircularProgress size={15} thickness={5} sx={{ color: 'rgba(255,255,255,0.85)', flexShrink: 0 }} /> : null}
-                <span style={{ flex: 1 }}>
-                    {isError ? `${t('myAppsPage.dialog.errorTitle')} — ${app?.app_id}` : `${t('myAppsPage.dialog.logsTitle')} — ${app?.app_id}`}
-                </span>
-                <IconButton size="small" onClick={onClose} sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.15)' } }}>
+                {isInstalling ? <CircularProgress size={15} thickness={5} sx={{ color: dialogPalette.accent, flexShrink: 0 }} /> : null}
+                <Typography sx={{ flex: 1, fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: dialogPalette.text }}>
+                    {isError ? `${t('myAppsPage.dialog.errorTitle')} - ${app?.app_id}` : `${t('myAppsPage.dialog.logsTitle')} - ${app?.app_id}`}
+                </Typography>
+                <IconButton size="small" onClick={onClose} sx={{ width: 40, height: 40, color: dialogPalette.subtleText, borderRadius: '999px', backgroundColor: 'transparent', '&:hover': { color: dialogPalette.text, backgroundColor: 'transparent', opacity: 0.84 } }}>
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
                 </IconButton>
-            </DialogTitle>
+            </Box>
 
             {isError && app?.error ? (
                 <div style={{
                     flexShrink: 0,
-                    backgroundColor: '#fff',
-                    borderBottom: '1px solid #dee2e6',
-                    borderLeft: '4px solid #fa5c7c',
-                    padding: '12px 18px',
+                    backgroundColor: dialogPalette.dialogBg,
+                    borderBottom: `1px solid ${dialogPalette.border}`,
+                    padding: '14px 20px',
                     display: 'flex',
                     gap: 10,
                     alignItems: 'flex-start',
@@ -275,11 +257,11 @@ function LogDialog({
                         width: 22,
                         height: 22,
                         borderRadius: '50%',
-                        backgroundColor: '#fa5c7c',
+                        backgroundColor: dialogPalette.actionBg,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#fff',
+                        color: dialogPalette.subtleText,
                         fontSize: '12px',
                         fontWeight: 700,
                         marginTop: 1,
@@ -287,7 +269,7 @@ function LogDialog({
                     <div style={{ flex: 1 }}>
                         <div style={{
                             fontSize: '12px',
-                            color: '#313a46',
+                            color: dialogPalette.text,
                             lineHeight: '1.7',
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-all',
@@ -299,15 +281,15 @@ function LogDialog({
                 </div>
             ) : null}
 
-            <DialogContent sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: '#f8f9fa' }}>
+            <Box sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: dialogPalette.dialogBg }}>
                 {stages.length > 0 ? (
                     <div style={{
                         flexShrink: 0,
                         display: 'flex',
                         alignItems: 'stretch',
                         gap: 0,
-                        borderBottom: '1px solid #dee2e6',
-                        backgroundColor: '#fff',
+                        borderBottom: `1px solid ${dialogPalette.border}`,
+                        backgroundColor: dialogPalette.dialogBg,
                         padding: '0 16px',
                     }}>
                         {stages.map((stage, idx) => {
@@ -322,19 +304,19 @@ function LogDialog({
                                         gap: 6,
                                         padding: '8px 14px 8px 0',
                                         marginRight: 16,
-                                        borderBottom: isActive ? '2px solid #39afd1' : isDone ? '2px solid #0acf97' : '2px solid transparent',
+                                        borderBottom: isActive ? `2px solid ${dialogPalette.accent}` : isDone ? '2px solid #0acf97' : '2px solid transparent',
                                         fontSize: '12px',
                                         fontWeight: isActive ? 700 : 500,
-                                        color: isActive ? '#39afd1' : isDone ? '#0acf97' : '#adb5bd',
+                                        color: isActive ? dialogPalette.accent : isDone ? '#0acf97' : dialogPalette.subtleText,
                                         userSelect: 'none',
                                         whiteSpace: 'nowrap',
                                     }}
                                 >
                                     {isActive
-                                        ? <CircularProgress size={11} thickness={6} sx={{ color: '#39afd1', flexShrink: 0 }} />
+                                        ? <CircularProgress size={11} thickness={6} sx={{ color: dialogPalette.accent, flexShrink: 0 }} />
                                         : isDone
                                             ? <svg viewBox="0 0 24 24" width="12" height="12" fill="#0acf97"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
-                                            : <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #dee2e6', display: 'inline-block' }} />}
+                                            : <span style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${dialogPalette.divider}`, display: 'inline-block' }} />}
                                     <span>{`${idx + 1}. ${stage.title}`}</span>
                                 </div>
                             )
@@ -362,17 +344,17 @@ function LogDialog({
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: 14,
-                            color: '#6c757d',
+                            color: dialogPalette.subtleText,
                         }}>
                             {isInstalling ? (
                                 <>
-                                    <CircularProgress size={28} thickness={4} sx={{ color: '#39afd1' }} />
-                                    <span style={{ fontSize: '13px', color: '#39afd1', fontFamily: 'inherit', letterSpacing: '0.01em' }}>
+                                    <CircularProgress size={28} thickness={4} sx={{ color: dialogPalette.accent }} />
+                                    <span style={{ fontSize: '13px', color: dialogPalette.accent, fontFamily: 'inherit', letterSpacing: '0.01em' }}>
                                         {stages.length > 0 ? stages[stages.length - 1].title : 'Preparing…'}
                                     </span>
                                 </>
                             ) : (
-                                <span style={{ fontSize: '12px', color: '#adb5bd' }}>{t('myAppsPage.dialog.noSubLogs')}</span>
+                                <span style={{ fontSize: '12px', color: dialogPalette.subtleText }}>{t('myAppsPage.dialog.noSubLogs')}</span>
                             )}
                         </div>
                     ) : null}
@@ -388,8 +370,8 @@ function LogDialog({
                         const offset = lines.length - tail.length
 
                         return tail.map((line, index) => (
-                            <div key={index} style={{ display: 'flex', gap: 10, padding: '1px 0', color: '#313a46', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                                <span style={{ color: '#adb5bd', userSelect: 'none', minWidth: 28, textAlign: 'right', flexShrink: 0, fontSize: '11px' }}>
+                            <div key={index} style={{ display: 'flex', gap: 10, padding: '1px 0', color: dialogPalette.text, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                                <span style={{ color: dialogPalette.subtleText, userSelect: 'none', minWidth: 28, textAlign: 'right', flexShrink: 0, fontSize: '11px' }}>
                                     {offset + index + 1}
                                 </span>
                                 <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', flex: 1, overflow: 'hidden' }}>
@@ -400,30 +382,29 @@ function LogDialog({
                     })()}
 
                     {isInstalling && hasLogs ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#39afd1', marginTop: 4 }}>
-                            <CircularProgress size={10} thickness={6} sx={{ color: '#39afd1' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: dialogPalette.accent, marginTop: 4 }}>
+                            <CircularProgress size={10} thickness={6} sx={{ color: dialogPalette.accent }} />
                             <span style={{ fontSize: '11px' }}>installing…</span>
                         </div>
                     ) : null}
                 </div>
-            </DialogContent>
+            </Box>
 
-            <DialogActions sx={{ borderTop: '1px solid #dee2e6', px: 2, py: 1, backgroundColor: '#fff', flexShrink: 0 }}>
-                <Button color="inherit" onClick={onClose} size="small" sx={{ color: '#6c757d', borderColor: '#ced4da' }} variant="outlined">
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.5, py: 2, backgroundColor: dialogPalette.dialogBg, borderTop: `1px solid ${dialogPalette.border}`, flexShrink: 0 }}>
+                <Button color="inherit" onClick={onClose} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>
                     {t('myAppsPage.dialog.close')}
                 </Button>
                 {isError ? (
                     <Button
                         onClick={() => window.open('https://www.websoft9.com/ticket', '_blank')}
-                        size="small"
                         variant="contained"
-                        sx={{ backgroundColor: '#fa5c7c', '&:hover': { backgroundColor: '#e04a68' } }}
+                        sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}
                     >
                         {t('myAppsPage.dialog.support')}
                     </Button>
                 ) : null}
-            </DialogActions>
-        </Dialog>
+            </Box>
+        </SurfaceDialog>
     )
 }
 
@@ -435,6 +416,7 @@ export function MyAppsPage() {
     const { colorMode } = useAppColorMode()
     const queryClient = useQueryClient()
     const navigate = useNavigate()
+    const location = useLocation()
     const isDarkMode = colorMode === 'dark'
     const [searchValue, setSearchValue] = useState('')
     const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('all')
@@ -447,14 +429,37 @@ export function MyAppsPage() {
     const [actionBusy, setActionBusy] = useState(false)
     const [feedback, setFeedback] = useState<ActionFeedback | null>(null)
     const [manualRefreshing, setManualRefreshing] = useState(false)
-    const [deployMenuAnchor, setDeployMenuAnchor] = useState<HTMLElement | null>(null)
+    const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
 
     const { data, error, isLoading, refetch } = useMyApps()
     const apps = data ?? []
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const apiLocale = locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
     const palette = getSurfacePalette(isDarkMode)
+    const dialogPalette = getSurfacePalette(isDarkMode)
+    const contentScopedDialogPlacementSx = useMemo(() => ({
+        '& .MuiDialog-container': {
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            pt: { xs: 3, md: 3 },
+            pb: { xs: 1.5, md: 2.5 },
+        },
+    }), [])
+    const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
+
+    function closeAllMyAppsOverlays() {
+        clearMyAppsDetailOverlayIntent()
+        setLogDialogKey(null)
+        setRemoveApp(null)
+        setRedeployApp(null)
+        setActionBusy(false)
+    }
 
     async function handleManualRefresh() {
+        closeAllMyAppsOverlays()
+        if (location.pathname !== '/myapps') {
+            navigate('/myapps', { replace: true })
+        }
         setManualRefreshing(true)
         try {
             await refetch()
@@ -462,6 +467,29 @@ export function MyAppsPage() {
             setManualRefreshing(false)
         }
     }
+
+    useEffect(() => {
+        if (!(contentScopeContainer instanceof HTMLElement)) {
+            setContentScopeRect(null)
+            return
+        }
+
+        const updateScopeRect = () => {
+            const rect = contentScopeContainer.getBoundingClientRect()
+            setContentScopeRect({
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+            })
+        }
+
+        updateScopeRect()
+        window.addEventListener('resize', updateScopeRect)
+        return () => {
+            window.removeEventListener('resize', updateScopeRect)
+        }
+    }, [contentScopeContainer])
 
     useEffect(() => {
         if (apps.length === 0) return
@@ -487,15 +515,15 @@ export function MyAppsPage() {
         const handle = schedule(() => {
             activeApps.slice(0, 6).forEach((app) => {
                 void queryClient.prefetchQuery({
-                    queryKey: ['my-app-detail', app.app_id],
-                    queryFn: async () => fetchMyAppDetail(app.app_id),
+                    queryKey: ['my-app-detail', app.app_id, apiLocale],
+                    queryFn: async () => fetchMyAppDetail(app.app_id, apiLocale),
                     staleTime: 10_000,
                 })
             })
         })
 
         return () => cancel(handle)
-    }, [apps, queryClient])
+    }, [apiLocale, apps, queryClient])
 
     // Resolve the live app for the log dialog (auto-refreshes with the query)
     const logDialogApp = useMemo(
@@ -518,6 +546,7 @@ export function MyAppsPage() {
 
     const hasVisiblePlatformApps = platformApps.length > 0
     const hasVisibleOtherApps = otherApps.length > 0
+    const showLoadingState = isLoading || manualRefreshing
 
     function handleCardClick(app: MyApp) {
         if (!app.app_official) return
@@ -525,6 +554,7 @@ export function MyAppsPage() {
             const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
             const backgroundScrollTop = contentScopeContainer instanceof HTMLElement ? contentScopeContainer.scrollTop : 0
 
+            markMyAppsDetailOverlayIntent(app.app_id)
             void navigate(`/myapps/${encodeURIComponent(app.app_id)}`, {
                 state: {
                     backgroundScrollTop,
@@ -540,7 +570,11 @@ export function MyAppsPage() {
         setActionBusy(true)
         try {
             if (removeType === 'error') {
-                await runDeleteRequest(`/api/apps/${encodeURIComponent(removeApp.app_id)}/error/remove`)
+                try {
+                    await runDeleteRequest(`/api/apps/${encodeURIComponent(removeApp.app_id)}/error/remove`)
+                } catch {
+                    await runDeleteRequest(`/api/apps/${encodeURIComponent(removeApp.app_id)}/remove`)
+                }
             } else {
                 await runDeleteRequest(`/api/apps/${encodeURIComponent(removeApp.app_id)}/remove`)
             }
@@ -548,7 +582,7 @@ export function MyAppsPage() {
             setFeedback({ severity: 'success', message: t('myAppsPage.dialog.actionSuccess') })
             await refetch()
         } catch (err) {
-            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsPage.dialog.actionFailed') })
+            setFeedback({ severity: 'warning', message: err instanceof Error ? err.message : t('myAppsPage.dialog.actionFailed') })
         } finally {
             setActionBusy(false)
         }
@@ -563,18 +597,20 @@ export function MyAppsPage() {
             setFeedback({ severity: 'success', message: t('myAppsPage.dialog.actionSuccess') })
             await refetch()
         } catch (err) {
-            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsPage.dialog.actionFailed') })
+            setFeedback({ severity: 'warning', message: err instanceof Error ? err.message : t('myAppsPage.dialog.actionFailed') })
         } finally {
             setActionBusy(false)
         }
     }
 
-    function renderCards(appList: MyApp[]) {
+    function renderCards(appList: MyApp[], variant: 'managed' | 'other') {
         return appList.map((app) => {
             const canOpenDetail = app.app_official
+            const showStatus = variant === 'managed' && canOpenDetail
+            const logoSize = 80
 
-            const statusNode = canOpenDetail ? (
-                <span className={`badge ${getStatusBadgeClass(app.status)}`}>
+            const statusNode = showStatus ? (
+                <span className={`myapps-status-badge ${getStatusBadgeClass(app.status)}`}>
                     {app.status === 3 ? <CircularProgress size={8} sx={{ mr: 0.5, verticalAlign: 'middle', color: 'inherit' }} /> : null}
                     {getStatusLabel(app.status)}
                 </span>
@@ -647,28 +683,33 @@ export function MyAppsPage() {
             return (
                 <div
                     key={`${app.app_id}-${app.tracking_id ?? 'stable'}`}
-                    className={`myapps-vcard${canOpenDetail ? ' highlight' : ''}`}
+                    className={`myapps-vcard myapps-vcard--${variant}${canOpenDetail ? ' highlight' : ''}`}
                     onClick={canOpenDetail ? () => handleCardClick(app) : undefined}
                     role={canOpenDetail ? 'button' : undefined}
                     tabIndex={canOpenDetail ? 0 : undefined}
                     onKeyDown={canOpenDetail ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(app) } : undefined}
                 >
+                    <div className="myapps-vcard-top">
+                        {actionsNode ? <div className="myapps-vcard-actions">{actionsNode}</div> : <div className="myapps-vcard-actions myapps-vcard-actions--placeholder" />}
+                    </div>
                     <div className="myapps-vcard-icon">
                         <LegacyMyAppLogo
                             appId={app.app_id}
                             appName={app.app_name}
+                            logoUrl={app.logo_url}
                             locale={locale}
-                            size={114}
+                            size={logoSize}
                             marginY={0}
                         />
                     </div>
                     <div
-                        className={`myapps-vcard-name${canOpenDetail ? ' is-official' : ''}`}
+                        className={`myapps-vcard-name myapps-vcard-name--${variant}${canOpenDetail ? ' is-official' : ''}`}
                     >
                         {app.app_id}
                     </div>
-                    {statusNode && <div className="myapps-vcard-badge">{statusNode}</div>}
-                    {actionsNode && <div className="myapps-vcard-actions">{actionsNode}</div>}
+                    <div className={`myapps-vcard-footer myapps-vcard-footer--${variant}`}>
+                        {statusNode ? <div className="myapps-vcard-badge">{statusNode}</div> : <div className="myapps-vcard-badge myapps-vcard-badge--placeholder" />}
+                    </div>
                 </div>
             )
         })
@@ -698,14 +739,13 @@ export function MyAppsPage() {
                     <>
                         <Button
                             color="inherit"
-                            onClick={(event) => {
-                                setDeployMenuAnchor(event.currentTarget)
+                            onClick={() => {
+                                navigate('/applications/deploy')
                             }}
                             size="small"
                             className="app-shell-page-pill"
                             title={t('applicationsHubPage.menu.action')}
-                            startIcon={<IconDeployMenu />}
-                            endIcon={<IconChevronDown />}
+                            startIcon={<IconCompose />}
                         >
                             {t('applicationsHubPage.menu.action')}
                         </Button>
@@ -725,33 +765,6 @@ export function MyAppsPage() {
                 )}
                 sx={{ mb: 1.5 }}
             />
-
-            <Menu
-                anchorEl={deployMenuAnchor}
-                open={Boolean(deployMenuAnchor)}
-                onClose={() => setDeployMenuAnchor(null)}
-                sx={{ zIndex: 1700 }}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                slotProps={{
-                    paper: {
-                        className: `app-shell-account-menu app-shell-account-menu--${isDarkMode ? 'dark' : 'light'}`,
-                        sx: { mt: 0.75, minWidth: 196 },
-                    },
-                }}
-            >
-                <Box className="app-shell-account-panel">
-                    <Typography className="app-shell-account-section-label">{t('applicationsHubPage.menu.title')}</Typography>
-                    <MenuItem className="app-shell-account-link" onClick={() => { setDeployMenuAnchor(null); navigate('/appstore') }}>
-                        <Box className="app-shell-account-link-icon"><IconAppStore /></Box>
-                        <Typography className="app-shell-account-link-title">{t('applicationsHubPage.menu.marketplace')}</Typography>
-                    </MenuItem>
-                    <MenuItem className="app-shell-account-link" onClick={() => { setDeployMenuAnchor(null); navigate('/applications/custom-install') }}>
-                        <Box className="app-shell-account-link-icon"><IconCompose /></Box>
-                        <Typography className="app-shell-account-link-title">{t('applicationsHubPage.menu.customInstall')}</Typography>
-                    </MenuItem>
-                </Box>
-            </Menu>
 
             {/* Toolbar */}
             <div className="myapps-toolbar">
@@ -780,7 +793,7 @@ export function MyAppsPage() {
             </div>
 
             {/* Loading – same pattern as App Store page */}
-            {isLoading ? (
+            {showLoadingState ? (
                 <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, mt: 2, backgroundColor: palette.panelBg }}>
                     <CardContent>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '40px 24px' }}>
@@ -794,7 +807,7 @@ export function MyAppsPage() {
             ) : null}
 
             {/* Error */}
-            {!isLoading && error ? (
+            {!showLoadingState && error ? (
                 <Alert
                     action={<Button color="inherit" size="small" onClick={() => void refetch()}>{t('myAppsPage.states.retry')}</Button>}
                     severity="warning"
@@ -807,7 +820,7 @@ export function MyAppsPage() {
             ) : null}
 
             {/* Content */}
-            {!isLoading && !error ? (
+            {!showLoadingState && !error ? (
                 <>
                     {filteredApps.length === 0 ? (
                         <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, mt: 2, backgroundColor: palette.panelBg }}>
@@ -827,7 +840,7 @@ export function MyAppsPage() {
                                     </Typography>
                                     <button
                                         className="myapps-empty-btn"
-                                        onClick={() => navigate('/appstore')}
+                                        onClick={() => navigate('/applications/deploy')}
                                     >
                                         {t('myAppsPage.states.goToAppStore')}
                                     </button>
@@ -838,9 +851,9 @@ export function MyAppsPage() {
                         <>
                             {hasVisiblePlatformApps ? (
                                 <div>
-                                    <h4 className="myapps-section-heading">{t('nav.myApps.label')}</h4>
+                                    <h4 className="myapps-section-heading">{t('myAppsPage.sections.officialApps')}</h4>
                                     <div className="myapps-card-grid">
-                                        {renderCards(platformApps)}
+                                        {renderCards(platformApps, 'managed')}
                                     </div>
                                 </div>
                             ) : null}
@@ -849,7 +862,7 @@ export function MyAppsPage() {
                                 <div>
                                     <h4 className="myapps-section-heading is-secondary">{t('myAppsPage.sections.otherApps')}</h4>
                                     <div className="myapps-card-grid">
-                                        {renderCards(otherApps)}
+                                        {renderCards(otherApps, 'other')}
                                     </div>
                                 </div>
                             ) : null}
@@ -862,87 +875,110 @@ export function MyAppsPage() {
             <LogDialog
                 app={logDialogApp}
                 onClose={() => setLogDialogKey(null)}
+                darkMode={isDarkMode}
+                scopeRect={contentScopeRect}
             />
 
             {/* Remove confirm dialog */}
-            <Dialog
-                maxWidth="sm"
-                fullWidth
+            <SurfaceDialog
+                darkMode={isDarkMode}
                 onClose={() => setRemoveApp(null)}
                 open={Boolean(removeApp)}
-                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}
+                scope="content"
+                scopeRect={contentScopeRect}
+                contentStrategy="viewport-fixed"
+                sx={contentScopedDialogPlacementSx}
+                paperSx={{
+                    width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
+                    maxWidth: '560px',
+                    backgroundColor: dialogPalette.dialogBg,
+                    color: dialogPalette.text,
+                    border: `1px solid ${dialogPalette.border}`,
+                }}
             >
-                <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>
-                    {t('myAppsPage.dialog.removeTitle')} {removeApp?.app_id}
-                </DialogTitle>
-                <DialogContent dividers>
-                    <p style={{ margin: '10px 0' }}>
+                <Box sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, borderBottom: `1px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.dialogBg, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Typography sx={{ flex: 1, fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: dialogPalette.text }}>
+                        {t('myAppsPage.dialog.removeTitle')} {removeApp?.app_id}
+                    </Typography>
+                    <IconButton onClick={() => setRemoveApp(null)} size="small" sx={{ width: 40, height: 40, color: dialogPalette.subtleText, borderRadius: '999px', backgroundColor: 'transparent', '&:hover': { backgroundColor: 'transparent', color: dialogPalette.text, opacity: 0.84 } }}>
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+                    </IconButton>
+                </Box>
+                <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.25, borderBottom: `1px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.dialogBg }}>
+                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.75, color: dialogPalette.subtleText, fontWeight: 400 }}>
                         {t('myAppsPage.dialog.removeBody', { appId: removeApp?.app_id })}
-                    </p>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setRemoveApp(null)}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.5, py: 2, borderTop: `1px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.dialogBg }}>
+                    <Button onClick={() => setRemoveApp(null)} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                     <Button
                         disabled={actionBusy}
                         onClick={() => void handleConfirmRemove()}
-                        sx={{ backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a800' } }}
+                        variant="contained"
+                        sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}
                     >
                         {actionBusy ? <span className="spinner-border-sm me-1" /> : null}
                         {t('myAppsPage.dialog.removeConfirm')}
                     </Button>
-                </DialogActions>
-            </Dialog>
+                </Box>
+            </SurfaceDialog>
 
             {/* Redeploy confirm dialog */}
-            <Dialog
-                maxWidth="sm"
-                fullWidth
+            <SurfaceDialog
+                darkMode={isDarkMode}
                 onClose={() => setRedeployApp(null)}
                 open={Boolean(redeployApp)}
-                sx={{ '& .MuiDialog-paper': { borderRadius: 0 } }}
+                scope="content"
+                scopeRect={contentScopeRect}
+                contentStrategy="viewport-fixed"
+                sx={contentScopedDialogPlacementSx}
+                paperSx={{
+                    width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
+                    maxWidth: '560px',
+                    backgroundColor: dialogPalette.dialogBg,
+                    color: dialogPalette.text,
+                    border: `1px solid ${dialogPalette.border}`,
+                }}
             >
-                <DialogTitle sx={{ backgroundColor: '#ffbc00', color: '#313a46' }}>
-                    {t('myAppsDetailPage.actions.redeploy')} {redeployApp?.app_id}
-                </DialogTitle>
-                <DialogContent dividers>
-                    <p style={{ margin: '10px 0' }}>
+                <Box sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, borderBottom: `1px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.dialogBg, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Typography sx={{ flex: 1, fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: dialogPalette.text }}>{t('myAppsDetailPage.actions.redeploy')} {redeployApp?.app_id}</Typography>
+                    <IconButton onClick={() => setRedeployApp(null)} size="small" sx={{ width: 40, height: 40, color: dialogPalette.subtleText, borderRadius: '999px', backgroundColor: 'transparent', '&:hover': { backgroundColor: 'transparent', color: dialogPalette.text, opacity: 0.84 } }}>
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+                    </IconButton>
+                </Box>
+                <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.25, borderBottom: `1px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.dialogBg }}>
+                    <Typography sx={{ m: 0, mb: 1.25, fontSize: 14, lineHeight: 1.75, color: dialogPalette.subtleText, fontWeight: 400 }}>
                         {t('myAppsDetailPage.dialogs.redeployBody')}
-                    </p>
-                    <FormControlLabel
-                        control={<Switch checked={pullImage} onChange={(e) => setPullImage(e.target.checked)} />}
-                        label={t('myAppsDetailPage.dialogs.redeployPullImage')}
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setRedeployApp(null)}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    </Typography>
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, color: dialogPalette.text }}>
+                        <Typography sx={{ fontSize: 14, color: dialogPalette.text }}>{t('myAppsDetailPage.dialogs.redeployPullImage')}</Typography>
+                        <Switch checked={pullImage} onChange={(e) => setPullImage(e.target.checked)} />
+                    </Box>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.5, py: 2, borderTop: `1px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.dialogBg }}>
+                    <Button onClick={() => setRedeployApp(null)} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                     <Button
                         disabled={actionBusy}
                         onClick={() => void handleConfirmRedeploy()}
-                        sx={{ backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a800' } }}
+                        variant="contained"
+                        sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}
                     >
                         {actionBusy ? <span className="spinner-border-sm me-1" /> : null}
                         {t('myAppsDetailPage.actions.redeploy')}
                     </Button>
-                </DialogActions>
-            </Dialog>
+                </Box>
+            </SurfaceDialog>
 
             {/* Feedback toast */}
-            <Snackbar
-                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-                autoHideDuration={3000}
+            <SurfaceFeedbackToast
                 open={Boolean(feedback)}
                 onClose={() => setFeedback(null)}
-            >
-                <Alert
-                    elevation={6}
-                    onClose={() => setFeedback(null)}
-                    severity={feedback?.severity ?? 'info'}
-                    sx={{ width: '100%' }}
-                    variant="filled"
-                >
-                    {feedback?.message}
-                </Alert>
-            </Snackbar>
+                severity={feedback?.severity ?? 'info'}
+                message={feedback?.message ?? ''}
+                scope="content"
+                scopeRect={contentScopeRect}
+                darkMode={isDarkMode}
+            />
 
             <Outlet />
         </Box>

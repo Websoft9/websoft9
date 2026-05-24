@@ -8,7 +8,7 @@
 }
 
 .app-shell-root--dark .services-page-shell {
-    color: #e5edf5;
+    color: var(--ds-color-text-strong);
 }
 
 .services-page-panel,
@@ -17,20 +17,9 @@
 .services-page-toolbar-panel.MuiPaper-root,
 .services-page-log-panel,
 .services-page-log-panel.MuiPaper-root {
-    border: 1px solid var(--shell-surface-border);
-    background: var(--shell-surface-bg);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.app-shell-root--dark .services-page-panel,
-.app-shell-root--dark .services-page-panel.MuiPaper-root,
-.app-shell-root--dark .services-page-toolbar-panel,
-.app-shell-root--dark .services-page-toolbar-panel.MuiPaper-root,
-.app-shell-root--dark .services-page-log-panel,
-.app-shell-root--dark .services-page-log-panel.MuiPaper-root {
-    border-color: rgba(71, 85, 105, 0.65);
-    background: #111827;
-    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+    border: 1px solid var(--ds-color-border);
+    background: var(--ds-color-surface-bg);
+    box-shadow: var(--ds-shadow-sm);
 }
 
 .services-page-toolbar-panel,
@@ -38,17 +27,9 @@
 .services-page-panel,
 .services-page-panel.MuiPaper-root {
     padding: 18px;
-    border-radius: 2px !important;
-    background: #ffffff;
-    background-color: #ffffff;
-}
-
-.app-shell-root--dark .services-page-toolbar-panel,
-.app-shell-root--dark .services-page-toolbar-panel.MuiPaper-root,
-.app-shell-root--dark .services-page-panel,
-.app-shell-root--dark .services-page-panel.MuiPaper-root {
-    background: #111827;
-    background-color: #111827;
+    border-radius: var(--ds-radius-panel) !important;
+    background: var(--ds-color-surface-bg);
+    background-color: var(--ds-color-surface-bg);
 }
 
 .services-page-toolbar-panel,
@@ -125,14 +106,14 @@
 }
 
 .services-page-dialog-close-glyph {
-    color: #475569;
+    color: var(--ds-color-text-muted);
     font-size: 18px;
     font-weight: 500;
     line-height: 1;
 }
 
 .services-page-log-title {
-    color: #111827;
+    color: var(--ds-color-text-strong);
     font-size: 16px;
     font-weight: 600;
     line-height: 1.25;
@@ -157,20 +138,15 @@
 }
 
 .services-page-toolbar-field .MuiOutlinedInput-root {
-    background: #fff;
-    border-radius: 4px;
-    min-height: 42px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.app-shell-root--dark .services-page-toolbar-field .MuiOutlinedInput-root {
-    background: #0f172a;
-    box-shadow: none;
+    background: var(--ds-color-surface-bg);
+    border-radius: var(--ds-radius-field);
+    min-height: var(--ds-form-height-comfortable);
+    box-shadow: var(--ds-shadow-sm);
 }
 
 .services-page-toolbar-field .MuiInputBase-input,
 .services-page-toolbar-field .MuiSelect-select {
-    color: #334155;
+    color: var(--ds-color-text-strong);
     font-size: 14px;
     font-weight: 400;
     min-height: auto;
@@ -189,34 +165,34 @@
 .app-shell-root--dark .services-page-service-updated.MuiTypography-root,
 .app-shell-root--dark .services-page-updated-at-cell,
 .app-shell-root--dark .services-page-log-time {
-    color: #cbd5e1;
+    color: var(--ds-color-text-strong);
 }
 
 .services-page-toolbar-field .MuiInputBase-input::placeholder {
-    color: #94a3b8;
+    color: var(--ds-color-text-muted);
     opacity: 1;
 }
 
 .app-shell-root--dark .services-page-toolbar-field .MuiInputBase-input::placeholder {
-    color: #64748b;
+    color: var(--ds-color-text-muted);
 }
 
 .services-page-toolbar-field .MuiOutlinedInput-notchedOutline {
-    border-color: rgba(203, 213, 225, 0.9);
+    border-color: var(--ds-color-border-strong);
 }
 
 .app-shell-root--dark .services-page-toolbar-field .MuiOutlinedInput-notchedOutline {
-    border-color: rgba(71, 85, 105, 0.8);
+    border-color: var(--ds-color-border-strong);
 }
 
 .services-page-toolbar-field:hover .MuiOutlinedInput-notchedOutline {
-    border-color: rgba(148, 163, 184, 0.95);
+    border-color: var(--ds-color-accent);
 }
 
 .services-page-toolbar-field.Mui-focused .MuiOutlinedInput-notchedOutline,
 .services-page-toolbar-field .Mui-focused .MuiOutlinedInput-notchedOutline {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    border-color: var(--ds-color-accent-strong);
+    box-shadow: var(--ds-focus-ring);
 }
 
 .services-page-toolbar-field .MuiInputLabel-root {
@@ -227,52 +203,52 @@
 .services-page-icon-button.MuiIconButton-root {
     width: 42px;
     height: 42px;
-    border: 1px solid rgba(203, 213, 225, 0.9) !important;
-    border-radius: 4px !important;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
-    color: #475569 !important;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+    border: 1px solid var(--ds-color-border-strong) !important;
+    border-radius: var(--ds-radius-field) !important;
+    background: linear-gradient(180deg, var(--ds-color-surface-bg) 0%, var(--ds-color-surface-soft) 100%) !important;
+    color: var(--ds-color-text-muted) !important;
+    box-shadow: var(--ds-shadow-sm) !important;
 }
 
 .app-shell-root--dark .services-page-icon-button,
 .app-shell-root--dark .services-page-icon-button.MuiIconButton-root {
-    border-color: rgba(71, 85, 105, 0.8) !important;
-    background: #0f172a !important;
-    color: #f8fafc !important;
+    border-color: var(--ds-color-border) !important;
+    background: var(--ds-color-surface-soft) !important;
+    color: var(--ds-color-text-strong) !important;
     box-shadow: none !important;
 }
 
 .services-page-icon-button:hover,
 .services-page-icon-button.MuiIconButton-root:hover {
-    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-    border-color: rgba(148, 163, 184, 0.95);
-    color: #334155;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    background: linear-gradient(180deg, var(--ds-color-surface-soft) 0%, color-mix(in srgb, var(--ds-color-surface-soft) 70%, var(--ds-color-border-strong) 30%) 100%);
+    border-color: var(--ds-color-accent);
+    color: var(--ds-color-text-strong);
+    box-shadow: var(--ds-shadow-md);
 }
 
 .app-shell-root--dark .services-page-icon-button:hover,
 .app-shell-root--dark .services-page-icon-button.MuiIconButton-root:hover {
-    background: #162033 !important;
-    border-color: rgba(148, 163, 184, 0.28) !important;
-    color: #ffffff !important;
+    background: color-mix(in srgb, var(--ds-color-surface-soft) 88%, var(--ds-color-accent) 12%) !important;
+    border-color: var(--ds-color-accent) !important;
+    color: var(--ds-color-text-strong) !important;
     box-shadow: none !important;
 }
 
 .services-page-icon-button.Mui-disabled,
 .services-page-icon-button.MuiIconButton-root.Mui-disabled {
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-color: rgba(226, 232, 240, 0.95);
+    background: linear-gradient(180deg, var(--ds-color-surface-bg) 0%, var(--ds-color-surface-soft) 100%);
+    border-color: var(--ds-color-border);
 }
 
 .services-page-toolbar-button-secondary {
-    background: #fff;
-    border-color: #ced4da;
-    color: #334155;
+    background: var(--ds-color-surface-bg);
+    border-color: var(--ds-color-border-strong);
+    color: var(--ds-color-text-strong);
 }
 
 .services-page-toolbar-button-secondary:hover {
-    background: #f8fafc;
-    border-color: #86b7fe;
+    background: var(--ds-color-surface-soft);
+    border-color: var(--ds-color-accent);
 }
 
 .services-page-autorefresh-toggle {
@@ -282,7 +258,7 @@
 }
 
 .services-page-autorefresh-toggle .MuiFormControlLabel-label {
-    color: #334155;
+    color: var(--ds-color-text-strong);
     font-size: 13px;
 }
 
@@ -295,17 +271,17 @@
 }
 
 .services-page-table .MuiTableCell-head {
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
-    color: #334155;
+    background: var(--ds-color-surface-bg);
+    border-bottom: 1px solid var(--ds-color-border);
+    color: var(--ds-color-text-strong);
     font-size: 13px;
     font-weight: 600;
     font-family: inherit;
 }
 
 .app-shell-root--dark .services-page-table .MuiTableCell-head {
-    background: #162033;
-    border-bottom-color: rgba(71, 85, 105, 0.65);
+    background: var(--ds-color-surface-soft);
+    border-bottom-color: var(--ds-color-border);
 }
 
 .services-page-table .MuiChip-root {
@@ -321,18 +297,18 @@
 }
 
 .services-page-table .MuiTableCell-body {
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--ds-color-border);
     vertical-align: top;
     padding-top: 14px;
     padding-bottom: 14px;
-    color: #334155;
+    color: var(--ds-color-text-strong);
     font-size: 14px;
     line-height: 1.5;
     font-family: inherit;
 }
 
 .app-shell-root--dark .services-page-table .MuiTableCell-body {
-    border-bottom-color: rgba(71, 85, 105, 0.45);
+    border-bottom-color: var(--ds-color-border);
 }
 
 .services-page-service-cell {

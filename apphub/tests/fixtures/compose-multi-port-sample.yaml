@@ -1,0 +1,15 @@
+services:
+  gateway:
+    image: nginx:stable-alpine
+    ports:
+      - "18080:80"
+      - "18443:443"
+      - "19001:9001"
+
+  app:
+    image: traefik/whoami
+    ports:
+      - "18081:80"
+
+  redis:
+    image: redis:7-alpine

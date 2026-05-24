@@ -4,7 +4,7 @@ from http.client import HTTPException
 import json
 import time
 from typing import Any, Dict
-from fastapi import APIRouter, Query,Path
+from fastapi import APIRouter, Query,Path, Body, Request
 from fastapi.responses import StreamingResponse
 from src.core import logger
 from src.core.exception import CustomException
@@ -16,7 +16,9 @@ from src.schemas.appInstall import appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
+from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest
 from src.schemas.errorResponse import ErrorResponse
+from src.services.app_access_manager import AppAccessManager
 from src.services.app_manager import AppManger
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
@@ -26,9 +28,8 @@ router = APIRouter()
 
 @router.get(
         "/apps/catalog/{locale}",
-    summary="List Catalogs (Compatibility)",
-    description="Compatibility fallback for App Store catalog browsing. Product-origin shells should prefer static /media/json/catalog_{locale}.json and use this endpoint only when the static catalog is unavailable.",
-    deprecated=True,
+    summary="List Catalogs",
+    description="Primary App Store catalog payload for product-origin shells.",
         responses={
         200: {"model": list[AppCatalogResponse]},
         400: {"model": ErrorResponse},
@@ -42,9 +43,8 @@ def get_catalog_apps(
 
 @router.get(
         "/apps/available/{locale}",
-    summary="List Available Apps (Compatibility)",
-    description="Compatibility fallback for App Store browse data. Product-origin shells should prefer static /media/json/product_{locale}.json plus /media/json/app-store-install-metadata.json and call this endpoint only when static payloads are unavailable.",
-    deprecated=True,
+    summary="List Available Apps",
+    description="Primary App Store browse payload for product-origin shells. Media URLs preserve the original remote addresses when available, with local default paths only for missing or invalid assets.",
         responses={
         200: {"model": list[AppAvailableResponse]},
         400: {"model": ErrorResponse},
@@ -67,9 +67,10 @@ def get_available_apps(
         }
     )
 def get_apps(
-    endpointId: int = Query(None, description="Endpoint ID to get apps from. If not set, get apps from the local endpoint")
+    endpointId: int = Query(None, description="Endpoint ID to get apps from. If not set, get apps from the local endpoint"),
+    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
 ):
-    return AppManger().get_apps(endpointId)
+    return AppManger().get_apps(endpointId, locale)
 
 @router.get(
         "/apps/{app_id}",
@@ -83,9 +84,108 @@ def get_apps(
     )
 def get_app_by_id(
     app_id: str = Path(..., description="App ID to get details from"),
-    endpointId: int = Query(None, description="Endpoint ID to get app details from. If not set, get details from the local endpoint")
+    endpointId: int = Query(None, description="Endpoint ID to get app details from. If not set, get details from the local endpoint"),
+    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
 ):
-    return AppManger().get_app_by_id(app_id, endpointId)
+    return AppManger().get_app_by_id(app_id, endpointId, locale)
+
+
+@router.get(
+    "/apps/{app_id}/access",
+    summary="Inspect App Access",
+    description="Retrieve access definition, proxy bindings, and certificate options for an app",
+    responses={
+        200: {"model": AppAccessOverviewResponse},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def get_app_access(
+    app_id: str = Path(..., description="App ID to inspect access for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    return AppAccessManager().get_access_overview(app_id, endpointId)
+
+
+@router.put(
+    "/apps/{app_id}/access/profile",
+    summary="Update App Access Profile",
+    description="Persist the selected web access target for an app",
+    responses={
+        200: {"model": AppAccessProfile},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def update_app_access_profile(
+    payload: AppAccessProfileUpdateRequest = Body(...),
+    app_id: str = Path(..., description="App ID to update access profile for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    return AppAccessManager().update_profile(
+        app_id,
+        payload.enabled,
+        payload.forward_host,
+        payload.forward_port,
+        payload.forward_scheme,
+        endpointId,
+    )
+
+
+@router.put(
+    "/apps/{app_id}/access/domains",
+    summary="Save App Domains",
+    description="Create or update proxy bindings for an app using the current access profile",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def save_app_access_domains(
+    payload: AppAccessDomainBindingRequest = Body(...),
+    app_id: str = Path(..., description="App ID to bind domains for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    return AppAccessManager().save_domain_binding(app_id, payload.domain_names, payload.certificate_id, payload.ssl_forced, payload.proxy_id, endpointId)
+
+
+@router.delete(
+    "/apps/{app_id}/access/domains/{proxy_id}",
+    summary="Delete App Domain Binding",
+    description="Remove a proxy binding from an app",
+    status_code=204,
+    responses={
+        204: {"description": "Delete domain binding success"},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def delete_app_access_domain(
+    request: Request,
+    app_id: str = Path(..., description="App ID to remove proxy binding from"),
+    proxy_id: int = Path(..., description="Proxy ID to delete"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    AppAccessManager().delete_domain_binding(app_id, proxy_id, request.headers.get("Host", ""), endpointId)
+
+
+@router.post(
+    "/apps/{app_id}/access/certificates/letsencrypt",
+    summary="Issue Let's Encrypt Certificate",
+    description="Request a Let's Encrypt certificate through Nginx Proxy Manager and optionally bind it to a proxy host",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def issue_app_letsencrypt_certificate(
+    payload: AppAccessCertificateRequest = Body(...),
+    app_id: str = Path(..., description="App ID to request a certificate for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    return AppAccessManager().issue_letsencrypt_certificate(app_id, payload.email, payload.domain_names, payload.proxy_id, endpointId)
 
 @router.get(
         "/apps/{app_id}/php",

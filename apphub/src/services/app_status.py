@@ -350,6 +350,8 @@ class InstallStateStore:
             "logs": grouped_logs,
             "reserved_ports": reserved_ports,
             "error": row["error"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
 
 

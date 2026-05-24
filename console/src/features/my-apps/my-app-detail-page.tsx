@@ -2,8 +2,8 @@ import {
     Alert,
     Box,
     Button,
+    Checkbox,
     CircularProgress,
-    FormControlLabel,
     IconButton,
     Step,
     StepContent,
@@ -21,6 +21,8 @@ import { useAppColorMode } from '../../app/providers/color-mode'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { LegacyMyAppLogo } from './my-app-media'
+import { canOpenMyAppsDetailOverlay, clearMyAppsDetailOverlayIntent, consumePendingComposeReturn, hasMyAppsDetailOverlayIntent, markPendingComposeReturn, rememberMyAppsDetailRoute } from './my-app-detail-overlay-intent'
+import { VolumeFileManagerDialog } from './volume-file-manager-dialog'
 import { type MyAppDetail, useMyAppDetail } from './use-my-app-detail'
 import { MyAppAccessPanel } from './my-app-access-panel'
 import { useMyAppPhpInfo } from './use-my-app-php-info'
@@ -48,7 +50,7 @@ type DatabaseRow = {
     host: string
     account: string
     password: string
-    tool: string
+    toolApps: Array<{ label: string; appKey: string }>
 }
 type BackupSnapshot = {
     id: string
@@ -118,6 +120,15 @@ function IconEyeOff() {
 function IconCopy() {
     return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" /></svg>
 }
+function IconBackup() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 8.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8.5L6.5 4h11L20 8.5zM7.33 6 6 7.33V9h12V7.33L16.67 6H7.33zM11 12v5h2v-5h3l-4-4-4 4h3z" /></svg>
+}
+function IconRefresh() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M20 4v6h-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+}
+function IconAdd() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+}
 
 
 // =====================
@@ -139,44 +150,29 @@ function getStatusColor(status: number) {
 // =====================
 // Data helpers
 // =====================
-const dbConfig: Record<string, { account: string; tool: string }> = {
-    mariadb: { account: 'root', tool: 'phpMyAdmin,CloudBeaver' },
-    mysql: { account: 'root', tool: 'phpMyAdmin,CloudBeaver' },
-    postgresql: { account: 'postgres', tool: 'pgAdmin,CloudBeaver' },
-    mongodb: { account: 'root', tool: 'MongoCompass' },
-    oracle: { account: 'system', tool: 'CloudBeaver' },
-    sqlserver: { account: 'sa', tool: 'CloudBeaver' },
-    redis: { account: '-', tool: 'RedisInsight' },
+const dbConfig: Record<string, { account: string; toolApps: Array<{ label: string; appKey: string }> }> = {
+    mariadb: { account: 'root', toolApps: [{ label: 'phpMyAdmin', appKey: 'phpmyadmin' }, { label: 'CloudBeaver', appKey: 'cloudbeaver' }] },
+    mysql: { account: 'root', toolApps: [{ label: 'phpMyAdmin', appKey: 'phpmyadmin' }, { label: 'CloudBeaver', appKey: 'cloudbeaver' }] },
+    postgresql: { account: 'postgres', toolApps: [{ label: 'pgAdmin', appKey: 'pgadmin' }, { label: 'CloudBeaver', appKey: 'cloudbeaver' }] },
+    mongodb: { account: 'root', toolApps: [{ label: 'MongoCompass', appKey: 'mongocompass' }] },
+    oracle: { account: 'system', toolApps: [{ label: 'CloudBeaver', appKey: 'cloudbeaver' }] },
+    sqlserver: { account: 'sa', toolApps: [{ label: 'CloudBeaver', appKey: 'cloudbeaver' }] },
+    redis: { account: '-', toolApps: [{ label: 'RedisInsight', appKey: 'redisinsight' }] },
 }
 
-function getDomainEntries(domainNames: Array<Record<string, unknown>> | undefined, env: Record<string, string> | undefined) {
-    const domains = (domainNames ?? [])
-        .map((entry) => {
-            const domainName = entry.domain_name
-            const domain = entry.domain
-            if (typeof domainName === 'string' && domainName.trim()) return domainName.trim()
-            if (typeof domain === 'string' && domain.trim()) return domain.trim()
-            return null
-        })
-        .filter((v): v is string => Boolean(v))
-
-    const envUrl = env?.W9_URL?.trim()
-    if (envUrl && !domains.includes(envUrl)) domains.unshift(envUrl)
-    return domains
-}
-
-function hasAccessTab(env: Record<string, string> | undefined) {
+function hasAccessTab(data: MyAppDetail | undefined) {
+    if (!data) return false
+    if (data.app_dist === 'compose') return true
+    const env = data.env
     if (!env) return false
-    if (env.W9_URL?.trim()) return true
-    return Object.keys(env).some((key) => key.startsWith('W9_LOGIN'))
+    return Boolean(env.W9_URL?.trim() || Object.entries(env).some(([key, value]) => key.startsWith('W9_LOGIN') && value?.trim()))
 }
 
 function getDetailTabs(data: MyAppDetail): DetailTabKey[] {
     const tabs: DetailTabKey[] = ['overview', 'container', 'compose', 'uninstall']
-    if (hasAccessTab(data.env)) tabs.splice(1, 0, 'access')
+    if (hasAccessTab(data)) tabs.splice(1, 0, 'access')
     if ((data.volumes ?? []).length > 0) tabs.splice(3, 0, 'volumes')
     if (data.is_php_app) tabs.splice(4, 0, 'php')
-    if (data.env?.W9_DB_EXPOSE?.trim()) tabs.splice(5, 0, 'database')
     if (data.is_monitor_app) tabs.splice(6, 0, 'monitor')
     return tabs
 }
@@ -350,6 +346,10 @@ function getVolumeLabel(v: Record<string, unknown>) {
     return String(v.Name ?? v.name ?? v.Mountpoint ?? '-')
 }
 
+function getVolumeId(v: Record<string, unknown>) {
+    return String(v.Name ?? v.name ?? '')
+}
+
 function getVolumeCreatedAt(v: Record<string, unknown>, locale: string) {
     const createdAt = typeof v.CreatedAt === 'string' ? v.CreatedAt : ''
     if (!createdAt) return '-'
@@ -370,7 +370,7 @@ function getDatabaseRows(data: MyAppDetail): DatabaseRow[] {
         host: `${data.app_id}-${dbType}`,
         account: dbConfig[dbType]?.account || '-',
         password: data.env?.W9_POWER_PASSWORD || '-',
-        tool: dbConfig[dbType]?.tool || '-',
+        toolApps: dbConfig[dbType]?.toolApps || [],
     }))
 }
 
@@ -381,6 +381,29 @@ function getComposeVersion(data: MyAppDetail) {
         if (typeof v === 'string' && v.trim()) return v.trim()
     }
     return '-'
+}
+
+function getComposeRepositoryTarget(data: MyAppDetail) {
+    const git = data.gitConfig ?? {}
+    for (const key of ['URL', 'RepositoryURL'] as const) {
+        const value = git[key]
+        if (typeof value !== 'string' || !value.trim()) continue
+
+        try {
+            const parsed = new URL(value)
+            const normalizedPath = parsed.pathname.replace(/\.git$/i, '')
+            if (normalizedPath.startsWith('/w9git/')) {
+                return normalizedPath
+            }
+        } catch {
+            const normalizedPath = value.trim().replace(/\.git$/i, '')
+            if (normalizedPath.startsWith('/w9git/')) {
+                return normalizedPath
+            }
+        }
+    }
+
+    return `/w9git/websoft9/${data.app_id}`
 }
 
 function formatBackupSize(bytes: number) {
@@ -454,8 +477,9 @@ async function copyTextWithFallback(value: string) {
     }
 }
 
-function openProductPath(path: string, navigate: (to: string) => void) {
+function openProductPath(path: string, navigate: (to: string) => void, rememberedRoute?: string) {
     const normalizedPath = path.trim()
+    rememberMyAppsDetailRoute(rememberedRoute ?? (typeof window === 'undefined' ? null : `${window.location.pathname}${window.location.search}`))
 
     if (normalizedPath.startsWith('/w9deployment/')) {
         navigate(`/containers?target=${encodeURIComponent(normalizedPath)}`)
@@ -473,6 +497,11 @@ function openProductPath(path: string, navigate: (to: string) => void) {
     }
 
     window.location.assign(normalizedPath)
+}
+
+function openAppStoreTool(appKey: string, navigate: (to: string, options?: { state?: unknown }) => void) {
+    rememberMyAppsDetailRoute(typeof window === 'undefined' ? null : `${window.location.pathname}${window.location.search}`)
+    navigate('/appstore', { state: { openAppKey: appKey } })
 }
 
 async function runLifecycleRequest(url: string, method: 'POST' | 'DELETE') {
@@ -611,6 +640,7 @@ export function MyAppDetailPage() {
         if (initialTab && ['overview', 'access', 'container', 'volumes', 'php', 'database', 'monitor', 'compose', 'uninstall'].includes(initialTab)) {
             return initialTab as DetailTabKey
         }
+
         return 'overview'
     })
     const [actionInProgress, setActionInProgress] = useState<LifecycleActionKey | null>(null)
@@ -625,8 +655,11 @@ export function MyAppDetailPage() {
     const [volumeBackupLoading, setVolumeBackupLoading] = useState(false)
     const [volumeBackupError, setVolumeBackupError] = useState<string | null>(null)
     const [createBackupDialogOpen, setCreateBackupDialogOpen] = useState(false)
+    const [backupListDialogOpen, setBackupListDialogOpen] = useState(false)
     const [deleteBackupTarget, setDeleteBackupTarget] = useState<VolumeBackupRow | null>(null)
     const [restoreBackupTarget, setRestoreBackupTarget] = useState<VolumeBackupRow | null>(null)
+    const [deleteBackupConfirmed, setDeleteBackupConfirmed] = useState(false)
+    const [restoreBackupConfirmed, setRestoreBackupConfirmed] = useState(false)
     const [volumeBackupAction, setVolumeBackupAction] = useState<'create' | 'delete' | 'restore' | null>(null)
     const [composeStep, setComposeStep] = useState(0)
     const [showPhpMigrationForm, setShowPhpMigrationForm] = useState(false)
@@ -634,6 +667,29 @@ export function MyAppDetailPage() {
     const [phpMigrationRemarks, setPhpMigrationRemarks] = useState('')
     const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
+    const [activeVolumeFileManager, setActiveVolumeFileManager] = useState<{ volumeId: string; label: string } | null>(null)
+
+    useEffect(() => {
+        const openedFromIntent = hasMyAppsDetailOverlayIntent(appId)
+
+        if (canOpenMyAppsDetailOverlay(appId, location.pathname)) {
+            return () => {
+                if (openedFromIntent) {
+                    clearMyAppsDetailOverlayIntent(appId)
+                }
+            }
+        }
+
+        if (/^\/myapps\/[^/]+/.test(location.pathname)) {
+            navigate('/myapps', { replace: true })
+        }
+
+        return () => {
+            if (openedFromIntent) {
+                clearMyAppsDetailOverlayIntent(appId)
+            }
+        }
+    }, [appId, location.pathname, navigate])
 
     const { data, error, isLoading, refetch } = useMyAppDetail(appId)
     const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php'))
@@ -670,8 +726,8 @@ export function MyAppDetailPage() {
         '--myapps-detail-action-disabled-bg': surfacePalette.panelSoft,
         '--myapps-detail-action-disabled-text': surfacePalette.placeholderText,
         '--myapps-detail-nav-hover-bg': surfacePalette.actionBg,
-        '--myapps-detail-nav-active-bg': surfacePalette.accent,
-        '--myapps-detail-nav-active-text': surfacePalette.accentContrast,
+        '--myapps-detail-nav-active-bg': '#1767d1',
+        '--myapps-detail-nav-active-text': '#ffffff',
         '--myapps-detail-success-soft': isDarkMode ? 'rgba(52, 211, 153, 0.16)' : 'rgba(16, 185, 129, 0.12)',
         '--myapps-detail-success-text': isDarkMode ? '#86efac' : '#047857',
         '--myapps-detail-warning-soft': isDarkMode ? 'rgba(251, 191, 36, 0.16)' : 'rgba(245, 158, 11, 0.12)',
@@ -685,29 +741,76 @@ export function MyAppDetailPage() {
         height: 36,
         padding: '5px',
         borderRadius: 4,
-        border: '1px solid #1767d1',
+        border: 'none',
         backgroundColor: '#1767d1',
         color: '#ffffff',
         boxShadow: 'none',
     }) as CSSProperties, [])
     const disabledPrimaryToolbarButtonStyle = useMemo(() => ({
         ...primaryToolbarButtonStyle,
-        border: `1px solid ${isDarkMode ? 'rgba(23,103,209,0.42)' : '#9dc0ef'}`,
         backgroundColor: isDarkMode ? 'rgba(23,103,209,0.2)' : '#dce9f8',
         color: 'rgba(255,255,255,0.72)',
     }) as CSSProperties, [primaryToolbarButtonStyle, isDarkMode])
     const closeToolbarButtonStyle = useMemo(() => ({
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         padding: 0,
-        borderRadius: 4,
-        border: `1px solid ${isDarkMode ? 'rgba(23,103,209,0.42)' : '#9dc0ef'}`,
-        backgroundColor: isDarkMode ? 'rgba(23,103,209,0.16)' : '#eef5fd',
-        color: '#1767d1',
+        borderRadius: 999,
+        border: 'none',
+        backgroundColor: 'transparent',
+        color: surfacePalette.subtleText,
         boxShadow: 'none',
-    }) as CSSProperties, [isDarkMode])
+    }) as CSSProperties, [surfacePalette.subtleText])
+    const contentScopedDialogPlacementSx = useMemo(() => ({
+        '& .MuiDialog-container': {
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            pt: { xs: 3, md: 3 },
+            pb: { xs: 1.5, md: 2.5 },
+        },
+    }), [])
+    const dialogCancelButtonSx = useMemo(() => ({
+        minWidth: 68,
+        borderRadius: 0,
+        boxShadow: 'none',
+        border: `1px solid ${dialogPalette.border}`,
+        backgroundColor: surfacePalette.actionBg,
+        color: dialogPalette.subtleText,
+        '&:hover': {
+            backgroundColor: surfacePalette.actionHover,
+            color: dialogPalette.text,
+            boxShadow: 'none',
+        },
+    }), [dialogPalette.border, dialogPalette.subtleText, dialogPalette.text, surfacePalette.actionBg, surfacePalette.actionHover])
+    const dialogPrimaryButtonSx = useMemo(() => ({
+        minWidth: 68,
+        borderRadius: 0,
+        boxShadow: 'none',
+        '&:hover': {
+            boxShadow: 'none',
+        },
+    }), [])
+    const dialogAccentButtonSx = useMemo(() => ({
+        ...dialogPrimaryButtonSx,
+        backgroundColor: dialogPalette.accent,
+        color: '#ffffff',
+        '&:hover': {
+            backgroundColor: isDarkMode ? '#2b7be0' : '#1d4ed8',
+            boxShadow: 'none',
+        },
+    }), [dialogPalette.accent, dialogPrimaryButtonSx, isDarkMode])
+    const dialogWarningButtonSx = useMemo(() => ({
+        ...dialogPrimaryButtonSx,
+        backgroundColor: '#ffbc00',
+        border: '1px solid #ffbc00',
+        color: '#313a46',
+        '&:hover': {
+            backgroundColor: '#e0a700',
+            border: '1px solid #e0a700',
+            boxShadow: 'none',
+        },
+    }), [dialogPrimaryButtonSx])
 
-    const domains = useMemo(() => getDomainEntries(data?.domain_names, data?.env), [data?.domain_names, data?.env])
     const detailTabs = useMemo(() => (data ? getDetailTabs(data) : ['overview' as const]), [data])
     const portEntries = useMemo(() => getPortEntries(data?.env), [data?.env])
     const databaseRows = useMemo(() => (data ? getDatabaseRows(data) : []), [data])
@@ -731,9 +834,14 @@ export function MyAppDetailPage() {
 
     useEffect(() => {
         if (!detailTabs.includes(selectedTab)) {
+            if (selectedTab === 'database' && detailTabs.includes('volumes') && databaseRows.length > 0) {
+                setSelectedTab('volumes')
+                return
+            }
+
             setSelectedTab(detailTabs[0] ?? 'overview')
         }
-    }, [detailTabs, selectedTab])
+    }, [databaseRows.length, detailTabs, selectedTab])
 
     useEffect(() => {
         if (!(contentScopeContainer instanceof HTMLElement)) {
@@ -783,6 +891,10 @@ export function MyAppDetailPage() {
     }, [contentScopeContainer, locationState?.backgroundScrollTop])
 
     useEffect(() => {
+        if (!/^\/myapps\/[^/]+/.test(location.pathname)) {
+            return
+        }
+
         const urlTab = searchParams.get('tab')
         if (urlTab === selectedTab) {
             return
@@ -791,7 +903,49 @@ export function MyAppDetailPage() {
         const nextParams = new URLSearchParams(searchParams)
         nextParams.set('tab', selectedTab)
         setSearchParams(nextParams, { replace: true })
-    }, [searchParams, selectedTab, setSearchParams])
+    }, [location.pathname, searchParams, selectedTab, setSearchParams])
+
+    useEffect(() => {
+        if (selectedTab !== 'compose') {
+            setComposeStep(0)
+            return
+        }
+
+        if (consumePendingComposeReturn(appId)) {
+            setComposeStep(1)
+            return
+        }
+
+        setComposeStep(0)
+    }, [appId, selectedTab])
+
+    useEffect(() => {
+        if (!appId) {
+            return
+        }
+
+        rememberMyAppsDetailRoute(`/myapps/${encodeURIComponent(appId)}?tab=${encodeURIComponent(selectedTab)}`)
+    }, [appId, selectedTab])
+
+    useEffect(() => {
+        if (!backupListDialogOpen || !data?.app_id) {
+            return
+        }
+
+        void refreshVolumeBackups()
+    }, [backupListDialogOpen, data?.app_id, locale])
+
+    useEffect(() => {
+        if (!deleteBackupTarget) {
+            setDeleteBackupConfirmed(false)
+        }
+    }, [deleteBackupTarget])
+
+    useEffect(() => {
+        if (!restoreBackupTarget) {
+            setRestoreBackupConfirmed(false)
+        }
+    }, [restoreBackupTarget])
 
     useEffect(() => {
         if (!data?.app_id || selectedTab !== 'volumes') return
@@ -830,12 +984,15 @@ export function MyAppDetailPage() {
         }, 1500)
     }
 
+    const isComposeApp = data?.app_dist === 'compose'
+
     async function handleSimpleAction(actionKey: 'start' | 'stop' | 'restart') {
         if (!data) return
+        const apiBase = isComposeApp ? '/api/compose-apps' : '/api/apps'
         const actionMap = {
-            start: { method: 'POST' as const, url: `/api/apps/${encodeURIComponent(data.app_id)}/start`, msg: t('myAppsDetailPage.feedback.startSuccess', { appId: data.app_id }) },
-            stop: { method: 'POST' as const, url: `/api/apps/${encodeURIComponent(data.app_id)}/stop`, msg: t('myAppsDetailPage.feedback.stopSuccess', { appId: data.app_id }) },
-            restart: { method: 'POST' as const, url: `/api/apps/${encodeURIComponent(data.app_id)}/restart`, msg: t('myAppsDetailPage.feedback.restartSuccess', { appId: data.app_id }) },
+            start: { method: 'POST' as const, url: `${apiBase}/${encodeURIComponent(data.app_id)}/start`, msg: t('myAppsDetailPage.feedback.startSuccess', { appId: data.app_id }) },
+            stop: { method: 'POST' as const, url: `${apiBase}/${encodeURIComponent(data.app_id)}/stop`, msg: t('myAppsDetailPage.feedback.stopSuccess', { appId: data.app_id }) },
+            restart: { method: 'POST' as const, url: `${apiBase}/${encodeURIComponent(data.app_id)}/restart`, msg: t('myAppsDetailPage.feedback.restartSuccess', { appId: data.app_id }) },
         }
         const cfg = actionMap[actionKey]
         setActionInProgress(actionKey)
@@ -855,7 +1012,15 @@ export function MyAppDetailPage() {
         setActionInProgress('redeploy')
         setRedeployLogs([])
         try {
-            await runRedeployRequest(data.app_id, redeployPullImage, (entry) => setRedeployLogs((prev) => [...prev, entry]))
+            if (isComposeApp) {
+                // Compose apps use a simple POST (no streaming)
+                await runLifecycleRequest(
+                    `/api/compose-apps/${encodeURIComponent(data.app_id)}/redeploy`,
+                    'POST',
+                )
+            } else {
+                await runRedeployRequest(data.app_id, redeployPullImage, (entry) => setRedeployLogs((prev) => [...prev, entry]))
+            }
             await refreshAfterAction()
             setFeedback({ severity: 'success', message: t('myAppsDetailPage.feedback.redeploySuccess', { appId: data.app_id }) })
         } catch (err) {
@@ -869,7 +1034,11 @@ export function MyAppDetailPage() {
         if (!data) return
         setActionInProgress('uninstall')
         try {
-            await runLifecycleRequest(`/api/apps/${encodeURIComponent(data.app_id)}/uninstall?purge_data=${String(purgeData)}`, 'DELETE')
+            if (isComposeApp) {
+                await runLifecycleRequest(`/api/compose-apps/${encodeURIComponent(data.app_id)}`, 'DELETE')
+            } else {
+                await runLifecycleRequest(`/api/apps/${encodeURIComponent(data.app_id)}/uninstall?purge_data=${String(purgeData)}`, 'DELETE')
+            }
             await queryClient.invalidateQueries({ queryKey: ['my-apps'] })
             setFeedback({ severity: 'success', message: t('myAppsDetailPage.feedback.uninstallSuccess', { appId: data.app_id }) })
             navigate('/myapps')
@@ -911,6 +1080,10 @@ export function MyAppDetailPage() {
         }
     }
 
+    function handleOpenBackupList() {
+        setBackupListDialogOpen(true)
+    }
+
     async function handleDeleteBackup() {
         if (!deleteBackupTarget) return
         setVolumeBackupAction('delete')
@@ -946,14 +1119,14 @@ export function MyAppDetailPage() {
         if (!data) return
 
         if (stepIndex === 0) {
-            const auth = data.gitConfig?.Authentication
-            const username = auth && typeof auth === 'object' && 'Username' in auth && typeof auth.Username === 'string' && auth.Username.trim()
-                ? auth.Username.trim()
-                : 'websoft9'
-            openProductPath(`/w9git/${username}/${data.app_id}`, navigate)
+            const composeRoute = `/myapps/${encodeURIComponent(data.app_id)}?tab=compose`
+            markPendingComposeReturn(data.app_id)
+            rememberMyAppsDetailRoute(composeRoute)
+            openProductPath(getComposeRepositoryTarget(data), navigate, composeRoute)
             return
         }
 
+        setComposeStep(1)
         setRedeployLogs([])
         setRedeployDialogOpen(true)
     }
@@ -1006,7 +1179,7 @@ export function MyAppDetailPage() {
         database: t('myAppsDetailPage.tabs.database.label'),
         monitor: t('myAppsDetailPage.tabs.monitor.label'),
         compose: t('myAppsDetailPage.tabs.compose.label'),
-        uninstall: t('myAppsDetailPage.tabs.uninstall.label'),
+        uninstall: isComposeApp ? t('myAppsDetailPage.tabs.uninstall.removeLabel') : t('myAppsDetailPage.tabs.uninstall.label'),
     }
 
     const tabTitles: Record<DetailTabKey, string> = {
@@ -1021,6 +1194,26 @@ export function MyAppDetailPage() {
         uninstall: t('myAppsDetailPage.tabs.uninstall.title'),
     }
 
+    const overviewEntries = useMemo(
+        () => data
+            ? isComposeApp
+                ? [
+                    { label: t('myAppsDetailPage.summary.appId'), value: data.app_id },
+                    { label: t('myAppsDetailPage.summary.createdAt'), value: formatCreationDate(data.creationDate, locale) },
+                ]
+                : [
+                    { label: t('myAppsDetailPage.summary.appId'), value: data.app_id },
+                    { label: t('myAppsDetailPage.summary.appName'), value: data.app_name || '-' },
+                    { label: t('myAppsDetailPage.summary.appVersion'), value: data.app_version || '-' },
+                    ...portEntries.map(([key, labelKey, value]) => ({
+                        label: labelKey === key ? getDetailPortLabel(key, t, locale) : t(labelKey),
+                        value,
+                    })),
+                    { label: t('myAppsDetailPage.summary.createdAt'), value: formatCreationDate(data.creationDate, locale) },
+                ]
+            : [],
+        [data, isComposeApp, locale, portEntries, t],
+    )
     return (
         <>
             <div
@@ -1051,6 +1244,7 @@ export function MyAppDetailPage() {
                                 <LegacyMyAppLogo
                                     appId={data?.app_id || appId}
                                     appName={data?.app_name}
+                                    logoUrl={data?.logo_url}
                                     locale={locale}
                                     size={80}
                                     marginY={0}
@@ -1122,7 +1316,9 @@ export function MyAppDetailPage() {
                                     style={closeToolbarButtonStyle}
                                     title="Close"
                                 >
-                                    <span aria-hidden="true">×</span>
+                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                                    </svg>
                                 </IconButton>
                             </div>
                         </div>
@@ -1188,35 +1384,19 @@ export function MyAppDetailPage() {
 
                                     {/* ── Overview ── */}
                                     {selectedTab === 'overview' ? (
-                                        <div className="myapps-card">
+                                        <div className="myapps-card myapps-overview-card">
                                             <div className="myapps-card-header myapps-card-header-compact">
                                                 <div className="myapps-overview-title">{tabTitles.overview}</div>
                                             </div>
-                                            <div className="myapps-overview-card-body">
-                                                <table className="myapps-overview-table" role="presentation">
+                                            <div className="myapps-database-card-body">
+                                                <table className="myapps-overview-data-table" role="table">
                                                     <tbody>
-                                                        <tr className="myapps-overview-row">
-                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.summary.appId')}</td>
-                                                            <td className="myapps-overview-value">{data.app_id}</td>
-                                                        </tr>
-                                                        <tr className="myapps-overview-row">
-                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.summary.appName')}</td>
-                                                            <td className="myapps-overview-value">{data.app_name || '-'}</td>
-                                                        </tr>
-                                                        <tr className="myapps-overview-row">
-                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.summary.appVersion')}</td>
-                                                            <td className="myapps-overview-value">{data.app_version || '-'}</td>
-                                                        </tr>
-                                                        {portEntries.map(([key, labelKey, value], i) => (
-                                                            <tr key={`port-${i}`} className="myapps-overview-row">
-                                                                <td className="myapps-overview-label">{labelKey === key ? getDetailPortLabel(key, t, locale) : t(labelKey)}</td>
-                                                                <td className="myapps-overview-value">{value}</td>
+                                                        {overviewEntries.map((entry, index) => (
+                                                            <tr key={`overview-row-${index}`}>
+                                                                <th>{entry.label}</th>
+                                                                <td>{entry.value}</td>
                                                             </tr>
                                                         ))}
-                                                        <tr className="myapps-overview-row">
-                                                            <td className="myapps-overview-label">{t('myAppsDetailPage.summary.createdAt')}</td>
-                                                            <td className="myapps-overview-value">{formatCreationDate(data.creationDate, locale)}</td>
-                                                        </tr>
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -1227,9 +1407,8 @@ export function MyAppDetailPage() {
                                     {selectedTab === 'access' ? (
                                         <MyAppAccessPanel
                                             appId={data.app_id}
-                                            entryDomains={domains}
                                             env={data.env}
-                                            isWebApp={Boolean(data.env?.W9_URL)}
+                                            isComposeApp={isComposeApp}
                                             onUpdated={refreshAfterAction}
                                         />
                                     ) : null}
@@ -1328,90 +1507,135 @@ export function MyAppDetailPage() {
 
                                     {/* ── Volumes ── */}
                                     {selectedTab === 'volumes' ? (
-                                        (data.volumes ?? []).length > 0 ? (
+                                        (sortedVolumes.length > 0 || databaseRows.length > 0) ? (
                                             <>
-                                                <div className="myapps-card myapps-volume-card">
-                                                    <div className="myapps-card-header">
-                                                        <div className="myapps-section-title">{t('myAppsDetailPage.tabs.volumes.title')}</div>
-                                                        <a className="myapps-card-header-btn" href={`/w9deployment/#!/${data.endpointId ?? 1}/docker/volumes`} onClick={(event) => {
-                                                            event.preventDefault()
-                                                            openProductPath(`/w9deployment/#!/${data.endpointId ?? 1}/docker/volumes`, navigate)
-                                                        }}>{t('myAppsDetailPage.tabs.volumes.more')}</a>
-                                                    </div>
-                                                    <div className="myapps-table-wrap">
-                                                        <table className="myapps-detail-table" role="table">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.driver')}</th>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.mountpoint')}</th>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.columns.created')}</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {sortedVolumes.map((v, i) => (
-                                                                    <tr key={`${getVolumeLabel(v)}-${i}`}>
-                                                                        <td>{getVolumeLabel(v)}</td>
-                                                                        <td>{String(v.Driver ?? '-')}</td>
-                                                                        <td>{String(v.Mountpoint ?? '-')}</td>
-                                                                        <td>{getVolumeCreatedAt(v, locale)}</td>
+                                                {sortedVolumes.length > 0 ? (
+                                                    <div className="myapps-card myapps-volume-card">
+                                                        <div className="myapps-card-header">
+                                                            <div className="myapps-section-title">{t('myAppsDetailPage.tabs.volumes.title')}</div>
+                                                            <div className="myapps-card-header-actions">
+                                                                <button
+                                                                    className="myapps-inline-icon-action myapps-inline-icon-action-neutral"
+                                                                    onClick={handleOpenBackupList}
+                                                                    title={t('myAppsDetailPage.tabs.volumes.backups.entry')}
+                                                                    aria-label={t('myAppsDetailPage.tabs.volumes.backups.entry')}
+                                                                >
+                                                                    <IconBackup />
+                                                                    <span>{t('myAppsDetailPage.tabs.volumes.backups.entry')}</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="myapps-table-wrap">
+                                                            <table className="myapps-detail-table" role="table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.driver')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.mountpoint')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.created')}</th>
+                                                                        <th className="myapps-cell-center">{t('myAppsDetailPage.tabs.volumes.columns.action')}</th>
                                                                     </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </div>
-                                                <div className="myapps-card myapps-volume-card">
-                                                    <div className="myapps-card-header">
-                                                        <div className="myapps-section-title">{t('myAppsDetailPage.tabs.volumes.backups.title')}</div>
-                                                        <div className="myapps-card-header-actions">
-                                                            <button className="myapps-card-header-btn myapps-card-header-btn-secondary" onClick={() => void refreshVolumeBackups()} disabled={volumeBackupLoading}>
-                                                                {volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
-                                                            </button>
-                                                            <button className="myapps-card-header-btn" onClick={() => setCreateBackupDialogOpen(true)}>
-                                                                {t('myAppsDetailPage.tabs.volumes.backups.create')}
-                                                            </button>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {sortedVolumes.map((v, i) => {
+                                                                        const volumeLabel = getVolumeLabel(v)
+                                                                        const volumeId = getVolumeId(v)
+                                                                        return (
+                                                                            <tr key={`${volumeLabel}-${i}`}>
+                                                                                <td>{volumeLabel}</td>
+                                                                                <td>{String(v.Driver ?? '-')}</td>
+                                                                                <td>{String(v.Mountpoint ?? '-')}</td>
+                                                                                <td>{getVolumeCreatedAt(v, locale)}</td>
+                                                                                <td className="myapps-cell-center">
+                                                                                    <button
+                                                                                        className="myapps-inline-link"
+                                                                                        disabled={!volumeId}
+                                                                                        onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel })}
+                                                                                    >
+                                                                                        {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        )
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
                                                         </div>
                                                     </div>
-                                                    <div className="myapps-table-wrap">
-                                                        <table className="myapps-detail-table" role="table">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}</th>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}</th>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}</th>
-                                                                    <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.action')}</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {volumeBackups.length === 0 && !volumeBackupLoading ? (
+                                                ) : null}
+
+                                                {databaseRows.length > 0 ? (
+                                                    <div className="myapps-card myapps-volume-card">
+                                                        <div className="myapps-card-header myapps-card-header-compact">
+                                                            <div className="myapps-overview-title">{t('myAppsDetailPage.tabs.database.title')}</div>
+                                                        </div>
+                                                        <div className="myapps-database-card-body">
+                                                            <table className="myapps-database-table" role="table">
+                                                                <thead>
                                                                     <tr>
-                                                                        <td colSpan={4} className="myapps-empty-cell">{volumeBackupError || t('myAppsDetailPage.tabs.volumes.backups.empty')}</td>
+                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.type')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.host')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.account')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th>
                                                                     </tr>
-                                                                ) : (
-                                                                    volumeBackups.map((backup) => (
-                                                                        <tr key={backup.fullId}>
-                                                                            <td>{backup.id}</td>
-                                                                            <td>{backup.time}</td>
-                                                                            <td>{backup.size}</td>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {databaseRows.map((row) => (
+                                                                        <tr key={`${row.type}-${row.host}`}>
+                                                                            <td>{row.type}</td>
+                                                                            <td>{row.host}</td>
+                                                                            <td>{row.account}</td>
                                                                             <td>
-                                                                                <div className="myapps-table-actions-text">
-                                                                                    <button className="myapps-inline-link" onClick={() => setRestoreBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.restore')}</button>
-                                                                                    <button className="myapps-inline-link myapps-inline-link-danger" onClick={() => setDeleteBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.delete')}</button>
+                                                                                <div className="myapps-database-password-cell">
+                                                                                    <span className="myapps-database-password-text">
+                                                                                        {showPasswords[row.type] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
+                                                                                    </span>
+                                                                                    <button
+                                                                                        className="myapps-database-icon-btn"
+                                                                                        title={showPasswords[row.type] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
+                                                                                        onClick={() => setShowPasswords((prev) => ({ ...prev, [row.type]: !prev[row.type] }))}
+                                                                                    >
+                                                                                        {showPasswords[row.type] ? <IconEyeOff /> : <IconEye />}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        className="myapps-database-icon-btn"
+                                                                                        title={t('myAppsDetailPage.tabs.database.copy')}
+                                                                                        onClick={async () => {
+                                                                                            try {
+                                                                                                await copyTextWithFallback(row.password)
+                                                                                                setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
+                                                                                            } catch {
+                                                                                                setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
+                                                                                            }
+                                                                                        }}
+                                                                                    >
+                                                                                        <IconCopy />
+                                                                                    </button>
                                                                                 </div>
                                                                             </td>
+                                                                            <td>
+                                                                                {row.toolApps.length > 0 ? (
+                                                                                    <div className="myapps-table-actions-text">
+                                                                                        {row.toolApps.map((tool) => (
+                                                                                            <button
+                                                                                                key={`${row.type}-${tool.appKey}`}
+                                                                                                className="myapps-inline-link"
+                                                                                                onClick={() => openAppStoreTool(tool.appKey, navigate)}
+                                                                                            >
+                                                                                                {tool.label}
+                                                                                            </button>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                ) : '-'}
+                                                                            </td>
                                                                         </tr>
-                                                                    ))
-                                                                )}
-                                                            </tbody>
-                                                        </table>
-                                                        {volumeBackupLoading ? (
-                                                            <div className="myapps-table-loading">
-                                                                <CircularProgress size={20} />
-                                                            </div>
-                                                        ) : null}
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                ) : null}
                                             </>
                                         ) : (
                                             <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.volumes.empty')}</Alert>
@@ -1504,69 +1728,6 @@ export function MyAppDetailPage() {
                                     ) : null}
 
                                     {/* ── Database ── */}
-                                    {selectedTab === 'database' ? (
-                                        databaseRows.length > 0 ? (
-                                            <div className="myapps-card">
-                                                <div className="myapps-card-header myapps-card-header-compact">
-                                                    <div className="myapps-overview-title">{t('myAppsDetailPage.tabs.database.title')}</div>
-                                                </div>
-                                                <div className="myapps-database-card-body">
-                                                    <table className="myapps-database-table" role="table">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>{t('myAppsDetailPage.tabs.database.columns.type')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.database.columns.host')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.database.columns.account')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {databaseRows.map((row) => (
-                                                                <tr key={`${row.type}-${row.host}`}>
-                                                                    <td>{row.type}</td>
-                                                                    <td>{row.host}</td>
-                                                                    <td>{row.account}</td>
-                                                                    <td>
-                                                                        <div className="myapps-database-password-cell">
-                                                                            <span className="myapps-database-password-text">
-                                                                                {showPasswords[row.type] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
-                                                                            </span>
-                                                                            <button
-                                                                                className="myapps-database-icon-btn"
-                                                                                title={showPasswords[row.type] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
-                                                                                onClick={() => setShowPasswords((prev) => ({ ...prev, [row.type]: !prev[row.type] }))}
-                                                                            >
-                                                                                {showPasswords[row.type] ? <IconEyeOff /> : <IconEye />}
-                                                                            </button>
-                                                                            <button
-                                                                                className="myapps-database-icon-btn"
-                                                                                title={t('myAppsDetailPage.tabs.database.copy')}
-                                                                                onClick={async () => {
-                                                                                    try {
-                                                                                        await copyTextWithFallback(row.password)
-                                                                                        setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
-                                                                                    } catch {
-                                                                                        setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                <IconCopy />
-                                                                            </button>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td>{row.tool}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.database.empty')}</Alert>
-                                        )
-                                    ) : null}
-
                                     {/* ── Monitor ── */}
                                     {selectedTab === 'monitor' ? (
                                         <div style={{ maxWidth: 640 }}>
@@ -1622,9 +1783,15 @@ export function MyAppDetailPage() {
                                     {selectedTab === 'uninstall' ? (
                                         <div className="myapps-uninstall-layout">
                                             <div className="myapps-uninstall-copy">
-                                                <h6 className="myapps-uninstall-title">{t('myAppsDetailPage.tabs.uninstall.title')}</h6>
+                                                <h6 className="myapps-uninstall-title">
+                                                    {isComposeApp
+                                                        ? t('myAppsDetailPage.tabs.uninstall.removeTitle')
+                                                        : t('myAppsDetailPage.tabs.uninstall.title')}
+                                                </h6>
                                                 <p className="myapps-uninstall-desc">
-                                                    {t('myAppsDetailPage.tabs.uninstall.placeholder')}
+                                                    {isComposeApp
+                                                        ? t('myAppsDetailPage.tabs.uninstall.removePlaceholder')
+                                                        : t('myAppsDetailPage.tabs.uninstall.placeholder')}
                                                 </p>
                                             </div>
                                             <div className="myapps-uninstall-actions">
@@ -1633,7 +1800,9 @@ export function MyAppDetailPage() {
                                                     disabled={actionInProgress !== null}
                                                     onClick={() => setUninstallDialogOpen(true)}
                                                 >
-                                                    {t('myAppsDetailPage.actions.uninstall')}
+                                                    {isComposeApp
+                                                        ? t('myAppsDetailPage.actions.remove')
+                                                        : t('myAppsDetailPage.actions.uninstall')}
                                                 </button>
                                             </div>
                                         </div>
@@ -1654,13 +1823,17 @@ export function MyAppDetailPage() {
                 scopeRect={contentScopeRect}
                 contentStrategy="viewport-fixed"
                 darkMode={isDarkMode}
-                sx={{
-                    zIndex: 1505,
-                    '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay },
-                }}
+                sx={[
+                    contentScopedDialogPlacementSx,
+                    {
+                        zIndex: 1505,
+                        '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay },
+                    },
+                ]}
                 paperSx={{
                     width: { xs: 'min(100%, 780px)', md: 'min(780px, calc(100% - 20px))' },
                     maxWidth: '780px',
+                    borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
                     border: `1px solid ${dialogPalette.border}`,
@@ -1674,11 +1847,10 @@ export function MyAppDetailPage() {
                 </Box>
                 <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
                     <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.redeployBody')}</Typography>
-                    <FormControlLabel
-                        control={<Switch checked={redeployPullImage} onChange={(e) => setRedeployPullImage(e.target.checked)} color="primary" />}
-                        label={t('myAppsDetailPage.dialogs.redeployPullImage')}
-                        sx={{ mt: 1.5, color: dialogPalette.text }}
-                    />
+                    <Box sx={{ mt: 1.5, display: 'inline-flex', alignItems: 'center', gap: 0.75, color: dialogPalette.text }}>
+                        <Typography sx={{ fontSize: 14, color: dialogPalette.text }}>{t('myAppsDetailPage.dialogs.redeployPullImage')}</Typography>
+                        <Switch checked={redeployPullImage} onChange={(e) => setRedeployPullImage(e.target.checked)} color="primary" />
+                    </Box>
                     {redeployLogs.length > 0 ? (
                         <div style={{ maxHeight: 220, overflowY: 'auto', backgroundColor: dialogPalette.panelMuted, color: dialogPalette.text, padding: 10, marginTop: 10, fontFamily: 'monospace', borderRadius: 6, border: `1px solid ${dialogPalette.border}` }}>
                             {redeployLogs.map((entry, i) => (
@@ -1691,12 +1863,12 @@ export function MyAppDetailPage() {
                     ) : null}
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
-                    <Button onClick={() => setRedeployDialogOpen(false)} sx={{ color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button onClick={() => setRedeployDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                     <Button
                         disabled={actionInProgress !== null}
                         onClick={() => void handleRedeploy()}
                         variant="contained"
-                        sx={{ backgroundColor: dialogPalette.accent, color: isDarkMode ? '#0f172a' : '#fff', '&:hover': { backgroundColor: isDarkMode ? '#dbeafe' : '#1d4ed8' } }}
+                        sx={dialogAccentButtonSx}
                     >
                         {actionInProgress === 'redeploy' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.actions.redeploy')}
                     </Button>
@@ -1712,13 +1884,17 @@ export function MyAppDetailPage() {
                 scopeRect={contentScopeRect}
                 contentStrategy="viewport-fixed"
                 darkMode={isDarkMode}
-                sx={{
-                    zIndex: 1506,
-                    '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay },
-                }}
+                sx={[
+                    contentScopedDialogPlacementSx,
+                    {
+                        zIndex: 1506,
+                        '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay },
+                    },
+                ]}
                 paperSx={{
                     width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
                     maxWidth: '560px',
+                    borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
                     border: `1px solid ${dialogPalette.border}`,
@@ -1726,26 +1902,135 @@ export function MyAppDetailPage() {
                 }}
             >
                 <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
-                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>{t('myAppsDetailPage.dialogs.uninstallTitle')}</Typography>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>
+                        {isComposeApp ? t('myAppsDetailPage.dialogs.removeTitle') : t('myAppsDetailPage.dialogs.uninstallTitle')}
+                    </Typography>
                 </Box>
                 <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
-                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.uninstallBody', { appId: data?.app_id ?? appId ?? '-' })}</Typography>
-                    <FormControlLabel
-                        control={<Switch checked={purgeData} onChange={(e) => setPurgeData(e.target.checked)} color="warning" />}
-                        label={t('myAppsDetailPage.dialogs.uninstallPurge')}
-                        sx={{ mt: 1.5, color: dialogPalette.text }}
-                    />
+                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>
+                        {isComposeApp
+                            ? t('myAppsDetailPage.dialogs.removeBody', { appId: data?.app_id ?? appId ?? '-' })
+                            : t('myAppsDetailPage.dialogs.uninstallBody', { appId: data?.app_id ?? appId ?? '-' })}
+                    </Typography>
+                    {!isComposeApp ? (
+                        <Box sx={{ mt: 1.5, display: 'inline-flex', alignItems: 'center', gap: 0.75, color: dialogPalette.text }}>
+                            <Typography sx={{ fontSize: 14, color: dialogPalette.text }}>{t('myAppsDetailPage.dialogs.uninstallPurge')}</Typography>
+                            <Switch checked={purgeData} onChange={(e) => setPurgeData(e.target.checked)} color="warning" />
+                        </Box>
+                    ) : null}
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
-                    <Button onClick={() => setUninstallDialogOpen(false)} sx={{ color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button onClick={() => setUninstallDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                     <Button
-                        sx={{ backgroundColor: dialogPalette.warningSoft, color: dialogPalette.warning, border: `1px solid ${dialogPalette.border}`, '&:hover': { backgroundColor: dialogPalette.warningSoft } }}
+                        sx={dialogWarningButtonSx}
                         disabled={actionInProgress !== null}
                         onClick={() => void handleUninstall()}
                         variant="contained"
                     >
-                        {actionInProgress === 'uninstall' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.actions.uninstall')}
+                        {actionInProgress === 'uninstall'
+                            ? t('myAppsDetailPage.actions.running')
+                            : isComposeApp
+                                ? t('myAppsDetailPage.actions.remove')
+                                : t('myAppsDetailPage.actions.uninstall')}
                     </Button>
+                </Box>
+            </SurfaceDialog>
+
+            <SurfaceDialog
+                open={backupListDialogOpen}
+                onClose={() => setBackupListDialogOpen(false)}
+                maxWidth="md"
+                scope="content"
+                scopeRect={contentScopeRect}
+                contentStrategy="viewport-fixed"
+                darkMode={isDarkMode}
+                sx={[contentScopedDialogPlacementSx, { zIndex: 1505, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
+                paperSx={{
+                    width: { xs: 'min(100%, 980px)', md: 'min(980px, calc(100% - 20px))' },
+                    maxWidth: '980px',
+                    borderRadius: 0,
+                    backgroundColor: dialogPalette.panel,
+                    color: dialogPalette.text,
+                    border: `1px solid ${dialogPalette.border}`,
+                }}
+            >
+                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>{t('myAppsDetailPage.tabs.volumes.backups.title')}</Typography>
+                </Box>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                    <div className="myapps-backup-list-region">
+                        <div className="myapps-backup-list-toolbar">
+                            <button
+                                className="myapps-inline-icon-action myapps-inline-icon-action-neutral"
+                                onClick={() => setCreateBackupDialogOpen(true)}
+                                title={t('myAppsDetailPage.tabs.volumes.backups.create')}
+                                aria-label={t('myAppsDetailPage.tabs.volumes.backups.create')}
+                                disabled={volumeBackupAction === 'create' || volumeBackupLoading}
+                            >
+                                <IconAdd />
+                                <span>{t('myAppsDetailPage.tabs.volumes.backups.create')}</span>
+                            </button>
+                            <button
+                                className="myapps-inline-icon-action myapps-inline-icon-action-neutral myapps-inline-icon-action-compact"
+                                onClick={() => void refreshVolumeBackups()}
+                                title={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
+                                aria-label={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
+                                disabled={volumeBackupLoading}
+                            >
+                                <IconRefresh />
+                            </button>
+                        </div>
+                        <div className="myapps-backup-table-shell">
+                            <div className="myapps-table-wrap myapps-table-wrap-overlay">
+                                <table className="myapps-detail-table myapps-backup-detail-table" role="table">
+                                    <thead>
+                                        <tr>
+                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}</th>
+                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}</th>
+                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}</th>
+                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.action')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {volumeBackupLoading && volumeBackups.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} className="myapps-empty-cell myapps-empty-cell-placeholder">&nbsp;</td>
+                                            </tr>
+                                        ) : volumeBackups.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} className="myapps-empty-cell">{volumeBackupError || t('myAppsDetailPage.tabs.volumes.backups.empty')}</td>
+                                            </tr>
+                                        ) : (
+                                            volumeBackups.map((backup) => (
+                                                <tr key={backup.fullId}>
+                                                    <td>{backup.id}</td>
+                                                    <td>{backup.time}</td>
+                                                    <td>{backup.size}</td>
+                                                    <td>
+                                                        <div className="myapps-table-actions-text">
+                                                            <button className="myapps-inline-link" onClick={() => setRestoreBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.restore')}</button>
+                                                            <button className="myapps-inline-link myapps-inline-link-danger" onClick={() => setDeleteBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.delete')}</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                                {volumeBackupLoading ? (
+                                    <div className="myapps-table-overlay-loading" aria-live="polite">
+                                        <div className="myapps-table-overlay-loading-card">
+                                            <CircularProgress size={22} />
+                                            <span>{t('myAppsDetailPage.tabs.volumes.backups.refreshing')}</span>
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+                    </div>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
+                    <Button onClick={() => setBackupListDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.close')}</Button>
                 </Box>
             </SurfaceDialog>
 
@@ -1757,10 +2042,11 @@ export function MyAppDetailPage() {
                 scopeRect={contentScopeRect}
                 contentStrategy="viewport-fixed"
                 darkMode={isDarkMode}
-                sx={{ zIndex: 1505, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }}
+                sx={[contentScopedDialogPlacementSx, { zIndex: 1505, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
                 paperSx={{
                     width: { xs: 'min(100%, 780px)', md: 'min(780px, calc(100% - 20px))' },
                     maxWidth: '780px',
+                    borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
                     border: `1px solid ${dialogPalette.border}`,
@@ -1771,6 +2057,14 @@ export function MyAppDetailPage() {
                 </Box>
                 <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
                     <Typography sx={{ m: 0, mb: 1.5, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.createBody')}</Typography>
+                    <Box sx={{ mb: 1.5, px: 1.5, py: 1.25, border: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: dialogPalette.text, mb: 0.75 }}>{t('myAppsDetailPage.tabs.volumes.backups.tipsTitle')}</Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: dialogPalette.subtleText, fontSize: 13, lineHeight: 1.7 }}>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.allVolumes')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.duration')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.accessible')}</li>
+                        </Box>
+                    </Box>
                     <div className="myapps-table-wrap">
                         <table className="myapps-detail-table" role="table">
                             <thead>
@@ -1793,8 +2087,8 @@ export function MyAppDetailPage() {
                     </div>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
-                    <Button onClick={() => setCreateBackupDialogOpen(false)} sx={{ color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.close')}</Button>
-                    <Button variant="contained" onClick={() => void handleCreateBackup()} disabled={volumeBackupAction === 'create'}>
+                    <Button onClick={() => setCreateBackupDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.close')}</Button>
+                    <Button variant="contained" sx={dialogAccentButtonSx} onClick={() => void handleCreateBackup()} disabled={volumeBackupAction === 'create'}>
                         {volumeBackupAction === 'create' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.volumes.backups.create')}
                     </Button>
                 </Box>
@@ -1808,10 +2102,11 @@ export function MyAppDetailPage() {
                 scopeRect={contentScopeRect}
                 contentStrategy="viewport-fixed"
                 darkMode={isDarkMode}
-                sx={{ zIndex: 1506, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }}
+                sx={[contentScopedDialogPlacementSx, { zIndex: 1506, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
                 paperSx={{
                     width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
                     maxWidth: '560px',
+                    borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
                     border: `1px solid ${dialogPalette.border}`,
@@ -1822,11 +2117,21 @@ export function MyAppDetailPage() {
                 </Box>
                 <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
                     <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteBody')}</Typography>
-                    {deleteBackupTarget ? <Typography sx={{ mt: 1.25, fontSize: 13, color: dialogPalette.subtleText }}>{deleteBackupTarget.id} · {deleteBackupTarget.time} · {deleteBackupTarget.size}</Typography> : null}
+                    {deleteBackupTarget ? (
+                        <Box sx={{ mt: 1.5, display: 'grid', gap: 0.75, fontSize: 13, color: dialogPalette.subtleText }}>
+                            <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}: {deleteBackupTarget.id}</Typography>
+                            <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}: {deleteBackupTarget.time}</Typography>
+                            <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}: {deleteBackupTarget.size}</Typography>
+                        </Box>
+                    ) : null}
+                    <Box sx={{ mt: 1.75, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Checkbox checked={deleteBackupConfirmed} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDeleteBackupConfirmed(event.target.checked)} sx={{ p: 0.25, color: dialogPalette.subtleText }} />
+                        <Typography sx={{ fontSize: 13, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteConfirm')}</Typography>
+                    </Box>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
-                    <Button onClick={() => setDeleteBackupTarget(null)} sx={{ color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
-                    <Button variant="contained" color="warning" onClick={() => void handleDeleteBackup()} disabled={volumeBackupAction === 'delete'}>
+                    <Button onClick={() => setDeleteBackupTarget(null)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button variant="contained" sx={dialogWarningButtonSx} onClick={() => void handleDeleteBackup()} disabled={volumeBackupAction === 'delete' || !deleteBackupConfirmed}>
                         {volumeBackupAction === 'delete' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.volumes.backups.delete')}
                     </Button>
                 </Box>
@@ -1840,10 +2145,11 @@ export function MyAppDetailPage() {
                 scopeRect={contentScopeRect}
                 contentStrategy="viewport-fixed"
                 darkMode={isDarkMode}
-                sx={{ zIndex: 1506, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }}
+                sx={[contentScopedDialogPlacementSx, { zIndex: 1506, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
                 paperSx={{
                     width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
                     maxWidth: '560px',
+                    borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
                     border: `1px solid ${dialogPalette.border}`,
@@ -1854,15 +2160,45 @@ export function MyAppDetailPage() {
                 </Box>
                 <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
                     <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.restoreBody')}</Typography>
-                    {restoreBackupTarget ? <Typography sx={{ mt: 1.25, fontSize: 13, color: dialogPalette.subtleText }}>{restoreBackupTarget.id} · {restoreBackupTarget.time} · {restoreBackupTarget.size}</Typography> : null}
+                    {restoreBackupTarget ? (
+                        <Box sx={{ mt: 1.5, display: 'grid', gap: 0.75, fontSize: 13, color: dialogPalette.subtleText }}>
+                            <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}: {restoreBackupTarget.id}</Typography>
+                            <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}: {restoreBackupTarget.time}</Typography>
+                            <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}: {restoreBackupTarget.size}</Typography>
+                        </Box>
+                    ) : null}
+                    <Box sx={{ mt: 1.5, px: 1.5, py: 1.25, border: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: dialogPalette.warning, mb: 0.75 }}>{t('myAppsDetailPage.tabs.volumes.backups.tipsTitle')}</Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: dialogPalette.subtleText, fontSize: 13, lineHeight: 1.7 }}>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.restoreTips.stopAndStart')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.restoreTips.replaceData')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.restoreTips.duration')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.restoreTips.unavailable')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.restoreTips.risk')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.restoreTips.failure')}</li>
+                        </Box>
+                    </Box>
+                    <Box sx={{ mt: 1.75, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Checkbox checked={restoreBackupConfirmed} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setRestoreBackupConfirmed(event.target.checked)} sx={{ p: 0.25, color: dialogPalette.subtleText }} />
+                        <Typography sx={{ fontSize: 13, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.restoreConfirm')}</Typography>
+                    </Box>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
-                    <Button onClick={() => setRestoreBackupTarget(null)} sx={{ color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
-                    <Button variant="contained" color="warning" onClick={() => void handleRestoreBackup()} disabled={volumeBackupAction === 'restore'}>
+                    <Button onClick={() => setRestoreBackupTarget(null)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
+                    <Button variant="contained" sx={dialogWarningButtonSx} onClick={() => void handleRestoreBackup()} disabled={volumeBackupAction === 'restore' || !restoreBackupConfirmed}>
                         {volumeBackupAction === 'restore' ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.volumes.backups.restore')}
                     </Button>
                 </Box>
             </SurfaceDialog>
+
+            <VolumeFileManagerDialog
+                open={activeVolumeFileManager !== null}
+                volumeId={activeVolumeFileManager?.volumeId ?? ''}
+                volumeLabel={activeVolumeFileManager?.label ?? ''}
+                darkMode={isDarkMode}
+                scopeRect={contentScopeRect}
+                onClose={() => setActiveVolumeFileManager(null)}
+            />
 
             {/* ── Feedback toast ── */}
             <SurfaceFeedbackToast

@@ -108,7 +108,7 @@ EOF
 
   add_header X-Websoft9-Route-Owner $websoft9_route_owner always;
   add_header X-Websoft9-App-Access-Owner $websoft9_app_access_owner always;
-  add_header X-Websoft9-Reserved-Platform-Prefixes "/,/api/,/media/,/w9deployment/,/w9proxy/,/w9git/,/w9gateway/healthz" always;
+  add_header X-Websoft9-Reserved-Platform-Prefixes "/,/api/,/w9deployment/,/w9proxy/,/w9git/,/w9gateway/healthz" always;
 EOF
 
   if [[ "$https_enabled" == "true" ]]; then

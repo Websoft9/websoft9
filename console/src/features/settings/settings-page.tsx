@@ -17,32 +17,10 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
+import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import './settings-page.css'
-
-function getSettingsTextFieldSx(isDarkMode: boolean) {
-    return {
-        '& .MuiOutlinedInput-root': {
-            borderRadius: '4px',
-            height: 38,
-            backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-        },
-        '& .MuiOutlinedInput-root.Mui-disabled': {
-            backgroundColor: isDarkMode ? '#162033' : '#f8fafc',
-        },
-        '& .MuiInputBase-input': {
-            fontSize: 14,
-            fontWeight: 400,
-            color: isDarkMode ? '#e5edf5' : '#334155',
-        },
-        '& .MuiInputBase-input::placeholder': {
-            fontSize: 14,
-            fontWeight: 400,
-            color: isDarkMode ? '#64748b' : '#94a3b8',
-            opacity: 1,
-        },
-    } as const
-}
 
 type SettingsSummaryItem = {
     group: string
@@ -129,6 +107,8 @@ export function SettingsPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
+    const surfacePalette = getSurfacePalette(isDarkMode)
+    const settingsFieldSx = getSurfaceFieldSx(surfacePalette)
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -376,7 +356,7 @@ export function SettingsPage() {
                             }
                             disabled={!isEditing}
                             placeholder={t('settingsPage.actions.editValue')}
-                            sx={getSettingsTextFieldSx(isDarkMode)}
+                            sx={settingsFieldSx}
                         />
                         {options?.helperText ? <Typography className="settings-field-helper settings-field-helper--inline">{options.helperText}</Typography> : null}
                     </div>
@@ -643,18 +623,6 @@ export function SettingsPage() {
                     <Box className="settings-panels-grid">
                         <Paper className="settings-panel" elevation={0}>
                             <Box className="settings-panel-header">
-                                <Typography className="settings-panel-title">{t('settingsPage.sections.platform.title')}</Typography>
-                            </Box>
-
-                            <Box className="settings-form-table">
-                                {renderEditableRow(boundDomainItem, { helperText: t('settingsPage.domain.boundDomainHelper') })}
-                                {renderHttpsOptionsRow()}
-                                {renderCertificateRow()}
-                            </Box>
-                        </Paper>
-
-                        <Paper className="settings-panel" elevation={0}>
-                            <Box className="settings-panel-header">
                                 <Typography className="settings-panel-title">{t('settingsPage.sections.applications.title')}</Typography>
                             </Box>
 
@@ -664,17 +632,18 @@ export function SettingsPage() {
                             </Box>
                         </Paper>
 
-                        <Paper className="settings-panel settings-panel--system" elevation={0}>
+                        <Paper className="settings-panel" elevation={0}>
                             <Box className="settings-panel-header settings-panel-header--with-action">
-                                <Box>
-                                    <Typography className="settings-panel-title">{t('settingsPage.sections.system.title')}</Typography>
-                                </Box>
+                                <Typography className="settings-panel-title">{t('settingsPage.sections.platform.title')}</Typography>
                                 <IconButton className="settings-toolbar-icon-button settings-header-icon-button" onClick={() => void refetch()} disabled={isFetching} size="small" title={t('settingsPage.actions.refresh')}>
                                     {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
                                 </IconButton>
                             </Box>
 
                             <Box className="settings-form-table">
+                                {renderEditableRow(boundDomainItem, { helperText: t('settingsPage.domain.boundDomainHelper') })}
+                                {renderHttpsOptionsRow()}
+                                {renderCertificateRow()}
                                 {renderVersionRow()}
                                 {renderUpgradeRow()}
                             </Box>

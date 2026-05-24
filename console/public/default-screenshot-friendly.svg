@@ -1,0 +1,18 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="157" y1="59" x2="1012" y2="628" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FBFD"/>
+      <stop offset="1" stop-color="#EEF4F8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" rx="28" fill="url(#bg)"/>
+  <circle cx="198" cy="134" r="58" fill="#E3EDF5"/>
+  <circle cx="1004" cy="555" r="92" fill="#DCE9F3"/>
+  <rect x="300" y="140" width="600" height="394" rx="26" fill="#FFFFFF" stroke="#D6E1EA" stroke-width="2"/>
+  <rect x="348" y="206" width="504" height="206" rx="18" fill="#EEF5FA"/>
+  <path d="M430 382L506 314C517 304 533 304 544 314L594 361L668 286C679 275 697 275 708 286L770 348" stroke="#9CB7CB" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="452" cy="273" r="24" fill="#B2C7D8"/>
+  <rect x="432" y="442" width="336" height="14" rx="7" fill="#D5E1EA"/>
+  <rect x="491" y="474" width="218" height="14" rx="7" fill="#E1EAF1"/>
+  <text x="600" y="592" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-size="32" font-weight="700" fill="#516A80">暂无截图预览</text>
+</svg>

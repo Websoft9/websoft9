@@ -21,15 +21,16 @@ import {
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import { useQuery } from '@tanstack/react-query'
 import CodeMirror from '@uiw/react-codemirror'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceFeedbackToast, SurfaceNoticeAlert, SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
-import { getSurfacePalette, type SurfacePalette } from '../../shared/design-system/surface-theme'
+import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { UnifiedAppCard } from '../../shared/design-system/unified-app-card'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import {
@@ -52,25 +53,22 @@ function getAppInitial(value: string | undefined) {
     return (value ?? '?').trim().slice(0, 1).toUpperCase()
 }
 
-function getMediaFileName(value: string | undefined) {
-    return value?.split('?')[0].split('/').pop()
+function getDefaultImagePath(locale: string) {
+    return locale.toLowerCase().startsWith('zh') ? '/default.png' : '/default-en.png'
 }
 
-function mapLocaleToMediaDirectory(locale: string) {
-    return locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+function getDefaultScreenshotPath(locale: string) {
+    return locale.toLowerCase().startsWith('zh') ? '/default-screenshot-friendly.svg' : '/default-screenshot-friendly-en.svg'
 }
 
-function getAppLogoSources(app: AppStoreApp) {
-    const fileName = getMediaFileName(app.logo?.imageurl)
-    const sources = [fileName ? `/media/logos/${fileName}` : null, app.logo?.imageurl]
+function getAppLogoSources(app: AppStoreApp, locale: string) {
+    const sources = [app.logo?.imageurl, getDefaultImagePath(locale)]
     return sources.filter((value): value is string => Boolean(value))
 }
 
 function getAppScreenshotSources(app: AppStoreApp, locale: string) {
     const screenshot = getPreferredAppStoreScreenshot(app)
-    const fileName = getMediaFileName(screenshot)
-    const mediaDirectory = mapLocaleToMediaDirectory(locale)
-    const sources = [fileName ? `/media/screenshots/${mediaDirectory}/${fileName}` : null, screenshot]
+    const sources = [screenshot, getDefaultScreenshotPath(locale)]
     return sources.filter((value): value is string => Boolean(value))
 }
 
@@ -190,15 +188,6 @@ const DEFAULT_COMPOSE_TEMPLATE = `services:
             - "8080:80"
 `
 
-function getInstallWorkspaceCardSx(palette: SurfacePalette) {
-    return {
-        borderRadius: '2px',
-        border: `1px solid ${palette.borderStrong}`,
-        background: `linear-gradient(180deg, ${palette.panelBg} 0%, ${palette.panelSoft} 100%)`,
-        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
-    } as const
-}
-
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
         credentials: 'include',
@@ -285,14 +274,14 @@ async function installApp(
     return response.json().catch(() => null) as Promise<InstallTaskAcceptedResponse | null>
 }
 
-function AppLogo({ app }: { app: AppStoreApp }) {
+function AppLogo({ app, locale }: { app: AppStoreApp; locale: string }) {
     const [sourceIndex, setSourceIndex] = useState(0)
     const label = app.trademark ?? app.key
-    const sources = getAppLogoSources(app)
+    const sources = getAppLogoSources(app, locale)
 
     useEffect(() => {
         setSourceIndex(0)
-    }, [app.key, app.logo?.imageurl])
+    }, [app.key, app.logo?.imageurl, locale])
 
     if (sources.length === 0 || sourceIndex >= sources.length) {
         return (
@@ -302,11 +291,11 @@ function AppLogo({ app }: { app: AppStoreApp }) {
                     width: '100%',
                     height: '100%',
                     borderRadius: '4px',
-                    background: '#eef2ff',
-                    color: '#334155',
+                    background: 'var(--ds-color-surface-soft)',
+                    color: 'var(--ds-color-text-strong)',
                     fontSize: 28,
                     fontWeight: 600,
-                    border: '1px solid rgba(226, 232, 240, 0.95)',
+                    border: '1px solid var(--ds-color-border)',
                 }}
             >
                 {getAppInitial(label)}
@@ -319,6 +308,7 @@ function AppLogo({ app }: { app: AppStoreApp }) {
             component="img"
             alt={label ?? 'App'}
             src={sources[sourceIndex]}
+            referrerPolicy="no-referrer"
             onError={() => {
                 setSourceIndex((currentValue) => currentValue + 1)
             }}
@@ -366,6 +356,7 @@ function AppScreenshot({ app, locale, alt }: { app: AppStoreApp; locale: string;
                 component="img"
                 alt={alt}
                 src={sources[sourceIndex]}
+                referrerPolicy="no-referrer"
                 onError={() => {
                     setSourceIndex((currentValue) => currentValue + 1)
                 }}
@@ -626,11 +617,12 @@ type AppStoreScopedOverlayProps = {
     scopeRect: ContentViewportRect | null
     onClose: () => void
     maxWidth?: number
+    preferredHeight?: number
     verticalPlacement?: 'center' | 'top'
     children: ReactNode
 }
 
-function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verticalPlacement = 'center', children, darkMode = false }: AppStoreScopedOverlayProps & { darkMode?: boolean }) {
+function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, preferredHeight, verticalPlacement = 'center', children, darkMode = false }: AppStoreScopedOverlayProps & { darkMode?: boolean }) {
     const palette = getSurfacePalette(darkMode)
 
     useEffect(() => {
@@ -656,6 +648,7 @@ function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verti
 
     const verticalPadding = verticalPlacement === 'top' ? 20 : 32
     const availableHeight = Math.max(Math.round(scopeRect.height) - verticalPadding, 240)
+    const resolvedHeight = preferredHeight ? Math.min(availableHeight, preferredHeight) : null
 
     return createPortal(
         <Box
@@ -698,7 +691,7 @@ function AppStoreScopedOverlay({ open, scopeRect, onClose, maxWidth = 800, verti
                         pointerEvents: 'auto',
                         width: { xs: 'min(100%, 800px)', md: `min(${maxWidth}px, calc(100% - 16px))` },
                         maxWidth: `${maxWidth}px`,
-                        height: 'auto',
+                        height: resolvedHeight ? `${resolvedHeight}px` : 'auto',
                         maxHeight: `${availableHeight}px`,
                         display: 'flex',
                         flexDirection: 'column',
@@ -772,9 +765,10 @@ function matchesLegacySubCatalog(app: AppStoreApp, selectedSubCatalogKey: string
 export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = false }: AppStorePageProps) {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
+    const location = useLocation()
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
-    const [searchValue, setSearchValue] = useState('')
+    const [searchValue, setSearchValue] = useState(() => searchParams.get('keyword') ?? '')
     const [selectedMainCatalogKey, setSelectedMainCatalogKey] = useState('all')
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
     const [selectedApp, setSelectedApp] = useState<AppStoreApp | null>(null)
@@ -796,7 +790,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [composeEnvRows, setComposeEnvRows] = useState<ComposeEnvironmentRow[]>([{ id: 'env-1', key: '', value: '' }])
     const [composeMountRows, setComposeMountRows] = useState<ComposeMountRow[]>([{ id: 'mount-1', path: '', content: '' }])
     const [selectedComposeMountId, setSelectedComposeMountId] = useState('mount-1')
-    const [composeSidePanel, setComposeSidePanel] = useState<'env' | 'mount'>('env')
+    const [composeEnvExpanded, setComposeEnvExpanded] = useState(false)
+    const [composeMountExpanded, setComposeMountExpanded] = useState(false)
     const [composeFieldErrors, setComposeFieldErrors] = useState<{ appId?: string; composeContent?: string; domain?: string; env?: string; mountPath?: string }>({})
     const [isSubmittingCompose, setIsSubmittingCompose] = useState(false)
     const [isFavoritesOpen, setIsFavoritesOpen] = useState(false)
@@ -819,14 +814,18 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     const apps = data ?? []
     const catalogs = catalogsData ?? []
+    const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const sourceParam = searchParams.get('source')
     const selectedInstallSource: InstallSourceKey = lockedInstallSource ?? (sourceParam === 'compose' ? 'compose' : 'marketplace')
+    const quickAppKey = searchParams.get('app')?.trim().toLowerCase() ?? ''
+    const directOpenAppKey = typeof location.state === 'object' && location.state && 'openAppKey' in location.state && typeof location.state.openAppKey === 'string'
+        ? location.state.openAppKey.trim().toLowerCase()
+        : ''
     const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
     const favoriteSet = useMemo(() => new Set((favoritesData?.favorites ?? []).map((item) => item.toLowerCase())), [favoritesData?.favorites])
     const currentHostname = typeof window === 'undefined' ? '' : window.location.hostname
     const isDarkMode = colorMode === 'dark'
     const palette = getSurfacePalette(isDarkMode)
-    const installWorkspaceCardSx = getInstallWorkspaceCardSx(palette)
     const appStoreControlTextSx = {
         fontSize: 14,
         fontWeight: 500,
@@ -844,60 +843,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             backgroundColor: palette.accentSoft,
         },
     }
-    const installDialogFieldSx = {
-        '& .MuiOutlinedInput-root': {
-            borderRadius: '4px',
-            minHeight: 38,
-            backgroundColor: palette.panelBg,
-        },
-        '& .MuiOutlinedInput-root.Mui-disabled': {
-            backgroundColor: palette.panelSoft,
-        },
-        '& .MuiOutlinedInput-notchedOutline': {
-            borderColor: palette.borderStrong,
-        },
-        '& .MuiInputLabel-root': {
-            color: palette.subtleText,
-        },
-        '& .MuiInputLabel-root.Mui-focused': {
-            color: palette.subtleText,
-        },
-        '& .MuiInputBase-input, & .MuiSelect-select': {
-            fontSize: 14,
-            fontWeight: 400,
-            color: palette.text,
-            WebkitTextFillColor: palette.text,
-        },
-        '& .MuiInputBase-input::placeholder': {
-            fontSize: 14,
-            fontWeight: 400,
-            color: palette.placeholderText,
-            WebkitTextFillColor: palette.placeholderText,
-            opacity: 1,
-        },
-        '& .MuiInputBase-input::-webkit-input-placeholder': {
-            color: palette.placeholderText,
-            WebkitTextFillColor: palette.placeholderText,
-            opacity: 1,
-        },
-        '& .MuiInputBase-input::-moz-placeholder': {
-            color: palette.placeholderText,
-            opacity: 1,
-        },
-        '& .MuiInputBase-input.Mui-disabled': {
-            WebkitTextFillColor: palette.text,
-            color: palette.text,
-            opacity: 1,
-        },
-        '& .MuiFormHelperText-root': {
-            color: palette.subtleText,
-            mx: 0,
-            mt: 0.75,
-        },
-        '& .MuiFormHelperText-root.Mui-error': {
-            color: '#fda4af',
-        },
-    } as const
+    const installDialogFieldSx = getSurfaceFieldSx(palette, { helperErrorColor: palette.danger })
     const installDialogSelectMenuProps = {
         disablePortal: true,
         slotProps: {
@@ -1001,6 +947,21 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         ],
         [catalogs, selectedMainCatalogKey, subCategoryCounts, t],
     )
+    const resultsSectionTitle = useMemo(() => {
+        const segments = [t('appStorePage.results.allAppsSectionTitle')]
+        const selectedMainCategory = mainCategories.find((category) => category.key === selectedMainCatalogKey)
+        const selectedSubCategory = subCategories.find((category) => category.key === selectedSubCatalogKey)
+
+        if (selectedMainCategory && selectedMainCategory.key !== 'all') {
+            segments.push(selectedMainCategory.title)
+        }
+
+        if (selectedSubCategory && selectedSubCategory.key !== 'all') {
+            segments.push(selectedSubCategory.title)
+        }
+
+        return segments.join(' / ')
+    }, [mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, subCategories, t])
 
     const filteredApps = useMemo(
         () =>
@@ -1040,13 +1001,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const pageHeroTitle = selectedInstallSource === 'marketplace'
         ? undefined
         : installSourceOptions.find((option) => option.key === selectedInstallSource)?.label
-    const composeDefinedEnvCount = composeEnvRows.filter((row) => row.key.trim() || row.value.trim()).length
-    const composeMountCount = composeMountRows.filter((row) => row.path.trim() || row.content.trim()).length
     const selectedComposeMount = composeMountRows.find((row) => row.id === selectedComposeMountId) ?? composeMountRows[0] ?? null
-    const sourceWorkspaceBackTarget = hideInstallSourceSelector && selectedInstallSource !== 'marketplace' ? '/myapps' : '/appstore'
-    const sourceWorkspaceBackLabel = hideInstallSourceSelector && selectedInstallSource !== 'marketplace'
-        ? t('appStorePage.actions.backToApplications')
-        : t('appStorePage.actions.backToMarketplace')
     const showPageHero = selectedInstallSource === 'compose' && !hideInstallSourceSelector
 
     useEffect(() => {
@@ -1140,6 +1095,40 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setDetailDialogSource(source)
         setSelectedApp(app)
     }
+
+    useEffect(() => {
+        const nextKeyword = searchParams.get('keyword') ?? ''
+        if (nextKeyword === searchValue) {
+            return
+        }
+
+        setSearchValue(nextKeyword)
+    }, [searchParams])
+
+    useEffect(() => {
+        const pendingOpenAppKey = directOpenAppKey || quickAppKey
+
+        if (!pendingOpenAppKey || selectedApp) {
+            return
+        }
+
+        const matchedApp = apps.find((app) => (app.key ?? '').toLowerCase() === pendingOpenAppKey)
+        if (!matchedApp) {
+            return
+        }
+
+        openAppDetail(matchedApp, 'catalog')
+
+        if (directOpenAppKey) {
+            navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+            return
+        }
+
+        const nextParams = new URLSearchParams(searchParams)
+        nextParams.delete('app')
+        nextParams.delete('keyword')
+        setSearchParams(nextParams, { replace: true })
+    }, [apps, directOpenAppKey, location.pathname, location.search, navigate, quickAppKey, searchParams, selectedApp, setSearchParams])
 
     useEffect(() => {
         if (!(contentScopeContainer instanceof HTMLElement) || (!selectedApp && !isFavoritesOpen)) {
@@ -1315,7 +1304,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     function addComposeEnvRow() {
         clearComposeFeedback()
-        setComposeSidePanel('env')
+        setComposeEnvExpanded(true)
         setComposeEnvRows((currentValue) => [...currentValue, { id: `env-${Date.now()}-${currentValue.length}`, key: '', value: '' }])
     }
 
@@ -1336,7 +1325,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     function addComposeMountRow() {
         clearComposeFeedback()
         const nextId = `mount-${Date.now()}-${composeMountRows.length}`
-        setComposeSidePanel('mount')
+        setComposeMountExpanded(true)
         setComposeMountRows((currentValue) => [...currentValue, { id: nextId, path: '', content: '' }])
         setSelectedComposeMountId(nextId)
     }
@@ -1386,7 +1375,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             })
 
         clearComposeFeedback()
-        setComposeSidePanel('env')
+        setComposeEnvExpanded(true)
         setComposeFieldErrors((currentValue) => ({ ...currentValue, env: undefined }))
         setComposeEnvRows(rows.length > 0 ? rows : [{ id: 'env-1', key: '', value: '' }])
     }
@@ -1405,7 +1394,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         )
 
         clearComposeFeedback()
-        setComposeSidePanel('mount')
+        setComposeMountExpanded(true)
         setComposeFieldErrors((currentValue) => ({ ...currentValue, mountPath: undefined }))
         setComposeMountRows((currentValue) => {
             const preservedRows = currentValue.filter((row) => row.path.trim() || row.content.trim())
@@ -1612,71 +1601,73 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             }}
         >
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', height: '100%', minHeight: 0 }}>
-                <Box
-                    sx={{
-                        flexShrink: 0,
-                        display: 'grid',
-                        gap: 1,
-                    }}
-                >
-                    {showPageHero ? (
-                        <PageDescriptionHeader
-                            title={pageHeroTitle}
-                            description={pageHeroDescription}
-                            titleColor={palette.text}
-                            descriptionColor={palette.subtleText}
-                            sx={{ mt: 0, pt: pageHeroTitle ? 0.5 : 0, mb: 0.5 }}
-                        />
-                    ) : null}
-                    {!hideInstallSourceSelector ? (
-                        <Box
-                            sx={{
-                                display: 'grid',
-                                gap: 1,
-                                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
-                            }}
-                        >
-                            {installSourceOptions.map((option) => {
-                                const active = option.key === selectedInstallSource
-                                return (
-                                    <Button
-                                        key={option.key}
-                                        onClick={() => {
-                                            handleInstallSourceChange(option.key)
-                                        }}
-                                        variant="outlined"
-                                        sx={{
-                                            alignItems: 'flex-start',
-                                            justifyContent: 'flex-start',
-                                            textAlign: 'left',
-                                            textTransform: 'none',
-                                            borderRadius: '2px',
-                                            minHeight: 88,
-                                            px: 1.5,
-                                            py: 1.25,
-                                            borderColor: active ? palette.accent : palette.border,
-                                            backgroundColor: active ? palette.accentSoft : palette.panelBg,
-                                            color: palette.text,
-                                            '&:hover': {
-                                                borderColor: active ? palette.accent : palette.borderStrong,
-                                                backgroundColor: active ? palette.accentSoft : palette.panelSoft,
-                                            },
-                                        }}
-                                    >
-                                        <Box>
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, color: palette.text }}>
-                                                {option.label}
-                                            </Typography>
-                                            <Typography sx={{ mt: 0.5, fontSize: 13.5, lineHeight: 1.55, color: palette.subtleText }}>
-                                                {option.description}
-                                            </Typography>
-                                        </Box>
-                                    </Button>
-                                )
-                            })}
-                        </Box>
-                    ) : null}
-                </Box>
+                {showPageHero || !hideInstallSourceSelector ? (
+                    <Box
+                        sx={{
+                            flexShrink: 0,
+                            display: 'grid',
+                            gap: 1,
+                        }}
+                    >
+                        {showPageHero ? (
+                            <PageDescriptionHeader
+                                title={pageHeroTitle}
+                                description={pageHeroDescription}
+                                titleColor={palette.text}
+                                descriptionColor={palette.subtleText}
+                                sx={{ mt: 0, pt: pageHeroTitle ? 0.5 : 0, mb: 0.5 }}
+                            />
+                        ) : null}
+                        {!hideInstallSourceSelector ? (
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gap: 1,
+                                    gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+                                }}
+                            >
+                                {installSourceOptions.map((option) => {
+                                    const active = option.key === selectedInstallSource
+                                    return (
+                                        <Button
+                                            key={option.key}
+                                            onClick={() => {
+                                                handleInstallSourceChange(option.key)
+                                            }}
+                                            variant="outlined"
+                                            sx={{
+                                                alignItems: 'flex-start',
+                                                justifyContent: 'flex-start',
+                                                textAlign: 'left',
+                                                textTransform: 'none',
+                                                borderRadius: '2px',
+                                                minHeight: 88,
+                                                px: 1.5,
+                                                py: 1.25,
+                                                borderColor: active ? palette.accent : palette.border,
+                                                backgroundColor: active ? palette.accentSoft : palette.panelBg,
+                                                color: palette.text,
+                                                '&:hover': {
+                                                    borderColor: active ? palette.accent : palette.borderStrong,
+                                                    backgroundColor: active ? palette.accentSoft : palette.panelSoft,
+                                                },
+                                            }}
+                                        >
+                                            <Box>
+                                                <Typography sx={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35, color: palette.text }}>
+                                                    {option.label}
+                                                </Typography>
+                                                <Typography sx={{ mt: 0.5, fontSize: 13.5, lineHeight: 1.55, color: palette.subtleText }}>
+                                                    {option.description}
+                                                </Typography>
+                                            </Box>
+                                        </Button>
+                                    )
+                                })}
+                            </Box>
+                        ) : null}
+                    </Box>
+                ) : null}
 
                 {selectedInstallSource === 'marketplace' ? (
                     <Box
@@ -1686,7 +1677,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             gap: 2.25,
                             py: 0,
                             pr: { md: '18px' },
-                            backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+                            backgroundColor: palette.panelBg,
                             boxShadow: 'none',
                         }}
                     >
@@ -1695,7 +1686,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             description={t('appStorePage.hero.description')}
                             titleColor={palette.text}
                             descriptionColor={palette.subtleText}
-                            sx={{ mt: 0, mb: 0.75 }}
+                            sx={{ mb: 0.75 }}
                             actions={(
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
                                     <Tooltip title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length }).replace(/\s*\(\d+\)$/, '')}>
@@ -1715,7 +1706,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             sx={{
                                                 px: 1.5,
                                                 '&:hover': {
-                                                    borderColor: 'rgba(203, 213, 225, 0.85)',
+                                                    borderColor: palette.borderStrong,
                                                     background: palette.panelSoft,
                                                     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
                                                 },
@@ -1727,8 +1718,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     fontSize: 18,
                                                 },
                                                 '& .MuiBadge-badge': {
-                                                    backgroundColor: '#e11d48',
-                                                    color: '#fff',
+                                                    backgroundColor: palette.danger,
+                                                    color: palette.accentContrast,
                                                 },
                                             }}
                                             title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
@@ -1891,105 +1882,150 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <Box
                             sx={{
                                 display: 'grid',
-                                gap: 2,
-                                gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.38fr) minmax(460px, 1fr)' },
-                                gridTemplateRows: { xs: 'minmax(360px, 1fr) minmax(0, auto)', lg: 'minmax(0, 1fr)' },
+                                gridTemplateRows: 'auto auto minmax(0, 1fr)',
+                                gap: 1,
                                 height: '100%',
                                 minHeight: 0,
                             }}
                         >
-                            <Card
+                            <PageDescriptionHeader
+                                title={t('appStorePage.sources.compose.heroTitle')}
+                                description={t('appStorePage.sources.compose.heroDescription')}
+                                titleColor={palette.text}
+                                descriptionColor={palette.subtleText}
+                                sx={{ mt: 0, mb: 0.25 }}
+                                actions={hideInstallSourceSelector ? (
+                                    <Button
+                                        color="inherit"
+                                        onClick={() => {
+                                            navigate('/applications/deploy')
+                                        }}
+                                        size="small"
+                                        className="app-shell-page-pill"
+                                        sx={{ px: 1.5 }}
+                                    >
+                                        {t('appStorePage.sources.compose.backAction')}
+                                    </Button>
+                                ) : undefined}
+                            />
+
+                            <Box
                                 sx={{
-                                    ...installWorkspaceCardSx,
-                                    display: 'flex',
-                                    minHeight: 0,
-                                    borderRadius: '14px',
-                                    overflow: 'hidden',
-                                    background: `linear-gradient(180deg, ${palette.panelBg} 0%, ${palette.panelSoft} 100%)`,
+                                    display: 'grid',
+                                    gap: 1,
+                                    gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) minmax(220px, 280px) auto auto' },
+                                    alignItems: 'start',
+                                    borderRadius: '2px',
+                                    border: `1px solid ${palette.border}`,
+                                    backgroundColor: palette.panelBg,
+                                    p: 1.1,
+                                    flexShrink: 0,
                                 }}
                             >
-                                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minHeight: 0, width: '100%', p: { xs: 1.25, md: 1.5 } }}>
+                                <TextField
+                                    fullWidth
+                                    label={t('appStorePage.sources.compose.workspace.appIdLabel')}
+                                    placeholder={t('appStorePage.sources.compose.workspace.appIdPlaceholder')}
+                                    value={composeAppId}
+                                    onChange={(event) => {
+                                        clearComposeFeedback()
+                                        setComposeFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
+                                        setComposeAppId(event.target.value)
+                                    }}
+                                    error={Boolean(composeFieldErrors.appId)}
+                                    helperText={composeFieldErrors.appId}
+                                />
+                                <TextField
+                                    fullWidth
+                                    label={t('appStorePage.sources.compose.workspace.domainLabel')}
+                                    placeholder={t('appStorePage.sources.compose.workspace.domainPlaceholder')}
+                                    value={composeDomain}
+                                    onChange={(event) => {
+                                        clearComposeFeedback()
+                                        setComposeFieldErrors((currentValue) => ({ ...currentValue, domain: undefined }))
+                                        setComposeDomain(event.target.value)
+                                    }}
+                                    error={Boolean(composeFieldErrors.domain)}
+                                    helperText={composeFieldErrors.domain || ' '}
+                                />
+                                <Box sx={{ display: 'grid', gap: 0.75, justifyContent: 'end' }}>
+                                    <Button
+                                        onClick={() => composeFileInputRef.current?.click()}
+                                        variant="outlined"
+                                        sx={{ minHeight: 44, borderRadius: '2px', textTransform: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}
+                                    >
+                                        {composeContent.trim() ? t('appStorePage.sources.compose.workspace.replaceUpload') : t('appStorePage.sources.compose.workspace.upload')}
+                                    </Button>
+                                </Box>
+                                <Box sx={{ display: 'grid', gap: 0.75, justifyContent: 'end' }}>
+                                    <Button
+                                        onClick={() => void handleComposeInstall()}
+                                        variant="contained"
+                                        disabled={isSubmittingCompose}
+                                        sx={{ minHeight: 44, borderRadius: '2px', textTransform: 'none', boxShadow: 'none', fontWeight: 800, whiteSpace: 'nowrap' }}
+                                    >
+                                        {isSubmittingCompose ? t('appStorePage.sources.compose.workspace.installing') : t('appStorePage.sources.compose.workspace.install')}
+                                    </Button>
+                                </Box>
+                            </Box>
+
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gap: 1.5,
+                                    gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.6fr) minmax(360px, 0.84fr)' },
+                                    height: '100%',
+                                    minHeight: 0,
+                                    alignItems: 'stretch',
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        minHeight: 0,
+                                        display: 'grid',
+                                        gridTemplateRows: 'auto minmax(0, 1fr) auto',
+                                        borderRadius: '2px',
+                                        border: `1px solid ${composeFieldErrors.composeContent ? palette.danger : palette.border}`,
+                                        backgroundColor: palette.panelBg,
+                                        overflow: 'hidden',
+                                    }}
+                                >
                                     <Box
                                         sx={{
                                             display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: 1.25,
-                                            p: 1.25,
-                                            borderRadius: '12px',
-                                            background: `linear-gradient(135deg, ${palette.panelSoft} 0%, ${palette.panelBg} 100%)`,
-                                            border: `1px solid ${palette.border}`,
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            px: { xs: 1.25, md: 1.5 },
+                                            py: 1,
+                                            borderBottom: `1px solid ${palette.border}`,
+                                            backgroundColor: palette.panelBg,
                                         }}
                                     >
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <Box sx={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Box sx={{ width: 10, height: 10, borderRadius: '999px', backgroundColor: palette.accent, boxShadow: `0 0 0 6px ${palette.accentSoft}` }} />
-                                                <Typography variant="subtitle1" sx={{ color: palette.text, fontWeight: 800, letterSpacing: 0.2 }}>
-                                                    {t('appStorePage.sources.compose.workspace.composeTitle')}
-                                                </Typography>
-                                            </Box>
-                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
-                                                <input
-                                                    ref={composeFileInputRef}
-                                                    type="file"
-                                                    accept=".yml,.yaml,text/yaml,text/x-yaml,application/x-yaml"
-                                                    hidden
-                                                    onChange={(event) => {
-                                                        void handleComposeFileSelected(event.target.files?.[0] ?? null)
-                                                        event.target.value = ''
-                                                    }}
-                                                />
-                                                <Button
-                                                    onClick={() => composeFileInputRef.current?.click()}
-                                                    variant="outlined"
-                                                    sx={{ borderRadius: '999px', textTransform: 'none', px: 1.5, minHeight: 36 }}
-                                                >
-                                                    {composeContent.trim() ? t('appStorePage.sources.compose.workspace.replaceUpload') : t('appStorePage.sources.compose.workspace.upload')}
-                                                </Button>
-                                                <Button onClick={resetComposeToSample} variant="outlined" sx={{ borderRadius: '999px', textTransform: 'none', px: 1.5, minHeight: 36 }}>
-                                                    {t('appStorePage.sources.compose.workspace.useSample')}
-                                                </Button>
-                                            </Box>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                            <Box
-                                            sx={{
-                                                px: 1.25,
-                                                py: 0.7,
-                                                borderRadius: '999px',
-                                                border: `1px solid ${palette.border}`,
-                                                backgroundColor: palette.panelBg,
-                                                color: palette.accent,
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                            }}
-                                        >
-                                            {t('appStorePage.sources.compose.workspace.envTitle')}: {composeDefinedEnvCount}
-                                        </Box>
-                                            <Box
-                                            sx={{
-                                                px: 1.25,
-                                                py: 0.7,
-                                                borderRadius: '999px',
-                                                border: `1px solid ${palette.border}`,
-                                                backgroundColor: palette.panelBg,
-                                                color: palette.accent,
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                            }}
-                                        >
-                                            {t('appStorePage.sources.compose.workspace.mountTitle')}: {composeMountCount}
+                                        <Typography sx={{ fontSize: 16, fontWeight: 800, color: palette.text }}>
+                                            {t('appStorePage.sources.compose.workspace.composeTitle')}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                            <input
+                                                ref={composeFileInputRef}
+                                                type="file"
+                                                accept=".yml,.yaml,text/yaml,text/x-yaml,application/x-yaml"
+                                                hidden
+                                                onChange={(event) => {
+                                                    void handleComposeFileSelected(event.target.files?.[0] ?? null)
+                                                    event.target.value = ''
+                                                }}
+                                            />
+                                            <Button onClick={resetComposeToSample} variant="outlined" sx={{ minHeight: 36, borderRadius: '2px', textTransform: 'none', fontWeight: 700 }}>
+                                                {t('appStorePage.sources.compose.workspace.useSample')}
+                                            </Button>
                                         </Box>
                                     </Box>
-                                    </Box>
+
                                     <Box
                                         sx={{
-                                            border: `1px solid ${composeFieldErrors.composeContent ? palette.danger : palette.borderStrong}`,
-                                            borderRadius: '12px',
-                                            overflow: 'hidden',
                                             minHeight: 0,
-                                            flex: '1 1 auto',
                                             backgroundColor: '#f8fbff',
-                                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)',
                                             '& .cm-editor': {
                                                 height: '100%',
                                                 fontSize: 13.5,
@@ -2017,129 +2053,42 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             }}
                                         />
                                     </Box>
-                                    {composeFieldErrors.composeContent ? (
-                                        <Typography variant="body2" sx={{ color: palette.danger }}>
-                                            {composeFieldErrors.composeContent}
+
+                                    <Box sx={{ px: { xs: 1.25, md: 1.5 }, py: 0.85, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.panelBg }}>
+                                        <Typography sx={{ fontSize: 12.5, lineHeight: 1.6, color: composeFieldErrors.composeContent ? palette.danger : palette.subtleText }}>
+                                            {composeFieldErrors.composeContent ?? t('appStorePage.sources.compose.workspace.composeHelper')}
                                         </Typography>
-                                    ) : null}
-                                </CardContent>
-                            </Card>
+                                    </Box>
+                                </Box>
 
-                            <Box sx={{ display: 'grid', gap: 1.5, minHeight: 0, gridTemplateRows: { xs: 'repeat(2, minmax(0, auto))', lg: 'minmax(0, auto) minmax(0, 1fr)' } }}>
-                                <Card
-                                    sx={{
-                                        ...installWorkspaceCardSx,
-                                        display: 'flex',
-                                        minHeight: 0,
-                                        borderRadius: '14px',
-                                        overflow: 'hidden',
-                                        background: `linear-gradient(180deg, ${palette.panelBg} 0%, ${palette.panelSoft} 100%)`,
-                                    }}
-                                >
-                                    <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%', p: { xs: 1.4, md: 1.6 } }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                            <Typography variant="subtitle2" sx={{ color: palette.text, fontWeight: 800, letterSpacing: 0.2 }}>
-                                                {t('appStorePage.sources.compose.workspace.orchestrationTitle')}
+                                <Box sx={{ minHeight: 0, display: 'grid', gap: 1.5, gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr) auto' }}>
+                                    <Box
+                                        sx={{
+                                            minHeight: 0,
+                                            display: 'grid',
+                                            gridTemplateRows: 'auto minmax(0, 1fr)',
+                                            borderRadius: '2px',
+                                            border: `1px solid ${palette.border}`,
+                                            backgroundColor: palette.panelBg,
+                                            overflow: 'hidden',
+                                        }}
+                                    >
+                                        <Button
+                                            onClick={() => setComposeEnvExpanded((currentValue) => !currentValue)}
+                                            color="inherit"
+                                            sx={{ width: '100%', justifyContent: 'space-between', alignItems: 'center', textTransform: 'none', px: 1.4, py: 1.05, borderRadius: 0 }}
+                                        >
+                                            <Typography sx={{ fontSize: 15, fontWeight: 800, color: palette.text }}>
+                                                {t('appStorePage.sources.compose.workspace.envTitle')}
                                             </Typography>
-                                            <Box sx={{ px: 1.1, py: 0.5, borderRadius: '999px', backgroundColor: palette.accentSoft, color: palette.accent, fontSize: 12, fontWeight: 700 }}>
-                                                {t('appStorePage.sources.compose.workspace.install')}
-                                            </Box>
-                                        </Box>
-                                        <TextField
-                                            fullWidth
-                                            label={t('appStorePage.sources.compose.workspace.appIdLabel')}
-                                            placeholder={t('appStorePage.sources.compose.workspace.appIdPlaceholder')}
-                                            value={composeAppId}
-                                            onChange={(event) => {
-                                                clearComposeFeedback()
-                                                setComposeFieldErrors((currentValue) => ({ ...currentValue, appId: undefined }))
-                                                setComposeAppId(event.target.value)
-                                            }}
-                                            error={Boolean(composeFieldErrors.appId)}
-                                            helperText={composeFieldErrors.appId}
-                                        />
-                                        <TextField
-                                            fullWidth
-                                            label={t('appStorePage.sources.compose.workspace.domainLabel')}
-                                            placeholder={t('appStorePage.sources.compose.workspace.domainPlaceholder')}
-                                            value={composeDomain}
-                                            onChange={(event) => {
-                                                clearComposeFeedback()
-                                                setComposeFieldErrors((currentValue) => ({ ...currentValue, domain: undefined }))
-                                                setComposeDomain(event.target.value)
-                                            }}
-                                            error={Boolean(composeFieldErrors.domain)}
-                                            helperText={composeFieldErrors.domain}
-                                        />
-                                        <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
-                                            <Button
-                                                onClick={() => void handleComposeInstall()}
-                                                variant="contained"
-                                                disabled={isSubmittingCompose}
-                                                sx={{ borderRadius: '10px', textTransform: 'none', boxShadow: 'none', minHeight: 42, fontWeight: 700 }}
-                                            >
-                                                {isSubmittingCompose ? t('appStorePage.sources.compose.workspace.installing') : t('appStorePage.sources.compose.workspace.install')}
-                                            </Button>
-                                            <Button onClick={() => navigate('/myapps')} variant="outlined" sx={{ borderRadius: '10px', textTransform: 'none', minHeight: 42, fontWeight: 700 }}>
-                                                {t('appStorePage.actions.openInstalledApps')}
-                                            </Button>
-                                            <Button
-                                                onClick={() => navigate(sourceWorkspaceBackTarget)}
-                                                variant="text"
-                                                sx={{ borderRadius: '10px', textTransform: 'none', minHeight: 38, gridColumn: '1 / -1' }}
-                                            >
-                                                {sourceWorkspaceBackLabel}
-                                            </Button>
-                                        </Box>
-                                    </CardContent>
-                                </Card>
+                                            <Typography sx={{ fontSize: 20, lineHeight: 1, fontWeight: 500, color: palette.subtleText }}>
+                                                {composeEnvExpanded ? '−' : '+'}
+                                            </Typography>
+                                        </Button>
 
-                                <Card
-                                    sx={{
-                                        ...installWorkspaceCardSx,
-                                        display: 'flex',
-                                        minHeight: 0,
-                                        overflow: 'hidden',
-                                        borderRadius: '14px',
-                                        background: `linear-gradient(180deg, ${palette.panelBg} 0%, ${palette.panelSoft} 100%)`,
-                                    }}
-                                >
-                                    <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minHeight: 0, width: '100%', p: { xs: 1.25, md: 1.5 } }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <Box sx={{ display: 'flex', gap: 1, p: 0.5, borderRadius: '999px', backgroundColor: '#f1f6fd', border: `1px solid ${palette.border}` }}>
-                                                <Button
-                                                    onClick={() => setComposeSidePanel('env')}
-                                                    variant={composeSidePanel === 'env' ? 'contained' : 'text'}
-                                                    sx={{
-                                                        minHeight: 34,
-                                                        px: 1.5,
-                                                        borderRadius: '999px',
-                                                        textTransform: 'none',
-                                                        boxShadow: 'none',
-                                                        fontWeight: 700,
-                                                        color: composeSidePanel === 'env' ? undefined : palette.text,
-                                                    }}
-                                                >
-                                                    {t('appStorePage.sources.compose.workspace.envTitle')} ({composeDefinedEnvCount})
-                                                </Button>
-                                                <Button
-                                                    onClick={() => setComposeSidePanel('mount')}
-                                                    variant={composeSidePanel === 'mount' ? 'contained' : 'text'}
-                                                    sx={{
-                                                        minHeight: 34,
-                                                        px: 1.5,
-                                                        borderRadius: '999px',
-                                                        textTransform: 'none',
-                                                        boxShadow: 'none',
-                                                        fontWeight: 700,
-                                                        color: composeSidePanel === 'mount' ? undefined : palette.text,
-                                                    }}
-                                                >
-                                                    {t('appStorePage.sources.compose.workspace.mountTitle')} ({composeMountCount})
-                                                </Button>
-                                            </Box>
-                                            {composeSidePanel === 'env' ? (
-                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                        {composeEnvExpanded ? (
+                                            <Box sx={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr) auto', gap: 1.25, px: { xs: 1.25, md: 1.5 }, pb: { xs: 1.25, md: 1.5 }, borderTop: `1px solid ${palette.border}` }}>
+                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', pt: 1.25 }}>
                                                     <input
                                                         ref={composeEnvFileInputRef}
                                                         type="file"
@@ -2150,15 +2099,75 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                             event.target.value = ''
                                                         }}
                                                     />
-                                                    <Button onClick={addComposeEnvRow} variant="outlined" sx={{ borderRadius: '10px', textTransform: 'none' }}>
+                                                    <Button onClick={addComposeEnvRow} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none', fontWeight: 700 }}>
                                                         {t('appStorePage.sources.compose.workspace.addEnv')}
                                                     </Button>
-                                                    <Button onClick={() => composeEnvFileInputRef.current?.click()} variant="outlined" sx={{ borderRadius: '10px', textTransform: 'none' }}>
+                                                    <Button onClick={() => composeEnvFileInputRef.current?.click()} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none', fontWeight: 700 }}>
                                                         {t('appStorePage.sources.compose.workspace.uploadEnv')}
                                                     </Button>
                                                 </Box>
-                                            ) : (
-                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+
+                                                <Box sx={{ minHeight: 0, overflowY: 'auto', pr: 0.25, display: 'grid', gap: 1 }}>
+                                                    {composeEnvRows.map((row, index) => (
+                                                        <Box
+                                                            key={row.id}
+                                                            sx={{
+                                                                display: 'grid',
+                                                                gap: 1,
+                                                                p: 1.2,
+                                                                borderRadius: '2px',
+                                                                border: `1px solid ${palette.border}`,
+                                                                backgroundColor: palette.panelBg,
+                                                                gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 0.92fr) minmax(0, 1.08fr) auto' },
+                                                                alignItems: 'start',
+                                                            }}
+                                                        >
+                                                            <TextField fullWidth label={t('appStorePage.sources.compose.workspace.envKeyLabel')} value={row.key} onChange={(event) => updateComposeEnvRow(row.id, 'key', event.target.value)} />
+                                                            <TextField fullWidth label={t('appStorePage.sources.compose.workspace.envValueLabel')} value={row.value} onChange={(event) => updateComposeEnvRow(row.id, 'value', event.target.value)} />
+                                                            <Button
+                                                                onClick={() => removeComposeEnvRow(row.id)}
+                                                                variant="text"
+                                                                color="inherit"
+                                                                disabled={composeEnvRows.length === 1 && index === 0 && !row.key && !row.value}
+                                                                sx={{ minHeight: 40, alignSelf: { xs: 'flex-end', xl: 'center' }, textTransform: 'none', fontWeight: 700 }}
+                                                            >
+                                                                {t('appStorePage.sources.compose.workspace.removeEnv')}
+                                                            </Button>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                                {composeFieldErrors.env ? <Typography sx={{ fontSize: 13, lineHeight: 1.65, color: palette.danger }}>{composeFieldErrors.env}</Typography> : null}
+                                            </Box>
+                                        ) : null}
+                                    </Box>
+
+                                    <Box
+                                        sx={{
+                                            minHeight: 0,
+                                            display: 'grid',
+                                            gridTemplateRows: 'auto minmax(0, 1fr)',
+                                            borderRadius: '2px',
+                                            border: `1px solid ${palette.border}`,
+                                            backgroundColor: palette.panelBg,
+                                            overflow: 'hidden',
+                                        }}
+                                    >
+                                        <Button
+                                            onClick={() => setComposeMountExpanded((currentValue) => !currentValue)}
+                                            color="inherit"
+                                            sx={{ width: '100%', justifyContent: 'space-between', alignItems: 'center', textTransform: 'none', px: 1.4, py: 1.05, borderRadius: 0 }}
+                                        >
+                                            <Typography sx={{ fontSize: 15, fontWeight: 800, color: palette.text }}>
+                                                {t('appStorePage.sources.compose.workspace.mountTitle')}
+                                            </Typography>
+                                            <Typography sx={{ fontSize: 20, lineHeight: 1, fontWeight: 500, color: palette.subtleText }}>
+                                                {composeMountExpanded ? '−' : '+'}
+                                            </Typography>
+                                        </Button>
+
+                                        {composeMountExpanded ? (
+                                            <Box sx={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', gap: 1.25, px: { xs: 1.25, md: 1.5 }, pb: { xs: 1.25, md: 1.5 }, borderTop: `1px solid ${palette.border}` }}>
+                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', pt: 1.25 }}>
                                                     <input
                                                         ref={composeMountFileInputRef}
                                                         type="file"
@@ -2169,157 +2178,83 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                             event.target.value = ''
                                                         }}
                                                     />
-                                                    <Button onClick={addComposeMountRow} variant="outlined" sx={{ borderRadius: '10px', textTransform: 'none' }}>
+                                                    <Button onClick={addComposeMountRow} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none', fontWeight: 700 }}>
                                                         {t('appStorePage.sources.compose.workspace.addMount')}
                                                     </Button>
-                                                    <Button onClick={() => composeMountFileInputRef.current?.click()} variant="outlined" sx={{ borderRadius: '10px', textTransform: 'none' }}>
+                                                    <Button onClick={() => composeMountFileInputRef.current?.click()} variant="outlined" sx={{ borderRadius: '2px', textTransform: 'none', fontWeight: 700 }}>
                                                         {t('appStorePage.sources.compose.workspace.uploadMountFiles')}
                                                     </Button>
                                                 </Box>
-                                            )}
-                                        </Box>
 
-                                        {composeSidePanel === 'env' ? (
-                                            <>
-                                                <Stack spacing={1} sx={{ minHeight: 0, overflowY: 'auto', pr: 0.25 }}>
-                                                    {composeEnvRows.map((row, index) => (
-                                                        <Box
-                                                            key={row.id}
-                                                            sx={{
-                                                                display: 'grid',
-                                                                gap: 1,
-                                                                p: 1.1,
-                                                                borderRadius: '12px',
-                                                                border: `1px solid ${palette.border}`,
-                                                                backgroundColor: '#fbfdff',
-                                                                gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1fr) minmax(0, 1fr)' },
-                                                            }}
-                                                        >
-                                                            <TextField
-                                                                fullWidth
-                                                                label={t('appStorePage.sources.compose.workspace.envKeyLabel')}
-                                                                value={row.key}
-                                                                onChange={(event) => updateComposeEnvRow(row.id, 'key', event.target.value)}
-                                                            />
-                                                            <TextField
-                                                                fullWidth
-                                                                label={t('appStorePage.sources.compose.workspace.envValueLabel')}
-                                                                value={row.value}
-                                                                onChange={(event) => updateComposeEnvRow(row.id, 'value', event.target.value)}
-                                                            />
-                                                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gridColumn: '1 / -1' }}>
-                                                                <Button
-                                                                    onClick={() => removeComposeEnvRow(row.id)}
-                                                                    variant="text"
-                                                                    color="inherit"
-                                                                    disabled={composeEnvRows.length === 1 && index === 0 && !row.key && !row.value}
-                                                                    sx={{ textTransform: 'none', minHeight: 32 }}
-                                                                >
-                                                                    {t('appStorePage.sources.compose.workspace.removeEnv')}
-                                                                </Button>
-                                                            </Box>
+                                                {selectedComposeMount ? (
+                                                    <Box sx={{ minHeight: 0, display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr', lg: 'minmax(160px, 200px) minmax(0, 1fr)' } }}>
+                                                        <Box sx={{ minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.75, pr: 0.2 }}>
+                                                            {composeMountRows.map((row, index) => {
+                                                                const label = row.path || `${t('appStorePage.sources.compose.workspace.mountUntitled')} ${index + 1}`
+                                                                const active = row.id === selectedComposeMount.id
+                                                                return (
+                                                                    <Button
+                                                                        key={row.id}
+                                                                        onClick={() => setSelectedComposeMountId(row.id)}
+                                                                        variant="text"
+                                                                        sx={{ justifyContent: 'flex-start', textAlign: 'left', textTransform: 'none', p: 1.05, minHeight: 44, borderRadius: '2px', border: `1px solid ${active ? palette.accent : palette.border}`, backgroundColor: active ? palette.accentSoft : palette.panelBg, color: palette.text, flex: '0 0 auto' }}
+                                                                    >
+                                                                        <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: palette.text, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                            {label}
+                                                                        </Typography>
+                                                                    </Button>
+                                                                )
+                                                            })}
                                                         </Box>
-                                                    ))}
-                                                </Stack>
-                                                {composeFieldErrors.env ? (
-                                                    <Typography variant="body2" sx={{ color: palette.danger }}>
-                                                        {composeFieldErrors.env}
-                                                    </Typography>
-                                                ) : null}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Box sx={{ display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.25 }}>
-                                                    {composeMountRows.map((row, index) => {
-                                                        const label = row.path || `${t('appStorePage.sources.compose.workspace.mountUntitled')} ${index + 1}`
-                                                        const active = row.id === selectedComposeMount?.id
 
-                                                        return (
-                                                            <Button
-                                                                key={row.id}
-                                                                onClick={() => setSelectedComposeMountId(row.id)}
-                                                                variant="outlined"
+                                                        <Box sx={{ minHeight: 0, display: 'grid', gap: 1.1, gridTemplateRows: 'auto minmax(220px, 1fr)' }}>
+                                                            <Box sx={{ display: 'grid', gap: 1, p: 1.15, borderRadius: '2px', border: `1px solid ${palette.border}`, backgroundColor: palette.panelBg }}>
+                                                                <TextField
+                                                                    fullWidth
+                                                                    label={t('appStorePage.sources.compose.workspace.mountPathLabel')}
+                                                                    placeholder={t('appStorePage.sources.compose.workspace.mountPathPlaceholder')}
+                                                                    value={selectedComposeMount.path}
+                                                                    onChange={(event) => updateComposeMountRow(selectedComposeMount.id, 'path', event.target.value)}
+                                                                    error={Boolean(composeFieldErrors.mountPath)}
+                                                                    helperText={composeFieldErrors.mountPath ?? t('appStorePage.sources.compose.workspace.mountPathHelper')}
+                                                                />
+                                                                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                                    <Button onClick={() => removeComposeMountRow(selectedComposeMount.id)} variant="text" color="inherit" disabled={composeMountRows.length === 1 && !selectedComposeMount.path && !selectedComposeMount.content} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                                                                        {t('appStorePage.sources.compose.workspace.removeMount')}
+                                                                    </Button>
+                                                                </Box>
+                                                            </Box>
+
+                                                            <Box
                                                                 sx={{
-                                                                    borderRadius: '999px',
-                                                                    textTransform: 'none',
-                                                                    whiteSpace: 'nowrap',
-                                                                    borderColor: active ? palette.accent : palette.borderStrong,
-                                                                    backgroundColor: active ? palette.accentSoft : palette.panelBg,
+                                                                    minHeight: 0,
+                                                                    borderRadius: '2px',
+                                                                    overflow: 'hidden',
+                                                                    border: `1px solid ${palette.borderStrong}`,
+                                                                    backgroundColor: '#f8fbff',
+                                                                    '& .cm-editor': { height: '100%', fontSize: 13.5 },
+                                                                    '& .cm-scroller': {
+                                                                        overflow: 'auto',
+                                                                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace',
+                                                                    },
                                                                 }}
                                                             >
-                                                                {label}
-                                                            </Button>
-                                                        )
-                                                    })}
-                                                </Box>
-                                                {selectedComposeMount ? (
-                                                    <>
-                                                        <Box
-                                                            sx={{
-                                                                display: 'grid',
-                                                                gap: 1,
-                                                                p: 1.1,
-                                                                borderRadius: '12px',
-                                                                border: `1px solid ${palette.border}`,
-                                                                backgroundColor: '#fbfdff',
-                                                            }}
-                                                        >
-                                                            <TextField
-                                                                fullWidth
-                                                                label={t('appStorePage.sources.compose.workspace.mountPathLabel')}
-                                                                placeholder={t('appStorePage.sources.compose.workspace.mountPathPlaceholder')}
-                                                                value={selectedComposeMount.path}
-                                                                onChange={(event) => updateComposeMountRow(selectedComposeMount.id, 'path', event.target.value)}
-                                                                error={Boolean(composeFieldErrors.mountPath)}
-                                                                helperText={composeFieldErrors.mountPath}
-                                                            />
-                                                            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                                <Button
-                                                                    onClick={() => removeComposeMountRow(selectedComposeMount.id)}
-                                                                    variant="text"
-                                                                    color="inherit"
-                                                                    disabled={composeMountRows.length === 1 && !selectedComposeMount.path && !selectedComposeMount.content}
-                                                                    sx={{ textTransform: 'none', minHeight: 32 }}
-                                                                >
-                                                                    {t('appStorePage.sources.compose.workspace.removeMount')}
-                                                                </Button>
+                                                                <CodeMirror
+                                                                    value={selectedComposeMount.content}
+                                                                    height="100%"
+                                                                    onChange={(value) => updateComposeMountRow(selectedComposeMount.id, 'content', value)}
+                                                                    basicSetup={{ lineNumbers: true, highlightActiveLine: true, highlightActiveLineGutter: true }}
+                                                                />
                                                             </Box>
                                                         </Box>
-                                                        <Box
-                                                            sx={{
-                                                                border: `1px solid ${palette.borderStrong}`,
-                                                                borderRadius: '12px',
-                                                                overflow: 'hidden',
-                                                                minHeight: 220,
-                                                                flex: '1 1 auto',
-                                                                backgroundColor: '#f8fbff',
-                                                                '& .cm-editor': {
-                                                                    height: '100%',
-                                                                    fontSize: 13.5,
-                                                                },
-                                                                '& .cm-scroller': {
-                                                                    overflow: 'auto',
-                                                                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace',
-                                                                },
-                                                            }}
-                                                        >
-                                                            <CodeMirror
-                                                                value={selectedComposeMount.content}
-                                                                height="220px"
-                                                                onChange={(value) => updateComposeMountRow(selectedComposeMount.id, 'content', value)}
-                                                                basicSetup={{
-                                                                    lineNumbers: true,
-                                                                    highlightActiveLine: true,
-                                                                    highlightActiveLineGutter: true,
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                    </>
+                                                    </Box>
                                                 ) : null}
-                                            </>
-                                        )}
-                                    </CardContent>
-                                </Card>
+                                            </Box>
+                                        ) : null}
+                                    </Box>
+
+                                    {installError ? <Typography sx={{ px: 0.5, fontSize: 13, lineHeight: 1.65, color: palette.danger }}>{installError}</Typography> : null}
+                                </Box>
                             </Box>
                         </Box>
                     </Box>
@@ -2328,7 +2263,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 {selectedInstallSource === 'marketplace' ? (
                     <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                         <Stack spacing={1.5} sx={{ pb: 0.5 }}>
-                            <FavoriteSectionHeading title={t('appStorePage.results.sectionTitle')} />
+                            <FavoriteSectionHeading title={resultsSectionTitle} />
 
                             {isLoading || isRefreshingStore ? (
                                 <SurfaceStateCard detail={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.states.loading')} loading darkMode={isDarkMode} />
@@ -2375,7 +2310,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     }}
                                                     title={app.trademark ?? app.key ?? t('appStorePage.card.summaryFallback')}
                                                     description={app.summary || app.overview || t('appStorePage.card.summaryFallback')}
-                                                    media={<AppLogo app={app} />}
+                                                    media={<AppLogo app={app} locale={resolvedLocale} />}
                                                 />
                                             )
                                         })}
@@ -2387,8 +2322,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 ) : null}
             </Box>
 
-            <AppStoreScopedOverlay open={isFavoritesOpen} onClose={() => setIsFavoritesOpen(false)} scopeRect={contentViewportRect} maxWidth={832} darkMode={isDarkMode}>
-                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, backgroundColor: palette.dialogBg }}>
+            <AppStoreScopedOverlay open={isFavoritesOpen} onClose={() => setIsFavoritesOpen(false)} scopeRect={contentViewportRect} maxWidth={832} preferredHeight={720} darkMode={isDarkMode}>
+                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, flexShrink: 0, backgroundColor: palette.dialogBg }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
                         <Typography sx={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: palette.text }}>
                             {t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
@@ -2402,14 +2337,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             sx={{
                                 width: 38,
                                 height: 38,
-                                borderRadius: '12px',
-                                border: `1px solid ${palette.border}`,
-                                background: palette.actionBg,
                                 color: palette.subtleText,
-                                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)',
+                                borderRadius: '999px',
+                                backgroundColor: 'transparent',
                                 '&:hover': {
-                                    background: palette.actionHover,
+                                    backgroundColor: 'transparent',
                                     color: palette.text,
+                                    opacity: 0.84,
                                 },
                             }}
                             title={t('appStorePage.actions.close')}
@@ -2418,7 +2352,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         </IconButton>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ px: { xs: 2, md: 2.5 }, py: 2, backgroundColor: palette.dialogBg, '&.MuiDialogContent-dividers': { borderTopColor: palette.border, borderBottomColor: palette.border } }}>
+                <DialogContent dividers sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: { xs: 2, md: 2.5 }, py: 2, backgroundColor: palette.dialogBg, '&.MuiDialogContent-dividers': { borderTopColor: palette.border, borderBottomColor: palette.border } }}>
                     {favoriteApps.length === 0 ? (
                         <SurfaceStateCard title={t('appStorePage.results.favoriteEmptyTitle')} detail={t('appStorePage.results.favoriteEmptyDetail')} darkMode={isDarkMode} />
                     ) : (
@@ -2458,7 +2392,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         <Box sx={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 0, alignItems: 'center' }}>
                                             <Box sx={{ width: 88, minWidth: 88, px: '8px', boxSizing: 'border-box' }}>
                                                 <Box sx={{ width: 72, height: 72 }}>
-                                                    <AppLogo app={app} />
+                                                    <AppLogo app={app} locale={resolvedLocale} />
                                                 </Box>
                                             </Box>
                                             <Box sx={{ minWidth: 0, textAlign: 'left' }}>
@@ -2508,7 +2442,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, flexShrink: 0, backgroundColor: palette.dialogBg }}>
                             <Box sx={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) auto', gap: 1.5, alignItems: 'center' }}>
                                 <Box sx={{ width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <AppLogo app={selectedApp} />
+                                    <AppLogo app={selectedApp} locale={resolvedLocale} />
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -2575,8 +2509,29 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         ))}
                                     </Box>
                                 </Box>
-                                <IconButton onClick={handleCloseModal} size="small" sx={{ color: palette.subtleText, alignSelf: 'start', mr: -0.5 }}>
-                                    <Box component="span" sx={{ fontSize: 28, lineHeight: 1 }}>x</Box>
+                                <IconButton
+                                    onClick={handleCloseModal}
+                                    size="small"
+                                    aria-label={t('appStorePage.actions.close')}
+                                    title={t('appStorePage.actions.close')}
+                                    sx={{
+                                        width: 40,
+                                        height: 40,
+                                        justifySelf: 'end',
+                                        alignSelf: 'center',
+                                        mr: -0.25,
+                                        color: palette.subtleText,
+                                        borderRadius: '999px',
+                                        backgroundColor: 'transparent',
+                                        transition: 'color 120ms ease, opacity 120ms ease',
+                                        '&:hover': {
+                                            color: palette.text,
+                                            backgroundColor: 'transparent',
+                                            opacity: 0.84,
+                                        },
+                                    }}
+                                >
+                                    <CloseIcon />
                                 </IconButton>
                             </Box>
                         </DialogTitle>

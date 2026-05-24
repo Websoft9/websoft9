@@ -1,10 +1,27 @@
 import { useQuery } from '@tanstack/react-query'
 
+export type MyAppAccessProfile = {
+    enabled: boolean
+    source: 'builtin' | 'profile' | 'unknown'
+    locked: boolean
+    forward_host?: string | null
+    forward_port?: number | null
+    forward_scheme: 'http' | 'https'
+}
+
+export type MyAppAccessCandidate = {
+    container_name: string
+    forward_host: string
+    forward_port: number
+    published_ports: string[]
+}
+
 export type MyAppProxyHost = {
     proxy_id: number
     domain_names: string[]
     certificate_id?: number | null
     certificate_name?: string | null
+    ssl_forced?: boolean
 }
 
 export type MyAppCertificate = {
@@ -12,6 +29,16 @@ export type MyAppCertificate = {
     nice_name?: string | null
     domain_names?: string[]
     provider?: string | null
+}
+
+export type MyAppAccessOverview = {
+    app_id: string
+    app_dist?: string | null
+    requires_definition: boolean
+    profile: MyAppAccessProfile
+    candidates: MyAppAccessCandidate[]
+    proxy_hosts: MyAppProxyHost[]
+    certificates: MyAppCertificate[]
 }
 
 type MyAppAccessError = Error & {
@@ -35,20 +62,12 @@ async function fetchJson<T>(url: string, errorMessage: string) {
     return (await response.json()) as T
 }
 
-export function useMyAppAccess(appId: string | undefined, enabled: boolean) {
-    return useQuery<{ proxyHosts: MyAppProxyHost[]; certificates: MyAppCertificate[] }, MyAppAccessError>({
+export function useMyAppAccess(appId: string | undefined) {
+    return useQuery<MyAppAccessOverview, MyAppAccessError>({
         queryKey: ['my-app-access', appId],
-        enabled: Boolean(appId) && enabled,
+        enabled: Boolean(appId),
         queryFn: async () => {
-            const [proxyHosts, certificates] = await Promise.all([
-                fetchJson<MyAppProxyHost[]>(`/api/proxys/${encodeURIComponent(appId ?? '')}`, 'Failed to load proxy hosts'),
-                fetchJson<MyAppCertificate[]>('/api/proxys/ssl/certificates', 'Failed to load certificates'),
-            ])
-
-            return {
-                proxyHosts,
-                certificates,
-            }
+            return fetchJson<MyAppAccessOverview>(`/api/apps/${encodeURIComponent(appId ?? '')}/access`, 'Failed to load app access')
         },
         staleTime: 5_000,
     })

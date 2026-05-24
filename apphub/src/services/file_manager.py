@@ -1,6 +1,7 @@
 import base64
 import os
 import time
+import stat
 from pathlib import PurePosixPath
 from typing import Any, Optional
 
@@ -114,6 +115,47 @@ class FilesAgentExecutor:
                 "root_path": root_path,
                 "source_path": source_relative_path,
                 "target_path": target_relative_path,
+                "display_name": display_name,
+            },
+        )
+
+    def copy_path(self, root_path: str, source_relative_path: str, destination_relative_path: str, display_name: str) -> None:
+        self._request(
+            "POST",
+            "/internal/files/copy",
+            json_payload={
+                "root_path": root_path,
+                "source_path": source_relative_path,
+                "destination_path": destination_relative_path,
+                "display_name": display_name,
+            },
+        )
+
+    def move_path(self, root_path: str, source_relative_path: str, destination_relative_path: str, display_name: str) -> None:
+        self._request(
+            "POST",
+            "/internal/files/move",
+            json_payload={
+                "root_path": root_path,
+                "source_path": source_relative_path,
+                "destination_path": destination_relative_path,
+                "display_name": display_name,
+            },
+        )
+
+    def update_attributes(self, root_path: str, payload: dict[str, Any], display_name: str) -> dict[str, Any]:
+        return self._request(
+            "PUT",
+            "/internal/files/attributes",
+            json_payload={
+                "root_path": root_path,
+                "source_path": payload.get("source_path", "/"),
+                "target_name": payload.get("target_name"),
+                "owner": payload.get("owner"),
+                "group": payload.get("group"),
+                "owner_permissions": payload.get("owner_permissions") or {},
+                "group_permissions": payload.get("group_permissions") or {},
+                "other_permissions": payload.get("other_permissions") or {},
                 "display_name": display_name,
             },
         )
@@ -269,6 +311,40 @@ class FileManagerService:
         self.helper_executor.delete_path(root_path, normalized_path, display_name)
         return {"volume_name": volume_name, "path": normalized_path, "operation": "delete"}
 
+    def copy_path(self, session_token: Optional[str], volume_id: str, source_path: str, destination_path: str) -> dict[str, Any]:
+        self.auth_service._require_authenticated_operator(session_token)
+        volume_name, root_path, display_name = self._resolve_scope(volume_id)
+        normalized_source = self._normalize_relative_path(source_path, allow_root=False)
+        normalized_destination = self._normalize_relative_path(destination_path)
+        target_path = self._join_relative_path(normalized_destination, PurePosixPath(normalized_source).name)
+        self.helper_executor.copy_path(root_path, normalized_source, normalized_destination, display_name)
+        return {"volume_name": volume_name, "path": target_path, "operation": "copy"}
+
+    def move_path(self, session_token: Optional[str], volume_id: str, source_path: str, destination_path: str) -> dict[str, Any]:
+        self.auth_service._require_authenticated_operator(session_token)
+        volume_name, root_path, display_name = self._resolve_scope(volume_id)
+        normalized_source = self._normalize_relative_path(source_path, allow_root=False)
+        normalized_destination = self._normalize_relative_path(destination_path)
+        target_path = self._join_relative_path(normalized_destination, PurePosixPath(normalized_source).name)
+        self.helper_executor.move_path(root_path, normalized_source, normalized_destination, display_name)
+        return {"volume_name": volume_name, "path": target_path, "operation": "move"}
+
+    def update_attributes(self, session_token: Optional[str], volume_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self.auth_service._require_authenticated_operator(session_token)
+        volume_name, root_path, display_name = self._resolve_scope(volume_id)
+        normalized_source = self._normalize_relative_path(str(payload.get("source_path") or "/"), allow_root=False)
+        update_payload = {
+            "source_path": normalized_source,
+            "target_name": payload.get("target_name"),
+            "owner": payload.get("owner"),
+            "group": payload.get("group"),
+            "owner_permissions": payload.get("owner_permissions") or {},
+            "group_permissions": payload.get("group_permissions") or {},
+            "other_permissions": payload.get("other_permissions") or {},
+        }
+        metadata = self.helper_executor.update_attributes(root_path, update_payload, display_name)
+        return {"volume_name": volume_name, "path": metadata.get("path", normalized_source), "operation": "update-attributes", "metadata": {"volume_name": volume_name, **metadata}}
+
     def upload_file(self, session_token: Optional[str], volume_id: str, parent_path: str, file_name: str, payload: bytes) -> dict[str, Any]:
         self.auth_service._require_authenticated_operator(session_token)
         volume_name, root_path, display_name = self._resolve_scope(volume_id)
@@ -283,6 +359,29 @@ class FileManagerService:
         volume_name, root_path, display_name = self._resolve_scope(volume_id)
         payload = self.helper_executor.download_file(root_path, normalized_path, display_name)
         return PurePosixPath(normalized_path).name, payload
+
+    @staticmethod
+    def build_permission_mode(payload: dict[str, Any]) -> Optional[int]:
+        permission_groups = (
+            payload.get("owner_permissions"),
+            payload.get("group_permissions"),
+            payload.get("other_permissions"),
+        )
+        if not any(isinstance(group, dict) and group for group in permission_groups):
+            return None
+
+        def _bits(value: Any) -> int:
+            group = value if isinstance(value, dict) else {}
+            bits = 0
+            if group.get("read"):
+                bits |= 4
+            if group.get("write"):
+                bits |= 2
+            if group.get("execute"):
+                bits |= 1
+            return bits
+
+        return (_bits(permission_groups[0]) << 6) | (_bits(permission_groups[1]) << 3) | _bits(permission_groups[2])
 
     def _resolve_scope(self, volume_id: str) -> tuple[str, str, str]:
         normalized = str(volume_id or "").strip()

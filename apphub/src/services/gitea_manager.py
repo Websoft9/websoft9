@@ -103,6 +103,8 @@ class GiteaManager:
                     "sha": response_json["sha"],
                     "content": response_json["content"],
                 }
+        elif response.status_code == 404:
+            return None
         else:
             logger.error(f"Get file:{file_path} content from repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
@@ -120,6 +122,20 @@ class GiteaManager:
         response = self.gitea.update_file_content_in_repo(repo_name, file_path, content, sha)
         if response.status_code != 200:
             logger.error(f"Update file:{file_path} content in repo:{repo_name} error:{response.status_code}:{response.text}")
+            raise CustomException()
+
+    def create_file_in_repo(self, repo_name: str, file_path: str, content: str):
+        """
+        Create file in repository
+
+        Args:
+            repo_name (str): Repository name
+            file_path (str): File path
+            content (str): File content (base64 encoded)
+        """
+        response = self.gitea.create_file_content_in_repo(repo_name, file_path, content)
+        if response.status_code != 201:
+            logger.error(f"Create file:{file_path} content in repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
         
     def remove_repo(self, repo_name: str):

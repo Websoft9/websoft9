@@ -9,6 +9,7 @@ class ProxyHost(BaseModel):
     domain_names: List[str]
     certificate_id: int | None = None
     certificate_name: str | None = None
+    ssl_forced: bool = False
 
     @validator('domain_names', each_item=True)
     def validate_domain_name(cls, v):

@@ -131,6 +131,7 @@ class ProxyManager:
             "domain_names": proxy_host.get("domain_names", []),
             "certificate_id": proxy_host.get("certificate_id") or certificate.get("id"),
             "certificate_name": certificate_name,
+            "ssl_forced": bool(proxy_host.get("ssl_forced")),
         }
         
     def check_proxy_host_exists(self,domain_names: list[str]):
@@ -165,7 +166,7 @@ class ProxyManager:
             logger.error(f"Check proxy host:{domain_names} exists error:{e}")
             raise CustomException()
 
-    def create_proxy_by_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http",certificate_id: int | None = None):
+    def create_proxy_by_app(self,domain_names: list[str],forward_host: str,forward_port: int,advanced_config: str = "",forward_scheme: str = "http",certificate_id: int | None = None, ssl_forced: bool = False):
         """
         Create a proxy host
 
@@ -186,13 +187,14 @@ class ProxyManager:
                 forward_port=forward_port,
                 advanced_config=advanced_config,
                 certificate_id=certificate_id,
+            ssl_forced=ssl_forced,
         )
         if response.status_code != 201:
             self._handler_nginx_error(response)
         else:
             return response.json()
 
-    def update_proxy_by_app(self,proxy_id:int,domain_names: list[str],certificate_id: int | None = None):
+    def update_proxy_by_app(self,proxy_id:int,domain_names: list[str],certificate_id: int | None = None, ssl_forced: bool | None = None):
         """
         Update a proxy host
 
@@ -215,6 +217,8 @@ class ProxyManager:
             # update domain_names
             req_json["domain_names"] = domain_names
             req_json["certificate_id"] = certificate_id or 0
+            if ssl_forced is not None:
+                req_json["ssl_forced"] = bool(ssl_forced)
             # delete useless keys from req_json(because the req_json is from get_proxy_host_by_id and update_proxy_host need less keys)
             keys_to_delete = ["id","created_on","modified_on","owner_user_id","enabled","certificate","owner","access_list","use_default_location","ipv6"]
             for key in keys_to_delete:
@@ -229,6 +233,47 @@ class ProxyManager:
             raise e
         except Exception as e:
             logger.error(f"Update proxy host:{proxy_id} error:{e}")
+            raise CustomException()
+
+    def update_proxy_host_settings(
+        self,
+        proxy_id: int,
+        domain_names: list[str],
+        forward_host: str,
+        forward_port: int,
+        forward_scheme: str = "http",
+        certificate_id: int | None = None,
+        ssl_forced: bool = False,
+    ):
+        """
+        Update a proxy host's routing target, domains, and certificate binding.
+        """
+        req_json = self.get_proxy_host_by_id(proxy_id)
+        try:
+            if req_json is None:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"Proxy host:{proxy_id} not found"
+                )
+            req_json["domain_names"] = domain_names
+            req_json["forward_host"] = forward_host
+            req_json["forward_port"] = forward_port
+            req_json["forward_scheme"] = forward_scheme
+            req_json["certificate_id"] = certificate_id or 0
+            req_json["ssl_forced"] = bool(ssl_forced)
+            keys_to_delete = ["id", "created_on", "modified_on", "owner_user_id", "enabled", "certificate", "owner", "access_list", "use_default_location", "ipv6"]
+            for key in keys_to_delete:
+                req_json.pop(key, None)
+
+            response = self.nginx.update_proxy_host(proxy_id=proxy_id, json=req_json)
+            if response.status_code == 200:
+                return response.json()
+            self._handler_nginx_error(response)
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Update proxy host settings:{proxy_id} error:{e}")
             raise CustomException()
 
     def update_proxy_port_by_app(self, proxy_id: int, forward_port: int):
@@ -372,3 +417,16 @@ class ProxyManager:
             return response.json()
         else:
             self._handler_nginx_error(response)
+
+    def request_letsencrypt_certificate(self, email: str, domain_names: list[str], proxy_id: int | None = None):
+        """
+        Request a Let's Encrypt certificate and optionally bind it to a proxy host.
+        """
+        response = self.nginx.create_certificate(domain_names=domain_names, email=email)
+        if response.status_code not in [200, 201]:
+            self._handler_nginx_error(response)
+
+        certificate = response.json()
+        if proxy_id is not None:
+            self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"))
+        return certificate

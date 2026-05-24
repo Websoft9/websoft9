@@ -11,6 +11,10 @@ type ProductAuthRouteGuardProps = {
     requireAuthentication?: boolean
 }
 
+function isIntegrationWorkspacePath(pathname: string) {
+    return /^\/(containers|gateway|repository)(?:[/?#]|$)/.test(pathname)
+}
+
 export function ProductAuthRouteGuard({ children, routeSegment, requireAuthentication = false }: ProductAuthRouteGuardProps) {
     const { t } = useTranslation('shell')
     const location = useLocation()
@@ -52,6 +56,10 @@ export function ProductAuthRouteGuard({ children, routeSegment, requireAuthentic
     }
 
     if (!status.authenticated) {
+        if (requireAuthentication && isIntegrationWorkspacePath(location.pathname)) {
+            return children
+        }
+
         return <Navigate replace to={`/auth/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />
     }
 

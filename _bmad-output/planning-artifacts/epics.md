@@ -650,6 +650,75 @@ so that future protected flows can rely on product-side user continuity without 
 
 **Dependency note:** Depends on Story 4.2 to establish the product-side operator account model, login session, and protected-module gate.
 
+### Story 4.3A: Establish the design-system foundation and page-template baseline
+
+As the product team expanding the new Websoft9 console,
+I want a shared design-system foundation and explicit page-template baseline,
+so that later modules can implement pages under one consistent rule set instead of repeating layout and state decisions locally.
+
+**Acceptance Criteria:**
+
+**Given** the console already uses a mature component foundation
+**When** this design-system foundation story is complete
+**Then** Websoft9 defines its own product-layer design system above the vendor foundation
+**And** implementation stops treating raw vendor components as the final product system.
+
+**Given** later modules still need overview, list, detail, settings, service, log, and embedded-workspace pages
+**When** the page-template baseline is defined
+**Then** the project has explicit templates and shared state semantics for those page types
+**And** later stories can reuse them instead of inventing new patterns.
+
+**Given** Epic 4 and Epic 5 will keep adding UI-heavy pages
+**When** the team reviews implementation order
+**Then** this story is treated as the enabling baseline for later UI-heavy work
+**And** downstream stories are expected to follow the design-system and template rules created here.
+
+### Story 4.3B: Redefine the product visual system and canonical page families
+
+As the product team reshaping the new Websoft9 console,
+I want a full product-layer UI redesign while keeping Material UI as the foundation,
+so that the platform looks like one professional product instead of a loose set of assembled admin screens.
+
+**Acceptance Criteria:**
+
+**Given** Material UI remains the implementation foundation
+**When** the redesign direction is formally defined
+**Then** Websoft9 explicitly defines its own visual identity, navigation tone, page-hero grammar, and component usage rules
+**And** the platform no longer depends on raw Material UI defaults or a vendor-template look to express product identity.
+
+**Given** the main native product modules still need visual convergence
+**When** canonical page families are defined
+**Then** overview, catalog, inventory, detail, settings, diagnostics, and embedded-workspace pages all map to explicit families
+**And** later modules stop inventing page structure independently.
+
+**Given** the platform is still visually inconsistent
+**When** redesign rollout is planned
+**Then** the project has a first-wave migration order for the highest-visibility pages
+**And** consistency is treated as a product requirement rather than optional polish.
+
+### Story 4.3C: Enforce shared design tokens and priority-page convergence
+
+As the team implementing the new Websoft9 console,
+I want the shared visual system to become an implementation default instead of a planning-only direction,
+so that the highest-visibility native pages stop drifting in tokens, form controls, spacing, and surface grammar.
+
+**Acceptance Criteria:**
+
+**Given** design-system foundation and visual-direction stories already exist
+**When** the enforcement slice is implemented
+**Then** the console has one shared token layer for base surfaces, borders, spacing, radius, and badge semantics
+**And** priority native pages inherit that layer instead of maintaining parallel page-local token systems.
+
+**Given** product-native forms still duplicate near-identical field styling
+**When** the enforcement slice lands
+**Then** settings and App Store install surfaces reuse one shared field-style helper
+**And** future UI-heavy stories have an obvious default path for form controls.
+
+**Given** redesign progress must remain auditable
+**When** sprint tracking is reviewed
+**Then** Stories 4.3A, 4.3B, and 4.3C all appear explicitly in sprint status
+**And** later Epic 4 work can reference the correct redesign lineage.
+
 ### Story 4.4: Build the backup list and restore loop
 
 As an administrator responsible for recoverability,

@@ -1,4 +1,5 @@
 import base64
+from typing import Any, Dict, List
 import json
 import os
 import shutil
@@ -7,9 +8,11 @@ import ipaddress
 import re
 import tempfile
 import urllib.request
+from urllib.parse import urlsplit
 import yaml
 import time
 import zipfile
+from datetime import datetime, timedelta, timezone
 import docker
 import requests
 import asyncio
@@ -110,6 +113,13 @@ class AppManger:
 
         return app_env_format, app_name, app_dist, app_version, w9_url, w9_url_replace
 
+    def _read_compose_metadata_safe(self, app_id: str) -> dict[str, Any]:
+        try:
+            from src.services.compose_app_manager import _read_compose_metadata
+            return _read_compose_metadata(GiteaManager(), app_id)
+        except Exception:
+            return {}
+
     def _enrich_proxy_hosts(self, proxy_hosts: list[dict] | None, w9_url_replace: str | bool = False, w9_url: str | None = None) -> list[dict]:
         enriched_hosts: list[dict] = []
         for proxy_host in proxy_hosts or []:
@@ -156,23 +166,89 @@ class AppManger:
                 volumes_by_app.setdefault(app_id, []).append(volume)
         return volumes_by_app
 
-    def _guess_app_name_from_app_id(self, app_id: str | None) -> str | None:
-        normalized_app_id = (app_id or "").strip()
-        if not normalized_app_id:
-            return None
-
-        base_name, separator, suffix = normalized_app_id.rpartition("_")
-        if separator and suffix and len(suffix) <= 12:
-            return base_name or normalized_app_id
-        return normalized_app_id
-
     def _normalize_locale(self, locale: str | None) -> str:
         normalized_locale = (locale or "en").strip().lower()
         return "zh" if normalized_locale.startswith("zh") else "en"
 
+    def _get_default_media_path(self, locale: str | None, kind: str) -> str:
+        normalized_locale = self._normalize_locale(locale)
+        if kind == "screenshot":
+            return "/default-screenshot.png" if normalized_locale == "zh" else "/default-screenshot-en.png"
+        return "/default.png" if normalized_locale == "zh" else "/default-en.png"
+
+    def _normalize_remote_media_url(self, remote_url: str | None, locale: str | None, kind: str) -> str:
+        fallback_path = self._get_default_media_path(locale, kind)
+        normalized_url = (remote_url or "").strip()
+        if not normalized_url:
+            return fallback_path
+
+        if normalized_url.startswith("/"):
+            return normalized_url
+
+        parsed = urlsplit(normalized_url)
+        if parsed.scheme not in {"http", "https"}:
+            return fallback_path
+        return normalized_url
+
+    def _normalize_available_app_media(self, item: dict[str, object], locale: str | None) -> dict[str, object]:
+        normalized_item = dict(item)
+
+        logo = normalized_item.get("logo")
+        normalized_logo = dict(logo) if isinstance(logo, dict) else {}
+        normalized_logo["imageurl"] = self._normalize_remote_media_url(normalized_logo.get("imageurl"), locale, "logo")
+        normalized_item["logo"] = normalized_logo
+
+        screenshots_value = normalized_item.get("screenshots")
+        normalized_screenshots: list[dict[str, object]] = []
+        if isinstance(screenshots_value, list):
+            for screenshot in screenshots_value:
+                if not isinstance(screenshot, dict):
+                    continue
+
+                normalized_screenshot = dict(screenshot)
+                normalized_screenshot["value"] = self._normalize_remote_media_url(normalized_screenshot.get("value"), locale, "screenshot")
+                normalized_screenshots.append(normalized_screenshot)
+
+        if not normalized_screenshots:
+            normalized_screenshots.append(
+                {
+                    "id": f"{normalized_item.get('key', 'app')}-default-screenshot",
+                    "key": "default",
+                    "value": self._get_default_media_path(locale, "screenshot"),
+                }
+            )
+
+        normalized_item["screenshots"] = normalized_screenshots
+        return normalized_item
+
+    def _is_stale_install_task(self, install_task: dict, now: datetime, timeout_minutes: int = 30) -> bool:
+        updated_at = install_task.get("updated_at")
+        if not isinstance(updated_at, str) or not updated_at:
+            return False
+
+        try:
+            updated_at_dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+
+        if updated_at_dt.tzinfo is None:
+            updated_at_dt = updated_at_dt.replace(tzinfo=timezone.utc)
+
+        return now - updated_at_dt > timedelta(minutes=timeout_minutes)
+
     def _resolve_stack_runtime_state(self, stack_status: int, stack_containers: list[dict] | None) -> Tuple[int, str | None]:
         if stack_status == 1 and not stack_containers:
             return 4, self._missing_stack_containers_error
+
+        if stack_status == 1 and stack_containers:
+            normalized_states = {
+                str(container.get("State") or container.get("Status") or "").strip().lower()
+                for container in stack_containers
+            }
+            running_states = {"running", "healthy"}
+            if normalized_states and normalized_states.isdisjoint(running_states):
+                return 4, "Containers were created for this stack but none of them are running."
+
         return stack_status, None
 
     def _ensure_media_asset(self, file_name: str) -> str:
@@ -350,7 +426,7 @@ class AppManger:
             if not webhook_url:
                 raise CustomException(status_code=500, message="Invalid Request", details="Webhook URL is not configured")
 
-            app_name = app_detail.get("app_name") or app_detail.get("name") or self._guess_app_name_from_app_id(app_id) or app_id
+            app_name = app_detail.get("app_name") or app_detail.get("name") or app_id
             current_version = php_info.get("version") or "Unknown"
 
             payload = {
@@ -480,6 +556,8 @@ class AppManger:
                     logger.warning(f"Failed to process env file {env_path}: {e}")
                     item["settings"] = {}
                     item["is_web_app"] = False
+
+            data = [self._normalize_available_app_media(item, normalized_locale) for item in data if isinstance(item, dict)]
             
             # 缓存结果
             self._cache[cache_key] = data
@@ -490,6 +568,39 @@ class AppManger:
         except (CustomException,Exception) as e:
             logger.error(f"Get available apps error:{e}")
             raise CustomException()
+
+    def _get_available_app_logo_map(self, locale: str | None) -> dict[str, str]:
+        normalized_locale = self._normalize_locale(locale)
+        try:
+            available_apps = self.get_available_apps(normalized_locale)
+        except Exception as exc:
+            logger.warning(f"Failed to resolve available app logos for locale {normalized_locale}: {exc}")
+            return {}
+
+        logo_map: dict[str, str] = {}
+        for item in available_apps or []:
+            if not isinstance(item, dict):
+                continue
+
+            key = str(item.get("key") or "").strip().lower()
+            logo = item.get("logo")
+            image_url = ""
+            if isinstance(logo, dict):
+                image_url = str(logo.get("imageurl") or "").strip()
+
+            if key and image_url:
+                logo_map[key] = image_url
+
+        return logo_map
+
+    def _resolve_available_app_logo_url(self, logo_map: dict[str, str], app_name: str | None, app_id: str | None) -> str | None:
+        candidate = (app_name or "").strip().lower()
+        if candidate:
+            logo_url = logo_map.get(candidate)
+            if logo_url:
+                return logo_url
+
+        return None
 
     def create_installation_tracking(self, app_install: appInstall) -> Tuple[str, str]:
         tracked_app_id = app_install.app_id + "_" + PasswordGenerator.generate_random_string(5)
@@ -525,12 +636,13 @@ class AppManger:
         tracking_id = start_app_installation(tracked_app_id, app_install.app_name, reserved_ports=reserved_ports)
         return tracked_app_id, tracking_id
 
-    def get_apps(self,endpointId:int = None):
+    def get_apps(self,endpointId:int = None, locale: str = "en"):
         """
         Get apps
 
         Args:
             endpointId (int, optional): The endpoint id. Defaults to None.
+            locale (str, optional): Locale used to resolve app media. Defaults to "en".
         """
         # Get the portainer manager
         portainerManager = PortainerManager()
@@ -544,6 +656,7 @@ class AppManger:
         try:
             # Set the apps info for response
             apps_info = []
+            logo_map = self._get_available_app_logo_map(locale)
             # Get the stacks by endpointId from portainer
             stacks = portainerManager.get_stacks(endpointId)
             all_containers = portainerManager.get_containers(endpointId)
@@ -570,19 +683,34 @@ class AppManger:
                     creationDate = stack.get("CreationDate", "")
                     domain_names = self._enrich_proxy_hosts(proxy_hosts_by_app.get(stack_name, []))
                     proxy_enabled = len(domain_names) > 0
-                    app_name = self._guess_app_name_from_app_id(stack_name)
+                    app_name = None
                     app_dist = None
                     app_version = None
-                    is_php_app, is_monitor_app = self._get_capability_flags(app_name)
                     app_env_format: dict[str, str] = {}
                     stack_containers = containers_by_project.get(stack_name, [])
                     stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, stack_containers)
                     stack_volumes = portainerManager.get_volumes_by_stack_name(stack_name, endpointId, False)
 
+                    if stack_status == 1 and stack_containers:
+                        main_container_id = None
+                        for container in stack_containers:
+                            if f"/{stack_name}" in container.get("Names", []):
+                                main_container_id = container.get("Id", "")
+                                break
+
+                        if main_container_id:
+                            main_container_info = portainerManager.get_container_by_id(endpointId, main_container_id)
+                            app_env = main_container_info.get("Config", {}).get("Env", [])
+                            app_env_format, app_name, app_dist, app_version, w9_url, w9_url_replace = self._parse_app_env(app_env)
+                            domain_names = self._enrich_proxy_hosts(domain_names, w9_url_replace, w9_url)
+
+                    is_php_app, is_monitor_app = self._get_capability_flags(app_name)
+
                     app_info = AppResponse(
                         app_id=stack_name,
                         endpointId=endpointId,
                         app_name=app_name,
+                        logo_url=self._resolve_available_app_logo_url(logo_map, app_name, stack_name),
                         app_dist=app_dist,
                         app_version=app_version,
                         app_official=True,
@@ -600,49 +728,35 @@ class AppManger:
                     )
                     apps_info.append(app_info)
 
-            # Set the not stacks info for response(app not install by portainer)
-            not_stacks = [] 
-            for container in all_containers:
-                # Get the container labels
-                container_labels = container.get("Labels",None)
-                if container_labels is not None:
-                    # Get the container_project
-                    container_project = container_labels.get("com.docker.compose.project",None)
-                    if container_project is not None:
-                        # Check the container_project is exists in stacks
-                        if container_project not in stack_names:
-                            # Add the not stacks
-                            not_stacks.append(container_project)
-            
-            # Remove the duplicate elements
-            not_stacks = list(set(not_stacks))
+            now = datetime.now(timezone.utc)
 
-            # Remove the websoft9
-            if "websoft9" in not_stacks:
-                not_stacks.remove("websoft9")
-            
-            # Set the not_stacks info to apps_info
-            for not_stack in not_stacks:
-                not_stack_response = AppResponse(
-                    app_id = not_stack,
-                    app_official = False,
-                )
-                apps_info.append(not_stack_response)
-
-            # Get the installing apps(if app is in installing and in stasks or not_stacks,remove it)
+            # Get the installing apps. Auto-clean stale tasks that no longer have
+            # a Portainer stack or a Gitea repo, otherwise they remain stuck in
+            # "Installing" forever after aborted manual/debug runs.
             for app_uuid,app in appInstalling.items(): 
+                install_app_id = app.get("app_id", None)
+                stack_exists = bool(install_app_id) and install_app_id in stack_names
+                repo_exists = False
+                if install_app_id:
+                    try:
+                        repo_exists = GiteaManager().check_repo_exists(install_app_id)
+                    except Exception:
+                        repo_exists = False
+
+                if self._is_stale_install_task(app, now) and not stack_exists and not repo_exists:
+                    remove_app_installation(app_uuid)
+                    continue
+
                 app_response = AppResponse(
-                        app_id = app.get("app_id", None),
+                        app_id = install_app_id,
                         tracking_id = app.get("tracking_id", app_uuid),
                         status = app.get("status", None),
                         app_name = app.get("app_name", None),
+                        logo_url = self._resolve_available_app_logo_url(logo_map, app.get("app_name"), install_app_id),
                         app_official = app.get("app_official", None),
                         error = app.get("error", None),
                         logs = app.get("logs", None)
                     )
-                if app_response.app_id in not_stacks:
-                    # If app_id is in not_stacks, remove the corresponding AppResponse from apps_info
-                    apps_info = [app_info for app_info in apps_info if app_info.app_id != app_response.app_id]
                 if any(app_info.app_id == app_response.app_id for app_info in apps_info):
                     #从apps_info中删除app_id对应的AppResponse
                     apps_info = [app_info for app_info in apps_info if app_info.app_id != app_response.app_id]
@@ -664,6 +778,7 @@ class AppManger:
                     tracking_id=app.get("tracking_id", app_uuid),
                     status=app.get("status", None),
                     app_name=app.get("app_name", None),
+                    logo_url=self._resolve_available_app_logo_url(logo_map, app.get("app_name"), err_app_id),
                     app_official=app.get("app_official", None),
                     error=app.get("error", None),
                     logs=app.get("logs", None),
@@ -677,7 +792,7 @@ class AppManger:
             logger.error(f"Get apps error:{e}")
             raise CustomException()
 
-    def get_app_by_id(self,app_id:str,endpointId:int = None):
+    def get_app_by_id(self,app_id:str,endpointId:int = None, locale: str = "en"):
         """
         Get app by app_id
 
@@ -687,6 +802,7 @@ class AppManger:
         """
         try:
             portainerManager = PortainerManager()
+            logo_map = self._get_available_app_logo_map(locale)
             
             # Check the endpointId is exists.
             if endpointId:
@@ -697,17 +813,18 @@ class AppManger:
             # Get stack_info by app_id from portainer
             stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
             if stack_info is None:
-                fallback_app = next((app for app in self.get_apps(endpointId) if app.app_id == app_id), None)
+                fallback_app = next((app for app in self.get_apps(endpointId, locale) if app.app_id == app_id), None)
                 if fallback_app is not None:
                     return fallback_app
                 domain_names = self._get_proxy_host_by_app_safe(app_id)
                 proxy_enabled = len(domain_names) > 0
-                app_name = self._guess_app_name_from_app_id(app_id)
+                app_name = None
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
                 return AppResponse(
                     app_id=app_id,
                     endpointId=endpointId,
                     app_name=app_name,
+                    logo_url=self._resolve_available_app_logo_url(logo_map, app_name, app_id),
                     app_dist=None,
                     app_version=None,
                     app_official=False,
@@ -768,6 +885,20 @@ class AppManger:
                 app_env_format, app_name, app_dist, app_version, w9_url, w9_url_replace = self._parse_app_env(app_env)
                 domain_names = self._enrich_proxy_hosts(domain_names, w9_url_replace, w9_url)
 
+                compose_metadata = self._read_compose_metadata_safe(app_id)
+                if not app_dist:
+                    metadata_dist = compose_metadata.get("dist")
+                    if isinstance(metadata_dist, str) and metadata_dist.strip():
+                        app_dist = metadata_dist.strip()
+                if not app_name:
+                    metadata_name = compose_metadata.get("app_name")
+                    if isinstance(metadata_name, str) and metadata_name.strip():
+                        app_name = metadata_name.strip()
+                if not app_version:
+                    metadata_version = compose_metadata.get("version")
+                    if isinstance(metadata_version, str) and metadata_version.strip():
+                        app_version = metadata_version.strip()
+
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
 
                 # Set the appResponse
@@ -775,6 +906,7 @@ class AppManger:
                     app_id = app_id,
                     endpointId = endpointId,
                     app_name = app_name,
+                    logo_url = self._resolve_available_app_logo_url(logo_map, app_name, app_id),
                     app_dist = app_dist,
                     app_version = app_version,
                     app_official = True,
@@ -792,14 +924,22 @@ class AppManger:
                 )
                 return appResponse
             else:
-                app_name = self._guess_app_name_from_app_id(app_id)
+                app_name = None
+                compose_metadata = self._read_compose_metadata_safe(app_id)
+                inactive_app_dist = str(compose_metadata.get("dist") or "").strip()
+                metadata_name = compose_metadata.get("app_name")
+                if isinstance(metadata_name, str) and metadata_name.strip():
+                    app_name = metadata_name.strip()
+                metadata_version = compose_metadata.get("version")
+                inactive_app_version = str(metadata_version or "").strip()
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
                 appResponse = AppResponse(
                     app_id = app_id,
                     endpointId = endpointId,
                     app_name = app_name,
-                    app_dist = "",
-                    app_version = "",
+                    logo_url = self._resolve_available_app_logo_url(logo_map, app_name, app_id),
+                    app_dist = inactive_app_dist,
+                    app_version = inactive_app_version,
                     app_official = True,
                     is_php_app = is_php_app,
                     is_monitor_app = is_monitor_app,
@@ -1254,7 +1394,7 @@ class AppManger:
                     False,      #强制设置不拉取镜像，而是通过Websoft9的逻辑来拉取镜像
                     user_name,
                     user_pwd,
-                    timeout=60  # 自定义超时
+                    timeout=300  # 给Portainer重建更宽的完成窗口，避免较慢环境下误判超时
                 )
             except CustomException as e:
                 await send_log(f"Redeploy stack error: {e}")
@@ -1400,9 +1540,11 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        # get stack status,if stack is not empty(status=1-active),can not remove it
-        stack_status = portainerManager.get_stack_by_name(app_id,endpointId).get("Status")
-        if stack_status == 1:
+        stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
+        stack_status = stack_info.get("Status")
+        stack_containers = portainerManager.get_containers_by_stack_name(app_id, endpointId) if stack_info else []
+        resolved_status, _ = self._resolve_stack_runtime_state(stack_status, stack_containers)
+        if resolved_status == 1:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
@@ -1606,7 +1748,7 @@ class AppManger:
         # Get the proxys
         return proxyManager.get_proxy_host_by_app(app_id)
 
-    def create_proxy_by_app(self,app_id:str,domain_names:list[str],endpointId:int = None,certificate_id:int | None = None):
+    def create_proxy_by_app(self,app_id:str,domain_names:list[str],endpointId:int = None,certificate_id:int | None = None, ssl_forced: bool = False):
         """
         Create proxy by app_id
 
@@ -1687,9 +1829,9 @@ class AppManger:
                 # Get the nginx proxy config
                 advanced_config = GiteaManager().get_file_raw_from_repo(app_id, "src/nginx-proxy.conf")
                 if advanced_config:
-                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, advanced_config, forward_scheme=forward_scheme, certificate_id=certificate_id)
+                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, advanced_config, forward_scheme=forward_scheme, certificate_id=certificate_id, ssl_forced=ssl_forced)
                 else:
-                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, forward_scheme=forward_scheme, certificate_id=certificate_id)
+                    proxy_host = proxyManager.create_proxy_by_app(domain_names, app_id, forward_port, forward_scheme=forward_scheme, certificate_id=certificate_id, ssl_forced=ssl_forced)
 
                 if proxy_host:
                     logger.access(f"Created domains: {domain_names} for app: [{app_id}]")
@@ -1806,7 +1948,7 @@ class AppManger:
             logger.error(f"Remove proxy error:{e}")
             raise CustomException()
 
-    def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None,certificate_id:int | None = None):
+    def update_proxy_by_app(self,proxy_id:str,domain_names:list[str],endpointId:int = None,certificate_id:int | None = None, ssl_forced: bool | None = None):
         """
         Update proxy by app_id
 
@@ -1856,7 +1998,7 @@ class AppManger:
                             asyncio.run(self.redeploy_app(app_id,False))
 
         # Update proxy
-        result = proxyManager.update_proxy_by_app(proxy_id,domain_names,certificate_id)
+        result = proxyManager.update_proxy_by_app(proxy_id,domain_names,certificate_id,ssl_forced)
         logger.access(f"Updated domains:{domain_names} for app: [{host['forward_host']}]")
         return result
 

@@ -20,8 +20,19 @@ import { useProductAuth } from '../../features/product-auth/product-auth-provide
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { useIntegrationSessionPrewarm } from '../../features/integrations/integration-session-bootstrap'
+import { getRememberedMyAppsDetailRoute, rememberMyAppsDetailRoute } from '../../features/my-apps/my-app-detail-overlay-intent'
 import { shellNavigationItems } from './shell-navigation'
 import './app-shell.css'
+
+type AppNavIconSegment = (typeof shellNavigationItems)[number]['segment'] | 'appstore' | 'custom-install'
+
+type ApplicationSubNavigationItem = {
+    key: string
+    label: string
+    to: string
+    active: boolean
+    icon: AppNavIconSegment
+}
 
 const navigationSections = [
     {
@@ -34,17 +45,17 @@ const navigationSections = [
     },
 ] as const
 
-const LAST_MYAPP_DETAIL_ROUTE_KEY = 'websoft9:last-myapp-detail-route'
+const LAST_APPLICATIONS_ROUTE_KEY = 'websoft9:last-applications-route'
 const SHELL_NAV_COLLAPSED_STORAGE_KEY = 'websoft9:shell-nav-collapsed'
 
-function ShellNavIcon({ segment }: { segment: string }) {
+function ShellNavIcon({ segment }: { segment: AppNavIconSegment }) {
     switch (segment) {
         case 'dashboard':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 4h7v7H4V4Zm9 0h7v5h-7V4ZM4 13h7v7H4v-7Zm9-2h7v9h-7v-9Z" /></SvgIcon>
         case 'applications':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Zm-7-6v2h3V7H6Zm9 0v2h3V7h-3Zm-9 8v2h3v-2H6Zm9 0v2h3v-2h-3Z" /></SvgIcon>
         case 'appstore':
-            return <SvgIcon viewBox="0 0 24 24"><path d="M7 4h10l1 4h2v2h-1l-1 9H6L5 10H4V8h2l1-4Zm1.58 4h6.84l-.5-2H9.08l-.5 2ZM8 12v5h2v-5H8Zm6 0v5h2v-5h-2Z" /></SvgIcon>
+            return <SvgIcon viewBox="0 0 24 24"><path d="M6.2 4h11.6l1.35 4.6h1.1v1.8H19V18a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7.6H3.75V8.6h1.1L6.2 4Zm1.35 1.8-.82 2.8h10.54l-.82-2.8H7.55ZM6.8 10.4V18a.2.2 0 0 0 .2.2h10a.2.2 0 0 0 .2-.2v-7.6H6.8Zm2.2 2.2h6v1.8H9v-1.8Z" /></SvgIcon>
         case 'myapps':
             return <SvgIcon viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4v10h12V8H6Zm2 2h4v4H8v-4Z" /></SvgIcon>
         case 'custom-install':
@@ -120,7 +131,6 @@ export function AppShell() {
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
     const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
     const [appearanceMenuAnchor, setAppearanceMenuAnchor] = useState<HTMLElement | null>(null)
-    const [deployMenuAnchor, setDeployMenuAnchor] = useState<HTMLElement | null>(null)
     const [collapsedApplicationsAnchor, setCollapsedApplicationsAnchor] = useState<HTMLElement | null>(null)
     const collapsedApplicationsCloseTimerRef = useRef<number | null>(null)
     const { colorMode, setColorMode } = useAppColorMode()
@@ -191,31 +201,48 @@ export function AppShell() {
     }, [navCollapsed])
 
     useEffect(() => {
+        const pathWithSearch = `${location.pathname}${location.search}`
+
+        if (/^\/myapps\/[^/]+/.test(location.pathname)) {
+            rememberMyAppsDetailRoute(pathWithSearch)
+            return
+        }
+
+        if (location.pathname === '/myapps') {
+            rememberMyAppsDetailRoute(null)
+        }
+    }, [location.pathname, location.search])
+
+    useEffect(() => {
         if (typeof window === 'undefined') {
             return
         }
 
         const pathWithSearch = `${location.pathname}${location.search}`
 
-        if (/^\/myapps\/[^/]+/.test(location.pathname)) {
-            window.sessionStorage.setItem(LAST_MYAPP_DETAIL_ROUTE_KEY, pathWithSearch)
-            return
-        }
-
-        if (location.pathname === '/myapps') {
-            window.sessionStorage.removeItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
+        if (location.pathname === '/applications/deploy' || location.pathname === '/applications/custom-install') {
+            window.sessionStorage.setItem(LAST_APPLICATIONS_ROUTE_KEY, pathWithSearch)
         }
     }, [location.pathname, location.search])
 
     const rememberedMyAppDetailRoute = useMemo(() => {
+        return getRememberedMyAppsDetailRoute()
+    }, [location.pathname, location.search])
+    const myAppsNavigationTarget = rememberedMyAppDetailRoute && !location.pathname.startsWith('/myapps')
+        ? rememberedMyAppDetailRoute
+        : '/myapps'
+    const rememberedApplicationsRoute = useMemo(() => {
         if (typeof window === 'undefined') {
             return null
         }
 
-        return window.sessionStorage.getItem(LAST_MYAPP_DETAIL_ROUTE_KEY)
+        return window.sessionStorage.getItem(LAST_APPLICATIONS_ROUTE_KEY)
     }, [location.pathname, location.search])
+    const applicationsNavigationTarget = rememberedApplicationsRoute && !location.pathname.startsWith('/applications')
+        ? rememberedApplicationsRoute
+        : '/applications/deploy'
     const isApplicationsContext = /^\/(applications|appstore|myapps)(\/|$)/.test(location.pathname)
-    const applicationSubNavigation = useMemo(
+    const applicationSubNavigation = useMemo<ApplicationSubNavigationItem[]>(
         () => [
             {
                 key: 'myapps',
@@ -225,38 +252,14 @@ export function AppShell() {
                 icon: 'myapps',
             },
             {
-                key: 'appstore',
-                label: t('nav.appStore.label'),
-                to: '/appstore',
-                active: location.pathname === '/appstore',
-                icon: 'appstore',
-            },
-            {
-                key: 'custom-install',
-                label: t('applicationsHubPage.menu.customInstall'),
-                to: '/applications/custom-install',
-                active: location.pathname === '/applications/custom-install',
+                key: 'deploy',
+                label: t('applicationsHubPage.menu.action'),
+                to: applicationsNavigationTarget,
+                active: location.pathname === '/applications/deploy' || location.pathname === '/applications/custom-install',
                 icon: 'custom-install',
             },
         ],
-        [location.pathname, t],
-    )
-    const myAppsDeployTargets = useMemo(
-        () => [
-            {
-                key: 'appstore',
-                label: t('applicationsHubPage.menu.marketplace'),
-                to: '/appstore',
-                icon: 'appstore',
-            },
-            {
-                key: 'custom-install',
-                label: t('applicationsHubPage.menu.customInstall'),
-                to: '/applications/custom-install',
-                icon: 'custom-install',
-            },
-        ],
-        [t],
+        [applicationsNavigationTarget, location.pathname, t],
     )
 
     useEffect(() => {
@@ -273,7 +276,6 @@ export function AppShell() {
 
     useEffect(() => {
         setCollapsedApplicationsAnchor(null)
-        setDeployMenuAnchor(null)
         setLocaleMenuAnchor(null)
         setAppearanceMenuAnchor(null)
     }, [location.pathname])
@@ -374,7 +376,7 @@ export function AppShell() {
                                                         <ListItemButton
                                                             className={`app-shell-nav-item app-shell-nav-item--parent ${(isApplicationsContext || Boolean(collapsedApplicationsAnchor)) ? 'active' : ''}`}
                                                             component={NavLink}
-                                                            to="/myapps"
+                                                            to={myAppsNavigationTarget}
                                                             onMouseEnter={(event) => {
                                                                 if (navCollapsed) {
                                                                     openCollapsedApplicationsMenu(event.currentTarget)
@@ -426,7 +428,7 @@ export function AppShell() {
                                                                         component={NavLink}
                                                                         key={subItem.key}
                                                                         className={`app-shell-nav-item app-shell-nav-item--secondary ${subItem.active ? 'active' : ''}`}
-                                                                        to={subItem.to}
+                                                                        to={subItem.key === 'myapps' ? myAppsNavigationTarget : subItem.to}
                                                                     >
                                                                         <Box className="app-shell-nav-item-icon" aria-hidden="true">
                                                                             <ShellNavIcon segment={subItem.icon} />
@@ -473,7 +475,7 @@ export function AppShell() {
                                                                                 component={NavLink}
                                                                                 key={subItem.key}
                                                                                 className={`app-shell-collapsed-submenu-item ${subItem.active ? 'active' : ''}`}
-                                                                                to={subItem.to}
+                                                                                to={subItem.key === 'myapps' ? myAppsNavigationTarget : subItem.to}
                                                                                 onClick={() => {
                                                                                     setCollapsedApplicationsAnchor(null)
                                                                                 }}
@@ -499,9 +501,7 @@ export function AppShell() {
                                                     component={NavLink}
                                                     key={item.segment}
                                                     className="app-shell-nav-item"
-                                                    to={item.segment === 'myapps' && rememberedMyAppDetailRoute && !location.pathname.startsWith('/myapps')
-                                                        ? rememberedMyAppDetailRoute
-                                                        : `/${item.segment}`}
+                                                    to={item.segment === 'myapps' ? myAppsNavigationTarget : `/${item.segment}`}
                                                 >
                                                     <Box className="app-shell-nav-item-icon" aria-hidden="true">
                                                         <ShellNavIcon segment={item.segment} />
@@ -535,6 +535,18 @@ export function AppShell() {
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
                         <Box className="app-shell-topbar-actions">
+                            <Button
+                                color="inherit"
+                                onClick={() => {
+                                    navigate('/appstore')
+                                }}
+                                size="small"
+                                className="app-shell-topbar-pill"
+                                title={t('nav.appStore.label')}
+                                startIcon={<ShellNavIcon segment="appstore" />}
+                            >
+                                {t('nav.appStore.label')}
+                            </Button>
                             <Button
                                 color="inherit"
                                 onClick={(event) => {
@@ -695,46 +707,6 @@ export function AppShell() {
                                 </ListItemButton>
                             )
                         })}
-                    </List>
-                </Box>
-            </Menu>
-
-            <Menu
-                anchorEl={deployMenuAnchor}
-                open={Boolean(deployMenuAnchor)}
-                onClose={() => {
-                    setDeployMenuAnchor(null)
-                }}
-                sx={{ zIndex: 1700 }}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                slotProps={{
-                    paper: {
-                        className: `app-shell-account-menu app-shell-account-menu--${colorMode}`,
-                        sx: { mt: 0.75, minWidth: 196 },
-                    },
-                }}
-            >
-                <Box className="app-shell-account-panel">
-                    <Typography className="app-shell-account-section-label">
-                        {t('applicationsHubPage.menu.title')}
-                    </Typography>
-                    <List disablePadding className="app-shell-account-links">
-                        {myAppsDeployTargets.map((item) => (
-                            <ListItemButton
-                                key={item.key}
-                                className="app-shell-account-link"
-                                onClick={() => {
-                                    setDeployMenuAnchor(null)
-                                    navigate(item.to)
-                                }}
-                            >
-                                <Box className="app-shell-account-link-icon">
-                                    <ShellNavIcon segment={item.icon} />
-                                </Box>
-                                <Typography className="app-shell-account-link-title">{item.label}</Typography>
-                            </ListItemButton>
-                        ))}
                     </List>
                 </Box>
             </Menu>

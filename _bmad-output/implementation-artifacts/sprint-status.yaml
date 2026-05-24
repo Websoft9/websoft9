@@ -28,7 +28,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-04-22T00:00:00Z
-last_updated: 2026-05-18T00:00:00Z
+last_updated: 2026-05-21T00:00:00Z
 project: websoft9
 project_key: NOKEY
 tracking_system: file-system
@@ -71,6 +71,9 @@ development_status:
   4-1-build-the-home-overview-and-global-task-feedback-baseline: done
   4-2-build-minimal-product-side-login-and-administrator-initialization: done
   4-3-build-the-basic-user-management-entry: done
+  4-3a-establish-the-design-system-foundation-and-page-template-baseline: review
+  4-3b-redefine-the-product-visual-system-and-canonical-page-families: review
+  4-3c-enforce-shared-design-tokens-and-priority-page-convergence: review
   4-4-build-the-backup-list-and-restore-loop: backlog
   4-5-build-the-controlled-file-management-workspace: ready-for-dev
   4-6-build-the-controlled-terminal-bridge-and-session-audit: ready-for-dev

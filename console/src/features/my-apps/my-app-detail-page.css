@@ -38,12 +38,15 @@
     --myapps-detail-action-disabled-bg: #eef2f6;
     --myapps-detail-action-disabled-text: #94a3b8;
     --myapps-detail-nav-hover-bg: #eef2f7;
-    --myapps-detail-nav-active-bg: rgba(59, 130, 246, 0.12);
-    --myapps-detail-nav-active-text: #2563eb;
+    --myapps-detail-nav-active-bg: #1767d1;
+    --myapps-detail-nav-active-text: #ffffff;
     background-color: var(--myapps-detail-overlay);
     padding: 24px 16px;
     overflow: auto;
     box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
 }
 
 .app-shell-root--dark .myapps-detail-overlay,
@@ -83,8 +86,8 @@
     --myapps-detail-action-disabled-bg: #162033;
     --myapps-detail-action-disabled-text: #64748b;
     --myapps-detail-nav-hover-bg: #1f2937;
-    --myapps-detail-nav-active-bg: rgba(96, 165, 250, 0.16);
-    --myapps-detail-nav-active-text: #93c5fd;
+    --myapps-detail-nav-active-bg: #1767d1;
+    --myapps-detail-nav-active-text: #ffffff;
 }
 
 .myapps-detail-shell {
@@ -108,11 +111,6 @@
 
 .myapps-detail-header {
     border-bottom: 1px solid var(--myapps-detail-border);
-    padding: 0;
-    background: var(--myapps-detail-shell-bg);
-}
-
-.myapps-detail-header-row {
     display: flex;
     align-items: center;
     width: 100%;
@@ -120,7 +118,16 @@
     gap: 0;
 }
 
-.myapps-detail-shell .appstore-item-content-icon {
+.myapps-detail-header-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    gap: 0;
+    flex-wrap: nowrap;
+}
+
+.myapps-detail-header-row>.appstore-item-content-icon {
     width: 100px;
     min-width: 100px;
     max-width: 100px;
@@ -168,9 +175,38 @@
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
+    flex: 0 0 auto;
+    width: auto;
     gap: 8px;
     margin-left: auto;
     padding-right: 2px;
+}
+
+.myapps-detail-toolbar-close,
+.myapps-detail-toolbar-close.MuiButtonBase-root {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
+    border: none !important;
+    border-radius: 999px;
+    background-color: transparent !important;
+    color: var(--myapps-detail-action-text);
+    box-shadow: none;
+    transition: color 120ms ease, opacity 120ms ease;
+}
+
+.myapps-detail-toolbar-close:hover,
+.myapps-detail-toolbar-close.MuiButtonBase-root:hover {
+    background-color: transparent !important;
+    color: var(--myapps-detail-action-text-hover);
+    opacity: 0.84;
+}
+
+.myapps-detail-toolbar-close>svg {
+    width: 16px;
+    height: 16px;
+    display: block;
 }
 
 .myapps-action-btn {
@@ -312,18 +348,28 @@
 
 .myapps-detail-body {
     padding: 14px 14px 20px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .myapps-detail-layout {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: stretch;
+    gap: 0;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .myapps-detail-nav-col {
-    width: 224px;
-    min-width: 224px;
+    width: 216px;
+    min-width: 216px;
     flex: 0 0 auto;
+    border-right: 1px solid var(--myapps-detail-border);
+    padding-right: 14px;
+    min-height: 100%;
 }
 
 .myapps-detail-content-col {
@@ -331,7 +377,89 @@
     min-width: 0;
     background: transparent;
     border: 0;
-    padding: 0 0 0 14px;
+    padding: 0 0 0 18px;
+}
+
+.myapps-overview-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: min(100%, 960px);
+}
+
+.myapps-overview-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 18px 22px;
+    border: 1px solid var(--myapps-detail-border);
+    background: linear-gradient(180deg, var(--myapps-detail-surface) 0%, var(--myapps-detail-surface-soft) 100%);
+    box-shadow: var(--myapps-detail-shadow-card);
+}
+
+.myapps-overview-kicker {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--myapps-detail-nav-active-text);
+}
+
+.myapps-overview-heading {
+    margin-top: 6px;
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+    line-height: 1.2;
+}
+
+.myapps-overview-subtitle {
+    margin-top: 4px;
+    color: var(--myapps-detail-muted);
+    font-size: 0.95rem;
+}
+
+.myapps-overview-highlights {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+    gap: 12px;
+    min-width: min(100%, 480px);
+}
+
+.myapps-overview-highlight {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+}
+
+.myapps-overview-highlight-label {
+    color: var(--myapps-detail-subtle);
+    font-size: 0.8rem;
+}
+
+.myapps-overview-highlight-value {
+    color: var(--myapps-detail-text-strong);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.myapps-overview-card {
+    width: 100%;
+}
+
+.myapps-detail-toolbar-button,
+.myapps-detail-toolbar-button.MuiButton-root {
+    border: none !important;
+    min-width: 36px;
+}
+
+.myapps-detail-toolbar-button .noti-icon,
+.myapps-detail-toolbar-button.MuiButton-root .noti-icon {
+    color: inherit;
 }
 
 .myapps-detail-nav-col .nav {
@@ -484,36 +612,48 @@
 
 .myapps-uninstall-layout {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
     padding: 14px 0 18px;
 }
 
 .myapps-uninstall-copy {
     max-width: 760px;
-    flex: 1 1 560px;
+    flex: 0 0 auto;
 }
 
 .myapps-uninstall-actions {
-    margin-left: auto;
-    padding-top: 2px;
-    padding-right: 2px;
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    margin-top: 18px;
+    padding-top: 0;
+    padding-right: 0;
 }
 
 .myapps-uninstall-btn {
     align-self: flex-start;
-    min-width: 58px;
-    height: 32px;
-    padding: 5px 12px;
-    border: 1px solid var(--myapps-detail-warning);
-    border-radius: 3px;
-    background: var(--myapps-detail-warning);
-    color: var(--myapps-detail-warning-text);
+    min-width: 88px;
+    height: 34px;
+    padding: 5px 16px;
+    border: 1px solid #ffbc00;
+    border-radius: 0;
+    background: #ffbc00;
+    color: #313a46;
     font-size: 14px;
-    font-weight: 400;
+    font-weight: 500;
     cursor: pointer;
+    box-shadow: none;
+}
+
+.myapps-uninstall-btn:hover,
+.myapps-uninstall-btn:focus,
+.myapps-uninstall-btn:focus-visible {
+    border-color: #e0a700;
+    background: #e0a700;
+    color: #313a46;
+    outline: none;
 }
 
 .myapps-uninstall-btn:disabled {
@@ -650,6 +790,32 @@
     color: var(--myapps-detail-muted);
 }
 
+.myapps-overview-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.myapps-overview-data-table th,
+.myapps-overview-data-table td {
+    padding: 18px 10px;
+    border-bottom: 1px solid var(--myapps-detail-border);
+    vertical-align: middle;
+    text-align: left;
+    font-size: 14px;
+}
+
+.myapps-overview-data-table th {
+    width: 220px;
+    font-weight: 700;
+    color: var(--myapps-detail-text);
+}
+
+.myapps-overview-data-table td {
+    color: var(--myapps-detail-muted);
+    word-break: break-word;
+}
+
 .myapps-database-password-cell {
     display: flex;
     align-items: center;
@@ -749,9 +915,111 @@
     gap: 10px;
 }
 
+.myapps-inline-icon-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--myapps-detail-accent);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.myapps-inline-icon-action:hover,
+.myapps-inline-icon-action:focus,
+.myapps-inline-icon-action:focus-visible {
+    color: var(--myapps-detail-accent-hover);
+    outline: none;
+}
+
+.myapps-inline-icon-action:disabled {
+    color: var(--myapps-detail-subtle);
+    cursor: default;
+}
+
+.myapps-inline-icon-action-neutral {
+    color: var(--myapps-detail-text);
+}
+
+.myapps-inline-icon-action-neutral:hover,
+.myapps-inline-icon-action-neutral:focus,
+.myapps-inline-icon-action-neutral:focus-visible {
+    color: var(--myapps-detail-text);
+    opacity: 0.72;
+}
+
+.myapps-inline-icon-action-compact {
+    min-width: 24px;
+    justify-content: center;
+}
+
+.myapps-icon-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--myapps-detail-action-border);
+    background: var(--myapps-detail-action-bg);
+    color: var(--myapps-detail-action-text);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.myapps-icon-action-btn:hover,
+.myapps-icon-action-btn:focus,
+.myapps-icon-action-btn:focus-visible {
+    background: var(--myapps-detail-action-hover);
+    border-color: var(--myapps-detail-action-border-strong);
+    color: var(--myapps-detail-action-text-hover);
+    outline: none;
+}
+
+.myapps-icon-action-btn-primary {
+    background: var(--myapps-detail-accent);
+    border-color: var(--myapps-detail-accent);
+    color: var(--myapps-detail-accent-contrast);
+}
+
+.myapps-icon-action-btn-primary:hover,
+.myapps-icon-action-btn-primary:focus,
+.myapps-icon-action-btn-primary:focus-visible {
+    background: var(--myapps-detail-accent-hover);
+    border-color: var(--myapps-detail-accent-hover);
+    color: var(--myapps-detail-accent-contrast);
+}
+
 .myapps-table-wrap {
     width: 100%;
     overflow-x: auto;
+}
+
+.myapps-table-wrap-overlay {
+    position: relative;
+}
+
+.myapps-backup-list-region {
+    position: relative;
+}
+
+.myapps-backup-list-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.myapps-backup-table-shell {
+    padding: 0;
+}
+
+.myapps-backup-detail-table th,
+.myapps-backup-detail-table td {
+    padding: 18px 10px;
 }
 
 .myapps-detail-table {
@@ -811,10 +1079,45 @@
     text-align: center !important;
 }
 
+.myapps-empty-cell-placeholder {
+    color: transparent !important;
+}
+
 .myapps-table-loading {
     display: flex;
     justify-content: center;
     padding: 16px 0;
+}
+
+.myapps-table-inline-loading-cell {
+    padding: 18px 12px !important;
+    text-align: center !important;
+}
+
+.myapps-table-inline-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--myapps-detail-subtle);
+}
+
+.myapps-table-overlay-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--myapps-detail-shell-bg) 84%, transparent);
+}
+
+.myapps-table-overlay-loading-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+    color: var(--myapps-detail-text);
 }
 
 .myapps-volume-card {
@@ -851,9 +1154,74 @@
 }
 
 .myapps-access-panel {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 18px;
+    min-height: 320px;
+}
+
+.myapps-access-hero-card,
+.myapps-access-stage-card {
+    border: 1px solid var(--myapps-detail-border);
+    background: linear-gradient(180deg, var(--myapps-detail-surface) 0%, var(--myapps-detail-surface-soft) 100%);
+    box-shadow: var(--myapps-detail-shadow-card);
+}
+
+.myapps-access-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--myapps-detail-muted);
+    font-size: 14px;
+    background: color-mix(in srgb, var(--myapps-detail-bg) 84%, transparent);
+    border: 1px solid var(--myapps-detail-border);
+    backdrop-filter: blur(2px);
+}
+
+.myapps-access-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+}
+
+.myapps-access-switch-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-access-switch-note,
+.myapps-access-published-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-access-target-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: 14px;
+}
+
+.myapps-access-target-inline-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(120px, 0.7fr) minmax(140px, 0.7fr);
+    gap: 12px;
+}
+
+.myapps-access-link-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .myapps-access-accordion {
@@ -893,18 +1261,123 @@
 }
 
 .myapps-access-card {
-    border-color: var(--myapps-detail-border);
+    border: none;
+    background: transparent;
+    box-shadow: none;
 }
 
 .myapps-access-card-header {
     min-height: 34px;
-    padding: 12px 18px;
+    padding: 0 0 12px;
     display: flex;
     justify-content: space-between;
 }
 
 .myapps-access-card-body {
-    padding: 18px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.myapps-access-settings-group {
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 8px;
+    background: var(--myapps-detail-surface);
+    overflow: visible;
+}
+
+.myapps-access-settings-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+}
+
+.myapps-access-settings-summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+}
+
+.myapps-access-settings-summary-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.myapps-access-settings-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.myapps-access-save-button.MuiButton-root {
+    min-width: 72px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 6px;
+    box-shadow: none;
+}
+
+.myapps-access-save-button.MuiButton-root:hover {
+    box-shadow: none;
+}
+
+.myapps-access-settings-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-access-settings-field {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    column-gap: 16px;
+    align-items: start;
+}
+
+.myapps-access-settings-field-summary {
+    align-items: center;
+}
+
+.myapps-access-settings-field-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+    padding-top: 10px;
+}
+
+.myapps-access-form-control .MuiOutlinedInput-root {
+    min-height: 44px;
+    border-radius: 8px;
+    background: var(--myapps-detail-surface);
+}
+
+.myapps-access-form-control .MuiOutlinedInput-input,
+.myapps-access-form-control .MuiSelect-select {
+    font-size: 14px;
+}
+
+.myapps-access-form-control .MuiFormHelperText-root {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.myapps-access-settings-group .myapps-access-panel-row {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 14px 16px;
+}
+
+.myapps-access-settings-group .myapps-access-panel-row+.myapps-access-panel-row {
+    border-top: 1px solid var(--myapps-detail-border);
 }
 
 .myapps-access-domain-row {
@@ -929,7 +1402,372 @@
 .myapps-access-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+}
+
+.myapps-access-form-note {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-access-panel-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 6px;
+    background: var(--myapps-detail-surface);
+}
+
+.myapps-access-panel-row-main {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.myapps-access-panel-row-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+    align-self: start;
+    padding-top: 10px;
+}
+
+.myapps-access-inline-empty {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-access-inline-hint {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-access-editor-enter {
+    animation: myapps-access-editor-reveal 180ms ease-out;
+    transform-origin: top left;
+}
+
+.myapps-access-status-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.myapps-access-status-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+}
+
+.myapps-access-status-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-access-status-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+}
+
+.myapps-access-status-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--myapps-detail-text);
+}
+
+.myapps-access-binding-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 8px;
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-access-binding-item+.myapps-access-binding-item {
+    margin-top: 12px;
+}
+
+.myapps-access-binding-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.myapps-access-binding-content .myapps-access-settings-field {
+    grid-template-columns: 88px minmax(0, 1fr);
+    column-gap: 12px;
+}
+
+.myapps-access-binding-content .myapps-access-settings-field-label {
+    padding-top: 2px;
+}
+
+.myapps-access-status-chip.MuiChip-root {
+    border-radius: 4px;
+    max-width: 100%;
+}
+
+.myapps-access-status-chip .MuiChip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.myapps-domain-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.myapps-domain-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.myapps-domain-editor-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-domain-editor-shell {
+    min-height: 44px;
+    flex: 1;
+    border: 1px solid rgba(17, 24, 39, 0.23);
+    border-radius: 8px;
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--myapps-detail-surface);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.myapps-domain-editor-shell:focus-within {
+    border-color: #1976d2;
+    box-shadow: 0 0 0 1px #1976d2;
+}
+
+.myapps-domain-editor-chip.MuiChip-root {
+    border-radius: 4px;
+}
+
+.myapps-domain-editor-input {
+    flex: 1;
+    min-width: 180px;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--myapps-detail-text);
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.4375em;
+    padding: 6px 0;
+}
+
+.myapps-domain-editor-input::placeholder {
+    color: var(--myapps-detail-subtle);
+}
+
+.myapps-domain-editor-helper {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--myapps-detail-muted);
+    padding-left: 2px;
+}
+
+.myapps-access-toggle-field {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    padding-top: 6px;
+}
+
+.myapps-access-toggle-field .MuiFormControlLabel-root {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.myapps-access-toggle-field .MuiTypography-root {
+    display: none;
+}
+
+.myapps-access-certificate-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-left: 136px;
+}
+
+.myapps-access-certificate-empty-state {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.myapps-access-target-grid-single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.myapps-access-picker-shell,
+.myapps-access-certificate-picker {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.myapps-access-picker-trigger {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid rgba(17, 24, 39, 0.23);
+    border-radius: 8px;
+    background: var(--myapps-detail-surface);
+    color: var(--myapps-detail-text);
+    padding: 9px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.myapps-access-picker-trigger.is-open,
+.myapps-access-picker-trigger:hover,
+.myapps-access-picker-trigger:focus-visible {
+    border-color: #1976d2;
+    box-shadow: 0 0 0 1px #1976d2;
+    outline: none;
+}
+
+.myapps-access-picker-icon {
+    color: var(--myapps-detail-subtle);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 120ms ease;
+}
+
+.myapps-access-picker-icon.is-open {
+    transform: rotate(180deg);
+}
+
+.myapps-access-picker-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 10px;
+    background: var(--myapps-detail-surface);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.myapps-access-picker-menu.is-top {
+    top: auto;
+    bottom: calc(100% + 6px);
+}
+
+.myapps-access-picker-option {
+    border: none;
+    background: transparent;
+    color: inherit;
+    width: 100%;
+    padding: 10px 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 120ms ease;
+}
+
+.myapps-access-picker-option+.myapps-access-picker-option {
+    border-top: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-access-picker-option:hover,
+.myapps-access-picker-option:focus-visible {
+    background: var(--myapps-detail-surface-soft);
+    outline: none;
+}
+
+.myapps-access-picker-option.is-selected {
+    background: var(--myapps-detail-accent-soft);
+}
+
+.myapps-access-picker-helper {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--myapps-detail-muted);
+    padding-left: 2px;
+}
+
+.myapps-access-select-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.myapps-access-select-option-label {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--myapps-detail-subtle);
+}
+
+.myapps-access-select-option-title {
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--myapps-detail-text);
+}
+
+.myapps-access-select-option-copy {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-domain-editor-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .myapps-access-form-actions {
@@ -952,13 +1790,31 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 12px;
     color: var(--myapps-detail-text);
+    flex-wrap: wrap;
+}
+
+.myapps-access-link-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .myapps-access-link-label {
     font-weight: 700;
     min-width: 56px;
+}
+
+@keyframes myapps-access-editor-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scaleY(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+    }
 }
 
 .myapps-access-account-row {
@@ -980,9 +1836,9 @@
 }
 
 .myapps-access-account-field-wrap {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
     flex: 1;
 }
 
@@ -992,12 +1848,16 @@
     height: 38px;
     border: 1px solid var(--myapps-detail-border-strong);
     border-radius: 4px;
-    padding: 0 12px;
+    padding: 0 78px 0 12px;
     color: var(--myapps-detail-muted);
     background: var(--myapps-detail-surface-muted);
 }
 
 .myapps-access-account-actions {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1042,10 +1902,14 @@
     }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 760px) {
     .myapps-detail-header-row {
         flex-wrap: wrap;
         align-items: flex-start;
+    }
+
+    .myapps-detail-header-row>.appstore-item-content-icon {
+        padding-left: 0;
     }
 
     .myapps-detail-actions {
@@ -1056,12 +1920,12 @@
     }
 
     .myapps-detail-layout {
-        gap: 12px;
+        gap: 0;
     }
 
     .myapps-detail-nav-col {
-        width: 200px;
-        min-width: 200px;
+        width: 196px;
+        min-width: 196px;
     }
 
     .myapps-overview-table {
@@ -1081,10 +1945,21 @@
     .myapps-detail-nav-col {
         width: 100%;
         min-width: 0;
+        border-right: 0;
+        padding-right: 0;
     }
 
     .myapps-detail-content-col {
         padding: 14px;
+    }
+
+    .myapps-overview-hero {
+        flex-direction: column;
+    }
+
+    .myapps-overview-highlights {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-width: 0;
     }
 
     .myapps-detail-actions {
@@ -1099,6 +1974,65 @@
     .myapps-card-header-actions {
         width: 100%;
         flex-wrap: wrap;
+    }
+
+    .myapps-overview-highlights {
+        grid-template-columns: 1fr;
+    }
+
+    .myapps-access-target-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .myapps-access-panel-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .myapps-access-panel-row-main {
+        grid-template-columns: 1fr;
+    }
+
+    .myapps-access-settings-summary {
+        flex-direction: column;
+    }
+
+    .myapps-access-settings-editor-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .myapps-access-settings-field {
+        grid-template-columns: 1fr;
+    }
+
+    .myapps-access-target-inline-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .myapps-access-settings-field-label {
+        padding-top: 0;
+    }
+
+    .myapps-access-panel-row-label {
+        padding-top: 0;
+    }
+
+    .myapps-domain-editor-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .myapps-domain-editor-actions {
+        justify-content: flex-end;
+    }
+
+    .myapps-access-certificate-editor {
+        padding-left: 0;
+    }
+
+    .myapps-access-status-row {
+        grid-template-columns: 1fr;
     }
 
     .myapps-access-account-row {

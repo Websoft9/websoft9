@@ -38,7 +38,7 @@ export const integrationDefinitions: IntegrationDefinition[] = [
         directPath: '/w9deployment/',
     },
     {
-        authMarkers: ['name="identity"', 'name="secret"', 'Forgot your password?'],
+        authMarkers: ['Login to your account', 'Email address', 'Password', 'Sign in'],
         authPaths: ['/login'],
         diagnosticsPath: '/w9proxy/',
         entrySegment: 'gateway',

@@ -53,15 +53,8 @@ export function useAppStoreCatalogs() {
     return useQuery<AppStoreCatalogItem[], AppStoreCatalogError>({
         queryKey: ['app-store-catalogs', apiLocale],
         queryFn: async () => {
-            try {
-                const staticCatalogs = await fetchCatalogJson<AppStoreCatalogItem[]>(`/media/json/catalog_${apiLocale}.json`, 'Failed to load static app store catalogs')
-                return sortCatalogs(staticCatalogs)
-            } catch {
-                // Compatibility-only fallback while the static product JSON path
-                // remains the intended primary source for App Store browsing.
-                const catalogs = await fetchCatalogJson<AppStoreCatalogItem[]>(`/api/apps/catalog/${apiLocale}`, 'Failed to load app store catalogs')
-                return sortCatalogs(catalogs)
-            }
+            const catalogs = await fetchCatalogJson<AppStoreCatalogItem[]>(`/api/apps/catalog/${apiLocale}`, 'Failed to load app store catalogs')
+            return sortCatalogs(catalogs)
         },
         staleTime: 60_000,
     })
