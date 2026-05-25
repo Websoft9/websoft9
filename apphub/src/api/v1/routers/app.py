@@ -16,7 +16,7 @@ from src.schemas.appInstall import appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
-from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest
+from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_access_manager import AppAccessManager
 from src.services.app_manager import AppManger
@@ -186,6 +186,25 @@ def issue_app_letsencrypt_certificate(
     endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
     return AppAccessManager().issue_letsencrypt_certificate(app_id, payload.email, payload.domain_names, payload.proxy_id, endpointId)
+
+@router.post(
+    "/apps/{app_id}/access/certificates/custom",
+    summary="Upload Custom SSL Certificate",
+    description="Upload a custom PEM certificate and key through Nginx Proxy Manager and optionally bind it to a proxy host",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def upload_app_custom_certificate(
+    payload: AppAccessCustomCertificateRequest = Body(...),
+    app_id: str = Path(..., description="App ID to upload a certificate for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    return AppAccessManager().upload_custom_certificate(
+        app_id, payload.nice_name, payload.certificate_pem, payload.key_pem, payload.proxy_id, payload.domain_names, endpointId
+    )
 
 @router.get(
         "/apps/{app_id}/php",

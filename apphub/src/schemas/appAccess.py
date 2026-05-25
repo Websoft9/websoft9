@@ -81,3 +81,31 @@ class AppAccessCertificateRequest(BaseModel):
         if not normalized:
             raise CustomException(400, "Invalid Request", "domain_names cannot be empty")
         return normalized
+
+
+class AppAccessCustomCertificateRequest(BaseModel):
+    nice_name: str = Field(..., description="Display name for the certificate")
+    certificate_pem: str = Field(..., description="PEM-encoded certificate content")
+    key_pem: str = Field(..., description="PEM-encoded private key content")
+    proxy_id: Optional[int] = Field(default=None, description="Optional proxy host to bind after uploading the certificate")
+    domain_names: Optional[list[str]] = Field(default=None, description="Domain names to use for the proxy binding")
+
+    @validator("nice_name")
+    def validate_nice_name(cls, value: str):
+        if not value.strip():
+            raise CustomException(400, "Invalid Request", "nice_name cannot be empty")
+        return value.strip()
+
+    @validator("certificate_pem")
+    def validate_certificate_pem(cls, value: str):
+        stripped = value.strip()
+        if not stripped or "BEGIN CERTIFICATE" not in stripped:
+            raise CustomException(400, "Invalid Request", "certificate_pem must be a valid PEM-encoded certificate")
+        return stripped
+
+    @validator("key_pem")
+    def validate_key_pem(cls, value: str):
+        stripped = value.strip()
+        if not stripped or ("BEGIN" not in stripped and "PRIVATE KEY" not in stripped):
+            raise CustomException(400, "Invalid Request", "key_pem must be a valid PEM-encoded private key")
+        return stripped

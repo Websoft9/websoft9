@@ -56,10 +56,10 @@
     position: relative;
     z-index: 1;
     margin-top: 4px;
-    font-size: 34px !important;
+    font-size: 24px !important;
     line-height: 1 !important;
     font-weight: 500 !important;
-    letter-spacing: -0.05em;
+    letter-spacing: -0.03em;
     color: var(--overview-title);
 }
 

@@ -1,36 +1,29 @@
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, IconButton, Snackbar, Switch, TextField } from '@mui/material'
-import type { ReactNode } from 'react'
+import { Alert, Button, CircularProgress, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, IconButton, Snackbar, Switch, TextField } from '@mui/material'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
+import { SurfaceDialog } from '../../shared/design-system/standard-surfaces'
 import { useMyAppAccess } from './use-my-app-access'
+
+type ContentScopeRect = {
+    top: number
+    left: number
+    width: number
+    height: number
+}
 
 type MyAppAccessPanelProps = {
     appId: string
     env?: Record<string, string>
     isComposeApp: boolean
     onUpdated: () => Promise<void> | void
+    scopeRect?: ContentScopeRect | null
+    isDarkMode?: boolean
 }
 
 type AccessFeedback = {
     severity: 'success' | 'error'
     message: string
-}
-
-type DomainTagEditorProps = {
-    label?: string
-    helperText: string
-    placeholder: string
-    value: string[]
-    onChange: (nextValue: string[]) => void
-    actions?: ReactNode
-}
-
-type PickerOption = {
-    value: string
-    title: string
-    description?: string
 }
 
 type AccountEntry = {
@@ -39,43 +32,59 @@ type AccountEntry = {
     isPassword: boolean
 }
 
+type CertDialogType = 'selfsigned' | 'letsencrypt' | 'custom'
+
 function IconDelete() {
     return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2h4v2H4V6h4l1-2z" /></svg>
 }
 
-function IconExpandMore() {
-    return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg>
-}
-
-function IconEdit() {
-    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83z" /></svg>
-}
-
-function IconSave() {
-    return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zM7 5h8v4H7V5zm12 14H5V5h1v6h10V5h.17L19 7.83V19zm-7-1a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" /></svg>
-}
-
-function IconCancel() {
-    return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12z" /></svg>
-}
-
 function IconEye() {
-    return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.2A2.8 2.8 0 1 0 12 9.2a2.8 2.8 0 0 0 0 5.6z" /></svg>
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.2A2.8 2.8 0 1 0 12 9.2a2.8 2.8 0 0 0 0 5.6z" /></svg>
 }
 
 function IconEyeOff() {
-    return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="m3.28 2 18.72 18.72-1.41 1.41-3.02-3.02A12.72 12.72 0 0 1 12 20c-5 0-9.27-3.11-11-7a12.67 12.67 0 0 1 4.32-5.04L1.86 3.41 3.28 2zm6.1 6.1 1.53 1.53A2.96 2.96 0 0 0 9 12c0 1.66 1.34 3 3 3 .52 0 1.01-.13 1.44-.37l1.53 1.53A4.93 4.93 0 0 1 12 17a5 5 0 0 1-5-5c0-1.13.37-2.18 1-3.1zm2.98-2.04A5 5 0 0 1 17 11c0 .72-.15 1.4-.42 2.02l3.1 3.1A12.82 12.82 0 0 0 23 13c-1.73-3.89-6-7-11-7-1.58 0-3.1.31-4.48.88l2.31 2.31A4.98 4.98 0 0 1 12 7c.12 0 .24 0 .36.01z" /></svg>
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="m3.28 2 18.72 18.72-1.41 1.41-3.02-3.02A12.72 12.72 0 0 1 12 20c-5 0-9.27-3.11-11-7a12.67 12.67 0 0 1 4.32-5.04L1.86 3.41 3.28 2zm6.1 6.1 1.53 1.53A2.96 2.96 0 0 0 9 12c0 1.66 1.34 3 3 3 .52 0 1.01-.13 1.44-.37l1.53 1.53A4.93 4.93 0 0 1 12 17a5 5 0 0 1-5-5c0-1.13.37-2.18 1-3.1zm2.98-2.04A5 5 0 0 1 17 11c0 .72-.15 1.4-.42 2.02l3.1 3.1A12.82 12.82 0 0 0 23 13c-1.73-3.89-6-7-11-7-1.58 0-3.1.31-4.48.88l2.31 2.31A4.98 4.98 0 0 1 12 7c.12 0 .24 0 .36.01z" /></svg>
 }
 
 function IconCopy() {
-    return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm4 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h12v14z" /></svg>
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1zm4 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h12v14z" /></svg>
+}
+
+function IconPlus() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+}
+
+function IconExternalLink() {
+    return <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" /></svg>
+}
+
+function IconGlobe() {
+    return <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style={{ color: 'var(--myapps-detail-muted)', flexShrink: 0 }}><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" /></svg>
+}
+
+function IconAdmin() {
+    return <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" /></svg>
+}
+
+function IconWarning() {
+    return <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style={{ flexShrink: 0, marginTop: 1 }}><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" /></svg>
+}
+
+function IconCertLE() {
+    return <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" /></svg>
+}
+
+function IconCertLock() {
+    return <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" /></svg>
+}
+
+function IconEdit() {
+    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" /></svg>
 }
 
 function normalizeDomains(value: string) {
     return Array.from(new Set(value.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean)))
 }
-
-const REQUEST_NEW_CERTIFICATE_VALUE = '__request_new_certificate__'
 
 function isDomainBindingValue(value: string) {
     const trimmed = value.trim()
@@ -93,126 +102,6 @@ function formatCertificateLabel(certificate: { nice_name?: string | null; domain
     if (certificate.domain_names?.length) return certificate.domain_names.join(', ')
     if (certificate.provider?.trim()) return certificate.provider.trim()
     return ''
-}
-
-function DomainTagEditor({ label, helperText, placeholder, value, onChange, actions }: DomainTagEditorProps) {
-    const [inputValue, setInputValue] = useState('')
-
-    function commit(rawValue: string) {
-        const nextValue = Array.from(new Set([
-            ...value,
-            ...normalizeDomains(rawValue).filter(isDomainBindingValue),
-        ]))
-        if (nextValue.length !== value.length) {
-            onChange(nextValue)
-        }
-        setInputValue('')
-    }
-
-    function removeTag(tag: string) {
-        onChange(value.filter((item) => item !== tag))
-    }
-
-    return (
-        <div className="myapps-domain-editor">
-            {label ? <div className="myapps-domain-editor-label">{label}</div> : null}
-            <div className="myapps-domain-editor-row">
-                <div className="myapps-domain-editor-shell">
-                    {value.map((tag) => (
-                        <Chip className="myapps-domain-editor-chip" key={tag} label={tag} onDelete={() => removeTag(tag)} size="small" />
-                    ))}
-                    <input
-                        className="myapps-domain-editor-input"
-                        onBlur={() => {
-                            if (inputValue.trim()) commit(inputValue)
-                        }}
-                        onChange={(event) => setInputValue(event.target.value)}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ',' || event.key === ' ') {
-                                event.preventDefault()
-                                commit(inputValue)
-                                return
-                            }
-                            if (event.key === 'Backspace' && !inputValue && value.length > 0) {
-                                event.preventDefault()
-                                removeTag(value[value.length - 1])
-                            }
-                        }}
-                        placeholder={value.length === 0 ? placeholder : ''}
-                        type="text"
-                        value={inputValue}
-                    />
-                </div>
-                {actions ? <div className="myapps-domain-editor-actions">{actions}</div> : null}
-            </div>
-            <div className="myapps-domain-editor-helper">{helperText}</div>
-        </div>
-    )
-}
-
-function InlineOptionPicker({
-    emptyDescription,
-    helperText,
-    label,
-    menuPlacement = 'bottom',
-    onSelect,
-    open,
-    options,
-    selectedValue,
-    setOpen,
-}: {
-    emptyDescription?: string
-    helperText?: string
-    label?: string
-    menuPlacement?: 'bottom' | 'top'
-    onSelect: (value: string) => void
-    open: boolean
-    options: PickerOption[]
-    selectedValue: string
-    setOpen: (open: boolean) => void
-}) {
-    const selectedOption = selectedValue ? options.find((option) => option.value === selectedValue) ?? null : null
-    const selectedCopy = selectedOption?.description ?? (!selectedOption ? emptyDescription || '' : '')
-
-    return (
-        <div className="myapps-access-picker-shell">
-            <button
-                className={`myapps-access-picker-trigger ${open ? 'is-open' : ''}`}
-                onClick={() => setOpen(!open)}
-                type="button"
-            >
-                <div className="myapps-access-select-option">
-                    {label ? <span className="myapps-access-select-option-label">{label}</span> : null}
-                    <span className="myapps-access-select-option-title">{selectedOption?.title ?? ''}</span>
-                    {selectedCopy ? <span className="myapps-access-select-option-copy">{selectedCopy}</span> : null}
-                </div>
-                <span className={`myapps-access-picker-icon ${open ? 'is-open' : ''}`}>
-                    <IconExpandMore />
-                </span>
-            </button>
-            {open ? (
-                <div className={`myapps-access-picker-menu ${menuPlacement === 'top' ? 'is-top' : ''}`}>
-                    {options.map((option) => (
-                        <button
-                            className={`myapps-access-picker-option ${option.value === selectedValue ? 'is-selected' : ''}`}
-                            key={option.value}
-                            onClick={() => {
-                                onSelect(option.value)
-                                setOpen(false)
-                            }}
-                            type="button"
-                        >
-                            <div className="myapps-access-select-option">
-                                <span className="myapps-access-select-option-title">{option.title}</span>
-                                {option.description ? <span className="myapps-access-select-option-copy">{option.description}</span> : null}
-                            </div>
-                        </button>
-                    ))}
-                </div>
-            ) : null}
-            {helperText ? <div className="myapps-access-picker-helper">{helperText}</div> : null}
-        </div>
-    )
 }
 
 function formatAccountLabel(key: string, locale: string, t: (key: string) => string) {
@@ -265,35 +154,31 @@ function getPublishedPort(candidatePorts: string[], targetPort: number | undefin
     return ''
 }
 
-export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppAccessPanelProps) {
+export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRect, isDarkMode = false }: MyAppAccessPanelProps) {
     const { t, i18n } = useTranslation('shell')
-    const navigate = useNavigate()
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const [selectedProxyId, setSelectedProxyId] = useState<number | null>(null)
-    const [selectedCertificateId, setSelectedCertificateId] = useState('0')
     const [selectedCandidateKey, setSelectedCandidateKey] = useState('')
     const [selectedContainerName, setSelectedContainerName] = useState('')
     const [selectedTargetPort, setSelectedTargetPort] = useState('')
     const [selectedScheme, setSelectedScheme] = useState<'http' | 'https'>('http')
-    const [domainDrafts, setDomainDrafts] = useState<string[]>([])
     const [certificateEmail, setCertificateEmail] = useState('')
-    const [forceHttps, setForceHttps] = useState(false)
-    const [isCertificateMenuOpen, setIsCertificateMenuOpen] = useState(false)
-    const [isTargetMenuOpen, setIsTargetMenuOpen] = useState(false)
-    const [isPortMenuOpen, setIsPortMenuOpen] = useState(false)
-    const [isSchemeMenuOpen, setIsSchemeMenuOpen] = useState(false)
-    const [isEditingDomains, setIsEditingDomains] = useState(false)
-    const [isEditingCertificate, setIsEditingCertificate] = useState(false)
-    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [customCertName, setCustomCertName] = useState('')
+    const [customCertPem, setCustomCertPem] = useState('')
+    const [customCertKeyPem, setCustomCertKeyPem] = useState('')
+    const [isBindDialogOpen, setIsBindDialogOpen] = useState(false)
+    const [bindDialogProxyId, setBindDialogProxyId] = useState<number | null>(null)
+    const [bindDialogDomain, setBindDialogDomain] = useState('')
+    const [bindDialogCertType, setBindDialogCertType] = useState<CertDialogType>('selfsigned')
+    const [bindDialogForceHttps, setBindDialogForceHttps] = useState(false)
+    const [isBindDialogSubmitting, setIsBindDialogSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
-    const [isRequestingCertificate, setIsRequestingCertificate] = useState(false)
     const [feedback, setFeedback] = useState<AccessFeedback | null>(null)
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-    const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({})
-    const { data, error, isLoading, refetch, isFetching } = useMyAppAccess(appId)
+    const [visibleCredKeys, setVisibleCredKeys] = useState<Set<string>>(new Set())
+    const { data, error, isLoading, refetch } = useMyAppAccess(appId)
     const proxyHosts = data?.proxy_hosts ?? []
     const currentProxyHost = proxyHosts.find((host) => host.proxy_id === selectedProxyId) ?? proxyHosts[0] ?? null
-    const previewProxyHost = proxyHosts[0] ?? null
     const currentProfile = data?.profile
     const hostName = typeof window !== 'undefined' ? window.location.hostname : ''
 
@@ -301,11 +186,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
         const domains = currentProxyHost?.domain_names ?? []
         return Array.from(new Set(domains.map((item) => item.trim()).filter(isDomainBindingValue)))
     }, [currentProxyHost])
-    const previewDomains = useMemo(() => {
-        const domains = previewProxyHost?.domain_names ?? []
-        return Array.from(new Set(domains.map((item) => item.trim()).filter(isDomainBindingValue)))
-    }, [previewProxyHost])
-    const previewDomain = previewDomains[0] ?? null
 
     const accountEntries = useMemo<AccountEntry[]>(() => {
         if (!env) return []
@@ -332,7 +212,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
     )
     const resolvedPublicPort = profileCandidate ? getPublishedPort(profileCandidate.published_ports, currentProfile?.forward_port) : ''
     const directPort = env?.W9_HTTP_PORT_SET || env?.W9_HTTPS_PORT_SET || resolvedPublicPort
-    const previewScheme = previewProxyHost?.certificate_id ? 'https' : currentProfile?.forward_scheme ?? 'http'
     const frontendHref = directPort ? `${currentProfile?.forward_scheme === 'https' ? 'https' : 'http'}://${hostName}:${directPort}` : null
     const backendHref = frontendHref && env?.W9_ADMIN_PATH ? `${frontendHref}${env.W9_ADMIN_PATH}` : null
     const showTargetSection = isComposeApp || !currentProfile?.locked
@@ -354,54 +233,10 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
         }
         return certificates
     }, [currentCertificateLabel, currentDomains, currentProxyHost?.certificate_id, data?.certificates])
-    const certificateOptions = useMemo(() => {
-        const existingOptions = availableCertificates.map((certificate) => ({
-            value: String(certificate.id),
-            title: certificate.nice_name || certificate.domain_names?.join(', ') || `#${certificate.id}`,
-        }))
-
-        return [
-            ...existingOptions,
-            {
-                value: REQUEST_NEW_CERTIFICATE_VALUE,
-                title: t('myAppsDetailPage.accessPanel.requestNewCertificate'),
-            },
-            {
-                value: '0',
-                title: t('myAppsDetailPage.accessPanel.noCertificate'),
-            },
-        ]
-    }, [availableCertificates, t])
-    const selectedCertificateOption = useMemo(() => {
-        return certificateOptions.find((option) => option.value === selectedCertificateId) ?? certificateOptions[certificateOptions.length - 1] ?? null
-    }, [certificateOptions, selectedCertificateId])
-    const candidateOptions = useMemo<PickerOption[]>(() => {
-        const seen = new Set<string>()
-        return (data?.candidates ?? []).flatMap((candidate) => {
-            if (seen.has(candidate.container_name)) {
-                return []
-            }
-            seen.add(candidate.container_name)
-            return [{
-                value: candidate.container_name,
-                title: candidate.container_name,
-            }]
-        })
-    }, [data?.candidates])
-    const portOptions = useMemo<PickerOption[]>(() => {
-        return (data?.candidates ?? [])
-            .filter((candidate) => candidate.container_name === selectedContainerName)
-            .map((candidate) => ({
-                value: String(candidate.forward_port),
-                title: String(candidate.forward_port),
-            }))
-    }, [data?.candidates, selectedContainerName])
-    const schemeOptions = useMemo<PickerOption[]>(() => ([
-        { value: 'http', title: 'HTTP' },
-        { value: 'https', title: 'HTTPS' },
-    ]), [])
-    const isRequestingNewCertificate = selectedCertificateId === REQUEST_NEW_CERTIFICATE_VALUE
-    const isEditingSettings = isEditingDomains || isEditingCertificate
+    const defaultSelfSignedCert = useMemo(
+        () => availableCertificates.find((cert) => cert.provider !== 'letsencrypt') ?? null,
+        [availableCertificates],
+    )
 
     useEffect(() => {
         if (proxyHosts.length === 0) {
@@ -412,40 +247,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
             setSelectedProxyId(proxyHosts[0].proxy_id)
         }
     }, [proxyHosts, selectedProxyId])
-
-    useEffect(() => {
-        setDomainDrafts(currentDomains)
-    }, [currentDomains])
-
-    useEffect(() => {
-        setSelectedCertificateId(String(currentProxyHost?.certificate_id ?? 0))
-    }, [currentProxyHost?.certificate_id])
-
-    useEffect(() => {
-        if (!isEditingDomains) {
-            setDomainDrafts(currentDomains)
-        }
-    }, [currentDomains, isEditingDomains])
-
-    useEffect(() => {
-        if (!isEditingCertificate) {
-            setSelectedCertificateId(String(currentProxyHost?.certificate_id ?? 0))
-            setCertificateEmail('')
-        }
-    }, [currentProxyHost?.certificate_id, isEditingCertificate])
-
-    useEffect(() => {
-        setForceHttps(Boolean(currentProxyHost?.ssl_forced && currentProxyHost?.certificate_id))
-    }, [currentProxyHost?.certificate_id, currentProxyHost?.ssl_forced])
-
-    useEffect(() => {
-        if (!isEditingSettings) {
-            setIsCertificateMenuOpen(false)
-            setIsTargetMenuOpen(false)
-            setIsPortMenuOpen(false)
-            setIsSchemeMenuOpen(false)
-        }
-    }, [isEditingSettings])
 
     useEffect(() => {
         if (!currentProfile) return
@@ -509,7 +310,8 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
         }
     }
 
-    async function ensureDomainBinding(nextDomains: string[], certificateId: number | null, sslForced: boolean) {
+    async function ensureDomainBinding(nextDomains: string[], certificateId: number | null, sslForced: boolean, overrideProxyId?: number | null) {
+        const effectiveProxyId = overrideProxyId !== undefined ? overrideProxyId : (currentProxyHost?.proxy_id ?? null)
         const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/access/domains`, {
             method: 'PUT',
             credentials: 'include',
@@ -521,7 +323,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
                 domain_names: nextDomains,
                 certificate_id: certificateId,
                 ssl_forced: sslForced,
-                proxy_id: currentProxyHost?.proxy_id ?? null,
+                proxy_id: effectiveProxyId,
             }),
         })
 
@@ -530,45 +332,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
         }
 
         return response.json() as Promise<{ proxy_id?: number }>
-    }
-
-    async function handleSubmit() {
-        const nextDomains = domainDrafts
-        if (nextDomains.length === 0) {
-            setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.validation') })
-            return
-        }
-        if (forceHttps && selectedCertificateId === '0') {
-            setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.forceHttpsRequiresCertificate') })
-            return
-        }
-
-        setIsSubmitting(true)
-        setFeedback(null)
-
-        try {
-            await persistProfileSelection()
-            const binding = await ensureDomainBinding(nextDomains, selectedCertificateId === '0' ? null : Number(selectedCertificateId), forceHttps)
-            if (binding.proxy_id) {
-                setSelectedProxyId(binding.proxy_id)
-            }
-
-            await refetch()
-            await onUpdated()
-            setIsEditingDomains(false)
-            setIsEditingCertificate(false)
-            setFeedback({
-                severity: 'success',
-                message: t(currentProxyHost ? 'myAppsDetailPage.accessPanel.updateSuccess' : 'myAppsDetailPage.accessPanel.createSuccess'),
-            })
-        } catch (submitError) {
-            setFeedback({
-                severity: 'error',
-                message: submitError instanceof Error ? submitError.message : t('myAppsDetailPage.accessPanel.genericError'),
-            })
-        } finally {
-            setIsSubmitting(false)
-        }
     }
 
     async function handleDelete() {
@@ -592,7 +355,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
             await refetch()
             await onUpdated()
             setShowDeleteConfirm(false)
-            setIsEditingDomains(false)
             setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.deleteSuccess') })
         } catch (deleteError) {
             setFeedback({
@@ -604,79 +366,111 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
         }
     }
 
-    async function handleRequestCertificate() {
-        const nextDomains = domainDrafts
-        if (nextDomains.length === 0) {
+    function openBindDialog(proxyId: number | null) {
+        if (proxyId !== null) {
+            const host = proxyHosts.find((h) => h.proxy_id === proxyId)
+            if (host) {
+                const domains = host.domain_names.filter(isDomainBindingValue)
+                setBindDialogDomain(domains.join(', '))
+                setBindDialogForceHttps(Boolean(host.ssl_forced && host.certificate_id))
+                const cert = data?.certificates.find((c) => c.id === host.certificate_id)
+                setBindDialogCertType(cert?.provider === 'letsencrypt' ? 'letsencrypt' : 'selfsigned')
+            }
+            setBindDialogProxyId(proxyId)
+        } else {
+            setBindDialogDomain('')
+            setBindDialogForceHttps(false)
+            setBindDialogCertType('selfsigned')
+            setBindDialogProxyId(null)
+        }
+        setCertificateEmail('')
+        setCustomCertName('')
+        setCustomCertPem('')
+        setCustomCertKeyPem('')
+        setIsBindDialogOpen(true)
+    }
+
+    function handleCloseBindDialog() {
+        if (isBindDialogSubmitting) return
+        setIsBindDialogOpen(false)
+        setBindDialogDomain('')
+        setBindDialogCertType('selfsigned')
+        setBindDialogForceHttps(false)
+        setCertificateEmail('')
+        setCustomCertName('')
+        setCustomCertPem('')
+        setCustomCertKeyPem('')
+    }
+
+    async function handleBindDialogSubmit() {
+        const domains = normalizeDomains(bindDialogDomain).filter(isDomainBindingValue)
+        if (domains.length === 0) {
             setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.validation') })
             return
         }
-        if (!certificateEmail.trim()) {
-            setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.emailValidation') })
-            return
-        }
 
-        setIsRequestingCertificate(true)
+        setIsBindDialogSubmitting(true)
         setFeedback(null)
-
         try {
             await persistProfileSelection()
-            if (!currentProxyHost) {
-                const binding = await ensureDomainBinding(nextDomains, null, forceHttps)
-                if (binding.proxy_id) {
-                    setSelectedProxyId(binding.proxy_id)
+
+            if (bindDialogCertType === 'letsencrypt') {
+                if (!certificateEmail.trim()) {
+                    setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.emailValidation') })
+                    return
                 }
+                const binding = await ensureDomainBinding(domains, null, false, bindDialogProxyId)
+                const proxyId = binding.proxy_id ?? bindDialogProxyId
+                const certResp = await fetch(`/api/apps/${encodeURIComponent(appId)}/access/certificates/letsencrypt`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: certificateEmail.trim(), domain_names: domains, proxy_id: proxyId }),
+                })
+                if (!certResp.ok) throw new Error(await parseJsonError(certResp, 'Failed to request certificate'))
+                const cert = await certResp.json() as { id?: number }
+                if (cert.id) {
+                    await ensureDomainBinding(domains, cert.id, bindDialogForceHttps, proxyId ?? bindDialogProxyId)
+                }
+            } else if (bindDialogCertType === 'custom') {
+                if (!customCertName.trim() || !customCertPem.trim() || !customCertKeyPem.trim()) {
+                    setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.customCertValidation') })
+                    return
+                }
+                const binding = await ensureDomainBinding(domains, null, false, bindDialogProxyId)
+                const proxyId = binding.proxy_id ?? bindDialogProxyId
+                const certResp = await fetch(`/api/apps/${encodeURIComponent(appId)}/access/certificates/custom`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nice_name: customCertName.trim(),
+                        certificate_pem: customCertPem.trim(),
+                        key_pem: customCertKeyPem.trim(),
+                        proxy_id: proxyId,
+                        domain_names: domains,
+                    }),
+                })
+                if (!certResp.ok) throw new Error(await parseJsonError(certResp, 'Failed to upload certificate'))
+                const cert = await certResp.json() as { id?: number }
+                if (cert.id) {
+                    await ensureDomainBinding(domains, cert.id, bindDialogForceHttps, proxyId ?? bindDialogProxyId)
+                }
+            } else {
+                // selfsigned
+                const selfCertId = defaultSelfSignedCert?.id ?? null
+                await ensureDomainBinding(domains, selfCertId, selfCertId !== null && bindDialogForceHttps, bindDialogProxyId)
             }
 
-            const bindingResult = await refetch()
-            const proxyId = bindingResult.data?.proxy_hosts?.find((host) => host.proxy_id === selectedProxyId)?.proxy_id
-                ?? currentProxyHost?.proxy_id
-                ?? bindingResult.data?.proxy_hosts?.[0]?.proxy_id
-                ?? null
-            const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/access/certificates/letsencrypt`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: certificateEmail.trim(),
-                    domain_names: nextDomains,
-                    proxy_id: proxyId,
-                }),
-            })
-
-            if (!response.ok) {
-                throw new Error(await parseJsonError(response, `Failed to request certificate: ${response.status}`))
-            }
-
-            const certificate = await response.json() as { id?: number }
-            if (certificate.id) {
-                setSelectedCertificateId(String(certificate.id))
-            }
             await refetch()
-            setIsEditingCertificate(false)
-            setFeedback({
-                severity: 'success',
-                message: proxyId ? t('myAppsDetailPage.accessPanel.certificateIssuedAndBound') : t('myAppsDetailPage.accessPanel.certificateIssued'),
-            })
-        } catch (requestError) {
-            setFeedback({
-                severity: 'error',
-                message: requestError instanceof Error ? requestError.message : t('myAppsDetailPage.accessPanel.certificateFailed'),
-            })
+            await onUpdated()
+            handleCloseBindDialog()
+            setFeedback({ severity: 'success', message: t(bindDialogProxyId !== null ? 'myAppsDetailPage.accessPanel.updateSuccess' : 'myAppsDetailPage.accessPanel.createSuccess') })
+        } catch (err) {
+            setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.accessPanel.genericError') })
         } finally {
-            setIsRequestingCertificate(false)
+            setIsBindDialogSubmitting(false)
         }
-    }
-
-    async function handleSettingsSubmit() {
-        if (selectedCertificateId === REQUEST_NEW_CERTIFICATE_VALUE) {
-            await handleRequestCertificate()
-            return
-        }
-
-        await handleSubmit()
     }
 
     return (
@@ -702,324 +496,314 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
                 </Alert>
             ) : null}
 
+            {/* ── Access section ── */}
             {showDomainAccessSection ? (
-                <Accordion defaultExpanded className="myapps-access-accordion">
-                    <AccordionSummary expandIcon={<IconExpandMore />}>
-                        <div className="myapps-access-summary-copy">
-                            <label className="myapps-access-summary-title">{t('myAppsDetailPage.accessPanel.domainAccessTitle')}</label>
-                            <span className="myapps-access-summary-desc">
-                                {t('myAppsDetailPage.accessPanel.domainAccessDescription')}
-                                {' '}
-                                <button className="myapps-access-inline-link" onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    navigate(`/gateway?target=${encodeURIComponent('/w9proxy/nginx/proxy-hosts')}`)
-                                }}>
-                                    {t('myAppsDetailPage.accessPanel.more')}
-                                </button>
+                <div className="myapps-access-section">
+                    <div className="myapps-access-section-head">
+                        <div className="myapps-section-label-bar">
+                            <span className="myapps-section-label-indicator" />
+                            <span className="myapps-section-label-text">
+                                {proxyHosts.length > 0
+                                    ? t('myAppsDetailPage.accessPanel.domainListTitle')
+                                    : t('myAppsDetailPage.accessPanel.defaultAccessTitle')}
                             </span>
                         </div>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                        <div className="myapps-card myapps-access-card">
-                            <div className="myapps-access-card-body">
-                                <div className="myapps-access-settings-group">
-                                    {isEditingSettings ? (
-                                        <div className="myapps-access-editor-enter myapps-access-settings-editor">
-                                            <div className="myapps-access-settings-editor-header">
-                                                <span className="myapps-access-settings-title">{t('myAppsDetailPage.accessPanel.domainAccessTitle')}</span>
-                                                <div className="myapps-domain-editor-actions">
-                                                    <IconButton disabled={isSubmitting || isRequestingCertificate || (showTargetSection && !selectedCandidateKey)} onClick={() => void handleSettingsSubmit()} size="small" title={t('myAppsDetailPage.accessPanel.save')}>
-                                                        {(isSubmitting || isRequestingCertificate) ? <CircularProgress size={16} /> : <IconSave />}
-                                                    </IconButton>
-                                                    <IconButton disabled={isSubmitting || isDeleting || isRequestingCertificate} onClick={() => {
-                                                        setIsEditingDomains(false)
-                                                        setIsEditingCertificate(false)
-                                                        setDomainDrafts(currentDomains)
-                                                        setSelectedCertificateId(String(currentProxyHost?.certificate_id ?? 0))
-                                                        setForceHttps(Boolean(currentProxyHost?.ssl_forced && currentProxyHost?.certificate_id))
-                                                        setIsCertificateMenuOpen(false)
-                                                        setIsTargetMenuOpen(false)
-                                                        setIsPortMenuOpen(false)
-                                                        setIsSchemeMenuOpen(false)
-                                                        setCertificateEmail('')
-                                                    }} size="small" title={t('myAppsDetailPage.accessPanel.cancel')}>
-                                                        <IconCancel />
-                                                    </IconButton>
-                                                    {currentProxyHost ? (
-                                                        <IconButton disabled={isSubmitting || isDeleting || isRequestingCertificate} onClick={() => setShowDeleteConfirm(true)} size="small" title={t('myAppsDetailPage.accessPanel.deleteDomain')}>
-                                                            {isDeleting ? <CircularProgress size={16} /> : <IconDelete />}
-                                                        </IconButton>
-                                                    ) : null}
-                                                </div>
-                                            </div>
+                        {proxyHosts.length === 0 && frontendHref ? (
+                            <button className="myapps-bind-domain-btn" onClick={() => openBindDialog(null)} type="button">
+                                <IconPlus />
+                                {t('myAppsDetailPage.accessPanel.bindDomain')}
+                            </button>
+                        ) : proxyHosts.length > 0 ? (
+                            <button className="myapps-bind-domain-btn" onClick={() => openBindDialog(null)} type="button">
+                                <IconPlus />
+                                {t('myAppsDetailPage.accessPanel.bindDomain')}
+                            </button>
+                        ) : null}
+                    </div>
 
-                                            {showTargetSection ? (
-                                                <div className="myapps-access-settings-field">
-                                                    <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.targetSelectLabel')}</span>
-                                                    <div className="myapps-access-target-inline-grid">
-                                                        <InlineOptionPicker
-                                                            emptyDescription={t('myAppsDetailPage.accessPanel.composeDefinitionRequired')}
-                                                            label={t('myAppsDetailPage.accessPanel.targetContainerLabel')}
-                                                            onSelect={(value) => {
-                                                                setSelectedContainerName(value)
-                                                                setIsTargetMenuOpen(false)
-                                                            }}
-                                                            open={isTargetMenuOpen}
-                                                            options={candidateOptions}
-                                                            selectedValue={selectedContainerName}
-                                                            setOpen={setIsTargetMenuOpen}
-                                                        />
-                                                        <InlineOptionPicker
-                                                            emptyDescription={t('myAppsDetailPage.accessPanel.targetPortDescription')}
-                                                            label={t('myAppsDetailPage.accessPanel.targetPortLabel')}
-                                                            onSelect={(value) => setSelectedTargetPort(value)}
-                                                            open={isPortMenuOpen}
-                                                            options={portOptions}
-                                                            selectedValue={selectedTargetPort}
-                                                            setOpen={setIsPortMenuOpen}
-                                                        />
-                                                        <InlineOptionPicker
-                                                            label={t('myAppsDetailPage.accessPanel.schemeLabel')}
-                                                            onSelect={(value) => setSelectedScheme(value as 'http' | 'https')}
-                                                            open={isSchemeMenuOpen}
-                                                            options={schemeOptions}
-                                                            selectedValue={selectedScheme}
-                                                            setOpen={setIsSchemeMenuOpen}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ) : null}
-
-                                            <div className="myapps-access-settings-field">
-                                                <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.inputLabel')}</span>
-                                                <DomainTagEditor
-                                                    helperText={t('myAppsDetailPage.accessPanel.helper')}
-                                                    onChange={setDomainDrafts}
-                                                    placeholder={t('myAppsDetailPage.accessPanel.domainPlaceholder')}
-                                                    value={domainDrafts}
-                                                />
-                                            </div>
-
-                                            <div className="myapps-access-settings-field">
-                                                <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.certificateSelectLabel')}</span>
-                                                <div className={`myapps-access-target-grid ${isRequestingNewCertificate ? '' : 'myapps-access-target-grid-single'}`}>
-                                                    <InlineOptionPicker
-                                                        emptyDescription={t('myAppsDetailPage.accessPanel.certificateSelectPlaceholder')}
-                                                        helperText={availableCertificates.length > 0 ? t('myAppsDetailPage.accessPanel.certificateCount', { count: availableCertificates.length }) : t('myAppsDetailPage.accessPanel.certificateEmptyHint')}
-                                                        menuPlacement="top"
-                                                        onSelect={(value) => {
-                                                            setSelectedCertificateId(value)
-                                                            setIsEditingCertificate(true)
-                                                            if (value === '0') {
-                                                                setForceHttps(false)
-                                                            }
-                                                        }}
-                                                        open={isCertificateMenuOpen}
-                                                        options={certificateOptions}
-                                                        selectedValue={selectedCertificateOption?.value || selectedCertificateId}
-                                                        setOpen={setIsCertificateMenuOpen}
-                                                    />
-                                                    {isRequestingNewCertificate ? (
-                                                        <TextField
-                                                            className="myapps-access-form-control"
-                                                            fullWidth
-                                                            label={t('myAppsDetailPage.accessPanel.certificateEmailLabel')}
-                                                            onChange={(event) => setCertificateEmail(event.target.value)}
-                                                            placeholder="admin@example.com"
-                                                            size="small"
-                                                            value={certificateEmail}
-                                                        />
-                                                    ) : null}
-                                                </div>
-                                            </div>
-
-                                            <div className="myapps-access-settings-field">
-                                                <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.forceHttpsLabel')}</span>
-                                                <div className="myapps-access-toggle-field">
-                                                    <FormControlLabel
-                                                        control={<Switch checked={forceHttps} disabled={selectedCertificateId === '0'} onChange={(event) => setForceHttps(event.target.checked)} size="small" />}
-                                                        label=""
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="myapps-access-settings-summary">
-                                            <div className="myapps-access-settings-summary-main">
-                                                {proxyHosts.length > 0 ? proxyHosts.map((host) => {
-                                                    const hostDomains = host.domain_names.filter(isDomainBindingValue)
-                                                    const hostCertificate = host.certificate_name || formatCertificateLabel(data?.certificates.find((certificate) => certificate.id === host.certificate_id))
-
-                                                    return (
-                                                        <div className="myapps-access-binding-item" key={host.proxy_id}>
-                                                            <div className="myapps-access-binding-content">
-                                                                <div className="myapps-access-settings-field myapps-access-settings-field-summary">
-                                                                    <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.inputLabel')}</span>
-                                                                    <div className="myapps-access-status-values">
-                                                                        {hostDomains.length > 0 ? hostDomains.map((domain) => (
-                                                                            <Chip className="myapps-access-status-chip" key={domain} label={domain} size="small" />
-                                                                        )) : <span className="myapps-access-inline-empty">{t('myAppsDetailPage.accessPanel.emptyDomains')}</span>}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="myapps-access-settings-field myapps-access-settings-field-summary">
-                                                                    <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.certificateSelectLabel')}</span>
-                                                                    <div className="myapps-access-status-copy">
-                                                                        <span>{hostCertificate || t('myAppsDetailPage.accessPanel.noCertificateBound')}</span>
-                                                                        {host.ssl_forced ? <span>{t('myAppsDetailPage.accessPanel.forceHttpsEnabled')}</span> : null}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <button className="myapps-inline-icon-action" onClick={() => {
-                                                                setSelectedProxyId(host.proxy_id)
-                                                                setIsEditingDomains(true)
-                                                                setIsEditingCertificate(true)
-                                                            }} type="button">
-                                                                <IconEdit />
-                                                                <span>{t('myAppsDetailPage.accessPanel.editSettings')}</span>
-                                                            </button>
-                                                        </div>
-                                                    )
-                                                }) : (
-                                                    <div className="myapps-access-settings-field myapps-access-settings-field-summary">
-                                                        <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.inputLabel')}</span>
-                                                        <div className="myapps-access-status-values">
-                                                            <span className="myapps-access-inline-empty">{t('myAppsDetailPage.accessPanel.emptyDomains')}</span>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {proxyHosts.length === 0 ? (
-                                                <button className="myapps-inline-icon-action" onClick={() => {
-                                                    setSelectedProxyId(null)
-                                                    setIsEditingDomains(true)
-                                                    setIsEditingCertificate(true)
-                                                }} type="button">
-                                                    <IconEdit />
-                                                    <span>{t('myAppsDetailPage.accessPanel.editSettings')}</span>
-                                                </button>
-                                            ) : null}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="myapps-access-form">
-                                    {isFetching && !isLoading ? (
-                                        <div className="myapps-access-refreshing">
-                                            <CircularProgress size={16} />
-                                            <span>{t('myAppsDetailPage.accessPanel.refreshing')}</span>
-                                        </div>
+                    {proxyHosts.length === 0 ? (
+                        /* No-domain: default access row */
+                        <div className="myapps-default-access-no-domain">
+                            <div className="myapps-default-access-row">
+                                {frontendHref ? (
+                                    <div className="myapps-default-access-url-group">
+                                        <IconGlobe />
+                                        <span className="myapps-default-access-url">{frontendHref.replace(/^https?:\/\//, '')}</span>
+                                        <button className="myapps-default-access-copy" onClick={() => void copyTextWithFallback(frontendHref)} title={t('myAppsDetailPage.accessPanel.copySuccess')} type="button">
+                                            <IconCopy />
+                                        </button>
+                                    </div>
+                                ) : null}
+                                <div className="myapps-default-access-actions">
+                                    {frontendHref ? (
+                                        <a className="myapps-default-access-action-btn" href={frontendHref} rel="noreferrer" target="_blank">
+                                            <IconExternalLink />
+                                            {t('myAppsDetailPage.accessPanel.openAppHome')}
+                                        </a>
+                                    ) : null}
+                                    {backendHref ? (
+                                        <a className="myapps-default-access-action-btn is-admin" href={backendHref} rel="noreferrer" target="_blank">
+                                            <IconExternalLink />
+                                            {t('myAppsDetailPage.accessPanel.openAdminConsole')}
+                                        </a>
                                     ) : null}
                                 </div>
                             </div>
+                            {/^\d{1,3}(\.\d{1,3}){3}$/.test(hostName) ? (
+                                <p className="myapps-ip-access-tip">
+                                    <IconWarning />
+                                    {t('myAppsDetailPage.accessPanel.ipAccessWarning')}
+                                </p>
+                            ) : null}
                         </div>
-                    </AccordionDetails>
-                </Accordion>
+                    ) : (
+                        /* Has domains: routing table */
+                        <table className="myapps-route-table">
+                            <thead>
+                                <tr>
+                                    <th>{t('myAppsDetailPage.accessPanel.colExternalDomain')}</th>
+                                    <th>{t('myAppsDetailPage.accessPanel.colCertType')}</th>
+                                    <th>{t('myAppsDetailPage.accessPanel.colEndpoints')}</th>
+                                    <th>{t('myAppsDetailPage.accessPanel.colActions')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {proxyHosts.map((host) => {
+                                    const hostDomains = host.domain_names.filter(isDomainBindingValue)
+                                    const cert = data?.certificates.find((c) => c.id === host.certificate_id)
+                                    const certIsLE = cert?.provider === 'letsencrypt'
+                                    const hostScheme = host.certificate_id ? 'https' : (currentProfile?.forward_scheme ?? 'http')
+                                    const domain = hostDomains[0] ?? null
+                                    const frontUrl = domain ? `${hostScheme}://${domain}` : null
+                                    const backUrl = frontUrl && env?.W9_ADMIN_PATH ? `${frontUrl}${env.W9_ADMIN_PATH}` : null
+                                    return (
+                                        <tr key={host.proxy_id}>
+                                            <td className="myapps-route-col-domain">
+                                                {domain ?? <span className="myapps-route-empty">—</span>}
+                                            </td>
+                                            <td className="myapps-route-col-cert">
+                                                {host.certificate_id ? (
+                                                    certIsLE ? (
+                                                        <span className="myapps-cert-type-chip is-le">
+                                                            <IconCertLE />
+                                                            {t('myAppsDetailPage.accessPanel.certTypeLE')}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="myapps-cert-type-chip is-custom">
+                                                            <IconCertLock />
+                                                            {t('myAppsDetailPage.accessPanel.certTypeCustom')}
+                                                        </span>
+                                                    )
+                                                ) : (
+                                                    <span className="myapps-cert-type-chip is-http">
+                                                        {t('myAppsDetailPage.accessPanel.certTypeHttpOnly')}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="myapps-route-col-endpoints">
+                                                {frontUrl ? (
+                                                    <a className="myapps-route-endpoint-link" href={frontUrl} rel="noreferrer" target="_blank">
+                                                        <IconExternalLink />
+                                                        {t('myAppsDetailPage.accessPanel.appAccess')}
+                                                    </a>
+                                                ) : null}
+                                                {backUrl ? (
+                                                    <a className="myapps-route-endpoint-link is-admin" href={backUrl} rel="noreferrer" target="_blank">
+                                                        <IconAdmin />
+                                                        {t('myAppsDetailPage.accessPanel.adminAccess')}
+                                                    </a>
+                                                ) : null}
+                                            </td>
+                                            <td className="myapps-route-col-actions">
+                                                <IconButton onClick={() => openBindDialog(host.proxy_id)} size="small" title={t('myAppsDetailPage.accessPanel.edit')}>
+                                                    <IconEdit />
+                                                </IconButton>
+                                                <IconButton onClick={() => { setSelectedProxyId(host.proxy_id); setShowDeleteConfirm(true) }} size="small">
+                                                    <IconDelete />
+                                                </IconButton>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
             ) : null}
 
-            {showDomainAccessSection && (previewDomain || frontendHref || backendHref) ? (
-                <Accordion defaultExpanded className="myapps-access-accordion">
-                    <AccordionSummary expandIcon={<IconExpandMore />}>
-                        <div className="myapps-access-summary-copy">
-                            <label className="myapps-access-summary-title">
-                                {currentDomains.length > 0 ? t('myAppsDetailPage.accessPanel.previewTitle') : t('myAppsDetailPage.accessPanel.noDomainAccessTitle')}
-                            </label>
-                            <span className="myapps-access-summary-desc">
-                                {currentDomains.length > 0 ? t('myAppsDetailPage.accessPanel.previewDescription') : t('myAppsDetailPage.accessPanel.noDomainAccessDescription')}
-                            </span>
-                        </div>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                        <div className="myapps-card myapps-access-card">
-                            <div className="myapps-access-card-body">
-                                {previewDomain ? (
-                                    <div className="myapps-access-link-stack">
-                                        <div className="myapps-access-link-group">
-                                            <div className="myapps-access-link-row">
-                                                <span className="myapps-access-link-label">{t('myAppsDetailPage.accessPanel.frontend')}</span>
-                                                <a href={`${previewScheme}://${previewDomain}`} target="_blank" rel="noreferrer">{`${previewScheme}://${previewDomain}`}</a>
-                                            </div>
-                                            {env?.W9_ADMIN_PATH ? (
-                                                <div className="myapps-access-link-row">
-                                                    <span className="myapps-access-link-label">{t('myAppsDetailPage.accessPanel.backend')}</span>
-                                                    <a href={`${previewScheme}://${previewDomain}${env.W9_ADMIN_PATH}`} target="_blank" rel="noreferrer">{`${previewScheme}://${previewDomain}${env.W9_ADMIN_PATH}`}</a>
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="myapps-access-link-stack">
-                                        {frontendHref ? (
-                                            <div className="myapps-access-link-row">
-                                                <span className="myapps-access-link-label">{t('myAppsDetailPage.accessPanel.frontend')}</span>
-                                                <a href={frontendHref} target="_blank" rel="noreferrer">{frontendHref}</a>
-                                            </div>
-                                        ) : null}
-                                        {backendHref ? (
-                                            <div className="myapps-access-link-row">
-                                                <span className="myapps-access-link-label">{t('myAppsDetailPage.accessPanel.backend')}</span>
-                                                <a href={backendHref} target="_blank" rel="noreferrer">{backendHref}</a>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </AccordionDetails>
-                </Accordion>
-            ) : null}
-
+            {/* ── Initial credentials ── */}
             {accountEntries.length > 0 ? (
-                <Accordion defaultExpanded={!currentProfile?.enabled} className="myapps-access-accordion">
-                    <AccordionSummary expandIcon={<IconExpandMore />}>
-                        <div className="myapps-access-summary-copy">
-                            <label className="myapps-access-summary-title">{t('myAppsDetailPage.accessPanel.initialAccountTitle')}</label>
-                            <span className="myapps-access-summary-desc">{t('myAppsDetailPage.accessPanel.initialAccountDescription')}</span>
+                <div className="myapps-creds-section">
+                    <div className="myapps-creds-section-head">
+                        <div className="myapps-section-label-bar">
+                            <span className="myapps-section-label-indicator" />
+                            <span className="myapps-section-label-text">{t('myAppsDetailPage.accessPanel.credentialsTitle')}</span>
                         </div>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                        <div className="myapps-card myapps-access-card">
-                            <div className="myapps-access-card-body">
-                                {accountEntries.map((entry) => (
-                                    <div className="myapps-access-account-row" key={entry.key}>
-                                        <label className="myapps-access-account-label">{formatAccountLabel(entry.key, locale, t)}</label>
-                                        <div className="myapps-access-account-field-wrap">
-                                            <input
-                                                className="myapps-access-account-field"
-                                                readOnly
-                                                type={entry.isPassword && !showPasswords[entry.key] ? 'password' : 'text'}
-                                                value={entry.value}
-                                            />
-                                            {entry.isPassword ? (
-                                                <div className="myapps-access-account-actions">
-                                                    <IconButton onClick={() => setShowPasswords((prev) => ({ ...prev, [entry.key]: !prev[entry.key] }))} size="small" title={showPasswords[entry.key] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}>
-                                                        {showPasswords[entry.key] ? <IconEyeOff /> : <IconEye />}
-                                                    </IconButton>
-                                                    <IconButton onClick={async () => {
-                                                        try {
-                                                            await copyTextWithFallback(entry.value)
-                                                            setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
-                                                        } catch {
-                                                            setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
-                                                        }
-                                                    }} size="small" title={t('myAppsDetailPage.tabs.database.copy')}>
-                                                        <IconCopy />
-                                                    </IconButton>
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    </div>
+                    </div>
+                    <div className="myapps-creds-rows">
+                        {accountEntries.map((entry) => (
+                            <div className="myapps-creds-row" key={entry.key}>
+                                <label className="myapps-creds-label">{formatAccountLabel(entry.key, locale, t)}</label>
+                                <span className="myapps-creds-value">
+                                    <span className="myapps-creds-value-text">
+                                        {entry.isPassword && !visibleCredKeys.has(entry.key)
+                                            ? <span className="myapps-creds-dots">{'•'.repeat(10)}</span>
+                                            : entry.value}
+                                    </span>
+                                    <span className="myapps-creds-actions">
+                                        {entry.isPassword ? (
+                                            <button className="myapps-creds-eye-btn" onClick={() => {
+                                                setVisibleCredKeys((prev) => {
+                                                    const next = new Set(prev)
+                                                    if (next.has(entry.key)) next.delete(entry.key)
+                                                    else next.add(entry.key)
+                                                    return next
+                                                })
+                                            }} title={visibleCredKeys.has(entry.key) ? t('myAppsDetailPage.accessPanel.hidePlainText') : t('myAppsDetailPage.accessPanel.showPlainText')} type="button">
+                                                {visibleCredKeys.has(entry.key) ? <IconEyeOff /> : <IconEye />}
+                                            </button>
+                                        ) : null}
+                                        <button className="myapps-creds-copy-btn" onClick={async () => {
+                                            try {
+                                                await copyTextWithFallback(entry.value)
+                                                setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
+                                            } catch {
+                                                setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
+                                            }
+                                        }} title={t('myAppsDetailPage.accessPanel.copySuccess')} type="button">
+                                            <IconCopy />
+                                        </button>
+                                    </span>
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="myapps-creds-note">
+                        <IconWarning />
+                        {t('myAppsDetailPage.accessPanel.credNote')}
+                    </p>
+                </div>
+            ) : null}
+
+            <SurfaceDialog fullWidth maxWidth="sm" onClose={handleCloseBindDialog} open={isBindDialogOpen} scope="content" scopeRect={scopeRect ?? null} contentStrategy="viewport-fixed" darkMode={isDarkMode} sx={{ zIndex: 1510 }}>
+                <DialogTitle sx={{ pb: 1 }}>
+                    {bindDialogProxyId !== null ? t('myAppsDetailPage.accessPanel.editBindTitle') : t('myAppsDetailPage.accessPanel.bindNewTitle')}
+                </DialogTitle>
+                <DialogContent>
+                    <div className="myapps-bind-dialog-form">
+                        <TextField
+                            className="myapps-access-form-control"
+                            fullWidth
+                            helperText={t('myAppsDetailPage.accessPanel.domainInputHelper')}
+                            label={t('myAppsDetailPage.accessPanel.domainInputLabel')}
+                            onChange={(e) => setBindDialogDomain(e.target.value)}
+                            placeholder="wp.domain.com"
+                            size="small"
+                            value={bindDialogDomain}
+                        />
+                        <div className="myapps-bind-cert-section">
+                            <span className="myapps-bind-cert-label">{t('myAppsDetailPage.accessPanel.sslCertScheme')}</span>
+                            <div className="myapps-cert-type-tabs">
+                                {(['selfsigned', 'letsencrypt', 'custom'] as CertDialogType[]).map((type) => (
+                                    <button
+                                        className={`myapps-cert-type-tab ${bindDialogCertType === type ? 'is-active' : ''}`}
+                                        key={type}
+                                        onClick={() => setBindDialogCertType(type)}
+                                        type="button"
+                                    >
+                                        {type === 'selfsigned'
+                                            ? t('myAppsDetailPage.accessPanel.certTabSelfSigned')
+                                            : type === 'letsencrypt'
+                                                ? t('myAppsDetailPage.accessPanel.certTabLetsEncrypt')
+                                                : t('myAppsDetailPage.accessPanel.certTabCustom')}
+                                    </button>
                                 ))}
                             </div>
+                            {bindDialogCertType === 'selfsigned' ? (
+                                <Alert severity="warning" sx={{ mt: 0.5 }}>{t('myAppsDetailPage.accessPanel.selfSignedWarning')}</Alert>
+                            ) : bindDialogCertType === 'letsencrypt' ? (
+                                <TextField
+                                    className="myapps-access-form-control"
+                                    fullWidth
+                                    label={t('myAppsDetailPage.accessPanel.certificateEmailLabel')}
+                                    onChange={(e) => setCertificateEmail(e.target.value)}
+                                    placeholder="admin@example.com"
+                                    size="small"
+                                    value={certificateEmail}
+                                />
+                            ) : (
+                                <div className="myapps-bind-custom-cert-fields">
+                                    <TextField
+                                        className="myapps-access-form-control"
+                                        fullWidth
+                                        label={t('myAppsDetailPage.accessPanel.customCertName')}
+                                        onChange={(e) => setCustomCertName(e.target.value)}
+                                        placeholder="my-site.com"
+                                        size="small"
+                                        value={customCertName}
+                                    />
+                                    <TextField
+                                        className="myapps-access-form-control"
+                                        fullWidth
+                                        label={t('myAppsDetailPage.accessPanel.customCertPem')}
+                                        multiline
+                                        onChange={(e) => setCustomCertPem(e.target.value)}
+                                        placeholder="-----BEGIN CERTIFICATE-----"
+                                        rows={3}
+                                        size="small"
+                                        value={customCertPem}
+                                    />
+                                    <TextField
+                                        className="myapps-access-form-control"
+                                        fullWidth
+                                        label={t('myAppsDetailPage.accessPanel.customCertKey')}
+                                        multiline
+                                        onChange={(e) => setCustomCertKeyPem(e.target.value)}
+                                        placeholder="-----BEGIN PRIVATE KEY-----"
+                                        rows={3}
+                                        size="small"
+                                        value={customCertKeyPem}
+                                    />
+                                </div>
+                            )}
                         </div>
-                    </AccordionDetails>
-                </Accordion>
-            ) : null}
+                        <div className="myapps-bind-https-toggle">
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={bindDialogForceHttps}
+                                        disabled={bindDialogCertType === 'selfsigned' && !defaultSelfSignedCert}
+                                        onChange={(e) => setBindDialogForceHttps(e.target.checked)}
+                                        size="small"
+                                    />
+                                }
+                                label={
+                                    <div className="myapps-bind-https-label">
+                                        <span className="myapps-bind-https-label-title">{t('myAppsDetailPage.accessPanel.forceHttpsLabel')}</span>
+                                        <span className="myapps-bind-https-label-desc">{t('myAppsDetailPage.accessPanel.forceHttpsHelper')}</span>
+                                    </div>
+                                }
+                            />
+                        </div>
+                    </div>
+                </DialogContent>
+                <DialogActions>
+                    <Button disabled={isBindDialogSubmitting} onClick={handleCloseBindDialog}>
+                        {t('myAppsDetailPage.accessPanel.cancel')}
+                    </Button>
+                    <Button
+                        disabled={isBindDialogSubmitting || !bindDialogDomain.trim()}
+                        onClick={() => void handleBindDialogSubmit()}
+                        variant="contained"
+                    >
+                        {isBindDialogSubmitting ? <CircularProgress color="inherit" size={16} /> : t('myAppsDetailPage.accessPanel.saveConfig')}
+                    </Button>
+                </DialogActions>
+            </SurfaceDialog>
 
-            <Dialog onClose={() => {
+            <SurfaceDialog onClose={() => {
                 if (!isDeleting) setShowDeleteConfirm(false)
-            }} open={showDeleteConfirm}>
+            }} open={showDeleteConfirm} scope="content" scopeRect={scopeRect ?? null} contentStrategy="viewport-fixed" darkMode={isDarkMode} sx={{ zIndex: 1510 }}>
                 <DialogTitle>{t('myAppsDetailPage.accessPanel.deleteConfirmTitle')}</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
@@ -1034,7 +818,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated }: MyAppA
                         {isDeleting ? <CircularProgress color="inherit" size={16} /> : t('myAppsDetailPage.accessPanel.deleteDomain')}
                     </Button>
                 </DialogActions>
-            </Dialog>
+            </SurfaceDialog>
 
             <Snackbar
                 anchorOrigin={{ vertical: 'top', horizontal: 'center' }}

@@ -170,42 +170,43 @@ type ConfigFile = { id: number; name: string; mountPath: string; content: string
 const MOUNT_BASE = './src/'
 
 const DEFAULT_ENV_ROWS = (): EnvRow[] => [
-    { id: uid(), key: '', value: '' },
+    { id: uid(), key: 'APP_ENV', value: 'production' },
+    { id: uid(), key: 'APP_KEY', value: 'changeme_please' },
 ]
 
-const DEFAULT_CONFIG_FILES = (): ConfigFile[] => []
+const DEFAULT_CONFIG_FILES = (): ConfigFile[] => [
+    {
+        id: uid(),
+        name: 'nginx.conf',
+        mountPath: `${MOUNT_BASE}nginx.conf`,
+        content: `server {
+    listen 80;
+    server_name localhost;
+
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+    }
+}
+`,
+    },
+]
 
 const DEFAULT_COMPOSE = `services:
-    gateway:
-        image: python:3.12-alpine
-        command:
-            - sh
-            - -c
-            - |
-                    mkdir -p /srv
-                    echo 'gateway-ok' > /srv/index.html
-                    python -m http.server 80 -d /srv &
-                    exec python -m http.server 8081 -d /srv
-        ports:
-            - "18080:80"
-            - "18081:8081"
-        depends_on:
-            - app
-        restart: unless-stopped
-
-    app:
-        image: traefik/whoami:v1.10
-        restart: unless-stopped
-
-    redis:
-        image: redis:7-alpine
-        command: ["redis-server", "--appendonly", "yes"]
-        volumes:
-            - redis-data:/data
-        restart: unless-stopped
+  web:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    environment:
+      - APP_ENV=\${APP_ENV}
+      - APP_KEY=\${APP_KEY}
+    volumes:
+      - web-data:/usr/share/nginx/html
+      - ./src/nginx.conf:/etc/nginx/conf.d/default.conf
+    restart: unless-stopped
 
 volumes:
-    redis-data:
+  web-data:
 `
 
 let nextId = 1

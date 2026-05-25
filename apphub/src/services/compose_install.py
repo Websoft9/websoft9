@@ -22,6 +22,22 @@ from src.utils.password_generator import PasswordGenerator
 
 COMPOSE_METADATA_PATH = ".websoft9/compose-metadata.json"
 
+_W9_NETWORK = os.getenv("W9_NETWORK", "websoft9")
+
+
+def _inject_platform_network(compose_document: dict) -> dict:
+    """Add the websoft9 platform network to a compose document so deployed
+    containers are reachable by Nginx Proxy Manager and other platform services.
+    Only injects if the user has not already declared a 'default' network.
+    """
+    networks = compose_document.setdefault("networks", {})
+    if "default" not in networks:
+        networks["default"] = {
+            "name": _W9_NETWORK,
+            "external": True,
+        }
+    return compose_document
+
 
 def _validate_service_spec(services: dict) -> None:
     """Validate that service fields match Docker Compose schema types."""
@@ -148,6 +164,7 @@ def prepare_compose_install_tracking(payload: ComposeInstallRequest) -> tuple[st
 
 def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int | None = None, tracked_app_id: str | None = None, tracking_id: str | None = None) -> None:
     compose_document = _load_compose_document(payload.compose_content)
+    _inject_platform_network(compose_document)
     _get_service_names(compose_document)
     forward_port = _extract_forward_port(compose_document)
     app_id = tracked_app_id or payload.app_id
@@ -170,7 +187,7 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
         workspace_path = os.path.join(temp_root, f"{payload.app_id}_{timestamp_str}_{random.randint(1000, 9999)}")
         os.makedirs(workspace_path, exist_ok=True)
 
-        FileHelper.write_file(os.path.join(workspace_path, "docker-compose.yml"), payload.compose_content)
+        FileHelper.write_file(os.path.join(workspace_path, "docker-compose.yml"), yaml.dump(compose_document, default_flow_style=False, allow_unicode=True, sort_keys=False))
 
         env_lines = [f"{entry.key}={entry.value}" for entry in payload.env]
         FileHelper.write_file(os.path.join(workspace_path, ".env"), "\n".join(env_lines) + "\n")

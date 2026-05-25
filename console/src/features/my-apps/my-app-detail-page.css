@@ -2074,3 +2074,1105 @@
         padding-left: 0;
     }
 }
+
+/* ============================================
+   Certificate Section Redesign
+   ============================================ */
+
+.myapps-access-cert-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.myapps-access-cert-status-bar {
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+}
+
+.myapps-access-cert-bound-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.myapps-access-cert-bound-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--myapps-detail-text-strong);
+    background: color-mix(in srgb, var(--myapps-detail-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--myapps-detail-accent) 30%, transparent);
+    border-radius: 4px;
+    padding: 3px 8px;
+}
+
+.myapps-access-cert-none-label {
+    font-size: 13px;
+    color: var(--myapps-detail-muted);
+    font-style: italic;
+}
+
+.myapps-access-cert-remove-btn {
+    border: none;
+    background: none;
+    padding: 3px 8px;
+    color: var(--myapps-detail-danger);
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 4px;
+    transition: background 120ms;
+}
+
+.myapps-access-cert-remove-btn:hover {
+    background: color-mix(in srgb, var(--myapps-detail-danger) 10%, transparent);
+}
+
+.myapps-access-cert-actions-row {
+    display: none;
+    /* replaced by .myapps-cert-options */
+}
+
+.myapps-access-cert-action-btn {
+    display: none;
+}
+
+.myapps-access-cert-action-btn.is-active {
+    display: none;
+}
+
+/* Vertical cert option list */
+.myapps-cert-options {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.myapps-cert-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border: none;
+    border-bottom: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+    cursor: pointer;
+    text-align: left;
+    transition: background 120ms;
+    width: 100%;
+}
+
+.myapps-cert-option:last-child {
+    border-bottom: none;
+}
+
+.myapps-cert-option:hover {
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-cert-option.is-active {
+    background: color-mix(in srgb, var(--myapps-detail-accent) 7%, transparent);
+}
+
+.myapps-cert-option-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: var(--myapps-detail-surface-soft);
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-cert-option.is-active .myapps-cert-option-icon {
+    background: color-mix(in srgb, var(--myapps-detail-accent) 15%, transparent);
+    color: var(--myapps-detail-accent);
+}
+
+.myapps-cert-option-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.myapps-cert-option-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.myapps-cert-option-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--myapps-detail-text-strong);
+    line-height: 1.3;
+}
+
+.myapps-cert-option.is-active .myapps-cert-option-title {
+    color: var(--myapps-detail-accent);
+}
+
+.myapps-cert-option-desc {
+    font-size: 12px;
+    color: var(--myapps-detail-muted);
+    line-height: 1.3;
+}
+
+.myapps-cert-option-chevron {
+    flex-shrink: 0;
+    color: var(--myapps-detail-muted);
+    transition: transform 200ms;
+    display: flex;
+    align-items: center;
+}
+
+.myapps-cert-option-chevron.is-open {
+    transform: rotate(180deg);
+    color: var(--myapps-detail-accent);
+}
+
+.myapps-cert-option-chevron svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Panel below an active cert option */
+.myapps-cert-option-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: var(--myapps-detail-surface-soft);
+    border-bottom: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-cert-options>.myapps-cert-option-panel:last-child {
+    border-bottom: none;
+}
+
+.myapps-cert-option-panel-actions {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.myapps-access-cert-expanded {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 8px;
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-access-cert-expanded-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--myapps-detail-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.myapps-access-cert-domain-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.myapps-access-cert-expanded-actions {
+    display: flex;
+    justify-content: flex-start;
+}
+
+/* Unified access entry card — used for both preview domain and no-domain IP links */
+.myapps-access-entry-card {
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 10px;
+    background: var(--myapps-detail-surface);
+    overflow: hidden;
+}
+
+.myapps-access-entry-card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--myapps-detail-surface-soft);
+    border-bottom: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-access-entry-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-access-entry-card-hint {
+    font-size: 12px;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-access-entry-card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.myapps-access-entry-item {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-access-entry-item:last-child {
+    border-bottom: none;
+}
+
+.myapps-access-entry-type {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--myapps-detail-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+}
+
+.myapps-access-entry-url {
+    font-size: 13px;
+    color: var(--myapps-detail-accent);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.myapps-access-entry-url:hover {
+    text-decoration: underline;
+}
+
+.myapps-access-entry-copy {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+    color: var(--myapps-detail-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 120ms, color 120ms;
+    padding: 0;
+}
+
+.myapps-access-entry-copy:hover {
+    background: var(--myapps-detail-surface-soft);
+    color: var(--myapps-detail-accent);
+}
+
+.myapps-access-entry-copy svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Legacy direct-access classes — kept for compatibility, visually hidden */
+.myapps-direct-access-card {
+    display: none;
+}
+
+/* ── Domain section table ─────────────────────────────────────── */
+.myapps-domain-section {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 0;
+}
+
+.myapps-domain-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--myapps-detail-surface-soft);
+    border-bottom: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-domain-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-bind-domain-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border: 1px solid var(--myapps-detail-accent);
+    border-radius: 6px;
+    background: var(--myapps-detail-accent);
+    color: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: opacity 120ms;
+    white-space: nowrap;
+}
+
+.myapps-bind-domain-btn:hover {
+    opacity: 0.88;
+}
+
+.myapps-domain-table {
+    display: flex;
+    flex-direction: column;
+}
+
+.myapps-domain-table-head-row {
+    display: grid;
+    grid-template-columns: 1fr 120px 90px 160px 100px;
+    padding: 8px 16px;
+    background: var(--myapps-detail-surface);
+    border-bottom: 1px solid var(--myapps-detail-border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--myapps-detail-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    gap: 10px;
+}
+
+.myapps-domain-table-row {
+    display: grid;
+    grid-template-columns: 1fr 120px 90px 160px 100px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--myapps-detail-border);
+    align-items: center;
+    gap: 10px;
+}
+
+.myapps-domain-table-row:last-child {
+    border-bottom: none;
+}
+
+.myapps-domain-col-domain {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--myapps-detail-text-strong);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.myapps-domain-col-empty {
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-cert-badge {
+    display: inline-flex;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--myapps-detail-accent) 12%, transparent);
+    color: var(--myapps-detail-accent);
+    font-weight: 500;
+    border: 1px solid color-mix(in srgb, var(--myapps-detail-accent) 25%, transparent);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.myapps-cert-badge.is-none {
+    background: var(--myapps-detail-surface-soft);
+    color: var(--myapps-detail-muted);
+    border-color: var(--myapps-detail-border);
+}
+
+.myapps-https-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.myapps-https-indicator.is-on {
+    background: #4caf50;
+}
+
+.myapps-https-indicator.is-off {
+    background: var(--myapps-detail-border-strong);
+}
+
+.myapps-domain-col-preview {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.myapps-domain-preview-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    color: var(--myapps-detail-accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.myapps-domain-preview-link:hover {
+    text-decoration: underline;
+}
+
+.myapps-domain-col-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.myapps-domain-action-edit {
+    border: none;
+    background: none;
+    padding: 3px 7px;
+    font-size: 12px;
+    color: var(--myapps-detail-accent);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 120ms;
+}
+
+.myapps-domain-action-edit:hover {
+    background: color-mix(in srgb, var(--myapps-detail-accent) 10%, transparent);
+}
+
+.myapps-domain-empty-state {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--myapps-detail-muted);
+    font-size: 13px;
+}
+
+/* ── Bind domain dialog ───────────────────────────────────────── */
+.myapps-bind-dialog-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 8px;
+}
+
+.myapps-bind-cert-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.myapps-bind-cert-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-cert-type-tabs {
+    display: flex;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.myapps-cert-type-tab {
+    flex: 1;
+    padding: 7px 10px;
+    border: none;
+    border-right: 1px solid var(--myapps-detail-border);
+    background: var(--myapps-detail-surface);
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--myapps-detail-muted);
+    transition: background 120ms, color 120ms;
+}
+
+.myapps-cert-type-tab:last-child {
+    border-right: none;
+}
+
+.myapps-cert-type-tab.is-active {
+    background: var(--myapps-detail-accent);
+    color: #fff;
+    font-weight: 600;
+}
+
+.myapps-bind-custom-cert-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.myapps-bind-https-toggle {
+    border-top: 1px solid var(--myapps-detail-border);
+    padding-top: 12px;
+}
+
+.myapps-bind-https-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.myapps-bind-https-label-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-bind-https-label-desc {
+    font-size: 12px;
+    color: var(--myapps-detail-muted);
+    line-height: 1.4;
+}
+
+/* ── Access panel: new redesign ── */
+.myapps-access-section,
+.myapps-creds-section {
+    background: var(--myapps-detail-surface);
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 6px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.myapps-access-section-head,
+.myapps-creds-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: transparent;
+}
+
+.myapps-section-label-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.myapps-section-label-indicator {
+    display: block;
+    width: 4px;
+    height: 18px;
+    border-radius: 2px;
+    background: #3b82f6;
+    flex-shrink: 0;
+}
+
+.myapps-section-label-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--myapps-detail-text-strong);
+}
+
+/* ── Default access row ── */
+.myapps-default-access-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 16px;
+    margin: 0 16px 12px;
+    border-radius: 6px;
+    flex-wrap: wrap;
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-default-access-url-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--myapps-detail-text-strong);
+    font-size: 14px;
+    min-width: 0;
+}
+
+.myapps-default-access-url {
+    font-size: 14px;
+    color: var(--myapps-detail-text-strong);
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.myapps-default-access-copy {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: var(--myapps-detail-muted);
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+
+.myapps-default-access-copy:hover {
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-default-access-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.myapps-default-access-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 4px;
+    background: var(--myapps-detail-surface);
+    color: var(--myapps-detail-text-strong);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.myapps-default-access-action-btn:hover {
+    background: var(--myapps-detail-surface-soft);
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.myapps-default-access-action-btn.is-admin {
+    color: #6366f1;
+    border-color: #6366f1;
+}
+
+.myapps-default-access-action-btn.is-admin:hover {
+    background: #eef2ff;
+    border-color: #4f46e5;
+}
+
+/* ── External routing table ── */
+.myapps-route-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.myapps-route-table thead tr {
+    border-bottom: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-route-table th {
+    padding: 8px 14px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--myapps-detail-muted);
+    white-space: nowrap;
+}
+
+.myapps-route-table th:last-child {
+    text-align: right;
+}
+
+.myapps-route-table td {
+    padding: 10px 14px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--myapps-detail-border);
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-route-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.myapps-route-table tbody tr:hover td {
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-route-col-domain {
+    font-size: 13px;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-route-empty {
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-route-col-cert {
+    min-width: 140px;
+}
+
+.myapps-cert-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.myapps-cert-name {
+    font-size: 12px;
+    color: var(--myapps-detail-text-strong);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.myapps-cert-type-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.myapps-cert-type-chip.is-le {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.myapps-cert-type-chip.is-custom {
+    background: var(--myapps-detail-surface-soft);
+    color: var(--myapps-detail-muted);
+    border: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-cert-type-chip.is-self {
+    background: var(--myapps-detail-surface-soft);
+    color: var(--myapps-detail-muted);
+    border: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-cert-type-chip.is-http {
+    background: transparent;
+    color: var(--myapps-detail-muted);
+    border: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-route-col-https {
+    min-width: 80px;
+}
+
+.myapps-route-col-endpoints {
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.myapps-route-endpoint-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #3b82f6;
+    text-decoration: none;
+    white-space: nowrap;
+    margin-right: 12px;
+}
+
+.myapps-route-endpoint-link:last-child {
+    margin-right: 0;
+}
+
+.myapps-route-endpoint-link:hover {
+    text-decoration: underline;
+}
+
+.myapps-route-endpoint-link.is-admin {
+    color: #6366f1;
+}
+
+.myapps-route-col-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.myapps-route-action-edit {
+    padding: 4px 6px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #3b82f6;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.myapps-route-action-edit:hover {
+    background: var(--myapps-detail-surface-soft);
+    color: #2563eb;
+}
+
+/* ── Credentials section ── */
+.myapps-creds-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: none;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #3b82f6;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.myapps-creds-toggle-btn:hover {
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-creds-rows {
+    margin: 0 16px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--myapps-detail-border);
+    overflow: hidden;
+    background: var(--myapps-detail-surface-soft);
+}
+
+.myapps-creds-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--myapps-detail-border);
+    background: transparent;
+}
+
+.myapps-creds-row:last-child {
+    border-bottom: none;
+}
+
+.myapps-creds-label {
+    font-size: 13px;
+    color: var(--myapps-detail-muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.myapps-creds-value {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 4px 4px 10px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 4px;
+    background: var(--myapps-detail-surface);
+    font-size: 13px;
+    color: var(--myapps-detail-text-strong);
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    min-width: 0;
+    overflow: hidden;
+    gap: 6px;
+}
+
+.myapps-creds-value-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.5;
+}
+
+.myapps-creds-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+    border-left: 1px solid var(--myapps-detail-border);
+    padding-left: 4px;
+    margin-left: 2px;
+}
+
+.myapps-creds-dots {
+    font-size: 18px;
+    letter-spacing: 2px;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.myapps-creds-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: var(--myapps-detail-muted);
+    transition: color 0.15s;
+}
+
+.myapps-creds-copy-btn:hover {
+    color: var(--myapps-detail-text-strong);
+}
+
+/* .myapps-creds-actions is now defined inside .myapps-creds-value above */
+
+.myapps-creds-eye-btn {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: var(--myapps-detail-muted);
+    transition: color 0.15s;
+}
+
+.myapps-creds-eye-btn:hover {
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-creds-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    padding: 6px 16px 12px;
+    font-size: 12px;
+    color: var(--myapps-detail-muted);
+    line-height: 1.55;
+}
+
+.myapps-creds-note::before {
+    content: none;
+}
+
+.myapps-creds-note svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+[data-theme='dark'] .myapps-creds-note,
+.dark .myapps-creds-note {
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-default-access-no-domain {
+    display: flex;
+    flex-direction: column;
+}
+
+.myapps-ip-access-warning {
+    display: none;
+    /* replaced by myapps-ip-access-tip */
+}
+
+.myapps-ip-access-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    padding: 6px 16px 10px;
+    color: var(--myapps-detail-muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.myapps-ip-access-tip svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.dark .myapps-ip-access-tip {
+    color: var(--myapps-detail-muted);
+}
+
+/* Port status badge (header right) */
+.myapps-port-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #16a34a;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    white-space: nowrap;
+}
+
+.dark .myapps-port-status-badge {
+    color: #4ade80;
+    background: #052e16;
+    border-color: #166534;
+}
+
+.myapps-port-status-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex-shrink: 0;
+    animation: myapps-pulse 2s ease-in-out infinite;
+}
+
+@keyframes myapps-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Inline bind domain button (inside URL row) */
+.myapps-bind-domain-inline-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border: 1px dashed var(--myapps-detail-accent);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--myapps-detail-accent);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.myapps-bind-domain-inline-btn:hover {
+    background: color-mix(in srgb, var(--myapps-detail-accent) 8%, transparent);
+}

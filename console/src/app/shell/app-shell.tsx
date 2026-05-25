@@ -41,7 +41,7 @@ const navigationSections = [
     },
     {
         key: 'tools',
-        segments: ['files', 'terminal', 'services', 'logs', 'users', 'settings'],
+        segments: ['terminal', 'services', 'logs', 'users', 'settings'],
     },
 ] as const
 
@@ -66,8 +66,6 @@ function ShellNavIcon({ segment }: { segment: AppNavIconSegment }) {
             return <SvgIcon viewBox="0 0 24 24"><path d="M12 3 4 7v5c0 4.97 3.44 9.62 8 10.8 4.56-1.18 8-5.83 8-10.8V7l-8-4Zm0 2.18 6 3v3.64c0 3.86-2.52 7.57-6 8.73-3.48-1.16-6-4.87-6-8.73V8.18l6-3ZM8 11h8v2H8v-2Z" /></SvgIcon>
         case 'repository':
             return <SvgIcon viewBox="0 0 24 24"><path d="M5 4h9a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5V4Zm2 2v12h7a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H7Zm11 1h2v10h-2V7Z" /></SvgIcon>
-        case 'files':
-            return <SvgIcon viewBox="0 0 24 24"><path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6Zm2 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8h-7.17L8.83 7H6Z" /></SvgIcon>
         case 'terminal':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h16V7H4Zm3 2 4 3-4 3v-2l1.5-1L7 11V9Zm6 4h4v2h-4v-2Z" /></SvgIcon>
         case 'services':
@@ -111,8 +109,12 @@ function PersonIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="M12 12a4.25 4.25 0 1 0-4.25-4.25A4.26 4.26 0 0 0 12 12Zm0 2.13c-3.45 0-6.25 2.19-6.25 4.87V21h12.5v-2c0-2.68-2.8-4.87-6.25-4.87Z" /></SvgIcon>
 }
 
-function LocaleBadgeIcon({ label }: { label: string }) {
-    return <Box className="app-shell-locale-badge">{label}</Box>
+function GlobeIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Zm0 2c.55 0 1.33.6 2.04 2H9.96C10.67 4.6 11.45 4 12 4Zm-2.5.44A9.08 9.08 0 0 0 7.33 8H4.61A8.03 8.03 0 0 1 9.5 4.44ZM4.06 10h3.22a15.28 15.28 0 0 0-.2 2c0 .68.07 1.35.2 2H4.06A8.07 8.07 0 0 1 4 12c0-.7.02-1.38.06-2Zm.55 6h2.72A9.08 9.08 0 0 0 9.5 19.56 8.03 8.03 0 0 1 4.61 16Zm5.35 3.56C10.67 21.4 11.45 22 12 22c.55 0 1.33-.6 2.04-2H9.96v-.44Zm4.54-3.56a9.08 9.08 0 0 0 2.17-3.56h2.72A8.03 8.03 0 0 1 14.5 19.56ZM19.94 14h-3.22c.13-.65.2-1.32.2-2s-.07-1.35-.2-2h3.22c.04.62.06 1.3.06 2s-.02 1.38-.06 2Zm-.55-6h-2.72A9.08 9.08 0 0 0 14.5 4.44 8.03 8.03 0 0 1 19.39 8ZM9.96 8c.44-1.56 1.16-2.66 1.85-2.94A4.5 4.5 0 0 1 12 5c.06 0 .13 0 .19.06C12.88 5.34 13.6 6.44 14.04 8H9.96Zm-.68 2h5.44c.14.63.21 1.3.21 2s-.07 1.37-.21 2H9.28A12.9 12.9 0 0 1 9.07 12c0-.7.07-1.37.21-2Z" /></SvgIcon>
+}
+
+function HamburgerIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z" /></SvgIcon>
 }
 
 function ChevronDownIcon() {
@@ -142,6 +144,7 @@ export function AppShell() {
         return window.localStorage.getItem(SHELL_NAV_COLLAPSED_STORAGE_KEY) === 'true'
     })
     const [applicationsExpanded, setApplicationsExpanded] = useState(true)
+    const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
     const resolvedLocale = i18n.resolvedLanguage ?? 'en'
     const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
@@ -153,7 +156,6 @@ export function AppShell() {
         location.pathname === '/myapps' ||
         location.pathname.startsWith('/myapps/') ||
         location.pathname === '/dashboard' ||
-        location.pathname === '/files' ||
         location.pathname === '/terminal' ||
         location.pathname === '/services' ||
         location.pathname === '/logs' ||
@@ -252,6 +254,13 @@ export function AppShell() {
                 icon: 'myapps',
             },
             {
+                key: 'appstore',
+                label: t('nav.appStore.label'),
+                to: '/appstore',
+                active: location.pathname === '/appstore',
+                icon: 'appstore',
+            },
+            {
                 key: 'deploy',
                 label: t('applicationsHubPage.menu.action'),
                 to: applicationsNavigationTarget,
@@ -278,6 +287,7 @@ export function AppShell() {
         setCollapsedApplicationsAnchor(null)
         setLocaleMenuAnchor(null)
         setAppearanceMenuAnchor(null)
+        setMobileNavOpen(false)
     }, [location.pathname])
 
     useEffect(() => {
@@ -343,8 +353,9 @@ export function AppShell() {
     }
 
     return (
-        <Box className={`app-shell-root app-shell-root--${colorMode} ${navCollapsed ? 'app-shell-root--collapsed' : ''}`}>
+        <Box className={`app-shell-root app-shell-root--${colorMode} ${navCollapsed ? 'app-shell-root--collapsed' : ''} ${mobileNavOpen ? 'app-shell-root--mobile-nav-open' : ''}`}>
             <Box className="app-shell-frame">
+                <Box className="app-shell-mobile-backdrop" onClick={() => setMobileNavOpen(false)} />
                 <Box component="aside" className="app-shell-sidebar">
                     <Box className="app-shell-sidebar-inner">
                         <Box className="app-shell-sidebar-header">
@@ -534,19 +545,14 @@ export function AppShell() {
 
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
+                        <IconButton
+                            className="app-shell-hamburger app-shell-icon-button"
+                            onClick={() => setMobileNavOpen(true)}
+                            aria-label={t('navigation.expand', { defaultValue: 'Open navigation' })}
+                        >
+                            <HamburgerIcon />
+                        </IconButton>
                         <Box className="app-shell-topbar-actions">
-                            <Button
-                                color="inherit"
-                                onClick={() => {
-                                    navigate('/appstore')
-                                }}
-                                size="small"
-                                className="app-shell-topbar-pill"
-                                title={t('nav.appStore.label')}
-                                startIcon={<ShellNavIcon segment="appstore" />}
-                            >
-                                {t('nav.appStore.label')}
-                            </Button>
                             <Button
                                 color="inherit"
                                 onClick={(event) => {
@@ -555,7 +561,7 @@ export function AppShell() {
                                 size="small"
                                 className="app-shell-topbar-pill"
                                 title={t('preferences.language')}
-                                startIcon={<LocaleBadgeIcon label={normalizedLocale === 'zh-CN' ? '中' : 'EN'} />}
+                                startIcon={<GlobeIcon />}
                                 endIcon={<ChevronDownIcon />}
                             >
                                 {currentLocaleLabel}
@@ -661,7 +667,7 @@ export function AppShell() {
                                     }}
                                 >
                                     <Box className="app-shell-account-link-icon">
-                                        <LocaleBadgeIcon label={locale === 'zh-CN' ? '中' : 'EN'} />
+                                        <GlobeIcon />
                                     </Box>
                                     <Typography className="app-shell-account-link-title">{t(`locales.${locale}`)}</Typography>
                                 </ListItemButton>

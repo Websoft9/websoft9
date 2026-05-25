@@ -1,4 +1,4 @@
-import { Avatar, Box, Button, Paper, Stack, Typography } from '@mui/material'
+import { Avatar, Box, Button, Paper, Stack, Typography, IconButton, Tooltip } from '@mui/material'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -76,6 +76,25 @@ function ArrowIcon() {
                 transform: 'rotate(45deg)',
             }}
         />
+    )
+}
+
+function AutorenewIcon() {
+    return (
+        <Box
+            component="svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            sx={{ width: 13, height: 13 }}
+        >
+            <polyline points="1 4 1 10 7 10" />
+            <polyline points="23 20 23 14 17 14" />
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
+        </Box>
     )
 }
 
@@ -199,13 +218,22 @@ export function ApplicationsDeployPage() {
     const subtleDivider = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.06)'
     const pillBackground = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(148, 163, 184, 0.12)'
 
-    const featuredAppKeys = ['wordpress', 'gitlab', 'mysql', 'redis', 'mongodb', 'nginx'] as const
-    const appMap = useMemo(() => new Map((appStoreApps ?? []).map((app) => [(app.key ?? '').toLowerCase(), app])), [appStoreApps])
-    const featuredApps = featuredAppKeys.map((key) => ({
-        key,
-        title: t(`applicationsHubPage.deployPage.featured.apps.${key}.title`),
-        app: appMap.get(key),
-    }))
+    const STORE_PAGE_SIZE = 6
+    const [storePageIndex, setStorePageIndex] = useState(0)
+
+    const hotApps = useMemo(() => {
+        return (appStoreApps ?? [])
+            .filter((app) => app.key)
+            .sort((a, b) => (b.hot ?? 0) - (a.hot ?? 0))
+            .slice(0, 30)
+    }, [appStoreApps])
+
+    const totalStorePages = Math.max(1, Math.ceil(hotApps.length / STORE_PAGE_SIZE))
+    const currentStoreApps = hotApps.slice(storePageIndex * STORE_PAGE_SIZE, (storePageIndex + 1) * STORE_PAGE_SIZE)
+
+    function handleShuffle() {
+        setStorePageIndex((idx) => (idx + 1) % totalStorePages)
+    }
     const composeSteps = [
         {
             key: 'prepare',
@@ -491,7 +519,7 @@ export function ApplicationsDeployPage() {
                                 overflow: 'hidden',
                             }}
                         >
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1, alignItems: 'center', px: 1.5, py: 1.25 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 1, alignItems: 'center', px: 1.5, py: 1.25 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.1, minWidth: 0 }}>
                                     <Box
                                         sx={{
@@ -516,18 +544,44 @@ export function ApplicationsDeployPage() {
                                         </Typography>
                                     </Box>
                                 </Box>
+                                {hotApps.length > STORE_PAGE_SIZE && (
+                                    <Tooltip title={t('applicationsHubPage.deployPage.cards.marketplace.shuffle')} placement="top">
+                                        <IconButton
+                                            size="small"
+                                            onClick={handleShuffle}
+                                            sx={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 0.5,
+                                                px: 1,
+                                                py: 0.5,
+                                                borderRadius: '4px',
+                                                border: '1px solid var(--ds-color-border)',
+                                                color: 'var(--ds-color-text-muted)',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                '&:hover': { color: '#2563eb', borderColor: '#2563eb', backgroundColor: isDark ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.05)' },
+                                            }}
+                                        >
+                                            <AutorenewIcon />
+                                            <Box component="span" sx={{ fontSize: 12, fontWeight: 700, ml: 0.4 }}>
+                                                {t('applicationsHubPage.deployPage.cards.marketplace.shuffle')}
+                                            </Box>
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
                             </Box>
 
                             <Box sx={{ height: 1, backgroundColor: subtleDivider }} />
 
                             <Box sx={{ px: 1, pt: 1, pb: 1, display: 'flex', flexDirection: 'column', gap: 0.9, flex: 1 }}>
                                 <Box sx={{ display: 'grid', gap: 0.75 }}>
-                                    {featuredApps.map((item) => (
+                                    {currentStoreApps.map((app) => (
                                         <AppListItem
-                                            key={item.key}
-                                            app={item.app}
-                                            fallbackLabel={item.title}
-                                            onClick={() => openFeaturedApp(item.key)}
+                                            key={app.key}
+                                            app={app}
+                                            fallbackLabel={app.trademark?.trim() || app.key || ''}
+                                            onClick={() => openFeaturedApp(app.key ?? '')}
                                             isDark={isDark}
                                         />
                                     ))}

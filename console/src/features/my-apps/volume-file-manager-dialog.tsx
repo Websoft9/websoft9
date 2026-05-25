@@ -626,14 +626,14 @@ export function VolumeFileManagerDialog({
         '& .MuiDialog-container': {
             alignItems: 'flex-start',
             justifyContent: 'center',
-            pt: scopeRect ? `${Math.max(scopeRect.top + 8, 16)}px` : { xs: 1.5, md: 2 },
+            pt: { xs: 1.5, md: 2 },
             pb: { xs: 1.5, md: 2 },
         },
         '& .MuiDialog-paper': {
             width: scopeRect ? `${Math.min(scopeRect.width * 0.95, 1440)}px` : 'min(95vw, 1440px)',
             maxWidth: scopeRect ? `${Math.min(scopeRect.width * 0.95, 1440)}px` : '1440px',
-            height: scopeRect ? `${Math.max(scopeRect.height - 24, 560)}px` : 'calc(100dvh - 40px)',
-            maxHeight: scopeRect ? `${Math.max(scopeRect.height - 24, 560)}px` : 'calc(100dvh - 40px)',
+            height: scopeRect ? `${Math.max(scopeRect.height - 40, 560)}px` : 'calc(100dvh - 40px)',
+            maxHeight: scopeRect ? `${Math.max(scopeRect.height - 40, 560)}px` : 'calc(100dvh - 40px)',
             borderRadius: 0,
             overflow: 'hidden',
         },
@@ -1340,6 +1340,9 @@ export function VolumeFileManagerDialog({
                 onClose={protectedMainDialogOnClose}
                 maxWidth="lg"
                 darkMode={darkMode}
+                scope="content"
+                scopeRect={scopeRect}
+                contentStrategy="viewport-fixed"
                 sx={[dialogStyle, { zIndex: 1605 }]}
             >
                 <div className={darkMode ? 'app-shell-root--dark' : undefined} style={{ height: '100%', padding: '14px 14px 16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', minHeight: 0 }}>

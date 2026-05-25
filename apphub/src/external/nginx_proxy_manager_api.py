@@ -209,3 +209,27 @@ class NginxProxyManagerAPI:
                 },
             },
         )
+
+    def create_custom_certificate(self, nice_name: str, certificate_pem: str, key_pem: str):
+        """
+        Upload a custom (non-Let's Encrypt) SSL certificate.
+
+        Args:
+            nice_name (str): Display name for the certificate
+            certificate_pem (str): PEM-encoded certificate content
+            key_pem (str): PEM-encoded private key content
+
+        Returns:
+            Response: Response from Nginx Proxy Manager API
+        """
+        return self.api.post(
+            path="nginx/certificates",
+            json={
+                "provider": "other",
+                "nice_name": nice_name,
+                "meta": {
+                    "certificate": certificate_pem,
+                    "certificate_key": key_pem,
+                },
+            },
+        )

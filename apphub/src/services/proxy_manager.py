@@ -430,3 +430,16 @@ class ProxyManager:
         if proxy_id is not None:
             self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"))
         return certificate
+
+    def upload_custom_certificate(self, nice_name: str, certificate_pem: str, key_pem: str, proxy_id: int | None = None, domain_names: list[str] | None = None):
+        """
+        Upload a custom SSL certificate and optionally bind it to a proxy host.
+        """
+        response = self.nginx.create_custom_certificate(nice_name=nice_name, certificate_pem=certificate_pem, key_pem=key_pem)
+        if response.status_code not in [200, 201]:
+            self._handler_nginx_error(response)
+
+        certificate = response.json()
+        if proxy_id is not None and domain_names:
+            self.update_proxy_by_app(proxy_id, domain_names, certificate.get("id"))
+        return certificate

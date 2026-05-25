@@ -14,11 +14,17 @@ RUN CGO_ENABLED=0 go build -o /build/init_portainer /build/init_portainer.go
 
 FROM python:3.11-slim AS python-deps-builder
 
+ARG WEBSOFT9_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG WEBSOFT9_PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+
 WORKDIR /build
 COPY apphub/requirements.txt /build/requirements.txt
 RUN set -e; \
     export PIP_PROGRESS_BAR=off; \
     export PIP_DEFAULT_TIMEOUT=120; \
+    export PIP_DISABLE_PIP_VERSION_CHECK=1; \
+    if [ -n "$WEBSOFT9_PIP_INDEX_URL" ]; then export PIP_INDEX_URL="$WEBSOFT9_PIP_INDEX_URL"; fi; \
+    if [ -n "$WEBSOFT9_PIP_TRUSTED_HOST" ]; then export PIP_TRUSTED_HOST="$WEBSOFT9_PIP_TRUSTED_HOST"; fi; \
     mkdir -p /tmp/pip-cache; \
     for attempt in 1 2 3; do \
         python -m pip install \

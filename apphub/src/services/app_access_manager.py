@@ -142,6 +142,29 @@ class AppAccessManager:
         target_proxy_id = proxy_id or (proxy_hosts[0].get("id") if proxy_hosts else None)
         return ProxyManager().request_letsencrypt_certificate(email, domain_names, target_proxy_id)
 
+    def upload_custom_certificate(
+        self,
+        app_id: str,
+        nice_name: str,
+        certificate_pem: str,
+        key_pem: str,
+        proxy_id: Optional[int],
+        domain_names: Optional[list[str]],
+        endpoint_id: int | None = None,
+    ) -> dict:
+        app = AppManger().get_app_by_id(app_id, endpoint_id)
+        profile = self._resolve_profile(app_id, app)
+        proxy_hosts = self._get_proxy_hosts(app_id, profile)
+        target_proxy_id = proxy_id or (proxy_hosts[0].get("id") if proxy_hosts else None)
+        binding_domains = domain_names or []
+        return ProxyManager().upload_custom_certificate(
+            nice_name=nice_name,
+            certificate_pem=certificate_pem,
+            key_pem=key_pem,
+            proxy_id=target_proxy_id,
+            domain_names=binding_domains if binding_domains and target_proxy_id else None,
+        )
+
     def _resolve_profile(self, app_id: str, app: Any) -> AppAccessProfile:
         builtin = self._resolve_builtin_profile(app_id, app)
         if builtin is not None:

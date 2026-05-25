@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional, Tuple
+from urllib.parse import urlparse
 
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
@@ -17,7 +18,26 @@ from src.core.logger import logger
 
 
 DEFAULT_PRODUCT_AUTH_PROTECTED_MODULES = ["users", "files", "terminal", "services", "logs"]
-PRODUCT_AUTH_COOKIE_NAME = "websoft9_operator_session"
+
+
+def _resolve_product_auth_cookie_name() -> str:
+    base_name = "websoft9_operator_session"
+
+    platform_port = (os.getenv("WEBSOFT9_PLATFORM_HTTP_PORT") or "").strip()
+    if platform_port.isdigit():
+        return f"{base_name}_{platform_port}"
+
+    public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip()
+    if public_origin:
+        parsed_origin = urlparse(public_origin)
+        cookie_suffix = "".join(char if char.isalnum() else "_" for char in parsed_origin.netloc).strip("_")
+        if cookie_suffix:
+            return f"{base_name}_{cookie_suffix}"
+
+    return base_name
+
+
+PRODUCT_AUTH_COOKIE_NAME = _resolve_product_auth_cookie_name()
 SESSION_TTL_DAYS = 30
 PASSWORD_HASH_ITERATIONS = 310_000
 DOCKER_BOOTSTRAP_ACTOR = "docker-bootstrap"

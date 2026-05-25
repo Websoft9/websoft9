@@ -1410,6 +1410,8 @@ export function MyAppDetailPage() {
                                             env={data.env}
                                             isComposeApp={isComposeApp}
                                             onUpdated={refreshAfterAction}
+                                            scopeRect={contentScopeRect}
+                                            isDarkMode={isDarkMode}
                                         />
                                     ) : null}
 

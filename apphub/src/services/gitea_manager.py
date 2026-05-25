@@ -6,6 +6,7 @@ from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.external.gitea_api import GiteaAPI
 from src.services.integration_credentials import IntegrationCredentialProvider
+from urllib.parse import urlparse, urlunparse
 
 
 class GiteaManager:
@@ -42,6 +43,32 @@ class GiteaManager:
         credentials_encoded = base64.b64encode(credentials.encode()).decode()
         self.gitea.set_credential(credentials_encoded)
 
+    def _normalize_clone_url(self, clone_url: str) -> str:
+        try:
+            parsed = urlparse(clone_url)
+        except Exception:
+            return clone_url
+
+        if not parsed.scheme or not parsed.netloc:
+            return clone_url
+
+        if not parsed.path.startswith("/w9git/"):
+            return clone_url
+
+        runtime_layout = (os.getenv("WEBSOFT9_RUNTIME_LAYOUT") or "").strip().lower()
+        public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip()
+        public_netloc = urlparse(public_origin).netloc if public_origin else ""
+
+        # In the single-container product runtime, git push/clone must use the
+        # internal platform-gateway listener instead of the external published port.
+        if runtime_layout == "single-container-target" and parsed.netloc in {public_netloc, "127.0.0.1", "localhost"}:
+            return urlunparse(parsed._replace(scheme="http", netloc="127.0.0.1:9000"))
+
+        if parsed.netloc == "localhost":
+            return urlunparse(parsed._replace(netloc="websoft9-git:3000"))
+
+        return clone_url
+
     def check_repo_exists(self,repo_name: str):
         """
         Check repo is exist
@@ -74,7 +101,7 @@ class GiteaManager:
         response = self.gitea.create_repo(repo_name)
         if response.status_code == 201:
             repo_json = response.json()
-            url = repo_json["clone_url"].replace("localhost/w9git","websoft9-git:3000")
+            url = self._normalize_clone_url(repo_json["clone_url"])
             return url
         else:
             logger.error(f"Create repo:{repo_name} error:{response.status_code}:{response.text}")

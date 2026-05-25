@@ -140,12 +140,27 @@ sync_runtime_config() {
 }
 
 ensure_runtime_assets() {
-  /websoft9/script/platform-sync-runtime-assets.py
+  local asset_types="${1:-${WEBSOFT9_RUNTIME_ASSET_TYPES:-media,library}}"
+  WEBSOFT9_RUNTIME_ASSET_TYPES="$asset_types" /websoft9/script/platform-sync-runtime-assets.py
+}
+
+sync_runtime_assets() {
+  local asset_types="${WEBSOFT9_BLOCKING_RUNTIME_ASSET_TYPES:-library}"
+
+  log_event "info" "runtime.assets-sync-start" "phase=workspace-bootstrap action=sync-runtime-assets"
+
+  if ensure_runtime_assets "$asset_types"; then
+    log_event "info" "runtime.assets-sync-complete" "runtime assets sync completed"
+  else
+    log_event "warning" "runtime.assets-sync-failed" "runtime assets sync failed; continuing with existing bundled assets"
+  fi
 }
 
 sync_runtime_assets_async() {
+  local asset_types="${WEBSOFT9_ASYNC_RUNTIME_ASSET_TYPES:-media}"
+
   (
-    if ensure_runtime_assets; then
+    if ensure_runtime_assets "$asset_types"; then
       log_event "info" "runtime.assets-sync-complete" "runtime assets sync completed"
     else
       log_event "warning" "runtime.assets-sync-failed" "runtime assets sync failed; continuing with existing bundled assets"
@@ -304,6 +319,7 @@ main() {
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   sync_runtime_config base
+  sync_runtime_assets
   start_supervisor
   sync_runtime_assets_async
   start_apphub_core

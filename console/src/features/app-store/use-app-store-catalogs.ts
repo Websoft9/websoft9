@@ -45,6 +45,14 @@ function sortCatalogs(items: AppStoreCatalogItem[]) {
     })
 }
 
+async function fetchCatalogs(apiLocale: string) {
+    try {
+        return await fetchCatalogJson<AppStoreCatalogItem[]>(`/media/json/catalog_${apiLocale}.json`, 'Failed to load static app store catalogs')
+    } catch {
+        return fetchCatalogJson<AppStoreCatalogItem[]>(`/api/apps/catalog/${apiLocale}`, 'Failed to load app store catalogs')
+    }
+}
+
 export function useAppStoreCatalogs() {
     const { i18n } = useTranslation('shell')
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
@@ -53,7 +61,7 @@ export function useAppStoreCatalogs() {
     return useQuery<AppStoreCatalogItem[], AppStoreCatalogError>({
         queryKey: ['app-store-catalogs', apiLocale],
         queryFn: async () => {
-            const catalogs = await fetchCatalogJson<AppStoreCatalogItem[]>(`/api/apps/catalog/${apiLocale}`, 'Failed to load app store catalogs')
+            const catalogs = await fetchCatalogs(apiLocale)
             return sortCatalogs(catalogs)
         },
         staleTime: 60_000,

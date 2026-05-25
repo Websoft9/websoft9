@@ -182,10 +182,19 @@ type ComposeMountRow = {
 }
 
 const DEFAULT_COMPOSE_TEMPLATE = `services:
-    web:
-        image: nginx:latest
-        ports:
-            - "8080:80"
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    environment:
+      - WELCOME_MSG=Hello Websoft9
+    volumes:
+      - ./html:/usr/share/nginx/html
+
+networks:
+  default:
+    name: $W9_NETWORK
+    external: true
 `
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
@@ -823,6 +832,19 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         : ''
     const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
     const favoriteSet = useMemo(() => new Set((favoritesData?.favorites ?? []).map((item) => item.toLowerCase())), [favoritesData?.favorites])
+    const selectedAppSettings = useMemo(() => {
+        const selectedAppKey = (selectedApp?.key ?? '').toLowerCase()
+        if (!selectedAppKey) {
+            return selectedApp?.settings ?? {}
+        }
+
+        const canonicalSelectedApp = apps.find((app) => (app.key ?? '').toLowerCase() === selectedAppKey)
+        return canonicalSelectedApp?.settings ?? selectedApp?.settings ?? {}
+    }, [apps, selectedApp])
+    const effectiveInstallSettings = useMemo(
+        () => (Object.keys(installSettings).length > 0 ? installSettings : selectedAppSettings),
+        [installSettings, selectedAppSettings],
+    )
     const currentHostname = typeof window === 'undefined' ? '' : window.location.hostname
     const isDarkMode = colorMode === 'dark'
     const palette = getSurfacePalette(isDarkMode)
@@ -1190,7 +1212,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             return
         }
 
-        const portsValidationMessage = getInstallPortsValidationMessage(installSettings, t, locale)
+        const portsValidationMessage = getInstallPortsValidationMessage(effectiveInstallSettings, t, locale)
         if (portsValidationMessage) {
             setInstallFieldErrors({ settings: { [portsValidationMessage.key]: portsValidationMessage.message } })
             setInstallError(portsValidationMessage.message)
@@ -1217,7 +1239,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 selectedApp,
                 normalizedAppId,
                 selectedVersion,
-                installSettings,
+                effectiveInstallSettings,
                 domainNames.length > 0 ? domainNames : [currentHostname],
                 proxyEnabled,
             )
@@ -1241,7 +1263,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             if (portMatch) {
                 const conflictedPort = portMatch[1]
                 message = t('appStorePage.install.feedback.portConflict', { port: conflictedPort })
-                const matchedSettingKey = Object.entries(installSettings).find(([, value]) => value.trim() === conflictedPort)?.[0]
+                const matchedSettingKey = Object.entries(effectiveInstallSettings).find(([, value]) => value.trim() === conflictedPort)?.[0]
                 if (matchedSettingKey) {
                     setInstallFieldErrors({ settings: { [matchedSettingKey]: message } })
                     installSettingInputRefs.current[matchedSettingKey]?.focus()
@@ -2726,7 +2748,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         )}
                                     </Box>
 
-                                    {Object.entries(installSettings).map(([key, value]) => (
+                                    {Object.entries(effectiveInstallSettings).map(([key, value]) => (
                                         <Box key={key}>
                                             {(() => {
                                                 const isProxyManagedPort = hasCustomAccessDomain && isWebAccessPortSetting(key)

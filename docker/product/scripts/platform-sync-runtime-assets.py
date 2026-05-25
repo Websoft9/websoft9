@@ -228,6 +228,15 @@ def main() -> int:
         ),
     ]
 
+    requested_package_types = {
+        item.strip()
+        for item in (os.getenv("WEBSOFT9_RUNTIME_ASSET_TYPES", "media,library")).split(",")
+        if item.strip()
+    }
+
+    if requested_package_types:
+        packages = [package for package in packages if package[0] in requested_package_types]
+
     try:
         for package_type, target_dir, marker_path in packages:
             sync_package(package_type, target_dir, marker_path, channel, artifact_base)

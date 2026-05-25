@@ -274,6 +274,17 @@
     position: relative;
 }
 
+/* Parent item: remove highlight when only a child sub-item is active */
+.app-shell-nav-item--parent.active {
+    background: transparent;
+    color: var(--shell-sidebar-text);
+}
+
+.app-shell-nav-item--parent.active:hover {
+    background: var(--shell-sidebar-hover);
+    color: var(--shell-strong-text);
+}
+
 .app-shell-nav-item-leading {
     display: inline-flex;
     align-items: center;
@@ -1297,6 +1308,64 @@
 
 .app-shell-root--collapsed .app-shell-subnav {
     display: none;
+}
+
+/* Mobile responsive navigation */
+.app-shell-hamburger {
+    display: none;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.app-shell-mobile-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1299;
+    background: rgba(0, 0, 0, 0.48);
+}
+
+@media (max-width: 767px) {
+    .app-shell-hamburger {
+        display: inline-flex;
+    }
+
+    .app-shell-divider-toggle {
+        display: none;
+    }
+
+    .app-shell-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        z-index: 1300;
+        transform: translateX(-100%);
+        transition: transform 240ms ease, width 180ms ease, padding 180ms ease;
+        box-shadow: 4px 0 24px rgba(15, 23, 42, 0.18);
+    }
+
+    .app-shell-root--mobile-nav-open .app-shell-sidebar {
+        transform: translateX(0);
+    }
+
+    .app-shell-root--mobile-nav-open .app-shell-mobile-backdrop {
+        display: block;
+    }
+
+    .app-shell-topbar {
+        padding-left: 8px;
+        justify-content: flex-start;
+    }
+
+    .app-shell-topbar-actions {
+        flex: 1;
+        justify-content: flex-end;
+    }
+
+    .app-shell-content {
+        width: 100%;
+    }
 }
 
 @media (max-width: 899px) {
