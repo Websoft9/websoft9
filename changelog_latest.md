@@ -1,4 +1,4 @@
-## 2.2.17
+## 2.2.18
 
 ### Fix
-- Update default docker registry mirrors in `daemon.json` fallback config to enhance pull success rate.
+- Fix and upgrade RocketMQ.
