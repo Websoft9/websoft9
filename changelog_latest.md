@@ -1,4 +1,4 @@
-## 2.2.18
+## 2.2.19
 
 ### Fix
-- Fix and upgrade RocketMQ.
+- Fix language bugs.
