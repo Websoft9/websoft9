@@ -14,7 +14,7 @@ type IntegrationWorkspacePageProps = {
     shellPersistent?: boolean
 }
 
-const shellPersistentIntegrationKeys: IntegrationKey[] = ['gitea', 'npm']
+const shellPersistentIntegrationKeys: IntegrationKey[] = ['gitea']
 
 export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, showCatalogLink = false, shellPersistent = false }: IntegrationWorkspacePageProps) {
     const { integrationKey: routeIntegrationKey, '*': unmatchedPath } = useParams()
@@ -36,7 +36,7 @@ export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, 
 
 export function PersistentIntegrationWorkspaces() {
     const location = useLocation()
-    const { refresh, snapshots } = useIntegrationStatuses()
+    const { refresh, snapshots } = useIntegrationStatuses(shellPersistentIntegrationKeys)
     const activeDefinition = useMemo(() => {
         return integrationDefinitions.find((definition) => location.pathname === `/${definition.entrySegment}`) ?? null
     }, [location.pathname])

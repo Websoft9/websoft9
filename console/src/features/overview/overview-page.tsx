@@ -148,7 +148,6 @@ export function OverviewPage() {
         queryFn: () => requestJson<OverviewResponse>('/api/overview'),
         enabled: Boolean(status?.enabled && status?.authenticated),
         staleTime: 10_000,
-        refetchInterval: 30_000,
         refetchOnWindowFocus: false,
     })
 

@@ -15,6 +15,8 @@ export type IntegrationStatusSnapshot = {
     status: IntegrationStatus
 }
 
+const integrationKeys = integrationDefinitions.map((definition) => definition.key)
+
 const loadingSnapshot: IntegrationStatusSnapshot = {
     checkedAt: null,
     httpStatus: null,
@@ -60,7 +62,7 @@ async function probeIntegration(definition: IntegrationDefinition, signal: Abort
     } satisfies IntegrationStatusSnapshot
 }
 
-export function useIntegrationStatuses() {
+export function useIntegrationStatuses(scope: IntegrationKey[] = integrationKeys) {
     const [refreshNonce, setRefreshNonce] = useState(0)
     const [snapshots, setSnapshots] = useState<Record<IntegrationKey, IntegrationStatusSnapshot>>({
         gitea: loadingSnapshot,
@@ -70,9 +72,10 @@ export function useIntegrationStatuses() {
 
     useEffect(() => {
         const abortController = new AbortController()
+        const scopedDefinitions = integrationDefinitions.filter((definition) => scope.includes(definition.key))
 
         void Promise.all(
-            integrationDefinitions.map(async (definition) => {
+            scopedDefinitions.map(async (definition) => {
                 try {
                     const snapshot = await probeIntegration(definition, abortController.signal)
                     return [definition.key, snapshot] as const
@@ -97,7 +100,7 @@ export function useIntegrationStatuses() {
         return () => {
             abortController.abort()
         }
-    }, [refreshNonce])
+    }, [refreshNonce, scope])
 
     return useMemo(
         () => ({
