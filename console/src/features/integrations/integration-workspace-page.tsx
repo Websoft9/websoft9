@@ -38,7 +38,11 @@ export function PersistentIntegrationWorkspaces() {
     const location = useLocation()
     const { refresh, snapshots } = useIntegrationStatuses(shellPersistentIntegrationKeys)
     const activeDefinition = useMemo(() => {
-        return integrationDefinitions.find((definition) => location.pathname === `/${definition.entrySegment}`) ?? null
+        return integrationDefinitions.find(
+            (definition) =>
+                shellPersistentIntegrationKeys.includes(definition.key) &&
+                location.pathname === `/${definition.entrySegment}`,
+        ) ?? null
     }, [location.pathname])
 
     return (
