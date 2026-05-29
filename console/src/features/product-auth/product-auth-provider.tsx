@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { i18n, normalizeSupportedLocale } from '../../shared/i18n/i18n'
+
+const PRODUCT_AUTH_STATUS_STORAGE_KEY = 'websoft9:product-auth-status'
 
 type ProductAuthUser = {
     id: string
@@ -19,6 +21,11 @@ type ProductAuthStatus = {
     authenticated: boolean
     protected_modules: string[]
     current_user: ProductAuthUser | null
+    storage_boundary?: {
+        asset_group: string
+        backup_scope: string
+        separated_from_integrations: boolean
+    }
 }
 
 type ProductAuthContextValue = {
@@ -33,6 +40,57 @@ type ProductAuthContextValue = {
 }
 
 const ProductAuthContext = createContext<ProductAuthContextValue | null>(null)
+
+type ProductAuthBootstrapState = {
+    status: ProductAuthStatus | null
+    isLoading: boolean
+    hydratedFromSnapshot: boolean
+}
+
+function isAuthRoute(pathname: string) {
+    return /^\/auth\/(login|setup)(?:[/?#]|$)/.test(pathname)
+}
+
+function readPersistedProductAuthStatus(): ProductAuthBootstrapState {
+    if (typeof window === 'undefined') {
+        return { status: null, isLoading: true, hydratedFromSnapshot: false }
+    }
+
+    try {
+        const rawSnapshot = window.sessionStorage.getItem(PRODUCT_AUTH_STATUS_STORAGE_KEY)
+        if (!rawSnapshot) {
+            return { status: null, isLoading: true, hydratedFromSnapshot: false }
+        }
+
+        const snapshot = JSON.parse(rawSnapshot) as { status?: ProductAuthStatus } | null
+        const status = snapshot?.status ?? null
+        if (!status?.authenticated || isAuthRoute(window.location.pathname)) {
+            return { status: null, isLoading: true, hydratedFromSnapshot: false }
+        }
+
+        return { status, isLoading: false, hydratedFromSnapshot: true }
+    } catch {
+        return { status: null, isLoading: true, hydratedFromSnapshot: false }
+    }
+}
+
+function persistProductAuthStatus(status: ProductAuthStatus) {
+    if (typeof window === 'undefined') {
+        return
+    }
+
+    try {
+        window.sessionStorage.setItem(
+            PRODUCT_AUTH_STATUS_STORAGE_KEY,
+            JSON.stringify({
+                savedAt: Date.now(),
+                status,
+            }),
+        )
+    } catch {
+        // Ignore storage failures and continue using in-memory auth state.
+    }
+}
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
@@ -57,34 +115,43 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 }
 
 export function ProductAuthProvider({ children }: { children: ReactNode }) {
-    const [status, setStatus] = useState<ProductAuthStatus | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
+    const bootstrapStateRef = useRef<ProductAuthBootstrapState>(readPersistedProductAuthStatus())
+    const [status, setStatus] = useState<ProductAuthStatus | null>(bootstrapStateRef.current.status)
+    const [isLoading, setIsLoading] = useState(bootstrapStateRef.current.isLoading)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+    const applyStatus = useCallback((nextStatus: ProductAuthStatus) => {
+        setStatus(nextStatus)
+        persistProductAuthStatus(nextStatus)
+    }, [])
+
     const refresh = useCallback(async () => {
         const nextStatus = await requestJson<ProductAuthStatus>('/api/auth/status', { method: 'GET' })
-        setStatus(nextStatus)
+        applyStatus(nextStatus)
         setErrorMessage(null)
         return nextStatus
-    }, [])
+    }, [applyStatus])
 
     useEffect(() => {
         let active = true
+        const hydratedFromSnapshot = bootstrapStateRef.current.hydratedFromSnapshot
 
         void requestJson<ProductAuthStatus>('/api/auth/status', { method: 'GET' })
             .then((payload) => {
                 if (!active) {
                     return
                 }
-                setStatus(payload)
+                applyStatus(payload)
                 setErrorMessage(null)
             })
             .catch((error: unknown) => {
                 if (!active) {
                     return
                 }
-                setErrorMessage(error instanceof Error ? error.message : 'Failed to load authentication state')
+                if (!hydratedFromSnapshot) {
+                    setErrorMessage(error instanceof Error ? error.message : 'Failed to load authentication state')
+                }
             })
             .finally(() => {
                 if (!active) {
@@ -96,7 +163,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         return () => {
             active = false
         }
-    }, [])
+    }, [applyStatus])
 
     useEffect(() => {
         const nextLocale = status?.current_user?.locale
@@ -120,7 +187,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                     locale: normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en'),
                 }),
             })
-            setStatus(nextStatus)
+            applyStatus(nextStatus)
             setErrorMessage(null)
             return nextStatus
         } catch (error) {
@@ -130,7 +197,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         } finally {
             setIsSubmitting(false)
         }
-    }, [])
+    }, [applyStatus])
 
     const login = useCallback(async (payload: { username: string; password: string }) => {
         setIsSubmitting(true)
@@ -139,7 +206,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                 method: 'POST',
                 body: JSON.stringify(payload),
             })
-            setStatus(nextStatus)
+            applyStatus(nextStatus)
             setErrorMessage(null)
             return nextStatus
         } catch (error) {
@@ -149,7 +216,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         } finally {
             setIsSubmitting(false)
         }
-    }, [])
+    }, [applyStatus])
 
     const logout = useCallback(async () => {
         setIsSubmitting(true)

@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
 
 import { AppRouteBoundary } from './app-route-boundary'
@@ -9,19 +9,73 @@ import { IntegrationWorkspacePage } from '../../features/integrations/integratio
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
 
-const AppStorePage = lazy(() => import('../../features/app-store/app-store-page').then((module) => ({ default: module.AppStorePage })))
-const MyAppDetailPage = lazy(() => import('../../features/my-apps/my-app-detail-page').then((module) => ({ default: module.MyAppDetailPage })))
-const MyAppsPage = lazy(() => import('../../features/my-apps/my-apps-page').then((module) => ({ default: module.MyAppsPage })))
-const IntegrationsPage = lazy(() => import('../../features/integrations/integrations-page').then((module) => ({ default: module.IntegrationsPage })))
-const SettingsPage = lazy(() => import('../../features/settings/settings-page').then((module) => ({ default: module.SettingsPage })))
-const FilesPage = lazy(() => import('../../features/files/files-page').then((module) => ({ default: module.FilesPage })))
-const LogsPage = lazy(() => import('../../features/logs/logs-page').then((module) => ({ default: module.LogsPage })))
-const OverviewPage = lazy(() => import('../../features/overview/overview-page').then((module) => ({ default: module.OverviewPage })))
-const ServicesPage = lazy(() => import('../../features/services/services-page').then((module) => ({ default: module.ServicesPage })))
-const TerminalPage = lazy(() => import('../../features/terminal/terminal-page').then((module) => ({ default: module.TerminalPage })))
-const UsersPage = lazy(() => import('../../features/users/users-page').then((module) => ({ default: module.UsersPage })))
-const ApplicationsDeployPage = lazy(() => import('../../features/applications/applications-deploy-page').then((module) => ({ default: module.ApplicationsDeployPage })))
-const ApplicationsCustomInstallPage = lazy(() => import('../../features/applications/applications-custom-install-page').then((module) => ({ default: module.ApplicationsCustomInstallPage })))
+type PreloadableLazyComponent = LazyExoticComponent<ComponentType<any>> & {
+    preload: () => Promise<unknown>
+}
+
+function lazyPage<TModule extends Record<string, unknown>>(
+    loader: () => Promise<TModule>,
+    exportName: keyof TModule,
+): PreloadableLazyComponent {
+    const load = () => loader().then((module) => ({ default: module[exportName] as ComponentType<any> }))
+    const component = lazy(load) as PreloadableLazyComponent
+    component.preload = load
+    return component
+}
+
+const AppStorePage = lazyPage(() => import('../../features/app-store/app-store-page'), 'AppStorePage')
+const MyAppDetailPage = lazyPage(() => import('../../features/my-apps/my-app-detail-page'), 'MyAppDetailPage')
+const MyAppsPage = lazyPage(() => import('../../features/my-apps/my-apps-page'), 'MyAppsPage')
+const IntegrationsPage = lazyPage(() => import('../../features/integrations/integrations-page'), 'IntegrationsPage')
+const SettingsPage = lazyPage(() => import('../../features/settings/settings-page'), 'SettingsPage')
+const FilesPage = lazyPage(() => import('../../features/files/files-page'), 'FilesPage')
+const LogsPage = lazyPage(() => import('../../features/logs/logs-page'), 'LogsPage')
+const OverviewPage = lazyPage(() => import('../../features/overview/overview-page'), 'OverviewPage')
+const ServicesPage = lazyPage(() => import('../../features/services/services-page'), 'ServicesPage')
+const TerminalPage = lazyPage(() => import('../../features/terminal/terminal-page'), 'TerminalPage')
+const UsersPage = lazyPage(() => import('../../features/users/users-page'), 'UsersPage')
+const ApplicationsDeployPage = lazyPage(() => import('../../features/applications/applications-deploy-page'), 'ApplicationsDeployPage')
+const ApplicationsCustomInstallPage = lazyPage(() => import('../../features/applications/applications-custom-install-page'), 'ApplicationsCustomInstallPage')
+
+function preloadInitialRoute(pathname: string) {
+    const preloaders: Array<() => Promise<unknown>> = []
+
+    if (pathname === '/' || pathname === '/dashboard') {
+        preloaders.push(OverviewPage.preload)
+    } else if (pathname === '/appstore') {
+        preloaders.push(AppStorePage.preload)
+    } else if (pathname === '/myapps') {
+        preloaders.push(MyAppsPage.preload)
+    } else if (/^\/myapps\//.test(pathname)) {
+        preloaders.push(MyAppsPage.preload, MyAppDetailPage.preload)
+    } else if (pathname === '/settings') {
+        preloaders.push(SettingsPage.preload)
+    } else if (pathname === '/users') {
+        preloaders.push(UsersPage.preload)
+    } else if (pathname === '/files') {
+        preloaders.push(FilesPage.preload)
+    } else if (pathname === '/terminal') {
+        preloaders.push(TerminalPage.preload)
+    } else if (pathname === '/logs') {
+        preloaders.push(LogsPage.preload)
+    } else if (pathname === '/services') {
+        preloaders.push(ServicesPage.preload)
+    } else if (pathname === '/applications/deploy') {
+        preloaders.push(ApplicationsDeployPage.preload)
+    } else if (pathname === '/applications/custom-install') {
+        preloaders.push(ApplicationsCustomInstallPage.preload)
+    } else if (pathname === '/integrations') {
+        preloaders.push(IntegrationsPage.preload)
+    }
+
+    for (const preload of preloaders) {
+        void preload()
+    }
+}
+
+if (typeof window !== 'undefined') {
+    preloadInitialRoute(window.location.pathname)
+}
 
 export function createAppRouter() {
     const shellRoutes: RouteObject[] = shellNavigationItems.map((navItem) => {
