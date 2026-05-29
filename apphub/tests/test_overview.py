@@ -283,6 +283,90 @@ def test_overview_service_supports_runtime_app_response_models():
     assert any(item.updated_at == "2026-05-07T09:47:40Z" for item in payload.tasks.items)
 
 
+def test_overview_service_reuses_loaded_apps_for_apps_and_tasks():
+    call_count = 0
+
+    def load_apps():
+        nonlocal call_count
+        call_count += 1
+        return [
+            AppResponse(app_id="demo", app_name="Demo", status=3, tracking_id="task-1", creationDate=1_778_147_200),
+            AppResponse(app_id="demo-2", app_name="Demo 2", status=1, tracking_id="task-2", creationDate=1_778_147_260),
+        ]
+
+    service = OverviewService(
+        auth_service=FakeAuthService(),
+        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        available_catalog_count_loader=lambda: 432,
+        host_summary_loader=lambda: {"hostname": "host-a"},
+        host_runtime_summary_loader=lambda: {
+            "runtime_scope": "system",
+            "health_state": "healthy",
+            "cpu_percent": 18.0,
+            "cpu_cores": 4,
+            "cpu_quota_cores": None,
+            "memory_percent": 30.0,
+            "memory_used_bytes": 3,
+            "memory_total_bytes": 10,
+            "network_rx_rate_bytes": None,
+            "network_tx_rate_bytes": None,
+            "network_rx_bytes": None,
+            "network_tx_bytes": None,
+            "disk_percent": 40.0,
+            "disk_used_bytes": 4,
+            "disk_total_bytes": 10,
+        },
+        apps_loader=load_apps,
+        runtime_summary_loader=lambda: {
+            "runtime_scope": "system",
+            "health_state": "healthy",
+            "cpu_percent": 18.0,
+            "cpu_cores": 4,
+            "cpu_quota_cores": None,
+            "memory_percent": 30.0,
+            "memory_used_bytes": 3,
+            "memory_total_bytes": 10,
+            "network_rx_rate_bytes": None,
+            "network_tx_rate_bytes": None,
+            "network_rx_bytes": None,
+            "network_tx_bytes": None,
+        },
+        services_loader=lambda session_token: [],
+        now_provider=lambda: datetime(2026, 5, 7, 9, 0, tzinfo=timezone.utc),
+    )
+
+    payload = service.get_overview("valid-session")
+
+    assert payload.apps.installing_count == 1
+    assert any(item.status == "running" for item in payload.tasks.items)
+    assert call_count == 1
+
+
+def test_overview_default_app_loader_builds_lightweight_inventory():
+    service = OverviewService(auth_service=FakeAuthService())
+
+    class FakePortainerManager:
+        def get_local_endpoint_id(self):
+            return 1
+
+        def get_stacks(self, endpoint_id):
+            assert endpoint_id == 1
+            return [
+                {"Name": "demo", "Status": 1, "CreationDate": "2026-05-07T09:00:00Z"},
+            ]
+
+        def get_containers(self, endpoint_id):
+            assert endpoint_id == 1
+            return [
+                {"Labels": {"com.docker.compose.project": "demo"}, "State": "running", "Names": ["/demo"]},
+            ]
+
+    with patch("src.services.portainer_manager.PortainerManager", return_value=FakePortainerManager()):
+        inventory = service._load_overview_apps()
+
+    assert any(app.get("app_id") == "demo" and app.get("status") == 1 for app in inventory)
+
+
 def test_overview_router_requires_authenticated_session():
     app = create_test_app()
     client = TestClient(app)
@@ -444,11 +528,12 @@ def test_overview_host_cpu_percent_uses_proc_stat_deltas():
 
     with (
         patch.object(service, "_read_host_cpu_times", side_effect=[(400, 1_000), (420, 1_100)]),
-        patch("src.services.overview_service.time.sleep"),
-        patch("src.services.overview_service.time.monotonic_ns", return_value=1_000_000_000),
+        patch("src.services.overview_service.time.monotonic_ns", side_effect=[1_000_000_000, 1_100_000_000]),
     ):
+        first_cpu_percent = service._read_host_cpu_percent()
         cpu_percent = service._read_host_cpu_percent()
 
+    assert first_cpu_percent is None
     assert cpu_percent == 80.0
 
 

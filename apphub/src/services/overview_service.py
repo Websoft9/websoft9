@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import socket
 import shutil
@@ -8,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
+from src.core.config import ConfigManager
 from src.schemas.coreServices import CoreServiceSummary
 from src.schemas.overview import (
     OverviewAlert,
@@ -44,11 +46,12 @@ class OverviewService:
         self._available_catalog_count_loader = available_catalog_count_loader or self._load_available_catalog_count
         self._host_summary_loader = host_summary_loader or self._load_host_summary
         self._host_runtime_summary_loader = host_runtime_summary_loader or self._load_host_runtime_summary
-        self._apps_loader = apps_loader or self._load_apps
+        self._apps_loader = apps_loader or self._load_overview_apps
         self._runtime_summary_loader = runtime_summary_loader or self._load_runtime_summary
         self._services_loader = services_loader or (lambda session_token: CoreServicesService().list_services(session_token))
         self._tasks_loader = tasks_loader or self._load_recent_tasks
         self._now_provider = now_provider or (lambda: datetime.now(timezone.utc))
+        self._uses_default_tasks_loader = tasks_loader is None
         self._last_cpu_usage_sample: Optional[tuple[int, int]] = None
         self._last_host_cpu_sample: Optional[tuple[int, int]] = None
         self._cached_host_cpu_percent: Optional[tuple[float, int]] = None
@@ -57,13 +60,14 @@ class OverviewService:
     def get_overview(self, session_token: Optional[str]) -> OverviewResponse:
         self.auth_service._require_authenticated_operator(session_token)
 
-        apps = self._safe_apps_summary()
+        app_inventory = self._load_apps_inventory()
+        apps = self._safe_apps_summary(app_inventory)
         product = self._safe_product_summary(apps)
         host = self._safe_host_summary()
         runtime = self._safe_runtime_summary()
         host_runtime = self._safe_host_runtime_summary()
         services = self._safe_services_summary(session_token)
-        tasks = self._safe_tasks_summary()
+        tasks = self._safe_tasks_summary(app_inventory)
 
         return OverviewResponse(
             generated_at=self._timestamp_now(),
@@ -118,11 +122,15 @@ class OverviewService:
         except Exception as exc:
             return OverviewRuntimeSummary(available=False, unavailable_reason=str(exc), health_state="critical")
 
-    def _safe_apps_summary(self) -> OverviewAppsSummary:
-        try:
-            apps = list(self._apps_loader() or [])
-        except Exception as exc:
-            return OverviewAppsSummary(available=False, unavailable_reason=str(exc))
+    def _safe_apps_summary(self, apps: Sequence[object] | Exception | None = None) -> OverviewAppsSummary:
+        if isinstance(apps, Exception):
+            return OverviewAppsSummary(available=False, unavailable_reason=str(apps))
+
+        if apps is None:
+            apps = self._load_apps_inventory()
+
+        if isinstance(apps, Exception):
+            return OverviewAppsSummary(available=False, unavailable_reason=str(apps))
 
         installed_count = len(apps)
         active_count = sum(1 for app in apps if self._app_status(app) == 1)
@@ -151,12 +159,24 @@ class OverviewService:
             unavailable_count=sum(1 for service in services if service.health_state == "unavailable"),
         )
 
-    def _safe_tasks_summary(self) -> OverviewTasksSummary:
+    def _safe_tasks_summary(self, apps: Sequence[object] | Exception | None = None) -> OverviewTasksSummary:
+        if isinstance(apps, Exception) and self._uses_default_tasks_loader:
+            return OverviewTasksSummary(available=False, unavailable_reason=str(apps))
+
         try:
-            items = list(self._tasks_loader() or [])
+            if apps is not None and self._uses_default_tasks_loader:
+                items = list(self._load_recent_tasks_from_apps(apps))
+            else:
+                items = list(self._tasks_loader() or [])
         except Exception as exc:
             return OverviewTasksSummary(available=False, unavailable_reason=str(exc))
         return OverviewTasksSummary(items=items)
+
+    def _load_apps_inventory(self) -> list[object] | Exception:
+        try:
+            return list(self._apps_loader() or [])
+        except Exception as exc:
+            return exc
 
     def _build_alerts(
         self,
@@ -228,13 +248,26 @@ class OverviewService:
         }
 
     def _load_available_catalog_count(self) -> Optional[int]:
-        from src.services.app_manager import AppManger
-
         try:
-            available_apps = AppManger().get_available_apps("en")
+            from src.services.app_manager import AppManger
+
+            initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
+            filtered_keys = {
+                item.strip()
+                for item in (initial_apps or "").split(",")
+                if item.strip()
+            }
+            media_path = AppManger()._ensure_media_asset("product_en.json")
+            with open(media_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
         except Exception:
             return None
-        return len(list(available_apps or []))
+
+        if not isinstance(payload, list):
+            return None
+        if not filtered_keys:
+            return len(payload)
+        return sum(1 for item in payload if isinstance(item, dict) and item.get("key") in filtered_keys)
 
     def _load_docker_host_info(self) -> dict:
         client = None
@@ -396,17 +429,8 @@ class OverviewService:
         now_ns = time.monotonic_ns()
         sample = self._last_network_sample
         if sample is None:
-            time.sleep(0.08)
-            next_snapshot = self._read_network_snapshot()
-            if next_snapshot is None:
-                self._last_network_sample = (rx_bytes, tx_bytes, now_ns)
-                return rx_bytes, tx_bytes, None, None
-            next_now_ns = time.monotonic_ns()
-            self._last_network_sample = (next_snapshot[0], next_snapshot[1], next_now_ns)
-            delta_rx = next_snapshot[0] - rx_bytes
-            delta_tx = next_snapshot[1] - tx_bytes
-            delta_time_ns = next_now_ns - now_ns
-            rx_bytes, tx_bytes = next_snapshot
+            self._last_network_sample = (rx_bytes, tx_bytes, now_ns)
+            return rx_bytes, tx_bytes, None, None
         else:
             previous_rx, previous_tx, previous_now_ns = sample
             self._last_network_sample = (rx_bytes, tx_bytes, now_ns)
@@ -458,15 +482,8 @@ class OverviewService:
         now_ns = time.monotonic_ns()
         sample = self._last_cpu_usage_sample
         if sample is None:
-            time.sleep(0.08)
-            next_usage_ns = self._read_cgroup_cpu_usage_ns()
-            if next_usage_ns is None:
-                self._last_cpu_usage_sample = (usage_ns, now_ns)
-                return None
-            next_now_ns = time.monotonic_ns()
-            self._last_cpu_usage_sample = (next_usage_ns, next_now_ns)
-            delta_usage_ns = next_usage_ns - usage_ns
-            delta_wall_ns = next_now_ns - now_ns
+            self._last_cpu_usage_sample = (usage_ns, now_ns)
+            return None
         else:
             previous_usage_ns, previous_now_ns = sample
             self._last_cpu_usage_sample = (usage_ns, now_ns)
@@ -496,13 +513,8 @@ class OverviewService:
 
         previous_sample = self._last_host_cpu_sample
         if previous_sample is None:
-            time.sleep(0.08)
-            next_sample = self._read_host_cpu_times()
-            if next_sample is None:
-                self._last_host_cpu_sample = sample
-                return None
-            self._last_host_cpu_sample = next_sample
-            percent = self._calculate_host_cpu_percent(sample, next_sample)
+            self._last_host_cpu_sample = sample
+            return None
         else:
             self._last_host_cpu_sample = sample
             percent = self._calculate_host_cpu_percent(previous_sample, sample)
@@ -688,9 +700,15 @@ class OverviewService:
         return content or None
 
     def _load_recent_tasks(self) -> list[OverviewTaskItem]:
+        apps = self._load_apps_inventory()
+        if isinstance(apps, Exception):
+            raise apps
+        return self._load_recent_tasks_from_apps(apps)
+
+    def _load_recent_tasks_from_apps(self, apps: Sequence[object]) -> list[OverviewTaskItem]:
         items: list[OverviewTaskItem] = []
 
-        for app in list(self._apps_loader() or []):
+        for app in apps:
             app_id = str(self._app_field(app, "app_id") or "app")
             app_name = str(self._app_field(app, "app_name") or app_id)
             status = self._app_status(app)
@@ -750,10 +768,89 @@ class OverviewService:
     def _timestamp_now(self) -> str:
         return self._now_provider().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    def _load_apps(self) -> Sequence[object]:
-        from src.services.app_manager import AppManger
+    def _load_overview_apps(self) -> Sequence[object]:
+        from src.services.app_status import appInstalling, appInstallingError
+        from src.services.portainer_manager import PortainerManager
 
-        return AppManger().get_apps()
+        portainer_manager = PortainerManager()
+        endpoint_id = portainer_manager.get_local_endpoint_id()
+        stacks = portainer_manager.get_stacks(endpoint_id)
+        containers = portainer_manager.get_containers(endpoint_id)
+
+        containers_by_project: dict[str, list[dict]] = {}
+        for container in containers:
+            labels = container.get("Labels") or {}
+            project_name = labels.get("com.docker.compose.project")
+            if isinstance(project_name, str) and project_name:
+                containers_by_project.setdefault(project_name, []).append(container)
+
+        apps: list[dict[str, object]] = []
+        for stack in stacks:
+            stack_name = stack.get("Name")
+            if not isinstance(stack_name, str) or not stack_name:
+                continue
+
+            stack_status = stack.get("Status", 0)
+            stack_containers = containers_by_project.get(stack_name, [])
+            stack_status, stack_error = self._resolve_overview_stack_runtime_state(stack_status, stack_containers)
+            apps.append(
+                {
+                    "app_id": stack_name,
+                    "app_name": stack_name,
+                    "status": stack_status,
+                    "creationDate": stack.get("CreationDate", ""),
+                    "error": stack_error,
+                }
+            )
+
+        apps_by_id = {
+            app.get("app_id"): app
+            for app in apps
+            if isinstance(app.get("app_id"), str) and app.get("app_id")
+        }
+
+        for app_uuid, app in appInstalling.items():
+            app_id = app.get("app_id")
+            if not isinstance(app_id, str) or not app_id:
+                continue
+            apps_by_id[app_id] = {
+                "app_id": app_id,
+                "app_name": app.get("app_name") or app_id,
+                "tracking_id": app.get("tracking_id", app_uuid),
+                "status": app.get("status"),
+                "creationDate": app.get("updated_at") or app.get("created_at"),
+                "error": app.get("error"),
+            }
+
+        for app_uuid, app in appInstallingError.items():
+            app_id = app.get("app_id")
+            if not isinstance(app_id, str) or not app_id or app_id in apps_by_id:
+                continue
+            apps_by_id[app_id] = {
+                "app_id": app_id,
+                "app_name": app.get("app_name") or app_id,
+                "tracking_id": app.get("tracking_id", app_uuid),
+                "status": app.get("status"),
+                "creationDate": app.get("updated_at") or app.get("created_at"),
+                "error": app.get("error"),
+            }
+
+        return list(apps_by_id.values())
+
+    def _resolve_overview_stack_runtime_state(self, stack_status: int, stack_containers: Sequence[dict] | None) -> tuple[int, str | None]:
+        if stack_status == 1 and not stack_containers:
+            return 4, "No containers were created for this stack."
+
+        if stack_status == 1 and stack_containers:
+            normalized_states = {
+                str(container.get("State") or container.get("Status") or "").strip().lower()
+                for container in stack_containers
+            }
+            running_states = {"running", "healthy"}
+            if normalized_states and normalized_states.isdisjoint(running_states):
+                return 4, "Containers were created for this stack but none of them are running."
+
+        return stack_status, None
 
     def _load_proxy_tasks(self) -> list[dict]:
         try:

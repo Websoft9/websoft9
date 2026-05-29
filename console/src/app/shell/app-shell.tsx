@@ -2,16 +2,17 @@ import {
     Avatar,
     Box,
     Button,
-    IconButton,
+    CircularProgress,
     List,
     ListItemButton,
     Menu,
     Paper,
     Popper,
     SvgIcon,
+    Stack,
     Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -34,6 +35,11 @@ type ApplicationSubNavigationItem = {
     icon: AppNavIconSegment
 }
 
+type PlatformBrandState = {
+    title: string
+    logoUrl: string
+}
+
 const navigationSections = [
     {
         key: 'system',
@@ -47,6 +53,18 @@ const navigationSections = [
 
 const LAST_APPLICATIONS_ROUTE_KEY = 'websoft9:last-applications-route'
 const SHELL_NAV_COLLAPSED_STORAGE_KEY = 'websoft9:shell-nav-collapsed'
+const DEFAULT_PLATFORM_BRAND_LOGO_URL = '/websoft9.png'
+
+function isValidPlatformBrandLogoUrl(value: string) {
+    const trimmed = value.trim()
+    if (!trimmed) {
+        return false
+    }
+    if (trimmed.startsWith('/')) {
+        return true
+    }
+    return /^https?:\/\//i.test(trimmed)
+}
 
 function ShellNavIcon({ segment }: { segment: AppNavIconSegment }) {
     switch (segment) {
@@ -82,11 +100,12 @@ function ShellNavIcon({ segment }: { segment: AppNavIconSegment }) {
 }
 
 function SidebarCollapseIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="m14.41 7.41-1.41-1.41L7.59 11.41a.83.83 0 0 0 0 1.18L13 18l1.41-1.41L9.83 12l4.58-4.59Z" /></SvgIcon>
+    return <SvgIcon viewBox="0 0 24 24"><path d="M20 3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 2v14H9V5h11zM4 5h3v14H4V5z" /></SvgIcon>
 }
 
 function SidebarExpandIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="m9.59 16.59 1.41 1.41 5.41-5.41a.83.83 0 0 0 0-1.18L11 6l-1.41 1.41L14.17 12l-4.58 4.59Z" /></SvgIcon>
+    // panel-right: left main area + right strip (mirrored panel-left)
+    return <SvgIcon viewBox="0 0 24 24"><path d="M20 3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM4 5h11v14H4V5zm13 0h3v14h-3V5z" /></SvgIcon>
 }
 
 function ExpandMoreIcon() {
@@ -113,8 +132,16 @@ function GlobeIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2Zm0 2c.55 0 1.33.6 2.04 2H9.96C10.67 4.6 11.45 4 12 4Zm-2.5.44A9.08 9.08 0 0 0 7.33 8H4.61A8.03 8.03 0 0 1 9.5 4.44ZM4.06 10h3.22a15.28 15.28 0 0 0-.2 2c0 .68.07 1.35.2 2H4.06A8.07 8.07 0 0 1 4 12c0-.7.02-1.38.06-2Zm.55 6h2.72A9.08 9.08 0 0 0 9.5 19.56 8.03 8.03 0 0 1 4.61 16Zm5.35 3.56C10.67 21.4 11.45 22 12 22c.55 0 1.33-.6 2.04-2H9.96v-.44Zm4.54-3.56a9.08 9.08 0 0 0 2.17-3.56h2.72A8.03 8.03 0 0 1 14.5 19.56ZM19.94 14h-3.22c.13-.65.2-1.32.2-2s-.07-1.35-.2-2h3.22c.04.62.06 1.3.06 2s-.02 1.38-.06 2Zm-.55-6h-2.72A9.08 9.08 0 0 0 14.5 4.44 8.03 8.03 0 0 1 19.39 8ZM9.96 8c.44-1.56 1.16-2.66 1.85-2.94A4.5 4.5 0 0 1 12 5c.06 0 .13 0 .19.06C12.88 5.34 13.6 6.44 14.04 8H9.96Zm-.68 2h5.44c.14.63.21 1.3.21 2s-.07 1.37-.21 2H9.28A12.9 12.9 0 0 1 9.07 12c0-.7.07-1.37.21-2Z" /></SvgIcon>
 }
 
-function HamburgerIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z" /></SvgIcon>
+function ZhCNIcon() {
+    return (
+        <Box component="span" sx={{ fontSize: '1.25em', lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>🇨🇳</Box>
+    )
+}
+
+function EnIcon() {
+    return (
+        <Box component="span" sx={{ fontSize: '1.25em', lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}>🇬🇧</Box>
+    )
 }
 
 function ChevronDownIcon() {
@@ -123,6 +150,17 @@ function ChevronDownIcon() {
 
 function LogoutIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5Zm8 2h-6v-2h6V7h-6V5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z" /></SvgIcon>
+}
+
+function AppShellRouteFallback() {
+    return (
+        <Box sx={{ display: 'grid', minHeight: 'calc(100vh - 180px)', placeItems: 'center', px: 2 }}>
+            <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
+                <CircularProgress size={28} />
+                <Typography variant="body2" color="text.secondary">Loading workspace...</Typography>
+            </Stack>
+        </Box>
+    )
 }
 
 export function AppShell() {
@@ -145,6 +183,11 @@ export function AppShell() {
     })
     const [applicationsExpanded, setApplicationsExpanded] = useState(true)
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
+    const [platformBrand, setPlatformBrand] = useState<PlatformBrandState>({
+        title: t('brand.title'),
+        logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+    })
+    const [brandLogoSrc, setBrandLogoSrc] = useState(DEFAULT_PLATFORM_BRAND_LOGO_URL)
 
     const resolvedLocale = i18n.resolvedLanguage ?? 'en'
     const activeIntegrationRoute = /^\/(containers|gateway|repository)$/.test(location.pathname)
@@ -193,6 +236,88 @@ export function AppShell() {
     )
 
     useIntegrationSessionPrewarm()
+
+    useEffect(() => {
+        let disposed = false
+
+        async function loadPlatformBrand() {
+            try {
+                const response = await fetch('/api/settings/platform_brand', {
+                    credentials: 'include',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                })
+
+                if (!response.ok) {
+                    return
+                }
+
+                const payload = (await response.json()) as { title?: unknown; logo_url?: unknown }
+                if (disposed) {
+                    return
+                }
+
+                const resolvedTitle = typeof payload.title === 'string' && payload.title.trim() ? payload.title.trim() : t('brand.title')
+                const resolvedLogoUrlRaw = typeof payload.logo_url === 'string' ? payload.logo_url.trim() : ''
+                const resolvedLogoUrl = isValidPlatformBrandLogoUrl(resolvedLogoUrlRaw) ? resolvedLogoUrlRaw : DEFAULT_PLATFORM_BRAND_LOGO_URL
+
+                setPlatformBrand({
+                    title: resolvedTitle,
+                    logoUrl: resolvedLogoUrl,
+                })
+                setBrandLogoSrc(resolvedLogoUrl)
+            } catch {
+                if (!disposed) {
+                    setPlatformBrand({
+                        title: t('brand.title'),
+                        logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+                    })
+                    setBrandLogoSrc(DEFAULT_PLATFORM_BRAND_LOGO_URL)
+                }
+            }
+        }
+
+        void loadPlatformBrand()
+
+        return () => {
+            disposed = true
+        }
+    }, [t])
+
+    useEffect(() => {
+        function handlePlatformBrandUpdate(event: Event) {
+            const customEvent = event as CustomEvent<{ key?: string; value?: string }>
+            const key = customEvent.detail?.key
+            const value = customEvent.detail?.value
+            if (typeof key !== 'string' || typeof value !== 'string') {
+                return
+            }
+
+            if (key === 'title') {
+                const nextTitle = value.trim() || t('brand.title')
+                setPlatformBrand((current) => ({
+                    ...current,
+                    title: nextTitle,
+                }))
+                return
+            }
+
+            if (key === 'logo_url') {
+                const nextLogoUrl = isValidPlatformBrandLogoUrl(value) ? value.trim() : DEFAULT_PLATFORM_BRAND_LOGO_URL
+                setPlatformBrand((current) => ({
+                    ...current,
+                    logoUrl: nextLogoUrl,
+                }))
+                setBrandLogoSrc(nextLogoUrl)
+            }
+        }
+
+        window.addEventListener('websoft9:platform-brand-updated', handlePlatformBrandUpdate as EventListener)
+        return () => {
+            window.removeEventListener('websoft9:platform-brand-updated', handlePlatformBrandUpdate as EventListener)
+        }
+    }, [t])
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -360,9 +485,17 @@ export function AppShell() {
                     <Box className="app-shell-sidebar-inner">
                         <Box className="app-shell-sidebar-header">
                             <Box className="app-shell-brand">
-                                <Box component="img" alt={t('brand.logoAriaLabel')} className="app-shell-brand-mark" src="/websoft9.png" />
+                                <Box
+                                    component="img"
+                                    alt={t('brand.logoAriaLabel')}
+                                    className="app-shell-brand-mark"
+                                    src={brandLogoSrc}
+                                    onError={() => {
+                                        setBrandLogoSrc(DEFAULT_PLATFORM_BRAND_LOGO_URL)
+                                    }}
+                                />
                                 <Box className="app-shell-brand-copy">
-                                    <Typography className="app-shell-brand-title">{t('brand.title')}</Typography>
+                                    <Typography className="app-shell-brand-title">{platformBrand.title}</Typography>
                                 </Box>
                             </Box>
                         </Box>
@@ -398,9 +531,12 @@ export function AppShell() {
                                                                     closeCollapsedApplicationsMenuWithDelay()
                                                                 }
                                                             }}
-                                                            onClick={() => {
+                                                            onClick={(event) => {
                                                                 if (!navCollapsed) {
-                                                                    setApplicationsExpanded(true)
+                                                                    if (isApplicationsContext) {
+                                                                        event.preventDefault()
+                                                                    }
+                                                                    setApplicationsExpanded((current) => !current)
                                                                 }
                                                             }}
                                                         >
@@ -528,30 +664,27 @@ export function AppShell() {
                             ))}
                         </Box>
 
+                        <Box className="app-shell-sidebar-bottom">
+                            <ListItemButton
+                                className="app-shell-nav-item app-shell-nav-item--collapse"
+                                onClick={() => setNavCollapsed((v) => !v)}
+                                aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
+                            >
+                                <Box className="app-shell-nav-item-icon" aria-hidden="true">
+                                    {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
+                                </Box>
+                                {!navCollapsed && (
+                                    <Typography className="app-shell-nav-item-label" variant="body2">
+                                        {t('navigation.collapse', { defaultValue: 'Collapse' })}
+                                    </Typography>
+                                )}
+                            </ListItemButton>
+                        </Box>
                     </Box>
                 </Box>
 
-                <IconButton
-                    color="inherit"
-                    className="app-shell-divider-toggle"
-                    onClick={() => {
-                        setNavCollapsed((currentValue) => !currentValue)
-                    }}
-                    aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-                    title={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-                >
-                    {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
-                </IconButton>
-
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
-                        <IconButton
-                            className="app-shell-hamburger app-shell-icon-button"
-                            onClick={() => setMobileNavOpen(true)}
-                            aria-label={t('navigation.expand', { defaultValue: 'Open navigation' })}
-                        >
-                            <HamburgerIcon />
-                        </IconButton>
                         <Box className="app-shell-topbar-actions">
                             <Button
                                 color="inherit"
@@ -617,7 +750,9 @@ export function AppShell() {
                     >
                         <Box className="app-shell-main-body">
                             <PersistentIntegrationWorkspaces />
-                            <Outlet />
+                            <Suspense fallback={<AppShellRouteFallback />}>
+                                <Outlet />
+                            </Suspense>
                         </Box>
                     </Box>
 
@@ -667,7 +802,7 @@ export function AppShell() {
                                     }}
                                 >
                                     <Box className="app-shell-account-link-icon">
-                                        <GlobeIcon />
+                                        {locale === 'zh-CN' ? <ZhCNIcon /> : <EnIcon />}
                                     </Box>
                                     <Typography className="app-shell-account-link-title">{t(`locales.${locale}`)}</Typography>
                                 </ListItemButton>
