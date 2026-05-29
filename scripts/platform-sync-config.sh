@@ -58,10 +58,14 @@ config_path = '/websoft9/apphub/src/config/config.ini'
 config = configparser.ConfigParser()
 config.read(config_path, encoding='utf-8')
 
-for section in ('gitea', 'portainer', 'nginx_proxy_manager'):
-    config.remove_section(section)
+changed = False
 
-with open(config_path, 'w', encoding='utf-8') as file:
+for section in ('gitea', 'portainer', 'nginx_proxy_manager'):
+  if config.remove_section(section):
+    changed = True
+
+if changed:
+  with open(config_path, 'w', encoding='utf-8') as file:
     config.write(file)
 PY
 }

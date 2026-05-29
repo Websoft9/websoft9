@@ -6,7 +6,8 @@ runtime_state_dir="${WEBSOFT9_RUNTIME_STATE_DIR:-/run/websoft9}"
 runtime_status_file="${WEBSOFT9_RUNTIME_STATUS_FILE:-$runtime_state_dir/runtime-status.json}"
 supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
 supervisor_socket="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
-status_interval="${WEBSOFT9_STATUS_INTERVAL:-15}"
+status_interval="${WEBSOFT9_STATUS_INTERVAL:-60}"
+strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-300}"
 platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/var/log/websoft9/platform-runtime.log}"
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
 product_auth_bootstrap_username="${WEBSOFT9_PRODUCT_AUTH_BOOTSTRAP_USERNAME:-websoft9}"
@@ -169,11 +170,17 @@ sync_runtime_assets_async() {
 }
 
 update_runtime_status() {
+  local mode="${1:-strict}"
   local output
 
-  if output="$(/websoft9/script/platform-healthcheck.sh --strict 2>&1)"; then
+  if output="$(/websoft9/script/platform-healthcheck.sh --"$mode" 2>&1)"; then
     write_status "ready" "$output"
     return 0
+  fi
+
+  if [[ "$mode" != "strict" ]]; then
+    write_status "failed" "$output"
+    return 1
   fi
 
   if output="$(/websoft9/script/platform-healthcheck.sh --readiness 2>&1)"; then
@@ -305,9 +312,15 @@ bootstrap_nginx_proxy_manager() {
 }
 
 monitor_runtime() {
+  local last_strict_check=0
+
   while true; do
-    update_runtime_status || true
-    sync_runtime_config credentials || true
+    if (( $(date +%s) - last_strict_check >= strict_status_interval )); then
+      update_runtime_status strict || true
+      last_strict_check=$(date +%s)
+    else
+      update_runtime_status readiness || true
+    fi
     sleep "$status_interval"
   done
 }
@@ -330,7 +343,7 @@ main() {
   bootstrap_nginx_proxy_manager
   sync_runtime_config credentials || true
 
-  if ! update_runtime_status; then
+  if ! update_runtime_status strict; then
     log_event "error" "runtime.bootstrap-failed" "bootstrap failed and runtime is not ready"
     exit 1
   fi

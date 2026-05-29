@@ -12,6 +12,7 @@ product_proxy_init_src="$repo_root/docker/product/proxy/init_nginx.sh"
 portainer_init_src="$repo_root/docker/product/deployment/init_portainer.go"
 npm_base_image="${WEBSOFT9_NPM_BASE_IMAGE:-jc21/nginx-proxy-manager:2.12.6}"
 platform_entrypoint_src="$repo_root/docker/product/scripts/platform-entrypoint.sh"
+platform_healthcheck_src="$repo_root/docker/product/scripts/platform-healthcheck.sh"
 platform_sync_config_src="$repo_root/docker/product/scripts/platform-sync-config.sh"
 platform_runtime_assets_src="$repo_root/docker/product/scripts/platform-sync-runtime-assets.py"
 service_control_src="$repo_root/docker/product/scripts/platform-service-control.sh"
@@ -158,6 +159,7 @@ sync_runtime_support_files() {
     docker cp "$init_portainer_bin" "$container_name:/usr/local/bin/init_portainer"
     docker cp "$product_proxy_init_src" "$container_name:/app/init_nginx.sh"
     docker cp "$platform_entrypoint_src" "$container_name:/websoft9/script/platform-entrypoint.sh"
+    docker cp "$platform_healthcheck_src" "$container_name:/websoft9/script/platform-healthcheck.sh"
     docker cp "$platform_sync_config_src" "$container_name:/websoft9/script/platform-sync-config.sh"
     docker cp "$platform_runtime_assets_src" "$container_name:/websoft9/script/platform-sync-runtime-assets.py"
     docker cp "$service_control_src" "$container_name:/websoft9/script/platform-service-control.sh"
@@ -165,6 +167,7 @@ sync_runtime_support_files() {
     docker cp "$gateway_start_src" "$container_name:/websoft9/script/platform-start-gateway.sh"
     docker exec "$container_name" rm -f /etc/websoft9/stream.conf
     docker exec "$container_name" chmod +x /websoft9/script/platform-entrypoint.sh
+    docker exec "$container_name" chmod +x /websoft9/script/platform-healthcheck.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-config.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-runtime-assets.py
     docker exec "$container_name" chmod +x /websoft9/script/platform-service-control.sh

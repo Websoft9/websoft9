@@ -77,6 +77,21 @@ check_supervisor() {
   local socket_path="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
   local pidfile_path="${WEBSOFT9_SUPERVISOR_PIDFILE:-/run/supervisord.pid}"
 
+  if [[ "$mode" != "--strict" ]]; then
+    if [[ -S "$socket_path" ]]; then
+      echo "ready:runtime-supervisor:supervisord"
+      return 0
+    fi
+
+    if [[ -f "$pidfile_path" ]] && kill -0 "$(cat "$pidfile_path")" >/dev/null 2>&1; then
+      echo "ready:runtime-supervisor:supervisord"
+      return 0
+    fi
+
+    echo "failed:runtime-supervisor:supervisord:missing"
+    return 1
+  fi
+
   if [[ -S "$socket_path" ]] && supervisorctl -c "$supervisor_config" status >/dev/null 2>&1; then
     echo "ready:runtime-supervisor:supervisord"
     return 0
@@ -105,23 +120,25 @@ for check in "${required_checks[@]}"; do
   fi
 done
 
-for check in "${supporting_checks[@]}"; do
-  IFS='|' read -r name url <<<"$check"
-  if ! check_url "$name" "$url"; then
-    degraded_services+=("$name")
+if [[ "$mode" == "--strict" ]]; then
+  for check in "${supporting_checks[@]}"; do
+    IFS='|' read -r name url <<<"$check"
+    if ! check_url "$name" "$url"; then
+      degraded_services+=("$name")
+    fi
+  done
+
+  if ! check_file "portainer-bootstrap" "$portainer_marker"; then
+    degraded_services+=("portainer-bootstrap")
   fi
-done
 
-if ! check_file "portainer-bootstrap" "$portainer_marker"; then
-  degraded_services+=("portainer-bootstrap")
-fi
+  if ! check_file "npm-bootstrap" "$npm_marker"; then
+    degraded_services+=("nginx-proxy-manager-bootstrap")
+  fi
 
-if ! check_file "npm-bootstrap" "$npm_marker"; then
-  degraded_services+=("nginx-proxy-manager-bootstrap")
-fi
-
-if ! check_file "npm-certificate" "$npm_cert_marker"; then
-  degraded_services+=("nginx-proxy-manager-certificate")
+  if ! check_file "npm-certificate" "$npm_cert_marker"; then
+    degraded_services+=("nginx-proxy-manager-certificate")
+  fi
 fi
 
 if [[ ${#required_failures[@]} -gt 0 ]]; then
