@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, Paper, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Chip, Paper, Stack, Typography } from '@mui/material'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +14,8 @@ type IntegrationWorkspacePageProps = {
     shellPersistent?: boolean
 }
 
+const shellPersistentIntegrationKeys: IntegrationKey[] = ['gitea', 'npm']
+
 export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, showCatalogLink = false, shellPersistent = false }: IntegrationWorkspacePageProps) {
     const { integrationKey: routeIntegrationKey, '*': unmatchedPath } = useParams()
     const definition =
@@ -25,7 +27,7 @@ export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, 
         return <Navigate replace to="/repository" />
     }
 
-    if (shellPersistent && (definition.key === 'gitea' || definition.key === 'npm' || definition.key === 'portainer')) {
+    if (shellPersistent && shellPersistentIntegrationKeys.includes(definition.key)) {
         return null
     }
 
@@ -49,7 +51,9 @@ export function PersistentIntegrationWorkspaces() {
                 zIndex: 1,
             }}
         >
-            {integrationDefinitions.map((definition) => (
+            {integrationDefinitions
+                .filter((definition) => shellPersistentIntegrationKeys.includes(definition.key))
+                .map((definition) => (
                 <Box
                     key={definition.key}
                     sx={{
@@ -434,49 +438,36 @@ function DirectIntegrationWorkspaceFrame({
             }}
         >
             {recoveryState === 'recovering' ? (
-                <>
-                    <Chip color="info" label={t('integrations.workspace.refreshingSession')} />
-                    <Typography color="text.secondary" variant="body2">
-                        {t('integrations.workspace.refreshingSessionDetail')}
-                    </Typography>
-                </>
+                <CircularProgress size={32} />
             ) : recoveryState === 'error' ? (
                 <>
-                    <Chip color="warning" label={t('integrations.workspace.sessionRefreshFailed')} />
-                    <Typography color="text.secondary" variant="body2">
+                    <Alert severity="warning" sx={{ maxWidth: 480, textAlign: 'left' }}>
                         {mapWorkspaceErrorMessage(recoveryError, t) ?? t('integrations.workspace.sessionRefreshFailedDetail')}
-                    </Typography>
-                    <Button onClick={() => void recoverIntegrationSession(null, { force: true })} variant="outlined">
+                    </Alert>
+                    <Button onClick={() => void recoverIntegrationSession(null, { force: true })} variant="outlined" size="small">
                         {t('integrations.workspace.retryProbe')}
                     </Button>
                 </>
             ) : recoveryState === 'signed-out' ? (
                 <>
-                    <Chip color="default" label={t('integrations.workspace.workspaceSignedOut')} />
-                    <Typography color="text.secondary" variant="body2">
+                    <Alert severity="info" sx={{ maxWidth: 480, textAlign: 'left' }}>
                         {t('integrations.workspace.workspaceSignedOutDetail')}
-                    </Typography>
-                    <Button onClick={() => void recoverIntegrationSession(lastRecoveryTarget, { force: true })} variant="outlined">
+                    </Alert>
+                    <Button onClick={() => void recoverIntegrationSession(lastRecoveryTarget, { force: true })} variant="outlined" size="small">
                         {t('integrations.workspace.reconnectWorkspace')}
                     </Button>
                 </>
             ) : sessionState === 'error' ? (
                 <>
-                    <Chip color="warning" label={t('integrations.workspace.sessionBootstrapFailed')} />
-                    <Typography color="text.secondary" variant="body2">
+                    <Alert severity="warning" sx={{ maxWidth: 480, textAlign: 'left' }}>
                         {mapWorkspaceErrorMessage(errorMessage, t) ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
-                    </Typography>
-                    <Button onClick={refresh} variant="outlined">
+                    </Alert>
+                    <Button onClick={refresh} variant="outlined" size="small">
                         {t('integrations.workspace.retryProbe')}
                     </Button>
                 </>
             ) : (
-                <>
-                    <Chip color="info" label={t('integrations.workspace.bootstrappingSession')} />
-                    <Typography color="text.secondary" variant="body2">
-                        {t('integrations.workspace.bootstrappingSessionDetail')}
-                    </Typography>
-                </>
+                <CircularProgress size={32} />
             )}
         </Stack>
     )
@@ -546,18 +537,12 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                     >
                         {sessionState === 'error' ? (
                             <>
-                                <Chip color="warning" label={t('integrations.workspace.sessionBootstrapFailed')} />
-                                <Typography color="text.secondary" variant="body2">
+                                <Alert severity="warning" sx={{ maxWidth: 480, textAlign: 'left' }}>
                                     {errorMessage ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
-                                </Typography>
+                                </Alert>
                             </>
                         ) : (
-                            <>
-                                <Chip color="info" label={t('integrations.workspace.bootstrappingSession')} />
-                                <Typography color="text.secondary" variant="body2">
-                                    {t('integrations.workspace.bootstrappingSessionDetail')}
-                                </Typography>
-                            </>
+                            <CircularProgress size={32} />
                         )}
                     </Stack>
                 )}
