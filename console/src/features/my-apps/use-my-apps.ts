@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 export type MyAppLogStage = {
@@ -33,6 +34,12 @@ export type MyAppStatusKey = 'installing' | 'active' | 'inactive' | 'error'
 
 type MyAppsError = Error & {
     statusCode?: number
+}
+
+type MyAppsStreamPayload = {
+    apps?: MyApp[]
+    digest?: string
+    refresh_hint_ms?: number
 }
 
 const statusOrder: Record<MyAppStatusKey, number> = {
@@ -137,20 +144,56 @@ async function fetchMyApps(apiLocale: string) {
     return (await response.json()) as MyApp[]
 }
 
+function buildMyAppsStreamUrl(apiLocale: string) {
+    return `/api/apps/stream?locale=${encodeURIComponent(apiLocale)}`
+}
+
 export function useMyApps() {
     const { i18n } = useTranslation('shell')
+    const queryClient = useQueryClient()
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const apiLocale = mapLocaleToApiLocale(resolvedLocale)
+    const supportsEventSource = typeof window !== 'undefined' && typeof EventSource !== 'undefined'
+
+    useEffect(() => {
+        if (!supportsEventSource) {
+            return
+        }
+
+        const eventSource = new EventSource(buildMyAppsStreamUrl(apiLocale), { withCredentials: true })
+        const applySnapshot = (apps: MyApp[]) => {
+            queryClient.setQueryData<MyApp[]>(['my-apps', apiLocale], sortMyApps(deduplicateApps(apps)))
+        }
+
+        const handleSnapshot = (event: Event) => {
+            try {
+                const payload = JSON.parse((event as MessageEvent<string>).data) as MyAppsStreamPayload
+                if (Array.isArray(payload.apps)) {
+                    applySnapshot(payload.apps)
+                }
+            } catch {
+                // Ignore malformed events and wait for the next snapshot.
+            }
+        }
+
+        eventSource.addEventListener('snapshot', handleSnapshot)
+
+        return () => {
+            eventSource.removeEventListener('snapshot', handleSnapshot)
+            eventSource.close()
+        }
+    }, [apiLocale, queryClient, supportsEventSource])
 
     return useQuery<MyApp[], MyAppsError>({
         queryKey: ['my-apps', apiLocale],
         queryFn: () => fetchMyApps(apiLocale),
         select: (apps) => sortMyApps(deduplicateApps(apps)),
-        staleTime: 2_000,
-        refetchInterval: (query) => {
-            const apps = query.state.data ?? []
-            // Poll every 3s during install, 5s otherwise (fast enough to catch Portainer deletions)
-            return apps.some((app) => app.status === 3) ? 3_000 : 5_000
-        },
+        staleTime: supportsEventSource ? 30_000 : 2_000,
+        refetchInterval: supportsEventSource
+            ? false
+            : (query) => {
+                  const apps = query.state.data ?? []
+                  return apps.some((app) => app.status === 3) ? 3_000 : 5_000
+              },
     })
 }

@@ -16,10 +16,11 @@ from src.schemas.appInstall import appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
-from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest
+from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest, AppAccessRootUrlRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_access_manager import AppAccessManager
 from src.services.app_manager import AppManger
+from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
 from threading import Thread
@@ -71,6 +72,58 @@ def get_apps(
     locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
 ):
     return AppManger().get_apps(endpointId, locale)
+
+
+@router.get(
+        "/apps/stream",
+        summary="Stream Installed Apps",
+        description="Server-sent events stream for installed app inventory snapshots.",
+        responses={
+        200: {"description": "Apps stream established"},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+        }
+    )
+async def stream_apps(
+    request: Request,
+    endpointId: int = Query(None, description="Endpoint ID to get apps from. If not set, get apps from the local endpoint"),
+    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$")
+):
+    async def event_generator():
+        last_digest: str | None = None
+
+        while True:
+            if await request.is_disconnected():
+                break
+
+            sleep_seconds = 5.0
+
+            try:
+                snapshot = apps_stream_cache.get_snapshot(endpointId, locale, force_refresh=last_digest is None)
+                sleep_seconds = min(max(snapshot.refresh_interval_seconds, 1.0), 5.0)
+
+                if snapshot.digest != last_digest:
+                    last_digest = snapshot.digest
+                    yield f"retry: {int(snapshot.refresh_interval_seconds * 1000)}\n"
+                    yield f"event: snapshot\ndata: {snapshot.event_json}\n\n"
+                else:
+                    yield ": keep-alive\n\n"
+            except Exception as exc:
+                logger.warning(f"Apps stream failed: {exc}")
+                payload = json.dumps({"message": "Apps stream refresh failed"}, separators=(",", ":"))
+                yield f"event: error\ndata: {payload}\n\n"
+
+            await asyncio.sleep(sleep_seconds)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @router.get(
         "/apps/{app_id}",
@@ -148,6 +201,24 @@ def save_app_access_domains(
     endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
 ):
     return AppAccessManager().save_domain_binding(app_id, payload.domain_names, payload.certificate_id, payload.ssl_forced, payload.proxy_id, endpointId)
+
+
+@router.put(
+    "/apps/{app_id}/access/root-url",
+    summary="Update App Root URL",
+    description="Persist the selected bound domain as the application root URL",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def update_app_access_root_url(
+    payload: AppAccessRootUrlRequest = Body(...),
+    app_id: str = Path(..., description="App ID to update root URL for"),
+    endpointId: int = Query(None, description="Endpoint ID to inspect app details from. If not set, use the local endpoint"),
+):
+    return AppAccessManager().update_root_url(app_id, payload.domain_name, endpointId)
 
 
 @router.delete(
