@@ -10,7 +10,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -430,6 +430,7 @@ export function MyAppsPage() {
     const [feedback, setFeedback] = useState<ActionFeedback | null>(null)
     const [manualRefreshing, setManualRefreshing] = useState(false)
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
+    const prefetchedActiveAppSignatureRef = useRef<string | null>(null)
 
     const { data, error, isLoading, refetch } = useMyApps()
     const apps = data ?? []
@@ -497,6 +498,13 @@ export function MyAppsPage() {
         const activeApps = apps.filter((app) => app.status === 1)
         if (activeApps.length === 0) return
 
+        const prefetchTargets = activeApps.slice(0, 6)
+        const prefetchSignature = `${apiLocale}:${prefetchTargets.map((app) => app.app_id).join('|')}`
+        if (prefetchedActiveAppSignatureRef.current === prefetchSignature) {
+            return
+        }
+        prefetchedActiveAppSignatureRef.current = prefetchSignature
+
         const schedule = typeof window !== 'undefined' && 'requestIdleCallback' in window
             ? window.requestIdleCallback.bind(window)
             : (callback: IdleRequestCallback) => window.setTimeout(() => callback({
@@ -513,7 +521,7 @@ export function MyAppsPage() {
         }
 
         const handle = schedule(() => {
-            activeApps.slice(0, 6).forEach((app) => {
+            prefetchTargets.forEach((app) => {
                 void queryClient.prefetchQuery({
                     queryKey: ['my-app-detail', app.app_id, apiLocale],
                     queryFn: async () => fetchMyAppDetail(app.app_id, apiLocale),
