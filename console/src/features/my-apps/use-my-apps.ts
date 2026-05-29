@@ -162,7 +162,26 @@ export function useMyApps() {
 
         const eventSource = new EventSource(buildMyAppsStreamUrl(apiLocale), { withCredentials: true })
         const applySnapshot = (apps: MyApp[]) => {
-            queryClient.setQueryData<MyApp[]>(['my-apps', apiLocale], sortMyApps(deduplicateApps(apps)))
+            const normalizedApps = sortMyApps(deduplicateApps(apps))
+            queryClient.setQueryData<MyApp[]>(['my-apps', apiLocale], normalizedApps)
+
+            normalizedApps.forEach((app) => {
+                const detailQueryKey = ['my-app-detail', app.app_id, apiLocale]
+                if (!queryClient.getQueryState(detailQueryKey)) {
+                    return
+                }
+
+                queryClient.setQueryData(detailQueryKey, (previousData: MyApp | undefined) => {
+                    if (!previousData) {
+                        return app
+                    }
+
+                    return {
+                        ...previousData,
+                        ...app,
+                    }
+                })
+            })
         }
 
         const handleSnapshot = (event: Event) => {
@@ -188,7 +207,7 @@ export function useMyApps() {
         queryKey: ['my-apps', apiLocale],
         queryFn: () => fetchMyApps(apiLocale),
         select: (apps) => sortMyApps(deduplicateApps(apps)),
-        staleTime: supportsEventSource ? 30_000 : 2_000,
+        staleTime: supportsEventSource ? 10_000 : 2_000,
         refetchInterval: supportsEventSource
             ? false
             : (query) => {

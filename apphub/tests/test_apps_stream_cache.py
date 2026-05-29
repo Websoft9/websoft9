@@ -35,7 +35,7 @@ def test_apps_stream_cache_reuses_snapshot_before_refresh_deadline(monkeypatch):
     assert first.apps == [{'app_id': 'wordpress', 'status': 1}]
     assert second.digest == first.digest
     assert calls == [(None, 'zh')]
-    assert first.refresh_interval_seconds == 15.0
+    assert first.refresh_interval_seconds == 5.0
 
 
 def test_apps_stream_cache_uses_fast_refresh_while_installing(monkeypatch):

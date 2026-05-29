@@ -87,7 +87,7 @@ class AppsStreamCache:
     @staticmethod
     def _resolve_refresh_interval_seconds(apps: list[dict[str, Any]]) -> float:
         has_installing_app = any(isinstance(app, dict) and app.get('status') == 3 for app in apps)
-        return 3.0 if has_installing_app else 15.0
+        return 3.0 if has_installing_app else 5.0
 
 
 def _build_app_manager():
