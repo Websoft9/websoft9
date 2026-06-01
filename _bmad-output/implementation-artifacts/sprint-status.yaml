@@ -86,3 +86,12 @@ development_status:
   5-2-build-single-path-upgrade-execution-and-failure-handling: backlog
   5-3-build-post-upgrade-continuity-confirmation-and-repair-entry: backlog
   epic-5-retrospective: optional
+
+  epic-6: in-progress
+  6-1-define-app-store-data-release-contract-and-source-boundaries: ready-for-dev
+  6-2-build-app-store-data-publishing-pipeline-and-sharded-artifacts: ready-for-dev
+  6-3-build-runtime-app-store-data-sync-and-staged-activation: ready-for-dev
+  6-4-rebuild-runtime-derived-install-data-after-upgrade: ready-for-dev
+  6-5-build-app-store-data-status-api-and-operator-controls: ready-for-dev
+  6-6-integrate-platform-upgrade-reconcile-and-failure-handling: ready-for-dev
+  epic-6-retrospective: optional
