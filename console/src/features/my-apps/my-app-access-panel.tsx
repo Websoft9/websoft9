@@ -33,6 +33,14 @@ type AccountEntry = {
     isPassword: boolean
 }
 
+type NonWebConnectionEntry = {
+    key: string
+    title: string
+    host: string
+    port: string
+    address: string
+}
+
 function IconDelete() {
     return <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2h4v2H4V6h4l1-2z" /></svg>
 }
@@ -176,6 +184,10 @@ function getPublishedPort(candidatePorts: string[], targetPort: number | undefin
     return ''
 }
 
+function getConnectionTitle(t: (key: string, options?: Record<string, unknown>) => string) {
+    return t('myAppsDetailPage.accessPanel.serviceConnectionTitle')
+}
+
 export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRect, isDarkMode = false }: MyAppAccessPanelProps) {
     const { t } = useTranslation('shell')
     const palette = getSurfacePalette(isDarkMode)
@@ -250,8 +262,8 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     const directPort = env?.W9_HTTP_PORT_SET || env?.W9_HTTPS_PORT_SET || resolvedPublicPort
     const frontendHref = directPort ? `${currentProfile?.forward_scheme === 'https' ? 'https' : 'http'}://${hostName}:${directPort}` : null
     const backendHref = frontendHref && env?.W9_ADMIN_PATH ? `${frontendHref}${env.W9_ADMIN_PATH}` : null
-    const showTargetSection = isComposeApp || !currentProfile?.locked
-    const showDomainAccessSection = isComposeApp || Boolean(env?.W9_URL?.trim()) || proxyHosts.length > 0 || Boolean(frontendHref || backendHref)
+    const showComposeTargetSelector = isComposeApp
+    const showDomainAccessSection = isComposeApp || Boolean(currentProfile?.enabled) || proxyHosts.length > 0 || Boolean(frontendHref || backendHref)
     const currentCertificate = useMemo(
         () => data?.certificates.find((certificate) => certificate.id === currentProxyHost?.certificate_id) ?? null,
         [currentProxyHost?.certificate_id, data?.certificates],
@@ -269,18 +281,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
         () => (data?.candidates ?? []).filter((candidate) => candidate.container_name === selectedContainerName),
         [data?.candidates, selectedContainerName],
     )
-    const selectedCandidate = useMemo(
-        () => (data?.candidates ?? []).find((candidate) => getCandidateKey(candidate.forward_host, candidate.forward_port) === selectedCandidateKey) ?? null,
-        [data?.candidates, selectedCandidateKey],
-    )
-    const currentTargetSummary = currentProfile?.enabled && currentProfile.forward_host && currentProfile.forward_port
-        ? `${currentProfile.forward_scheme.toUpperCase()} · ${currentProfile.forward_host}:${currentProfile.forward_port}`
-        : t('myAppsDetailPage.accessPanel.targetUndefined')
-    const currentTargetHint = currentProfile?.locked
-        ? t('myAppsDetailPage.accessPanel.builtinTarget')
-        : (data?.requires_definition
-            ? t('myAppsDetailPage.accessPanel.composeTargetHint')
-            : t('myAppsDetailPage.accessPanel.profileTargetHint'))
     const availableCertificates = useMemo(() => {
         const certificates = [...(data?.certificates ?? [])]
         if (currentProxyHost?.certificate_id && !certificates.some((certificate) => certificate.id === currentProxyHost.certificate_id)) {
@@ -404,6 +404,25 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
         }
         return cards
     }, [activeRootDomain, backendHref, bindingSummaries, currentProfile?.forward_scheme, env?.W9_ADMIN_PATH, frontendHref, hasStandaloneAdmin, t])
+    const nonWebConnections = useMemo<NonWebConnectionEntry[]>(() => {
+        if (isComposeApp || serviceAccessCards.length > 0 || !env) return []
+
+        const resolvedHost = configuredRootDomain || currentDomains[0] || hostName || '-'
+
+        return Object.entries(env)
+            .filter(([key, value]) => key.endsWith('PORT_SET') && !['W9_HTTP_PORT_SET', 'W9_HTTPS_PORT_SET'].includes(key) && value?.trim())
+            .map(([key, value]) => {
+                const port = String(value).trim()
+                const host = resolvedHost
+                return {
+                    key,
+                    title: getConnectionTitle(t),
+                    host,
+                    port,
+                    address: host && host !== '-' ? `${host}:${port}` : port,
+                }
+            })
+    }, [configuredRootDomain, currentDomains, env, hostName, isComposeApp, serviceAccessCards.length, t])
     const showRootUrlCard = showRootUrlUi
     const combinedSectionTitle = accountEntries.length > 0
         ? (serviceAccessCards.length > 0
@@ -417,6 +436,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     const canSubmitBindDialog = isEditingBinding
         ? (usesChipDomainEditor ? bindDialogDomains.length > 0 : Boolean(bindDialogDomainInput.trim()))
         : Boolean(bindDialogDomainInput.trim())
+    const canSubmitBindDialogWithTarget = canSubmitBindDialog && (!showComposeTargetSelector || Boolean(selectedCandidateKey))
     const defaultCustomCertName = useMemo(() => {
         if (bindDialogProxyId !== null) {
             return bindDialogDomains[0] ?? ''
@@ -474,7 +494,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     }, [bindDialogCertAction, defaultCustomCertName, isCustomCertNameAuto])
 
     async function persistProfileSelection() {
-        if (!showTargetSection) return
+        if (!showComposeTargetSelector) return
         if (!selectedCandidateKey) {
             throw new Error(t('myAppsDetailPage.accessPanel.composeDefinitionRequired'))
         }
@@ -497,21 +517,6 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
 
         if (!response.ok) {
             throw new Error(await parseJsonError(response, `Failed to save access target: ${response.status}`))
-        }
-    }
-
-    async function handleSaveProfileSelection() {
-        setFeedback(null)
-        try {
-            await persistProfileSelection()
-            await refetch()
-            await onUpdated()
-            setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.profileSaved') })
-        } catch (saveError) {
-            setFeedback({
-                severity: 'error',
-                message: saveError instanceof Error ? saveError.message : t('myAppsDetailPage.accessPanel.genericError'),
-            })
         }
     }
 
@@ -695,12 +700,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
                 setBindDialogForceHttps(Boolean(host.ssl_forced && host.certificate_id))
                 setBindDialogCertId(host.certificate_id ?? null)
                 setBindDialogSslEnabled(Boolean(host.certificate_id))
-                const cert = data?.certificates.find((item) => item.id === host.certificate_id)
-                if (cert?.provider === 'letsencrypt') {
-                    setBindDialogCertAction('letsencrypt')
-                } else {
-                    setBindDialogCertAction('existing')
-                }
+                setBindDialogCertAction(host.certificate_id ? 'existing' : 'letsencrypt')
             }
             setBindDialogProxyId(proxyId)
         } else {
@@ -911,103 +911,6 @@ ${customCertIntermediate.trim()}`
                 </Alert>
             ) : null}
 
-            {showTargetSection ? (
-                <div className="myapps-access-section myapps-access-target-section">
-                    <div className="myapps-access-section-head">
-                        <div className="myapps-section-label-stack">
-                            <div className="myapps-section-label-bar">
-                                <span className="myapps-section-label-indicator" />
-                                <span className="myapps-section-label-text">{t('myAppsDetailPage.accessPanel.targetTitle')}</span>
-                            </div>
-                            <p className="myapps-section-label-desc">{t('myAppsDetailPage.accessPanel.targetDescription')}</p>
-                        </div>
-                    </div>
-
-                    <div className="myapps-access-settings-group">
-                        <div className="myapps-access-panel-row">
-                            <div className="myapps-access-panel-row-main">
-                                <span className="myapps-access-panel-row-label">{t('myAppsDetailPage.accessPanel.targetSelectLabel')}</span>
-                                <div className="myapps-access-form myapps-access-editor-enter">
-                                    <div className="myapps-access-settings-editor-header">
-                                        <span className="myapps-access-settings-title">{currentTargetSummary}</span>
-                                        <Button
-                                            className="myapps-access-save-button"
-                                            disabled={!selectedCandidateKey}
-                                            onClick={() => void handleSaveProfileSelection()}
-                                            size="small"
-                                            variant="contained"
-                                        >
-                                            {t('myAppsDetailPage.accessPanel.saveTarget')}
-                                        </Button>
-                                    </div>
-                                    <div className="myapps-access-inline-hint">{currentTargetHint}</div>
-
-                                    {containerOptions.length > 0 ? (
-                                        <>
-                                            <div className="myapps-access-settings-field">
-                                                <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.targetContainerLabel')}</span>
-                                                <div>
-                                                    <select
-                                                        className="myapps-access-target-select"
-                                                        onChange={(event) => setSelectedContainerName(event.target.value)}
-                                                        value={selectedContainerName}
-                                                    >
-                                                        {containerOptions.map((candidate) => (
-                                                            <option key={candidate.container_name} value={candidate.container_name}>{candidate.container_name}</option>
-                                                        ))}
-                                                    </select>
-                                                    <div className="myapps-access-inline-hint">{t('myAppsDetailPage.accessPanel.targetContainerDescription')}</div>
-                                                </div>
-                                            </div>
-
-                                            <div className="myapps-access-settings-field">
-                                                <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.targetPortDescription')}</span>
-                                                <div>
-                                                    <select
-                                                        className="myapps-access-target-select"
-                                                        onChange={(event) => setSelectedTargetPort(event.target.value)}
-                                                        value={selectedTargetPort}
-                                                    >
-                                                        {selectedContainerCandidates.map((candidate) => (
-                                                            <option
-                                                                key={getCandidateKey(candidate.forward_host, candidate.forward_port)}
-                                                                value={String(candidate.forward_port)}
-                                                            >
-                                                                {candidate.forward_port}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <div className="myapps-access-inline-hint">{t('myAppsDetailPage.accessPanel.targetPortDescription')}</div>
-                                                    {selectedCandidate?.published_ports?.length ? (
-                                                        <div className="myapps-access-inline-hint">{t('myAppsDetailPage.accessPanel.publishedPorts', { value: selectedCandidate.published_ports.join(', ') })}</div>
-                                                    ) : null}
-                                                </div>
-                                            </div>
-
-                                            <div className="myapps-access-settings-field">
-                                                <span className="myapps-access-settings-field-label">{t('myAppsDetailPage.accessPanel.schemeLabel')}</span>
-                                                <div>
-                                                    <select
-                                                        className="myapps-access-target-select"
-                                                        onChange={(event) => setSelectedScheme(event.target.value === 'https' ? 'https' : 'http')}
-                                                        value={selectedScheme}
-                                                    >
-                                                        <option value="http">{t('myAppsDetailPage.accessPanel.schemeHttpDescription')}</option>
-                                                        <option value="https">{t('myAppsDetailPage.accessPanel.schemeHttpsDescription')}</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="myapps-access-inline-empty">{t('myAppsDetailPage.accessPanel.composeDefinitionRequired')}</div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ) : null}
-
             {showDomainAccessSection ? (
                 <div className="myapps-access-section myapps-access-binding-section">
                     <div className="myapps-access-section-head">
@@ -1113,7 +1016,62 @@ ${customCertIntermediate.trim()}`
                 </div>
             ) : null}
 
-            {/* ── Initial credentials ── */}
+            {nonWebConnections.length > 0 ? (
+                <div className="myapps-access-section myapps-service-connection-section">
+                    <div className="myapps-access-section-head">
+                        <div className="myapps-section-label-stack">
+                            <div className="myapps-section-label-bar">
+                                <span className="myapps-section-label-indicator" />
+                                <span className="myapps-section-label-text">{t('myAppsDetailPage.accessPanel.serviceConnectionTitle')}</span>
+                            </div>
+                            <p className="myapps-section-label-desc">{t('myAppsDetailPage.accessPanel.serviceConnectionDescription')}</p>
+                        </div>
+                    </div>
+                    <div className={`myapps-service-connection-grid ${nonWebConnections.length === 1 ? 'is-single' : ''}`}>
+                        {nonWebConnections.map((connection) => (
+                            <div className="myapps-service-connection-card" key={connection.key}>
+                                <div className="myapps-service-connection-title">{connection.title}</div>
+                                <div className="myapps-service-connection-body">
+                                    <div className="myapps-service-connection-row">
+                                        <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionAddressLabel')}</span>
+                                        <span className="myapps-service-connection-value">
+                                            <span className="myapps-service-connection-value-text">{connection.address}</span>
+                                            <button
+                                                className="myapps-creds-copy-btn"
+                                                onClick={async () => {
+                                                    try {
+                                                        await copyTextWithFallback(connection.address)
+                                                        setFeedback({ severity: 'success', message: t('myAppsDetailPage.accessPanel.copySuccess') })
+                                                    } catch {
+                                                        setFeedback({ severity: 'error', message: t('myAppsDetailPage.accessPanel.copyFailed') })
+                                                    }
+                                                }}
+                                                title={t('myAppsDetailPage.accessPanel.copySuccess')}
+                                                type="button"
+                                            >
+                                                <IconCopy />
+                                            </button>
+                                        </span>
+                                    </div>
+                                    <div className="myapps-service-connection-row">
+                                        <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionHostLabel')}</span>
+                                        <span className="myapps-service-connection-value">
+                                            <span className="myapps-service-connection-value-text">{connection.host}</span>
+                                        </span>
+                                    </div>
+                                    <div className="myapps-service-connection-row">
+                                        <span className="myapps-service-connection-label">{t('myAppsDetailPage.accessPanel.connectionPortLabel')}</span>
+                                        <span className="myapps-service-connection-value">
+                                            <span className="myapps-service-connection-value-text">{connection.port}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+
             {(serviceAccessCards.length > 0 || accountEntries.length > 0) ? (
                 <div className="myapps-creds-section">
                     <div className="myapps-creds-section-head">
@@ -1243,6 +1201,71 @@ ${customCertIntermediate.trim()}`
                 </Box>
                 <Box sx={{ px: { xs: 2, md: 2.5 }, py: 1.125, overflowY: 'auto', maxHeight: '65vh' }}>
                     <div className="myapps-bind-dialog-form">
+                        {showComposeTargetSelector ? (
+                            <div className="myapps-bind-target-group">
+                                <div className="myapps-domain-field myapps-bind-target-field-block">
+                                    <label className="myapps-domain-field-label" style={{ color: palette.text }}>
+                                        {t('myAppsDetailPage.accessPanel.proxyTargetTitle')}
+                                        <span className="myapps-field-required">*</span>
+                                    </label>
+                                    {containerOptions.length > 0 ? (
+                                        <>
+                                            <div className="myapps-bind-target-inline-grid myapps-access-editor-enter">
+                                                <div className="myapps-bind-target-field">
+                                                    <select
+                                                        className="form-select myapps-access-target-select"
+                                                        aria-label={t('myAppsDetailPage.accessPanel.targetContainerLabel')}
+                                                        onChange={(event) => setSelectedContainerName(event.target.value)}
+                                                        title={t('myAppsDetailPage.accessPanel.targetContainerLabel')}
+                                                        value={selectedContainerName}
+                                                    >
+                                                        {containerOptions.map((candidate) => (
+                                                            <option key={candidate.container_name} value={candidate.container_name}>{candidate.container_name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="myapps-bind-target-field">
+                                                    <select
+                                                        className="form-select myapps-access-target-select"
+                                                        aria-label={t('myAppsDetailPage.accessPanel.targetPortLabel')}
+                                                        onChange={(event) => setSelectedTargetPort(event.target.value)}
+                                                        title={t('myAppsDetailPage.accessPanel.targetPortLabel')}
+                                                        value={selectedTargetPort}
+                                                    >
+                                                        {selectedContainerCandidates.map((candidate) => (
+                                                            <option
+                                                                key={getCandidateKey(candidate.forward_host, candidate.forward_port)}
+                                                                value={String(candidate.forward_port)}
+                                                            >
+                                                                {candidate.forward_port}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="myapps-bind-target-field">
+                                                    <select
+                                                        className="form-select myapps-access-target-select"
+                                                        aria-label={t('myAppsDetailPage.accessPanel.schemeLabel')}
+                                                        onChange={(event) => setSelectedScheme(event.target.value === 'https' ? 'https' : 'http')}
+                                                        title={t('myAppsDetailPage.accessPanel.schemeLabel')}
+                                                        value={selectedScheme}
+                                                    >
+                                                        <option value="http">{t('myAppsDetailPage.accessPanel.schemeHttpDescription')}</option>
+                                                        <option value="https">{t('myAppsDetailPage.accessPanel.schemeHttpsDescription')}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <p className="myapps-domain-chip-helper">{t('myAppsDetailPage.accessPanel.proxyTargetDescription')}</p>
+                                        </>
+                                    ) : (
+                                        <p className="myapps-domain-chip-helper">{t('myAppsDetailPage.accessPanel.composeDefinitionRequired')}</p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div className="myapps-domain-field">
                             <label className="myapps-domain-field-label" style={{ color: palette.text }}>
                                 {t('myAppsDetailPage.accessPanel.domainInputLabel')}
@@ -1594,7 +1617,7 @@ ${customCertIntermediate.trim()}`
                         {t('myAppsDetailPage.accessPanel.cancel')}
                     </Button>
                     <Button
-                        disabled={isBindDialogSubmitting || !canSubmitBindDialog}
+                        disabled={isBindDialogSubmitting || !canSubmitBindDialogWithTarget}
                         onClick={() => void handleBindDialogSubmit()}
                         sx={{ minWidth: 112, borderRadius: 0, boxShadow: 'none', '&:hover': { boxShadow: 'none' } }}
                         variant="contained"

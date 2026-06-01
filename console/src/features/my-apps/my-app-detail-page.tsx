@@ -162,7 +162,10 @@ function hasAccessTab(data: MyAppDetail | undefined) {
     if (data.app_dist === 'compose') return true
     const env = data.env
     if (!env) return false
-    return Boolean(env.W9_URL?.trim() || Object.entries(env).some(([key, value]) => key.startsWith('W9_LOGIN') && value?.trim()))
+    return Boolean(
+        env.W9_URL?.trim()
+        || Object.entries(env).some(([key, value]) => (key.startsWith('W9_LOGIN') || key.endsWith('PORT_SET')) && value?.trim()),
+    )
 }
 
 function getDetailTabs(data: MyAppDetail): DetailTabKey[] {

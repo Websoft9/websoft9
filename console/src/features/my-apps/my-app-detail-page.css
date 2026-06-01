@@ -1630,18 +1630,41 @@
 
 .myapps-access-target-select {
     width: 100%;
-    min-height: 40px;
-    border: 1px solid var(--myapps-detail-border-strong);
-    border-radius: 4px;
-    padding: 8px 12px;
+    height: var(--ds-form-height);
+    min-height: var(--ds-form-height);
+    border: 1px solid var(--myapps-detail-border-strong) !important;
+    border-radius: var(--ds-radius-field);
+    padding: 0 12px;
     color: var(--myapps-detail-text);
-    background: var(--myapps-detail-surface);
+    background-color: var(--myapps-detail-surface) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--myapps-detail-border-strong) 72%, transparent);
     font: inherit;
+    appearance: auto;
 }
 
 .myapps-access-target-select:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: var(--ds-color-accent-strong) !important;
+    box-shadow: var(--ds-focus-ring), inset 0 0 0 1px var(--ds-color-accent-strong);
+}
+
+.myapps-bind-target-inline-grid .myapps-access-target-select {
+    display: block;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid rgba(0, 0, 0, 0.23) !important;
+    border-radius: 0;
+    background: var(--myapps-detail-surface) !important;
+    box-shadow: none !important;
+    color: inherit;
+    cursor: pointer;
+}
+
+.myapps-bind-target-inline-grid .myapps-access-target-select:focus {
+    border-color: var(--ds-color-accent-strong) !important;
+    box-shadow: var(--ds-focus-ring) !important;
 }
 
 .myapps-access-form-control .MuiOutlinedInput-root {
@@ -3135,6 +3158,98 @@
 
 .myapps-access-entry-grid.is-single {
     grid-template-columns: 1fr;
+}
+
+.myapps-service-connection-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 0 16px 14px;
+}
+
+.myapps-service-connection-grid.is-single {
+    grid-template-columns: 1fr;
+}
+
+.myapps-service-connection-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 60px;
+    padding: 14px 16px;
+    border: 1px solid var(--myapps-detail-border);
+    border-radius: 0;
+    background: linear-gradient(180deg, var(--myapps-detail-surface) 0%, var(--myapps-detail-surface-soft) 100%);
+}
+
+.myapps-service-connection-title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--myapps-detail-text-strong);
+}
+
+.myapps-service-connection-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.myapps-service-connection-row {
+    display: grid;
+    grid-template-columns: 108px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 12px;
+}
+
+.myapps-service-connection-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-service-connection-value {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.myapps-service-connection-value-text {
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--myapps-detail-text);
+    word-break: break-all;
+}
+
+.myapps-bind-target-group {
+    margin-bottom: 16px;
+}
+
+.myapps-bind-target-field-block {
+    margin-bottom: 0;
+}
+
+.myapps-bind-target-inline-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(120px, 0.75fr) minmax(120px, 0.75fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.myapps-bind-target-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .myapps-bind-target-inline-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .myapps-access-entry-card {
