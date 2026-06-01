@@ -744,19 +744,21 @@ export function MyAppsPage() {
                 description={t('myAppsPage.hero.description')}
                 descriptionColor={palette.subtleText}
                 actions={(
-                    <>
-                        <Button
-                            color="inherit"
-                            onClick={() => {
-                                navigate('/applications/deploy')
-                            }}
-                            size="small"
-                            className="app-shell-page-pill"
-                            title={t('applicationsHubPage.menu.action')}
-                            startIcon={<IconCompose />}
-                        >
-                            {t('applicationsHubPage.menu.action')}
-                        </Button>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375, flexShrink: 0 }}>
+                        <Tooltip title={t('applicationsHubPage.menu.action')}>
+                            <IconButton
+                                color="inherit"
+                                onClick={() => {
+                                    navigate('/applications/deploy')
+                                }}
+                                size="small"
+                                className="app-shell-page-action"
+                                title={t('applicationsHubPage.menu.action')}
+                                sx={{ width: 30, height: 30, padding: 0.35 }}
+                            >
+                                <IconCompose />
+                            </IconButton>
+                        </Tooltip>
                         <IconButton
                             color="inherit"
                             onClick={() => {
@@ -766,10 +768,11 @@ export function MyAppsPage() {
                             disabled={manualRefreshing}
                             className="app-shell-page-action"
                             title={manualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                            sx={{ width: 30, height: 30, padding: 0.35 }}
                         >
                             {manualRefreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh />}
                         </IconButton>
-                    </>
+                    </Box>
                 )}
                 sx={{ mb: 1.5 }}
             />

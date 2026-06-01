@@ -74,7 +74,7 @@ class AppAccessManager:
 
         domains = list(dict.fromkeys([item.strip() for item in domain_names if item.strip()]))
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
-        current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None) if proxy_id is not None else (proxy_hosts[0] if proxy_hosts else None)
+        current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None) if proxy_id is not None else None
 
         if proxy_id is not None and current_host is None:
             raise CustomException(404, "Invalid Request", f"Proxy ID:{proxy_id} Not Found")
@@ -112,6 +112,14 @@ class AppAccessManager:
             certificate_id=certificate_id,
             ssl_forced=ssl_forced,
         )
+
+    def update_root_url(
+        self,
+        app_id: str,
+        domain_name: str,
+        endpoint_id: int | None = None,
+    ) -> dict[str, Any]:
+        return AppManger().update_app_root_url(app_id, domain_name, endpoint_id)
         return ProxyManager.to_proxy_host_response(created)
 
     def delete_domain_binding(self, app_id: str, proxy_id: int, client_host: str, endpoint_id: int | None = None) -> None:
@@ -139,7 +147,7 @@ class AppAccessManager:
         app = AppManger().get_app_by_id(app_id, endpoint_id)
         profile = self._resolve_profile(app_id, app)
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
-        target_proxy_id = proxy_id or (proxy_hosts[0].get("id") if proxy_hosts else None)
+        target_proxy_id = self._resolve_certificate_target_proxy_id(app_id, proxy_id, proxy_hosts)
         return ProxyManager().request_letsencrypt_certificate(email, domain_names, target_proxy_id)
 
     def upload_custom_certificate(
@@ -155,7 +163,7 @@ class AppAccessManager:
         app = AppManger().get_app_by_id(app_id, endpoint_id)
         profile = self._resolve_profile(app_id, app)
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
-        target_proxy_id = proxy_id or (proxy_hosts[0].get("id") if proxy_hosts else None)
+        target_proxy_id = self._resolve_certificate_target_proxy_id(app_id, proxy_id, proxy_hosts)
         binding_domains = domain_names or []
         return ProxyManager().upload_custom_certificate(
             nice_name=nice_name,
@@ -164,6 +172,30 @@ class AppAccessManager:
             proxy_id=target_proxy_id,
             domain_names=binding_domains if binding_domains and target_proxy_id else None,
         )
+
+    def _resolve_certificate_target_proxy_id(
+        self,
+        app_id: str,
+        proxy_id: Optional[int],
+        proxy_hosts: list[dict[str, Any]],
+    ) -> Optional[int]:
+        if proxy_id is not None:
+            current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None)
+            if current_host is None:
+                raise CustomException(404, "Invalid Request", f"Proxy ID:{proxy_id} Not Found")
+            return proxy_id
+
+        if len(proxy_hosts) == 1:
+            return proxy_hosts[0].get("id")
+
+        if len(proxy_hosts) > 1:
+            raise CustomException(
+                400,
+                "Invalid Request",
+                f"Multiple domain bindings exist for {app_id}; specify proxy_id to avoid overwriting another binding",
+            )
+
+        return None
 
     def _resolve_profile(self, app_id: str, app: Any) -> AppAccessProfile:
         builtin = self._resolve_builtin_profile(app_id, app)

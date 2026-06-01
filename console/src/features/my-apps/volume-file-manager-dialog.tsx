@@ -238,14 +238,14 @@ function formatFileSize(size: number) {
     return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`
 }
 
-function normalizeActionErrorMessage(message: string, fallbackName?: string) {
+function normalizeActionErrorMessage(message: string, t: (key: string, options?: Record<string, unknown>) => string, fallbackName?: string) {
     const normalized = message.toLowerCase()
     if (normalized.includes('already exists') || normalized.includes('file exists') || normalized.includes('exists')) {
-        return fallbackName ? `${fallbackName} 已存在。` : '当前目录中已存在同名条目。'
+        return fallbackName ? t('filesPage.feedback.nameExists', { name: fallbackName }) : t('filesPage.feedback.duplicateEntry')
     }
 
     if (normalized.includes('does not exist') || normalized.includes('not found')) {
-        return fallbackName ? `${fallbackName} 已不存在。` : '目标条目已不存在。'
+        return fallbackName ? t('filesPage.feedback.missingEntry', { name: fallbackName }) : t('filesPage.feedback.missingEntryGeneric')
     }
 
     return message
@@ -992,7 +992,7 @@ export function VolumeFileManagerDialog({
                 }
                 await refreshCurrentDirectory()
             } catch (error) {
-                setFeedback({ message: error instanceof Error ? normalizeActionErrorMessage(error.message, browserClipboard.name) : t('filesPage.feedback.genericError') })
+                setFeedback({ message: error instanceof Error ? normalizeActionErrorMessage(error.message, t, browserClipboard.name) : t('filesPage.feedback.genericError') })
             } finally {
                 setActionSubmitting(false)
             }
@@ -1233,7 +1233,7 @@ export function VolumeFileManagerDialog({
                     : 'item' in dialogState
                         ? dialogState.item.name
                         : undefined
-            setFeedback({ message: error instanceof Error ? normalizeActionErrorMessage(error.message, name) : t('filesPage.feedback.genericError') })
+            setFeedback({ message: error instanceof Error ? normalizeActionErrorMessage(error.message, t, name) : t('filesPage.feedback.genericError') })
         } finally {
             setActionSubmitting(false)
         }
@@ -1268,7 +1268,7 @@ export function VolumeFileManagerDialog({
             })
             await refreshCurrentDirectory()
         } catch (error) {
-            setFeedback({ message: error instanceof Error ? normalizeActionErrorMessage(error.message, file.name) : t('filesPage.feedback.genericError') })
+            setFeedback({ message: error instanceof Error ? normalizeActionErrorMessage(error.message, t, file.name) : t('filesPage.feedback.genericError') })
         } finally {
             setActionSubmitting(false)
         }
@@ -1323,7 +1323,7 @@ export function VolumeFileManagerDialog({
             await refreshCurrentDirectory()
         } catch (error) {
             setFeedback({
-                message: error instanceof Error ? normalizeActionErrorMessage(error.message, dialogState.fileName) : t('filesPage.feedback.genericError'),
+                message: error instanceof Error ? normalizeActionErrorMessage(error.message, t, dialogState.fileName) : t('filesPage.feedback.genericError'),
             })
         } finally {
             if (uploadInputRef.current) {

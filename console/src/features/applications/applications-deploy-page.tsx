@@ -1,4 +1,4 @@
-import { Avatar, Box, Button, Paper, Stack, Typography, IconButton, Tooltip } from '@mui/material'
+import { Avatar, Box, Button, Paper, Typography, IconButton, Tooltip } from '@mui/material'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -230,7 +230,6 @@ export function ApplicationsDeployPage() {
 
     const totalStorePages = Math.max(1, Math.ceil(hotApps.length / STORE_PAGE_SIZE))
     const currentStoreApps = hotApps.slice(storePageIndex * STORE_PAGE_SIZE, (storePageIndex + 1) * STORE_PAGE_SIZE)
-
     function handleShuffle() {
         setStorePageIndex((idx) => (idx + 1) % totalStorePages)
     }
@@ -297,6 +296,125 @@ export function ApplicationsDeployPage() {
                     alignItems: { xs: 'flex-start', md: 'stretch' },
                 }}
             >
+                <Box sx={{ flex: { xs: '1 1 auto', md: '0.93 1 0%' }, minWidth: 0, display: 'flex' }}>
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            flex: 1,
+                            p: 1,
+                            borderRadius: '2px',
+                            border: '1px solid var(--ds-color-border)',
+                            backgroundColor: 'var(--ds-color-surface-bg)',
+                            boxShadow: panelShadow,
+                            minHeight: { md: 500 },
+                            height: { md: '100%' },
+                        }}
+                    >
+                        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 1, alignItems: 'center', px: 1.5, py: 1.25 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.1, minWidth: 0 }}>
+                                    <Box
+                                        sx={{
+                                            width: 36,
+                                            height: 36,
+                                            borderRadius: '10px',
+                                            display: 'grid',
+                                            placeItems: 'center',
+                                            background: isDark ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.08)',
+                                            color: '#2563eb',
+                                            flex: '0 0 auto',
+                                        }}
+                                    >
+                                        <StoreIcon />
+                                    </Box>
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3, color: 'var(--ds-color-text-strong)' }}>
+                                            {t('applicationsHubPage.deployPage.cards.marketplace.title')}
+                                        </Typography>
+                                        <Typography sx={{ mt: 0.2, fontSize: 12, lineHeight: 1.45, color: 'var(--ds-color-text-muted)' }}>
+                                            {t('applicationsHubPage.deployPage.cards.marketplace.description')}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                {hotApps.length > STORE_PAGE_SIZE && (
+                                    <Tooltip title={t('applicationsHubPage.deployPage.cards.marketplace.shuffle')} placement="top">
+                                        <IconButton
+                                            size="small"
+                                            onClick={handleShuffle}
+                                            sx={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 0.5,
+                                                px: 1,
+                                                py: 0.5,
+                                                borderRadius: '4px',
+                                                border: '1px solid var(--ds-color-border)',
+                                                color: 'var(--ds-color-text-muted)',
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                '&:hover': { color: '#2563eb', borderColor: '#2563eb', backgroundColor: isDark ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.05)' },
+                                            }}
+                                        >
+                                            <AutorenewIcon />
+                                            <Box component="span" sx={{ fontSize: 12, fontWeight: 700, ml: 0.4 }}>
+                                                {t('applicationsHubPage.deployPage.cards.marketplace.shuffle')}
+                                            </Box>
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                            </Box>
+
+                            <Box sx={{ height: 1, backgroundColor: subtleDivider }} />
+
+                            <Box sx={{ px: 1, pt: 1, pb: 1, display: 'flex', flexDirection: 'column', gap: 0.9, flex: 1 }}>
+                                <Box sx={{ display: 'grid', gap: 0.75 }}>
+                                    {currentStoreApps.map((app) => (
+                                        <AppListItem
+                                            key={app.key}
+                                            app={app}
+                                            fallbackLabel={app.trademark?.trim() || app.key || ''}
+                                            onClick={() => openFeaturedApp(app.key ?? '')}
+                                            isDark={isDark}
+                                        />
+                                    ))}
+                                </Box>
+
+                                <Box
+                                    sx={{
+                                        pt: 1,
+                                        mt: 'auto',
+                                        borderTop: `1px solid ${subtleDivider}`,
+                                        display: 'flex',
+                                        justifyContent: 'flex-end',
+                                    }}
+                                >
+                                    <Button
+                                        variant="contained"
+                                        onClick={() => navigate('/appstore')}
+                                        sx={{
+                                            minHeight: 38,
+                                            px: 2.1,
+                                            borderRadius: '2px',
+                                            textTransform: 'none',
+                                            boxShadow: 'none',
+                                            fontWeight: 800,
+                                            backgroundColor: '#2563eb',
+                                            '&:hover': { backgroundColor: '#1d4ed8' },
+                                        }}
+                                    >
+                                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                                            <span>{t('applicationsHubPage.deployPage.cards.marketplace.action')}</span>
+                                            <ArrowIcon />
+                                        </Box>
+                                    </Button>
+                                </Box>
+                            </Box>
+                        </Box>
+                    </Paper>
+                </Box>
+
                 <Box sx={{ flex: { xs: '1 1 auto', md: '1.95 1 0%' }, minWidth: 0, display: 'flex' }}>
                     <Paper
                         elevation={0}
@@ -411,32 +529,33 @@ export function ApplicationsDeployPage() {
                                 </Box>
                             </Box>
 
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gridTemplateRows: { xs: 'auto auto auto', md: '1fr' }, gap: 1, flex: 1, minHeight: 0 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1, alignItems: 'start' }}>
                                 {composeCapabilities.map((item) => (
                                     <Box
                                         key={item.key}
                                         sx={{
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            p: 1.75,
+                                            justifyContent: 'space-between',
+                                            p: 1.15,
                                             borderRadius: '2px',
                                             border: '1px solid var(--ds-color-border)',
                                             backgroundColor: 'var(--ds-color-surface-bg)',
                                             boxShadow: 'var(--ds-shadow-sm)',
                                         }}
                                     >
-                                        <Box sx={{ flex: 1 }}>
+                                        <Box>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: '#2563eb' }}>
                                                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#2563eb' }} />
                                                 <Typography sx={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.04em', color: '#2563eb' }}>
                                                     {item.title}
                                                 </Typography>
                                             </Box>
-                                            <Typography sx={{ mt: 1.1, fontSize: 13, lineHeight: 2.0, color: 'var(--ds-color-text-strong)' }}>
+                                            <Typography sx={{ mt: 0.7, fontSize: 12.5, lineHeight: 1.45, color: 'var(--ds-color-text-strong)' }}>
                                                 {item.detail}
                                             </Typography>
                                         </Box>
-                                        <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 0.45 }}>
+                                        <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.45 }}>
                                             {item.badges.map((badge) => (
                                                 <Box
                                                     key={badge}
@@ -490,134 +609,6 @@ export function ApplicationsDeployPage() {
                                 </Button>
                             </Box>
                         </Box>
-                    </Paper>
-                </Box>
-
-                <Box sx={{ flex: { xs: '1 1 auto', md: '0.93 1 0%' }, minWidth: 0, display: 'flex' }}>
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            flex: 1,
-                            p: 1,
-                            borderRadius: '2px',
-                            border: '1px solid var(--ds-color-border)',
-                            backgroundColor: 'var(--ds-color-surface-bg)',
-                            boxShadow: panelShadow,
-                            minHeight: { md: 500 },
-                            height: { md: '100%' },
-                        }}
-                    >
-                        <Stack
-                            spacing={0}
-                            sx={{
-                                flex: 1,
-                                borderRadius: '2px',
-                                border: `1px solid ${panelBorder}`,
-                                backgroundColor: 'var(--ds-color-surface-bg)',
-                                overflow: 'hidden',
-                            }}
-                        >
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 1, alignItems: 'center', px: 1.5, py: 1.25 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.1, minWidth: 0 }}>
-                                    <Box
-                                        sx={{
-                                            width: 36,
-                                            height: 36,
-                                            borderRadius: '10px',
-                                            display: 'grid',
-                                            placeItems: 'center',
-                                            background: isDark ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.08)',
-                                            color: '#2563eb',
-                                            flex: '0 0 auto',
-                                        }}
-                                    >
-                                        <StoreIcon />
-                                    </Box>
-                                    <Box sx={{ minWidth: 0 }}>
-                                        <Typography sx={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3, color: 'var(--ds-color-text-strong)' }}>
-                                            {t('applicationsHubPage.deployPage.cards.marketplace.title')}
-                                        </Typography>
-                                        <Typography sx={{ mt: 0.2, fontSize: 12, lineHeight: 1.45, color: 'var(--ds-color-text-muted)' }}>
-                                            {t('applicationsHubPage.deployPage.cards.marketplace.description')}
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                                {hotApps.length > STORE_PAGE_SIZE && (
-                                    <Tooltip title={t('applicationsHubPage.deployPage.cards.marketplace.shuffle')} placement="top">
-                                        <IconButton
-                                            size="small"
-                                            onClick={handleShuffle}
-                                            sx={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 0.5,
-                                                px: 1,
-                                                py: 0.5,
-                                                borderRadius: '4px',
-                                                border: '1px solid var(--ds-color-border)',
-                                                color: 'var(--ds-color-text-muted)',
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                                '&:hover': { color: '#2563eb', borderColor: '#2563eb', backgroundColor: isDark ? 'rgba(37,99,235,0.08)' : 'rgba(37,99,235,0.05)' },
-                                            }}
-                                        >
-                                            <AutorenewIcon />
-                                            <Box component="span" sx={{ fontSize: 12, fontWeight: 700, ml: 0.4 }}>
-                                                {t('applicationsHubPage.deployPage.cards.marketplace.shuffle')}
-                                            </Box>
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
-                            </Box>
-
-                            <Box sx={{ height: 1, backgroundColor: subtleDivider }} />
-
-                            <Box sx={{ px: 1, pt: 1, pb: 1, display: 'flex', flexDirection: 'column', gap: 0.9, flex: 1 }}>
-                                <Box sx={{ display: 'grid', gap: 0.75 }}>
-                                    {currentStoreApps.map((app) => (
-                                        <AppListItem
-                                            key={app.key}
-                                            app={app}
-                                            fallbackLabel={app.trademark?.trim() || app.key || ''}
-                                            onClick={() => openFeaturedApp(app.key ?? '')}
-                                            isDark={isDark}
-                                        />
-                                    ))}
-                                </Box>
-
-                                <Box
-                                    sx={{
-                                        pt: 1,
-                                        mt: 'auto',
-                                        borderTop: `1px solid ${subtleDivider}`,
-                                        display: 'flex',
-                                        justifyContent: 'flex-end',
-                                    }}
-                                >
-                                    <Button
-                                        variant="contained"
-                                        onClick={() => navigate('/appstore')}
-                                        sx={{
-                                            minHeight: 38,
-                                            px: 2.1,
-                                            borderRadius: '2px',
-                                            textTransform: 'none',
-                                            boxShadow: 'none',
-                                            fontWeight: 800,
-                                            backgroundColor: '#2563eb',
-                                            '&:hover': { backgroundColor: '#1d4ed8' },
-                                        }}
-                                    >
-                                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                                            <span>{t('applicationsHubPage.deployPage.cards.marketplace.action')}</span>
-                                            <ArrowIcon />
-                                        </Box>
-                                    </Button>
-                                </Box>
-                            </Box>
-                        </Stack>
                     </Paper>
                 </Box>
             </Box>

@@ -7,7 +7,7 @@ runtime_status_file="${WEBSOFT9_RUNTIME_STATUS_FILE:-$runtime_state_dir/runtime-
 supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
 supervisor_socket="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
 status_interval="${WEBSOFT9_STATUS_INTERVAL:-60}"
-strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-300}"
+strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-1800}"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') [platform-entrypoint] $*"

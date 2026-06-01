@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from datetime import datetime, timezone
 from io import BytesIO
 from io import StringIO
@@ -194,42 +194,38 @@ class HostAccessService:
 
         return self._get_profile_for_operator(operator["id"])
 
-    def list_directory(self, session_token: Optional[str], path: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
-        with self._open_file_client(profile) as client:
-            sftp = client.open_sftp()
-            try:
-                resolved = self._resolve_directory_path(sftp, path or profile["working_directory"])
-                directory_entries = sorted(sftp.listdir_attr(resolved), key=lambda item: (not stat.S_ISDIR(item.st_mode), item.filename.lower()))
-                metadata_entry = sftp.stat(resolved)
-                owner_labels, group_labels = self._load_identity_labels(
-                    sftp,
-                    [self._extract_stat_id(metadata_entry, "st_uid"), *[self._extract_stat_id(entry, "st_uid") for entry in directory_entries]],
-                    [self._extract_stat_id(metadata_entry, "st_gid"), *[self._extract_stat_id(entry, "st_gid") for entry in directory_entries]],
-                )
-                metadata = self._build_path_metadata(
-                    sftp,
-                    resolved,
-                    entry=metadata_entry,
-                    owner_labels=owner_labels,
-                    group_labels=group_labels,
-                )
-                items = []
-                for entry in directory_entries:
-                    items.append(
-                        self._build_file_item(
-                            resolved,
-                            entry,
-                            owner_labels=owner_labels,
-                            group_labels=group_labels,
-                        )
+    def list_directory(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
+        with self._open_sftp(profile) as sftp:
+            resolved = self._resolve_directory_path(sftp, path or profile["working_directory"])
+            directory_entries = sorted(sftp.listdir_attr(resolved), key=lambda item: (not stat.S_ISDIR(item.st_mode), item.filename.lower()))
+            metadata_entry = sftp.stat(resolved)
+            owner_labels, group_labels = self._load_identity_labels(
+                sftp,
+                [self._extract_stat_id(metadata_entry, "st_uid"), *[self._extract_stat_id(entry, "st_uid") for entry in directory_entries]],
+                [self._extract_stat_id(metadata_entry, "st_gid"), *[self._extract_stat_id(entry, "st_gid") for entry in directory_entries]],
+            )
+            metadata = self._build_path_metadata(
+                sftp,
+                resolved,
+                entry=metadata_entry,
+                owner_labels=owner_labels,
+                group_labels=group_labels,
+            )
+            items = []
+            for entry in directory_entries:
+                items.append(
+                    self._build_file_item(
+                        resolved,
+                        entry,
+                        owner_labels=owner_labels,
+                        group_labels=group_labels,
                     )
-                return {"current_path": resolved, "metadata": metadata, "items": items}
-            finally:
-                sftp.close()
+                )
+            return {"current_path": resolved, "metadata": metadata, "items": items}
 
-    def read_text_file(self, session_token: Optional[str], path: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def read_text_file(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_path = self._normalize_remote_path(path)
         with self._open_sftp(profile) as sftp:
             with sftp.open(normalized_path, "r") as handle:
@@ -245,8 +241,8 @@ class HostAccessService:
                 raise CustomException(400, "Unsupported File", f"Only UTF-8 text files can be previewed: {exc}")
         return {"path": normalized_path, "content": content}
 
-    def write_text_file(self, session_token: Optional[str], path: str, content: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def write_text_file(self, session_token: Optional[str], path: str, content: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_path = self._normalize_remote_path(path)
         with self._open_sftp(profile) as sftp:
             self._ensure_parent_directory_exists(sftp, normalized_path)
@@ -257,8 +253,8 @@ class HostAccessService:
                 raise CustomException(400, "Write Failed", f"Failed to save file: {exc}")
         return {"path": normalized_path, "operation": "write"}
 
-    def create_directory(self, session_token: Optional[str], parent_path: str, name: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def create_directory(self, session_token: Optional[str], parent_path: str, name: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved_parent = self._resolve_directory_path(sftp, parent_path)
             target_path = self._join_remote_path(resolved_parent, name)
@@ -268,8 +264,8 @@ class HostAccessService:
                 raise CustomException(400, "Create Directory Failed", f"Failed to create directory: {exc}")
         return {"path": target_path, "operation": "create-directory"}
 
-    def create_empty_file(self, session_token: Optional[str], parent_path: str, name: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def create_empty_file(self, session_token: Optional[str], parent_path: str, name: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved_parent = self._resolve_directory_path(sftp, parent_path)
             target_path = self._join_remote_path(resolved_parent, name)
@@ -285,8 +281,8 @@ class HostAccessService:
                     raise CustomException(400, "Create File Failed", "A file or directory with the same name already exists")
         return {"path": target_path, "operation": "create-file"}
 
-    def rename_item(self, session_token: Optional[str], source_path: str, target_name: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def rename_item(self, session_token: Optional[str], source_path: str, target_name: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(source_path)
         parent_path = str(PurePosixPath(normalized_source).parent) or "/"
         target_path = self._join_remote_path(parent_path, target_name)
@@ -309,8 +305,8 @@ class HostAccessService:
 
         return {"path": target_path, "operation": "rename"}
 
-    def delete_item(self, session_token: Optional[str], path: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def delete_item(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_path = self._normalize_remote_path(path)
         if normalized_path == "/":
             raise CustomException(400, "Delete Failed", "The root directory cannot be deleted")
@@ -327,8 +323,8 @@ class HostAccessService:
 
         return {"path": normalized_path, "operation": "delete"}
 
-    def download_file(self, session_token: Optional[str], path: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def download_file(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_path = self._normalize_remote_path(path)
         with self._open_sftp(profile) as sftp:
             entry = self._ensure_remote_exists(sftp, normalized_path)
@@ -347,8 +343,8 @@ class HostAccessService:
             "content": content,
         }
 
-    def update_item_attributes(self, session_token: Optional[str], payload: dict[str, Any]) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def update_item_attributes(self, session_token: Optional[str], payload: dict[str, Any], profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(payload.get("source_path"))
         target_name = str(payload.get("target_name") or "").strip() or None
         owner = str(payload.get("owner") or "").strip() or None
@@ -412,8 +408,8 @@ class HostAccessService:
 
         return {"path": target_path, "operation": "update-attributes", "metadata": metadata}
 
-    def copy_item(self, session_token: Optional[str], source_path: str, destination_path: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def copy_item(self, session_token: Optional[str], source_path: str, destination_path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(source_path)
         if normalized_source == "/":
             raise CustomException(400, "Copy Failed", "The root directory cannot be copied")
@@ -444,8 +440,8 @@ class HostAccessService:
 
         return {"path": target_path, "operation": "copy"}
 
-    def move_item(self, session_token: Optional[str], source_path: str, destination_path: str) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def move_item(self, session_token: Optional[str], source_path: str, destination_path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         normalized_source = self._normalize_remote_path(source_path)
         if normalized_source == "/":
             raise CustomException(400, "Move Failed", "The root directory cannot be moved")
@@ -470,8 +466,8 @@ class HostAccessService:
 
         return {"path": target_path, "operation": "move"}
 
-    def upload_file(self, session_token: Optional[str], parent_path: str, file_name: str, payload: bytes) -> dict[str, Any]:
-        profile = self.get_connection_profile(session_token)
+    def upload_file(self, session_token: Optional[str], parent_path: str, file_name: str, payload: bytes, profile_id: Optional[str] = None) -> dict[str, Any]:
+        profile = self.get_connection_profile(session_token, profile_id=profile_id)
         with self._open_sftp(profile) as sftp:
             resolved_parent = self._resolve_directory_path(sftp, parent_path)
             target_path = self._join_remote_path(resolved_parent, file_name)
@@ -481,8 +477,14 @@ class HostAccessService:
                 raise CustomException(400, "Upload Failed", f"Failed to upload file: {exc}")
         return {"path": target_path, "operation": "upload"}
 
-    def get_connection_profile(self, session_token: Optional[str]) -> dict[str, Any]:
+    def get_connection_profile(self, session_token: Optional[str], profile_id: Optional[str] = None) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
+        normalized_profile_id = str(profile_id or '').strip()
+        if normalized_profile_id:
+            profile = self._load_saved_profile(operator['id'], normalized_profile_id)
+            if profile is None:
+                raise CustomException(400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations')
+            return profile
         profile = self._resolve_active_profile(operator["id"])
         if profile is None:
             raise CustomException(400, "Host Access Not Configured", "Sign in to the local host before browsing files or opening a terminal")
@@ -507,6 +509,7 @@ class HostAccessService:
             "remembered": bool(active_profile.get("remember", False)) if active_profile else False,
             "host": str(active_profile.get("host") or HOST_ACCESS_HOST) if active_profile else HOST_ACCESS_HOST,
             "port": int(active_profile.get("port") or HOST_ACCESS_PORT) if active_profile else HOST_ACCESS_PORT,
+            "local_host_ip": HOST_ACCESS_HOST,
             "active_profile_id": active_profile.get("profile_id") if active_profile else None,
             "default_profile_id": default_profile_id,
             "saved_profiles": saved_profiles,
@@ -814,6 +817,22 @@ class HostAccessService:
 
     @contextmanager
     def _open_sftp(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
+        """SFTP context manager with one automatic retry on transient transport failure."""
+        with ExitStack() as stack:
+            try:
+                sftp = stack.enter_context(self._open_sftp_impl(profile))
+            except CustomException as exc:
+                if exc.status_code == 500:
+                    # Transport died between is_active() check and open_sftp() (TOCTOU).
+                    # Cache was evicted by _open_file_client's exception handler.
+                    # Retry once with a fresh connection.
+                    sftp = stack.enter_context(self._open_sftp_impl(profile))
+                else:
+                    raise
+            yield sftp
+
+    @contextmanager
+    def _open_sftp_impl(self, profile: dict[str, Any]) -> Iterator[paramiko.SFTPClient]:
         cache_key = self._build_file_client_cache_key(profile)
         client: Optional[paramiko.SSHClient] = None
         sftp: Optional[paramiko.SFTPClient] = None
@@ -1088,6 +1107,7 @@ class HostAccessService:
     def _normalize_profile_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         host = self._normalize_host_value(payload.get("host"))
         name = str(payload.get("name") or "").strip()
+        description = str(payload.get("description") or "").strip()
         username = str(payload.get("username") or "").strip()
         auth_method = str(payload.get("auth_method") or "password").strip()
         if auth_method not in {"password", "key"}:
@@ -1098,6 +1118,7 @@ class HostAccessService:
         profile = {
             "profile_id": str(payload.get("profile_id") or uuid.uuid4()),
             "name": name,
+            "description": description,
             "host": host,
             "port": port,
             "auth_method": auth_method,
@@ -1112,10 +1133,14 @@ class HostAccessService:
         }
         if not profile["username"]:
             raise CustomException(400, "Invalid Request", "Username cannot be empty")
-        if profile["auth_method"] == "password" and not profile["password"].strip():
-            raise CustomException(400, "Invalid Request", "Password cannot be empty for password authentication")
-        if profile["auth_method"] == "key" and not profile["private_key"].strip():
-            raise CustomException(400, "Invalid Request", "Private key cannot be empty for key authentication")
+        # Only validate auth credentials for new profiles; for edits (profile_id provided),
+        # _merge_saved_profile_auth will fill in the existing credentials if left empty.
+        is_new_profile = not str(payload.get("profile_id") or "").strip()
+        if is_new_profile:
+            if profile["auth_method"] == "password" and not profile["password"].strip():
+                raise CustomException(400, "Invalid Request", "Password cannot be empty for password authentication")
+            if profile["auth_method"] == "key" and not profile["private_key"].strip():
+                raise CustomException(400, "Invalid Request", "Private key cannot be empty for key authentication")
         return profile
 
     def _merge_saved_profile_auth(self, operator_id: str, profile: dict[str, Any]) -> dict[str, Any]:
@@ -1423,6 +1448,7 @@ class HostAccessService:
                 {
                     "profile_id": str(row["profile_id"]),
                     "name": str(payload.get("name") or ""),
+                    "description": str(payload.get("description") or ""),
                     "host": str(payload.get("host") or HOST_ACCESS_HOST),
                     "username": str(payload.get("username") or ""),
                     "auth_method": str(payload.get("auth_method") or "password"),

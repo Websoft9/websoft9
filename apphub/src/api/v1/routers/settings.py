@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, Path
-from src.schemas.appSettings import AppSettings
+from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
 
@@ -64,3 +64,23 @@ def update_settings(
     value: str = Query(..., description="Key value to update settings from"),
 ):
     return SettingsManager().write_section(section,key,value)
+
+
+@router.put(
+            "/settings/platform_gateway/apply",
+            summary="Apply platform gateway settings",
+            description="Update platform gateway domain, HTTPS, and certificate settings in one request",
+            responses={
+                200: {"model": AppSettings},
+                400: {"model": ErrorResponse},
+                500: {"model": ErrorResponse},
+            }
+        )
+def apply_platform_gateway_settings(payload: PlatformGatewayBatchUpdateRequest):
+    return SettingsManager().write_platform_gateway_settings(
+        bound_domain=payload.bound_domain,
+        https_enabled=payload.https_enabled,
+        force_https=payload.force_https,
+        ssl_cert=payload.ssl_cert,
+        ssl_key=payload.ssl_key,
+    )

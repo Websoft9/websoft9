@@ -1,7 +1,7 @@
 .terminal-access-sections {
     display: grid;
     gap: 12px;
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+    grid-template-columns: minmax(320px, 0.9fr) minmax(680px, 1.35fr);
     align-items: stretch;
     height: 100%;
     min-height: 0;
@@ -74,8 +74,8 @@
 
 .terminal-connections-toolbar-search {
     flex: 0 0 auto;
-    width: clamp(360px, 34vw, 520px);
-    min-width: 320px;
+    width: clamp(260px, 28vw, 420px);
+    min-width: 240px;
 }
 
 .terminal-connections-toolbar-field .MuiOutlinedInput-root {
@@ -135,8 +135,8 @@
 .terminal-connections-toolbar-icon-button.MuiIconButton-root,
 .terminal-connections-row-action-button,
 .terminal-connections-row-action-button.MuiIconButton-root {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border: none !important;
     border-radius: 2px !important;
     background: transparent !important;
@@ -189,7 +189,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 8px;
+    gap: 4px;
     flex-wrap: wrap;
 }
 
@@ -458,6 +458,17 @@
     transition: 140ms ease;
 }
 
+.terminal-view-nav-button:disabled {
+    background: rgba(148, 163, 184, 0.08);
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.app-shell-root--dark .terminal-view-nav-button:disabled {
+    background: rgba(51, 65, 85, 0.66);
+    color: #64748b;
+}
+
 .terminal-view-nav-button:last-child {
     border-right: 0;
 }
@@ -514,9 +525,20 @@
     background: #ffffff;
 }
 
+.terminal-files-pane-embedded {
+    padding: 0;
+    gap: 10px;
+    background: transparent;
+}
+
 .terminal-shell-pane {
     width: 100%;
     height: 100%;
+}
+
+.terminal-shell-empty-connected-look {
+    min-height: 100%;
+    padding: 24px;
 }
 
 @media (max-width: 900px) {
@@ -569,6 +591,10 @@
     min-height: 0;
     overflow: hidden;
     width: 100%;
+}
+
+.terminal-files-pane-embedded.terminal-files-shell {
+    height: 100%;
 }
 
 .terminal-files-toolbar-row {
@@ -1141,9 +1167,11 @@
 }
 
 .terminal-files-empty {
-    padding: 16px;
-    border: 1px dashed rgba(148, 163, 184, 0.32);
-    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    padding: 24px;
 }
 
 .terminal-files-empty-inspector {
@@ -1492,6 +1520,13 @@
     line-height: 1;
 }
 
+.terminal-shell-toolbar-icon-button.MuiButton-root {
+    min-width: 32px;
+    width: 32px;
+    height: 31px;
+    padding: 0;
+}
+
 .terminal-shell-surface {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
@@ -1521,6 +1556,12 @@
     color: rgba(226, 232, 240, 0.84);
     background: rgba(15, 23, 42, 0.55);
     font-size: 12px;
+}
+
+.terminal-shell-surface-light .terminal-shell-toolbar {
+    color: #334155;
+    background: rgba(148, 163, 184, 0.22);
+    border-bottom-color: rgba(148, 163, 184, 0.32);
 }
 
 .terminal-shell-toolbar-left,
@@ -1564,6 +1605,11 @@
     border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
+.terminal-shell-surface-light .terminal-shell-transcript {
+    background: rgba(255, 255, 255, 0.78);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
 .terminal-xterm-host {
     display: block;
     width: 100%;
@@ -1576,6 +1622,14 @@
 
 .terminal-xterm-host .xterm {
     max-width: 100%;
+    overflow: hidden;
+}
+
+.terminal-xterm-host .xterm-screen,
+.terminal-xterm-host .xterm-rows,
+.terminal-xterm-host .xterm-screen canvas {
+    max-width: 100% !important;
+    overflow: hidden !important;
 }
 
 .terminal-xterm-host .xterm-viewport {

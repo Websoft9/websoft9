@@ -1,6 +1,6 @@
 import { Alert, Box, Button, CircularProgress, IconButton, LinearProgress, Paper, Stack, SvgIcon, Tooltip, Typography } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SurfaceStateCard, SurfaceStatusBadge } from '../../shared/design-system/standard-surfaces'
@@ -107,6 +107,12 @@ type OverviewResponse = {
     alerts: OverviewAlert[]
 }
 
+type OverviewStreamPayload = {
+    overview?: OverviewResponse
+    digest?: string
+    refresh_hint_ms?: number
+}
+
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
         credentials: 'include',
@@ -141,15 +147,44 @@ export function OverviewPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
     const { status } = useProductAuth()
+    const queryClient = useQueryClient()
     const [isManualRefreshing, setIsManualRefreshing] = useState(false)
+    const supportsEventSource = typeof window !== 'undefined' && typeof EventSource !== 'undefined'
 
     const { data, error, isLoading, refetch } = useQuery<OverviewResponse, Error>({
         queryKey: ['overview-summary'],
         queryFn: () => requestJson<OverviewResponse>('/api/overview'),
         enabled: Boolean(status?.enabled && status?.authenticated),
-        staleTime: 10_000,
+        staleTime: supportsEventSource ? 10_000 : 2_000,
         refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchInterval: false,
     })
+
+    useEffect(() => {
+        if (!supportsEventSource || !status?.enabled || !status?.authenticated || !data) {
+            return
+        }
+
+        const eventSource = new EventSource('/api/overview/stream', { withCredentials: true })
+        const handleSnapshot = (event: Event) => {
+            try {
+                const payload = JSON.parse((event as MessageEvent<string>).data) as OverviewStreamPayload
+                if (payload.overview) {
+                    queryClient.setQueryData(['overview-summary'], payload.overview)
+                }
+            } catch {
+                // Ignore malformed events and wait for the next snapshot.
+            }
+        }
+
+        eventSource.addEventListener('snapshot', handleSnapshot)
+
+        return () => {
+            eventSource.removeEventListener('snapshot', handleSnapshot)
+            eventSource.close()
+        }
+    }, [Boolean(data), queryClient, status?.authenticated, status?.enabled, supportsEventSource])
 
     async function handleManualRefresh() {
         setIsManualRefreshing(true)
@@ -510,7 +545,18 @@ function ResourceMeterRow({
                 <Typography className="overview-page-resource-label">{label}</Typography>
                 <Typography className="overview-page-resource-value">{formatPercent(value)}</Typography>
             </Stack>
-            <LinearProgress className="overview-page-resource-progress" variant="determinate" value={normalizedValue} />
+            <LinearProgress
+                className="overview-page-resource-progress"
+                variant="determinate"
+                value={normalizedValue}
+                sx={{
+                    height: 8,
+                    borderRadius: '999px',
+                    '& .MuiLinearProgress-bar': {
+                        borderRadius: '999px',
+                    },
+                }}
+            />
             <Typography className="overview-page-resource-meta">{meta}</Typography>
         </Box>
     )

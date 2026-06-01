@@ -7,6 +7,7 @@ export type MyAppPhpInfo = {
 
 type MyAppPhpInfoError = Error & {
     statusCode?: number
+    details?: string
 }
 
 async function fetchMyAppPhpInfo(appId: string) {
@@ -18,8 +19,16 @@ async function fetchMyAppPhpInfo(appId: string) {
     })
 
     if (!response.ok) {
-        const error = new Error(`Failed to load PHP info: ${response.status}`) as MyAppPhpInfoError
+        let payload: { details?: string; message?: string } | null = null
+        try {
+            payload = await response.json() as { details?: string; message?: string }
+        } catch {
+            payload = null
+        }
+
+        const error = new Error(payload?.message || `Failed to load PHP info: ${response.status}`) as MyAppPhpInfoError
         error.statusCode = response.status
+        error.details = payload?.details
         throw error
     }
 

@@ -120,9 +120,6 @@ function IconEyeOff() {
 function IconCopy() {
     return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" /></svg>
 }
-function IconBackup() {
-    return <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M20 8.5V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8.5L6.5 4h11L20 8.5zM7.33 6 6 7.33V9h12V7.33L16.67 6H7.33zM11 12v5h2v-5h3l-4-4-4 4h3z" /></svg>
-}
 function IconRefresh() {
     return <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M20 12A8 8 0 1 1 17.66 6.34" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><path d="M20 4v6h-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
@@ -309,6 +306,15 @@ function getContainerStatus(c: Record<string, unknown>) {
     return typeof c.Status === 'string' ? c.Status : '-'
 }
 
+function canProbePhpRuntime(containers: Array<Record<string, unknown>> | undefined, appId: string | undefined) {
+    if (!containers || containers.length === 0 || !appId) return true
+
+    const primaryContainers = containers.filter((container) => getContainerName(container) === appId)
+    if (primaryContainers.length === 0) return true
+
+    return primaryContainers.some((container) => getContainerState(container).toLowerCase() === 'running')
+}
+
 function getContainerImage(c: Record<string, unknown>) {
     return typeof c.Image === 'string' ? c.Image : '-'
 }
@@ -372,15 +378,6 @@ function getDatabaseRows(data: MyAppDetail): DatabaseRow[] {
         password: data.env?.W9_POWER_PASSWORD || '-',
         toolApps: dbConfig[dbType]?.toolApps || [],
     }))
-}
-
-function getComposeVersion(data: MyAppDetail) {
-    const git = data.gitConfig ?? {}
-    for (const key of ['ConfigVersion', 'ReferenceName', 'ComposeFilePath', 'RepositoryURL'] as const) {
-        const v = git[key]
-        if (typeof v === 'string' && v.trim()) return v.trim()
-    }
-    return '-'
 }
 
 function getComposeRepositoryTarget(data: MyAppDetail) {
@@ -477,26 +474,41 @@ async function copyTextWithFallback(value: string) {
     }
 }
 
-function openProductPath(path: string, navigate: (to: string) => void, rememberedRoute?: string) {
+function openProductPath(path: string, navigate: (to: string) => void, rememberedRoute?: string, openInNewWindow = false) {
     const normalizedPath = path.trim()
     rememberMyAppsDetailRoute(rememberedRoute ?? (typeof window === 'undefined' ? null : `${window.location.pathname}${window.location.search}`))
 
+    let targetPath = normalizedPath
+
     if (normalizedPath.startsWith('/w9deployment/')) {
-        navigate(`/containers?target=${encodeURIComponent(normalizedPath)}`)
+        targetPath = `/containers?target=${encodeURIComponent(normalizedPath)}`
+    } else if (normalizedPath.startsWith('/w9git/')) {
+        targetPath = `/repository?target=${encodeURIComponent(normalizedPath)}`
+    } else if (normalizedPath.startsWith('/w9proxy/')) {
+        targetPath = `/gateway?target=${encodeURIComponent(normalizedPath)}`
+    }
+
+    if (openInNewWindow) {
+        window.open(targetPath, '_blank', 'noopener,noreferrer')
+        return
+    }
+
+    if (normalizedPath.startsWith('/w9deployment/')) {
+        navigate(targetPath)
         return
     }
 
     if (normalizedPath.startsWith('/w9git/')) {
-        navigate(`/repository?target=${encodeURIComponent(normalizedPath)}`)
+        navigate(targetPath)
         return
     }
 
     if (normalizedPath.startsWith('/w9proxy/')) {
-        navigate(`/gateway?target=${encodeURIComponent(normalizedPath)}`)
+        navigate(targetPath)
         return
     }
 
-    window.location.assign(normalizedPath)
+    window.location.assign(targetPath)
 }
 
 function openAppStoreTool(appKey: string, navigate: (to: string, options?: { state?: unknown }) => void) {
@@ -655,7 +667,6 @@ export function MyAppDetailPage() {
     const [volumeBackupLoading, setVolumeBackupLoading] = useState(false)
     const [volumeBackupError, setVolumeBackupError] = useState<string | null>(null)
     const [createBackupDialogOpen, setCreateBackupDialogOpen] = useState(false)
-    const [backupListDialogOpen, setBackupListDialogOpen] = useState(false)
     const [deleteBackupTarget, setDeleteBackupTarget] = useState<VolumeBackupRow | null>(null)
     const [restoreBackupTarget, setRestoreBackupTarget] = useState<VolumeBackupRow | null>(null)
     const [deleteBackupConfirmed, setDeleteBackupConfirmed] = useState(false)
@@ -692,7 +703,8 @@ export function MyAppDetailPage() {
     }, [appId, location.pathname, navigate])
 
     const { data, error, isLoading, refetch } = useMyAppDetail(appId)
-    const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php'))
+    const canLoadPhpRuntime = canProbePhpRuntime(data?.containers, data?.app_id)
+    const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php' && canLoadPhpRuntime))
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const isDarkMode = colorMode === 'dark'
     const surfacePalette = getSurfacePalette(isDarkMode)
@@ -928,14 +940,6 @@ export function MyAppDetailPage() {
     }, [appId, selectedTab])
 
     useEffect(() => {
-        if (!backupListDialogOpen || !data?.app_id) {
-            return
-        }
-
-        void refreshVolumeBackups()
-    }, [backupListDialogOpen, data?.app_id, locale])
-
-    useEffect(() => {
         if (!deleteBackupTarget) {
             setDeleteBackupConfirmed(false)
         }
@@ -1078,10 +1082,6 @@ export function MyAppDetailPage() {
         } finally {
             setVolumeBackupAction(null)
         }
-    }
-
-    function handleOpenBackupList() {
-        setBackupListDialogOpen(true)
     }
 
     async function handleDeleteBackup() {
@@ -1376,29 +1376,30 @@ export function MyAppDetailPage() {
                                 {/* Right: Tab content */}
                                 <div className="myapps-detail-content-col">
                                     {/* Panel title */}
-                                    {!['overview', 'container', 'database', 'volumes', 'compose', 'uninstall'].includes(selectedTab) ? (
+                                    {!['overview', 'access', 'container', 'database', 'compose', 'volumes', 'uninstall', 'php'].includes(selectedTab) ? (
                                         <div className="myapps-panel-header">
-                                            <h5 className="myapps-panel-title">{tabTitles[selectedTab]}</h5>
+                                            <h5 className="myapps-panel-title">{selectedTab === 'volumes' ? tabLabels.volumes : tabTitles[selectedTab]}</h5>
                                         </div>
                                     ) : null}
 
                                     {/* ── Overview ── */}
                                     {selectedTab === 'overview' ? (
-                                        <div className="myapps-card myapps-overview-card">
-                                            <div className="myapps-card-header myapps-card-header-compact">
-                                                <div className="myapps-overview-title">{tabTitles.overview}</div>
+                                        <div className="myapps-access-section myapps-overview-section">
+                                            <div className="myapps-access-section-head">
+                                                <div className="myapps-section-label-bar">
+                                                    <span className="myapps-section-label-indicator" />
+                                                    <span className="myapps-section-label-text">{tabLabels.overview}</span>
+                                                </div>
                                             </div>
-                                            <div className="myapps-database-card-body">
-                                                <table className="myapps-overview-data-table" role="table">
-                                                    <tbody>
-                                                        {overviewEntries.map((entry, index) => (
-                                                            <tr key={`overview-row-${index}`}>
-                                                                <th>{entry.label}</th>
-                                                                <td>{entry.value}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
+                                            <div className="myapps-php-card-body">
+                                                <div className="myapps-overview-runtime-block">
+                                                    {overviewEntries.map((entry, index) => (
+                                                        <div className="myapps-overview-runtime-row" key={`overview-row-${index}`}>
+                                                            <span className="myapps-overview-runtime-label">{entry.label}</span>
+                                                            <span className="myapps-overview-runtime-value">{entry.value}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     ) : null}
@@ -1417,91 +1418,97 @@ export function MyAppDetailPage() {
 
                                     {/* ── Container ── */}
                                     {selectedTab === 'container' ? (
-                                        <div className="myapps-card">
-                                            <div className="myapps-card-header">
-                                                <div>
-                                                    <div className="myapps-section-title">{t('myAppsDetailPage.tabs.container.title')}</div>
-                                                    <div className="myapps-section-desc">{t('myAppsDetailPage.tabs.container.description', { appId: data.app_id })}</div>
+                                        <div className="myapps-access-section myapps-container-section">
+                                            <div className="myapps-access-section-head">
+                                                <div className="myapps-section-label-bar">
+                                                    <span className="myapps-section-label-indicator" />
+                                                    <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.container.title')}</span>
                                                 </div>
-                                                <a
-                                                    className="myapps-card-header-btn"
-                                                    href={`/w9deployment/#!/${data.endpointId ?? 1}/docker/stacks/${data.app_id}?type=2&regular=false&external=true&orphaned=false`}
-                                                    onClick={(event) => {
-                                                        event.preventDefault()
-                                                        openProductPath(`/w9deployment/#!/${data.endpointId ?? 1}/docker/stacks/${data.app_id}?type=2&regular=false&external=true&orphaned=false`, navigate)
-                                                    }}
+                                                <button
+                                                    className="myapps-icon-action-btn myapps-icon-action-btn-plain"
+                                                    onClick={() => openProductPath(`/w9deployment/#!/${data.endpointId ?? 1}/docker/stacks/${data.app_id}?type=2&regular=false&external=true&orphaned=false`, navigate, undefined, true)}
+                                                    title={t('myAppsDetailPage.tabs.container.more')}
+                                                    type="button"
                                                 >
-                                                    {t('myAppsDetailPage.tabs.container.more')}
-                                                </a>
+                                                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                                        <path d="M12 7a1.75 1.75 0 1 1 0-3.5A1.75 1.75 0 0 1 12 7Zm0 6.75a1.75 1.75 0 1 1 0-3.5 1.75 1.75 0 0 1 0 3.5Zm0 6.75a1.75 1.75 0 1 1 0-3.5 1.75 1.75 0 0 1 0 3.5Z" />
+                                                    </svg>
+                                                </button>
                                             </div>
                                             {(data.containers ?? []).length > 0 ? (
-                                                <div className="myapps-table-wrap">
-                                                    <table className="myapps-detail-table" role="table">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.name')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.state')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.status')}</th>
-                                                                <th className="myapps-cell-center">{t('myAppsDetailPage.tabs.container.columns.actions')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.image')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.created')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.ipAddress')}</th>
-                                                                <th>{t('myAppsDetailPage.tabs.container.columns.ports')}</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {(data.containers ?? []).map((c, i) => {
-                                                                const containerId = getContainerId(c)
-                                                                const endpointId = data.endpointId ?? 1
-                                                                const state = getContainerState(c)
-                                                                const image = getContainerImage(c)
-                                                                return (
-                                                                    <tr key={`${getContainerName(c)}-${i}`}>
-                                                                        <td>{getContainerName(c)}</td>
-                                                                        <td><ContainerStateBadge state={state} /></td>
-                                                                        <td>{getContainerStatus(c)}</td>
-                                                                        <td className="myapps-cell-center">
-                                                                            <div className="myapps-table-actions-inline">
-                                                                                <a href={containerId ? `/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs` : '#'} title="Logs" className="myapps-table-action-link" onClick={(event) => {
-                                                                                    if (!containerId) return
-                                                                                    event.preventDefault()
-                                                                                    openProductPath(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`, navigate)
-                                                                                }}>
-                                                                                    <i className="dripicons-document-remove noti-icon" />
-                                                                                </a>
-                                                                                {state === 'running' ? (
-                                                                                    <a href={containerId ? `/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats` : '#'} title="Stats" className="myapps-table-action-link" onClick={(event) => {
-                                                                                        if (!containerId) return
-                                                                                        event.preventDefault()
-                                                                                        openProductPath(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`, navigate)
-                                                                                    }}>
-                                                                                        <i className="dripicons-graph-bar noti-icon" />
-                                                                                    </a>
-                                                                                ) : null}
-                                                                                {state === 'running' ? (
-                                                                                    <a href={containerId ? `/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec` : '#'} title="Exec Console" className="myapps-table-action-link" onClick={(event) => {
-                                                                                        if (!containerId) return
-                                                                                        event.preventDefault()
-                                                                                        openProductPath(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`, navigate)
-                                                                                    }}>
-                                                                                        <i className="dripicons-code noti-icon" />
-                                                                                    </a>
-                                                                                ) : null}
-                                                                            </div>
-                                                                        </td>
-                                                                        <td title={image}>{image.length > 20 ? `${image.slice(0, 20)}...` : image}</td>
-                                                                        <td>{getContainerCreatedAt(c, locale)}</td>
-                                                                        <td>{getContainerIpAddress(c)}</td>
-                                                                        <td>{getPublishedPorts(c)}</td>
+                                                <div className="myapps-php-card-body myapps-container-card-body">
+                                                    <div className="myapps-php-runtime-card myapps-container-runtime-card">
+                                                        <div className="myapps-table-wrap">
+                                                            <table className="myapps-detail-table" role="table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.name')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.state')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.status')}</th>
+                                                                        <th className="myapps-cell-center">{t('myAppsDetailPage.tabs.container.columns.actions')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.image')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.created')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.ipAddress')}</th>
+                                                                        <th>{t('myAppsDetailPage.tabs.container.columns.ports')}</th>
                                                                     </tr>
-                                                                )
-                                                            })}
-                                                        </tbody>
-                                                    </table>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {(data.containers ?? []).map((c, i) => {
+                                                                        const containerId = getContainerId(c)
+                                                                        const endpointId = data.endpointId ?? 1
+                                                                        const state = getContainerState(c)
+                                                                        const image = getContainerImage(c)
+                                                                        return (
+                                                                            <tr key={`${getContainerName(c)}-${i}`}>
+                                                                                <td>{getContainerName(c)}</td>
+                                                                                <td><ContainerStateBadge state={state} /></td>
+                                                                                <td>{getContainerStatus(c)}</td>
+                                                                                <td className="myapps-cell-center">
+                                                                                    <div className="myapps-table-actions-inline">
+                                                                                        <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`)}` : '#'} title={t('myAppsDetailPage.tabs.container.actions.viewLogs')} className="myapps-table-action-link" onClick={(event) => {
+                                                                                            if (!containerId) return
+                                                                                            event.preventDefault()
+                                                                                            window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`)}`, '_blank')
+                                                                                        }}>
+                                                                                            <i className="dripicons-document-remove noti-icon" />
+                                                                                        </a>
+                                                                                        {state === 'running' ? (
+                                                                                            <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`)}` : '#'} title={t('myAppsDetailPage.tabs.container.actions.viewStats')} className="myapps-table-action-link" onClick={(event) => {
+                                                                                                if (!containerId) return
+                                                                                                event.preventDefault()
+                                                                                                window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`)}`, '_blank')
+                                                                                            }}>
+                                                                                                <i className="dripicons-graph-bar noti-icon" />
+                                                                                            </a>
+                                                                                        ) : null}
+                                                                                        {state === 'running' ? (
+                                                                                            <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`)}` : '#'} title={t('myAppsDetailPage.tabs.container.actions.viewTerminal')} className="myapps-table-action-link" onClick={(event) => {
+                                                                                                if (!containerId) return
+                                                                                                event.preventDefault()
+                                                                                                window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`)}`, '_blank')
+                                                                                            }}>
+                                                                                                <i className="dripicons-code noti-icon" />
+                                                                                            </a>
+                                                                                        ) : null}
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td title={image}>{image.length > 20 ? `${image.slice(0, 20)}...` : image}</td>
+                                                                                <td>{getContainerCreatedAt(c, locale)}</td>
+                                                                                <td>{getContainerIpAddress(c)}</td>
+                                                                                <td>{getPublishedPorts(c)}</td>
+                                                                            </tr>
+                                                                        )
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ) : (
-                                                <div style={{ padding: 16 }}>
-                                                    <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.container.empty')}</Alert>
+                                                <div className="myapps-php-card-body myapps-container-card-body">
+                                                    <div className="myapps-php-runtime-card myapps-container-runtime-card myapps-detail-section-card-empty" style={{ padding: 16 }}>
+                                                        <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.container.empty')}</Alert>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -1512,218 +1519,338 @@ export function MyAppDetailPage() {
                                         (sortedVolumes.length > 0 || databaseRows.length > 0) ? (
                                             <>
                                                 {sortedVolumes.length > 0 ? (
-                                                    <div className="myapps-card myapps-volume-card">
-                                                        <div className="myapps-card-header">
-                                                            <div className="myapps-section-title">{t('myAppsDetailPage.tabs.volumes.title')}</div>
-                                                            <div className="myapps-card-header-actions">
-                                                                <button
-                                                                    className="myapps-inline-icon-action myapps-inline-icon-action-neutral"
-                                                                    onClick={handleOpenBackupList}
-                                                                    title={t('myAppsDetailPage.tabs.volumes.backups.entry')}
-                                                                    aria-label={t('myAppsDetailPage.tabs.volumes.backups.entry')}
-                                                                >
-                                                                    <IconBackup />
-                                                                    <span>{t('myAppsDetailPage.tabs.volumes.backups.entry')}</span>
-                                                                </button>
+                                                    <div className="myapps-access-section myapps-volume-card">
+                                                        <div className="myapps-access-section-head">
+                                                            <div className="myapps-section-label-bar">
+                                                                <span className="myapps-section-label-indicator" />
+                                                                <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.volumes.title')}</span>
                                                             </div>
                                                         </div>
-                                                        <div className="myapps-table-wrap">
-                                                            <table className="myapps-detail-table" role="table">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.driver')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.mountpoint')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.volumes.columns.created')}</th>
-                                                                        <th className="myapps-cell-center">{t('myAppsDetailPage.tabs.volumes.columns.action')}</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {sortedVolumes.map((v, i) => {
-                                                                        const volumeLabel = getVolumeLabel(v)
-                                                                        const volumeId = getVolumeId(v)
-                                                                        return (
-                                                                            <tr key={`${volumeLabel}-${i}`}>
-                                                                                <td>{volumeLabel}</td>
-                                                                                <td>{String(v.Driver ?? '-')}</td>
-                                                                                <td>{String(v.Mountpoint ?? '-')}</td>
-                                                                                <td>{getVolumeCreatedAt(v, locale)}</td>
-                                                                                <td className="myapps-cell-center">
-                                                                                    <button
-                                                                                        className="myapps-inline-link"
-                                                                                        disabled={!volumeId}
-                                                                                        onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel })}
-                                                                                    >
-                                                                                        {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
-                                                                                    </button>
-                                                                                </td>
+                                                        <div className="myapps-php-card-body">
+                                                            <div className="myapps-php-runtime-card myapps-volume-runtime-card">
+                                                                <div className="myapps-table-wrap">
+                                                                    <table className="myapps-detail-table" role="table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.driver')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.mountpoint')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.columns.created')}</th>
+                                                                                <th className="myapps-cell-center">{t('myAppsDetailPage.tabs.volumes.columns.action')}</th>
                                                                             </tr>
-                                                                        )
-                                                                    })}
-                                                                </tbody>
-                                                            </table>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {sortedVolumes.map((v, i) => {
+                                                                                const volumeLabel = getVolumeLabel(v)
+                                                                                const volumeId = getVolumeId(v)
+                                                                                return (
+                                                                                    <tr key={`${volumeLabel}-${i}`}>
+                                                                                        <td>{volumeLabel}</td>
+                                                                                        <td>{String(v.Driver ?? '-')}</td>
+                                                                                        <td>{String(v.Mountpoint ?? '-')}</td>
+                                                                                        <td>{getVolumeCreatedAt(v, locale)}</td>
+                                                                                        <td className="myapps-cell-center">
+                                                                                            <button
+                                                                                                className="myapps-inline-link"
+                                                                                                disabled={!volumeId}
+                                                                                                onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel })}
+                                                                                            >
+                                                                                                {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
+                                                                                            </button>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                )
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ) : null}
 
-                                                {databaseRows.length > 0 ? (
-                                                    <div className="myapps-card myapps-volume-card">
-                                                        <div className="myapps-card-header myapps-card-header-compact">
-                                                            <div className="myapps-overview-title">{t('myAppsDetailPage.tabs.database.title')}</div>
+                                                <div className="myapps-access-section myapps-volume-card">
+                                                    <div className="myapps-access-section-head">
+                                                        <div className="myapps-section-label-bar">
+                                                            <span className="myapps-section-label-indicator" />
+                                                            <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.volumes.backups.title')}</span>
                                                         </div>
-                                                        <div className="myapps-database-card-body">
-                                                            <table className="myapps-database-table" role="table">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.type')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.host')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.account')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
-                                                                        <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {databaseRows.map((row) => (
-                                                                        <tr key={`${row.type}-${row.host}`}>
-                                                                            <td>{row.type}</td>
-                                                                            <td>{row.host}</td>
-                                                                            <td>{row.account}</td>
-                                                                            <td>
-                                                                                <div className="myapps-database-password-cell">
-                                                                                    <span className="myapps-database-password-text">
-                                                                                        {showPasswords[row.type] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
-                                                                                    </span>
-                                                                                    <button
-                                                                                        className="myapps-database-icon-btn"
-                                                                                        title={showPasswords[row.type] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
-                                                                                        onClick={() => setShowPasswords((prev) => ({ ...prev, [row.type]: !prev[row.type] }))}
-                                                                                    >
-                                                                                        {showPasswords[row.type] ? <IconEyeOff /> : <IconEye />}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        className="myapps-database-icon-btn"
-                                                                                        title={t('myAppsDetailPage.tabs.database.copy')}
-                                                                                        onClick={async () => {
-                                                                                            try {
-                                                                                                await copyTextWithFallback(row.password)
-                                                                                                setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
-                                                                                            } catch {
-                                                                                                setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
-                                                                                            }
-                                                                                        }}
-                                                                                    >
-                                                                                        <IconCopy />
-                                                                                    </button>
-                                                                                </div>
-                                                                            </td>
-                                                                            <td>
-                                                                                {row.toolApps.length > 0 ? (
-                                                                                    <div className="myapps-table-actions-text">
-                                                                                        {row.toolApps.map((tool) => (
+                                                        <div className="myapps-card-header-actions">
+                                                            <button
+                                                                className="myapps-inline-icon-action myapps-inline-icon-action-neutral myapps-inline-icon-action-compact"
+                                                                onClick={() => setCreateBackupDialogOpen(true)}
+                                                                title={t('myAppsDetailPage.tabs.volumes.backups.create')}
+                                                                aria-label={t('myAppsDetailPage.tabs.volumes.backups.create')}
+                                                                disabled={volumeBackupAction === 'create' || volumeBackupLoading}
+                                                            >
+                                                                <IconAdd />
+                                                            </button>
+                                                            <button
+                                                                className="myapps-inline-icon-action myapps-inline-icon-action-neutral myapps-inline-icon-action-compact"
+                                                                onClick={() => void refreshVolumeBackups()}
+                                                                title={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
+                                                                aria-label={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
+                                                                disabled={volumeBackupLoading}
+                                                            >
+                                                                <IconRefresh />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="myapps-php-card-body">
+                                                        <div className="myapps-php-runtime-card myapps-volume-runtime-card">
+                                                            <div className="myapps-backup-table-shell">
+                                                                <div className="myapps-table-wrap myapps-table-wrap-overlay">
+                                                                    <table className="myapps-detail-table myapps-backup-detail-table" role="table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.action')}</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {volumeBackupLoading && volumeBackups.length === 0 ? (
+                                                                                <tr>
+                                                                                    <td colSpan={4} className="myapps-empty-cell">
+                                                                                        <div className="myapps-table-inline-loading" aria-live="polite">
+                                                                                            <CircularProgress size={18} />
+                                                                                            <span>{t('myAppsDetailPage.tabs.volumes.backups.refreshing')}</span>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ) : volumeBackups.length === 0 ? (
+                                                                                <tr>
+                                                                                    <td colSpan={4} className="myapps-empty-cell">{volumeBackupError || t('myAppsDetailPage.tabs.volumes.backups.empty')}</td>
+                                                                                </tr>
+                                                                            ) : (
+                                                                                volumeBackups.map((backup) => (
+                                                                                    <tr key={backup.fullId}>
+                                                                                        <td>{backup.id}</td>
+                                                                                        <td>{backup.time}</td>
+                                                                                        <td>{backup.size}</td>
+                                                                                        <td>
+                                                                                            <div className="myapps-table-actions-text">
+                                                                                                <button className="myapps-inline-link" onClick={() => setRestoreBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.restore')}</button>
+                                                                                                <button className="myapps-inline-link myapps-inline-link-danger" onClick={() => setDeleteBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.delete')}</button>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                ))
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {databaseRows.length > 0 ? (
+                                                    <div className="myapps-access-section myapps-volume-card">
+                                                        <div className="myapps-access-section-head">
+                                                            <div className="myapps-section-label-bar">
+                                                                <span className="myapps-section-label-indicator" />
+                                                                <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.database.title')}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="myapps-php-card-body">
+                                                            <div className="myapps-php-runtime-card myapps-volume-runtime-card">
+                                                                <div className="myapps-database-card-body myapps-volume-database-card-body">
+                                                                    <table className="myapps-database-table" role="table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.type')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.host')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.account')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
+                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {databaseRows.map((row) => (
+                                                                                <tr key={`${row.type}-${row.host}`}>
+                                                                                    <td>{row.type}</td>
+                                                                                    <td>{row.host}</td>
+                                                                                    <td>{row.account}</td>
+                                                                                    <td>
+                                                                                        <div className="myapps-database-password-cell">
+                                                                                            <span className="myapps-database-password-text">
+                                                                                                {showPasswords[row.type] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
+                                                                                            </span>
                                                                                             <button
-                                                                                                key={`${row.type}-${tool.appKey}`}
-                                                                                                className="myapps-inline-link"
-                                                                                                onClick={() => openAppStoreTool(tool.appKey, navigate)}
+                                                                                                className="myapps-database-icon-btn"
+                                                                                                title={showPasswords[row.type] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
+                                                                                                onClick={() => setShowPasswords((prev) => ({ ...prev, [row.type]: !prev[row.type] }))}
                                                                                             >
-                                                                                                {tool.label}
+                                                                                                {showPasswords[row.type] ? <IconEyeOff /> : <IconEye />}
                                                                                             </button>
-                                                                                        ))}
-                                                                                    </div>
-                                                                                ) : '-'}
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
+                                                                                            <button
+                                                                                                className="myapps-database-icon-btn"
+                                                                                                title={t('myAppsDetailPage.tabs.database.copy')}
+                                                                                                onClick={async () => {
+                                                                                                    try {
+                                                                                                        await copyTextWithFallback(row.password)
+                                                                                                        setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
+                                                                                                    } catch {
+                                                                                                        setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
+                                                                                                    }
+                                                                                                }}
+                                                                                            >
+                                                                                                <IconCopy />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td>
+                                                                                        {row.toolApps.length > 0 ? (
+                                                                                            <div className="myapps-table-actions-text">
+                                                                                                {row.toolApps.map((tool) => (
+                                                                                                    <button
+                                                                                                        key={`${row.type}-${tool.appKey}`}
+                                                                                                        className="myapps-inline-link"
+                                                                                                        onClick={() => openAppStoreTool(tool.appKey, navigate)}
+                                                                                                    >
+                                                                                                        {tool.label}
+                                                                                                    </button>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        ) : '-'}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ) : null}
                                             </>
                                         ) : (
-                                            <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.volumes.empty')}</Alert>
+                                            <div className="myapps-access-section myapps-volume-card">
+                                                <div className="myapps-access-section-head">
+                                                    <div className="myapps-section-label-bar">
+                                                        <span className="myapps-section-label-indicator" />
+                                                        <span className="myapps-section-label-text">{tabLabels.volumes}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="myapps-php-card-body">
+                                                    <div className="myapps-php-runtime-card myapps-volume-runtime-card myapps-detail-section-card-empty" style={{ padding: 16 }}>
+                                                        <Alert severity="info" variant="outlined">{t('myAppsDetailPage.tabs.volumes.empty')}</Alert>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         )
                                     ) : null}
 
                                     {/* ── PHP ── */}
                                     {selectedTab === 'php' ? (
-                                        <div className="myapps-card">
-                                            <div className="myapps-card-header myapps-card-header-compact">
-                                                <div className="myapps-overview-title">{t('myAppsDetailPage.tabs.php.overviewTitle')}</div>
-                                            </div>
-                                            <div className="myapps-php-card-body">
-                                                {phpInfoQuery.isLoading ? (
-                                                    <div className="myapps-access-loading">
-                                                        <CircularProgress size={18} />
-                                                        <span>{t('myAppsDetailPage.tabs.php.loading')}</span>
+                                        <div className="myapps-php-layout">
+                                            <div className="myapps-access-section">
+                                                <div className="myapps-access-section-head">
+                                                    <div className="myapps-section-label-bar">
+                                                        <span className="myapps-section-label-indicator" />
+                                                        <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.php.runtimeTitle')}</span>
                                                     </div>
-                                                ) : null}
-                                                {phpInfoQuery.error ? (
-                                                    <Alert severity="warning" variant="outlined">
-                                                        {t('myAppsDetailPage.tabs.php.error', { statusCode: phpInfoQuery.error.statusCode ?? 'unknown' })}
-                                                    </Alert>
-                                                ) : null}
-                                                {phpInfoQuery.data ? (
-                                                    <table className="myapps-overview-table myapps-php-table" role="table">
-                                                        <tbody>
-                                                            <tr className="myapps-overview-row">
-                                                                <td className="myapps-overview-label">{t('myAppsDetailPage.tabs.php.currentVersionLabel')}</td>
-                                                                <td className="myapps-overview-value">{phpInfoQuery.data.version}</td>
-                                                            </tr>
-                                                            <tr className="myapps-overview-row">
-                                                                <td className="myapps-overview-label">{t('myAppsDetailPage.tabs.php.modulesLabel')}</td>
-                                                                <td className="myapps-overview-value">
-                                                                    {Object.entries(phpInfoQuery.data.modules).map(([group, modules], index, array) => (
-                                                                        <div className="myapps-php-module-group" key={group}>
-                                                                            <strong className="myapps-php-module-title">{group}:</strong>
-                                                                            <div className="myapps-php-module-list">{modules.length > 0 ? modules.join(', ') : '-'}</div>
-                                                                            {index < array.length - 1 ? <div className="myapps-php-module-divider" /> : null}
-                                                                        </div>
-                                                                    ))}
-                                                                </td>
-                                                            </tr>
-                                                            <tr className="myapps-overview-row">
-                                                                <td className="myapps-overview-label">{t('myAppsDetailPage.tabs.php.switchLabel')}</td>
-                                                                <td className="myapps-overview-value">
-                                                                    <div className="myapps-php-switch-row">
-                                                                        <button className="myapps-card-header-btn" onClick={() => {
-                                                                            setShowPhpMigrationForm((prev) => !prev)
-                                                                            if (showPhpMigrationForm) {
-                                                                                setPhpTargetVersion('')
-                                                                                setPhpMigrationRemarks('')
-                                                                            }
-                                                                        }}>
-                                                                            {showPhpMigrationForm ? t('myAppsDetailPage.tabs.php.migration.cancel') : t('myAppsDetailPage.tabs.php.migration.request')}
-                                                                        </button>
-                                                                        <span className="myapps-php-switch-note">{t('myAppsDetailPage.tabs.php.migration.note')}</span>
+                                                </div>
+                                                <div className="myapps-php-card-body">
+                                                    {phpInfoQuery.isLoading ? (
+                                                        <div className="myapps-access-loading">
+                                                            <CircularProgress size={18} />
+                                                            <span>{t('myAppsDetailPage.tabs.php.loading')}</span>
+                                                        </div>
+                                                    ) : null}
+                                                    {!canLoadPhpRuntime ? (
+                                                        <Alert severity="info" variant="outlined">
+                                                            {t('myAppsDetailPage.tabs.php.unavailable')}
+                                                        </Alert>
+                                                    ) : null}
+                                                    {phpInfoQuery.error ? (
+                                                        <Alert severity={phpInfoQuery.error.statusCode === 400 ? 'info' : 'warning'} variant="outlined">
+                                                            {phpInfoQuery.error.statusCode === 400
+                                                                ? t('myAppsDetailPage.tabs.php.unavailable')
+                                                                : t('myAppsDetailPage.tabs.php.error', { statusCode: phpInfoQuery.error.statusCode ?? 'unknown' })}
+                                                        </Alert>
+                                                    ) : null}
+                                                    {phpInfoQuery.data ? (
+                                                        <div className="myapps-php-runtime-grid">
+                                                            <div className="myapps-php-runtime-card myapps-php-runtime-card-inline">
+                                                                <div className="myapps-php-runtime-card-line">
+                                                                    <span className="myapps-php-runtime-card-label">{t('myAppsDetailPage.tabs.php.currentVersionLabel')}</span>
+                                                                    <span className="myapps-php-runtime-card-value">{phpInfoQuery.data.version}</span>
+                                                                </div>
+                                                                {Object.entries(phpInfoQuery.data.modules).length > 0 ? (
+                                                                    <div className="myapps-php-runtime-card-value myapps-php-runtime-card-value-block myapps-php-module-groups">
+                                                                        {Object.entries(phpInfoQuery.data.modules).map(([group, modules], index, array) => (
+                                                                            <div className="myapps-php-module-group" key={group}>
+                                                                                <strong className="myapps-php-module-title">{group}</strong>
+                                                                                <div className="myapps-php-module-list">{modules.length > 0 ? modules.join(', ') : '-'}</div>
+                                                                                {index < array.length - 1 ? <div className="myapps-php-module-divider" /> : null}
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
-                                                                    {showPhpMigrationForm ? (
-                                                                        <div className="myapps-php-request-box">
-                                                                            <div className="myapps-php-request-row">
-                                                                                <label className="myapps-php-request-label">{t('myAppsDetailPage.tabs.php.migration.targetVersion')} *</label>
-                                                                                <select className="myapps-php-request-select" value={phpTargetVersion} onChange={(event) => setPhpTargetVersion(event.target.value)}>
-                                                                                    <option value="">{t('myAppsDetailPage.tabs.php.migration.selectVersion')}</option>
-                                                                                    <option value="7.4">PHP 7.4</option>
-                                                                                    <option value="8.0">PHP 8.0</option>
-                                                                                    <option value="8.1">PHP 8.1</option>
-                                                                                    <option value="8.2">PHP 8.2</option>
-                                                                                    <option value="8.3">PHP 8.3</option>
-                                                                                </select>
-                                                                            </div>
-                                                                            <div className="myapps-php-request-row myapps-php-request-row-top">
-                                                                                <label className="myapps-php-request-label">{t('myAppsDetailPage.tabs.php.migration.remarks')} *</label>
-                                                                                <textarea className="myapps-php-request-textarea" rows={4} value={phpMigrationRemarks} onChange={(event) => setPhpMigrationRemarks(event.target.value)} placeholder={t('myAppsDetailPage.tabs.php.migration.remarksPlaceholder')} />
-                                                                            </div>
-                                                                            <div className="myapps-php-request-actions">
-                                                                                <button className="myapps-card-header-btn" disabled={phpMigrationSubmitting} onClick={() => void handlePhpMigrationRequest()}>
-                                                                                    {phpMigrationSubmitting ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.php.migration.submit')}
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : null}
-                                                                </td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+
+                                            <div className="myapps-access-section">
+                                                <div className="myapps-access-section-head">
+                                                    <div className="myapps-section-label-bar">
+                                                        <span className="myapps-section-label-indicator" />
+                                                        <div className="myapps-section-label-stack">
+                                                            <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.php.migrationTitle')}</span>
+                                                            <p className="myapps-section-label-desc">{t('myAppsDetailPage.tabs.php.migration.note')}</p>
+                                                        </div>
+                                                    </div>
+                                                    <button className={`myapps-card-header-btn${showPhpMigrationForm ? ' myapps-card-header-btn-secondary' : ''}`} onClick={() => {
+                                                        setShowPhpMigrationForm((prev) => !prev)
+                                                        if (showPhpMigrationForm) {
+                                                            setPhpTargetVersion('')
+                                                            setPhpMigrationRemarks('')
+                                                        }
+                                                    }}>
+                                                        {showPhpMigrationForm ? t('myAppsDetailPage.tabs.php.migration.cancel') : t('myAppsDetailPage.tabs.php.migration.request')}
+                                                    </button>
+                                                </div>
+                                                {showPhpMigrationForm ? (
+                                                    <div className="myapps-php-card-body">
+                                                        <div className="myapps-php-request-box">
+                                                            <div className="myapps-php-request-row">
+                                                                <label className="myapps-php-request-label">
+                                                                    <span>{t('myAppsDetailPage.tabs.php.migration.targetVersion')}</span>
+                                                                    <span className="myapps-php-request-required">*</span>
+                                                                </label>
+                                                                <select className={`myapps-php-request-select${phpTargetVersion ? '' : ' is-placeholder'}`} value={phpTargetVersion} onChange={(event) => setPhpTargetVersion(event.target.value)}>
+                                                                    <option value="">{t('myAppsDetailPage.tabs.php.migration.selectVersion')}</option>
+                                                                    <option value="7.4">PHP 7.4</option>
+                                                                    <option value="8.0">PHP 8.0</option>
+                                                                    <option value="8.1">PHP 8.1</option>
+                                                                    <option value="8.2">PHP 8.2</option>
+                                                                    <option value="8.3">PHP 8.3</option>
+                                                                    <option value="other">{t('myAppsDetailPage.tabs.php.migration.otherVersion')}</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="myapps-php-request-row myapps-php-request-row-top">
+                                                                <label className="myapps-php-request-label">
+                                                                    <span>{t('myAppsDetailPage.tabs.php.migration.remarks')}</span>
+                                                                    <span className="myapps-php-request-required">*</span>
+                                                                </label>
+                                                                <div className="myapps-php-request-field myapps-php-request-field-remarks">
+                                                                    <div className="myapps-php-request-note">{t('myAppsDetailPage.tabs.php.migration.remarksNote')}</div>
+                                                                    <div className="myapps-php-request-example">{t('myAppsDetailPage.tabs.php.migration.remarksExample')}</div>
+                                                                    <textarea className="myapps-php-request-textarea myapps-php-request-textarea-embedded" rows={4} value={phpMigrationRemarks} onChange={(event) => setPhpMigrationRemarks(event.target.value)} placeholder={t('myAppsDetailPage.tabs.php.migration.remarksPlaceholder')} />
+                                                                </div>
+                                                            </div>
+                                                            <div className="myapps-php-request-actions">
+                                                                <button className="myapps-card-header-btn" disabled={phpMigrationSubmitting} onClick={() => void handlePhpMigrationRequest()}>
+                                                                    {phpMigrationSubmitting ? t('myAppsDetailPage.actions.running') : t('myAppsDetailPage.tabs.php.migration.submit')}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 ) : null}
                                             </div>
                                         </div>
@@ -1748,64 +1875,81 @@ export function MyAppDetailPage() {
 
                                     {/* ── Compose ── */}
                                     {selectedTab === 'compose' ? (
-                                        <div className="myapps-card">
-                                            <div className="myapps-card-header myapps-card-header-compose">
-                                                <div>
-                                                    <div className="myapps-section-title">{t('myAppsDetailPage.tabs.compose.title')}</div>
-                                                    <div className="myapps-section-desc">{t('myAppsDetailPage.tabs.compose.description')}</div>
+                                        <div className="myapps-access-section myapps-compose-section">
+                                            <div className="myapps-access-section-head">
+                                                <div className="myapps-section-label-bar">
+                                                    <span className="myapps-section-label-indicator" />
+                                                    <div className="myapps-section-label-stack">
+                                                        <span className="myapps-section-label-text">{t('myAppsDetailPage.tabs.compose.title')}</span>
+                                                        <p className="myapps-section-label-desc">{t('myAppsDetailPage.tabs.compose.description')}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="myapps-compose-card-body">
-                                                <p className="myapps-compose-config-version">{t('myAppsDetailPage.tabs.compose.configVersion', { value: getComposeVersion(data) })}</p>
-                                                <Box sx={{ maxWidth: 520 }}>
-                                                    <Stepper activeStep={composeStep} orientation="vertical">
-                                                        {composeSteps.map((step, index) => (
-                                                            <Step key={step.label}>
-                                                                <StepLabel>{step.label}</StepLabel>
-                                                                <StepContent>
-                                                                    <Typography>{step.description}</Typography>
-                                                                    <Box sx={{ mb: 2, mt: 1 }}>
-                                                                        <button className="myapps-card-header-btn" onClick={() => handleComposeAction(index)}>
-                                                                            {step.action}
-                                                                        </button>
-                                                                        <button className="myapps-compose-back-btn" disabled={index === 0} onClick={() => setComposeStep((prev) => Math.max(prev - 1, 0))}>
-                                                                            {t('myAppsDetailPage.tabs.compose.back')}
-                                                                        </button>
-                                                                    </Box>
-                                                                </StepContent>
-                                                            </Step>
-                                                        ))}
-                                                    </Stepper>
-                                                </Box>
+                                            <div className="myapps-php-card-body">
+                                                <div className="myapps-php-runtime-card myapps-compose-runtime-card">
+                                                    <div className="myapps-compose-card-body">
+                                                        <Box sx={{ maxWidth: 520 }}>
+                                                            <Stepper activeStep={composeStep} orientation="vertical">
+                                                                {composeSteps.map((step, index) => (
+                                                                    <Step key={step.label}>
+                                                                        <StepLabel>{step.label}</StepLabel>
+                                                                        <StepContent>
+                                                                            <Typography>{step.description}</Typography>
+                                                                            <Box sx={{ mb: 2, mt: 1 }}>
+                                                                                <button className="myapps-card-header-btn" onClick={() => handleComposeAction(index)}>
+                                                                                    {step.action}
+                                                                                </button>
+                                                                                <button className="myapps-compose-back-btn" disabled={index === 0} onClick={() => setComposeStep((prev) => Math.max(prev - 1, 0))}>
+                                                                                    {t('myAppsDetailPage.tabs.compose.back')}
+                                                                                </button>
+                                                                            </Box>
+                                                                        </StepContent>
+                                                                    </Step>
+                                                                ))}
+                                                            </Stepper>
+                                                        </Box>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     ) : null}
 
                                     {/* ── Uninstall ── */}
                                     {selectedTab === 'uninstall' ? (
-                                        <div className="myapps-uninstall-layout">
-                                            <div className="myapps-uninstall-copy">
-                                                <h6 className="myapps-uninstall-title">
-                                                    {isComposeApp
-                                                        ? t('myAppsDetailPage.tabs.uninstall.removeTitle')
-                                                        : t('myAppsDetailPage.tabs.uninstall.title')}
-                                                </h6>
-                                                <p className="myapps-uninstall-desc">
-                                                    {isComposeApp
-                                                        ? t('myAppsDetailPage.tabs.uninstall.removePlaceholder')
-                                                        : t('myAppsDetailPage.tabs.uninstall.placeholder')}
-                                                </p>
+                                        <div className="myapps-access-section myapps-uninstall-section">
+                                            <div className="myapps-access-section-head">
+                                                <div className="myapps-section-label-bar">
+                                                    <span className="myapps-section-label-indicator" />
+                                                    <span className="myapps-section-label-text">
+                                                        {isComposeApp
+                                                            ? t('myAppsDetailPage.tabs.uninstall.removeTitle')
+                                                            : t('myAppsDetailPage.tabs.uninstall.title')}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="myapps-uninstall-actions">
-                                                <button
-                                                    className="myapps-uninstall-btn"
-                                                    disabled={actionInProgress !== null}
-                                                    onClick={() => setUninstallDialogOpen(true)}
-                                                >
-                                                    {isComposeApp
-                                                        ? t('myAppsDetailPage.actions.remove')
-                                                        : t('myAppsDetailPage.actions.uninstall')}
-                                                </button>
+                                            <div className="myapps-php-card-body">
+                                                <div className="myapps-php-runtime-card myapps-uninstall-runtime-card">
+                                                    <div className="myapps-uninstall-layout">
+                                                        <div className="myapps-uninstall-copy">
+                                                            <p className="myapps-uninstall-desc">
+                                                                {isComposeApp
+                                                                    ? t('myAppsDetailPage.tabs.uninstall.removePlaceholder')
+                                                                    : t('myAppsDetailPage.tabs.uninstall.placeholder')}
+                                                            </p>
+                                                        </div>
+                                                        <div className="myapps-uninstall-actions">
+                                                            <button
+                                                                className="myapps-uninstall-btn"
+                                                                disabled={actionInProgress !== null}
+                                                                onClick={() => setUninstallDialogOpen(true)}
+                                                            >
+                                                                {isComposeApp
+                                                                    ? t('myAppsDetailPage.actions.remove')
+                                                                    : t('myAppsDetailPage.actions.uninstall')}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     ) : null}
@@ -1935,104 +2079,6 @@ export function MyAppDetailPage() {
                                 ? t('myAppsDetailPage.actions.remove')
                                 : t('myAppsDetailPage.actions.uninstall')}
                     </Button>
-                </Box>
-            </SurfaceDialog>
-
-            <SurfaceDialog
-                open={backupListDialogOpen}
-                onClose={() => setBackupListDialogOpen(false)}
-                maxWidth="md"
-                scope="content"
-                scopeRect={contentScopeRect}
-                contentStrategy="viewport-fixed"
-                darkMode={isDarkMode}
-                sx={[contentScopedDialogPlacementSx, { zIndex: 1505, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
-                paperSx={{
-                    width: { xs: 'min(100%, 980px)', md: 'min(980px, calc(100% - 20px))' },
-                    maxWidth: '980px',
-                    borderRadius: 0,
-                    backgroundColor: dialogPalette.panel,
-                    color: dialogPalette.text,
-                    border: `1px solid ${dialogPalette.border}`,
-                }}
-            >
-                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
-                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>{t('myAppsDetailPage.tabs.volumes.backups.title')}</Typography>
-                </Box>
-                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
-                    <div className="myapps-backup-list-region">
-                        <div className="myapps-backup-list-toolbar">
-                            <button
-                                className="myapps-inline-icon-action myapps-inline-icon-action-neutral"
-                                onClick={() => setCreateBackupDialogOpen(true)}
-                                title={t('myAppsDetailPage.tabs.volumes.backups.create')}
-                                aria-label={t('myAppsDetailPage.tabs.volumes.backups.create')}
-                                disabled={volumeBackupAction === 'create' || volumeBackupLoading}
-                            >
-                                <IconAdd />
-                                <span>{t('myAppsDetailPage.tabs.volumes.backups.create')}</span>
-                            </button>
-                            <button
-                                className="myapps-inline-icon-action myapps-inline-icon-action-neutral myapps-inline-icon-action-compact"
-                                onClick={() => void refreshVolumeBackups()}
-                                title={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
-                                aria-label={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
-                                disabled={volumeBackupLoading}
-                            >
-                                <IconRefresh />
-                            </button>
-                        </div>
-                        <div className="myapps-backup-table-shell">
-                            <div className="myapps-table-wrap myapps-table-wrap-overlay">
-                                <table className="myapps-detail-table myapps-backup-detail-table" role="table">
-                                    <thead>
-                                        <tr>
-                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}</th>
-                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}</th>
-                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}</th>
-                                            <th>{t('myAppsDetailPage.tabs.volumes.backups.columns.action')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {volumeBackupLoading && volumeBackups.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={4} className="myapps-empty-cell myapps-empty-cell-placeholder">&nbsp;</td>
-                                            </tr>
-                                        ) : volumeBackups.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={4} className="myapps-empty-cell">{volumeBackupError || t('myAppsDetailPage.tabs.volumes.backups.empty')}</td>
-                                            </tr>
-                                        ) : (
-                                            volumeBackups.map((backup) => (
-                                                <tr key={backup.fullId}>
-                                                    <td>{backup.id}</td>
-                                                    <td>{backup.time}</td>
-                                                    <td>{backup.size}</td>
-                                                    <td>
-                                                        <div className="myapps-table-actions-text">
-                                                            <button className="myapps-inline-link" onClick={() => setRestoreBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.restore')}</button>
-                                                            <button className="myapps-inline-link myapps-inline-link-danger" onClick={() => setDeleteBackupTarget(backup)}>{t('myAppsDetailPage.tabs.volumes.backups.delete')}</button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                                {volumeBackupLoading ? (
-                                    <div className="myapps-table-overlay-loading" aria-live="polite">
-                                        <div className="myapps-table-overlay-loading-card">
-                                            <CircularProgress size={22} />
-                                            <span>{t('myAppsDetailPage.tabs.volumes.backups.refreshing')}</span>
-                                        </div>
-                                    </div>
-                                ) : null}
-                            </div>
-                        </div>
-                    </div>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
-                    <Button onClick={() => setBackupListDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.close')}</Button>
                 </Box>
             </SurfaceDialog>
 

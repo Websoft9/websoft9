@@ -348,7 +348,40 @@
     text-transform: none !important;
     box-shadow: none !important;
     min-height: 32px;
+    height: 32px;
     font-size: 13px !important;
+    line-height: 1 !important;
+    white-space: nowrap;
+}
+
+.services-page-list-row {
+    min-height: 56px;
+}
+
+.services-page-service-stack,
+.services-page-badge-cell,
+.services-page-action-cell {
+    min-width: 0;
+}
+
+.services-page-description-text,
+.services-page-updated-text,
+.services-page-service-name-text {
+    min-width: 0;
+    margin: 0;
+}
+
+.services-page-service-name-text,
+.services-page-description-text,
+.services-page-updated-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.services-page-badge-cell {
+    display: flex;
+    align-items: center;
 }
 
 .services-page-indicator {

@@ -185,6 +185,11 @@ async def write_text_file(payload: AgentWriteTextRequest):
     _ensure_inside_root(root_path, parent_path)
     os.makedirs(parent_path, exist_ok=True)
 
+    # Preserve original owner, group, and mode if the file already exists
+    original_stat = None
+    if os.path.exists(target_path):
+        original_stat = os.stat(target_path)
+
     temp_path = None
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=parent_path, delete=False) as handle:
@@ -196,6 +201,18 @@ async def write_text_file(payload: AgentWriteTextRequest):
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+
+    # Restore original ownership and permissions
+    if original_stat is not None:
+        try:
+            os.chown(target_path, original_stat.st_uid, original_stat.st_gid)
+        except OSError:
+            pass
+        try:
+            os.chmod(target_path, stat.S_IMODE(original_stat.st_mode))
+        except OSError:
+            pass
+
     return {"status": "ok"}
 
 

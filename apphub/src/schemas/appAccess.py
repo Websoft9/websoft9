@@ -63,6 +63,17 @@ class AppAccessDomainBindingRequest(BaseModel):
         return normalized
 
 
+class AppAccessRootUrlRequest(BaseModel):
+    domain_name: str = Field(..., description="Domain name to persist as the app root URL")
+
+    @validator("domain_name")
+    def validate_domain_name(cls, value: str):
+        normalized = value.strip()
+        if not normalized:
+            raise CustomException(400, "Invalid Request", "domain_name cannot be empty")
+        return normalized
+
+
 class AppAccessCertificateRequest(BaseModel):
     email: str = Field(..., description="Let's Encrypt account email")
     domain_names: list[str] = Field(..., description="Certificate domain names")

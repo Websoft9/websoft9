@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "i18n:check": "node ./scripts/check-i18n.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b"

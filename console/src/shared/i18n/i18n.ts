@@ -9,6 +9,28 @@ export type SupportedLocale = (typeof supportedLocales)[number]
 
 const defaultLocale: SupportedLocale = 'en'
 
+function normalizeLocaleNamespaces(resources: typeof shellResources) {
+    return Object.fromEntries(
+        Object.entries(resources).map(([locale, namespaces]) => {
+            const shellNamespace = namespaces.shell ?? {}
+            const extraNamespaces = Object.fromEntries(Object.entries(namespaces).filter(([name]) => name !== 'shell'))
+
+            return [
+                locale,
+                {
+                    ...extraNamespaces,
+                    shell: {
+                        ...extraNamespaces,
+                        ...shellNamespace,
+                    },
+                },
+            ]
+        }),
+    ) as typeof shellResources
+}
+
+const normalizedShellResources = normalizeLocaleNamespaces(shellResources)
+
 export function normalizeSupportedLocale(locale: string | null | undefined): SupportedLocale {
     return locale?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
@@ -24,7 +46,7 @@ function resolveInitialLocale(): SupportedLocale {
 if (!i18n.isInitialized) {
     void i18n.use(initReactI18next).init({
         fallbackLng: defaultLocale,
-        resources: shellResources,
+        resources: normalizedShellResources,
         supportedLngs: [...supportedLocales],
         lng: resolveInitialLocale(),
         defaultNS: 'shell',

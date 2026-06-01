@@ -46,12 +46,14 @@ required_checks=(
   "apphub-media|${WEBSOFT9_MEDIA_HEALTH_URL:-http://127.0.0.1:8081/healthz}"
 )
 
-supporting_checks=(
-  "platform-gateway|${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-$(platform_gateway_health_url)}"
-  "gitea|${WEBSOFT9_GITEA_HEALTH_URL:-http://127.0.0.1:3001/}"
-  "portainer|${WEBSOFT9_PORTAINER_HEALTH_URL:-http://127.0.0.1:9004/api/system/status}"
-  "nginx-proxy-manager|${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/}"
-)
+get_supporting_checks() {
+  cat <<EOF
+platform-gateway|${WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL:-$(platform_gateway_health_url)}
+gitea|${WEBSOFT9_GITEA_HEALTH_URL:-http://127.0.0.1:3001/}
+portainer|${WEBSOFT9_PORTAINER_HEALTH_URL:-http://127.0.0.1:9004/api/system/status}
+nginx-proxy-manager|${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/}
+EOF
+}
 
 check_url() {
   local name="$1"
@@ -136,12 +138,13 @@ for check in "${required_checks[@]}"; do
 done
 
 if [[ "$mode" == "--strict" ]]; then
-  for check in "${supporting_checks[@]}"; do
+  while IFS= read -r check; do
+    [[ -n "$check" ]] || continue
     IFS='|' read -r name url <<<"$check"
     if ! check_url "$name" "$url"; then
       degraded_services+=("$name")
     fi
-  done
+  done < <(get_supporting_checks)
 
   if ! check_file "portainer-bootstrap" "$portainer_marker"; then
     degraded_services+=("portainer-bootstrap")

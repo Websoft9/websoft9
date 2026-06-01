@@ -187,7 +187,7 @@ class NginxProxyManagerAPI:
             path="nginx/certificates", params={"expand": "owner,proxy_hosts,dead_hosts,redirection_hosts"}
         )
 
-    def create_certificate(self, domain_names: List[str], email: str):
+    def create_certificate(self, domain_names: List[str], email: str, nice_name: str | None = None):
         """
         Request a Let's Encrypt certificate.
 
@@ -202,10 +202,12 @@ class NginxProxyManagerAPI:
             path="nginx/certificates",
             json={
                 "provider": "letsencrypt",
+                "nice_name": nice_name or (domain_names[0] if domain_names else email),
                 "domain_names": domain_names,
                 "meta": {
                     "letsencrypt_email": email,
                     "letsencrypt_agree": True,
+                    "dns_challenge": False,
                 },
             },
         )

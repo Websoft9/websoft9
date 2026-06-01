@@ -2062,6 +2062,54 @@ class AppManger:
             logger.error(f"Update the git repo env file error:{e}")
             raise CustomException()
 
+    def update_app_root_url(self, app_id: str, domain_name: str, endpointId: int = None):
+        """
+        Persist a selected domain as the application's root URL and redeploy.
+
+        Args:
+            app_id (str): The app id.
+            domain_name (str): The selected root domain.
+            endpointId (int, optional): The endpoint id. Defaults to None.
+        """
+        portainerManager = PortainerManager()
+
+        if endpointId:
+            check_endpointId(endpointId, portainerManager)
+        else:
+            endpointId = portainerManager.get_local_endpoint_id()
+
+        app_info = self.get_app_by_id(app_id, endpointId)
+        if not app_info:
+            raise CustomException(404, "Invalid Request", f"{app_id} Not Found")
+
+        current_root_url = (app_info.env or {}).get("W9_URL")
+        w9_url_replace = (app_info.env or {}).get("W9_URL_REPLACE")
+        if not current_root_url or str(w9_url_replace).strip().lower() in {"", "0", "false", "no", "off", "none"}:
+            raise CustomException(400, "Invalid Request", f"{app_id} does not support root URL replacement")
+
+        proxy_hosts = self.get_proxys_by_app(app_id, endpointId)
+        bound_domains: list[str] = []
+        for proxy_host in proxy_hosts or []:
+            bound_domains.extend([item.strip() for item in (proxy_host.get("domain_names") or []) if isinstance(item, str) and item.strip()])
+
+        normalized_domain = domain_name.strip()
+        if normalized_domain not in bound_domains:
+            raise CustomException(400, "Invalid Request", f"{normalized_domain} is not bound to {app_id}")
+
+        next_root_url = normalized_domain
+        try:
+            ipaddress.ip_address(normalized_domain)
+            next_root_url = normalized_domain + ":" + ((app_info.env or {}).get("W9_HTTP_PORT_SET") or (app_info.env or {}).get("W9_HTTPS_PORT_SET") or "")
+        except ValueError:
+            next_root_url = normalized_domain
+
+        if current_root_url == next_root_url:
+            return {"root_url": next_root_url, "updated": False}
+
+        self._update_gitea_env_file(app_id, current_root_url, next_root_url)
+        asyncio.run(self.redeploy_app(app_id, False, endpointId))
+        return {"root_url": next_root_url, "updated": True}
+
     def _replace_env_variables(self, text: str, env_helper: EnvHelper) -> str:
         """
         Replace environment variables in the given text using values from env_helper.

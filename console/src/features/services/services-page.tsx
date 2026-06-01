@@ -17,7 +17,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
@@ -72,6 +72,11 @@ type ServiceLogsResponse = {
     limit: number
     entries: ServiceLogEntry[]
     unavailable_reason: string | null
+}
+
+type ServiceLogsStreamPayload = {
+    logs: ServiceLogsResponse
+    refresh_hint_ms: number
 }
 
 type LogLoadMoreAnchor = {
@@ -129,6 +134,21 @@ function buildServiceLogsUrl(serviceKey: string, filters: { limit: number; keywo
         params.set('time_range', filters.timeRange)
     }
     return `/api/services/${serviceKey}/logs?${params.toString()}`
+}
+
+function buildServiceLogsStreamUrl(serviceKey: string, filters: { limit: number; keyword: string; level: string; timeRange: string }) {
+    const params = new URLSearchParams()
+    params.set('limit', String(filters.limit))
+    if (filters.keyword.trim()) {
+        params.set('keyword', filters.keyword.trim())
+    }
+    if (filters.level !== 'all') {
+        params.set('level', filters.level)
+    }
+    if (filters.timeRange !== 'all') {
+        params.set('time_range', filters.timeRange)
+    }
+    return `/api/services/${serviceKey}/logs/stream?${params.toString()}`
 }
 
 function getServiceStatusTone(state: string): 'success' | 'warning' | 'error' {
@@ -257,6 +277,7 @@ export function ServicesPage() {
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
+    const queryClient = useQueryClient()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const logBodyRef = useRef<HTMLDivElement | null>(null)
     const logLoadMoreAnchorRef = useRef<LogLoadMoreAnchor | null>(null)
@@ -270,6 +291,7 @@ export function ServicesPage() {
     const [logTimeRange, setLogTimeRange] = useState('all')
     const [logLimit, setLogLimit] = useState(100)
     const deferredKeyword = useDeferredValue(logKeywordInput)
+    const supportsEventSource = typeof window !== 'undefined' && typeof EventSource !== 'undefined'
 
     const { data, error, isLoading, isFetching, refetch } = useQuery<CoreServicesInventoryResponse, Error>({
         queryKey: ['core-services'],
@@ -284,32 +306,38 @@ export function ServicesPage() {
     const filteredServices = useMemo(() => {
         const normalizedQuery = searchValue.trim().toLowerCase()
 
-        return services.filter((service) => {
-            const matchesQuery =
-                !normalizedQuery ||
-                service.label.toLowerCase().includes(normalizedQuery) ||
-                service.description.toLowerCase().includes(normalizedQuery) ||
-                service.key.toLowerCase().includes(normalizedQuery)
+        return services
+            .filter((service) => {
+                const matchesQuery =
+                    !normalizedQuery ||
+                    service.label.toLowerCase().includes(normalizedQuery) ||
+                    service.description.toLowerCase().includes(normalizedQuery) ||
+                    service.key.toLowerCase().includes(normalizedQuery)
 
-            if (!matchesQuery) {
-                return false
-            }
+                if (!matchesQuery) {
+                    return false
+                }
 
-            if (stateFilter === 'all') {
-                return true
-            }
+                if (stateFilter === 'all') {
+                    return true
+                }
 
-            return service.runtime_state === stateFilter
-        })
+                return service.runtime_state === stateFilter
+            })
+            .sort((a, b) => a.label.localeCompare(b.label))
     }, [searchValue, services, stateFilter])
 
     const activeLogService = useMemo(
         () => services.find((service) => service.key === activeLogServiceKey) ?? null,
         [activeLogServiceKey, services],
     )
+    const logsQueryKey = useMemo(
+        () => ['core-service-logs', activeLogServiceKey, deferredKeyword, logLevel, logTimeRange, logLimit] as const,
+        [activeLogServiceKey, deferredKeyword, logLevel, logLimit, logTimeRange],
+    )
 
     const logsQuery = useQuery<ServiceLogsResponse, Error>({
-        queryKey: ['core-service-logs', activeLogServiceKey, deferredKeyword, logLevel, logTimeRange, logLimit],
+        queryKey: logsQueryKey,
         queryFn: () =>
             requestJson<ServiceLogsResponse>(
                 buildServiceLogsUrl(String(activeLogServiceKey), {
@@ -321,11 +349,44 @@ export function ServicesPage() {
             ),
         enabled: Boolean(status?.enabled && status?.authenticated && activeLogServiceKey),
         placeholderData: (previousData) => previousData,
-        staleTime: 5_000,
-        refetchInterval: activeLogServiceKey && autoRefreshEnabled ? 15_000 : false,
-        refetchIntervalInBackground: true,
+        staleTime: supportsEventSource ? 10_000 : 5_000,
+        refetchInterval: supportsEventSource ? false : activeLogServiceKey && autoRefreshEnabled ? 15_000 : false,
+        refetchIntervalInBackground: !supportsEventSource,
         refetchOnWindowFocus: false,
     })
+
+    useEffect(() => {
+        if (!supportsEventSource || !activeLogServiceKey || !autoRefreshEnabled || !status?.enabled || !status?.authenticated || !logsQuery.data) {
+            return
+        }
+
+        const eventSource = new EventSource(
+            buildServiceLogsStreamUrl(activeLogServiceKey, {
+                limit: logLimit,
+                keyword: deferredKeyword,
+                level: logLevel,
+                timeRange: logTimeRange,
+            }),
+            { withCredentials: true },
+        )
+        const handleSnapshot = (event: Event) => {
+            try {
+                const payload = JSON.parse((event as MessageEvent<string>).data) as ServiceLogsStreamPayload
+                if (payload.logs) {
+                    queryClient.setQueryData(logsQueryKey, payload.logs)
+                }
+            } catch {
+                // Ignore malformed events and wait for the next snapshot.
+            }
+        }
+
+        eventSource.addEventListener('snapshot', handleSnapshot)
+
+        return () => {
+            eventSource.removeEventListener('snapshot', handleSnapshot)
+            eventSource.close()
+        }
+    }, [activeLogServiceKey, autoRefreshEnabled, deferredKeyword, logLevel, logLimit, logTimeRange, logsQuery.data, logsQueryKey, queryClient, status?.authenticated, status?.enabled, supportsEventSource])
 
     const locale = i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en-US'
     const dateFormatter = useMemo(
@@ -349,7 +410,6 @@ export function ServicesPage() {
     const canLoadMoreLogs = logEntries.length >= logLimit && logLimit < 20000
     const showInventoryLoadingCard = isLoading && !data
     const showInventoryRefreshRow = isFetching && Boolean(data)
-    const isChinese = i18n.resolvedLanguage === 'zh-CN'
 
     const palette = {
         pageBg: isDarkMode ? '#0f172a' : '#ffffff',
@@ -433,14 +493,6 @@ export function ServicesPage() {
         }),
         [controlMenuItemSx, isDarkMode],
     )
-
-    const copy = isChinese
-        ? {
-            pageDescription: '查看平台核心服务的状态和健康情况。',
-        }
-        : {
-            pageDescription: 'View status and health for core platform services.',
-        }
 
     useLayoutEffect(() => {
         const shellElement = pageShellRef.current
@@ -563,7 +615,7 @@ export function ServicesPage() {
                     </Alert>
                 ) : null}
 
-                <PageDescriptionHeader title={t('nav.services.label')} description={copy.pageDescription} descriptionColor={palette.subtleText} />
+                <PageDescriptionHeader title={t('nav.services.label')} description={t('servicesPage.hero.description')} descriptionColor={palette.subtleText} />
 
                 <Box className="services-page-grid">
                     <Card elevation={0} sx={surfaceCardSx}>
@@ -670,6 +722,7 @@ export function ServicesPage() {
 
                                             {!showInventoryRefreshRow ? filteredServices.map((service) => (
                                                 <Box
+                                                    className="services-page-list-row"
                                                     key={service.key}
                                                     sx={{
                                                         display: 'grid',
@@ -678,6 +731,7 @@ export function ServicesPage() {
                                                         gap: 1.25,
                                                         px: 1.25,
                                                         py: 1.35,
+                                                        minHeight: 56,
                                                         borderBottom: `1px solid ${palette.borderStrong}`,
                                                         backgroundColor: palette.idleBg,
                                                         '&:hover': {
@@ -685,20 +739,20 @@ export function ServicesPage() {
                                                         },
                                                     }}
                                                 >
-                                                    <Stack spacing={0.45} sx={{ minWidth: 0 }}>
-                                                        <Typography sx={{ fontSize: 14, fontWeight: 400, color: palette.text }}>{service.label}</Typography>
+                                                    <Stack className="services-page-service-stack" spacing={0.45} sx={{ minWidth: 0 }}>
+                                                        <Typography className="services-page-service-name-text" sx={{ fontSize: 14, fontWeight: 400, color: palette.text }}>{service.label}</Typography>
                                                     </Stack>
-                                                    <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: palette.subtleText }}>
+                                                    <Typography className="services-page-description-text" sx={{ fontSize: 13.5, lineHeight: 1.6, color: palette.subtleText }}>
                                                         {getServiceDescription(service.key, service.description, t)}
                                                     </Typography>
-                                                    <Box>
+                                                    <Box className="services-page-badge-cell">
                                                         <SurfaceStatusBadge label={t(`servicesPage.runtimeStates.${service.runtime_state}`)} tone={getServiceStatusTone(service.runtime_state)} darkMode={isDarkMode} />
                                                     </Box>
-                                                    <Box>
+                                                    <Box className="services-page-badge-cell">
                                                         <SurfaceStatusBadge label={t(`servicesPage.healthStates.${service.health_state}`)} tone={getServiceStatusTone(service.health_state)} darkMode={isDarkMode} />
                                                     </Box>
-                                                    <Typography sx={{ fontSize: 13, color: palette.subtleText }}>{formatDateTime(service.updated_at, dateFormatter)}</Typography>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                    <Typography className="services-page-updated-text" sx={{ fontSize: 13, color: palette.subtleText }}>{formatDateTime(service.updated_at, dateFormatter)}</Typography>
+                                                    <Box className="services-page-action-cell" sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                                                         <Button
                                                             className="services-page-action-button"
                                                             disabled={!service.logs_available}

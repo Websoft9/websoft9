@@ -39,6 +39,7 @@ def _normalize_optional_path(value: Optional[str]) -> str:
 class HostAccessProfileUpsertRequest(BaseModel):
     profile_id: Optional[str] = Field(default=None, max_length=128)
     name: str = Field(default="", max_length=255)
+    description: str = Field(default="", max_length=512)
     host: str = Field(min_length=1, max_length=255)
     auth_method: HostAccessAuthMethod = Field(default="password")
     username: str = Field(min_length=1, max_length=128)
@@ -85,6 +86,7 @@ class HostAccessProfileResponse(BaseModel):
     remembered: bool
     host: str = "172.17.0.1"
     port: int = 22
+    local_host_ip: str = "172.17.0.1"
     active_profile_id: Optional[str] = None
     default_profile_id: Optional[str] = None
     auth_method: Optional[HostAccessAuthMethod] = None
@@ -100,6 +102,7 @@ class HostAccessProfileResponse(BaseModel):
 class HostAccessSavedProfileSummary(BaseModel):
     profile_id: str
     name: str = ""
+    description: str = ""
     host: str
     username: str
     auth_method: HostAccessAuthMethod

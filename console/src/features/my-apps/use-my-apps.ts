@@ -148,6 +148,22 @@ function buildMyAppsStreamUrl(apiLocale: string) {
     return `/api/apps/stream?locale=${encodeURIComponent(apiLocale)}`
 }
 
+function mergeMyAppSummaryIntoDetail(previousData: MyApp, app: MyApp): MyApp {
+    return {
+        ...previousData,
+        ...app,
+        app_name: app.app_name ?? previousData.app_name,
+        logo_url: app.logo_url ?? previousData.logo_url,
+        app_dist: app.app_dist ?? previousData.app_dist,
+        app_version: app.app_version ?? previousData.app_version,
+        env: Object.keys(app.env ?? {}).length > 0 ? app.env : previousData.env,
+        gitConfig: app.gitConfig ?? previousData.gitConfig,
+        volumes: (app.volumes ?? []).length > 0 ? app.volumes : previousData.volumes,
+        error: app.error ?? previousData.error,
+        logs: app.logs ?? previousData.logs,
+    }
+}
+
 export function useMyApps() {
     const { i18n } = useTranslation('shell')
     const queryClient = useQueryClient()
@@ -176,10 +192,7 @@ export function useMyApps() {
                         return app
                     }
 
-                    return {
-                        ...previousData,
-                        ...app,
-                    }
+                    return mergeMyAppSummaryIntoDetail(previousData, app)
                 })
             })
         }
@@ -211,8 +224,8 @@ export function useMyApps() {
         refetchInterval: supportsEventSource
             ? false
             : (query) => {
-                  const apps = query.state.data ?? []
-                  return apps.some((app) => app.status === 3) ? 3_000 : 5_000
-              },
+                const apps = query.state.data ?? []
+                return apps.some((app) => app.status === 3) ? 3_000 : 5_000
+            },
     })
 }

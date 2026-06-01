@@ -11,6 +11,11 @@ from src.services.product_metadata import read_product_edition, read_product_met
 
 DEFAULT_DOCKER_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
 DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS = 3650
+DEFAULT_PLATFORM_BRAND_TITLE = "Websoft9"
+DEFAULT_PLATFORM_BRAND_LOGO_URL = "/websoft9.png"
+DEFAULT_PLATFORM_BRAND_BROWSER_TITLE = ""
+DEFAULT_PLATFORM_BRAND_FAVICON_URL = "/favicon.ico?v=20260509c"
+DEFAULT_PLATFORM_BRAND_APPLE_TOUCH_ICON_URL = "/websoft9.png"
 
 class SettingsManager:
     """
@@ -77,6 +82,8 @@ class SettingsManager:
                             metadata={
                                 "cert_path": self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()),
                                 "key_path": self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()),
+                                "default_cert_path": self._default_ssl_cert_path(),
+                                "default_key_path": self._default_ssl_key_path(),
                                 "default_certificate": self._bool_to_string(self._is_default_platform_certificate()),
                                 "certificate_validity_days": str(DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS),
                             },
@@ -118,6 +125,35 @@ class SettingsManager:
                         ),
                     ],
                 },
+                {
+                    "id": "branding",
+                    "items": [
+                        self._build_item(
+                            "platform_brand",
+                            "title",
+                            self._get_platform_brand_title(),
+                            editable=True,
+                        ),
+                        self._build_item(
+                            "platform_brand",
+                            "logo_url",
+                            self._get_platform_brand_logo_url(),
+                            editable=True,
+                            metadata={
+                                "default_value": DEFAULT_PLATFORM_BRAND_LOGO_URL,
+                            },
+                        ),
+                        self._build_item(
+                            "platform_brand",
+                            "favicon_url",
+                            self._get_platform_brand_favicon_url(),
+                            editable=True,
+                            metadata={
+                                "default_value": DEFAULT_PLATFORM_BRAND_FAVICON_URL,
+                            },
+                        ),
+                    ],
+                },
             ],
         }
 
@@ -153,6 +189,14 @@ class SettingsManager:
         try:
             # Read the config file
             self.config.read(self.config_file_path)
+            if section == "platform_brand":
+                return {
+                    "title": self._get_platform_brand_title(),
+                    "browser_title": self._get_platform_brand_browser_title(),
+                    "logo_url": self._get_platform_brand_logo_url(),
+                    "favicon_url": self._get_platform_brand_favicon_url(),
+                    "apple_touch_icon_url": self._get_platform_brand_apple_touch_icon_url(),
+                }
             if section not in self.config.sections():
                 raise CustomException(
                     status_code=400,
@@ -219,6 +263,8 @@ class SettingsManager:
                 return self._write_platform_gateway_boolean_setting("force_https", value)
             if section == "platform_gateway" and key == "bound_domain":
                 return self._write_platform_gateway_text_setting("bound_domain", value)
+            if section == "platform_brand":
+                return self._write_platform_brand_setting(key, value)
             # Check if section exists
             if section not in self.config.sections():
                 raise CustomException(
@@ -335,6 +381,63 @@ class SettingsManager:
         self._restart_platform_gateway()
         return self.read_section("platform_gateway")
 
+    def write_platform_gateway_settings(
+        self,
+        *,
+        bound_domain: str,
+        https_enabled: str,
+        force_https: str,
+        ssl_cert: str = "",
+        ssl_key: str = "",
+    ) -> Dict[str, str]:
+        self.config.read(self.config_file_path)
+
+        if not self.config.has_section("platform_gateway"):
+            self.config.add_section("platform_gateway")
+
+        https_enabled_bool = self._parse_bool(https_enabled)
+        force_https_bool = self._parse_bool(force_https)
+
+        if force_https_bool and not https_enabled_bool:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Platform HTTPS must be enabled before force HTTPS can be enabled",
+            )
+
+        normalized_cert = (ssl_cert or "").strip()
+        normalized_key = (ssl_key or "").strip()
+
+        if https_enabled_bool:
+            if bool(normalized_cert) != bool(normalized_key):
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="Platform certificate and key paths must be provided together",
+                )
+
+            if not normalized_cert and not normalized_key:
+                current_cert = self.config.get("platform_gateway", "ssl_cert", fallback="").strip()
+                current_key = self.config.get("platform_gateway", "ssl_key", fallback="").strip()
+                normalized_cert = current_cert or self._default_ssl_cert_path()
+                normalized_key = current_key or self._default_ssl_key_path()
+        else:
+            force_https_bool = False
+            normalized_cert = normalized_cert or self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
+            normalized_key = normalized_key or self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()).strip()
+
+        self.config.set("platform_gateway", "bound_domain", (bound_domain or "").strip())
+        self.config.set("platform_gateway", "https_enabled", self._bool_to_string(https_enabled_bool))
+        self.config.set("platform_gateway", "force_https", self._bool_to_string(force_https_bool))
+        self.config.set("platform_gateway", "ssl_cert", normalized_cert)
+        self.config.set("platform_gateway", "ssl_key", normalized_key)
+
+        with open(self.config_file_path, "w") as configfile:
+            self.config.write(configfile)
+
+        self._restart_platform_gateway()
+        return self.read_section("platform_gateway")
+
     def _is_default_platform_certificate(self) -> bool:
         current_cert = self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
         current_key = self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()).strip()
@@ -408,3 +511,77 @@ class SettingsManager:
 
     def _default_ssl_key_path(self) -> str:
         return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key")
+
+    def _get_platform_brand_title(self) -> str:
+        configured = self.config.get("platform_brand", "title", fallback="").strip()
+        return configured or DEFAULT_PLATFORM_BRAND_TITLE
+
+    def _get_platform_brand_logo_url(self) -> str:
+        configured = self.config.get("platform_brand", "logo_url", fallback="").strip()
+        return configured or DEFAULT_PLATFORM_BRAND_LOGO_URL
+
+    def _get_platform_brand_browser_title(self) -> str:
+        return self.config.get("platform_brand", "browser_title", fallback=DEFAULT_PLATFORM_BRAND_BROWSER_TITLE).strip()
+
+    def _get_platform_brand_favicon_url(self) -> str:
+        configured = self.config.get("platform_brand", "favicon_url", fallback="").strip()
+        return configured or DEFAULT_PLATFORM_BRAND_FAVICON_URL
+
+    def _get_platform_brand_apple_touch_icon_url(self) -> str:
+        configured = self.config.get("platform_brand", "apple_touch_icon_url", fallback="").strip()
+        return configured or DEFAULT_PLATFORM_BRAND_APPLE_TOUCH_ICON_URL
+
+    def _is_valid_brand_logo_url(self, value: str) -> bool:
+        candidate = (value or "").strip()
+        if not candidate:
+            return False
+        if candidate.startswith("/"):
+            return True
+        return candidate.startswith("http://") or candidate.startswith("https://")
+
+    def _write_platform_brand_setting(self, key: str, value: str) -> Dict[str, str]:
+        if key not in {"title", "browser_title", "logo_url", "favicon_url", "apple_touch_icon_url"}:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"Key:{key} does not exist",
+            )
+
+        if not self.config.has_section("platform_brand"):
+            self.config.add_section("platform_brand")
+
+        normalized_value = (value or "").strip()
+        if key == "title":
+            normalized_value = normalized_value or DEFAULT_PLATFORM_BRAND_TITLE
+        if key == "browser_title":
+            normalized_value = normalized_value
+        if key == "logo_url":
+            normalized_value = normalized_value or DEFAULT_PLATFORM_BRAND_LOGO_URL
+            if not self._is_valid_brand_logo_url(normalized_value):
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="platform_brand.logo_url must be an absolute http(s) URL or a root-relative path",
+                )
+        if key == "favicon_url":
+            normalized_value = normalized_value or DEFAULT_PLATFORM_BRAND_FAVICON_URL
+            if not self._is_valid_brand_logo_url(normalized_value):
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="platform_brand.favicon_url must be an absolute http(s) URL or a root-relative path",
+                )
+        if key == "apple_touch_icon_url":
+            normalized_value = normalized_value or DEFAULT_PLATFORM_BRAND_APPLE_TOUCH_ICON_URL
+            if not self._is_valid_brand_logo_url(normalized_value):
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="platform_brand.apple_touch_icon_url must be an absolute http(s) URL or a root-relative path",
+                )
+
+        self.config.set("platform_brand", key, normalized_value)
+        with open(self.config_file_path, "w") as configfile:
+            self.config.write(configfile)
+
+        return self.read_section("platform_brand")

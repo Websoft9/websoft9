@@ -13,6 +13,14 @@ class PlatformGatewaySetting(BaseModel):
     ssl_cert: str = Field(..., title="The SSL certificate path for platform gateway")
     ssl_key: str = Field(..., title="The SSL key path for platform gateway")
 
+
+class PlatformGatewayBatchUpdateRequest(BaseModel):
+    bound_domain: str = Field('', title="The bound domain for platform gateway")
+    https_enabled: str = Field(..., title="Whether platform gateway HTTPS is enabled")
+    force_https: str = Field(..., title="Whether force HTTPS is enabled for platform gateway")
+    ssl_cert: str = Field('', title="The SSL certificate path for platform gateway")
+    ssl_key: str = Field('', title="The SSL key path for platform gateway")
+
 class ProductAuthSetting(BaseModel):
     enabled: str = Field(..., title="Whether product auth is enabled")
     protected_modules: str = Field(..., title="Protected modules list")

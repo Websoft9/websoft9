@@ -140,9 +140,10 @@ def update_host_access_preferences(
 )
 def list_host_access_tree(
     path: str = Query("/", description="Absolute host path"),
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().list_directory(session_token=session_token, path=path)
+    return _get_host_access_service().list_directory(session_token=session_token, path=path, profile_id=profile_id)
 
 
 @router.get(
@@ -153,9 +154,10 @@ def list_host_access_tree(
 )
 def read_host_access_text_content(
     path: str = Query(..., description="Absolute host file path"),
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().read_text_file(session_token=session_token, path=path)
+    return _get_host_access_service().read_text_file(session_token=session_token, path=path, profile_id=profile_id)
 
 
 @router.put(
@@ -166,9 +168,10 @@ def read_host_access_text_content(
 )
 def save_host_access_text_content(
     payload: HostAccessWriteTextRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().write_text_file(session_token=session_token, path=payload.path, content=payload.content)
+    return _get_host_access_service().write_text_file(session_token=session_token, path=payload.path, content=payload.content, profile_id=profile_id)
 
 
 @router.post(
@@ -179,9 +182,10 @@ def save_host_access_text_content(
 )
 def create_host_access_folder(
     payload: HostAccessCreateFolderRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().create_directory(session_token=session_token, parent_path=payload.parent_path, name=payload.name)
+    return _get_host_access_service().create_directory(session_token=session_token, parent_path=payload.parent_path, name=payload.name, profile_id=profile_id)
 
 
 @router.post(
@@ -192,9 +196,10 @@ def create_host_access_folder(
 )
 def create_host_access_file(
     payload: HostAccessCreateFileRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().create_empty_file(session_token=session_token, parent_path=payload.parent_path, name=payload.name)
+    return _get_host_access_service().create_empty_file(session_token=session_token, parent_path=payload.parent_path, name=payload.name, profile_id=profile_id)
 
 
 @router.post(
@@ -205,9 +210,10 @@ def create_host_access_file(
 )
 def rename_host_access_item(
     payload: HostAccessRenameItemRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().rename_item(session_token=session_token, source_path=payload.source_path, target_name=payload.target_name)
+    return _get_host_access_service().rename_item(session_token=session_token, source_path=payload.source_path, target_name=payload.target_name, profile_id=profile_id)
 
 
 @router.delete(
@@ -218,9 +224,10 @@ def rename_host_access_item(
 )
 def delete_host_access_item(
     payload: HostAccessDeleteItemRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().delete_item(session_token=session_token, path=payload.path)
+    return _get_host_access_service().delete_item(session_token=session_token, path=payload.path, profile_id=profile_id)
 
 
 @router.post(
@@ -231,12 +238,14 @@ def delete_host_access_item(
 )
 def copy_host_access_item(
     payload: HostAccessCopyItemRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     return _get_host_access_service().copy_item(
         session_token=session_token,
         source_path=payload.source_path,
         destination_path=payload.destination_path,
+        profile_id=profile_id,
     )
 
 
@@ -248,12 +257,14 @@ def copy_host_access_item(
 )
 def move_host_access_item(
     payload: HostAccessCopyItemRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     return _get_host_access_service().move_item(
         session_token=session_token,
         source_path=payload.source_path,
         destination_path=payload.destination_path,
+        profile_id=profile_id,
     )
 
 
@@ -265,9 +276,10 @@ def move_host_access_item(
 )
 def update_host_access_item_attributes(
     payload: HostAccessUpdateAttributesRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return _get_host_access_service().update_item_attributes(session_token=session_token, payload=payload.model_dump())
+    return _get_host_access_service().update_item_attributes(session_token=session_token, payload=payload.model_dump(), profile_id=profile_id)
 
 
 @router.get(
@@ -278,9 +290,10 @@ def update_host_access_item_attributes(
 )
 def download_host_access_item(
     path: str = Query(..., description="Absolute host file path"),
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    payload = _get_host_access_service().download_file(session_token=session_token, path=path)
+    payload = _get_host_access_service().download_file(session_token=session_token, path=path, profile_id=profile_id)
     response = StreamingResponse(BytesIO(payload["content"]), media_type=payload["media_type"])
     response.headers["Content-Disposition"] = f'attachment; filename="{payload["file_name"]}"'
     return response
@@ -294,6 +307,7 @@ def download_host_access_item(
 )
 def upload_host_access_file(
     payload: HostAccessUploadRequest,
+    profile_id: Optional[str] = Query(None, description="Saved host profile identifier"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     try:
@@ -305,6 +319,7 @@ def upload_host_access_file(
         parent_path=payload.parent_path,
         file_name=payload.file_name,
         payload=file_payload,
+        profile_id=profile_id,
     )
 
 

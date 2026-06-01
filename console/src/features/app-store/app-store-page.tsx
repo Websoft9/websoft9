@@ -284,52 +284,96 @@ async function installApp(
 }
 
 function AppLogo({ app, locale }: { app: AppStoreApp; locale: string }) {
+    const containerRef = useRef<HTMLDivElement | null>(null)
     const [sourceIndex, setSourceIndex] = useState(0)
+    const [shouldLoadImage, setShouldLoadImage] = useState(false)
     const label = app.trademark ?? app.key
     const sources = getAppLogoSources(app, locale)
 
     useEffect(() => {
         setSourceIndex(0)
+        setShouldLoadImage(false)
     }, [app.key, app.logo?.imageurl, locale])
 
-    if (sources.length === 0 || sourceIndex >= sources.length) {
-        return (
-            <Avatar
-                variant="rounded"
-                sx={{
-                    width: '100%',
-                    height: '100%',
-                    borderRadius: '4px',
-                    background: 'var(--ds-color-surface-soft)',
-                    color: 'var(--ds-color-text-strong)',
-                    fontSize: 28,
-                    fontWeight: 600,
-                    border: '1px solid var(--ds-color-border)',
-                }}
-            >
-                {getAppInitial(label)}
-            </Avatar>
+    useEffect(() => {
+        const node = containerRef.current
+        if (!node) {
+            return
+        }
+
+        if (typeof IntersectionObserver === 'undefined') {
+            setShouldLoadImage(true)
+            return
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0)) {
+                    setShouldLoadImage(true)
+                    observer.disconnect()
+                }
+            },
+            {
+                rootMargin: '240px 0px',
+            },
         )
-    }
+
+        observer.observe(node)
+
+        return () => {
+            observer.disconnect()
+        }
+    }, [app.key, app.logo?.imageurl, locale])
 
     return (
         <Box
-            component="img"
-            alt={label ?? 'App'}
-            src={sources[sourceIndex]}
-            referrerPolicy="no-referrer"
-            onError={() => {
-                setSourceIndex((currentValue) => currentValue + 1)
-            }}
+            ref={containerRef}
             sx={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain',
-                borderRadius: '4px',
-                backgroundColor: 'transparent',
-                p: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
             }}
-        />
+        >
+            {!shouldLoadImage || sources.length === 0 || sourceIndex >= sources.length ? (
+                <Avatar
+                    variant="rounded"
+                    sx={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '4px',
+                        background: 'var(--ds-color-surface-soft)',
+                        color: 'var(--ds-color-text-strong)',
+                        fontSize: 28,
+                        fontWeight: 600,
+                        border: '1px solid var(--ds-color-border)',
+                    }}
+                >
+                    {getAppInitial(label)}
+                </Avatar>
+            ) : (
+                <Box
+                    component="img"
+                    alt={label ?? 'App'}
+                    src={sources[sourceIndex]}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={() => {
+                        setSourceIndex((currentValue) => currentValue + 1)
+                    }}
+                    sx={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        borderRadius: '4px',
+                        backgroundColor: 'transparent',
+                        p: 0,
+                    }}
+                />
+            )}
+        </Box>
     )
 }
 
@@ -1003,7 +1047,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             .map((favoriteKey) => allAppMap.get(favoriteKey.toLowerCase()))
             .filter((app): app is AppStoreApp => Boolean(app))
     }, [apps, favoritesData?.favorites])
-    const favoriteListLabel = t('appStorePage.actions.favoriteListLabel')
+    const favoriteListAriaLabel = t('appStorePage.actions.favoriteList', { count: favoriteApps.length })
     const installSourceOptions: Array<{ key: InstallSourceKey; label: string; description: string }> = [
         {
             key: 'marketplace',
@@ -1710,31 +1754,24 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             descriptionColor={palette.subtleText}
                             sx={{ mb: 0.75 }}
                             actions={(
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375, flexShrink: 0 }}>
                                     <Tooltip title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length }).replace(/\s*\(\d+\)$/, '')}>
-                                        <Button
+                                        <IconButton
                                             color="inherit"
                                             onClick={() => {
                                                 openFavoritesDialog()
                                             }}
                                             size="small"
-                                            className="app-shell-page-pill"
-                                            startIcon={
-                                                <Badge badgeContent={favoriteApps.length} color="error" max={99} overlap="circular">
-                                                    <FavoriteIcon />
-                                                </Badge>
-                                            }
-                                            aria-label={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                                            className="app-shell-page-action"
+                                            aria-label={favoriteListAriaLabel}
                                             sx={{
-                                                px: 1.5,
+                                                width: 30,
+                                                height: 30,
+                                                padding: 0.35,
                                                 '&:hover': {
                                                     borderColor: palette.borderStrong,
                                                     background: palette.panelSoft,
                                                     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
-                                                },
-                                                '& .MuiButton-startIcon': {
-                                                    marginLeft: 0,
-                                                    marginRight: 1,
                                                 },
                                                 '& .MuiSvgIcon-root': {
                                                     fontSize: 18,
@@ -1742,12 +1779,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 '& .MuiBadge-badge': {
                                                     backgroundColor: palette.danger,
                                                     color: palette.accentContrast,
+                                                    minWidth: 15,
+                                                    height: 15,
+                                                    padding: '0 4px',
+                                                    fontSize: 9,
+                                                    lineHeight: 1,
+                                                    transform: 'scale(0.9) translate(38%, -34%)',
                                                 },
                                             }}
-                                            title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length })}
+                                            title={favoriteListAriaLabel}
                                         >
-                                            {favoriteListLabel}
-                                        </Button>
+                                            <Badge badgeContent={favoriteApps.length} color="error" max={99} overlap="circular">
+                                                <FavoriteIcon />
+                                            </Badge>
+                                        </IconButton>
                                     </Tooltip>
                                     <Tooltip title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
                                         <IconButton
@@ -1759,6 +1804,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             disabled={isRefreshingStore}
                                             className="app-shell-page-action"
                                             title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                                            sx={{ width: 30, height: 30, padding: 0.35 }}
                                         >
                                             {isRefreshingStore ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
                                         </IconButton>

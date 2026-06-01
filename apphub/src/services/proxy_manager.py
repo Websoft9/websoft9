@@ -96,23 +96,40 @@ class ProxyManager:
         Args:
             response (Response): Response
         """
+        response_text = response.text or ""
         logger.access(f"Nginx error handler called with status: {response.status_code}")
-        logger.access(f"Nginx error response text: {response.text}")
-        # If status_code is 500, raise CustomException
-        if response.status_code == 500:
-            logger.error(f"Nginx Proxy Manager API Error:{response.status_code}:{response.text}")
-            raise CustomException()
-        else:
-            # Get error message from response
-            response_dict = json.loads(response.text)
-            error_dict = response_dict.get('error', {})
-            details = error_dict.get('message','Unknown Error')
-            logger.access(f"Extracted error details: {details}")
+        logger.access(f"Nginx error response text: {response_text}")
+
+        details = "Unknown Error"
+        try:
+            response_dict = json.loads(response_text) if response_text else {}
+        except json.JSONDecodeError:
+            response_dict = {}
+
+        if isinstance(response_dict, dict):
+            error_dict = response_dict.get("error", {})
+            if isinstance(error_dict, dict):
+                details = error_dict.get("message") or details
+            details = response_dict.get("message") or details
+
+        if details == "Unknown Error" and response_text.strip():
+            details = response_text.strip()
+
+        logger.access(f"Extracted error details: {details}")
+
+        if response.status_code >= 500:
+            logger.error(f"Nginx Proxy Manager API Error:{response.status_code}:{details}")
             raise CustomException(
-                status_code=400,
-                message=f"Invalid Request",
-                details=details
+                status_code=500,
+                message="Internal Server Error",
+                details=details,
             )
+
+        raise CustomException(
+            status_code=400,
+            message="Invalid Request",
+            details=details,
+        )
 
     @staticmethod
     def to_proxy_host_response(proxy_host: dict | None):
@@ -422,7 +439,11 @@ class ProxyManager:
         """
         Request a Let's Encrypt certificate and optionally bind it to a proxy host.
         """
-        response = self.nginx.create_certificate(domain_names=domain_names, email=email)
+        response = self.nginx.create_certificate(
+            domain_names=domain_names,
+            email=email,
+            nice_name=domain_names[0] if domain_names else email,
+        )
         if response.status_code not in [200, 201]:
             self._handler_nginx_error(response)
 

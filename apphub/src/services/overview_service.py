@@ -4,6 +4,7 @@ import json
 import os
 import socket
 import shutil
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +57,8 @@ class OverviewService:
         self._last_host_cpu_sample: Optional[tuple[int, int]] = None
         self._cached_host_cpu_percent: Optional[tuple[float, int]] = None
         self._last_network_sample: Optional[tuple[int, int, int]] = None
+        self._docker_host_info_cache_lock = threading.RLock()
+        self._cached_docker_host_info: Optional[tuple[dict, int]] = None
 
     def get_overview(self, session_token: Optional[str]) -> OverviewResponse:
         self.auth_service._require_authenticated_operator(session_token)
@@ -270,6 +273,14 @@ class OverviewService:
         return sum(1 for item in payload if isinstance(item, dict) and item.get("key") in filtered_keys)
 
     def _load_docker_host_info(self) -> dict:
+        now_ns = time.monotonic_ns()
+        with self._docker_host_info_cache_lock:
+            cached = self._cached_docker_host_info
+            if cached is not None:
+                payload, cached_at_ns = cached
+                if now_ns - cached_at_ns < 5_000_000_000:
+                    return dict(payload)
+
         client = None
         try:
             import docker
@@ -288,7 +299,7 @@ class OverviewService:
                     except Exception:
                         pass
 
-        return {
+        payload = {
             "hostname": info.get("Name") or None,
             "os_name": info.get("OperatingSystem") or None,
             "kernel_version": info.get("KernelVersion") or None,
@@ -297,6 +308,11 @@ class OverviewService:
             "memory_total_bytes": info.get("MemTotal") or None,
             "docker_root_dir": info.get("DockerRootDir") or None,
         }
+
+        with self._docker_host_info_cache_lock:
+            self._cached_docker_host_info = (payload, now_ns)
+
+        return dict(payload)
 
     def _load_host_summary(self) -> dict:
         docker_host_info = self._load_docker_host_info()

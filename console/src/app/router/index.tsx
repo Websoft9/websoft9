@@ -8,6 +8,7 @@ import { shellNavigationItems, type ShellPageKey } from '../shell/shell-navigati
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
+import { queryClient } from '../../shared/lib/query-client'
 
 type PreloadableLazyComponent = LazyExoticComponent<ComponentType<any>> & {
     preload: () => Promise<unknown>
@@ -37,11 +38,34 @@ const UsersPage = lazyPage(() => import('../../features/users/users-page'), 'Use
 const ApplicationsDeployPage = lazyPage(() => import('../../features/applications/applications-deploy-page'), 'ApplicationsDeployPage')
 const ApplicationsCustomInstallPage = lazyPage(() => import('../../features/applications/applications-custom-install-page'), 'ApplicationsCustomInstallPage')
 
+async function prefetchOverviewSummary() {
+    await queryClient.prefetchQuery({
+        queryKey: ['overview-summary'],
+        queryFn: async () => {
+            const response = await fetch('/api/overview', {
+                credentials: 'include',
+                headers: {
+                    Accept: 'application/json',
+                },
+            })
+
+            const payload = (await response.json().catch(() => null)) as { details?: string; message?: string } | null
+            if (!response.ok) {
+                throw new Error(payload?.details ?? payload?.message ?? `HTTP ${response.status}`)
+            }
+
+            return payload
+        },
+        staleTime: 10_000,
+    })
+}
+
 function preloadInitialRoute(pathname: string) {
     const preloaders: Array<() => Promise<unknown>> = []
 
     if (pathname === '/' || pathname === '/dashboard') {
         preloaders.push(OverviewPage.preload)
+        preloaders.push(prefetchOverviewSummary)
     } else if (pathname === '/appstore') {
         preloaders.push(AppStorePage.preload)
     } else if (pathname === '/myapps') {

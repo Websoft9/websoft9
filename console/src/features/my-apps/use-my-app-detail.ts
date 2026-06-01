@@ -47,8 +47,10 @@ export function useMyAppDetail(appId: string | undefined) {
         queryFn: async () => fetchMyAppDetail(appId ?? '', apiLocale),
         enabled: Boolean(appId),
         staleTime: 10_000,
-        initialData: () => {
+        placeholderData: (previousData) => {
+            if (previousData) return previousData
             if (!appId) return undefined
+
             const apps = queryClient.getQueryData<MyApp[]>(['my-apps', apiLocale])
             return apps?.find((app) => app.app_id === appId)
         },

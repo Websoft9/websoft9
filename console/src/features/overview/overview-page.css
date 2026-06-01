@@ -243,16 +243,21 @@
 }
 
 .overview-page-resource-label {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     font-size: 13px;
     line-height: 1.35;
-    font-weight: 700;
+    font-weight: 400;
+    font-synthesis: none;
     color: var(--overview-title);
 }
 
 .overview-page-resource-value {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     font-size: 14px;
     line-height: 1.3;
-    font-weight: 700;
+    font-weight: 400;
+    font-synthesis: none;
+    font-variant-numeric: tabular-nums;
     color: var(--overview-title);
 }
 
@@ -281,8 +286,12 @@
 
 .overview-page-resource-meta {
     margin-top: 10px;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     font-size: 12px;
     line-height: 1.5;
+    font-weight: 400;
+    font-synthesis: none;
+    font-variant-numeric: tabular-nums;
     color: var(--overview-muted);
 }
 

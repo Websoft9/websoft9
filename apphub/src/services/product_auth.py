@@ -288,6 +288,7 @@ class ProductAuthService:
         username: str,
         password: str,
         display_name: str,
+        email: Optional[str] = None,
         locale: str = "en",
         disabled: bool = False,
         client_host: Optional[str] = None,
@@ -311,6 +312,7 @@ class ProductAuthService:
                 username=username,
                 password=password,
                 display_name=display_name,
+                email=email,
                 locale=locale,
                 disabled=disabled,
                 created_by=actor["username"],
@@ -394,6 +396,7 @@ class ProductAuthService:
         session_token: Optional[str],
         target_operator_id: str,
         display_name: str,
+        email: Optional[str] = None,
         locale: str = "en",
         disabled: Optional[bool] = None,
         client_host: Optional[str] = None,
@@ -415,6 +418,7 @@ class ProductAuthService:
                 )
 
             operator["display_name"] = normalized_display_name
+            operator["email"] = email or None
             operator["locale"] = locale
             if disabled is not None and bool(disabled) != bool(operator.get("disabled", False)):
                 if disabled:
@@ -707,6 +711,7 @@ class ProductAuthService:
         username: str,
         password: str,
         display_name: str,
+        email: Optional[str] = None,
         locale: str = "en",
         disabled: bool = False,
         created_by: str = "bootstrap",
@@ -731,6 +736,7 @@ class ProductAuthService:
             "id": str(uuid.uuid4()),
             "username": normalized_username,
             "display_name": normalized_display_name,
+            "email": email or None,
             "locale": locale,
             "password_hash": self._hash_password(password),
             "disabled": bool(disabled),
@@ -809,6 +815,7 @@ class ProductAuthService:
             "id": operator["id"],
             "username": operator["username"],
             "display_name": operator["display_name"],
+            "email": operator.get("email") or None,
             "locale": operator.get("locale", "en"),
             "disabled": bool(operator.get("disabled", False)),
             "deleted": bool(operator.get("deleted", False)),

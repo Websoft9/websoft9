@@ -15,6 +15,7 @@ import {
     InputAdornment,
     Menu,
     MenuItem,
+    Skeleton,
     Stack,
     SvgIcon,
     TextField,
@@ -46,6 +47,7 @@ type ShellPreset = 'bash' | 'zsh' | 'sh' | 'fish' | 'custom'
 type AccessForm = {
     profileId: string | null
     authMethod: AuthMethod
+    name: string
     host: string
     username: string
     port: string
@@ -57,12 +59,16 @@ type AccessForm = {
     customShell: string
     shell: string
     remember: boolean
+    isLocal: boolean
+    hasExistingPassword: boolean
+    hasExistingKey: boolean
 }
 
 type AccessFieldName = 'host' | 'username' | 'port' | 'password' | 'privateKey'
 
 type TerminalSession = {
     id: string
+    profileId: string | null
     title: string
     host: string
     user: string
@@ -77,6 +83,7 @@ type HostAccessProfileResponse = {
     configured: boolean
     remembered: boolean
     host: string
+    local_host_ip?: string
     username: string
     port: number
     shell: string
@@ -84,6 +91,7 @@ type HostAccessProfileResponse = {
     active_profile_id?: string | null
     default_profile_id?: string | null
     auth_method?: AuthMethod
+    has_password?: boolean
     saved_profiles?: HostAccessSavedProfileSummary[]
     file_preferences?: HostAccessFilePreferences
     file_references?: string[]
@@ -93,6 +101,7 @@ type HostAccessProfileResponse = {
 type HostAccessSavedProfileSummary = {
     profile_id: string
     name: string
+    description: string
     host: string
     username: string
     auth_method: AuthMethod
@@ -100,6 +109,7 @@ type HostAccessSavedProfileSummary = {
     shell: string
     is_default: boolean
     is_local: boolean
+    has_password: boolean
     created_at?: string | null
     text_editable: boolean
     working_directory?: string | null
@@ -248,6 +258,7 @@ const SHELL_PRESETS: Record<Exclude<ShellPreset, 'custom'>, string> = {
 const DEFAULT_ACCESS_FORM: AccessForm = {
     profileId: null,
     authMethod: 'password',
+    name: '',
     host: '',
     username: '',
     port: '22',
@@ -259,6 +270,9 @@ const DEFAULT_ACCESS_FORM: AccessForm = {
     customShell: '',
     shell: '/bin/bash',
     remember: true,
+    isLocal: false,
+    hasExistingPassword: false,
+    hasExistingKey: false,
 }
 
 const EMPTY_PERMISSION_BITS: HostAccessPermissionBits = {
@@ -560,10 +574,16 @@ function EditActionIcon() {
 function ConnectActionIcon() {
     return (
         <SvgIcon fontSize="small" viewBox="0 0 24 24">
-            <path d="M8 7h8a3 3 0 0 1 3 3v5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            <path d="M16 18h3v-3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            <path d="M5 12h8" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-            <path d="m9 8-4 4 4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+        </SvgIcon>
+    )
+}
+
+function LocalHostIcon() {
+    return (
+        <SvgIcon fontSize="small" viewBox="0 0 24 24">
+            <path d="M3 9.5L12 3L21 9.5V20H15V15H9V20H3V9.5Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
         </SvgIcon>
     )
 }
@@ -571,9 +591,10 @@ function ConnectActionIcon() {
 function TestActionIcon() {
     return (
         <SvgIcon fontSize="small" viewBox="0 0 24 24">
-            <path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-            <path d="M4.5 16.5V12h4.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            <path d="M12 8v4l2.5 1.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            <path d="M5 12.55a11 11 0 0 1 14 0" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+            <path d="M1.42 9a16 16 0 0 1 21.16 0" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+            <circle cx="12" cy="20" fill="currentColor" r="1.5" />
         </SvgIcon>
     )
 }
@@ -598,7 +619,19 @@ function CloseActionIcon() {
     )
 }
 
-function TerminalScopedOverlay({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
+function EmptyTerminalIcon() {
+    return (
+        <SvgIcon viewBox="0 0 64 64">
+            <path d="M18 18h28l8 8v22H10V26l8-8Z" fill="currentColor" opacity="0.08" />
+            <path d="M18 18h28l8 8v22H10V26l8-8Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" />
+            <path d="M46 18v8h8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" />
+            <path d="M22 33h20" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
+            <path d="M22 39h12" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
+        </SvgIcon>
+    )
+}
+
+function TerminalScopedOverlay({ open, onClose, centered = false, children }: { open: boolean; onClose: () => void; centered?: boolean; children: ReactNode }) {
     useEffect(() => {
         if (!open) {
             return
@@ -641,10 +674,10 @@ function TerminalScopedOverlay({ open, onClose, children }: { open: boolean; onC
                     position: 'absolute',
                     inset: 0,
                     display: 'flex',
-                    alignItems: 'flex-start',
+                    alignItems: centered ? 'center' : 'flex-start',
                     justifyContent: 'center',
                     px: { xs: 1, sm: 1.5, md: 2 },
-                    py: { xs: 1, sm: 1.5, md: 2 },
+                    py: { xs: 1.5, sm: 2, md: 2.5 },
                     pointerEvents: 'none',
                 }}
             >
@@ -652,7 +685,7 @@ function TerminalScopedOverlay({ open, onClose, children }: { open: boolean; onC
                     sx={{
                         pointerEvents: 'auto',
                         width: '100%',
-                        maxWidth: 'min(760px, 100%)',
+                        maxWidth: '100%',
                         maxHeight: '100%',
                         overflowY: 'auto',
                         overscrollBehavior: 'contain',
@@ -827,8 +860,22 @@ function ToolbarGlyph({ kind }: { kind: 'properties' | 'rename' | 'trash' | 'edi
     )
 }
 
-function buildSessionTitle(index: number, titleBase: string): string {
-    return index === 0 ? titleBase : `${titleBase}-${index + 1}`
+function buildSessionBaseTitle(access: Pick<AccessForm, 'host' | 'username'>): string {
+    const host = access.host.trim() || LOCAL_HOST
+    const username = access.username.trim()
+    return username ? `${username}@${host}` : host
+}
+
+function buildUniqueSessionTitle(baseTitle: string, sessions: TerminalSession[]): string {
+    if (!sessions.some((session) => session.title === baseTitle)) {
+        return baseTitle
+    }
+
+    let suffix = 2
+    while (sessions.some((session) => session.title === `${baseTitle}-${suffix}`)) {
+        suffix += 1
+    }
+    return `${baseTitle}-${suffix}`
 }
 
 function isChineseLocale(value: string | null | undefined): boolean {
@@ -846,10 +893,12 @@ function buildWorkspaceProfileScope(operatorId: string | null | undefined, profi
         : `${normalizedOperatorId}:${normalizedHost}:${normalizedUsername}:${normalizedPort}`
 }
 
-function createSession(access: AccessForm, index: number, locale: string, titleBase: string): TerminalSession {
+function createSession(access: AccessForm, sessions: TerminalSession[], locale: string): TerminalSession {
+    const baseTitle = buildSessionBaseTitle(access)
     return {
-        id: `session-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
-        title: buildSessionTitle(index - 1, titleBase),
+        id: `session-${Date.now()}-${sessions.length + 1}-${Math.random().toString(16).slice(2)}`,
+        profileId: access.profileId,
+        title: buildUniqueSessionTitle(baseTitle, sessions),
         host: access.host.trim() || LOCAL_HOST,
         user: access.username,
         cwd: resolveDefaultDirectory(access.username, access.workingDirectory),
@@ -872,10 +921,13 @@ function buildTerminalSocketUrl(sessionId: string): string {
 function profileToAccessForm(profile: HostAccessProfileResponse): AccessForm {
     const shell = profile.shell || DEFAULT_ACCESS_FORM.shell
     const shellPreset = inferShellPreset(shell)
+    const host = profile.host || DEFAULT_ACCESS_FORM.host
+    const isLocal = !host || host === LOCAL_HOST || host.toLowerCase() === 'localhost'
     return {
         profileId: profile.active_profile_id || null,
         authMethod: profile.auth_method || 'password',
-        host: profile.host || DEFAULT_ACCESS_FORM.host,
+        name: DEFAULT_ACCESS_FORM.name,
+        host,
         username: profile.username || DEFAULT_ACCESS_FORM.username,
         port: String(profile.port || DEFAULT_ACCESS_FORM.port),
         password: '',
@@ -886,6 +938,9 @@ function profileToAccessForm(profile: HostAccessProfileResponse): AccessForm {
         customShell: shellPreset === 'custom' ? shell : '',
         shell,
         remember: profile.remembered,
+        isLocal,
+        hasExistingPassword: profile.has_password ?? false,
+        hasExistingKey: false,
     }
 }
 
@@ -895,6 +950,7 @@ function savedProfileToAccessForm(profile: HostAccessSavedProfileSummary): Acces
     return {
         profileId: profile.profile_id,
         authMethod: profile.auth_method,
+        name: profile.name,
         host: profile.host,
         username: profile.username,
         port: String(profile.port || DEFAULT_ACCESS_FORM.port),
@@ -906,6 +962,9 @@ function savedProfileToAccessForm(profile: HostAccessSavedProfileSummary): Acces
         customShell: shellPreset === 'custom' ? shell : '',
         shell,
         remember: true,
+        isLocal: profile.is_local,
+        hasExistingPassword: profile.has_password,
+        hasExistingKey: false,
     }
 }
 
@@ -1002,16 +1061,24 @@ export function TerminalPage() {
     const palette = useMemo(() => buildPalette(isDarkMode), [isDarkMode])
     const isChinese = isChineseLocale(i18n.resolvedLanguage || i18n.language)
     const locale = isChinese ? 'zh-CN' : 'en-US'
-    const titleBase = isChinese ? '本地服务器' : 'Local server'
 
     const copy = useMemo(
         () =>
             isChinese
                 ? {
-                    description: '连接本地服务器，执行终端命令和文件管理',
-                    localServerTitle: '本地服务器',
-                    disconnect: '断开连接',
-                    accessTitle: '登录本地服务器',
+                    description: '连接主机，执行终端命令和文件管理',
+                    localServerTitle: '主机',
+                    disconnect: '关闭当前会话',
+                    hostSelectorTitle: '主机列表',
+                    newConnectionTitle: '新建连接',
+                    quickConnectNewHost: '新建连接',
+                    emptyTerminalTitle: '暂无终端连接',
+                    emptyTerminalHint: '点击上方 + 新建连接，或从右上角主机列表选择已保存主机。',
+                    emptyTerminalShellTitle: '终端工作区',
+                    disconnectedStateLabel: '未连接',
+                    workspaceIdleTitle: '尚未连接主机',
+                    workspaceIdleSubtitle: '点击上方 + 新建连接，或从右上角主机列表选择已保存主机。',
+                    accessTitle: '登录主机',
                     accessSubtitle: '已保存的登录信息会按当前平台用户隔离存储。选择已有账号可直接登录，也可以新增一条登录信息。',
                     currentLoginTitle: '添加连接信息',
                     currentLoginSubtitle: '填写主机连接参数，可先测试，再手动连接。',
@@ -1026,7 +1093,9 @@ export function TerminalPage() {
                     privateKeyUploadAction: '上传私钥文件',
                     passphrase: '密钥口令',
                     privateKeyHint: '粘贴 OpenSSH 或 PEM 私钥内容。',
-                    remember: '保存认证信息',
+                    remember: '保存密码',
+                    keepExistingPassword: '（保留已保存的密码）',
+                    keepExistingKey: '（保留已保存的密钥）',
                     accessSubmit: '确定',
                     connectionTestTitle: '连接测试',
                     connectionTestSuccess: '连接测试成功',
@@ -1138,7 +1207,7 @@ export function TerminalPage() {
                     currentProfileLabel: '当前',
                     defaultUpdated: '默认登录信息已更新',
                     profileDeleted: '连接已删除',
-                    disconnectingAction: '断开连接中…',
+                    disconnectingAction: '关闭会话中…',
                     connectingAction: '连接中…',
                     deleteProfileTitle: '删除连接',
                     deleteProfilePrompt: '确定删除这个已保存连接吗？删除后需要重新输入认证信息。',
@@ -1153,12 +1222,23 @@ export function TerminalPage() {
                     passwordRequired: '请输入密码',
                     privateKeyRequired: '请输入私钥内容',
                     portInvalid: '请输入 1 到 65535 之间的端口',
+                    localHostOption: '本地主机',
+                    remoteHostOption: '远程主机',
                 }
                 : {
-                    description: 'Connect to the local server to run terminal commands and manage files.',
-                    localServerTitle: 'Local server',
-                    disconnect: 'Disconnect',
-                    accessTitle: 'Sign in to local server',
+                    description: 'Connect to a host to run terminal commands and manage files.',
+                    localServerTitle: 'Host',
+                    disconnect: 'Close current session',
+                    hostSelectorTitle: 'Host list',
+                    newConnectionTitle: 'New connection',
+                    quickConnectNewHost: 'New connection',
+                    emptyTerminalTitle: 'No terminal connection',
+                    emptyTerminalHint: 'Use + above to create a connection, or open the host list in the top-right corner to choose a saved host.',
+                    emptyTerminalShellTitle: 'Terminal workspace',
+                    disconnectedStateLabel: 'Disconnected',
+                    workspaceIdleTitle: 'No host connected',
+                    workspaceIdleSubtitle: 'Use + above to create a connection, or open the host list in the top-right corner to choose a saved host.',
+                    accessTitle: 'Sign in to host',
                     accessSubtitle: 'Saved login information is isolated per signed-in platform operator. Pick an existing login or add a new one.',
                     currentLoginTitle: 'Add connection information',
                     currentLoginSubtitle: 'Enter the host settings, test the connection, then connect manually.',
@@ -1173,7 +1253,9 @@ export function TerminalPage() {
                     privateKeyUploadAction: 'Upload private key file',
                     passphrase: 'Passphrase',
                     privateKeyHint: 'Paste an OpenSSH or PEM private key.',
-                    remember: 'Save authentication information',
+                    remember: 'Save password',
+                    keepExistingPassword: '(keep saved password)',
+                    keepExistingKey: '(keep saved key)',
                     accessSubmit: 'Confirm',
                     connectionTestTitle: 'Connection test',
                     connectionTestSuccess: 'Connection test succeeded',
@@ -1285,7 +1367,7 @@ export function TerminalPage() {
                     currentProfileLabel: 'Current',
                     defaultUpdated: 'Default login information updated',
                     profileDeleted: 'Connection deleted',
-                    disconnectingAction: 'Disconnecting…',
+                    disconnectingAction: 'Closing session…',
                     connectingAction: 'Connecting…',
                     deleteProfileTitle: 'Delete connection',
                     deleteProfilePrompt: 'Delete this saved connection? You will need to enter the credentials again afterwards.',
@@ -1300,13 +1382,15 @@ export function TerminalPage() {
                     passwordRequired: 'Enter a password',
                     privateKeyRequired: 'Enter the private key content',
                     portInvalid: 'Enter a port between 1 and 65535',
+                    localHostOption: 'Local host',
+                    remoteHostOption: 'Remote host',
                 },
         [isChinese],
     )
 
     const [accessForm, setAccessForm] = useState<AccessForm>(DEFAULT_ACCESS_FORM)
     const [savedProfiles, setSavedProfiles] = useState<HostAccessSavedProfileSummary[]>([])
-    const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
+    const [, setActiveProfileId] = useState<string | null>(null)
     const [currentProfileScope, setCurrentProfileScope] = useState<string | null>(null)
     const [sessions, setSessions] = useState<TerminalSession[]>([])
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -1328,6 +1412,10 @@ export function TerminalPage() {
     const [isTerminalOverlayFullscreen, setIsTerminalOverlayFullscreen] = useState(false)
     const [feedback, setFeedback] = useState<FeedbackState | null>(null)
     const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false)
+    const [accessDialogMode, setAccessDialogMode] = useState<'new-connection' | 'add-host' | 'edit'>('add-host')
+    const [localHostIp, setLocalHostIp] = useState('172.17.0.1')
+    const [isHostSelectorOpen, setIsHostSelectorOpen] = useState(false)
+    const [createSessionAnchorEl, setCreateSessionAnchorEl] = useState<HTMLElement | null>(null)
     const [profileSearchValue, setProfileSearchValue] = useState('')
     const [pendingDeleteProfile, setPendingDeleteProfile] = useState<HostAccessSavedProfileSummary | null>(null)
     const [isSubmittingAccess, setIsSubmittingAccess] = useState(false)
@@ -1358,6 +1446,10 @@ export function TerminalPage() {
     const xtermRef = useRef<XTerm | null>(null)
     const fitAddonRef = useRef<FitAddon | null>(null)
     const activeSessionRef = useRef<TerminalSession | null>(null)
+    const terminalWrittenRef = useRef<Record<string, number>>({})
+    const lastRenderedSessionIdRef = useRef<string | null>(null)
+    const browserRequestIdRef = useRef(0)
+    const fileContentRequestIdRef = useRef(0)
     const sessionSocketRef = useRef<Record<string, WebSocket>>({})
     const sessionSocketCloseModeRef = useRef<Record<string, 'detach' | 'terminate' | 'remote'>>({})
     const accessFieldRefs = useRef<Partial<Record<AccessFieldName, HTMLInputElement | HTMLTextAreaElement | null>>>({})
@@ -1365,12 +1457,17 @@ export function TerminalPage() {
     const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
     const activeSession = sessions.find((item) => item.id === activeSessionId) ?? sessions[0] ?? null
+    const activeFileProfileId = activeSession?.profileId ?? null
+    const filesViewEnabled = accessReady && activeSession !== null && activeSession.status !== 'ended'
     const filteredSavedProfiles = useMemo(() => {
         const keyword = profileSearchValue.trim().toLowerCase()
-        if (!keyword) {
-            return savedProfiles
-        }
-        return savedProfiles.filter((profile) => [profile.host, profile.username, String(profile.port)].some((value) => String(value || '').toLowerCase().includes(keyword)))
+        const filtered = keyword
+            ? savedProfiles.filter((profile) => [profile.name, profile.host, profile.username, String(profile.port)].some((value) => String(value || '').toLowerCase().includes(keyword)))
+            : savedProfiles
+        return [...filtered].sort((a, b) => {
+            if (a.is_local !== b.is_local) return a.is_local ? -1 : 1
+            return (a.name || a.host).localeCompare(b.name || b.host)
+        })
     }, [profileSearchValue, savedProfiles])
     const visibleBrowserEntries = useMemo(() => {
         if (showHiddenFiles) {
@@ -1521,6 +1618,52 @@ export function TerminalPage() {
         }) as CSSProperties,
         [isDarkMode, palette],
     )
+    const xtermTheme = useMemo(
+        () => (isDarkMode
+            ? {
+                background: '#020617',
+                foreground: '#e2e8f0',
+                cursor: '#f8fafc',
+                black: '#020617',
+                brightBlack: '#475569',
+                red: '#fca5a5',
+                brightRed: '#fca5a5',
+                green: '#86efac',
+                brightGreen: '#86efac',
+                yellow: '#fde68a',
+                brightYellow: '#fde68a',
+                blue: '#93c5fd',
+                brightBlue: '#bfdbfe',
+                magenta: '#c4b5fd',
+                brightMagenta: '#ddd6fe',
+                cyan: '#67e8f9',
+                brightCyan: '#a5f3fc',
+                white: '#e2e8f0',
+                brightWhite: '#f8fafc',
+            }
+            : {
+                background: '#f8fafc',
+                foreground: '#0f172a',
+                cursor: '#0f172a',
+                black: '#1e293b',
+                brightBlack: '#64748b',
+                red: '#b91c1c',
+                brightRed: '#dc2626',
+                green: '#15803d',
+                brightGreen: '#16a34a',
+                yellow: '#a16207',
+                brightYellow: '#ca8a04',
+                blue: '#1d4ed8',
+                brightBlue: '#2563eb',
+                magenta: '#7c3aed',
+                brightMagenta: '#8b5cf6',
+                cyan: '#0f766e',
+                brightCyan: '#0891b2',
+                white: '#334155',
+                brightWhite: '#0f172a',
+            }),
+        [isDarkMode],
+    )
     const selectMenuProps = useMemo(
         () => ({
             disablePortal: true,
@@ -1567,6 +1710,24 @@ export function TerminalPage() {
         [palette],
     )
 
+    function buildFileApiUrl(pathname: string, searchParams?: Record<string, string | null | undefined>) {
+        const url = new URL(pathname, window.location.origin)
+        if (activeFileProfileId) {
+            url.searchParams.set('profile_id', activeFileProfileId)
+        }
+        Object.entries(searchParams ?? {}).forEach(([key, value]) => {
+            if (value) {
+                url.searchParams.set(key, value)
+            }
+        })
+        return `${url.pathname}${url.search}`
+    }
+
+    function invalidateFileBrowserRequests() {
+        browserRequestIdRef.current += 1
+        fileContentRequestIdRef.current += 1
+    }
+
     useEffect(() => {
         activeSessionRef.current = activeSession
     }, [activeSession])
@@ -1597,6 +1758,11 @@ export function TerminalPage() {
             return
         }
 
+        if (!accessReady || sessions.length === 0) {
+            clearPersistedTerminalWorkspace()
+            return
+        }
+
         savePersistedTerminalWorkspace({
             accessReady,
             sessions,
@@ -1604,24 +1770,9 @@ export function TerminalPage() {
             workspaceView,
             browserPath,
             selectedEntryPath,
-            profileScope: currentProfileScope,
+            profileScope: currentProfileScope ?? '',
         })
     }, [accessBootstrapped, accessReady, sessions, activeSessionId, workspaceView, browserPath, selectedEntryPath, currentProfileScope])
-
-    useEffect(() => {
-        setSessions((current) => {
-            let changed = false
-            const next = current.map((session, index) => {
-                const localizedTitle = buildSessionTitle(index, titleBase)
-                if (session.title === localizedTitle) {
-                    return session
-                }
-                changed = true
-                return { ...session, title: localizedTitle }
-            })
-            return changed ? next : current
-        })
-    }, [titleBase, sessions.length])
 
     function updateAccessForm<K extends keyof AccessForm>(key: K, value: AccessForm[K]) {
         if (key === 'authMethod') {
@@ -1650,18 +1801,44 @@ export function TerminalPage() {
         setFeedback({ severity, message })
     }
 
-    function openAddHostDialog() {
+    function openAddHostDialog(mode: 'new-connection' | 'add-host' = 'add-host') {
         resetAccessForm()
+        setAccessDialogMode(mode)
         setFeedback(null)
+        setCreateSessionAnchorEl(null)
+        setIsHostSelectorOpen(false)
         setIsAccessDialogOpen(true)
     }
 
     function openEditHostDialog(profile: HostAccessSavedProfileSummary) {
         setAccessForm(savedProfileToAccessForm(profile))
+        setAccessDialogMode('edit')
         setAccessErrors({})
         setPasswordVisible(false)
         setFeedback(null)
+        setCreateSessionAnchorEl(null)
+        setIsHostSelectorOpen(false)
         setIsAccessDialogOpen(true)
+    }
+
+    function openHostSelector() {
+        setFeedback(null)
+        setProfileSearchValue('')
+        setCreateSessionAnchorEl(null)
+        setIsHostSelectorOpen(true)
+        void refreshSavedProfiles()
+    }
+
+    function openCreateSessionMenu(anchor: HTMLElement) {
+        setFeedback(null)
+        setProfileSearchValue('')
+        setIsHostSelectorOpen(false)
+        setCreateSessionAnchorEl(anchor)
+        void refreshSavedProfiles()
+    }
+
+    function closeCreateSessionMenu() {
+        setCreateSessionAnchorEl(null)
     }
 
     async function handlePrivateKeyFileSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -1684,6 +1861,9 @@ export function TerminalPage() {
             const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', { method: 'GET' })
             setSavedProfiles(profile.saved_profiles ?? [])
             setActiveProfileId(profile.active_profile_id ?? null)
+            if (profile.local_host_ip) {
+                setLocalHostIp(profile.local_host_ip)
+            }
             if (profile.configured && profile.username) {
                 setAccessForm((current) => ({
                     ...current,
@@ -1751,11 +1931,11 @@ export function TerminalPage() {
             return false
         }
 
-        if (accessForm.authMethod === 'password' && !accessForm.password.trim()) {
+        if (accessForm.authMethod === 'password' && !accessForm.password.trim() && !accessForm.hasExistingPassword) {
             nextErrors.password = copy.passwordRequired
         }
 
-        if (accessForm.authMethod === 'key' && !accessForm.privateKey.trim()) {
+        if (accessForm.authMethod === 'key' && !accessForm.privateKey.trim() && !accessForm.hasExistingKey) {
             nextErrors.privateKey = copy.privateKeyRequired
         }
 
@@ -1774,8 +1954,9 @@ export function TerminalPage() {
         return true
     }
 
-    function applyProfileResponse(response: HostAccessProfileResponse, fallbackAccess?: AccessForm, options?: { autoConnect?: boolean }) {
+    function applyProfileResponse(response: HostAccessProfileResponse, fallbackAccess?: AccessForm, options?: { autoConnect?: boolean; appendSession?: boolean }) {
         const autoConnect = options?.autoConnect ?? true
+        const appendSession = options?.appendSession ?? false
         setSavedProfiles(response.saved_profiles ?? [])
         setBrowserDisplayMode(response.file_preferences?.view_mode ?? DEFAULT_HOST_ACCESS_FILE_PREFERENCES.view_mode)
         setShowHiddenFiles(response.file_preferences?.show_hidden_files ?? DEFAULT_HOST_ACCESS_FILE_PREFERENCES.show_hidden_files)
@@ -1793,6 +1974,43 @@ export function TerminalPage() {
             setAccessForm(nextAccess)
 
             if (!autoConnect) {
+                const nextProfileScope = buildWorkspaceProfileScope(status?.current_user?.id, response.active_profile_id, response.host, response.username, response.port)
+                const fallbackPath = normalizeDirectory(response.working_directory || resolveDefaultDirectory(nextAccess.username, nextAccess.workingDirectory))
+                const persistedWorkspace = loadPersistedTerminalWorkspace()
+                if (persistedWorkspace?.accessReady && (
+                    persistedWorkspace.profileScope === nextProfileScope ||
+                    persistedWorkspace.sessions.length > 1
+                )) {
+                    const restoredSessions = persistedWorkspace.sessions.map((session) => ({
+                        ...session,
+                        title: session.title || buildSessionBaseTitle({ host: session.host, username: session.user }),
+                        user: session.user || nextAccess.username,
+                        cwd: normalizeDirectory(session.cwd || fallbackPath),
+                        status: 'idle' as SessionStatus,
+                        buffer: '',
+                    }))
+                    const restoredActiveSessionId = restoredSessions.some((session) => session.id === persistedWorkspace.activeSessionId)
+                        ? persistedWorkspace.activeSessionId
+                        : restoredSessions.at(-1)?.id ?? null
+                    setSessions(restoredSessions)
+                    setActiveSessionId(restoredActiveSessionId)
+                    setActiveProfileId(response.active_profile_id ?? null)
+                    setBrowserPath(normalizeDirectory(persistedWorkspace.browserPath || fallbackPath))
+                    setSelectedEntryPath(persistedWorkspace.selectedEntryPath ?? null)
+                    setBrowserHistory([normalizeDirectory(persistedWorkspace.browserPath || fallbackPath)])
+                    setBrowserHistoryIndex(0)
+                    setEditorPath(null)
+                    setEditorContent('')
+                    setEditorInitialContent('')
+                    setBrowserMetadata(null)
+                    setCurrentProfileScope(persistedWorkspace.profileScope || null)
+                    setAccessReady(true)
+                    setWorkspaceView(persistedWorkspace.workspaceView === 'files' ? 'files' : 'terminal')
+                    return
+                }
+                if (persistedWorkspace?.accessReady) {
+                    clearPersistedTerminalWorkspace()
+                }
                 setAccessReady(false)
                 setActiveProfileId(null)
                 setCurrentProfileScope(null)
@@ -1810,7 +2028,6 @@ export function TerminalPage() {
                 setEditorPath(null)
                 setEditorContent('')
                 setEditorInitialContent('')
-                clearPersistedTerminalWorkspace()
                 return
             }
 
@@ -1819,11 +2036,34 @@ export function TerminalPage() {
             setCurrentProfileScope(nextProfileScope)
 
             const fallbackPath = normalizeDirectory(response.working_directory || resolveDefaultDirectory(nextAccess.username, nextAccess.workingDirectory))
+
+            if (appendSession && sessions.length > 0) {
+                if (sessions.length >= MAX_TERMINAL_SESSIONS) {
+                    showFeedback('error', copy.sessionLimitReached)
+                    return
+                }
+
+                const nextSession = createSession(nextAccess, sessions, locale)
+                setSessions((current) => [...current, nextSession])
+                setActiveSessionId(nextSession.id)
+                setAccessReady(true)
+                setWorkspaceView('terminal')
+                setSelectedEntryPath(null)
+                setBrowserMetadata(null)
+                setEditorPath(null)
+                setEditorContent('')
+                setEditorInitialContent('')
+                return
+            }
+
             const persistedWorkspace = loadPersistedTerminalWorkspace()
-            if (persistedWorkspace?.accessReady && persistedWorkspace.profileScope === nextProfileScope) {
-                const restoredSessions = persistedWorkspace.sessions.map((session, index) => ({
+            if (persistedWorkspace?.accessReady && (
+                persistedWorkspace.profileScope === nextProfileScope ||
+                persistedWorkspace.sessions.length > 1
+            )) {
+                const restoredSessions = persistedWorkspace.sessions.map((session) => ({
                     ...session,
-                    title: buildSessionTitle(index, titleBase),
+                    title: session.title || buildSessionBaseTitle({ host: session.host, username: session.user }),
                     user: session.user || nextAccess.username,
                     cwd: normalizeDirectory(session.cwd || fallbackPath),
                     status: 'idle' as SessionStatus,
@@ -1842,6 +2082,7 @@ export function TerminalPage() {
                 setEditorContent('')
                 setEditorInitialContent('')
                 setBrowserMetadata(null)
+                setCurrentProfileScope(persistedWorkspace.profileScope || null)
                 setAccessReady(true)
                 setWorkspaceView(persistedWorkspace.workspaceView === 'files' ? 'files' : 'terminal')
                 return
@@ -1851,7 +2092,7 @@ export function TerminalPage() {
                 clearPersistedTerminalWorkspace()
             }
 
-            const nextSession = createSession(nextAccess, 1, locale, titleBase)
+            const nextSession = createSession(nextAccess, [], locale)
             setSessions([nextSession])
             setActiveSessionId(nextSession.id)
             setBrowserPath(fallbackPath)
@@ -2053,14 +2294,29 @@ export function TerminalPage() {
 
     useEffect(() => {
         if (!activeSession) {
+            invalidateFileBrowserRequests()
+            setBrowserEntries([])
+            setPathSuggestions([])
+            setBrowserLoading(false)
+            setIsEditorLoading(false)
             return
         }
+        invalidateFileBrowserRequests()
         const nextPath = normalizeDirectory(activeSession.cwd)
         setBrowserPath(nextPath)
         setBrowserHistory([nextPath])
         setBrowserHistoryIndex(0)
+        setBrowserEntries([])
         setSelectedEntryPath(null)
         setBrowserMetadata(null)
+        setPathSuggestions([])
+        setBrowserContextMenu(null)
+        setBrowserDialogState(null)
+        setBrowserDialogName('')
+        setBrowserPropertiesForm(null)
+        setBrowserClipboard(null)
+        setBrowserLoading(true)
+        setIsEditorLoading(false)
         setEditorPath(null)
         setEditorContent('')
         setEditorInitialContent('')
@@ -2112,14 +2368,17 @@ export function TerminalPage() {
             : normalizedPath.slice(lastSlashIndex + 1).toLowerCase()
 
         let cancelled = false
+        const requestSessionId = activeSessionRef.current?.id ?? null
+        const requestProfileId = activeSessionRef.current?.profileId ?? null
         const timeoutId = window.setTimeout(() => {
             void (async () => {
                 try {
                     const suggestionEntries = normalizeDirectory(parentPath) === browserPath
                         ? browserEntries
-                        : (await requestJson<HostAccessDirectoryResponse>(`/api/host-access/files/tree?path=${encodeURIComponent(parentPath)}`, { method: 'GET' })).items
+                        : (await requestJson<HostAccessDirectoryResponse>(buildFileApiUrl('/api/host-access/files/tree', { path: parentPath }), { method: 'GET' })).items
 
-                    if (cancelled) {
+                    const currentSession = activeSessionRef.current
+                    if (cancelled || currentSession?.id !== requestSessionId || currentSession?.profileId !== requestProfileId) {
                         return
                     }
 
@@ -2131,7 +2390,8 @@ export function TerminalPage() {
                             .slice(0, 12),
                     )
                 } catch {
-                    if (!cancelled) {
+                    const currentSession = activeSessionRef.current
+                    if (!cancelled && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
                         setPathSuggestions([])
                     }
                 }
@@ -2142,7 +2402,7 @@ export function TerminalPage() {
             cancelled = true
             window.clearTimeout(timeoutId)
         }
-    }, [browserEntries, browserPath, pathInputValue])
+    }, [activeFileProfileId, activeSession?.id, browserEntries, browserPath, pathInputValue])
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -2177,14 +2437,19 @@ export function TerminalPage() {
     }, [isTerminalOverlayFullscreen])
 
     useEffect(() => {
-        if (!accessReady) {
+        if (!accessReady || !activeSession) {
             return
         }
+        const requestId = browserRequestIdRef.current + 1
+        const requestSessionId = activeSession.id
+        const requestProfileId = activeFileProfileId
+        browserRequestIdRef.current = requestId
         let cancelled = false
         setBrowserLoading(true)
-        void requestJson<HostAccessDirectoryResponse>(`/api/host-access/files/tree?path=${encodeURIComponent(browserPath)}`, { method: 'GET' })
+        void requestJson<HostAccessDirectoryResponse>(buildFileApiUrl('/api/host-access/files/tree', { path: browserPath }), { method: 'GET' })
             .then((response) => {
-                if (cancelled) {
+                const currentSession = activeSessionRef.current
+                if (cancelled || browserRequestIdRef.current !== requestId || currentSession?.id !== requestSessionId || currentSession?.profileId !== requestProfileId) {
                     return
                 }
                 setBrowserEntries(response.items)
@@ -2200,14 +2465,16 @@ export function TerminalPage() {
                 }
             })
             .catch((error) => {
-                if (!cancelled) {
+                const currentSession = activeSessionRef.current
+                if (!cancelled && browserRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
                     showFeedback('error', `${copy.browserErrorTitle}: ${error instanceof Error ? error.message : copy.browserErrorTitle}`)
                     setBrowserEntries([])
                     setBrowserMetadata(null)
                 }
             })
             .finally(() => {
-                if (!cancelled) {
+                const currentSession = activeSessionRef.current
+                if (!cancelled && browserRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
                     setBrowserLoading(false)
                 }
             })
@@ -2215,7 +2482,16 @@ export function TerminalPage() {
         return () => {
             cancelled = true
         }
-    }, [accessReady, browserPath, browserRefreshNonce, editorPath, copy.browserErrorTitle])
+    }, [accessReady, activeSession?.id, activeFileProfileId, browserPath, browserRefreshNonce, editorPath, copy.browserErrorTitle])
+
+    useEffect(() => {
+        if (!activeSession) {
+            return
+        }
+        setSelectedEntryPath(null)
+        setBrowserMetadata(null)
+        clearEditorState()
+    }, [activeSession?.id])
 
     useEffect(() => {
         if (!accessReady || workspaceView === 'files' || !activeSession || !terminalHostRef.current) {
@@ -2235,27 +2511,7 @@ export function TerminalPage() {
             fontFamily: 'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
             fontSize: 13,
             lineHeight: 1.45,
-            theme: {
-                background: '#020617',
-                foreground: '#e2e8f0',
-                cursor: '#f8fafc',
-                black: '#020617',
-                brightBlack: '#475569',
-                red: '#fca5a5',
-                brightRed: '#fca5a5',
-                green: '#86efac',
-                brightGreen: '#86efac',
-                yellow: '#fde68a',
-                brightYellow: '#fde68a',
-                blue: '#93c5fd',
-                brightBlue: '#bfdbfe',
-                magenta: '#c4b5fd',
-                brightMagenta: '#ddd6fe',
-                cyan: '#67e8f9',
-                brightCyan: '#a5f3fc',
-                white: '#e2e8f0',
-                brightWhite: '#f8fafc',
-            },
+            theme: xtermTheme,
         })
         const fitAddon = new FitAddon()
         terminal.loadAddon(fitAddon)
@@ -2284,7 +2540,18 @@ export function TerminalPage() {
             xtermRef.current = null
             fitAddonRef.current = null
         }
-    }, [accessReady, workspaceView, activeSession?.id])
+    }, [accessReady, workspaceView, activeSession?.id, xtermTheme])
+
+    useEffect(() => {
+        const terminal = xtermRef.current
+        if (!terminal) {
+            return
+        }
+
+        terminal.options.theme = xtermTheme
+        fitAddonRef.current?.fit()
+        terminal.refresh(0, Math.max(terminal.rows - 1, 0))
+    }, [xtermTheme])
 
     useEffect(() => {
         const terminal = xtermRef.current
@@ -2296,16 +2563,33 @@ export function TerminalPage() {
             return
         }
 
-        terminal.clear()
-        terminal.reset()
         if (!activeSession) {
+            terminal.clear()
+            terminal.reset()
             terminal.writeln(copy.sessionEmpty)
             fitAddonRef.current?.fit()
             return
         }
 
-        if (activeSession.buffer) {
-            terminal.write(activeSession.buffer)
+        const alreadyWritten = terminalWrittenRef.current[activeSession.id] ?? 0
+        const sessionChanged = lastRenderedSessionIdRef.current !== activeSession.id
+        if (sessionChanged || alreadyWritten === 0 || alreadyWritten > activeSession.buffer.length) {
+            // New session, tab switch, or buffer reset – clear and replay full buffer
+            terminal.clear()
+            terminal.reset()
+            if (activeSession.buffer) {
+                terminal.write(activeSession.buffer)
+            }
+            terminalWrittenRef.current[activeSession.id] = activeSession.buffer.length
+            lastRenderedSessionIdRef.current = activeSession.id
+        } else {
+            // Incremental write only – do NOT clear the terminal
+            const newContent = activeSession.buffer.slice(alreadyWritten)
+            if (newContent) {
+                terminal.write(newContent)
+                terminalWrittenRef.current[activeSession.id] = activeSession.buffer.length
+            }
+            lastRenderedSessionIdRef.current = activeSession.id
         }
         terminal.scrollToBottom()
     }, [activeSession?.buffer, activeSession?.id, copy.sessionEmpty, workspaceView])
@@ -2337,6 +2621,7 @@ export function TerminalPage() {
             const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', {
                 method: 'PUT',
                 body: JSON.stringify({
+                    name: accessForm.name.trim(),
                     host: accessForm.host.trim(),
                     profile_id: accessForm.profileId,
                     auth_method: accessForm.authMethod,
@@ -2355,9 +2640,10 @@ export function TerminalPage() {
                 workingDirectory: profile.working_directory || accessForm.workingDirectory,
                 shell: profile.shell || DEFAULT_ACCESS_FORM.shell,
             }
-            closeAllSockets({ terminate: true })
             setIsAccessDialogOpen(false)
-            applyProfileResponse(profile, nextAccess)
+            setIsHostSelectorOpen(false)
+            setCreateSessionAnchorEl(null)
+            applyProfileResponse(profile, nextAccess, { appendSession: accessReady && sessions.length > 0 })
         } catch (error) {
             showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
         } finally {
@@ -2374,6 +2660,7 @@ export function TerminalPage() {
             const response = await requestJson<HostAccessConnectionTestResponse>('/api/host-access/profile/test', {
                 method: 'POST',
                 body: JSON.stringify({
+                    name: accessForm.name.trim(),
                     host: accessForm.host.trim(),
                     profile_id: accessForm.profileId,
                     auth_method: accessForm.authMethod,
@@ -2432,12 +2719,31 @@ export function TerminalPage() {
 
     function handleCloseSession(sessionId: string) {
         closeSocket(sessionId, { terminate: true })
+        setIsDisconnecting(true)
+        window.setTimeout(() => setIsDisconnecting(false), 800)
         setSessions((current) => {
             const closingIndex = current.findIndex((session) => session.id === sessionId)
             const next = current.filter((session) => session.id !== sessionId)
             const nextActive = activeSessionId === sessionId
                 ? (next[Math.max(0, closingIndex - 1)]?.id ?? next[0]?.id ?? null)
                 : activeSessionId
+            if (next.length === 0) {
+                setAccessReady(false)
+                setActiveProfileId(null)
+                setCurrentProfileScope(null)
+                setBrowserEntries([])
+                setSelectedEntryPath(null)
+                setBrowserMetadata(null)
+                setBrowserPath('/')
+                setBrowserHistory(['/'])
+                setBrowserHistoryIndex(0)
+                setPathInputValue('/')
+                setPathSuggestions([])
+                setDirectorySearch('')
+                clearEditorState()
+                setWorkspaceView('terminal')
+                clearPersistedTerminalWorkspace()
+            }
             setActiveSessionId(nextActive)
             return next
         })
@@ -2451,48 +2757,22 @@ export function TerminalPage() {
     }
 
     async function handleLogout() {
-        const startedAt = Date.now()
-        setIsDisconnecting(true)
-        closeAllSockets({ terminate: true })
-        setAccessReady(false)
-        setActiveProfileId(null)
-        setCurrentProfileScope(null)
-        setSessions([])
-        setActiveSessionId(null)
-        setBrowserEntries([])
-        setSelectedEntryPath(null)
-        setBrowserPath('/')
-        setBrowserHistory(['/'])
-        setBrowserHistoryIndex(0)
-        setPathInputValue('/')
-        setPathSuggestions([])
-        setDirectorySearch('')
-        clearEditorState()
-        setWorkspaceView('terminal')
-        setFeedback(null)
-        setIsAccessDialogOpen(false)
-        setPendingDeleteProfile(null)
-        resetAccessForm()
-        clearPersistedTerminalWorkspace()
-        try {
-            const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', { method: 'DELETE' })
-            setSavedProfiles(profile.saved_profiles ?? [])
-        } catch {
-        } finally {
-            await ensureMinimumBusyDuration(startedAt)
-            setIsDisconnecting(false)
+        if (!activeSession) {
+            return
         }
+        handleCloseSession(activeSession.id)
     }
 
     async function handleActivateSavedProfile(profileId: string) {
         const startedAt = Date.now()
         setActivatingProfileId(profileId)
         try {
-            closeAllSockets({ terminate: true })
             setIsAccessDialogOpen(false)
+            setIsHostSelectorOpen(false)
+            setCreateSessionAnchorEl(null)
             const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST' })
             await ensureMinimumBusyDuration(startedAt)
-            applyProfileResponse(response)
+            applyProfileResponse(response, undefined, { appendSession: accessReady && sessions.length > 0 })
         } catch (error) {
             await ensureMinimumBusyDuration(startedAt)
             showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
@@ -2526,15 +2806,12 @@ export function TerminalPage() {
         await handleDeleteSavedProfile(profileId)
     }
 
-    function handleCreateSession() {
-        if (sessions.length >= MAX_TERMINAL_SESSIONS) {
-            showFeedback('info', copy.sessionLimitReached)
+    function handleCreateSession(event: ReactMouseEvent<HTMLButtonElement>) {
+        if (createSessionAnchorEl === event.currentTarget) {
+            closeCreateSessionMenu()
             return
         }
-        const nextSession = createSession(accessForm, sessions.length + 1, locale, titleBase)
-        setSessions((current) => [...current, nextSession])
-        setActiveSessionId(nextSession.id)
-        setWorkspaceView((current) => (current === 'files' ? 'terminal' : current))
+        openCreateSessionMenu(event.currentTarget)
     }
 
     function handleReconnect() {
@@ -2609,17 +2886,31 @@ export function TerminalPage() {
     }
 
     async function openBrowserFile(path: string) {
+        const requestId = fileContentRequestIdRef.current + 1
+        const requestSessionId = activeSessionRef.current?.id ?? null
+        const requestProfileId = activeSessionRef.current?.profileId ?? null
+        fileContentRequestIdRef.current = requestId
         setIsEditorLoading(true)
         try {
-            const response = await requestJson<HostAccessTextFileResponse>(`/api/host-access/files/content?path=${encodeURIComponent(path)}`, { method: 'GET' })
+            const response = await requestJson<HostAccessTextFileResponse>(buildFileApiUrl('/api/host-access/files/content', { path }), { method: 'GET' })
+            const currentSession = activeSessionRef.current
+            if (fileContentRequestIdRef.current !== requestId || currentSession?.id !== requestSessionId || currentSession?.profileId !== requestProfileId) {
+                return
+            }
             setEditorPath(response.path)
             setEditorContent(response.content)
             setEditorInitialContent(response.content)
         } catch (error) {
-            clearEditorState()
-            showFeedback('error', `${copy.browserErrorTitle}: ${error instanceof Error ? error.message : copy.browserErrorTitle}`)
+            const currentSession = activeSessionRef.current
+            if (fileContentRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
+                clearEditorState()
+                showFeedback('error', `${copy.browserErrorTitle}: ${error instanceof Error ? error.message : copy.browserErrorTitle}`)
+            }
         } finally {
-            setIsEditorLoading(false)
+            const currentSession = activeSessionRef.current
+            if (fileContentRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
+                setIsEditorLoading(false)
+            }
         }
     }
 
@@ -2780,7 +3071,7 @@ export function TerminalPage() {
 
             setIsFileActionSubmitting(true)
             try {
-                const response = await requestJson<HostAccessAttributesMutationResponse>('/api/host-access/files/attributes', {
+                const response = await requestJson<HostAccessAttributesMutationResponse>(buildFileApiUrl('/api/host-access/files/attributes'), {
                     method: 'PUT',
                     body: JSON.stringify({
                         source_path: browserDialogState.item.path,
@@ -2828,7 +3119,7 @@ export function TerminalPage() {
         try {
             if (browserDialogState.type === 'create-folder' || browserDialogState.type === 'create-file') {
                 const endpoint = browserDialogState.type === 'create-folder' ? '/api/host-access/files/folders' : '/api/host-access/files/items'
-                await requestJson<HostAccessMutationResponse>(endpoint, {
+                await requestJson<HostAccessMutationResponse>(buildFileApiUrl(endpoint), {
                     method: 'POST',
                     body: JSON.stringify({ parent_path: browserDialogState.parentPath ?? browserPath, name: trimmedName }),
                 })
@@ -2836,7 +3127,7 @@ export function TerminalPage() {
 
             if (browserDialogState.type === 'rename') {
                 const renamedPath = buildSiblingPath(browserDialogState.item.path, trimmedName)
-                await requestJson<HostAccessMutationResponse>('/api/host-access/files/rename', {
+                await requestJson<HostAccessMutationResponse>(buildFileApiUrl('/api/host-access/files/rename'), {
                     method: 'POST',
                     body: JSON.stringify({ source_path: browserDialogState.item.path, target_name: trimmedName }),
                 })
@@ -2847,7 +3138,7 @@ export function TerminalPage() {
             }
 
             if (browserDialogState.type === 'delete') {
-                await requestJson<HostAccessMutationResponse>('/api/host-access/files/item', {
+                await requestJson<HostAccessMutationResponse>(buildFileApiUrl('/api/host-access/files/item'), {
                     method: 'DELETE',
                     body: JSON.stringify({ path: browserDialogState.item.path }),
                 })
@@ -2889,7 +3180,7 @@ export function TerminalPage() {
         setIsFileActionSubmitting(true)
         try {
             const contentBase64 = await encodeFileToBase64(file)
-            await requestJson<HostAccessMutationResponse>('/api/host-access/files/upload', {
+            await requestJson<HostAccessMutationResponse>(buildFileApiUrl('/api/host-access/files/upload'), {
                 method: 'POST',
                 body: JSON.stringify({ parent_path: browserPath, file_name: file.name, content_base64: contentBase64 }),
             })
@@ -2909,7 +3200,7 @@ export function TerminalPage() {
 
         setIsFileActionSubmitting(true)
         try {
-            await requestJson<HostAccessMutationResponse>('/api/host-access/files/content', {
+            await requestJson<HostAccessMutationResponse>(buildFileApiUrl('/api/host-access/files/content'), {
                 method: 'PUT',
                 body: JSON.stringify({ path: editorPath, content: editorContent }),
             })
@@ -2925,7 +3216,7 @@ export function TerminalPage() {
     async function handleDownloadBrowserItem(item: HostAccessFileItem) {
         setIsFileActionSubmitting(true)
         try {
-            const response = await fetch(`/api/host-access/files/download?path=${encodeURIComponent(item.path)}`, {
+            const response = await fetch(buildFileApiUrl('/api/host-access/files/download', { path: item.path }), {
                 method: 'GET',
                 credentials: 'include',
             })
@@ -2963,7 +3254,7 @@ export function TerminalPage() {
 
         setIsFileActionSubmitting(true)
         try {
-            await requestJson<HostAccessMutationResponse>(browserClipboard.mode === 'cut' ? '/api/host-access/files/move' : '/api/host-access/files/copy', {
+            await requestJson<HostAccessMutationResponse>(buildFileApiUrl(browserClipboard.mode === 'cut' ? '/api/host-access/files/move' : '/api/host-access/files/copy'), {
                 method: 'POST',
                 body: JSON.stringify({ source_path: browserClipboard.path, destination_path: destinationPath }),
             })
@@ -3049,18 +3340,58 @@ export function TerminalPage() {
 
     const accessFields = (
         <div className="terminal-access-form">
+            <div className="terminal-access-field" style={{ marginBottom: 0 }}>
+                <Typography className="terminal-access-field-label">{copy.connectionNameLabel}</Typography>
+                <TextField
+                    disabled={formBusy}
+                    onChange={(event) => updateAccessForm('name', event.target.value)}
+                    placeholder={copy.connectionNameLabel}
+                    size="small"
+                    sx={terminalFieldSx}
+                    value={accessForm.name}
+                />
+            </div>
             <div className="terminal-access-grid terminal-access-grid-top">
                 <div className="terminal-access-field">
-                    <Typography className="terminal-access-field-label">{copy.host}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.35 }}>
+                        <Typography className="terminal-access-field-label" sx={{ mb: '0 !important' }}>{copy.host}</Typography>
+                        {accessForm.host === localHostIp ? (
+                            <Chip color="success" label={copy.localHostOption} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} />
+                        ) : null}
+                    </Box>
                     <TextField
                         disabled={formBusy}
                         error={Boolean(accessErrors.host)}
                         inputRef={(element) => {
                             accessFieldRefs.current.host = element
                         }}
-                        onChange={(event) => updateAccessForm('host', event.target.value)}
+                        onChange={(event) => {
+                            const value = event.target.value
+                            updateAccessForm('host', value)
+                            setAccessForm((current) => ({ ...current, isLocal: value === localHostIp }))
+                        }}
                         placeholder="example.com"
                         size="small"
+                        slotProps={{
+                            input: {
+                                endAdornment: accessForm.host !== localHostIp ? (
+                                    <InputAdornment position="end">
+                                        <Tooltip title={`${copy.localHostOption}: ${localHostIp}`}>
+                                            <IconButton
+                                                aria-label={copy.localHostOption}
+                                                disabled={formBusy}
+                                                edge="end"
+                                                onClick={() => setAccessForm((current) => ({ ...current, host: localHostIp, isLocal: true }))}
+                                                size="small"
+                                                tabIndex={-1}
+                                            >
+                                                <LocalHostIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </InputAdornment>
+                                ) : undefined,
+                            },
+                        }}
                         sx={terminalFieldSx}
                         value={accessForm.host}
                     />
@@ -3126,7 +3457,7 @@ export function TerminalPage() {
                                 accessFieldRefs.current.password = element
                             }}
                             onChange={(event) => updateAccessForm('password', event.target.value)}
-                            placeholder={copy.password}
+                            placeholder={accessForm.hasExistingPassword && !accessForm.password ? '••••••••' : copy.password}
                             size="small"
                             slotProps={{
                                 input: {
@@ -3134,6 +3465,7 @@ export function TerminalPage() {
                                         <InputAdornment position="end">
                                             <IconButton
                                                 aria-label={passwordVisible ? copy.hidePassword : copy.showPassword}
+                                                disabled={accessForm.hasExistingPassword && !accessForm.password}
                                                 edge="end"
                                                 onClick={() => setPasswordVisible((current) => !current)}
                                                 size="small"
@@ -3176,7 +3508,7 @@ export function TerminalPage() {
                                 }}
                                 multiline
                                 onChange={(event) => updateAccessForm('privateKey', event.target.value)}
-                                placeholder={copy.privateKey}
+                                placeholder={accessForm.hasExistingKey && !accessForm.privateKey ? copy.keepExistingKey : copy.privateKey}
                                 rows={5}
                                 size="small"
                                 sx={terminalFieldSx}
@@ -3207,6 +3539,220 @@ export function TerminalPage() {
                 />
             </div>
         </div>
+    )
+
+    const savedProfilesTable = (
+        <Box sx={{ width: '100%', minWidth: 0, overflowX: 'hidden', border: `1px solid ${palette.border}` }}>
+            <Box sx={{ width: '100%', minWidth: 0 }}>
+                <Box
+                    className="terminal-connections-table-head"
+                    sx={{
+                        display: 'grid',
+                        width: '100%',
+                        minWidth: 0,
+                        gridTemplateColumns: 'minmax(0, 1.18fr) minmax(0, .52fr) minmax(0, .68fr) minmax(40px, .22fr) minmax(120px, .5fr)',
+                        alignItems: 'center',
+                        minHeight: 52,
+                        px: 1,
+                        gap: 0.75,
+                        borderBottom: `1px solid ${palette.border}`,
+                        background: isDarkMode ? alpha(palette.cardBg, 0.98) : alpha('#ffffff', 0.92),
+                    }}
+                >
+                    {[copy.connectionNameLabel, copy.username, copy.authMethodLabel, copy.port, copy.actionsLabel].map((column, index) => (
+                        <Typography
+                            key={column}
+                            sx={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: palette.subtleText,
+                                textAlign: index === 4 ? 'right' : 'left',
+                            }}
+                        >
+                            {column}
+                        </Typography>
+                    ))}
+                </Box>
+
+                {isRefreshingProfiles ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                        <Box
+                            key={i}
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: 'minmax(0, 1.18fr) minmax(0, .52fr) minmax(0, .68fr) minmax(40px, .22fr) minmax(120px, .5fr)',
+                                alignItems: 'center',
+                                gap: 0.75,
+                                px: 1,
+                                py: 1.35,
+                                borderBottom: `1px solid ${palette.border}`,
+                            }}
+                        >
+                            <Stack spacing={0.5}>
+                                <Skeleton variant="text" width="55%" height={18} />
+                                <Skeleton variant="text" width="38%" height={14} />
+                            </Stack>
+                            <Skeleton variant="text" width="60%" height={18} />
+                            <Skeleton variant="text" width="50%" height={18} />
+                            <Skeleton variant="text" width="70%" height={18} />
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                                <Skeleton variant="circular" width={28} height={28} />
+                                <Skeleton variant="circular" width={28} height={28} />
+                                <Skeleton variant="circular" width={28} height={28} />
+                                <Skeleton variant="circular" width={28} height={28} />
+                            </Box>
+                        </Box>
+                    ))
+                ) : savedProfiles.length === 0 ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
+                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{copy.savedProfilesEmpty}</Typography>
+                    </Box>
+                ) : filteredSavedProfiles.length === 0 ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
+                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{copy.noSavedProfilesResults}</Typography>
+                    </Box>
+                ) : filteredSavedProfiles.map((profile) => (
+                    <Box
+                        key={profile.profile_id}
+                        className="terminal-connections-table-row"
+                        sx={{
+                            display: 'grid',
+                            width: '100%',
+                            minWidth: 0,
+                            gridTemplateColumns: 'minmax(0, 1.18fr) minmax(0, .52fr) minmax(0, .68fr) minmax(40px, .22fr) minmax(120px, .5fr)',
+                            alignItems: 'center',
+                            gap: 0.75,
+                            px: 1,
+                            py: 1.35,
+                            borderBottom: `1px solid ${palette.border}`,
+                            backgroundColor: palette.cardBg,
+                            '&:hover': {
+                                backgroundColor: alpha(palette.accent, isDarkMode ? 0.08 : 0.05),
+                            },
+                        }}
+                    >
+                        <Stack spacing={0.45} sx={{ minWidth: 0 }}>
+                            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                                <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.text, wordBreak: 'break-all' }}>{profile.name || profile.host}</Typography>
+                                {profile.is_local ? <Chip color="success" label={copy.localLabel} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} /> : null}
+                            </Stack>
+                            {profile.name ? (
+                                <Typography sx={{ fontSize: 12.5, color: palette.subtleText, wordBreak: 'break-all' }}>{profile.host}</Typography>
+                            ) : null}
+                        </Stack>
+                        <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.username}</Typography>
+                        <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.subtleText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.auth_method === 'password' ? copy.authMethodPasswordHint : copy.authMethodKeyHint}</Typography>
+                        <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.subtleText }}>{profile.port}</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Box className="terminal-connections-row-actions">
+                                <Tooltip title={copy.connectionTestTitle}>
+                                    <span>
+                                        <IconButton aria-label={copy.connectionTestTitle} className="terminal-connections-row-action-button terminal-connections-row-action-button-info" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null || testingProfileId === profile.profile_id} onClick={() => void handleTestSavedProfile(profile.profile_id)} size="small">
+                                            {testingProfileId === profile.profile_id ? <CircularProgress size={14} color="inherit" /> : <TestActionIcon />}
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                                <Tooltip title={copy.editAction}>
+                                    <span>
+                                        <IconButton aria-label={copy.editAction} className="terminal-connections-row-action-button" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => openEditHostDialog(profile)} size="small">
+                                            <EditActionIcon />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                                <Tooltip title={copy.savedLogin}>
+                                    <span>
+                                        <IconButton aria-label={copy.savedLogin} className="terminal-connections-row-action-button terminal-connections-row-action-button-primary" disabled={formBusy || isRefreshingProfiles || isDisconnecting || (activatingProfileId !== null && activatingProfileId !== profile.profile_id)} onClick={() => void handleActivateSavedProfile(profile.profile_id)} size="small">
+                                            {activatingProfileId === profile.profile_id ? <CircularProgress size={14} color="inherit" /> : <ConnectActionIcon />}
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                                <Tooltip title={copy.deleteProfile}>
+                                    <span>
+                                        <IconButton aria-label={copy.deleteProfile} className="terminal-connections-row-action-button terminal-connections-row-action-button-danger" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => setPendingDeleteProfile(profile)} size="small">
+                                            <DeleteActionIcon />
+                                        </IconButton>
+                                    </span>
+                                </Tooltip>
+                            </Box>
+                        </Box>
+                    </Box>
+                ))}
+            </Box>
+        </Box>
+    )
+
+    const quickConnectProfiles = filteredSavedProfiles.slice(0, 6)
+
+    const quickConnectList = savedProfiles.length === 0 ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.subtleText }}>{copy.savedProfilesEmpty}</Typography>
+        </Box>
+    ) : filteredSavedProfiles.length === 0 ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.subtleText }}>{copy.noSavedProfilesResults}</Typography>
+        </Box>
+    ) : (
+        <Stack spacing={1} sx={{ maxHeight: 248, overflowY: 'auto', pr: 0.5 }}>
+            {quickConnectProfiles.map((profile) => (
+                <Box
+                    key={profile.profile_id}
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                        px: 1.25,
+                        py: 1,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: '2px',
+                        backgroundColor: alpha(palette.cardBg, 0.98),
+                    }}
+                >
+                    <Stack spacing={0.25} sx={{ minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>
+                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: palette.text, wordBreak: 'break-all' }}>{profile.name || profile.host}</Typography>
+                            {profile.is_local ? <Chip color="success" label={copy.localLabel} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} /> : null}
+                        </Stack>
+                        <Typography sx={{ fontSize: 12.5, color: palette.subtleText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.host} · {profile.username}</Typography>
+                    </Stack>
+                    <Button
+                        disabled={formBusy || isRefreshingProfiles || isDisconnecting || (activatingProfileId !== null && activatingProfileId !== profile.profile_id)}
+                        onClick={() => {
+                            closeCreateSessionMenu()
+                            void handleActivateSavedProfile(profile.profile_id)
+                        }}
+                        size="small"
+                        sx={{ flex: '0 0 auto', minWidth: 68, fontWeight: 700 }}
+                        variant="outlined"
+                    >
+                        {copy.savedLogin}
+                    </Button>
+                </Box>
+            ))}
+        </Stack>
+    )
+
+    const savedProfilesToolbar = (
+        <Box className="terminal-connections-toolbar">
+            <TextField
+                className="terminal-connections-toolbar-field terminal-connections-toolbar-search"
+                disabled={isDisconnecting || activatingProfileId !== null}
+                onChange={(event) => setProfileSearchValue(event.target.value)}
+                placeholder={copy.searchConnectionsPlaceholder}
+                size="small"
+                value={profileSearchValue}
+            />
+            <Button className="terminal-connections-toolbar-button" disabled={isDisconnecting || activatingProfileId !== null} onClick={() => openAddHostDialog('add-host')} variant="contained" sx={{ borderRadius: 0, boxShadow: 'none', textTransform: 'none', fontWeight: 600 }}>
+                {copy.addHostAction}
+            </Button>
+            <Tooltip title={copy.refresh}>
+                <span>
+                    <IconButton className="terminal-connections-toolbar-icon-button" disabled={isDisconnecting || activatingProfileId !== null} onClick={() => void refreshSavedProfiles()} size="small" sx={isRefreshingProfiles ? { animation: 'spin 0.75s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } } : undefined}>
+                        <RefreshActionIcon />
+                    </IconButton>
+                </span>
+            </Tooltip>
+        </Box>
     )
 
     return (
@@ -3261,25 +3807,34 @@ export function TerminalPage() {
                     descriptionColor={palette.subtleText}
                     sx={{ mt: { xs: 0.25, md: 0.45 } }}
                     actions={
-                        accessReady ? (
+                        status?.enabled ? (
                             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
                                 <div className="terminal-view-nav" role="tablist" aria-label="workspace view selector">
                                     {([
                                         ['terminal', copy.viewTerminal],
                                         ['files', copy.viewFiles],
-                                    ] as Array<[WorkspaceView, string]>).map(([view, label]) => (
-                                        <button
-                                            key={view}
-                                            className={`terminal-view-nav-button ${workspaceView === view ? 'terminal-view-nav-button-active' : ''}`}
-                                            onClick={() => setWorkspaceView(view)}
-                                            type="button"
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
+                                    ] as Array<[WorkspaceView, string]>).map(([view, label]) => {
+                                        const disabled = view === 'files' ? !filesViewEnabled : !accessReady
+                                        return (
+                                            <button
+                                                key={view}
+                                                className={`terminal-view-nav-button ${workspaceView === view ? 'terminal-view-nav-button-active' : ''}`}
+                                                disabled={disabled}
+                                                onClick={() => {
+                                                    if (disabled) {
+                                                        return
+                                                    }
+                                                    setWorkspaceView(view)
+                                                }}
+                                                type="button"
+                                            >
+                                                {label}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
-                                <Button disabled={isDisconnecting} onClick={() => void handleLogout()} startIcon={isDisconnecting ? <CircularProgress color="inherit" size={16} /> : null} variant="outlined">
-                                    {isDisconnecting ? copy.disconnectingAction : copy.disconnect}
+                                <Button disabled={isDisconnecting} onClick={openHostSelector} variant="contained">
+                                    {copy.hostSelectorTitle}
                                 </Button>
                             </Stack>
                         ) : null
@@ -3287,215 +3842,61 @@ export function TerminalPage() {
                 />
 
                 {!accessBootstrapped ? null : !accessReady ? (
-                    <Box sx={{ width: '100%', flex: '1 1 auto', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
-                        <Card elevation={0} sx={{ ...surfaceCardSx, minHeight: 0, overflow: 'hidden' }}>
-                            <CardContent sx={{ pt: 3, pb: 2 }}>
-                                <Stack spacing={1.5} sx={{ minHeight: 0 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
-                                        <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>{copy.savedProfilesTitle}</Typography>
-                                        <Box className="terminal-connections-toolbar">
-                                            <TextField
-                                                className="terminal-connections-toolbar-field terminal-connections-toolbar-search"
-                                                disabled={isDisconnecting || activatingProfileId !== null}
-                                                onChange={(event) => setProfileSearchValue(event.target.value)}
-                                                placeholder={copy.searchConnectionsPlaceholder}
-                                                size="small"
-                                                value={profileSearchValue}
-                                            />
-                                            <Button className="terminal-connections-toolbar-button" disabled={isDisconnecting || activatingProfileId !== null} onClick={openAddHostDialog} variant="contained" sx={{ borderRadius: 0, boxShadow: 'none', textTransform: 'none', fontWeight: 600 }}>
-                                                {copy.addHostAction}
-                                            </Button>
-                                            <Tooltip title={copy.refresh}>
-                                                <span>
-                                                    <IconButton className="terminal-connections-toolbar-icon-button" disabled={isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => void refreshSavedProfiles()} size="small">
-                                                        {isRefreshingProfiles ? <CircularProgress size={14} color="inherit" /> : <RefreshActionIcon />}
-                                                    </IconButton>
-                                                </span>
-                                            </Tooltip>
-                                        </Box>
-                                    </Box>
+                    <Card
+                        elevation={0}
+                        sx={{
+                            ...surfaceCardSx,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            flex: '1 1 auto',
+                            minHeight: 0,
+                        }}
+                    >
+                        <CardContent sx={{ p: 0, display: 'flex', flex: '1 1 auto', minHeight: 0, width: '100%', '&:last-child': { pb: 0 } }}>
+                            <div className="terminal-workspace-shell" ref={terminalWorkspaceShellRef}>
+                                <div className="terminal-workspace-grid terminal-workspace-grid-terminal">
+                                    <div className="terminal-shell-pane">
+                                        <div className="terminal-session-strip">
+                                            <div className="terminal-session-tabs">
+                                                <button aria-label={copy.newConnectionTitle} className="terminal-session-add terminal-session-add-icon" onClick={handleCreateSession} type="button">
+                                                    <span className="terminal-session-add-glyph">+</span>
+                                                </button>
+                                            </div>
+                                        </div>
 
-                                    <Box sx={{ overflowX: 'auto', border: `1px solid ${palette.border}` }}>
-                                        <Box sx={{ minWidth: 980 }}>
-                                            <Box
-                                                className="terminal-connections-table-head"
-                                                sx={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '1.4fr 1fr .95fr .6fr 1.05fr',
-                                                    alignItems: 'center',
-                                                    minHeight: 52,
-                                                    px: 1.25,
-                                                    borderBottom: `1px solid ${palette.border}`,
-                                                    background: isDarkMode ? alpha(palette.cardBg, 0.98) : alpha('#ffffff', 0.92),
-                                                }}
-                                            >
-                                                {[copy.host, copy.username, copy.authMethodLabel, copy.port, copy.actionsLabel].map((column, index) => (
-                                                    <Typography
-                                                        key={column}
-                                                        sx={{
-                                                            fontSize: 13,
-                                                            fontWeight: 700,
-                                                            color: palette.subtleText,
-                                                            textAlign: index === 4 ? 'right' : 'left',
-                                                        }}
-                                                    >
-                                                        {column}
-                                                    </Typography>
-                                                ))}
-                                            </Box>
+                                        <div className={`terminal-shell-surface ${isDarkMode ? '' : 'terminal-shell-surface-light'}`} style={{ background: isDarkMode ? `linear-gradient(180deg, ${alpha('#0f172a', 0.96)} 0%, ${alpha('#111827', 0.98)} 100%)` : 'linear-gradient(180deg, #f8fafc 0%, #eff4fa 100%)' }}>
+                                            <div className="terminal-shell-toolbar">
+                                                <div className="terminal-shell-toolbar-left">
+                                                    <span className="terminal-window-dot" style={{ backgroundColor: '#fb7185' }} />
+                                                    <span className="terminal-window-dot" style={{ backgroundColor: '#fbbf24' }} />
+                                                    <span className="terminal-window-dot" style={{ backgroundColor: '#34d399' }} />
+                                                    <span className="terminal-shell-title">{copy.emptyTerminalShellTitle}</span>
+                                                </div>
+                                            </div>
 
-                                            {savedProfiles.length === 0 ? (
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
-                                                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{copy.savedProfilesEmpty}</Typography>
-                                                </Box>
-                                            ) : filteredSavedProfiles.length === 0 ? (
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, px: 3 }}>
-                                                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{copy.noSavedProfilesResults}</Typography>
-                                                </Box>
-                                            ) : filteredSavedProfiles.map((profile) => (
-                                                <Box
-                                                    key={profile.profile_id}
-                                                    className="terminal-connections-table-row"
-                                                    sx={{
-                                                        display: 'grid',
-                                                        gridTemplateColumns: '1.4fr 1fr .95fr .6fr 1.05fr',
-                                                        alignItems: 'center',
-                                                        gap: 1.25,
-                                                        px: 1.25,
-                                                        py: 1.35,
-                                                        borderBottom: `1px solid ${palette.border}`,
-                                                        backgroundColor: palette.cardBg,
-                                                        '&:hover': {
-                                                            backgroundColor: alpha(palette.accent, isDarkMode ? 0.08 : 0.05),
-                                                        },
-                                                    }}
-                                                >
-                                                    <Stack spacing={0.45} sx={{ minWidth: 0 }}>
-                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                                                            <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.text, wordBreak: 'break-all' }}>{profile.host}</Typography>
-                                                            {profile.is_local ? <Chip color="success" label={copy.localLabel} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} /> : null}
-                                                            {profile.profile_id === activeProfileId ? <Chip label={copy.currentProfileLabel} size="small" sx={{ height: 20, fontWeight: 700 }} /> : null}
+                                            <div className="terminal-shell-body">
+                                                <div className="terminal-shell-transcript">
+                                                    <div className="terminal-shell-empty terminal-shell-empty-connected-look">
+                                                        <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center', maxWidth: 440 }}>
+                                                            <Box sx={{ width: 88, height: 88, borderRadius: '24px', display: 'grid', placeItems: 'center', color: isDarkMode ? '#cbd5e1' : '#94a3b8', background: isDarkMode ? 'rgba(148, 163, 184, 0.08)' : 'rgba(255, 255, 255, 0.72)', boxShadow: isDarkMode ? 'inset 0 0 0 1px rgba(148, 163, 184, 0.12)' : '0 18px 36px rgba(148, 163, 184, 0.18)' }}>
+                                                                <EmptyTerminalIcon />
+                                                            </Box>
+                                                            <Typography sx={{ fontSize: 22, fontWeight: 800, color: isDarkMode ? '#e2e8f0' : '#334155' }}>
+                                                                {copy.emptyTerminalTitle}
+                                                            </Typography>
+                                                            <Typography sx={{ fontSize: 14, lineHeight: 1.7, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                                                {copy.emptyTerminalHint}
+                                                            </Typography>
                                                         </Stack>
-                                                    </Stack>
-                                                    <Typography sx={{ fontSize: 13.5, color: palette.text }}>{profile.username}</Typography>
-                                                    <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{profile.auth_method === 'password' ? copy.authMethodPasswordHint : copy.authMethodKeyHint}</Typography>
-                                                    <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{profile.port}</Typography>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                        <Box className="terminal-connections-row-actions">
-                                                            <Tooltip title={copy.connectionTestTitle}>
-                                                                <span>
-                                                                    <IconButton aria-label={copy.connectionTestTitle} className="terminal-connections-row-action-button terminal-connections-row-action-button-info" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null || testingProfileId === profile.profile_id} onClick={() => void handleTestSavedProfile(profile.profile_id)} size="small">
-                                                                        {testingProfileId === profile.profile_id ? <CircularProgress size={14} color="inherit" /> : <TestActionIcon />}
-                                                                    </IconButton>
-                                                                </span>
-                                                            </Tooltip>
-                                                            <Tooltip title={copy.editAction}>
-                                                                <span>
-                                                                    <IconButton aria-label={copy.editAction} className="terminal-connections-row-action-button" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => openEditHostDialog(profile)} size="small">
-                                                                        <EditActionIcon />
-                                                                    </IconButton>
-                                                                </span>
-                                                            </Tooltip>
-                                                            <Tooltip title={copy.savedLogin}>
-                                                                <span>
-                                                                    <IconButton aria-label={copy.savedLogin} className="terminal-connections-row-action-button terminal-connections-row-action-button-primary" disabled={formBusy || isRefreshingProfiles || isDisconnecting || (activatingProfileId !== null && activatingProfileId !== profile.profile_id)} onClick={() => void handleActivateSavedProfile(profile.profile_id)} size="small">
-                                                                        {activatingProfileId === profile.profile_id ? <CircularProgress size={14} color="inherit" /> : <ConnectActionIcon />}
-                                                                    </IconButton>
-                                                                </span>
-                                                            </Tooltip>
-                                                            <Tooltip title={copy.deleteProfile}>
-                                                                <span>
-                                                                    <IconButton aria-label={copy.deleteProfile} className="terminal-connections-row-action-button terminal-connections-row-action-button-danger" disabled={formBusy || isRefreshingProfiles || isDisconnecting || activatingProfileId !== null} onClick={() => setPendingDeleteProfile(profile)} size="small">
-                                                                        <DeleteActionIcon />
-                                                                    </IconButton>
-                                                                </span>
-                                                            </Tooltip>
-                                                        </Box>
-                                                    </Box>
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    </Box>
-                                </Stack>
-                            </CardContent>
-                        </Card>
-
-                        <TerminalScopedOverlay open={isDisconnecting} onClose={() => undefined}>
-                            <Card elevation={0} sx={{ ...surfaceCardSx, minWidth: { xs: 'min(92vw, 240px)', sm: 240 }, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <CardContent sx={{ px: 3, py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25 }}>
-                                    <CircularProgress size={28} />
-                                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: palette.text }}>{copy.disconnectingAction}</Typography>
-                                </CardContent>
-                            </Card>
-                        </TerminalScopedOverlay>
-
-                        <TerminalScopedOverlay
-                            open={isAccessDialogOpen}
-                            onClose={() => {
-                                if (!formBusy) {
-                                    setIsAccessDialogOpen(false)
-                                }
-                            }}
-                        >
-                            <Card elevation={0} sx={{ ...surfaceCardSx, maxHeight: 'min(calc(100dvh - 96px), 680px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', my: 'auto' }}>
-                                <DialogTitle sx={{ px: 2.25, py: 1.5, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                        <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
-                                            {accessForm.profileId ? copy.editAction : copy.addHostAction}
-                                        </Typography>
-                                        <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={formBusy} onClick={() => setIsAccessDialogOpen(false)} size="small">
-                                            <CloseActionIcon />
-                                        </IconButton>
-                                    </Box>
-                                </DialogTitle>
-                                <DialogContent dividers sx={{ px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 }, backgroundColor: palette.cardBg, flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
-                                    {accessFields}
-                                </DialogContent>
-                                <DialogActions sx={{ px: 2.25, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg, justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-                                    <Button onClick={() => setIsAccessDialogOpen(false)} disabled={formBusy}>{copy.cancel}</Button>
-                                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                        <Button disabled={formBusy} onClick={() => void handleConnectionTest()} startIcon={isTestingConnection ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="outlined">
-                                            {copy.connectionTestTitle}
-                                        </Button>
-                                        <Button disabled={formBusy} onClick={() => void handleAccessSubmit()} startIcon={isSubmittingAccess ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="contained">
-                                            {copy.accessSubmit}
-                                        </Button>
-                                    </Stack>
-                                </DialogActions>
-                            </Card>
-                        </TerminalScopedOverlay>
-
-                        <TerminalScopedOverlay open={pendingDeleteProfile !== null} onClose={() => setPendingDeleteProfile(null)}>
-                            <Card elevation={0} sx={{ ...surfaceCardSx, minWidth: { xs: 'min(92vw, 360px)', sm: 360 } }}>
-                                <DialogTitle sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                        <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
-                                            {copy.deleteProfileTitle}
-                                        </Typography>
-                                        <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" onClick={() => setPendingDeleteProfile(null)} size="small">
-                                            <CloseActionIcon />
-                                        </IconButton>
-                                    </Box>
-                                </DialogTitle>
-                                <DialogContent dividers sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
-                                    <Typography sx={{ fontSize: 14, lineHeight: 1.65, color: palette.text }}>
-                                        {copy.deleteProfilePrompt}
-                                    </Typography>
-                                    {pendingDeleteProfile ? (
-                                        <Typography sx={{ mt: 1.25, fontSize: 13, fontWeight: 700, color: palette.subtleText }}>
-                                            {pendingDeleteProfile.host} / {pendingDeleteProfile.username}
-                                        </Typography>
-                                    ) : null}
-                                </DialogContent>
-                                <DialogActions sx={{ px: 2.5, py: 2, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg }}>
-                                    <Button onClick={() => setPendingDeleteProfile(null)}>{copy.cancel}</Button>
-                                    <Button color="error" onClick={() => void handleConfirmDeleteProfile()} variant="contained">
-                                        {copy.confirmDelete}
-                                    </Button>
-                                </DialogActions>
-                            </Card>
-                        </TerminalScopedOverlay>
-                    </Box>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 ) : (
                     <Card
                         elevation={0}
@@ -3509,331 +3910,296 @@ export function TerminalPage() {
                     >
                         <CardContent sx={{ p: 0, display: 'flex', flex: '1 1 auto', minHeight: 0, width: '100%', '&:last-child': { pb: 0 } }}>
                             <div className="terminal-workspace-shell" ref={terminalWorkspaceShellRef}>
-                                <div className={`terminal-workspace-grid terminal-workspace-grid-${workspaceView}`}>
-                                    {workspaceView !== 'files' ? (
-                                        <div className="terminal-shell-pane">
-                                            <div className="terminal-session-strip">
-                                                <div className="terminal-session-tabs">
-                                                    {sessions.map((session) => {
-                                                        const active = session.id === activeSession?.id
-                                                        const tone = getStatusTone(session.status, palette)
-                                                        return (
-                                                            <div
-                                                                key={session.id}
-                                                                className={`terminal-session-tab ${active ? 'terminal-session-tab-active' : ''}`}
-                                                                style={{
-                                                                    borderColor: active ? (isDarkMode ? 'rgba(96, 165, 250, 0.78)' : alpha(palette.terminalTabActive, 0.24)) : palette.border,
-                                                                    backgroundColor: active ? (isDarkMode ? 'rgba(37, 99, 235, 0.42)' : alpha(palette.terminalTabActive, 0.08)) : palette.terminalTab,
-                                                                    color: active ? (isDarkMode ? '#eff6ff' : '#1e3a8a') : palette.text,
-                                                                    boxShadow: active && isDarkMode ? 'inset 0 0 0 1px rgba(147, 197, 253, 0.34)' : 'none',
-                                                                }}
-                                                            >
-                                                                <button className="terminal-session-tab-toggle" onClick={() => setActiveSessionId(session.id)} type="button">
-                                                                    <span className="terminal-session-tab-main">
-                                                                        <span className="terminal-session-tab-title">{session.title}</span>
-                                                                    </span>
-                                                                    <span className="terminal-session-tab-status" style={{ backgroundColor: tone }} />
+                                <div className="terminal-workspace-grid terminal-workspace-grid-terminal">
+                                    <div className="terminal-shell-pane">
+                                        <div className="terminal-session-strip">
+                                            <div className="terminal-session-tabs">
+                                                {sessions.map((session) => {
+                                                    const active = session.id === activeSession?.id
+                                                    const tone = getStatusTone(session.status, palette)
+                                                    return (
+                                                        <div
+                                                            key={session.id}
+                                                            className={`terminal-session-tab ${active ? 'terminal-session-tab-active' : ''}`}
+                                                            style={{
+                                                                borderColor: active ? (isDarkMode ? 'rgba(96, 165, 250, 0.78)' : alpha(palette.terminalTabActive, 0.24)) : palette.border,
+                                                                backgroundColor: active ? (isDarkMode ? 'rgba(37, 99, 235, 0.42)' : alpha(palette.terminalTabActive, 0.08)) : palette.terminalTab,
+                                                                color: active ? (isDarkMode ? '#eff6ff' : '#1e3a8a') : palette.text,
+                                                                boxShadow: active && isDarkMode ? 'inset 0 0 0 1px rgba(147, 197, 253, 0.34)' : 'none',
+                                                            }}
+                                                        >
+                                                            <button className="terminal-session-tab-toggle" onClick={() => setActiveSessionId(session.id)} type="button">
+                                                                <span className="terminal-session-tab-main">
+                                                                    <span className="terminal-session-tab-title">{session.title}</span>
+                                                                </span>
+                                                                <span className="terminal-session-tab-status" style={{ backgroundColor: tone }} />
+                                                            </button>
+                                                            {active ? (
+                                                                <button className="terminal-session-tab-close" onClick={() => handleCloseSession(session.id)} type="button">
+                                                                    ×
                                                                 </button>
-                                                                {active ? (
-                                                                    <button className="terminal-session-tab-close" onClick={() => handleCloseSession(session.id)} type="button">
-                                                                        ×
-                                                                    </button>
-                                                                ) : null}
-                                                            </div>
-                                                        )
-                                                    })}
-                                                    <button aria-label={copy.newSessionAria} className="terminal-session-add terminal-session-add-icon" onClick={handleCreateSession} type="button">
-                                                        <span className="terminal-session-add-glyph">+</span>
-                                                    </button>
-                                                </div>
-
-                                                <div className="terminal-session-toolbar-actions">
-                                                    <button aria-label={isTerminalFullscreen ? copy.exitFullscreen : copy.enterFullscreen} className="terminal-session-toolbar-button" onClick={() => void handleToggleTerminalFullscreen()} type="button">
-                                                        <span className="terminal-session-toolbar-glyph">{isTerminalFullscreen ? '⤡' : '⤢'}</span>
-                                                    </button>
-                                                </div>
+                                                            ) : null}
+                                                        </div>
+                                                    )
+                                                })}
+                                                <button aria-label={copy.newConnectionTitle} className="terminal-session-add terminal-session-add-icon" onClick={handleCreateSession} type="button">
+                                                    <span className="terminal-session-add-glyph">+</span>
+                                                </button>
                                             </div>
-
-                                            {activeSession ? (
-                                                <div className={`terminal-shell-surface ${isTerminalOverlayFullscreen ? 'terminal-shell-surface-overlay-fullscreen' : ''}`} ref={terminalShellRef} style={{ background: `linear-gradient(180deg, ${alpha(palette.terminalBg, 0.94)} 0%, ${alpha('#020617', 0.98)} 100%)` }}>
-                                                    <div className="terminal-shell-toolbar">
-                                                        <div className="terminal-shell-toolbar-left">
-                                                            <span className="terminal-window-dot" style={{ backgroundColor: '#fb7185' }} />
-                                                            <span className="terminal-window-dot" style={{ backgroundColor: '#fbbf24' }} />
-                                                            <span className="terminal-window-dot" style={{ backgroundColor: '#34d399' }} />
-                                                            <span className="terminal-shell-title">{activeSession.user}@{activeSession.host || copy.localServerTitle}</span>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="terminal-shell-body">
-                                                        <div className="terminal-shell-transcript">
-                                                            <div className="terminal-xterm-host" ref={terminalHostRef} />
-                                                        </div>
-                                                        {activeSession.status !== 'connected' ? (
-                                                            <div className="terminal-inline-reconnect-row">
-                                                                <span className="terminal-line terminal-line-meta">{copy.promptReconnect}</span>
-                                                                <Button onClick={handleReconnect} size="small" variant="outlined">
-                                                                    {copy.reconnect}
-                                                                </Button>
-                                                            </div>
-                                                        ) : null}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="terminal-shell-empty">
-                                                    <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.sessionEmpty}</Typography>
-                                                </div>
-                                            )}
                                         </div>
-                                    ) : null}
 
-                                    {workspaceView !== 'terminal' ? (
-                                        <div className="terminal-files-pane terminal-files-shell" style={{ ...terminalFilesThemeVars, borderLeftColor: palette.border }}>
-                                            <div className="terminal-files-toolbar-row">
-                                                <div className="terminal-files-toolbar-group">
-                                                    <button className="terminal-files-toolbar-button" disabled={browserHistoryIndex <= 0} onClick={handleNavigateBack} title={copy.browseBack} type="button">
-                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-back" />
-                                                    </button>
-                                                    <button className="terminal-files-toolbar-button" disabled={browserHistoryIndex >= browserHistory.length - 1} onClick={handleNavigateForward} title={copy.browseForward} type="button">
-                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-forward" />
-                                                    </button>
-                                                    <button className="terminal-files-toolbar-button" disabled={browserPath === '/'} onClick={handleBrowseUp} title={copy.browseUp} type="button">
-                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-up" />
-                                                    </button>
-                                                    <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={browserLoading} onClick={handleRefreshBrowser} title={copy.refresh} type="button">
-                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-refresh" />
-                                                    </button>
+                                        {activeSession ? (
+                                            <div className={`terminal-shell-surface ${isTerminalOverlayFullscreen ? 'terminal-shell-surface-overlay-fullscreen' : ''} ${isDarkMode ? '' : 'terminal-shell-surface-light'}`} ref={terminalShellRef} style={{ background: isDarkMode ? `linear-gradient(180deg, ${alpha(palette.terminalBg, 0.94)} 0%, ${alpha('#020617', 0.98)} 100%)` : 'linear-gradient(180deg, #f8fafc 0%, #eef3f9 100%)' }}>
+                                                <div className="terminal-shell-toolbar">
+                                                    <div className="terminal-shell-toolbar-left">
+                                                        <span className="terminal-window-dot" style={{ backgroundColor: '#fb7185' }} />
+                                                        <span className="terminal-window-dot" style={{ backgroundColor: '#fbbf24' }} />
+                                                        <span className="terminal-window-dot" style={{ backgroundColor: '#34d399' }} />
+                                                        <span className="terminal-shell-title">{activeSession.user}@{activeSession.host || copy.localServerTitle}</span>
+                                                    </div>
+                                                    <div className="terminal-shell-toolbar-right">
+                                                        <Button onClick={() => void handleLogout()} size="small" variant="outlined">
+                                                            {copy.disconnect}
+                                                        </Button>
+                                                        <Button aria-label={isTerminalFullscreen ? copy.exitFullscreen : copy.enterFullscreen} className="terminal-shell-toolbar-icon-button" onClick={() => void handleToggleTerminalFullscreen()} size="small" type="button" variant="outlined">
+                                                            <span className="terminal-session-toolbar-glyph">{isTerminalFullscreen ? '⤡' : '⤢'}</span>
+                                                        </Button>
+                                                    </div>
                                                 </div>
 
-                                                <div className="terminal-files-toolbar-paths">
-                                                    <TextField
-                                                        className="terminal-files-path-input"
-                                                        onBlur={() => setPathInputValue(browserPath)}
-                                                        onChange={(event) => handlePathInputChange(event.target.value)}
-                                                        onKeyDown={(event) => {
-                                                            if (event.key === 'Enter') {
-                                                                event.preventDefault()
-                                                                handleApplyPathInput()
-                                                            }
-                                                        }}
-                                                        placeholder={copy.pathPlaceholder}
-                                                        size="small"
-                                                        slotProps={{ htmlInput: { list: 'terminal-path-suggestions' } }}
-                                                        value={pathInputValue}
-                                                    />
-                                                    <datalist id="terminal-path-suggestions">
-                                                        {pathSuggestions.map((suggestion) => (
-                                                            <option key={suggestion} value={suggestion} />
-                                                        ))}
-                                                    </datalist>
-                                                    <TextField
-                                                        className="terminal-files-search-input"
-                                                        onChange={(event) => setDirectorySearch(event.target.value)}
-                                                        placeholder={copy.searchPlaceholder}
-                                                        size="small"
-                                                        slotProps={{ input: { endAdornment: <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-search" /> } }}
-                                                        value={directorySearch}
-                                                    />
-                                                </div>
+                                                <div className="terminal-shell-body">
+                                                    {workspaceView === 'files' ? (
+                                                        <div className="terminal-files-pane terminal-files-shell terminal-files-pane-embedded" style={{ ...terminalFilesThemeVars, borderLeftColor: palette.border }}>
+                                                            <div className="terminal-files-toolbar-row">
+                                                                <div className="terminal-files-toolbar-group">
+                                                                    <button className="terminal-files-toolbar-button" disabled={browserHistoryIndex <= 0} onClick={handleNavigateBack} title={copy.browseBack} type="button">
+                                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-back" />
+                                                                    </button>
+                                                                    <button className="terminal-files-toolbar-button" disabled={browserHistoryIndex >= browserHistory.length - 1} onClick={handleNavigateForward} title={copy.browseForward} type="button">
+                                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-forward" />
+                                                                    </button>
+                                                                    <button className="terminal-files-toolbar-button" disabled={browserPath === '/'} onClick={handleBrowseUp} title={copy.browseUp} type="button">
+                                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-up" />
+                                                                    </button>
+                                                                    <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={browserLoading} onClick={handleRefreshBrowser} title={copy.refresh} type="button">
+                                                                        <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-refresh" />
+                                                                    </button>
+                                                                </div>
 
-                                                <div className="terminal-files-toolbar-group terminal-files-toolbar-group-actions">
-                                                    <button
-                                                        className="terminal-files-toolbar-button terminal-files-toolbar-button-primary"
-                                                        disabled={isFileActionSubmitting}
-                                                        onClick={() => openBrowserActionDialog({ type: 'create-folder' })}
-                                                        title={copy.createFolder}
-                                                        type="button"
-                                                    >
-                                                        <FolderCreateIcon />
-                                                    </button>
-                                                    <button
-                                                        className="terminal-files-toolbar-button terminal-files-toolbar-button-primary"
-                                                        disabled={isFileActionSubmitting}
-                                                        onClick={() => openBrowserActionDialog({ type: 'create-file' })}
-                                                        title={copy.createFile}
-                                                        type="button"
-                                                    >
-                                                        <FileCreateIcon />
-                                                    </button>
-                                                    <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={isFileActionSubmitting} onClick={() => uploadInputRef.current?.click()} title={copy.uploadFile} type="button">
-                                                        <UploadFileIcon />
-                                                    </button>
-                                                    <input ref={uploadInputRef} hidden type="file" onChange={(event) => void handleUploadChange(event)} />
-                                                </div>
-                                            </div>
+                                                                <div className="terminal-files-toolbar-paths">
+                                                                    <TextField className="terminal-files-path-input" onBlur={() => setPathInputValue(browserPath)} onChange={(event) => handlePathInputChange(event.target.value)} onKeyDown={(event) => {
+                                                                        if (event.key === 'Enter') {
+                                                                            event.preventDefault()
+                                                                            handleApplyPathInput()
+                                                                        }
+                                                                    }} placeholder={copy.pathPlaceholder} size="small" slotProps={{ htmlInput: { list: 'terminal-path-suggestions' } }} value={pathInputValue} />
+                                                                    <datalist id="terminal-path-suggestions">
+                                                                        {pathSuggestions.map((suggestion) => (
+                                                                            <option key={suggestion} value={suggestion} />
+                                                                        ))}
+                                                                    </datalist>
+                                                                    <TextField className="terminal-files-search-input" onChange={(event) => setDirectorySearch(event.target.value)} placeholder={copy.searchPlaceholder} size="small" slotProps={{ input: { endAdornment: <span className="terminal-files-toolbar-glyph terminal-files-toolbar-glyph-search" /> } }} value={directorySearch} />
+                                                                </div>
 
-                                            <div className="terminal-files-layout">
-                                                <div
-                                                    className="terminal-files-browser-panel"
-                                                    onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-list-row, .terminal-files-grid-card')}
-                                                    onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-list-row, .terminal-files-grid-card')}
-                                                >
-                                                    {browserLoading ? <div className="terminal-files-progress" /> : null}
-                                                    {isEditorLoading ? (
-                                                        <div className="terminal-files-empty">
-                                                            <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.editorLoading}</Typography>
-                                                        </div>
-                                                    ) : editorPath ? (
-                                                        <div className="terminal-files-browser-editor">
-                                                            <div className="terminal-files-browser-editor-header">
-                                                                <div className="terminal-files-browser-editor-header-main">
-                                                                    <div className="terminal-files-browser-editor-title terminal-files-truncate">{editorPath}</div>
-                                                                    <div className="terminal-files-editor-actions terminal-files-editor-actions-header">
-                                                                        <button className="terminal-files-editor-action terminal-files-editor-action-close" onClick={clearEditorState} title={copy.closeEditor} type="button">
-                                                                            <ToolbarGlyph kind="close" />
-                                                                        </button>
-                                                                        <button className="terminal-files-editor-action terminal-files-editor-action-save" disabled={!editorDirty || isFileActionSubmitting} onClick={() => void handleSaveEditor()} title={copy.saveFile} type="button">
-                                                                            <ToolbarGlyph kind="save" />
-                                                                        </button>
-                                                                    </div>
+                                                                <div className="terminal-files-toolbar-group terminal-files-toolbar-group-actions">
+                                                                    <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={isFileActionSubmitting} onClick={() => openBrowserActionDialog({ type: 'create-folder' })} title={copy.createFolder} type="button">
+                                                                        <FolderCreateIcon />
+                                                                    </button>
+                                                                    <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={isFileActionSubmitting} onClick={() => openBrowserActionDialog({ type: 'create-file' })} title={copy.createFile} type="button">
+                                                                        <FileCreateIcon />
+                                                                    </button>
+                                                                    <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={isFileActionSubmitting} onClick={() => uploadInputRef.current?.click()} title={copy.uploadFile} type="button">
+                                                                        <UploadFileIcon />
+                                                                    </button>
+                                                                    <input ref={uploadInputRef} hidden type="file" onChange={(event) => void handleUploadChange(event)} />
                                                                 </div>
                                                             </div>
-                                                            <div className="terminal-files-browser-editor-body">
-                                                                <TextField
-                                                                    className="terminal-files-editor-textarea"
-                                                                    fullWidth
-                                                                    multiline
-                                                                    onChange={(event) => setEditorContent(event.target.value)}
-                                                                    slotProps={{ htmlInput: { wrap: 'off', spellCheck: false } }}
-                                                                    sx={editorTextareaSx}
-                                                                    value={editorContent}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ) : browserLoading ? (
-                                                        <div className="terminal-files-empty">
-                                                            <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.browserLoading}</Typography>
-                                                        </div>
-                                                    ) : filteredBrowserEntries.length ? (
-                                                        <div className="terminal-files-list-view">
-                                                            {browserDisplayMode === 'list' ? (
-                                                                <>
-                                                                    <div className="terminal-files-list-header terminal-files-list-row-frame">
-                                                                        <div>{copy.nameLabel}</div>
-                                                                        <div>{copy.modeLabel}</div>
-                                                                        <div>{copy.ownerLabel}</div>
-                                                                        <div>{copy.groupLabel}</div>
-                                                                        <div>{copy.sizeLabel}</div>
-                                                                        <div>{copy.modifiedLabel}</div>
-                                                                        <div>{copy.createdLabel}</div>
-                                                                    </div>
-                                                                    <div className="terminal-files-list-body" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-list-row')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-list-row')}>
-                                                                        {filteredBrowserEntries.map((entry) => {
-                                                                            const selected = selectedEntryPath === entry.path
-                                                                            return (
-                                                                                <button
-                                                                                    key={entry.path}
-                                                                                    className={`terminal-files-list-row terminal-files-list-row-frame ${selected ? 'terminal-files-list-row-selected' : ''}`}
-                                                                                    onClick={() => handleBrowseEntry(entry)}
-                                                                                    onContextMenu={(event) => openBrowserContextMenu(event, entry)}
-                                                                                    onDoubleClick={() => handleBrowseEntryOpen(entry)}
-                                                                                    type="button"
-                                                                                >
-                                                                                    <div className="terminal-files-list-name">
-                                                                                        <FileItemGlyph kind={getVisualKind(entry)} variant="list" active={selected && entry.item_type === 'directory'} />
-                                                                                        <span className="terminal-files-truncate">{entry.name}</span>
-                                                                                    </div>
-                                                                                    <div>{entry.mode || '—'}</div>
-                                                                                    <div>{formatBrowserIdentity(entry.owner)}</div>
-                                                                                    <div>{formatBrowserIdentity(entry.group)}</div>
-                                                                                    <div>{entry.item_type === 'file' ? formatFileSize(entry.size) : '—'}</div>
-                                                                                    <div>{formatBrowserTimestamp(entry.modified_at, locale)}</div>
-                                                                                    <div>{formatBrowserTimestamp(entry.created_at, locale)}</div>
-                                                                                </button>
-                                                                            )
-                                                                        })}
-                                                                    </div>
-                                                                </>
-                                                            ) : (
-                                                                <div className="terminal-files-grid-body" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-grid-card')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-grid-card')}>
-                                                                    {filteredBrowserEntries.map((entry) => {
-                                                                        const selected = selectedEntryPath === entry.path
-                                                                        return (
-                                                                            <button
-                                                                                key={entry.path}
-                                                                                className="terminal-files-grid-card"
-                                                                                onClick={() => handleBrowseEntry(entry)}
-                                                                                onContextMenu={(event) => openBrowserContextMenu(event, entry)}
-                                                                                onDoubleClick={() => handleBrowseEntryOpen(entry)}
-                                                                                type="button"
-                                                                            >
-                                                                                <div className={`terminal-files-grid-card-hitbox ${selected ? 'terminal-files-grid-card-hitbox-selected' : ''}`}>
-                                                                                    <FileItemGlyph kind={getVisualKind(entry)} variant="card" active={selected && entry.item_type === 'directory'} />
-                                                                                    <div className="terminal-files-grid-card-body">
-                                                                                        <div className="terminal-files-grid-card-title">{entry.name}</div>
+
+                                                            <div className="terminal-files-layout">
+                                                                <div className="terminal-files-browser-panel" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-list-row, .terminal-files-grid-card')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-list-row, .terminal-files-grid-card')}>
+                                                                    {browserLoading ? <div className="terminal-files-progress" /> : null}
+                                                                    {isEditorLoading ? (
+                                                                        <div className="terminal-files-empty">
+                                                                            <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.editorLoading}</Typography>
+                                                                        </div>
+                                                                    ) : editorPath ? (
+                                                                        <div className="terminal-files-browser-editor">
+                                                                            <div className="terminal-files-browser-editor-header">
+                                                                                <div className="terminal-files-browser-editor-header-main">
+                                                                                    <div className="terminal-files-browser-editor-title terminal-files-truncate">{editorPath}</div>
+                                                                                    <div className="terminal-files-editor-actions terminal-files-editor-actions-header">
+                                                                                        <button className="terminal-files-editor-action terminal-files-editor-action-close" onClick={clearEditorState} title={copy.closeEditor} type="button">
+                                                                                            <ToolbarGlyph kind="close" />
+                                                                                        </button>
+                                                                                        <button className="terminal-files-editor-action terminal-files-editor-action-save" disabled={!editorDirty || isFileActionSubmitting} onClick={() => void handleSaveEditor()} title={copy.saveFile} type="button">
+                                                                                            <ToolbarGlyph kind="save" />
+                                                                                        </button>
                                                                                     </div>
                                                                                 </div>
-                                                                            </button>
-                                                                        )
-                                                                    })}
+                                                                            </div>
+                                                                            <div className="terminal-files-browser-editor-body">
+                                                                                <TextField className="terminal-files-editor-textarea" fullWidth multiline onChange={(event) => setEditorContent(event.target.value)} slotProps={{ htmlInput: { wrap: 'off', spellCheck: false } }} sx={editorTextareaSx} value={editorContent} />
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : filteredBrowserEntries.length ? (
+                                                                        <div className="terminal-files-list-view">
+                                                                            {browserDisplayMode === 'list' ? (
+                                                                                <>
+                                                                                    <div className="terminal-files-list-header terminal-files-list-row-frame">
+                                                                                        <div>{copy.nameLabel}</div>
+                                                                                        <div>{copy.modeLabel}</div>
+                                                                                        <div>{copy.ownerLabel}</div>
+                                                                                        <div>{copy.groupLabel}</div>
+                                                                                        <div>{copy.sizeLabel}</div>
+                                                                                        <div>{copy.modifiedLabel}</div>
+                                                                                        <div>{copy.createdLabel}</div>
+                                                                                    </div>
+                                                                                    <div className="terminal-files-list-body" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-list-row')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-list-row')}>
+                                                                                        {filteredBrowserEntries.map((entry) => {
+                                                                                            const selected = selectedEntryPath === entry.path
+                                                                                            return (
+                                                                                                <button key={entry.path} className={`terminal-files-list-row terminal-files-list-row-frame ${selected ? 'terminal-files-list-row-selected' : ''}`} onClick={() => handleBrowseEntry(entry)} onContextMenu={(event) => openBrowserContextMenu(event, entry)} onDoubleClick={() => handleBrowseEntryOpen(entry)} type="button">
+                                                                                                    <div className="terminal-files-list-name">
+                                                                                                        <FileItemGlyph kind={getVisualKind(entry)} variant="list" active={selected && entry.item_type === 'directory'} />
+                                                                                                        <span className="terminal-files-truncate">{entry.name}</span>
+                                                                                                    </div>
+                                                                                                    <div>{entry.mode || '—'}</div>
+                                                                                                    <div>{formatBrowserIdentity(entry.owner)}</div>
+                                                                                                    <div>{formatBrowserIdentity(entry.group)}</div>
+                                                                                                    <div>{entry.item_type === 'file' ? formatFileSize(entry.size) : '—'}</div>
+                                                                                                    <div>{formatBrowserTimestamp(entry.modified_at, locale)}</div>
+                                                                                                    <div>{formatBrowserTimestamp(entry.created_at, locale)}</div>
+                                                                                                </button>
+                                                                                            )
+                                                                                        })}
+                                                                                    </div>
+                                                                                </>
+                                                                            ) : (
+                                                                                <div className="terminal-files-grid-body" onClick={(event) => handleBrowserBackgroundClick(event, '.terminal-files-grid-card')} onContextMenu={(event) => handleBrowserBackgroundContextMenu(event, '.terminal-files-grid-card')}>
+                                                                                    {filteredBrowserEntries.map((entry) => {
+                                                                                        const selected = selectedEntryPath === entry.path
+                                                                                        return (
+                                                                                            <button key={entry.path} className="terminal-files-grid-card" onClick={() => handleBrowseEntry(entry)} onContextMenu={(event) => openBrowserContextMenu(event, entry)} onDoubleClick={() => handleBrowseEntryOpen(entry)} type="button">
+                                                                                                <div className={`terminal-files-grid-card-hitbox ${selected ? 'terminal-files-grid-card-hitbox-selected' : ''}`}>
+                                                                                                    <FileItemGlyph kind={getVisualKind(entry)} variant="card" active={selected && entry.item_type === 'directory'} />
+                                                                                                    <div className="terminal-files-grid-card-body">
+                                                                                                        <div className="terminal-files-grid-card-title">{entry.name}</div>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </button>
+                                                                                        )
+                                                                                    })}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : browserLoading ? (
+                                                                        <div className="terminal-files-list-view">
+                                                                            <div className="terminal-files-list-header terminal-files-list-row-frame">
+                                                                                <div>{copy.nameLabel}</div>
+                                                                                <div>{copy.modeLabel}</div>
+                                                                                <div>{copy.ownerLabel}</div>
+                                                                                <div>{copy.groupLabel}</div>
+                                                                                <div>{copy.sizeLabel}</div>
+                                                                                <div>{copy.modifiedLabel}</div>
+                                                                                <div>{copy.createdLabel}</div>
+                                                                            </div>
+                                                                            <div className="terminal-files-list-body">
+                                                                                {Array.from({ length: 8 }).map((_, i) => (
+                                                                                    <div key={i} className="terminal-files-list-row terminal-files-list-row-frame" style={{ pointerEvents: 'none' }}>
+                                                                                        <div className="terminal-files-list-name">
+                                                                                            <Skeleton variant="circular" width={18} height={18} sx={{ flexShrink: 0 }} />
+                                                                                            <Skeleton variant="text" width={i % 3 === 0 ? 140 : i % 3 === 1 ? 100 : 80} height={14} />
+                                                                                        </div>
+                                                                                        <Skeleton variant="text" width="55%" height={14} />
+                                                                                        <Skeleton variant="text" width="45%" height={14} />
+                                                                                        <Skeleton variant="text" width="45%" height={14} />
+                                                                                        <Skeleton variant="text" width="35%" height={14} />
+                                                                                        <Skeleton variant="text" width="65%" height={14} />
+                                                                                        <Skeleton variant="text" width="65%" height={14} />
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="terminal-files-empty">
+                                                                            <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.fileEmpty}</Typography>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
+
+                                                                <div className="terminal-files-inspector-panel">
+                                                                    <div className="terminal-files-inspector-header terminal-files-inspector-header-classic">
+                                                                        <div className="terminal-files-inspector-header-main">
+                                                                            <div className="terminal-files-inspector-header-title terminal-files-truncate">{inspectorEntry?.name || copy.inspectorTitle}</div>
+                                                                            <div className="terminal-files-inspector-header-actions">
+                                                                                <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small terminal-files-toolbar-button-danger" disabled={!canDeleteSelectedItem} onClick={() => activeBrowserEntry ? openBrowserActionDialog({ type: 'delete', item: activeBrowserEntry }) : undefined} size="small" title={copy.deleteAction}>
+                                                                                    <ToolbarGlyph kind="trash" />
+                                                                                </IconButton>
+                                                                                <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small" disabled={!canShowInspectorProperties} onClick={handleShowInspectorProperties} size="small" title={copy.propertiesAction}>
+                                                                                    <ToolbarGlyph kind="properties" />
+                                                                                </IconButton>
+                                                                                <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small" disabled={!canEditSelectedItem} onClick={() => selectedBrowserEntry ? handleBrowseEntryOpen(selectedBrowserEntry) : undefined} size="small" title={copy.editAction}>
+                                                                                    <ToolbarGlyph kind="edit" />
+                                                                                </IconButton>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="terminal-files-inspector-body terminal-files-inspector-body-classic">
+                                                                        {inspectorEntry ? (
+                                                                            <div className="terminal-files-inspector-rows terminal-files-inspector-rows-classic">
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.modeLabel}</Typography><Typography className="terminal-files-inspector-value">{inspectorEntry.mode || '—'}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.ownerLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.owner)}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.groupLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.group)}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.sizeLabel}</Typography><Typography className="terminal-files-inspector-value">{inspectorEntry.item_type === 'file' ? formatFileSize(inspectorEntry.size) : '—'}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.modifiedLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.modified_at, locale)}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.createdLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.created_at, locale)}</Typography></div>
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.pathPlaceholder}</Typography><Typography className="terminal-files-inspector-value terminal-files-break-value">{inspectorEntry.path}</Typography></div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="terminal-files-empty">
+                                                                                <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.fileEmpty}</Typography>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="terminal-files-empty">
-                                                            <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.fileEmpty}</Typography>
-                                                        </div>
+                                                        <>
+                                                            <div className="terminal-shell-transcript" style={{ position: 'relative' }}>
+                                                                <div className="terminal-xterm-host" ref={terminalHostRef} />
+                                                                {activeSession.status === 'idle' ? (
+                                                                    <Box sx={{
+                                                                        position: 'absolute', inset: 0,
+                                                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                                        gap: 1.5,
+                                                                        backgroundColor: palette.cardBg,
+                                                                        zIndex: 2,
+                                                                    }}>
+                                                                        <CircularProgress size={28} />
+                                                                        <Typography sx={{ fontSize: 13, color: palette.subtleText }}>{copy.connectingAction}</Typography>
+                                                                    </Box>
+                                                                ) : null}
+                                                            </div>
+                                                            {activeSession.status === 'ended' ? (
+                                                                <div className="terminal-inline-reconnect-row">
+                                                                    <span className="terminal-line terminal-line-meta">{copy.promptReconnect}</span>
+                                                                    <Button onClick={handleReconnect} size="small" variant="outlined">
+                                                                        {copy.reconnect}
+                                                                    </Button>
+                                                                </div>
+                                                            ) : null}
+                                                        </>
                                                     )}
                                                 </div>
-
-                                                <div className="terminal-files-inspector-panel">
-                                                    <div className="terminal-files-inspector-header terminal-files-inspector-header-classic">
-                                                        <div className="terminal-files-inspector-header-main">
-                                                            <div className="terminal-files-inspector-header-title terminal-files-truncate">{inspectorEntry?.name || copy.inspectorTitle}</div>
-                                                            <div className="terminal-files-inspector-header-actions">
-                                                                <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small terminal-files-toolbar-button-danger" disabled={!canDeleteSelectedItem} onClick={() => activeBrowserEntry ? openBrowserActionDialog({ type: 'delete', item: activeBrowserEntry }) : undefined} size="small" title={copy.deleteAction}>
-                                                                    <ToolbarGlyph kind="trash" />
-                                                                </IconButton>
-                                                                <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small" disabled={!canShowInspectorProperties} onClick={handleShowInspectorProperties} size="small" title={copy.propertiesAction}>
-                                                                    <ToolbarGlyph kind="properties" />
-                                                                </IconButton>
-                                                                <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small" disabled={!canEditSelectedItem} onClick={() => selectedBrowserEntry ? handleBrowseEntryOpen(selectedBrowserEntry) : undefined} size="small" title={copy.editAction}>
-                                                                    <ToolbarGlyph kind="edit" />
-                                                                </IconButton>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="terminal-files-inspector-body terminal-files-inspector-body-classic">
-                                                        {inspectorEntry ? (
-                                                            <div className="terminal-files-inspector-rows terminal-files-inspector-rows-classic">
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.modeLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{inspectorEntry.mode || '—'}</Typography>
-                                                                </div>
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.ownerLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.owner)}</Typography>
-                                                                </div>
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.groupLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.group)}</Typography>
-                                                                </div>
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.sizeLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{formatFileSize(inspectorEntry.size)}</Typography>
-                                                                </div>
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.modifiedLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.modified_at, locale)}</Typography>
-                                                                </div>
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.accessedLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.accessed_at, locale)}</Typography>
-                                                                </div>
-                                                                <div className="terminal-files-inspector-row">
-                                                                    <Typography className="terminal-files-inspector-label">{copy.createdLabel}</Typography>
-                                                                    <Typography className="terminal-files-inspector-value">{formatBrowserTimestamp(inspectorEntry.created_at, locale)}</Typography>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="terminal-files-empty terminal-files-empty-inspector">
-                                                                <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.detailsEmpty}</Typography>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
                                             </div>
+                                        ) : (
+                                            <div className="terminal-shell-empty">
+                                                <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{copy.sessionEmpty}</Typography>
+                                            </div>
+                                        )}
 
+                                        {workspaceView === 'files' ? (
                                             <div className="terminal-files-footer">
                                                 <div className="terminal-files-footer-stats">
                                                     {`${visibleDirectoryCount} ${copy.directoryLabel}, ${visibleFileCount} ${copy.filesLabel} (${formatFileSize(visibleFileSize)})`}
@@ -3847,226 +4213,388 @@ export function TerminalPage() {
                                                     </button>
                                                 </div>
                                             </div>
+                                        ) : null}
 
-                                            <Dialog
-                                                container={terminalWorkspaceShellRef.current}
-                                                disablePortal
-                                                open={browserDialogState !== null}
-                                                onClose={() => setBrowserDialogState(null)}
-                                                sx={{
+                                        <Dialog
+                                            container={terminalWorkspaceShellRef.current}
+                                            disablePortal
+                                            open={browserDialogState !== null}
+                                            onClose={() => setBrowserDialogState(null)}
+                                            sx={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                '& .MuiDialog-paper': {
+                                                    borderRadius: '2px',
+                                                    backgroundColor: palette.cardBg,
+                                                    color: palette.text,
+                                                    border: `1px solid ${palette.border}`,
+                                                    minWidth: { xs: 'min(96vw, 420px)', sm: browserDialogState?.type === 'properties' ? 560 : 360 },
+                                                },
+                                                '& .MuiBackdrop-root': {
                                                     position: 'absolute',
-                                                    inset: 0,
-                                                    '& .MuiDialog-paper': {
+                                                },
+                                            }}
+                                        >
+                                            <DialogTitle sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                                                {browserDialogState?.type === 'create-folder'
+                                                    ? copy.createFolderTitle
+                                                    : browserDialogState?.type === 'create-file'
+                                                        ? copy.createFileTitle
+                                                        : browserDialogState?.type === 'rename'
+                                                            ? copy.renameTitle
+                                                            : browserDialogState?.type === 'properties'
+                                                                ? copy.propertiesTitle
+                                                                : copy.deleteTitle}
+                                            </DialogTitle>
+                                            <DialogContent dividers sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                                                {browserDialogState?.type === 'delete' ? (
+                                                    <Stack spacing={1.25}>
+                                                        <Box sx={{ border: `1px solid ${alpha(palette.danger, 0.28)}`, borderRadius: '2px', backgroundColor: alpha(palette.danger, isDarkMode ? 0.2 : 0.08), boxShadow: `inset 3px 0 0 ${palette.danger}`, px: 1.5, py: 1.25 }}>
+                                                            <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.2, color: palette.danger }}>{copy.deleteTargetLabel}</Typography>
+                                                            <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 600, color: palette.text, wordBreak: 'break-all' }}>{browserDialogState.item.name}</Typography>
+                                                        </Box>
+                                                        <Typography sx={{ fontSize: 14, lineHeight: 1.65, color: palette.text }}>
+                                                            {copy.deletePrompt}
+                                                        </Typography>
+                                                    </Stack>
+                                                ) : browserDialogState?.type === 'properties' && browserPropertiesForm ? (
+                                                    <Stack spacing={2.25}>
+                                                        <TextField
+                                                            disabled
+                                                            fullWidth
+                                                            label={copy.nameLabel}
+                                                            sx={browserDialogFieldSx}
+                                                            value={browserDialogState.item.name}
+                                                        />
+                                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                                                            <TextField
+                                                                autoFocus
+                                                                fullWidth
+                                                                label={copy.ownerLabel}
+                                                                onChange={(event) => setBrowserPropertiesForm((current) => (current ? { ...current, owner: event.target.value } : current))}
+                                                                sx={browserDialogFieldSx}
+                                                                value={browserPropertiesForm.owner}
+                                                            />
+                                                            <TextField
+                                                                fullWidth
+                                                                label={copy.groupLabel}
+                                                                onChange={(event) => setBrowserPropertiesForm((current) => (current ? { ...current, group: event.target.value } : current))}
+                                                                sx={browserDialogFieldSx}
+                                                                value={browserPropertiesForm.group}
+                                                            />
+                                                        </Stack>
+                                                        <Box sx={{ border: `1px solid ${palette.border}`, borderRadius: '2px', overflow: 'hidden' }}>
+                                                            <Box sx={{ px: 1.5, py: 1.25, borderBottom: `1px solid ${palette.border}`, backgroundColor: alpha(palette.pageBg, 0.4) }}>
+                                                                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{copy.permissionsTitle}</Typography>
+                                                                <Typography sx={{ mt: 0.5, fontSize: 12, color: palette.subtleText }}>{`${copy.modePreviewLabel}: ${buildModePreview(browserDialogState.item.item_type, browserPropertiesForm)}`}</Typography>
+                                                            </Box>
+                                                            {([
+                                                                ['ownerPermissions', copy.permissionsOwner],
+                                                                ['groupPermissions', copy.permissionsGroup],
+                                                                ['otherPermissions', copy.permissionsOther],
+                                                            ] as const).map(([field, label], rowIndex) => (
+                                                                <Box
+                                                                    key={field}
+                                                                    sx={{
+                                                                        display: 'grid',
+                                                                        gridTemplateColumns: 'minmax(96px, 1fr) repeat(3, minmax(78px, 92px))',
+                                                                        alignItems: 'center',
+                                                                        px: 1.5,
+                                                                        py: 1,
+                                                                        borderTop: rowIndex === 0 ? 'none' : `1px solid ${palette.border}`,
+                                                                        gap: 1,
+                                                                    }}
+                                                                >
+                                                                    <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{label}</Typography>
+                                                                    {([
+                                                                        ['read', copy.permissionsRead],
+                                                                        ['write', copy.permissionsWrite],
+                                                                        ['execute', copy.permissionsExecute],
+                                                                    ] as const).map(([permissionKey, permissionLabel]) => (
+                                                                        <FormControlLabel
+                                                                            key={permissionKey}
+                                                                            control={
+                                                                                <Checkbox
+                                                                                    checked={browserPropertiesForm[field][permissionKey]}
+                                                                                    onChange={(event) => {
+                                                                                        const checked = event.target.checked
+                                                                                        setBrowserPropertiesForm((current) => (
+                                                                                            current
+                                                                                                ? {
+                                                                                                    ...current,
+                                                                                                    [field]: {
+                                                                                                        ...current[field],
+                                                                                                        [permissionKey]: checked,
+                                                                                                    },
+                                                                                                }
+                                                                                                : current
+                                                                                        ))
+                                                                                    }}
+                                                                                />
+                                                                            }
+                                                                            label={permissionLabel}
+                                                                            sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12.5 } }}
+                                                                        />
+                                                                    ))}
+                                                                </Box>
+                                                            ))}
+                                                        </Box>
+                                                    </Stack>
+                                                ) : (
+                                                    <TextField
+                                                        autoFocus
+                                                        fullWidth
+                                                        label={copy.nameLabel}
+                                                        onChange={(event) => setBrowserDialogName(event.target.value)}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === 'Enter') {
+                                                                event.preventDefault()
+                                                                void handleConfirmBrowserAction()
+                                                            }
+                                                        }}
+                                                        sx={browserDialogFieldSx}
+                                                        value={browserDialogName}
+                                                    />
+                                                )}
+                                            </DialogContent>
+                                            <DialogActions sx={{ px: 2.5, py: 2, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg }}>
+                                                <Button onClick={() => openBrowserActionDialog(null)}>{copy.cancel}</Button>
+                                                <Button
+                                                    color={browserDialogState?.type === 'delete' ? 'error' : 'primary'}
+                                                    disabled={
+                                                        isFileActionSubmitting
+                                                        || (browserDialogState?.type === 'properties'
+                                                            ? !browserPropertiesForm
+                                                            : browserDialogState?.type !== 'delete' && !browserDialogName.trim())
+                                                    }
+                                                    onClick={() => void handleConfirmBrowserAction()}
+                                                    variant="contained"
+                                                >
+                                                    {browserDialogState?.type === 'rename'
+                                                        ? copy.renameConfirm
+                                                        : browserDialogState?.type === 'delete'
+                                                            ? copy.deleteConfirm
+                                                            : browserDialogState?.type === 'properties'
+                                                                ? copy.propertiesSave
+                                                                : copy.createConfirm}
+                                                </Button>
+                                            </DialogActions>
+                                        </Dialog>
+
+                                        <Menu
+                                            open={browserContextMenu !== null}
+                                            onClose={closeBrowserContextMenu}
+                                            anchorReference="anchorPosition"
+                                            anchorPosition={browserContextMenu ? { top: browserContextMenu.mouseY, left: browserContextMenu.mouseX } : undefined}
+                                            slotProps={{
+                                                paper: {
+                                                    sx: {
+                                                        border: `1px solid ${palette.border}`,
                                                         borderRadius: '2px',
                                                         backgroundColor: palette.cardBg,
                                                         color: palette.text,
-                                                        border: `1px solid ${palette.border}`,
-                                                        minWidth: { xs: 'min(96vw, 420px)', sm: browserDialogState?.type === 'properties' ? 560 : 360 },
-                                                    },
-                                                    '& .MuiBackdrop-root': {
-                                                        position: 'absolute',
-                                                    },
-                                                }}
-                                            >
-                                                <DialogTitle sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
-                                                    {browserDialogState?.type === 'create-folder'
-                                                        ? copy.createFolderTitle
-                                                        : browserDialogState?.type === 'create-file'
-                                                            ? copy.createFileTitle
-                                                            : browserDialogState?.type === 'rename'
-                                                                ? copy.renameTitle
-                                                                : browserDialogState?.type === 'properties'
-                                                                    ? copy.propertiesTitle
-                                                                    : copy.deleteTitle}
-                                                </DialogTitle>
-                                                <DialogContent dividers sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
-                                                    {browserDialogState?.type === 'delete' ? (
-                                                        <Stack spacing={1.25}>
-                                                            <Box sx={{ border: `1px solid ${alpha(palette.danger, 0.28)}`, borderRadius: '2px', backgroundColor: alpha(palette.danger, isDarkMode ? 0.2 : 0.08), boxShadow: `inset 3px 0 0 ${palette.danger}`, px: 1.5, py: 1.25 }}>
-                                                                <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.2, color: palette.danger }}>{copy.deleteTargetLabel}</Typography>
-                                                                <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 600, color: palette.text, wordBreak: 'break-all' }}>{browserDialogState.item.name}</Typography>
-                                                            </Box>
-                                                            <Typography sx={{ fontSize: 14, lineHeight: 1.65, color: palette.text }}>
-                                                                {copy.deletePrompt}
-                                                            </Typography>
-                                                        </Stack>
-                                                    ) : browserDialogState?.type === 'properties' && browserPropertiesForm ? (
-                                                        <Stack spacing={2.25}>
-                                                            <TextField
-                                                                disabled
-                                                                fullWidth
-                                                                label={copy.nameLabel}
-                                                                sx={browserDialogFieldSx}
-                                                                value={browserDialogState.item.name}
-                                                            />
-                                                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                                                                <TextField
-                                                                    autoFocus
-                                                                    fullWidth
-                                                                    label={copy.ownerLabel}
-                                                                    onChange={(event) => setBrowserPropertiesForm((current) => (current ? { ...current, owner: event.target.value } : current))}
-                                                                    sx={browserDialogFieldSx}
-                                                                    value={browserPropertiesForm.owner}
-                                                                />
-                                                                <TextField
-                                                                    fullWidth
-                                                                    label={copy.groupLabel}
-                                                                    onChange={(event) => setBrowserPropertiesForm((current) => (current ? { ...current, group: event.target.value } : current))}
-                                                                    sx={browserDialogFieldSx}
-                                                                    value={browserPropertiesForm.group}
-                                                                />
-                                                            </Stack>
-                                                            <Box sx={{ border: `1px solid ${palette.border}`, borderRadius: '2px', overflow: 'hidden' }}>
-                                                                <Box sx={{ px: 1.5, py: 1.25, borderBottom: `1px solid ${palette.border}`, backgroundColor: alpha(palette.pageBg, 0.4) }}>
-                                                                    <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{copy.permissionsTitle}</Typography>
-                                                                    <Typography sx={{ mt: 0.5, fontSize: 12, color: palette.subtleText }}>{`${copy.modePreviewLabel}: ${buildModePreview(browserDialogState.item.item_type, browserPropertiesForm)}`}</Typography>
-                                                                </Box>
-                                                                {([
-                                                                    ['ownerPermissions', copy.permissionsOwner],
-                                                                    ['groupPermissions', copy.permissionsGroup],
-                                                                    ['otherPermissions', copy.permissionsOther],
-                                                                ] as const).map(([field, label], rowIndex) => (
-                                                                    <Box
-                                                                        key={field}
-                                                                        sx={{
-                                                                            display: 'grid',
-                                                                            gridTemplateColumns: 'minmax(96px, 1fr) repeat(3, minmax(78px, 92px))',
-                                                                            alignItems: 'center',
-                                                                            px: 1.5,
-                                                                            py: 1,
-                                                                            borderTop: rowIndex === 0 ? 'none' : `1px solid ${palette.border}`,
-                                                                            gap: 1,
-                                                                        }}
-                                                                    >
-                                                                        <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{label}</Typography>
-                                                                        {([
-                                                                            ['read', copy.permissionsRead],
-                                                                            ['write', copy.permissionsWrite],
-                                                                            ['execute', copy.permissionsExecute],
-                                                                        ] as const).map(([permissionKey, permissionLabel]) => (
-                                                                            <FormControlLabel
-                                                                                key={permissionKey}
-                                                                                control={
-                                                                                    <Checkbox
-                                                                                        checked={browserPropertiesForm[field][permissionKey]}
-                                                                                        onChange={(event) => {
-                                                                                            const checked = event.target.checked
-                                                                                            setBrowserPropertiesForm((current) => (
-                                                                                                current
-                                                                                                    ? {
-                                                                                                        ...current,
-                                                                                                        [field]: {
-                                                                                                            ...current[field],
-                                                                                                            [permissionKey]: checked,
-                                                                                                        },
-                                                                                                    }
-                                                                                                    : current
-                                                                                            ))
-                                                                                        }}
-                                                                                    />
-                                                                                }
-                                                                                label={permissionLabel}
-                                                                                sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 12.5 } }}
-                                                                            />
-                                                                        ))}
-                                                                    </Box>
-                                                                ))}
-                                                            </Box>
-                                                        </Stack>
-                                                    ) : (
-                                                        <TextField
-                                                            autoFocus
-                                                            fullWidth
-                                                            label={copy.nameLabel}
-                                                            onChange={(event) => setBrowserDialogName(event.target.value)}
-                                                            onKeyDown={(event) => {
-                                                                if (event.key === 'Enter') {
-                                                                    event.preventDefault()
-                                                                    void handleConfirmBrowserAction()
-                                                                }
-                                                            }}
-                                                            sx={browserDialogFieldSx}
-                                                            value={browserDialogName}
-                                                        />
-                                                    )}
-                                                </DialogContent>
-                                                <DialogActions sx={{ px: 2.5, py: 2, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg }}>
-                                                    <Button onClick={() => openBrowserActionDialog(null)}>{copy.cancel}</Button>
-                                                    <Button
-                                                        color={browserDialogState?.type === 'delete' ? 'error' : 'primary'}
-                                                        disabled={
-                                                            isFileActionSubmitting
-                                                            || (browserDialogState?.type === 'properties'
-                                                                ? !browserPropertiesForm
-                                                                : browserDialogState?.type !== 'delete' && !browserDialogName.trim())
-                                                        }
-                                                        onClick={() => void handleConfirmBrowserAction()}
-                                                        variant="contained"
-                                                    >
-                                                        {browserDialogState?.type === 'rename'
-                                                            ? copy.renameConfirm
-                                                            : browserDialogState?.type === 'delete'
-                                                                ? copy.deleteConfirm
-                                                                : browserDialogState?.type === 'properties'
-                                                                    ? copy.propertiesSave
-                                                                    : copy.createConfirm}
-                                                    </Button>
-                                                </DialogActions>
-                                            </Dialog>
-
-                                            <Menu
-                                                open={browserContextMenu !== null}
-                                                onClose={closeBrowserContextMenu}
-                                                anchorReference="anchorPosition"
-                                                anchorPosition={browserContextMenu ? { top: browserContextMenu.mouseY, left: browserContextMenu.mouseX } : undefined}
-                                                slotProps={{
-                                                    paper: {
-                                                        sx: {
-                                                            border: `1px solid ${palette.border}`,
-                                                            borderRadius: '2px',
-                                                            backgroundColor: palette.cardBg,
+                                                        minWidth: 180,
+                                                        boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.5)' : '0 10px 24px rgba(15, 23, 42, 0.14)',
+                                                        '& .MuiMenuItem-root': {
+                                                            fontSize: 13.5,
                                                             color: palette.text,
-                                                            minWidth: 180,
-                                                            boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.5)' : '0 10px 24px rgba(15, 23, 42, 0.14)',
-                                                            '& .MuiMenuItem-root': {
-                                                                fontSize: 13.5,
-                                                                color: palette.text,
-                                                                minHeight: 36,
-                                                            },
-                                                            '& .MuiMenuItem-root.Mui-disabled': {
-                                                                color: palette.subtleText,
-                                                                opacity: 0.55,
-                                                            },
+                                                            minHeight: 36,
+                                                        },
+                                                        '& .MuiMenuItem-root.Mui-disabled': {
+                                                            color: palette.subtleText,
+                                                            opacity: 0.55,
                                                         },
                                                     },
-                                                }}
-                                            >
-                                                {browserContextMenu?.item ? (
-                                                    <>
-                                                        <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('copy') }}>{copy.copyAction}</MenuItem>
-                                                        <MenuItem disabled={isFileActionSubmitting || browserContextMenu.item.path === '/' || browserContextMenu.item.path === browserPath} onClick={() => { void handleBrowserContextAction('cut') }}>{copy.cutAction}</MenuItem>
-                                                        <MenuItem disabled={browserContextMenu.item.item_type !== 'file' || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('download') }}>{copy.downloadAction}</MenuItem>
-                                                        <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('rename') }}>{copy.renameAction}</MenuItem>
-                                                        <MenuItem disabled={isFileActionSubmitting || (browserContextMenu.item.path === '/' && browserContextMenu.item.item_type === 'directory')} onClick={() => { void handleBrowserContextAction('delete') }}>{copy.deleteAction}</MenuItem>
-                                                        <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('properties') }}>{copy.propertiesAction}</MenuItem>
-                                                        <MenuItem disabled={!browserContextMenu.item.text_editable || browserContextMenu.item.item_type !== 'file' || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('edit') }}>{copy.editAction}</MenuItem>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <MenuItem disabled={!browserClipboard || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('paste') }}>{copy.pasteAction}</MenuItem>
-                                                        <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('create-folder') }}>{copy.createFolder}</MenuItem>
-                                                        <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('create-file') }}>{copy.createFile}</MenuItem>
-                                                        <MenuItem disabled={!browserMetadata || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('properties') }}>{copy.propertiesAction}</MenuItem>
-                                                    </>
-                                                )}
-                                            </Menu>
-                                        </div>
-                                    ) : null}
+                                                },
+                                            }}
+                                        >
+                                            {browserContextMenu?.item ? (
+                                                <>
+                                                    <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('copy') }}>{copy.copyAction}</MenuItem>
+                                                    <MenuItem disabled={isFileActionSubmitting || browserContextMenu.item.path === '/' || browserContextMenu.item.path === browserPath} onClick={() => { void handleBrowserContextAction('cut') }}>{copy.cutAction}</MenuItem>
+                                                    <MenuItem disabled={browserContextMenu.item.item_type !== 'file' || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('download') }}>{copy.downloadAction}</MenuItem>
+                                                    <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('rename') }}>{copy.renameAction}</MenuItem>
+                                                    <MenuItem disabled={isFileActionSubmitting || (browserContextMenu.item.path === '/' && browserContextMenu.item.item_type === 'directory')} onClick={() => { void handleBrowserContextAction('delete') }}>{copy.deleteAction}</MenuItem>
+                                                    <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('properties') }}>{copy.propertiesAction}</MenuItem>
+                                                    <MenuItem disabled={!browserContextMenu.item.text_editable || browserContextMenu.item.item_type !== 'file' || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('edit') }}>{copy.editAction}</MenuItem>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <MenuItem disabled={!browserClipboard || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('paste') }}>{copy.pasteAction}</MenuItem>
+                                                    <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('create-folder') }}>{copy.createFolder}</MenuItem>
+                                                    <MenuItem disabled={isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('create-file') }}>{copy.createFile}</MenuItem>
+                                                    <MenuItem disabled={!browserMetadata || isFileActionSubmitting} onClick={() => { void handleBrowserContextAction('properties') }}>{copy.propertiesAction}</MenuItem>
+                                                </>
+                                            )}
+                                        </Menu>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
                 )}
+
+                <Menu
+                    anchorEl={createSessionAnchorEl}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                    disableAutoFocusItem
+                    onClose={closeCreateSessionMenu}
+                    open={Boolean(createSessionAnchorEl)}
+                    slotProps={{
+                        paper: {
+                            sx: {
+                                mt: 1,
+                                width: 'min(420px, calc(100vw - 32px))',
+                                borderRadius: '2px',
+                                border: `1px solid ${palette.border}`,
+                                backgroundColor: palette.cardBg,
+                                boxShadow: palette.shadow,
+                                overflow: 'hidden',
+                            },
+                        },
+                    }}
+                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                >
+                    <Box sx={{ p: 1.25, display: 'grid', gap: 1 }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 0.75 }}>
+                            <Button onClick={() => openAddHostDialog('new-connection')} sx={{ minHeight: 56, py: 0.75, borderRadius: '2px', borderColor: palette.border, color: palette.text, fontWeight: 700, flexDirection: 'column', gap: 0.35 }} variant="outlined">
+                                <Typography component="span" sx={{ fontSize: 22, lineHeight: 1, fontWeight: 300 }}>+</Typography>
+                                <Typography component="span" sx={{ fontSize: 15, fontWeight: 700 }}>{copy.quickConnectNewHost}</Typography>
+                            </Button>
+                        </Box>
+                        <Box sx={{ pt: 1, borderTop: `1px solid ${palette.border}`, display: 'grid', gap: 0.9 }}>
+                            <TextField
+                                className="terminal-connections-toolbar-field"
+                                disabled={isDisconnecting || activatingProfileId !== null}
+                                onChange={(event) => setProfileSearchValue(event.target.value)}
+                                placeholder={copy.searchConnectionsPlaceholder}
+                                size="small"
+                                value={profileSearchValue}
+                            />
+                            {quickConnectList}
+                        </Box>
+                    </Box>
+                </Menu>
+
+                <TerminalScopedOverlay open={isHostSelectorOpen} onClose={() => setIsHostSelectorOpen(false)}>
+                    <Card elevation={0} sx={{ ...surfaceCardSx, width: 'min(960px, calc(100vw - 32px))', maxHeight: 'min(calc(100dvh - 72px), 820px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', mx: 'auto', my: 'auto' }}>
+                        <DialogTitle sx={{ px: 2.25, py: 1.5, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>{copy.savedProfilesTitle}</Typography>
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" onClick={() => setIsHostSelectorOpen(false)} size="small">
+                                    <CloseActionIcon />
+                                </IconButton>
+                            </Box>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 }, backgroundColor: palette.cardBg, flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                            <Stack spacing={1.5} sx={{ minHeight: 0 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
+                                    <Typography sx={{ fontSize: 14, fontWeight: 600, color: palette.subtleText }}>{copy.savedProfilesSubtitle}</Typography>
+                                    {savedProfilesToolbar}
+                                </Box>
+                                {savedProfilesTable}
+                            </Stack>
+                        </DialogContent>
+                    </Card>
+                </TerminalScopedOverlay>
+
+                <TerminalScopedOverlay centered open={activatingProfileId !== null} onClose={() => undefined}>
+                    <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 1.5,
+                        backgroundColor: palette.cardBg,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: '999px',
+                        px: 2.5, py: 1.25,
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.18)',
+                        mx: 'auto', width: 'fit-content',
+                    }}>
+                        <CircularProgress size={16} thickness={4} />
+                        <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: palette.text, whiteSpace: 'nowrap' }}>{copy.connectingAction}</Typography>
+                    </Box>
+                </TerminalScopedOverlay>
+
+                <TerminalScopedOverlay centered open={isDisconnecting} onClose={() => undefined}>
+                    <Box sx={{
+                        display: 'flex', alignItems: 'center', gap: 1.5,
+                        backgroundColor: palette.cardBg,
+                        border: `1px solid ${palette.border}`,
+                        borderRadius: '999px',
+                        px: 2.5, py: 1.25,
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.18)',
+                        mx: 'auto', width: 'fit-content',
+                    }}>
+                        <CircularProgress size={16} thickness={4} />
+                        <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: palette.text, whiteSpace: 'nowrap' }}>{copy.disconnectingAction}</Typography>
+                    </Box>
+                </TerminalScopedOverlay>
+
+                <TerminalScopedOverlay
+                    open={isAccessDialogOpen}
+                    onClose={() => {
+                        if (!formBusy) {
+                            setIsAccessDialogOpen(false)
+                            if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true)
+                        }
+                    }}
+                >
+                    <Card elevation={0} sx={{ ...surfaceCardSx, width: 'min(960px, calc(100vw - 32px))', maxHeight: 'min(calc(100dvh - 96px), 680px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', mx: 'auto', my: 'auto' }}>
+                        <DialogTitle sx={{ px: 2.25, py: 1.5, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
+                                    {accessDialogMode === 'edit' ? copy.editAction : accessDialogMode === 'new-connection' ? copy.newConnectionTitle : copy.addHostAction}
+                                </Typography>
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={formBusy} onClick={() => { setIsAccessDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} size="small">
+                                    <CloseActionIcon />
+                                </IconButton>
+                            </Box>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 }, backgroundColor: palette.cardBg, flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                            {accessFields}
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2.25, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg, justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                            <Button onClick={() => { setIsAccessDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} disabled={formBusy}>{copy.cancel}</Button>
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                <Button disabled={formBusy} onClick={() => void handleConnectionTest()} startIcon={isTestingConnection ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="outlined">
+                                    {copy.connectionTestTitle}
+                                </Button>
+                                <Button disabled={formBusy} onClick={() => void handleAccessSubmit()} startIcon={isSubmittingAccess ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="contained">
+                                    {copy.accessSubmit}
+                                </Button>
+                            </Stack>
+                        </DialogActions>
+                    </Card>
+                </TerminalScopedOverlay>
+
+                <TerminalScopedOverlay open={pendingDeleteProfile !== null} onClose={() => setPendingDeleteProfile(null)}>
+                    <Card elevation={0} sx={{ ...surfaceCardSx, width: { xs: 'min(92vw, 440px)', sm: 440 }, mx: 'auto' }}>
+                        <DialogTitle sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
+                                    {copy.deleteProfileTitle}
+                                </Typography>
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" onClick={() => setPendingDeleteProfile(null)} size="small">
+                                    <CloseActionIcon />
+                                </IconButton>
+                            </Box>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                            <Typography sx={{ fontSize: 14, lineHeight: 1.65, color: palette.text }}>
+                                {copy.deleteProfilePrompt}
+                            </Typography>
+                            {pendingDeleteProfile ? (
+                                <Typography sx={{ mt: 1.25, fontSize: 13, fontWeight: 700, color: palette.subtleText }}>
+                                    {pendingDeleteProfile.host} / {pendingDeleteProfile.username}
+                                </Typography>
+                            ) : null}
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2.5, py: 2, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg }}>
+                            <Button onClick={() => setPendingDeleteProfile(null)}>{copy.cancel}</Button>
+                            <Button color="error" onClick={() => void handleConfirmDeleteProfile()} variant="contained">
+                                {copy.confirmDelete}
+                            </Button>
+                        </DialogActions>
+                    </Card>
+                </TerminalScopedOverlay>
 
             </Stack>
 

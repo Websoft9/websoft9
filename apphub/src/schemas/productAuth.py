@@ -1,7 +1,7 @@
 from typing import Optional
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def _normalize_username(value: str) -> str:
@@ -36,6 +36,17 @@ def _normalize_locale(value: Optional[str]) -> str:
     return normalized
 
 
+def _normalize_email(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', normalized):
+        raise ValueError("Email must be a valid email address")
+    return normalized
+
+
 def _normalize_app_key(value: str) -> str:
     normalized = str(value).strip().lower()
     if not normalized:
@@ -47,6 +58,7 @@ class ProductAuthOperator(BaseModel):
     id: str
     username: str
     display_name: str
+    email: Optional[str] = None
     locale: str = "en"
     disabled: bool = False
     deleted: bool = False
@@ -78,6 +90,7 @@ class ProductAuthCreateUserRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=8, max_length=256)
     display_name: str = Field(min_length=1, max_length=128)
+    email: Optional[str] = None
     locale: str = Field(default="en", max_length=16)
     disabled: bool = False
 
@@ -96,6 +109,11 @@ class ProductAuthCreateUserRequest(BaseModel):
     def normalize_display_name(cls, value: str) -> str:
         return _normalize_display_name(value)
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        return _normalize_email(value)
+
     @field_validator("locale", mode="before")
     @classmethod
     def normalize_locale(cls, value: Optional[str]) -> str:
@@ -113,8 +131,14 @@ class ProductAuthResetPasswordRequest(BaseModel):
 
 class ProductAuthUpdateUserRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=128)
+    email: Optional[str] = None
     locale: str = Field(default="en", max_length=16)
     disabled: Optional[bool] = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        return _normalize_email(value)
 
     @field_validator("display_name", mode="before")
     @classmethod

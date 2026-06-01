@@ -1,4 +1,4 @@
-import { Alert, Box, Button, CircularProgress, Chip, Paper, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Typography } from '@mui/material'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +14,9 @@ type IntegrationWorkspacePageProps = {
     shellPersistent?: boolean
 }
 
-const shellPersistentIntegrationKeys: IntegrationKey[] = ['gitea']
+const shellPersistentIntegrationKeys: IntegrationKey[] = ['portainer', 'npm', 'gitea']
+
+const integrationWorkspaceViewportHeight = 'calc(100dvh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))'
 
 export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, showCatalogLink = false, shellPersistent = false }: IntegrationWorkspacePageProps) {
     const { integrationKey: routeIntegrationKey, '*': unmatchedPath } = useParams()
@@ -36,7 +38,9 @@ export function IntegrationWorkspacePage({ integrationKey: fixedIntegrationKey, 
 
 export function PersistentIntegrationWorkspaces() {
     const location = useLocation()
+    const { colorMode } = useAppColorMode()
     const { refresh, snapshots } = useIntegrationStatuses(shellPersistentIntegrationKeys)
+    const isDarkMode = colorMode === 'dark'
     const activeDefinition = useMemo(() => {
         return integrationDefinitions.find(
             (definition) =>
@@ -51,30 +55,30 @@ export function PersistentIntegrationWorkspaces() {
                 position: 'absolute',
                 inset: 0,
                 display: activeDefinition ? 'block' : 'none',
-                backgroundColor: '#fff',
+                backgroundColor: isDarkMode ? '#0f172a' : '#fff',
                 zIndex: 1,
             }}
         >
             {integrationDefinitions
                 .filter((definition) => shellPersistentIntegrationKeys.includes(definition.key))
                 .map((definition) => (
-                <Box
-                    key={definition.key}
-                    sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        visibility: definition.key === activeDefinition?.key ? 'visible' : 'hidden',
-                        pointerEvents: definition.key === activeDefinition?.key ? 'auto' : 'none',
-                    }}
-                >
-                    <DirectIntegrationWorkspaceFrame
-                        active={definition.key === activeDefinition?.key}
-                        definition={definition}
-                        refresh={refresh}
-                        snapshot={snapshots[definition.key]}
-                    />
-                </Box>
-            ))}
+                    <Box
+                        key={definition.key}
+                        sx={{
+                            position: 'absolute',
+                            inset: 0,
+                            visibility: definition.key === activeDefinition?.key ? 'visible' : 'hidden',
+                            pointerEvents: definition.key === activeDefinition?.key ? 'auto' : 'none',
+                        }}
+                    >
+                        <DirectIntegrationWorkspaceFrame
+                            active={definition.key === activeDefinition?.key}
+                            definition={definition}
+                            refresh={refresh}
+                            snapshot={snapshots[definition.key]}
+                        />
+                    </Box>
+                ))}
         </Box>
     )
 }
@@ -245,6 +249,47 @@ function mapWorkspaceErrorMessage(errorMessage: string | null, t: (key: string) 
     return errorMessage
 }
 
+function WorkspaceLoadingPanel({
+    height,
+    darkMode,
+}: {
+    title: string
+    subtitle: string
+    detail: string
+    height: string
+    darkMode: boolean
+}) {
+    return (
+        <Box
+            sx={{
+                width: '100%',
+                height,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                px: 3,
+                backgroundColor: 'transparent',
+            }}
+        >
+            <Box
+                sx={{
+                    width: 'min(240px, 100%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1.25,
+                }}
+            >
+                <CircularProgress size={28} thickness={4.2} />
+                <Typography sx={{ fontSize: 14, lineHeight: 1.5, color: darkMode ? 'rgba(226, 232, 240, 0.82)' : '#64748b' }}>
+                    正在加载中
+                </Typography>
+            </Box>
+        </Box>
+    )
+}
+
 async function bootstrapIntegrationSession(integrationKey: IntegrationKey, locale: string) {
     const response = await fetch(`/api/integrations/${integrationKey}/session`, {
         method: 'POST',
@@ -301,6 +346,7 @@ function DirectIntegrationWorkspaceFrame({
     const [lastRecoveryTarget, setLastRecoveryTarget] = useState<string | null>(null)
     const inspectionTimeoutRef = useRef<number | null>(null)
     const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt, active || hasInitializedFrame)
+    const isDarkMode = colorMode === 'dark'
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const shouldRenderFrame =
         (active || hasInitializedFrame) &&
@@ -423,7 +469,7 @@ function DirectIntegrationWorkspaceFrame({
             }}
             sx={{
                 width: '100%',
-                height: 'calc(100vh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))',
+                height: integrationWorkspaceViewportHeight,
                 border: 0,
                 display: 'block',
                 backgroundColor: '#fff',
@@ -434,7 +480,7 @@ function DirectIntegrationWorkspaceFrame({
         <Stack
             spacing={1.25}
             sx={{
-                height: 'calc(100vh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))',
+                height: integrationWorkspaceViewportHeight,
                 alignItems: 'center',
                 justifyContent: 'center',
                 px: 3,
@@ -442,7 +488,13 @@ function DirectIntegrationWorkspaceFrame({
             }}
         >
             {recoveryState === 'recovering' ? (
-                <CircularProgress size={32} />
+                <WorkspaceLoadingPanel
+                    title={t(`integrations.catalog.${definition.key}.title`)}
+                    subtitle={t('integrations.workspace.bootstrappingSession')}
+                    detail={t('integrations.workspace.bootstrappingSessionDetail')}
+                    height={integrationWorkspaceViewportHeight}
+                    darkMode={isDarkMode}
+                />
             ) : recoveryState === 'error' ? (
                 <>
                     <Alert severity="warning" sx={{ maxWidth: 480, textAlign: 'left' }}>
@@ -471,7 +523,13 @@ function DirectIntegrationWorkspaceFrame({
                     </Button>
                 </>
             ) : (
-                <CircularProgress size={32} />
+                <WorkspaceLoadingPanel
+                    title={t(`integrations.catalog.${definition.key}.title`)}
+                    subtitle={sessionState === 'bootstrapping' ? t('integrations.workspace.bootstrappingSession') : t(`integrations.states.${snapshot.status}.label`)}
+                    detail={sessionState === 'bootstrapping' ? t('integrations.workspace.bootstrappingSessionDetail') : t(`integrations.states.${snapshot.status}.detail`)}
+                    height={integrationWorkspaceViewportHeight}
+                    darkMode={isDarkMode}
+                />
             )}
         </Stack>
     )
@@ -480,9 +538,10 @@ function DirectIntegrationWorkspaceFrame({
 function IntegrationWorkspaceContent({ definition, showCatalogLink }: IntegrationWorkspaceContentProps) {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
+    const isDarkMode = colorMode === 'dark'
     const [searchParams] = useSearchParams()
     const { refresh, snapshots } = useIntegrationStatuses()
-    const directWorkspaceViewportHeight = 'calc(100vh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))'
+    const directWorkspaceViewportHeight = integrationWorkspaceViewportHeight
 
     const snapshot = snapshots[definition.key]
     const { errorMessage, sessionState } = useIntegrationSession(definition.key, snapshot.status, snapshot.checkedAt)
@@ -509,7 +568,7 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                     height: directWorkspaceViewportHeight,
                     mx: -3,
                     my: -2.5,
-                    backgroundColor: '#fff',
+                    backgroundColor: isDarkMode ? '#0f172a' : '#fff',
                 }}
             >
                 {renderDirectWorkspace ? (
@@ -529,26 +588,30 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                         title={t(`integrations.catalog.${definition.key}.title`)}
                     />
                 ) : (
-                    <Stack
-                        spacing={1.25}
-                        sx={{
-                            height: directWorkspaceViewportHeight,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            px: 3,
-                            textAlign: 'center',
-                        }}
-                    >
-                        {sessionState === 'error' ? (
-                            <>
-                                <Alert severity="warning" sx={{ maxWidth: 480, textAlign: 'left' }}>
-                                    {errorMessage ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
-                                </Alert>
-                            </>
-                        ) : (
-                            <CircularProgress size={32} />
-                        )}
-                    </Stack>
+                    sessionState === 'error' ? (
+                        <Stack
+                            spacing={1.25}
+                            sx={{
+                                height: directWorkspaceViewportHeight,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                px: 3,
+                                textAlign: 'center',
+                            }}
+                        >
+                            <Alert severity="warning" sx={{ maxWidth: 480, textAlign: 'left' }}>
+                                {errorMessage ?? t('integrations.workspace.sessionBootstrapFailedDetail')}
+                            </Alert>
+                        </Stack>
+                    ) : (
+                        <WorkspaceLoadingPanel
+                            title={t(`integrations.catalog.${definition.key}.title`)}
+                            subtitle={sessionState === 'bootstrapping' ? t('integrations.workspace.bootstrappingSession') : t(`integrations.states.${snapshot.status}.label`)}
+                            detail={sessionState === 'bootstrapping' ? t('integrations.workspace.bootstrappingSessionDetail') : detail}
+                            height={directWorkspaceViewportHeight}
+                            darkMode={isDarkMode}
+                        />
+                    )
                 )}
             </Box>
         )
@@ -623,7 +686,7 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                         borderColor: 'divider',
                         overflow: 'hidden',
                         minHeight: 720,
-                        backgroundColor: '#fff',
+                        backgroundColor: isDarkMode ? '#0f172a' : '#fff',
                     }}
                 >
                     <Box
@@ -632,7 +695,7 @@ function IntegrationWorkspaceContent({ definition, showCatalogLink }: Integratio
                             borderColor: 'divider',
                             px: 2,
                             py: 1.25,
-                            backgroundColor: '#f8fafc',
+                            backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.88)' : '#f8fafc',
                         }}
                     >
                         <Typography color="text.secondary" variant="body2">

@@ -36,6 +36,7 @@ type ProductAuthUser = {
     id: string
     username: string
     display_name: string
+    email: string | null
     locale: string
     disabled: boolean
     deleted: boolean
@@ -70,7 +71,7 @@ type UsersScopedOverlayProps = {
     children: ReactNode
 }
 
-type UserFieldErrors = Partial<Record<'username' | 'displayName' | 'locale' | 'password' | 'confirmPassword', string>>
+type UserFieldErrors = Partial<Record<'username' | 'displayName' | 'email' | 'locale' | 'password' | 'confirmPassword', string>>
 
 type UsersRouteState = {
     openCurrentUserEditor?: boolean
@@ -306,6 +307,17 @@ function validatePassword(value: string, required: boolean, t: ReturnType<typeof
     return undefined
 }
 
+function validateEmail(value: string, t: ReturnType<typeof useTranslation<'shell'>>['t']): string | undefined {
+    const normalized = value.trim()
+    if (!normalized) {
+        return undefined
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) {
+        return t('usersPage.validation.emailInvalid')
+    }
+    return undefined
+}
+
 function validateLocale(value: string, t: ReturnType<typeof useTranslation<'shell'>>['t']): string | undefined {
     if (!['en', 'zh-CN'].includes(value)) {
         return t('usersPage.validation.languageRequired')
@@ -348,8 +360,8 @@ export function UsersPage() {
     const [feedback, setFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
     const [searchValue, setSearchValue] = useState('')
     const [activeDialog, setActiveDialog] = useState<UserDialogState>(null)
-    const [createDraft, setCreateDraft] = useState({ username: '', displayName: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
-    const [editDraft, setEditDraft] = useState({ displayName: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
+    const [createDraft, setCreateDraft] = useState({ username: '', displayName: '', email: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
+    const [editDraft, setEditDraft] = useState({ displayName: '', email: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
     const [createTouched, setCreateTouched] = useState<Partial<Record<keyof UserFieldErrors, boolean>>>({})
     const [editTouched, setEditTouched] = useState<Partial<Record<keyof UserFieldErrors, boolean>>>({})
     const [createFieldErrors, setCreateFieldErrors] = useState<UserFieldErrors>({})
@@ -392,14 +404,6 @@ export function UsersPage() {
             backgroundColor: palette.buttonHover,
         },
     } as const
-    const isChinese = i18n.resolvedLanguage === 'zh-CN'
-    const copy = isChinese
-        ? {
-            pageDescription: '查看并管理平台用户账号。',
-        }
-        : {
-            pageDescription: 'View and manage platform user accounts.',
-        }
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
 
     const { data, error, isLoading, isFetching, refetch } = useQuery<ProductAuthUsersResponse, Error>({
@@ -444,6 +448,7 @@ export function UsersPage() {
     const canManageStatusForEdit = Boolean(activeEditUser && currentUserIsSystem && activeEditUser.delete_eligible && activeEditUser.id !== currentUserId)
     const hasEditChanges = activeEditUser
         ? editDraft.displayName.trim() !== activeEditUser.display_name ||
+        editDraft.email.trim() !== (activeEditUser.email ?? '') ||
         editDraft.locale !== activeEditUser.locale ||
         (canManageStatusForEdit && editDraft.disabled !== activeEditUser.disabled) ||
         editDraft.password.trim().length > 0
@@ -500,6 +505,7 @@ export function UsersPage() {
         const errors: UserFieldErrors = {}
         const usernameError = validateUsername(createDraft.username, knownUsernames, t)
         const displayNameError = validateDisplayName(createDraft.displayName, t)
+        const emailError = validateEmail(createDraft.email, t)
         const localeError = validateLocale(createDraft.locale, t)
         const passwordError = validatePassword(createDraft.password, true, t)
         const confirmPasswordError =
@@ -515,6 +521,9 @@ export function UsersPage() {
         if (displayNameError) {
             errors.displayName = displayNameError
         }
+        if (emailError) {
+            errors.email = emailError
+        }
         if (localeError) {
             errors.locale = localeError
         }
@@ -525,11 +534,12 @@ export function UsersPage() {
             errors.confirmPassword = confirmPasswordError
         }
         return errors
-    }, [createDraft.confirmPassword, createDraft.displayName, createDraft.locale, createDraft.password, createDraft.username, knownUsernames, t])
+    }, [createDraft.confirmPassword, createDraft.displayName, createDraft.email, createDraft.locale, createDraft.password, createDraft.username, knownUsernames, t])
 
     const computedEditErrors = useMemo<UserFieldErrors>(() => {
         const errors: UserFieldErrors = {}
         const displayNameError = validateDisplayName(editDraft.displayName, t)
+        const emailError = validateEmail(editDraft.email, t)
         const localeError = validateLocale(editDraft.locale, t)
         const passwordError = validatePassword(editDraft.password, false, t)
         const confirmPasswordError =
@@ -544,6 +554,9 @@ export function UsersPage() {
         if (displayNameError) {
             errors.displayName = displayNameError
         }
+        if (emailError) {
+            errors.email = emailError
+        }
         if (localeError) {
             errors.locale = localeError
         }
@@ -554,7 +567,7 @@ export function UsersPage() {
             errors.confirmPassword = confirmPasswordError
         }
         return errors
-    }, [editDraft.confirmPassword, editDraft.displayName, editDraft.locale, editDraft.password, t])
+    }, [editDraft.confirmPassword, editDraft.displayName, editDraft.email, editDraft.locale, editDraft.password, t])
 
     const createFormInvalid = Object.keys(computedCreateErrors).length > 0
     const editFormInvalid = Object.keys(computedEditErrors).length > 0
@@ -615,6 +628,7 @@ export function UsersPage() {
         const refMap = {
             username: createUsernameInputRef,
             displayName: createDisplayNameInputRef,
+            email: createDisplayNameInputRef,
             password: createPasswordInputRef,
             confirmPassword: createConfirmPasswordInputRef,
             locale: createDisplayNameInputRef,
@@ -626,6 +640,7 @@ export function UsersPage() {
         const refMap = {
             username: editDisplayNameInputRef,
             displayName: editDisplayNameInputRef,
+            email: editDisplayNameInputRef,
             password: editPasswordInputRef,
             confirmPassword: editConfirmPasswordInputRef,
             locale: editDisplayNameInputRef,
@@ -634,7 +649,7 @@ export function UsersPage() {
     }
 
     function openCreateDialog() {
-        setCreateDraft({ username: '', displayName: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
+        setCreateDraft({ username: '', displayName: '', email: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
         setCreateTouched({})
         setCreateFieldErrors({})
         setShowCreatePassword(false)
@@ -643,7 +658,7 @@ export function UsersPage() {
     }
 
     function openEditDialog(user: ProductAuthUser) {
-        setEditDraft({ displayName: user.display_name, locale: normalizeLocaleValue(user.locale), disabled: user.disabled, password: '', confirmPassword: '' })
+        setEditDraft({ displayName: user.display_name, email: user.email ?? '', locale: normalizeLocaleValue(user.locale), disabled: user.disabled, password: '', confirmPassword: '' })
         setEditTouched({})
         setEditFieldErrors({})
         setShowEditPassword(false)
@@ -652,9 +667,9 @@ export function UsersPage() {
     }
 
     async function handleCreateUser() {
-        setCreateTouched({ username: true, displayName: true, locale: true, password: true, confirmPassword: true })
+        setCreateTouched({ username: true, displayName: true, email: true, locale: true, password: true, confirmPassword: true })
         setCreateFieldErrors(computedCreateErrors)
-        const firstCreateErrorField = (['username', 'displayName', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => computedCreateErrors[field])
+        const firstCreateErrorField = (['username', 'displayName', 'email', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => computedCreateErrors[field])
         if (firstCreateErrorField) {
             focusCreateField(firstCreateErrorField)
             return
@@ -669,6 +684,7 @@ export function UsersPage() {
                 body: JSON.stringify({
                     username: createDraft.username.trim().toLowerCase(),
                     display_name: createDraft.displayName.trim(),
+                    email: createDraft.email.trim() || null,
                     locale: createDraft.locale,
                     disabled: createDraft.disabled,
                     password: createDraft.password,
@@ -676,14 +692,14 @@ export function UsersPage() {
             })
             await Promise.all([refetch(), refresh()])
             setActiveDialog(null)
-            setCreateDraft({ username: '', displayName: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
+            setCreateDraft({ username: '', displayName: '', email: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
             setFeedback({ severity: 'success', message: t('usersPage.feedback.createSuccess', { username: createdUser.username }) })
         } catch (submitError) {
             const mappedError = mapUserRequestError(submitError instanceof Error ? submitError.message : '', t)
             if (mappedError.fieldErrors) {
-                setCreateTouched({ username: true, displayName: true, locale: true, password: true, confirmPassword: true })
+                setCreateTouched({ username: true, displayName: true, email: true, locale: true, password: true, confirmPassword: true })
                 setCreateFieldErrors((current) => ({ ...current, ...mappedError.fieldErrors }))
-                const firstField = (['username', 'displayName', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => mappedError.fieldErrors?.[field])
+                const firstField = (['username', 'displayName', 'email', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => mappedError.fieldErrors?.[field])
                 if (firstField) {
                     focusCreateField(firstField)
                     return
@@ -703,9 +719,9 @@ export function UsersPage() {
             return
         }
 
-        setEditTouched({ displayName: true, locale: true, password: true, confirmPassword: true })
+        setEditTouched({ displayName: true, email: true, locale: true, password: true, confirmPassword: true })
         setEditFieldErrors(computedEditErrors)
-        const firstEditErrorField = (['displayName', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => computedEditErrors[field])
+        const firstEditErrorField = (['displayName', 'email', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => computedEditErrors[field])
         if (firstEditErrorField) {
             focusEditField(firstEditErrorField)
             return
@@ -717,6 +733,7 @@ export function UsersPage() {
         try {
             if (
                 editDraft.displayName.trim() !== activeEditUser.display_name ||
+                editDraft.email.trim() !== (activeEditUser.email ?? '') ||
                 editDraft.locale !== activeEditUser.locale ||
                 (canManageStatusForEdit && editDraft.disabled !== activeEditUser.disabled)
             ) {
@@ -724,6 +741,7 @@ export function UsersPage() {
                     method: 'PUT',
                     body: JSON.stringify({
                         display_name: editDraft.displayName.trim(),
+                        email: editDraft.email.trim() || null,
                         locale: editDraft.locale,
                         ...(canManageStatusForEdit ? { disabled: editDraft.disabled } : {}),
                     }),
@@ -739,14 +757,14 @@ export function UsersPage() {
 
             await Promise.all([refetch(), refresh()])
             setActiveDialog(null)
-            setEditDraft({ displayName: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
+            setEditDraft({ displayName: '', email: '', locale: normalizeLocaleValue(i18n.resolvedLanguage), disabled: false, password: '', confirmPassword: '' })
             setFeedback({ severity: 'success', message: t('usersPage.feedback.editSuccess', { username: activeEditUser.username }) })
         } catch (submitError) {
             const mappedError = mapUserRequestError(submitError instanceof Error ? submitError.message : '', t)
             if (mappedError.fieldErrors) {
-                setEditTouched({ displayName: true, locale: true, password: true, confirmPassword: true })
+                setEditTouched({ displayName: true, email: true, locale: true, password: true, confirmPassword: true })
                 setEditFieldErrors((current) => ({ ...current, ...mappedError.fieldErrors }))
-                const firstField = (['displayName', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => mappedError.fieldErrors?.[field])
+                const firstField = (['displayName', 'email', 'locale', 'password', 'confirmPassword'] as Array<keyof UserFieldErrors>).find((field) => mappedError.fieldErrors?.[field])
                 if (firstField) {
                     focusEditField(firstField)
                     return
@@ -850,7 +868,7 @@ export function UsersPage() {
                     </Alert>
                 ) : null}
 
-                <PageDescriptionHeader title={t('nav.users.label')} description={copy.pageDescription} descriptionColor={palette.subtleText} />
+                <PageDescriptionHeader title={t('nav.users.label')} description={t('usersPage.hero.description')} descriptionColor={palette.subtleText} />
 
                 <Box className="users-page-grid">
                     <Card elevation={0} sx={surfaceCardSx}>
@@ -880,11 +898,11 @@ export function UsersPage() {
 
                                 {!showLoadingCard ? (
                                     <Box sx={{ overflowX: 'auto', border: `1px solid ${palette.border}` }}>
-                                        <Box sx={{ minWidth: 1080 }}>
+                                        <Box sx={{ minWidth: 1200 }}>
                                             <Box
                                                 sx={{
                                                     display: 'grid',
-                                                    gridTemplateColumns: '1.1fr 1fr .75fr .78fr .9fr 1fr',
+                                                    gridTemplateColumns: '1.1fr 1fr 1.2fr .75fr .78fr .9fr 1fr',
                                                     alignItems: 'center',
                                                     minHeight: 52,
                                                     px: 1.25,
@@ -895,6 +913,7 @@ export function UsersPage() {
                                                 {[
                                                     t('usersPage.columns.username'),
                                                     t('usersPage.columns.displayName'),
+                                                    t('usersPage.fields.email'),
                                                     t('usersPage.columns.language'),
                                                     t('usersPage.columns.status'),
                                                     t('usersPage.columns.createdAt'),
@@ -906,7 +925,7 @@ export function UsersPage() {
                                                             fontSize: 13,
                                                             fontWeight: 700,
                                                             color: palette.subtleText,
-                                                            textAlign: index === 5 ? 'right' : 'left',
+                                                            textAlign: index === 6 ? 'right' : 'left',
                                                         }}
                                                     >
                                                         {column}
@@ -946,7 +965,7 @@ export function UsersPage() {
                                                             key={user.id}
                                                             sx={{
                                                                 display: 'grid',
-                                                                gridTemplateColumns: '1.1fr 1fr .75fr .78fr .9fr 1fr',
+                                                                gridTemplateColumns: '1.1fr 1fr 1.2fr .75fr .78fr .9fr 1fr',
                                                                 alignItems: 'center',
                                                                 gap: 1.25,
                                                                 px: 1.25,
@@ -968,6 +987,7 @@ export function UsersPage() {
                                                                 </Box>
                                                             </Stack>
                                                             <Typography sx={{ fontSize: 13.5, lineHeight: 1.6, color: palette.text }}>{user.display_name}</Typography>
+                                                            <Typography sx={{ fontSize: 13, color: palette.subtleText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={user.email ?? ''}>{user.email ?? '—'}</Typography>
                                                             <Typography sx={{ fontSize: 13.5, color: palette.subtleText }}>{formatUserLocale(user.locale)}</Typography>
                                                             <Box>
                                                                 <Chip
@@ -1092,6 +1112,20 @@ export function UsersPage() {
                                 onChange={(event) => setCreateDraft((current) => ({ ...current, displayName: event.target.value }))}
                                 placeholder={t('usersPage.columns.displayName')}
                                 value={createDraft.displayName}
+                            />
+                        </Box>
+                        <Box>
+                            <Typography className="users-dialog-field-label">{t('usersPage.fields.email')}</Typography>
+                            <TextField
+                                fullWidth
+                                className="users-dialog-field"
+                                error={Boolean(createTouched.email && createFieldErrors.email)}
+                                helperText={createTouched.email ? (createFieldErrors.email ?? ' ') : ' '}
+                                onBlur={() => setCreateTouched((current) => ({ ...current, email: true }))}
+                                onChange={(event) => setCreateDraft((current) => ({ ...current, email: event.target.value }))}
+                                placeholder="user@example.com"
+                                type="email"
+                                value={createDraft.email}
                             />
                         </Box>
                         <Box className="users-dialog-field-grid users-dialog-field-grid-halves">
@@ -1258,6 +1292,20 @@ export function UsersPage() {
                                 onBlur={() => setEditTouched((current) => ({ ...current, displayName: true }))}
                                 onChange={(event) => setEditDraft((current) => ({ ...current, displayName: event.target.value }))}
                                 value={editDraft.displayName}
+                            />
+                        </Box>
+                        <Box>
+                            <Typography className="users-dialog-field-label">{t('usersPage.fields.email')}</Typography>
+                            <TextField
+                                fullWidth
+                                className="users-dialog-field"
+                                error={Boolean(editTouched.email && editFieldErrors.email)}
+                                helperText={editTouched.email ? (editFieldErrors.email ?? ' ') : ' '}
+                                onBlur={() => setEditTouched((current) => ({ ...current, email: true }))}
+                                onChange={(event) => setEditDraft((current) => ({ ...current, email: event.target.value }))}
+                                placeholder="user@example.com"
+                                type="email"
+                                value={editDraft.email}
                             />
                         </Box>
                         <Box className="users-dialog-field-grid users-dialog-field-grid-halves">
