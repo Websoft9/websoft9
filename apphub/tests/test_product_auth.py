@@ -189,26 +189,36 @@ def test_product_auth_respects_configured_protected_modules(monkeypatch, tmp_pat
     assert response.json()["protected_modules"] == ["users", "logs"]
 
 
-def test_product_auth_rejects_blank_or_trimmed_short_identity_fields(monkeypatch, tmp_path):
+def test_product_auth_blank_display_name_falls_back_to_username(monkeypatch, tmp_path):
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
 
     app = create_test_app()
 
     with TestClient(app) as client:
-        blank_display_name = client.post(
+        response = client.post(
             "/auth/initialize",
             json={"username": "admin", "password": "StrongPass123!", "display_name": "   "},
         )
-        short_username = client.post(
+
+    assert response.status_code == 200
+    assert response.json()["current_user"]["display_name"] == "admin"
+
+
+def test_product_auth_rejects_short_username(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        response = client.post(
             "/auth/initialize",
             json={"username": "  a ", "password": "StrongPass123!", "display_name": "Platform Admin"},
         )
 
-    assert blank_display_name.status_code == 400
-    assert "Display name" in blank_display_name.json()["details"]
-    assert short_username.status_code == 400
-    assert "Username" in short_username.json()["details"]
+    assert response.status_code == 400
+    assert "Username" in response.json()["details"]
 
 
 def test_product_auth_rejects_weak_passwords(monkeypatch, tmp_path):

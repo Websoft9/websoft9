@@ -225,6 +225,7 @@ def test_core_services_log_drilldown_filters_raw_lines(tmp_path: Path):
 
     assert payload.service == "gitea"
     assert len(payload.entries) == 1
+    assert payload.entries[0].id
     assert payload.entries[0].message == "fatal migration error"
     assert payload.available is True
 
@@ -371,6 +372,57 @@ def test_core_services_log_drilldown_hides_runtime_paths_when_unavailable(tmp_pa
 
     assert payload.available is False
     assert payload.unavailable_reason == "Service raw logs are not currently available"
+
+
+def test_core_services_log_stream_appends_incremental_entries(tmp_path: Path):
+    definitions = build_service_definitions(tmp_path)
+    (tmp_path / "gitea-credential").write_text("ok", encoding="utf-8")
+    log_path = tmp_path / "gitea" / "gitea.log"
+    write_log(tmp_path / "gitea", "gitea.log", ["2026-05-06T08:49:28Z repo ready"])
+
+    service = CoreServicesService(
+        auth_service=FakeAuthService(),
+        service_definitions=definitions,
+        supervisor_status_loader=lambda: {"gitea": "RUNNING"},
+        health_probe=lambda _definition: HealthProbeResult(ok=True, detail="ok"),
+        now_provider=lambda: datetime(2026, 5, 6, 8, 50, tzinfo=timezone.utc),
+    )
+
+    snapshot, cursor = service.open_service_logs_stream("valid-session", "gitea", ServiceLogsQuery(limit=20))
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write("2026-05-06T08:49:29Z repo restarted\n")
+
+    delta = service.poll_service_logs_stream("valid-session", cursor)
+
+    assert snapshot.entries[0].message == "repo ready"
+    assert delta.snapshot is None
+    assert len(delta.entries) == 1
+    assert delta.entries[0].message == "repo restarted"
+    assert len(cursor.entries) == 2
+
+
+def test_core_services_log_stream_resets_snapshot_after_log_rotation(tmp_path: Path):
+    definitions = build_service_definitions(tmp_path)
+    (tmp_path / "gitea-credential").write_text("ok", encoding="utf-8")
+    log_root = tmp_path / "gitea"
+    log_path = log_root / "gitea.log"
+    write_log(log_root, "gitea.log", ["2026-05-06T08:49:28Z repo ready"])
+
+    service = CoreServicesService(
+        auth_service=FakeAuthService(),
+        service_definitions=definitions,
+        supervisor_status_loader=lambda: {"gitea": "RUNNING"},
+        health_probe=lambda _definition: HealthProbeResult(ok=True, detail="ok"),
+        now_provider=lambda: datetime(2026, 5, 6, 8, 50, tzinfo=timezone.utc),
+    )
+
+    _snapshot, cursor = service.open_service_logs_stream("valid-session", "gitea", ServiceLogsQuery(limit=20))
+    log_path.write_text("2026-05-06T08:49:30Z ok\n", encoding="utf-8")
+
+    delta = service.poll_service_logs_stream("valid-session", cursor)
+
+    assert delta.snapshot is not None
+    assert [entry.message for entry in delta.snapshot.entries] == ["ok"]
 
 
 def test_core_services_router_requires_authenticated_session():

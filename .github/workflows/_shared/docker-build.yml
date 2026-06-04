@@ -1,0 +1,106 @@
+name: Reusable Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      push:
+        type: boolean
+        default: false
+        description: Whether to push the image to registry
+      platforms:
+        type: string
+        default: linux/amd64
+        description: Target platforms (e.g. linux/amd64,linux/arm64)
+      tags:
+        type: string
+        required: true
+        description: Comma-separated image tags
+      context:
+        type: string
+        default: .
+        description: Docker build context path
+      dockerfile:
+        type: string
+        default: docker/Dockerfile
+        description: Path to Dockerfile
+    outputs:
+      image_tag:
+        description: Primary image tag
+        value: ${{ jobs.build.outputs.primary_tag }}
+      image_digest:
+        description: Image digest
+        value: ${{ jobs.build.outputs.digest }}
+
+jobs:
+  build:
+    name: Build & Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      primary_tag: ${{ steps.meta.outputs.version }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read product version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          EDITION=$(jq -r '.edition.key' version.json)
+          echo "semver=$VERSION" >> $GITHUB_OUTPUT
+          echo "edition=$EDITION" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        run: |
+          echo "version=${{ steps.version.outputs.semver }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: ${{ inputs.push }}
+          platforms: ${{ inputs.platforms }}
+          tags: ${{ inputs.tags }}
+          build-args: |
+            WEBSOFT9_PRODUCT_VERSION=${{ steps.version.outputs.semver }}
+            WEBSOFT9_PRODUCT_EDITION_KEY=${{ steps.version.outputs.edition }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+          labels: |
+            org.opencontainers.image.title=Websoft9 Product
+            org.opencontainers.image.version=${{ steps.version.outputs.semver }}
+            org.opencontainers.image.description=Converged Websoft9 runtime container
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ fromJSON(steps.build.outputs.metadata)['image.name'] }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          timeout: 10m
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy scan summary (on failure)
+        if: failure()
+        run: |
+          echo "::warning::Trivy found CRITICAL or HIGH vulnerabilities."
+          echo "Check the Security tab → Code scanning for details."

@@ -1,272 +1,365 @@
 package main
 
 import (
-    "bytes"
-    "crypto/rand"
-    "crypto/tls"
-    "encoding/json"
-    "fmt"
-    "io/ioutil"
-    "log"
-    "math/big"
-    "net/http"
-    "net/url"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "strings"
-    "time"
+	"bytes"
+	"crypto/rand"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"math/big"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 const (
-    portainerURL = "https://127.0.0.1:9443/api"
-    maxRetries   = 5
-    retryDelay   = 5 * time.Second
-    charset      = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$()_"
-    initCheckURL = portainerURL + "/users/admin/check"
-    waitTimeout  = 60 * time.Second
-    waitInterval = 2 * time.Second
+	portainerURL        = "http://127.0.0.1:9004/api"
+	portainerAssetsPath = "/opt/websoft9-portainer"
+	portainerHTTPBind   = ":9004"
+	maxRetries          = 5
+	retryDelay          = 5 * time.Second
+	charset             = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@$()_"
+	initCheckURL        = portainerURL + "/users/admin/check"
+	waitTimeout         = 60 * time.Second
+	waitInterval        = 2 * time.Second
 )
 
 type Credentials struct {
-    Username string `json:"username"`
-    Password string `json:"password"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func main() {
-    // 启动并等待 Portainer 启动
-    cmd, err := startAndWaitForPortainer(os.Args[1:]...)
-    if err != nil {
-        log.Fatalf("Failed to start and wait for Portainer: %v", err)
-    }
+	// 启动并等待 Portainer 启动
+	cmd, err := startAndWaitForPortainer(os.Args[1:]...)
+	if err != nil {
+		log.Fatalf("Failed to start and wait for Portainer: %v", err)
+	}
 
-    // 检查是否已经初始化
-    if isPortainerInitialized() {
-        log.Println("Portainer is already initialized.")
-        // 等待 Portainer 进程结束
-        if err := cmd.Wait(); err != nil {
-            log.Fatalf("Portainer process exited with error: %v", err)
-        }
-        return
-    }
+	adminUsername := "admin"
+	initialized := isPortainerInitialized()
+	adminPassword, err := resolveAdminPassword(initialized)
+	if err != nil {
+		log.Fatalf("Failed to resolve Portainer admin credentials: %v", err)
+	}
 
-    // 初始化 Portainer
-    adminUsername := "admin"
-    adminPassword := generateRandomPassword(12)
+	// 检查是否已经初始化
+	if !initialized {
+		if err := initializePortainerUser(adminUsername, adminPassword); err != nil {
+			log.Fatalf("Failed to initialize Portainer user: %v", err)
+		} else {
+			if err := writeCredentialsToFile(adminPassword); err != nil {
+				log.Fatalf("Failed to write credentials to file: %v", err)
+			}
+		}
+	}
 
-    if err := initializePortainerUser(adminUsername, adminPassword); err != nil {
-        log.Fatalf("Failed to initialize Portainer user: %v", err)
-    } else {
-        if err := writeCredentialsToFile(adminPassword); err != nil {
-            log.Fatalf("Failed to write credentials to file: %v", err)
-        } else {
-            if err := initializeLocalEndpoint(adminUsername, adminPassword); err != nil {
-                log.Fatalf("Failed to initialize local endpoint: %v", err)
-            } else {
-                fmt.Println("Portainer initialization completed successfully.")
-            }
-        }
-    }
+	if err := ensureLocalEndpoint(adminUsername, adminPassword); err != nil {
+		log.Fatalf("Failed to ensure local endpoint: %v", err)
+	}
 
-    // 等待 Portainer 进程结束
-    if err := cmd.Wait(); err != nil {
-        log.Fatalf("Portainer process exited with error: %v", err)
-    }
+	// 等待 Portainer 进程结束
+	if err := cmd.Wait(); err != nil {
+		log.Fatalf("Portainer process exited with error: %v", err)
+	}
+}
+
+func resolveAdminPassword(initialized bool) (string, error) {
+	path := credentialFilePath()
+	if initialized {
+		content, err := ioutil.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("error reading existing credential file %s: %w", path, err)
+		}
+
+		password := strings.TrimSpace(string(content))
+		if password == "" {
+			return "", fmt.Errorf("existing credential file %s is empty", path)
+		}
+
+		return password, nil
+	}
+
+	return generateRandomPassword(12), nil
 }
 
 func credentialFilePath() string {
-    if path := os.Getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH"); path != "" {
-        return path
-    }
-    return "/data/credential"
+	if path := os.Getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH"); path != "" {
+		return path
+	}
+	return "/data/credential"
 }
 
 func startAndWaitForPortainer(args ...string) (*exec.Cmd, error) {
-    cmd := exec.Command("/portainer", args...)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
+	portainerArgs := append([]string{
+		"--assets", portainerAssetsPath,
+		"--bind", portainerHTTPBind,
+		"--http-enabled",
+	}, args...)
+	cmd := exec.Command("/portainer", portainerArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-    if err := cmd.Start(); err != nil {
-        return nil, fmt.Errorf("failed to start Portainer: %w", err)
-    }
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start Portainer: %w", err)
+	}
 
-    timeout := time.After(waitTimeout)
-    ticker := time.NewTicker(waitInterval)
-    defer ticker.Stop()
+	timeout := time.After(waitTimeout)
+	ticker := time.NewTicker(waitInterval)
+	defer ticker.Stop()
 
-    for {
-        select {
-        case <-timeout:
-            return nil, fmt.Errorf("timeout waiting for Portainer")
-        case <-ticker.C:
-            resp, err := portainerHTTPClient().Get(portainerURL + "/system/status")
-            if err == nil && resp.StatusCode == http.StatusOK {
-                resp.Body.Close()
-                fmt.Println("Portainer is up……!")
-                return cmd, nil
-            }
-            if resp != nil {
-                resp.Body.Close()
-            }
-            fmt.Println("Waiting for Portainer...")
-        }
-    }
+	for {
+		select {
+		case <-timeout:
+			return nil, fmt.Errorf("timeout waiting for Portainer")
+		case <-ticker.C:
+			resp, err := portainerHTTPClient().Get(portainerURL + "/system/status")
+			if err == nil && resp.StatusCode == http.StatusOK {
+				resp.Body.Close()
+				return cmd, nil
+			}
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+	}
 }
 
 func generateRandomPassword(length int) string {
-    password := make([]byte, length)
-    for i := range password {
-        char, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-        password[i] = charset[char.Int64()]
-    }
-    return string(password)
+	password := make([]byte, length)
+	for i := range password {
+		char, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		password[i] = charset[char.Int64()]
+	}
+	return string(password)
 }
 
 func initializePortainerUser(username, password string) error {
-    requestBody := Credentials{Username: username, Password: password}
-    jsonBody, err := json.Marshal(requestBody)
-    if err != nil {
-        return fmt.Errorf("error marshaling request body: %w", err)
-    }
+	requestBody := Credentials{Username: username, Password: password}
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("error marshaling request body: %w", err)
+	}
 
-    resp, err := retryRequest("POST", portainerURL+"/users/admin/init", "application/json", bytes.NewBuffer(jsonBody))
-    if err != nil {
-        return fmt.Errorf("error making request to Portainer API: %w", err)
-    }
-    defer resp.Body.Close()
+	resp, err := retryRequest("POST", portainerURL+"/users/admin/init", "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("error making request to Portainer API: %w", err)
+	}
+	defer resp.Body.Close()
 
-    if resp.StatusCode == http.StatusConflict {
-        return nil
-    }
+	if resp.StatusCode == http.StatusConflict {
+		return nil
+	}
 
-    if resp.StatusCode != http.StatusOK {
-        body, _ := ioutil.ReadAll(resp.Body)
-        return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, body)
-    }
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, body)
+	}
 
-    return nil
+	return nil
 }
 
 func initializeLocalEndpoint(username, password string) error {
-    authBody := Credentials{Username: username, Password: password}
-    jsonBody, err := json.Marshal(authBody)
-    if err != nil {
-        return fmt.Errorf("error marshaling auth body: %w", err)
-    }
+	if hasEndpoints, err := hasExistingEndpoint(username, password); err != nil {
+		return err
+	} else if hasEndpoints {
+		return nil
+	}
 
-    resp, err := retryRequest("POST", portainerURL+"/auth", "application/json", bytes.NewBuffer(jsonBody))
-    if err != nil {
-        return fmt.Errorf("error authenticating with Portainer API: %w", err)
-    }
-    defer resp.Body.Close()
+	authBody := Credentials{Username: username, Password: password}
+	jsonBody, err := json.Marshal(authBody)
+	if err != nil {
+		return fmt.Errorf("error marshaling auth body: %w", err)
+	}
 
-    if resp.StatusCode != http.StatusOK {
-        body, _ := ioutil.ReadAll(resp.Body)
-        return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, body)
-    }
+	resp, err := retryRequest("POST", portainerURL+"/auth", "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("error authenticating with Portainer API: %w", err)
+	}
+	defer resp.Body.Close()
 
-    var authResult map[string]string
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        return fmt.Errorf("error reading authentication response: %w", err)
-    }
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, body)
+	}
 
-    err = json.Unmarshal(body, &authResult)
-    if err != nil {
-        return fmt.Errorf("error parsing authentication response: %w", err)
-    }
+	var authResult map[string]string
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error reading authentication response: %w", err)
+	}
 
-    jwtToken := authResult["jwt"]
+	err = json.Unmarshal(body, &authResult)
+	if err != nil {
+		return fmt.Errorf("error parsing authentication response: %w", err)
+	}
 
-    endpointBody := url.Values{}
-    endpointBody.Set("Name", "local")
-    endpointBody.Set("EndpointCreationType", "1")
+	jwtToken := authResult["jwt"]
 
-    req, err := http.NewRequest("POST", portainerURL+"/endpoints", strings.NewReader(endpointBody.Encode()))
-    if err != nil {
-        return fmt.Errorf("error creating endpoint request: %w", err)
-    }
-    req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-    req.Header.Set("Authorization", "Bearer "+jwtToken)
+	endpointBody := url.Values{}
+	endpointBody.Set("Name", "local")
+	endpointBody.Set("EndpointCreationType", "1")
 
-    client := portainerHTTPClient()
-    resp, err = client.Do(req)
-    if err != nil {
-        return fmt.Errorf("error creating endpoint in Portainer API: %w", err)
-    }
-    defer resp.Body.Close()
+	req, err := http.NewRequest("POST", portainerURL+"/endpoints", strings.NewReader(endpointBody.Encode()))
+	if err != nil {
+		return fmt.Errorf("error creating endpoint request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
 
-    if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusConflict {
-        body, _ := ioutil.ReadAll(resp.Body)
-        return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, body)
-    }
+	client := portainerHTTPClient()
+	resp, err = client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error creating endpoint in Portainer API: %w", err)
+	}
+	defer resp.Body.Close()
 
-    if resp.StatusCode == http.StatusConflict {
-        fmt.Println("Endpoint already exists, but this is considered a success.")
-    } else {
-        fmt.Println("Endpoint created successfully.")
-    }
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusConflict {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected response status: %d, body: %s", resp.StatusCode, body)
+	}
 
-    return nil
+	return nil
+}
+
+func ensureLocalEndpoint(username, password string) error {
+	if _, err := os.Stat("/var/run/docker.sock"); err != nil {
+		return fmt.Errorf("docker socket is unavailable at /var/run/docker.sock; Portainer cannot auto-create the local environment: %w", err)
+	}
+
+	return initializeLocalEndpoint(username, password)
+}
+
+func hasExistingEndpoint(username, password string) (bool, error) {
+	jwtToken, err := authenticatePortainer(username, password)
+	if err != nil {
+		return false, err
+	}
+
+	req, err := http.NewRequest("GET", portainerURL+"/endpoints", nil)
+	if err != nil {
+		return false, fmt.Errorf("error creating endpoints list request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+
+	resp, err := portainerHTTPClient().Do(req)
+	if err != nil {
+		return false, fmt.Errorf("error listing endpoints from Portainer API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return false, fmt.Errorf("unexpected response status while listing endpoints: %d, body: %s", resp.StatusCode, body)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return false, fmt.Errorf("error reading endpoints list response: %w", err)
+	}
+
+	var endpoints []map[string]interface{}
+	if err := json.Unmarshal(body, &endpoints); err != nil {
+		return false, fmt.Errorf("error parsing endpoints list response: %w", err)
+	}
+
+	return len(endpoints) > 0, nil
+}
+
+func authenticatePortainer(username, password string) (string, error) {
+	authBody := Credentials{Username: username, Password: password}
+	jsonBody, err := json.Marshal(authBody)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling auth body: %w", err)
+	}
+
+	resp, err := retryRequest("POST", portainerURL+"/auth", "application/json", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("error authenticating with Portainer API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected auth response status: %d, body: %s", resp.StatusCode, body)
+	}
+
+	var authResult map[string]string
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading authentication response: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &authResult); err != nil {
+		return "", fmt.Errorf("error parsing authentication response: %w", err)
+	}
+
+	jwtToken := authResult["jwt"]
+	if jwtToken == "" {
+		return "", fmt.Errorf("portainer authentication returned an empty jwt")
+	}
+
+	return jwtToken, nil
 }
 
 func writeCredentialsToFile(password string) error {
-    path := credentialFilePath()
-    if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-        return fmt.Errorf("error creating credential directory: %w", err)
-    }
+	path := credentialFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("error creating credential directory: %w", err)
+	}
 
-    err := ioutil.WriteFile(path, []byte(password), 0600)
-    if err != nil {
-        return fmt.Errorf("error writing password to file: %w", err)
-    }
+	err := ioutil.WriteFile(path, []byte(password), 0600)
+	if err != nil {
+		return fmt.Errorf("error writing password to file: %w", err)
+	}
 
-    return nil
+	return nil
 }
 
 func retryRequest(method, url, contentType string, body *bytes.Buffer) (*http.Response, error) {
-    client := portainerHTTPClient()
-    for i := 0; i < maxRetries; i++ {
-        req, err := http.NewRequest(method, url, bytes.NewReader(body.Bytes()))
-        if err != nil {
-            return nil, fmt.Errorf("error creating request: %w", err)
-        }
-        req.Header.Set("Content-Type", contentType)
+	client := portainerHTTPClient()
+	for i := 0; i < maxRetries; i++ {
+		req, err := http.NewRequest(method, url, bytes.NewReader(body.Bytes()))
+		if err != nil {
+			return nil, fmt.Errorf("error creating request: %w", err)
+		}
+		req.Header.Set("Content-Type", contentType)
 
-        resp, err := client.Do(req)
-        if err == nil {
-            return resp, nil
-        }
+		resp, err := client.Do(req)
+		if err == nil {
+			return resp, nil
+		}
 
-        log.Printf("Request failed: %v. Retrying in %v...", err, retryDelay)
-        time.Sleep(retryDelay)
-    }
-    return nil, fmt.Errorf("max retries reached")
+		log.Printf("Request failed: %v. Retrying in %v...", err, retryDelay)
+		time.Sleep(retryDelay)
+	}
+	return nil, fmt.Errorf("max retries reached")
 }
 
 func isPortainerInitialized() bool {
-    resp, err := portainerHTTPClient().Get(initCheckURL)
-    if err != nil {
-        log.Fatalf("Failed to check Portainer initialization status: %v", err)
-    }
-    defer resp.Body.Close()
+	resp, err := portainerHTTPClient().Get(initCheckURL)
+	if err != nil {
+		log.Fatalf("Failed to check Portainer initialization status: %v", err)
+	}
+	defer resp.Body.Close()
 
-    if resp.StatusCode == http.StatusNoContent {
-        return true
-    }
+	if resp.StatusCode == http.StatusNoContent {
+		return true
+	}
 
-    if resp.StatusCode == http.StatusNotFound {
-        return false
-    }
+	if resp.StatusCode == http.StatusNotFound {
+		return false
+	}
 
-    log.Fatalf("Unexpected response status: %d", resp.StatusCode)
-    return false
+	log.Fatalf("Unexpected response status: %d", resp.StatusCode)
+	return false
 }
 
 func portainerHTTPClient() *http.Client {
-    transport := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-    }
-
-    return &http.Client{Transport: transport}
+	return &http.Client{}
 }

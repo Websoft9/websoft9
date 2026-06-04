@@ -1,101 +1,150 @@
-name: Release to Github and Artifact
+name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      channel:
+        type: choice
+        description: Release channel
+        options:
+          - auto
+          - release
+          - rc
+          - dev
+        default: auto
   push:
     branches:
       - main
       - dev
+      - 'hotfix*'
     paths:
-      - "version.json"
+      - version.json
 
 jobs:
-  create_new_branch:
-    name: create_new_branch
-    if: github.ref == 'refs/heads/main' # only run on main branch
+  # ── Determine release channel and metadata ──
+  determine-channel:
+    name: Determine Channel
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.channel.outputs.channel }}
+      version: ${{ steps.channel.outputs.version }}
+      version_core: ${{ steps.channel.outputs.version_core }}
+      is-release: ${{ steps.channel.outputs.is_release }}
+      is-hotfix: ${{ steps.channel.outputs.is_hotfix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: channel
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          VERSION_CORE="${VERSION%%-*}"
+          BRANCH="${{ github.ref_name }}"
+          MANUAL_CHANNEL="${{ github.event.inputs.channel }}"
+
+          # Determine channel
+          if [[ "$MANUAL_CHANNEL" != "" ]] && [[ "$MANUAL_CHANNEL" != "auto" ]]; then
+            CHANNEL="$MANUAL_CHANNEL"
+          elif [[ "$BRANCH" == "dev" ]]; then
+            CHANNEL=dev
+          elif [[ "$BRANCH" == hotfix* ]] || [[ "$VERSION" == *-* ]]; then
+            CHANNEL=rc
+          else
+            CHANNEL=release
+          fi
+
+          IS_RELEASE=false
+          [[ "$CHANNEL" == "release" ]] && IS_RELEASE=true
+
+          IS_HOTFIX=false
+          [[ "$BRANCH" == hotfix* ]] && IS_HOTFIX=true
+
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_core=$VERSION_CORE" >> $GITHUB_OUTPUT
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
+          echo "is_hotfix=$IS_HOTFIX" >> $GITHUB_OUTPUT
+
+          echo "✅ Channel: $CHANNEL | Version: $VERSION | Branch: $BRANCH"
+
+  # ── Create hotfix branch from main (release only) ──
+  create-hotfix-branch:
+    name: Create Hotfix Branch
+    needs: determine-channel
+    if: |
+      needs.determine-channel.outputs.is-release == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        name: Check out code
-
-      - name: Check version format
-        id: check_version
-        run: |
-          version=$(jq -r '.version' version.json)
-          if [[ $version == *-* ]]; then
-            echo "Version $version contains suffix, skipping branch creation"
-            echo "should_create_branch=false" >> $GITHUB_OUTPUT
-          else
-            echo "Version $version is a release version, will create branch"
-            echo "should_create_branch=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create new branch and push
-        if: steps.check_version.outputs.should_create_branch == 'true'
+      - name: Create and push hotfix branch
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          current_datetime=$(date +%Y%m%d-%H%M%S)
-          git checkout -b hotfix-$current_datetime
-          git push origin hotfix-$current_datetime
-          
-  upload_artifact:
-    name: upload_artifact
-    runs-on: ubuntu-latest
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          BRANCH="hotfix-$TIMESTAMP"
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+          echo "✅ Created hotfix branch: $BRANCH"
 
+  # ── Update CHANGELOG ──
+  update-changelog:
+    name: Update CHANGELOG
+    needs: determine-channel
+    runs-on: ubuntu-latest
+    outputs:
+      changelog_body: ${{ steps.changelog.outputs.body }}
     steps:
       - uses: actions/checkout@v4
-        name: Check out code
-
-      - name: Version convert
-        id: convert_version      
+      - id: changelog
         run: |
-          version=$(jq -r '.version' version.json)
-          version_core=${version%%-*}
-          echo "VERSION=$version" >> $GITHUB_OUTPUT
-          echo "VERSION_CORE=$version_core" >> $GITHUB_OUTPUT
-          
-          if [[ $GITHUB_REF == *"refs/heads/dev"* ]]; then
-            echo "dev branch detected"
-            echo "CHANNEL=dev" >> $GITHUB_OUTPUT
-          elif [[ $version == *-* ]]; then
-            echo "rc release version"
-            echo "CHANNEL=rc" >> $GITHUB_OUTPUT
-          else
-            echo "release version"
-            echo "CHANNEL=release" >> $GITHUB_OUTPUT
-          fi
-          
-      - name: Update CHANGELOG.md
-        id: update_data
-        run: |                 
-          changelog=$(cat changelog_latest.md)
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT 
-          echo "$changelog" >> $GITHUB_OUTPUT 
+          CHANGELOG_CONTENT=$(cat changelog_latest.md 2>/dev/null || echo "No changelog entry")
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          current_date=$(date +%Y-%m-%d)
-          printf "## ${{ steps.convert_version.outputs.VERSION }} release on $current_date\n$changelog\n$(cat CHANGELOG.md)" > temp.txt
-          mv temp.txt CHANGELOG.md
 
-      - name: Create Zip Archive
-        run: |                 
-          mkdir websoft9 artifacts
-          cp -r docker websoft9
-          cp -r cockpit websoft9
-          cp -r scripts websoft9
-          cp -r install websoft9
-          cp -r systemd websoft9
-          cp *.md websoft9
-          cp version.json websoft9
-          zip -r websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip websoft9
-          cp websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts
-          cp install/install.sh artifacts
-          cp version.json artifacts
-          cp CHANGELOG.md artifacts
-          cp mirrors.json artifacts
-          cp artifacts/websoft9-${{ steps.convert_version.outputs.VERSION_CORE }}.zip artifacts/websoft9-latest.zip
+          CURRENT_DATE=$(date +%Y-%m-%d)
+          printf "## ${{ needs.determine-channel.outputs.version }} release on $CURRENT_DATE\n$CHANGELOG_CONTENT\n$(cat CHANGELOG.md)" > CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+          echo "✅ CHANGELOG.md updated"
 
-      - name: Upload To cloudflare r2
+  # ── Create release archive and upload to Cloudflare R2 ──
+  upload-artifacts:
+    name: Upload Artifacts
+    needs: [determine-channel, update-changelog]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create release archive
+        run: |
+          VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
+
+          mkdir -p artifacts websoft9
+
+          # Include only what's needed for single-container deployment
+          cp -r docker websoft9/
+          cp -r scripts websoft9/
+          cp -r install websoft9/
+          cp version.json websoft9/
+          cp CHANGELOG.md websoft9/
+          cp mirrors.json websoft9/
+
+          # Create versioned zip
+          zip -r "websoft9-${VERSION_CORE}.zip" websoft9
+          cp "websoft9-${VERSION_CORE}.zip" artifacts/
+          cp install/install.sh artifacts/
+          cp install/uninstall.sh artifacts/
+          cp docker/docker-compose.yml artifacts/
+          cp version.json artifacts/
+          cp CHANGELOG.md artifacts/
+          cp mirrors.json artifacts/
+
+          # Also create latest symlink
+          cp "artifacts/websoft9-${VERSION_CORE}.zip" artifacts/websoft9-latest.zip
+
+          echo "✅ Archive created: websoft9-${VERSION_CORE}.zip"
+
+      - name: Upload to Cloudflare R2
         uses: ryand56/r2-upload-action@latest
         with:
           r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -103,31 +152,47 @@ jobs:
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
           source-dir: artifacts
-          destination-dir: ./${{ steps.convert_version.outputs.CHANNEL }}/websoft9
+          destination-dir: ./${{ needs.determine-channel.outputs.channel }}/websoft9
 
       - name: Purge Cloudflare Cache
         uses: jakejarvis/cloudflare-purge-action@master
         env:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.convert_version.outputs.CHANNEL }}/websoft9/websoft9-latest.zip"]'
-          
-      - name: Create Github Release
-        if: github.ref == 'refs/heads/main'  # 仅在 main 分支上触发
-        uses: softprops/action-gh-release@v1
+          PURGE_URLS: '["https://artifact.websoft9.com/${{ needs.determine-channel.outputs.channel }}/websoft9/websoft9-latest.zip"]'
+
+  # ── Create GitHub Release (release or hotfix channels) ──
+  github-release:
+    name: GitHub Release
+    needs: [determine-channel, update-changelog]
+    if: |
+      needs.determine-channel.outputs.is_release == 'true' ||
+      needs.determine-channel.outputs.is_hotfix == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             version.json
             CHANGELOG.md
-          tag_name: ${{ steps.convert_version.outputs.VERSION }}
-          name: ${{ steps.convert_version.outputs.VERSION }}
-          body: ${{ steps.update_data.outputs.CHANGELOG }}
+          tag_name: ${{ needs.determine-channel.outputs.version }}
+          name: ${{ needs.determine-channel.outputs.version }}
+          body: ${{ needs.update-changelog.outputs.changelog_body }}
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.determine-channel.outputs.is_release == 'false' }}
 
+  # ── Deploy GitHub Pages (release channel only) ──
   pages:
-    name: Build Github Pages
-    if: github.ref == 'refs/heads/main'  # 仅在 main 分支上触发
+    name: GitHub Pages
+    needs: determine-channel
+    if: |
+      needs.determine-channel.outputs.is_release == 'true' &&
+      github.ref == 'refs/heads/main'
     permissions:
       contents: read
       pages: write
@@ -137,18 +202,38 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
-          # Upload entire repository
           path: '.'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
+
+  # ── WeChat work notification ──
+  notify:
+    name: WeChat Notification
+    needs: [determine-channel, update-changelog]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send WeChat webhook
+        run: |
+          VERSION="${{ needs.determine-channel.outputs.version }}"
+          CHANNEL="${{ needs.determine-channel.outputs.channel }}"
+          CHANGELOG=$(cat changelog_latest.md 2>/dev/null | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g' || echo "No changelog")
+
+          if [[ "$CHANNEL" == "rc" ]]; then
+            VERSION_DISPLAY="${VERSION}（预发布）"
+          else
+            VERSION_DISPLAY="$VERSION"
+          fi
+
+          curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${{ secrets.WIXIN_ROBOT_KEY }}' \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"msgtype\": \"markdown\",
+              \"markdown\": {
+                \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 发布通道：<font color=\\\"comment\\\">${CHANNEL}</font>\\n> 最新版本：<font color=\\\"comment\\\">${VERSION_DISPLAY}</font>\\n> 更新内容：\\n${CHANGELOG}\\n>\"
+              }
+            }"

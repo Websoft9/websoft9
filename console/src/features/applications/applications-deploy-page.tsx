@@ -1,4 +1,4 @@
-import { Avatar, Box, Button, Paper, Typography, IconButton, Tooltip } from '@mui/material'
+import { Avatar, Box, Button, Paper, Skeleton, Typography, IconButton, Tooltip } from '@mui/material'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -102,7 +102,7 @@ function getAppInitial(label: string) {
     return label.trim().charAt(0).toUpperCase() || 'A'
 }
 
-function AppListItem({
+function AppCardItem({
     app,
     fallbackLabel,
     onClick,
@@ -129,16 +129,16 @@ function AppListItem({
                 alignItems: 'center',
                 gap: 1.5,
                 minWidth: 0,
-                p: '13px 16px',
-                borderRadius: '2px',
+                p: '16px 16px',
+                borderRadius: 0,
                 border: '1px solid var(--ds-color-border)',
                 backgroundColor: 'var(--ds-color-surface-bg)',
                 textTransform: 'none',
                 boxShadow: 'var(--ds-shadow-sm)',
-                justifyContent: 'stretch',
+                textAlign: 'left',
                 '&:hover': {
-                    backgroundColor: isDark ? 'rgba(37, 99, 235, 0.1)' : 'rgba(37, 99, 235, 0.02)',
-                    borderColor: 'rgba(37, 99, 235, 0.18)',
+                    backgroundColor: isDark ? 'rgba(37, 99, 235, 0.06)' : 'rgba(37, 99, 235, 0.02)',
+                    borderColor: 'rgba(37, 99, 235, 0.25)',
                 },
             }}
         >
@@ -148,59 +148,59 @@ function AppListItem({
                     alt={label}
                     src={imageUrl}
                     referrerPolicy="no-referrer"
-                    onError={() => {
-                        setImageFailed(true)
-                    }}
-                    sx={{ width: 36, height: 36, objectFit: 'contain', borderRadius: '8px' }}
+                    onError={() => setImageFailed(true)}
+                    sx={{ width: 38, height: 38, objectFit: 'contain', borderRadius: 0, flexShrink: 0 }}
                 />
             ) : (
                 <Avatar
-                    variant="rounded"
+                    variant="square"
                     sx={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: '8px',
-                        backgroundColor: isDark ? 'rgba(37, 99, 235, 0.14)' : 'rgba(37, 99, 235, 0.06)',
-                        color: 'var(--ds-color-text-strong)',
-                        fontSize: 16,
+                        width: 38,
+                        height: 38,
+                        borderRadius: 0,
+                        backgroundColor: isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(148, 163, 184, 0.1)',
+                        color: 'var(--ds-color-text-muted)',
+                        fontSize: 15,
                         fontWeight: 700,
-                        border: '1px solid rgba(37, 99, 235, 0.08)',
+                        flexShrink: 0,
                     }}
                 >
                     {getAppInitial(label)}
                 </Avatar>
             )}
 
-            <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35, color: 'var(--ds-color-text-strong)' }}>
+            <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.35, color: 'var(--ds-color-text-strong)' }}>
                     {label}
                 </Typography>
-                <Typography
-                    sx={{
-                        mt: 0.35,
-                        fontSize: 12,
-                        lineHeight: 1.45,
-                        color: 'var(--ds-color-text-muted)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 1,
-                        WebkitBoxOrient: 'vertical',
-                    }}
-                >
-                    {description || label}
-                </Typography>
+                {description && description !== label ? (
+                    <Typography
+                        sx={{
+                            mt: 0.3,
+                            fontSize: 12,
+                            lineHeight: 1.45,
+                            color: 'var(--ds-color-text-muted)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 1,
+                            WebkitBoxOrient: 'vertical',
+                        }}
+                    >
+                        {description}
+                    </Typography>
+                ) : null}
             </Box>
 
             <Box
                 aria-hidden="true"
                 sx={{
-                    width: 8,
-                    height: 8,
-                    borderTop: '2px solid rgba(148, 163, 184, 0.9)',
-                    borderRight: '2px solid rgba(148, 163, 184, 0.9)',
+                    width: 7,
+                    height: 7,
+                    borderTop: '2px solid rgba(148, 163, 184, 0.7)',
+                    borderRight: '2px solid rgba(148, 163, 184, 0.7)',
                     transform: 'rotate(45deg)',
-                    mr: 0.5,
+                    flexShrink: 0,
                 }}
             />
         </Button>
@@ -211,14 +211,14 @@ export function ApplicationsDeployPage() {
     const navigate = useNavigate()
     const { t } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
-    const { data: appStoreApps } = useAppStoreApps()
+    const { data: appStoreApps, isLoading: appStoreLoading } = useAppStoreApps()
     const isDark = colorMode === 'dark'
     const panelShadow = 'var(--ds-shadow-sm)'
     const panelBorder = isDark ? 'rgba(148, 163, 184, 0.22)' : 'rgba(37, 99, 235, 0.08)'
     const subtleDivider = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.06)'
     const pillBackground = isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(148, 163, 184, 0.12)'
 
-    const STORE_PAGE_SIZE = 6
+    const STORE_PAGE_SIZE = 15
     const [storePageIndex, setStorePageIndex] = useState(0)
 
     const hotApps = useMemo(() => {
@@ -296,30 +296,27 @@ export function ApplicationsDeployPage() {
                     alignItems: { xs: 'flex-start', md: 'stretch' },
                 }}
             >
-                <Box sx={{ flex: { xs: '1 1 auto', md: '0.93 1 0%' }, minWidth: 0, display: 'flex' }}>
+                <Box sx={{ flex: { xs: '1 1 auto', md: '1.5 1 0%' }, minWidth: 0, display: 'flex' }}>
                     <Paper
                         elevation={0}
                         sx={{
                             display: 'flex',
                             flexDirection: 'column',
                             flex: 1,
-                            p: 1,
-                            borderRadius: '2px',
+                            p: 1.5,
+                            borderRadius: 0,
                             border: '1px solid var(--ds-color-border)',
                             backgroundColor: 'var(--ds-color-surface-bg)',
                             boxShadow: panelShadow,
-                            minHeight: { md: 500 },
-                            height: { md: '100%' },
                         }}
                     >
-                        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 1, alignItems: 'center', px: 1.5, py: 1.25 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 1, alignItems: 'center', px: 0.5, py: 1 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.1, minWidth: 0 }}>
                                     <Box
                                         sx={{
                                             width: 36,
                                             height: 36,
-                                            borderRadius: '10px',
+                                            borderRadius: 0,
                                             display: 'grid',
                                             placeItems: 'center',
                                             background: isDark ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.08)',
@@ -338,7 +335,7 @@ export function ApplicationsDeployPage() {
                                         </Typography>
                                     </Box>
                                 </Box>
-                                {hotApps.length > STORE_PAGE_SIZE && (
+                                {hotApps.length > STORE_PAGE_SIZE && !appStoreLoading && (
                                     <Tooltip title={t('applicationsHubPage.deployPage.cards.marketplace.shuffle')} placement="top">
                                         <IconButton
                                             size="small"
@@ -349,7 +346,7 @@ export function ApplicationsDeployPage() {
                                                 gap: 0.5,
                                                 px: 1,
                                                 py: 0.5,
-                                                borderRadius: '4px',
+                                                borderRadius: 0,
                                                 border: '1px solid var(--ds-color-border)',
                                                 color: 'var(--ds-color-text-muted)',
                                                 fontSize: 12,
@@ -366,19 +363,42 @@ export function ApplicationsDeployPage() {
                                 )}
                             </Box>
 
-                            <Box sx={{ height: 1, backgroundColor: subtleDivider }} />
+                            <Box sx={{ height: '1px', backgroundColor: subtleDivider, mx: 0.5 }} />
 
-                            <Box sx={{ px: 1, pt: 1, pb: 1, display: 'flex', flexDirection: 'column', gap: 0.9, flex: 1 }}>
-                                <Box sx={{ display: 'grid', gap: 0.75 }}>
-                                    {currentStoreApps.map((app) => (
-                                        <AppListItem
-                                            key={app.key}
-                                            app={app}
-                                            fallbackLabel={app.trademark?.trim() || app.key || ''}
-                                            onClick={() => openFeaturedApp(app.key ?? '')}
-                                            isDark={isDark}
-                                        />
-                                    ))}
+                            <Box sx={{ px: 0.5, pt: 1, pb: 0.5, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.5 }}>
+                                    {appStoreLoading
+                                        ? Array.from({ length: STORE_PAGE_SIZE }).map((_, i) => (
+                                              <Box
+                                                  key={`skeleton-${i}`}
+                                                  sx={{
+                                                      display: 'grid',
+                                                      gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                                                      alignItems: 'center',
+                                                      gap: 1.25,
+                                                      p: '16px 16px',
+                                                      borderRadius: 0,
+                                                      border: '1px solid var(--ds-color-border)',
+                                                      backgroundColor: 'var(--ds-color-surface-bg)',
+                                                  }}
+                                              >
+                                                  <Skeleton variant="rectangular" width={38} height={38} />
+                                                  <Box sx={{ minWidth: 0 }}>
+                                                      <Skeleton variant="text" width={`${55 + (i % 3) * 12}%`} height={16} />
+                                                      <Skeleton variant="text" width={`${40 + (i % 4) * 10}%`} height={12} sx={{ mt: 0.5 }} />
+                                                  </Box>
+                                                  <Skeleton variant="circular" width={8} height={8} />
+                                              </Box>
+                                          ))
+                                        : currentStoreApps.map((app) => (
+                                              <AppCardItem
+                                                  key={app.key}
+                                                  app={app}
+                                                  fallbackLabel={app.trademark?.trim() || app.key || ''}
+                                                  onClick={() => openFeaturedApp(app.key ?? '')}
+                                                  isDark={isDark}
+                                              />
+                                          ))}
                                 </Box>
 
                                 <Box
@@ -396,7 +416,7 @@ export function ApplicationsDeployPage() {
                                         sx={{
                                             minHeight: 38,
                                             px: 2.1,
-                                            borderRadius: '2px',
+                                            borderRadius: 0,
                                             textTransform: 'none',
                                             boxShadow: 'none',
                                             fontWeight: 800,
@@ -411,11 +431,10 @@ export function ApplicationsDeployPage() {
                                     </Button>
                                 </Box>
                             </Box>
-                        </Box>
                     </Paper>
                 </Box>
 
-                <Box sx={{ flex: { xs: '1 1 auto', md: '1.95 1 0%' }, minWidth: 0, display: 'flex' }}>
+                <Box sx={{ flex: { xs: '1 1 auto', md: '1 1 0%' }, minWidth: 0, display: 'flex' }}>
                     <Paper
                         elevation={0}
                         sx={{
@@ -423,21 +442,20 @@ export function ApplicationsDeployPage() {
                             flexDirection: 'column',
                             flex: 1,
                             p: 1.5,
-                            borderRadius: '2px',
+                            borderRadius: 0,
                             border: '1px solid var(--ds-color-border)',
                             backgroundColor: 'var(--ds-color-surface-bg)',
                             boxShadow: panelShadow,
-                            height: { md: '100%' },
                         }}
                     >
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, flex: 1 }}>
                             <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1.25, alignItems: 'center', pb: 1.25, borderBottom: `1px solid ${subtleDivider}` }}>
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.15, minWidth: 0 }}>
                                     <Box
                                         sx={{
-                                            width: 40,
-                                            height: 40,
-                                            borderRadius: '12px',
+                                            width: 36,
+                                            height: 36,
+                                            borderRadius: 0,
                                             display: 'grid',
                                             placeItems: 'center',
                                             backgroundColor: isDark ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.08)',
@@ -448,7 +466,7 @@ export function ApplicationsDeployPage() {
                                         <ComposeIcon />
                                     </Box>
                                     <Box sx={{ minWidth: 0 }}>
-                                        <Typography sx={{ fontSize: 15, fontWeight: 900, lineHeight: 1.25, color: 'var(--ds-color-text-strong)' }}>
+                                        <Typography sx={{ fontSize: 14, fontWeight: 900, lineHeight: 1.25, color: 'var(--ds-color-text-strong)' }}>
                                             {t('applicationsHubPage.deployPage.cards.compose.title')}
                                         </Typography>
                                         <Typography sx={{ mt: 0.2, fontSize: 12, lineHeight: 1.45, color: 'var(--ds-color-text-muted)' }}>
@@ -460,67 +478,56 @@ export function ApplicationsDeployPage() {
 
                             <Box
                                 sx={{
-                                    p: 1.65,
-                                    borderRadius: '2px',
+                                    p: 1.5,
+                                    borderRadius: 0,
                                     border: `1px solid ${panelBorder}`,
                                     backgroundColor: 'var(--ds-color-surface-bg)',
                                 }}
                             >
-                                <Box sx={{ display: 'grid', gap: 2.2 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#2563eb' }}>
+                                <Box sx={{ display: 'grid', gap: 1.5 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, color: '#2563eb' }}>
                                         <FlowIcon />
-                                        <Typography sx={{ fontSize: 13, fontWeight: 800, color: 'var(--ds-color-text-strong)' }}>
+                                        <Typography sx={{ fontSize: 12, fontWeight: 800, color: 'var(--ds-color-text-strong)' }}>
                                             {t('applicationsHubPage.deployPage.cards.compose.flow.title')}
                                         </Typography>
                                     </Box>
 
-                                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0.65, alignItems: 'start' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0 }}>
                                         {composeSteps.map((step, index) => (
-                                            <Box key={step.key} sx={{ position: 'relative', textAlign: 'center', px: 1.1 }}>
-                                                {index < composeSteps.length - 1 ? (
-                                                    <Box
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            top: 16,
-                                                            left: 'calc(50% + 16px)',
-                                                            right: '-50%',
-                                                            height: 2,
-                                                            backgroundColor: isDark ? 'rgba(148, 163, 184, 0.18)' : 'rgba(148, 163, 184, 0.24)',
-                                                        }}
-                                                    />
-                                                ) : null}
+                                            <Box key={step.key} sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75, position: 'relative', px: 0.5 }}>
                                                 <Box
                                                     sx={{
-                                                        position: 'relative',
-                                                        zIndex: 1,
                                                         width: 32,
                                                         height: 32,
-                                                        mx: 'auto',
                                                         borderRadius: '50%',
                                                         display: 'grid',
                                                         placeItems: 'center',
                                                         fontSize: 13,
                                                         fontWeight: 800,
-                                                        color: step.state === 'active' ? '#ffffff' : step.state === 'ready' ? '#2563eb' : '#94a3b8',
-                                                        border: step.state === 'ready' ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid transparent',
-                                                        backgroundColor:
-                                                            step.state === 'active'
-                                                                ? '#2563eb'
-                                                                : step.state === 'ready'
-                                                                    ? isDark
-                                                                        ? 'rgba(59, 130, 246, 0.16)'
-                                                                        : 'rgba(59, 130, 246, 0.08)'
-                                                                    : isDark
-                                                                        ? 'rgba(148, 163, 184, 0.16)'
-                                                                        : 'rgba(148, 163, 184, 0.1)',
+                                                        color: '#ffffff',
+                                                        backgroundColor: '#2563eb',
+                                                        position: 'relative',
+                                                        zIndex: 1,
                                                     }}
                                                 >
                                                     {step.index}
                                                 </Box>
-                                                <Typography sx={{ mt: 1.55, fontSize: 13.5, fontWeight: 800, lineHeight: 1.42, color: 'var(--ds-color-text-strong)' }}>
+                                                {index < composeSteps.length - 1 ? (
+                                                    <Box
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: 15,
+                                                            left: 'calc(50% + 16px)',
+                                                            right: 'calc(-50% + 16px)',
+                                                            height: 2,
+                                                            backgroundColor: isDark ? 'rgba(148, 163, 184, 0.22)' : 'rgba(148, 163, 184, 0.28)',
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <Typography sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3, color: 'var(--ds-color-text-strong)', textAlign: 'center' }}>
                                                     {step.title}
                                                 </Typography>
-                                                <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.58, color: 'var(--ds-color-text-muted)' }}>
+                                                <Typography sx={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--ds-color-text-muted)', textAlign: 'center' }}>
                                                     {step.detail}
                                                 </Typography>
                                             </Box>
@@ -529,51 +536,63 @@ export function ApplicationsDeployPage() {
                                 </Box>
                             </Box>
 
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }, gap: 1, alignItems: 'start' }}>
+                            <Box sx={{ display: 'grid', gap: 2 }}>
                                 {composeCapabilities.map((item) => (
                                     <Box
                                         key={item.key}
                                         sx={{
                                             display: 'flex',
-                                            flexDirection: 'column',
-                                            justifyContent: 'space-between',
-                                            p: 1.15,
-                                            borderRadius: '2px',
+                                            alignItems: 'flex-start',
+                                            gap: 1,
+                                            p: '10px 12px',
+                                            borderRadius: 0,
                                             border: '1px solid var(--ds-color-border)',
                                             backgroundColor: 'var(--ds-color-surface-bg)',
-                                            boxShadow: 'var(--ds-shadow-sm)',
                                         }}
                                     >
-                                        <Box>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: '#2563eb' }}>
-                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#2563eb' }} />
-                                                <Typography sx={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.04em', color: '#2563eb' }}>
-                                                    {item.title}
-                                                </Typography>
-                                            </Box>
-                                            <Typography sx={{ mt: 0.7, fontSize: 12.5, lineHeight: 1.45, color: 'var(--ds-color-text-strong)' }}>
+                                        <Box
+                                            sx={{
+                                                width: 28,
+                                                height: 28,
+                                                borderRadius: 0,
+                                                display: 'grid',
+                                                placeItems: 'center',
+                                                backgroundColor: isDark ? 'rgba(37, 99, 235, 0.16)' : 'rgba(37, 99, 235, 0.08)',
+                                                color: '#2563eb',
+                                                flexShrink: 0,
+                                                fontSize: 10,
+                                                fontWeight: 800,
+                                            }}
+                                        >
+                                            {item.key === 'compose' ? '{}' : item.key === 'env' ? '$' : 'M'}
+                                        </Box>
+                                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                                            <Typography sx={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.35, color: 'var(--ds-color-text-strong)' }}>
+                                                {item.title}
+                                            </Typography>
+                                            <Typography sx={{ mt: 0.2, fontSize: 11.5, lineHeight: 1.45, color: 'var(--ds-color-text-muted)' }}>
                                                 {item.detail}
                                             </Typography>
-                                        </Box>
-                                        <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.45 }}>
-                                            {item.badges.map((badge) => (
-                                                <Box
-                                                    key={badge}
-                                                    sx={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        minHeight: 20,
-                                                        px: 0.7,
-                                                        borderRadius: '999px',
-                                                        backgroundColor: pillBackground,
-                                                        fontSize: 11,
-                                                        fontWeight: 700,
-                                                        color: '#94a3b8',
-                                                    }}
-                                                >
-                                                    {badge}
-                                                </Box>
-                                            ))}
+                                            <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.4 }}>
+                                                {item.badges.map((badge) => (
+                                                    <Box
+                                                        key={badge}
+                                                        sx={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            minHeight: 18,
+                                                            px: 0.55,
+                                                            borderRadius: '999px',
+                                                            backgroundColor: pillBackground,
+                                                            fontSize: 10,
+                                                            fontWeight: 700,
+                                                            color: '#94a3b8',
+                                                        }}
+                                                    >
+                                                        {badge}
+                                                    </Box>
+                                                ))}
+                                            </Box>
                                         </Box>
                                     </Box>
                                 ))}
@@ -582,7 +601,7 @@ export function ApplicationsDeployPage() {
                             <Box
                                 sx={{
                                     pt: 1.25,
-                                    mt: 0.25,
+                                    mt: 'auto',
                                     borderTop: `1px solid ${subtleDivider}`,
                                     display: 'flex',
                                     justifyContent: 'flex-end',
@@ -594,7 +613,7 @@ export function ApplicationsDeployPage() {
                                     sx={{
                                         minHeight: 38,
                                         px: 2.1,
-                                        borderRadius: '2px',
+                                        borderRadius: 0,
                                         textTransform: 'none',
                                         boxShadow: 'none',
                                         fontWeight: 800,

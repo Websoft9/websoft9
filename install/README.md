@@ -1,60 +1,75 @@
-# Install
+# Websoft9 Install
 
-- The [install.sh](./install.sh) is the entry file for install or upgrade
-- You can separate running the [install_cockpit.sh](./install_cockpit.sh), [install_docker.sh](./install_docker.sh), [install_plugins.sh](./install_plugins.sh) also
-- The [uninstall.sh](./install.sh) is the entry file for uninstall
+Single-container runtime install and uninstall scripts.
 
+## Quick Install
 
-## User it
+```bash
+# Default install (release channel, latest version)
+curl -fsSL https://websoft9.github.io/websoft9/install/install.sh | sudo bash
 
-```
-# install or upgrade Websoft9
-wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh
-
-# install or upgrade Websoft9 with parameters
-wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
-
-# install or upgrade Cockpit with parameters
-wget -O install_cockpit.sh https://websoft9.github.io/websoft9/install/install_cockpit.sh && bash install_cockpit.sh --port 9000
-
-# install or upgrade Docker
-wget -O - https://websoft9.github.io/websoft9/install/install_docker.sh | bash
-
-# uninstall by default
-curl https://websoft9.github.io/websoft9/install/uninstall.sh | bash
-
-# uninstall all
-wget -O - https://websoft9.github.io/websoft9/install/uninstall.sh | bash /dev/stdin --cockpit --files
+# With options
+sudo bash install.sh --channel release --version latest --console_port 9000
 ```
 
-## Develop it
+## Quick Uninstall
 
-This install script have below related resources:
+```bash
+# Remove container + data volumes
+curl -fsSL https://websoft9.github.io/websoft9/install/uninstall.sh | sudo bash
 
-- Tools: Install or upgrade some useful software packages at Linux
-- Source Code: Download source code from artifactory
-- Docker: Install and upgrade Docker, compose up **backend service** with docker-compose.yml
-- Cockpit: Install and upgrade Cockpit and its Packages, manage it port, fix it menu
-- Plugins: Install and upgrade Websoft9 plugins which is the **frontend**
-- Systemd: Install and upgrade websoft9.serivce
-- Set Firewalld: let 80,443 and Cockpit port allowed, Cockpit and Docker service with firewalld
+# Remove container only (keep data)
+sudo bash uninstall.sh --keep-data
 
-Current installer behavior still targets the existing multi-container deployment. The single-container multi-process runtime defined in Story 1.3 is a contract for upcoming delivery changes, not a silent installer behavior change in this story.
+# Remove everything including images
+sudo bash uninstall.sh --purge
+```
 
-The install script should adhere to the following principles:
+## Scripts
 
-1. Not allowed to modify the source code of the application.
-2. Every task must have an exception exit mechanism.
-3. Both installation and updates should be considered simultaneously.
-4. Upgrade script should not overwrite existing configurations.
-5. Duplication of codes in any form is not allowed, it must used function.
-6. Paths, ports, etc. must be defined using variables.
+| Script | Purpose |
+|---|---|
+| `install.sh` | Main entry point — installs Docker, pulls image, starts container |
+| `uninstall.sh` | Stop container, remove data, optional image purge |
+| `install_docker.sh` | Standalone Docker + Compose installation |
+| `install_podman.sh` | Standalone Podman installation (alternative) |
 
+## Install Options
 
-Some default parameters you should know:
+| Option | Default | Description |
+|---|---|---|
+| `--version` | latest | Image version tag |
+| `--channel` | release | Release channel: release / rc / dev |
+| `--console_port` | 9000 | Console web UI port |
+| `--path` | /opt/websoft9 | Installation directory |
+| `--mirrors` | — | Comma-separated Docker registry mirrors |
+| `--proxy` | — | HTTP proxy for downloads |
 
-- Websoft9 root path：*/data/websoft9/source* 
-- Websoft9 Systemd script path: */opt/websoft9/systemd*  
-- Plugins path: */usr/share/cockpit*  
-- Cockpit config path: */ect/cockpit* 
-- Cockpit default port: 9000
+## Uninstall Options
+
+| Option | Description |
+|---|---|
+| `--keep-data` | Remove container only, preserve named volumes |
+| `--purge` | Remove container + volumes + images |
+| `--path` | Installation path (default: /opt/websoft9) |
+
+## Architecture
+
+- **No systemd service** — Docker `restart: always` handles lifecycle
+- **No Cockpit** — Console UI is bundled in the container image
+- **No plugins** — All frontend is built into the single image
+- **Single container** — All services run in one container
+
+## Develop
+
+```bash
+# Build and test locally
+cd docker
+docker compose up -d
+
+# Check health
+docker exec websoft9 /websoft9/script/platform-healthcheck.sh --readiness
+
+# View logs
+docker logs websoft9 -f
+```

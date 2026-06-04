@@ -1,15 +1,13 @@
 .settings-page {
-    --settings-surface: var(--ds-color-surface-bg);
-    --settings-surface-soft: var(--ds-color-surface-soft);
-    --settings-border: var(--ds-color-border);
-    --settings-title: var(--ds-color-text-strong);
-    --settings-muted: var(--ds-color-text-muted);
-    height: 100%;
-    min-height: 0;
     padding: 0;
     background: transparent;
     display: flex;
     flex-direction: column;
+}
+
+.settings-page-shell {
+    width: min(1200px, 100%);
+    margin: 0 auto;
 }
 
 .settings-page--loading {
@@ -20,211 +18,237 @@
     gap: 12px;
 }
 
+/* ── Grid layout ─────────────────────────── */
 .settings-page-grid {
     display: grid;
     gap: 0;
-    grid-template-columns: minmax(228px, 264px) minmax(0, 1fr);
-    min-height: 0;
-    flex: 1 1 auto;
+    grid-template-columns: minmax(220px, 248px) minmax(0, 1fr);
+    align-items: stretch;
 }
 
-.settings-shell-card {
-    flex: 1 1 auto;
-    min-height: 0;
+/* ── Outer card – single wrapper ─────────── */
+.settings-outer-card {
     overflow: hidden;
-    background: var(--settings-surface);
-    background-color: var(--settings-surface) !important;
-    border: 1px solid var(--settings-border);
-    border-radius: 2px !important;
-    box-shadow: var(--ds-shadow-sm) !important;
+    background: #ffffff;
+    border: 1px solid #eef2f7;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.settings-panel {
-    background: var(--settings-surface);
-    background-color: var(--settings-surface) !important;
-    border: 1px solid var(--settings-border);
-    border-radius: 0 !important;
-    box-shadow: none !important;
+.app-shell-root--dark .settings-outer-card {
+    background: #111827;
+    border-color: rgba(71, 85, 105, 0.65);
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
 }
 
-.settings-toolbar-icon-button,
-.settings-toolbar-icon-button.MuiIconButton-root {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--ds-radius-panel) !important;
-    border: 1px solid var(--settings-border);
-    background: var(--settings-surface);
-    color: #475569;
-}
-
-.app-shell-root--dark .settings-toolbar-icon-button,
-.app-shell-root--dark .settings-toolbar-icon-button.MuiIconButton-root {
-    background: var(--settings-surface-soft);
-    color: var(--settings-title);
-}
-
-.settings-toolbar-icon-button:hover,
-.settings-toolbar-icon-button.MuiIconButton-root:hover {
-    background: var(--settings-surface-soft);
-}
-
-.settings-panel {
-    overflow: hidden;
-}
-
-.settings-nav-panel {
-    min-height: 0;
-    border-right: 1px solid var(--settings-border);
-    background: var(--settings-surface);
+/* ── Left nav – stretches with right side ── */
+.settings-nav-area {
+    border-right: 1px solid #eef2f7;
+    background: transparent;
 }
 
 .settings-nav-content {
-    padding: 16px 10px;
+    padding: 20px 16px;
 }
 
 .settings-nav-group+.settings-nav-group {
-    margin-top: 12px;
+    margin-top: 20px;
 }
 
 .settings-nav-group-title,
 .settings-nav-group-title.MuiTypography-root {
-    padding: 0 10px;
-    margin-bottom: 6px;
-    font-size: 12px !important;
+    padding: 0 12px 8px;
+    font-size: 11px !important;
     line-height: 1.3 !important;
     font-weight: 700 !important;
-    letter-spacing: 0.03em !important;
+    font-family: inherit !important;
+    letter-spacing: 0.08em !important;
     text-transform: uppercase;
-    color: var(--settings-muted);
+    color: var(--shell-sidebar-muted);
 }
 
 .settings-nav-list {
     display: grid;
-    gap: 4px;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
 }
 
 .settings-nav-item,
 .settings-nav-item.MuiListItemButton-root {
-    min-height: 38px;
-    border-radius: 2px;
-    padding: 8px 11px;
-    color: var(--settings-muted);
+    min-height: 40px;
+    border-radius: 0;
+    padding: 8px 12px 8px 18px;
+    color: var(--shell-sidebar-text);
+    transition: background-color 140ms ease, color 140ms ease;
 }
 
 .settings-nav-item:hover,
 .settings-nav-item.MuiListItemButton-root:hover {
-    background: var(--settings-surface-soft);
-    color: var(--settings-title);
+    background: var(--shell-sidebar-hover);
+    color: var(--shell-strong-text);
 }
 
 .settings-nav-item.active,
 .settings-nav-item.active.MuiListItemButton-root {
-    background: rgba(37, 99, 235, 0.12);
-    color: #1d4ed8;
-}
-
-.app-shell-root--dark .settings-nav-item.active,
-.app-shell-root--dark .settings-nav-item.active.MuiListItemButton-root {
-    background: rgba(59, 130, 246, 0.2);
-    color: #bfdbfe;
+    background: var(--shell-sidebar-active);
+    color: var(--shell-strong-text);
 }
 
 .settings-nav-item-label,
 .settings-nav-item-label.MuiTypography-root {
     font-size: 14px !important;
-    line-height: 1.35 !important;
+    line-height: 1.4 !important;
     font-weight: 500 !important;
     color: inherit;
 }
 
-.settings-panel--module {
+/* ── Right side – header with indicator + content card ── */
+.settings-module-area {
     min-width: 0;
-    min-height: 0;
     display: flex;
     flex-direction: column;
+    gap: 16px;
+    padding: 20px 24px;
 }
 
-.settings-panel-headline {
-    min-width: 0;
-}
-
-.settings-panel-subtitle,
-.settings-panel-subtitle.MuiTypography-root {
-    margin-top: 4px;
-    font-size: 13px !important;
-    line-height: 1.45 !important;
-    color: var(--settings-muted);
-}
-
-.settings-panel-header {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--settings-border);
-    background: var(--settings-surface);
-}
-
-.settings-panel-header--with-action {
+.settings-module-header {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
+    padding: 0 2px;
 }
 
-.settings-panel-title {
-    font-size: 18px !important;
-    font-weight: 700 !important;
-    color: var(--settings-title);
-    line-height: 1.3 !important;
+.settings-module-indicator {
+    display: block;
+    width: 4px;
+    height: 20px;
+    margin-top: 2px;
+    border-radius: 2px;
+    background: #3b82f6;
+    flex-shrink: 0;
 }
 
-.app-shell-root--dark .settings-panel-title,
-.app-shell-root--dark .settings-form-value,
-.app-shell-root--dark .settings-form-value--muted,
-.app-shell-root--dark .settings-field-helper,
-.app-shell-root--dark .settings-mirror-inline-input {
-    color: var(--ds-color-text-strong);
+.settings-module-headline {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
-.settings-header-icon-button,
-.settings-header-icon-button.MuiIconButton-root {
-    align-self: center;
+.settings-module-title {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--shell-strong-text);
+    line-height: 1.35 !important;
 }
 
+.settings-module-subtitle,
+.settings-module-subtitle.MuiTypography-root {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    color: var(--shell-subtle-text);
+}
+
+/* ── Content card – matches app-detail overview card style ── */
+.settings-module-card {
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fc 100%);
+    border: 1px solid #eef2f7;
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell-root--dark .settings-module-card {
+    background: linear-gradient(180deg, #182235 0%, #162033 100%);
+    border-color: rgba(71, 85, 105, 0.52);
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+}
+
+/* ── Form area – app-detail overview style ── */
 .settings-form-table {
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    overflow: auto;
+    gap: 0;
+    padding: 0 16px;
+    background: transparent;
 }
 
 .settings-form-row {
     display: grid;
-    grid-template-columns: 170px minmax(0, 1fr) auto;
-    gap: 10px;
+    grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 18px;
+    row-gap: 10px;
+    padding: 14px 0;
+    border-top: 1px solid #eef2f7;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.settings-form-row:first-child {
+    border-top: 0;
+}
+
+.settings-form-row:hover {
+    background: transparent;
+}
+
+.settings-form-row--feature {
     align-items: start;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--ds-color-border);
 }
 
-.app-shell-root--dark .settings-form-row {
-    border-bottom-color: var(--ds-color-border);
+.settings-form-row--feature .settings-form-label {
+    padding-top: 4px;
 }
 
-.settings-form-row:last-child {
-    border-bottom: none;
+/* ── Domain row – stacked label-above-input layout ── */
+.settings-form-row--domain-stacked {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+    row-gap: 10px;
+    align-items: stretch;
+}
+
+.settings-domain-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-domain-help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--ds-color-border-strong);
+    background: transparent;
+    color: var(--shell-subtle-text);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.settings-domain-help-icon:hover {
+    background: var(--shell-sidebar-hover);
+    color: var(--shell-strong-text);
+    border-color: var(--shell-strong-text);
 }
 
 .settings-form-label {
-    font-size: 14px !important;
-    font-weight: 600 !important;
-    color: var(--ds-color-text-muted);
-    line-height: 1.45;
-    padding-top: 8px;
-}
-
-.app-shell-root--dark .settings-form-label,
-.app-shell-root--dark .settings-switch-label,
-.app-shell-root--dark .settings-form-meta {
-    color: var(--settings-muted);
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    color: var(--shell-strong-text);
+    line-height: 1.5;
+    padding-top: 0;
 }
 
 .settings-form-control {
@@ -254,29 +278,18 @@
 .settings-form-control .MuiOutlinedInput-root,
 .settings-form-control .MuiOutlinedInput-root.Mui-disabled {
     border-radius: 2px !important;
-    min-height: 40px;
+    min-height: var(--ds-form-height);
 }
 
 .settings-form-control .MuiInputBase-input {
     font-size: 14px;
 }
 
+/* ── Switches ────────────────────────────── */
 .settings-form-switch {
     align-items: center;
     min-height: 38px;
     gap: 8px;
-}
-
-.settings-form-control--switches {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.settings-switch-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
 }
 
 .settings-switch-item {
@@ -290,14 +303,14 @@
     min-height: 38px;
     justify-content: space-between;
     padding: 0 12px;
-    border: 1px solid var(--ds-color-border-strong);
-    border-radius: var(--ds-radius-field);
-    background: var(--ds-color-surface-bg);
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 2px;
+    background: transparent;
 }
 
 .app-shell-root--dark .settings-switch-item--row {
-    border-color: var(--ds-color-border);
-    background: var(--ds-color-surface-soft);
+    border-color: rgba(71, 85, 105, 0.65);
+    background: transparent;
 }
 
 .settings-switch-item--rowless {
@@ -313,21 +326,27 @@
 .settings-switch-label {
     font-size: 14px !important;
     font-weight: 400 !important;
-    color: var(--settings-muted);
+    color: var(--shell-subtle-text);
     line-height: 1.4 !important;
 }
 
+/* ── Form actions ────────────────────────── */
 .settings-form-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    min-width: 132px;
+    min-width: 88px;
     gap: 8px;
     padding-top: 2px;
 }
 
+.settings-form-actions--stacked {
+    min-width: 0;
+    padding-top: 4px;
+}
+
 .settings-form-meta {
-    color: var(--settings-muted);
+    color: var(--shell-subtle-text);
     white-space: nowrap;
 }
 
@@ -337,165 +356,16 @@
     gap: 8px;
 }
 
-.settings-choice-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.settings-choice-button {
+/* ── Panel footer ────────────────────────── */
+.settings-panel-footer {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--ds-color-border);
-    border-radius: 2px;
-    background: var(--ds-color-surface-bg);
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.settings-choice-button.active {
-    border-color: var(--ds-color-brand);
-    background: color-mix(in srgb, var(--ds-color-brand) 8%, var(--ds-color-surface-bg));
-}
-
-.app-shell-root--dark .settings-choice-button {
-    background: var(--ds-color-surface-soft);
-}
-
-.app-shell-root--dark .settings-choice-button.active {
-    background: color-mix(in srgb, var(--ds-color-brand) 12%, var(--ds-color-surface-soft));
-}
-
-.settings-choice-title {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.4;
-}
-
-.settings-choice-description,
-.settings-choice-meta {
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--settings-muted);
-}
-
-.settings-platform-ssl-detail {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px 12px;
-    border: 1px solid var(--ds-color-border);
-    border-radius: 2px;
-    background: var(--ds-color-surface-bg);
-}
-
-.app-shell-root--dark .settings-platform-ssl-detail {
-    background: var(--ds-color-surface-soft);
-}
-
-.settings-form-value {
-    font-size: 14px !important;
-    font-weight: 400;
-    color: var(--settings-muted);
-    overflow-wrap: anywhere;
-    line-height: 1.45 !important;
-}
-
-.settings-form-value--muted {
-    font-weight: 400;
-    color: var(--settings-muted);
-}
-
-.settings-field-helper {
-    font-size: 12px !important;
-    font-weight: 400 !important;
-    line-height: 1.5 !important;
-    color: var(--settings-muted);
-}
-
-.settings-field-helper--inline {
-    margin-top: 0;
-    min-width: 0;
-}
-
-.settings-field-helper--switch {
-    min-width: 0;
-}
-
-.settings-mirror-box {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    min-height: 40px;
-    padding: 7px 10px;
-    width: 100%;
-    border: 1px solid var(--ds-color-border);
-    background: var(--ds-color-surface-bg);
-}
-
-.app-shell-root--dark .settings-mirror-box,
-.app-shell-root--dark .settings-mirror-edit-box {
-    border-color: var(--ds-color-border);
-    background: var(--ds-color-surface-soft);
-}
-
-.settings-mirror-chip {
-    display: inline-flex;
-    align-items: center;
-    min-height: 28px;
-    padding: 0 12px;
-    border: 1px solid var(--ds-color-border);
-    border-radius: 999px;
-    background: var(--ds-color-surface-bg);
-    color: var(--settings-muted);
-    font-size: 13px;
-    line-height: 1.4;
-}
-
-.app-shell-root--dark .settings-mirror-chip,
-.app-shell-root--dark .settings-mirror-edit-chip,
-.app-shell-root--dark .settings-mirror-edit-chip.MuiChip-root {
-    background: var(--ds-color-surface-soft);
-    border-color: var(--ds-color-border);
-    color: var(--ds-color-text-strong);
-}
-
-.settings-mirror-edit-chip,
-.settings-mirror-edit-chip.MuiChip-root {
-    border-radius: 999px;
-    background: var(--ds-color-surface-bg);
-    border: 1px solid var(--ds-color-border);
-}
-
-.settings-mirror-edit-box {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    min-height: 38px;
-    width: 100%;
-    padding: 6px 10px;
-    border: 1px solid var(--ds-color-border-strong);
-    border-radius: var(--ds-radius-field);
-    background: var(--ds-color-surface-bg);
-}
-
-.settings-mirror-inline-input {
-    min-width: 160px;
-    flex: 1 1 160px;
-    border: 0;
-    outline: 0;
-    padding: 4px 0;
+    justify-content: flex-end;
+    padding: 14px 16px;
+    border-top: 0;
     background: transparent;
-    font: inherit;
-    color: #0f172a;
 }
 
+/* ── Action buttons ──────────────────────── */
 .settings-action-button,
 .settings-action-button.MuiButton-root {
     min-height: 34px;
@@ -507,6 +377,678 @@
     box-shadow: none !important;
 }
 
+.settings-action-button--primary,
+.settings-action-button--primary.MuiButton-root {
+    min-width: 92px;
+}
+
+/* ── SSL / Choice cards ──────────────────── */
+.settings-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.settings-choice-grid--two {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.settings-choice-button {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
+    min-height: 70px;
+    padding: 12px 12px 10px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.settings-choice-button:hover {
+    border-color: var(--ds-color-accent-strong);
+}
+
+.settings-choice-button.active {
+    border-color: var(--ds-color-accent-strong);
+    background: var(--shell-sidebar-active);
+}
+
+.settings-choice-title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--shell-strong-text);
+}
+
+.settings-choice-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #16a34a;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.settings-choice-description,
+.settings-choice-meta {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--shell-subtle-text);
+    overflow-wrap: anywhere;
+}
+
+/* ── Access mode card ──────────────────── */
+.settings-access-card {
+    border: 1px solid var(--shell-surface-border, #e5e7eb);
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+.settings-access-card-body {
+    padding: 14px 18px;
+}
+
+.settings-access-card .settings-domain-mode-radios {
+    gap: 18px;
+}
+
+/* ── SSL card (clean single card) ──────── */
+.settings-ssl-card {
+    border: 1px solid var(--shell-surface-border, #e5e7eb);
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+}
+
+.settings-ssl-card+.settings-ssl-card {
+    margin-top: 14px;
+}
+
+.settings-ssl-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    gap: 16px;
+}
+
+.settings-ssl-card-headline {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.settings-ssl-card-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--shell-strong-text);
+    line-height: 1.5;
+}
+
+.settings-ssl-card-subtitle {
+    display: block;
+    font-size: 11px;
+    color: var(--shell-subtle-text);
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.settings-ssl-card-body {
+    padding: 0 18px 14px;
+}
+
+/* Cert actions area */
+.settings-ssl-cert-actions {
+    margin-bottom: 4px;
+}
+
+/* PEM upload fields */
+.settings-ssl-cert-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-ssl-cert-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.settings-ssl-cert-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-ssl-cert-field-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--shell-subtle-text);
+    flex: 1;
+}
+
+.settings-field-required {
+    color: #ef4444;
+    margin-left: 2px;
+}
+
+.settings-ssl-cert-field-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.settings-ssl-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 0;
+    background: transparent;
+    color: var(--shell-subtle-text);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.settings-ssl-upload-btn:hover {
+    border-color: var(--ds-color-accent-strong);
+    color: var(--ds-color-accent-strong);
+}
+
+.settings-ssl-cert-name-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 0;
+    background: var(--shell-surface-bg, #fff);
+    color: var(--shell-strong-text);
+    font-size: 12px;
+    line-height: 1.5;
+    outline: none;
+}
+
+.settings-ssl-cert-name-input:focus {
+    border-color: var(--ds-color-accent-strong);
+}
+
+.settings-ssl-cert-select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 0;
+    background: var(--shell-surface-bg, #fff);
+    color: var(--shell-strong-text);
+    font-size: 12px;
+    line-height: 1.5;
+    outline: none;
+    cursor: pointer;
+}
+.settings-ssl-cert-select:focus {
+    border-color: var(--ds-color-accent-strong);
+}
+
+.settings-ssl-cert-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 0;
+    background: var(--shell-surface-bg, #fff);
+    color: var(--shell-strong-text);
+    font-size: 11px;
+    font-family: monospace;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+}
+
+.settings-ssl-cert-textarea:focus {
+    border-color: var(--ds-color-accent-strong);
+}
+
+/* Validity period selector */
+.settings-validity-select {
+    font-size: 12px;
+    padding: 4px 8px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 0;
+    background: var(--shell-surface-bg, #fff);
+    color: var(--shell-strong-text);
+    cursor: pointer;
+    outline: none;
+    min-width: 90px;
+}
+
+.settings-validity-select:focus {
+    border-color: var(--ds-color-accent-strong);
+}
+
+/* HTTPS redirect row */
+.settings-https-redirect {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 18px 14px;
+    border-top: 1px solid var(--shell-surface-border);
+}
+
+.settings-https-redirect-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.settings-https-redirect-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--shell-strong-text);
+    line-height: 1.5;
+}
+
+.settings-https-redirect-desc {
+    display: block;
+    font-size: 11px;
+    color: var(--shell-subtle-text);
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.settings-ssl-notice {
+    margin-bottom: 10px;
+}
+
+.settings-ssl-notice.MuiAlert-root {
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+.settings-ssl-cert-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.settings-ssl-cert-options--three {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* SSL panel – hide old surface */
+.settings-platform-ssl-panel,
+.settings-platform-ssl-detail,
+.settings-platform-ssl-alert {
+    display: none;
+}
+
+/* ── Form values & helpers ───────────────── */
+.settings-form-value {
+    font-size: 14px !important;
+    font-weight: 400;
+    color: var(--shell-subtle-text);
+    overflow-wrap: anywhere;
+    line-height: 1.45 !important;
+}
+
+.settings-form-value--muted {
+    font-weight: 400;
+    color: var(--shell-subtle-text);
+}
+
+.settings-field-helper {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: var(--shell-subtle-text);
+}
+
+.settings-field-helper--inline {
+    margin-top: 0;
+    min-width: 0;
+}
+
+.settings-field-helper--switch {
+    min-width: 0;
+}
+
+/* ── Domain mode radio buttons ──────────── */
+.settings-domain-mode-radios {
+    display: flex;
+    gap: 24px;
+}
+
+.settings-domain-mode-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--shell-subtle-text);
+    transition: color 140ms ease;
+}
+
+.settings-domain-mode-radio-label.checked {
+    color: var(--shell-strong-text);
+}
+
+.settings-domain-mode-radio-btn {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--ds-color-border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 140ms ease;
+}
+
+.settings-domain-mode-radio-label.checked .settings-domain-mode-radio-btn {
+    border-color: var(--ds-color-accent-strong);
+}
+
+.settings-domain-mode-radio-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+    transition: background-color 140ms ease;
+}
+
+.settings-domain-mode-radio-label.checked .settings-domain-mode-radio-dot {
+    background: var(--ds-color-accent-strong);
+}
+
+.settings-domain-mode-radio-text {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+/* ── Domain mode card ───────────────────── */
+.settings-domain-mode-card {
+    padding: 16px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 2px;
+    background: transparent;
+}
+
+.settings-domain-mode-content {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--shell-surface-border);
+}
+
+.settings-domain-mode-section-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--shell-strong-text);
+    margin-bottom: 10px;
+}
+
+.settings-domain-mode-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.settings-domain-mode-field-label {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: var(--shell-subtle-text);
+}
+
+/* ── Mirror editor ───────────────────────── */
+.settings-mirror-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+    padding: 7px 10px;
+    width: 100%;
+    border: 1px solid var(--shell-surface-border);
+    background: transparent;
+}
+
+.settings-mirror-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--shell-subtle-text);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.settings-mirror-edit-chip,
+.settings-mirror-edit-chip.MuiChip-root {
+    border-radius: 999px;
+    border: 1px solid var(--shell-surface-border);
+}
+
+.settings-mirror-edit-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 2px;
+    background: transparent;
+}
+
+.settings-mirror-inline-input {
+    min-width: 160px;
+    flex: 1 1 160px;
+    border: 0;
+    outline: 0;
+    padding: 4px 0;
+    background: transparent;
+    font: inherit;
+    color: var(--shell-strong-text);
+}
+
+.settings-mirror-helper-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.settings-restore-link {
+    display: inline-flex;
+    align-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--ds-color-accent);
+    font-size: 12px;
+    line-height: 1.5;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    font-family: inherit;
+    text-decoration: none;
+    transition: color 140ms ease;
+}
+
+.settings-restore-link:hover {
+    color: var(--ds-color-accent-strong);
+    text-decoration: underline;
+}
+
+.settings-restore-link:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+/* ── Brand preview ───────────────────────── */
+.settings-brand-preview-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid #eef2f7;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fc 100%);
+}
+
+.settings-brand-preview-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.settings-brand-preview-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.settings-brand-preview-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--shell-strong-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.settings-brand-preview-browser {
+    flex-shrink: 0;
+}
+
+.settings-brand-preview-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px solid #eef2f7;
+    border-radius: 2px;
+    background: #ffffff;
+}
+
+.settings-brand-preview-favicon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.settings-brand-preview-tab-title {
+    font-size: 11px;
+    color: var(--shell-subtle-text);
+    white-space: nowrap;
+}
+
+/* ── Brand upload row ────────────────────── */
+.settings-brand-upload-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.settings-brand-upload-row .MuiTextField-root {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.settings-brand-favicon-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-brand-reuse-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.settings-brand-reuse-label {
+    font-size: 12px !important;
+    color: var(--shell-subtle-text);
+}
+
+/* ── Misc ────────────────────────────────── */
+.settings-switch-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-header-icon-button,
+.settings-header-icon-button.MuiIconButton-root {
+    align-self: center;
+}
+
+.settings-form-control--switches {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* ── Dark mode overrides ─────────────────── */
+.app-shell-root--dark .settings-form-label,
+.app-shell-root--dark .settings-switch-label,
+.app-shell-root--dark .settings-form-meta {
+    color: var(--shell-subtle-text);
+}
+
+.app-shell-root--dark .settings-form-row {
+    background: transparent;
+    box-shadow: none;
+    border-top-color: rgba(71, 85, 105, 0.52);
+}
+
+.app-shell-root--dark .settings-mirror-box,
+.app-shell-root--dark .settings-mirror-edit-box {
+    border-color: rgba(71, 85, 105, 0.65);
+    background: transparent;
+}
+
+.app-shell-root--dark .settings-mirror-chip,
+.app-shell-root--dark .settings-mirror-edit-chip,
+.app-shell-root--dark .settings-mirror-edit-chip.MuiChip-root {
+    background: transparent;
+    border-color: rgba(71, 85, 105, 0.65);
+    color: var(--shell-strong-text);
+}
+
+.app-shell-root--dark .settings-mirror-inline-input {
+    color: var(--shell-strong-text);
+}
+
+/* ── Responsive ──────────────────────────── */
 @media (max-width: 899px) {
     .settings-page-grid {
         grid-template-columns: minmax(0, 1fr);
@@ -514,7 +1056,11 @@
 
     .settings-nav-content {
         padding: 12px;
-        border-bottom: 1px solid var(--settings-border);
+        border-bottom: 1px solid var(--shell-surface-border);
+    }
+
+    .settings-page-shell {
+        width: 100%;
     }
 
     .settings-nav-group+.settings-nav-group {
@@ -522,12 +1068,13 @@
     }
 
     .settings-nav-list {
-        grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 
     .settings-form-row {
         grid-template-columns: 1fr;
-        gap: 10px;
+        gap: 8px;
+        padding: 12px 16px;
     }
 
     .settings-form-label {
@@ -537,6 +1084,11 @@
     .settings-form-actions {
         justify-content: flex-start;
         min-width: 0;
+    }
+
+    .settings-panel-footer {
+        justify-content: flex-start;
+        padding: 12px 16px;
     }
 
     .settings-inline-content {
@@ -555,8 +1107,9 @@
         gap: 8px;
     }
 
-    .settings-choice-grid {
-        grid-template-columns: 1fr;
+    .settings-switch-item--panel {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .settings-mirror-box,
@@ -567,9 +1120,40 @@
 
 @media (max-width: 599px) {
 
-    .settings-panel-header,
+    .settings-module-header,
     .settings-form-row {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+
+    .settings-panel-footer {
         padding-left: 14px;
         padding-right: 14px;
     }
+
+    .settings-choice-button {
+        min-height: 0;
+    }
+}
+/* ── Summary card rows ─────────────────── */
+.settings-summary-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.settings-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.settings-summary-label {
+    font-size: 12px;
+    color: var(--shell-subtle-text);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.settings-summary-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--shell-strong-text);
 }

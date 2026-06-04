@@ -267,6 +267,7 @@ export function AppShell() {
                     logoUrl: resolvedLogoUrl,
                 })
                 setBrandLogoSrc(resolvedLogoUrl)
+                document.title = resolvedTitle
             } catch {
                 if (!disposed) {
                     setPlatformBrand({
@@ -300,6 +301,7 @@ export function AppShell() {
                     ...current,
                     title: nextTitle,
                 }))
+                document.title = nextTitle
                 return
             }
 
@@ -310,6 +312,20 @@ export function AppShell() {
                     logoUrl: nextLogoUrl,
                 }))
                 setBrandLogoSrc(nextLogoUrl)
+                return
+            }
+
+            if (key === 'favicon_url') {
+                const nextFavicon = value.trim() || '/favicon.ico?v=20260509c'
+                const busted = nextFavicon.includes('?') ? `${nextFavicon}&_t=${Date.now()}` : `${nextFavicon}?_t=${Date.now()}`
+                const faviconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+                if (faviconLink) {
+                    faviconLink.href = busted
+                }
+                const shortcutLink = document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]')
+                if (shortcutLink) {
+                    shortcutLink.href = busted
+                }
             }
         }
 

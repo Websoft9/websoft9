@@ -33,7 +33,7 @@ type ProductAuthContextValue = {
     isLoading: boolean
     isSubmitting: boolean
     status: ProductAuthStatus | null
-    initialize: (payload: { username: string; password: string; displayName: string }) => Promise<ProductAuthStatus>
+    initialize: (payload: { username: string; password: string; email: string; locale: string }) => Promise<ProductAuthStatus>
     login: (payload: { username: string; password: string }) => Promise<ProductAuthStatus>
     logout: () => Promise<void>
     refresh: () => Promise<ProductAuthStatus>
@@ -175,7 +175,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         void i18n.changeLanguage(normalizedLocale)
     }, [status?.current_user?.locale])
 
-    const initialize = useCallback(async (payload: { username: string; password: string; displayName: string }) => {
+    const initialize = useCallback(async (payload: { username: string; password: string; email: string; locale: string }) => {
         setIsSubmitting(true)
         try {
             const nextStatus = await requestJson<ProductAuthStatus>('/api/auth/initialize', {
@@ -183,8 +183,9 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                 body: JSON.stringify({
                     username: payload.username,
                     password: payload.password,
-                    display_name: payload.displayName,
-                    locale: normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en'),
+                    email: payload.email,
+                    display_name: payload.username,
+                    locale: normalizeSupportedLocale(payload.locale),
                 }),
             })
             applyStatus(nextStatus)

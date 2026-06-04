@@ -1,0 +1,47 @@
+name: Scheduled Security Scan
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'           # Every Monday 04:00 UTC
+  workflow_dispatch:
+
+jobs:
+  scan-latest:
+    name: Scan Latest Release Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy on latest image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: websoft9dev/websoft9-product:latest
+          format: sarif
+          output: trivy-latest.sarif
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          timeout: 15m
+
+      - name: Upload results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-latest.sarif
+
+  scan-dev:
+    name: Scan Dev Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy on dev image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: websoft9dev/websoft9-product:dev
+          format: sarif
+          output: trivy-dev.sarif
+          exit-code: '0'            # Don't block on dev — report only
+          severity: CRITICAL,HIGH
+          timeout: 15m
+
+      - name: Upload results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-dev.sarif

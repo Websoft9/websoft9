@@ -38,6 +38,7 @@ def _normalize_time_range(value: Optional[str]) -> Optional[str]:
 
 
 class RuntimeLogEntry(BaseModel):
+    id: str
     timestamp: Optional[str] = None
     level: str = "info"
     source: str = "runtime-console"
@@ -86,6 +87,7 @@ class RuntimeLogsResponse(BaseModel):
     time_range: Optional[str] = None
     limit: int
     entries: list[RuntimeLogEntry]
+    cursor: Optional[str] = None
 
 
 class RuntimeLogsSourcesResponse(BaseModel):

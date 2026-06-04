@@ -119,19 +119,12 @@ start htmlcov/index.html  # Windows
 # Navigate to project root
 cd ..
 
-# Download media.zip (or create placeholder)
-cd docker/apphub
-echo "Test" > placeholder.txt
-zip media.zip placeholder.txt
-rm placeholder.txt
-cd ../..
-
 # Build image
-docker build -f docker/apphub/Dockerfile -t websoft9-apphub:local .
+docker build -f docker/Dockerfile -t websoft9-product:local .
 
 # Scan image with Trivy
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-  aquasec/trivy:latest image websoft9-apphub:local
+  aquasec/trivy:latest image websoft9-product:local
 ```
 
 ## CI Configuration Files

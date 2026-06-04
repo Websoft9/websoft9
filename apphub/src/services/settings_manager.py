@@ -1,7 +1,9 @@
 import os
+import shutil
 import configparser
 import subprocess
 import requests
+from datetime import datetime
 from typing import Dict
 from src.core.exception import CustomException
 from src.core.logger import logger
@@ -86,6 +88,7 @@ class SettingsManager:
                                 "default_key_path": self._default_ssl_key_path(),
                                 "default_certificate": self._bool_to_string(self._is_default_platform_certificate()),
                                 "certificate_validity_days": str(DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS),
+                                "cert_expiry": self._read_cert_expiry(),
                             },
                         ),
                         self._build_item(
@@ -105,7 +108,7 @@ class SettingsManager:
                             self._docker_mirror_display_value(),
                             editable=True,
                             metadata={
-                                "default_value": DEFAULT_DOCKER_MIRROR_URL,
+                                "default_value": "\n".join(self._load_docker_mirror_entries(DEFAULT_DOCKER_MIRROR_URL)),
                             },
                         ),
                     ],
@@ -503,6 +506,25 @@ class SettingsManager:
             details="https_enabled must be a boolean value",
         )
 
+    def _read_cert_expiry(self) -> str:
+        """Read certificate expiry date from the current SSL cert file."""
+        cert_path = self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path())
+        if not os.path.isfile(cert_path):
+            return ""
+        try:
+            result = subprocess.run(
+                ["openssl", "x509", "-enddate", "-noout", "-in", cert_path],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                # Output format: "notAfter=Jun  4 10:00:00 2026 GMT"
+                date_str = result.stdout.strip().split("=", 1)[-1]
+                dt = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z")
+                return dt.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            pass
+        return ""
+
     def _bool_to_string(self, value: bool) -> str:
         return "true" if value else "false"
 
@@ -511,6 +533,156 @@ class SettingsManager:
 
     def _default_ssl_key_path(self) -> str:
         return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key")
+
+    def generate_self_signed_cert(self, domain: str = "", validity_days: int = 3650) -> Dict[str, str]:
+        """Generate a self-signed certificate and return the cert/key paths."""
+        cert_path = self._default_ssl_cert_path()
+        key_path = self._default_ssl_key_path()
+        os.makedirs(os.path.dirname(cert_path), exist_ok=True)
+
+        cn = domain.strip() if domain.strip() else "Websoft9"
+        subject = f"/CN={cn}"
+
+        result = subprocess.run(
+            [
+                "openssl", "req", "-x509", "-nodes",
+                "-days", str(validity_days),
+                "-newkey", "rsa:2048",
+                "-keyout", key_path,
+                "-out", cert_path,
+                "-subj", subject,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            raise CustomException(
+                status_code=500,
+                message="Certificate Generation Failed",
+                details=result.stderr.strip() or "openssl exited with non-zero status",
+            )
+
+        # Also update config
+        self.config.read(self.config_file_path)
+        if not self.config.has_section("platform_gateway"):
+            self.config.add_section("platform_gateway")
+        self.config.set("platform_gateway", "ssl_cert", cert_path)
+        self.config.set("platform_gateway", "ssl_key", key_path)
+        with open(self.config_file_path, "w") as configfile:
+            self.config.write(configfile)
+
+        # Restart platform gateway to pick up new cert
+        self._restart_platform_gateway()
+
+        return {"ssl_cert": cert_path, "ssl_key": key_path}
+
+    def apply_letsencrypt_cert(self, domain: str, email: str = "") -> Dict[str, str]:
+        """Obtain a Let's Encrypt certificate for the given domain via webroot."""
+        if not domain.strip():
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Domain is required for Let's Encrypt certificate",
+            )
+        if not email.strip():
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Contact email is required for Let's Encrypt certificate",
+            )
+
+        domain = domain.strip()
+        email = email.strip()
+        webroot = "/data/letsencrypt-acme-challenge"
+        os.makedirs(webroot, exist_ok=True)
+
+        cmd = [
+            "certbot", "certonly",
+            "--non-interactive", "--agree-tos",
+            "--webroot", "-w", webroot,
+            "-d", domain,
+            "--email", email,
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        if result.returncode != 0:
+            raise CustomException(
+                status_code=500,
+                message="Let's Encrypt Certificate Failed",
+                details=result.stderr.strip() or result.stdout.strip() or "certbot exited with non-zero status",
+            )
+
+        # Certbot writes to /etc/letsencrypt/live/<domain>/
+        live_dir = f"/etc/letsencrypt/live/{domain}"
+        source_cert = os.path.join(live_dir, "fullchain.pem")
+        source_key = os.path.join(live_dir, "privkey.pem")
+
+        if not os.path.isfile(source_cert) or not os.path.isfile(source_key):
+            raise CustomException(
+                status_code=500,
+                message="Let's Encrypt Certificate Failed",
+                details="Certificate files not found after successful certbot run",
+            )
+
+        cert_path = self._default_ssl_cert_path()
+        key_path = self._default_ssl_key_path()
+        os.makedirs(os.path.dirname(cert_path), exist_ok=True)
+
+        # Copy cert and key to platform gateway paths
+        shutil.copy2(source_cert, cert_path)
+        shutil.copy2(source_key, key_path)
+
+        # Update config
+        self.config.read(self.config_file_path)
+        if not self.config.has_section("platform_gateway"):
+            self.config.add_section("platform_gateway")
+        self.config.set("platform_gateway", "ssl_cert", cert_path)
+        self.config.set("platform_gateway", "ssl_key", key_path)
+        with open(self.config_file_path, "w") as configfile:
+            self.config.write(configfile)
+
+        self._restart_platform_gateway()
+
+        return {"ssl_cert": cert_path, "ssl_key": key_path}
+
+    def upload_cert(self, cert_pem: str, key_pem: str, intermediate_pem: str = "") -> Dict[str, str]:
+        """Write PEM content to platform gateway certificate files."""
+        if not cert_pem.strip() or not key_pem.strip():
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details="Certificate and key PEM content are required",
+            )
+
+        cert_path = self._default_ssl_cert_path()
+        key_path = self._default_ssl_key_path()
+        os.makedirs(os.path.dirname(cert_path), exist_ok=True)
+
+        with open(cert_path, "w") as f:
+            f.write(cert_pem.strip() + "\n")
+        with open(key_path, "w") as f:
+            f.write(key_pem.strip() + "\n")
+
+        if intermediate_pem.strip():
+            chain_path = cert_path + ".chain"
+            with open(chain_path, "w") as f:
+                f.write(intermediate_pem.strip() + "\n")
+
+        # Update config
+        self.config.read(self.config_file_path)
+        if not self.config.has_section("platform_gateway"):
+            self.config.add_section("platform_gateway")
+        self.config.set("platform_gateway", "ssl_cert", cert_path)
+        self.config.set("platform_gateway", "ssl_key", key_path)
+        with open(self.config_file_path, "w") as configfile:
+            self.config.write(configfile)
+
+        self._restart_platform_gateway()
+
+        return {"ssl_cert": cert_path, "ssl_key": key_path}
 
     def _get_platform_brand_title(self) -> str:
         configured = self.config.get("platform_brand", "title", fallback="").strip()

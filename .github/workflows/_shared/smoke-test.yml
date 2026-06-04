@@ -1,0 +1,84 @@
+name: Reusable Smoke Test
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        type: string
+        required: true
+        description: Full image reference to test
+      console_port:
+        type: string
+        default: '9000'
+        description: Console port exposed by the container
+      health_timeout:
+        type: number
+        default: 120
+        description: Max seconds to wait for healthy
+
+jobs:
+  smoke:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Pull image
+        run: docker pull ${{ inputs.image }}
+
+      - name: Start container
+        run: |
+          docker run -d --name websoft9-smoke \
+            --privileged \
+            -p ${{ inputs.console_port }}:9000 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            ${{ inputs.image }}
+
+      - name: Wait for healthy
+        run: |
+          echo "Waiting for container to become healthy..."
+          for i in $(seq 1 ${{ inputs.health_timeout }}); do
+            if docker exec websoft9-smoke /websoft9/script/platform-healthcheck.sh --readiness 2>/dev/null; then
+              echo "✅ Container healthy after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "❌ Container did not become healthy within ${{ inputs.health_timeout }}s"
+          docker logs websoft9-smoke --tail 100
+          exit 1
+
+      - name: Verify console entry
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ inputs.console_port }}/)
+          if [[ "$HTTP_CODE" == "200" ]] || [[ "$HTTP_CODE" == "302" ]]; then
+            echo "✅ Console entry reachable (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Console entry returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Verify AppHub health
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 \
+            http://localhost:${{ inputs.console_port }}/api/healthz && \
+            echo "✅ AppHub health endpoint OK"
+
+      - name: Verify auth status
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 \
+            http://localhost:${{ inputs.console_port }}/api/auth/status && \
+            echo "✅ Auth status endpoint OK"
+
+      - name: Collect diagnostic logs (on failure)
+        if: failure()
+        run: |
+          echo "=== Container logs (last 100 lines) ==="
+          docker logs websoft9-smoke --tail 100 || true
+          echo "=== Supervisor status ==="
+          docker exec websoft9-smoke supervisorctl status 2>/dev/null || true
+          echo "=== Running processes ==="
+          docker exec websoft9-smoke ps aux 2>/dev/null || true
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f websoft9-smoke

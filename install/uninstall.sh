@@ -1,69 +1,93 @@
 #!/bin/bash
-# Define PATH
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
-# Export PATH
-export PATH
+set -euo pipefail
 
-install_path="/data/websoft9/source"
-systemd_path="/opt/websoft9/systemd"
-cockpit_plugin_path="/usr/share/cockpit"
-cockpit_packages="cockpit cockpit-ws cockpit-bridge cockpit-system cockpit-pcp cockpit-storaged cockpit-networkmanager cockpit-session-recording cockpit-doc cockpit-packagekit cockpit-sosreport"
+# ==============================================================================
+# Websoft9 Uninstall Script — Single-Container Runtime
+# ==============================================================================
+#
+# Usage:
+#   curl -fsSL https://websoft9.github.io/websoft9/install/uninstall.sh | sudo bash
+#   sudo bash uninstall.sh              # remove container + data
+#   sudo bash uninstall.sh --keep-data  # remove container, keep volumes
+#   sudo bash uninstall.sh --purge      # remove container + data + images
+#
+# ==============================================================================
 
-echo -e "\n---Remove Websoft9 backend service containers---"
-sudo docker compose -p websoft9 down -v
+KEEP_DATA=false
+PURGE=false
+INSTALL_PATH="/opt/websoft9"
 
-echo -e "\n---Remove Websoft9 systemd service---"
-if systemctl list-units --full --all | grep -Fq websoft9.service; then
-    sudo systemctl disable websoft9
-    sudo systemctl stop websoft9
-    rm -rf /lib/systemd/system/websoft9.service
-else
-    echo "websoft9.service does not exist."
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --keep-data) KEEP_DATA=true; shift ;;
+        --purge)     PURGE=true;     shift ;;
+        --path)      INSTALL_PATH="$2"; shift 2 ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo "  --keep-data   Remove container only, keep volumes"
+            echo "  --purge       Remove container + volumes + images"
+            echo "  --path        Installation path (default: /opt/websoft9)"
+            exit 0
+            ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
+
+if [[ $(id -u) -ne 0 ]]; then
+    echo "❌ This script must be run as root or with sudo."
+    exit 1
 fi
 
-remove_cockpit() {
-    echo -e "\n---Remove Cockpit---"
-    sudo systemctl stop cockpit.socket cockpit
-    sudo systemctl disable cockpit.socket cockpit
-    
-    dnf --version >/dev/null 2>&1
-    dnf_status=$?
+echo ""
+echo "=========================================="
+echo "  Websoft9 Uninstaller"
+echo "=========================================="
 
-    yum --version >/dev/null 2>&1
-    yum_status=$?
+# ── Stop and remove container ──
+if [[ -f "$INSTALL_PATH/docker-compose.yml" ]]; then
+    echo ""
+    echo "🛑 Stopping Websoft9..."
+    cd "$INSTALL_PATH"
 
-    apt --version >/dev/null 2>&1
-    apt_status=$?
-
-    if [ $dnf_status -eq 0 ]; then
-        for pkg in $cockpit_packages; do
-            echo "Uninstalling $pkg"
-            sudo dnf remove -y "$pkg" > /dev/null || echo "$pkg failed to uninstall"
-        done
-    elif [ $yum_status -eq 0 ]; then
-        for pkg in $cockpit_packages; do
-            echo "Uninstalling $pkg"
-            sudo yum remove -y "$pkg" > /dev/null || echo "$pkg failed to uninstall"
-        done
-    elif [ $apt_status -eq 0 ]; then
-        export DEBIAN_FRONTEND=noninteractive
-        for pkg in $cockpit_packages; do
-            echo "Uninstalling $pkg"
-            sudo apt-get remove -y "$pkg" > /dev/null || echo "$pkg failed to uninstall"
-        done
+    if $KEEP_DATA; then
+        docker compose down
+        echo "✅ Container removed (data volumes preserved)"
     else
-        echo "Neither apt, dnf nor yum found. Please install one of them and try again."
-    fi  # 修正这里，使用 fi 而不是 end
+        docker compose down -v
+        echo "✅ Container and data volumes removed"
+    fi
+else
+    echo "⚠️  No docker-compose.yml found at $INSTALL_PATH"
+    echo "   Removing container by name..."
+    docker rm -f websoft9 2>/dev/null || echo "   No running container found"
+fi
 
-    sudo rm -rf /etc/cockpit/*
-}
+# ── Remove install directory ──
+if [[ -d "$INSTALL_PATH" ]]; then
+    echo ""
+    echo "🗑️  Removing $INSTALL_PATH..."
+    rm -rf "$INSTALL_PATH"
+fi
 
-remove_files() {
-    echo -e "\n---Remove files---"
-    sudo rm -rf $install_path/* $systemd_path/* $cockpit_plugin_path/*
-}
+# ── Purge images ──
+if $PURGE; then
+    echo ""
+    echo "🗑️  Removing Websoft9 Docker images..."
+    docker images websoft9dev/websoft9-product -q | xargs -r docker rmi -f 2>/dev/null || true
+fi
 
-remove_cockpit
-remove_files
+# ── Remove /etc/issue banner ──
+if grep -q "Websoft9" /etc/issue 2>/dev/null; then
+    echo ""
+    echo "🗑️  Removing login banner..."
+    rm -f /etc/issue
+fi
 
-echo -e "\nCongratulations, Websoft9 uninstall is complete!"
+echo ""
+echo "=========================================="
+echo "  ✅ Websoft9 uninstall complete"
+echo "=========================================="
+if $KEEP_DATA; then
+    echo "  ℹ️  Data volumes were preserved"
+fi
+echo "=========================================="

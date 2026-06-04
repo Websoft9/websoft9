@@ -1,8 +1,8 @@
 import json
+import os
 import time
 import jwt
 import keyring
-from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.external.nginx_proxy_manager_api import NginxProxyManagerAPI
@@ -63,12 +63,14 @@ class ProxyManager:
                     self.nginx.set_token(jwt_token)
                     return
             except Exception as e:
-                logger.error(f"Decode Nginx Proxy Manager's Token Error:{e}")
-                raise CustomException()
+                logger.warning(f"Decode Nginx Proxy Manager's Token Error:{e}")
 
         # if the token is expired or not got from keyring, get a new one
         try:
-            credentials = IntegrationCredentialProvider().get_npm_credentials()
+            credential_provider = IntegrationCredentialProvider()
+            credentials = credential_provider.get_npm_credentials()
+            if credential_provider.sync_npm_credentials(credentials):
+                logger.warning("Nginx Proxy Manager credential drift detected; runtime user profile was synchronized from stored credential source")
             userName = credentials.username
             userPwd = credentials.password
         except Exception as e:
@@ -76,6 +78,10 @@ class ProxyManager:
             raise CustomException()
         
         nginx_tokens = self.nginx.get_token(userName, userPwd)
+        if nginx_tokens.status_code in {401, 403} and credential_provider.sync_npm_credentials(credentials):
+            logger.warning("Nginx Proxy Manager authentication recovered after synchronizing stored credentials into the runtime database")
+            nginx_tokens = self.nginx.get_token(userName, userPwd)
+
         if nginx_tokens.status_code == 200:
             nginx_tokens = nginx_tokens.json()
             jwt_token = nginx_tokens.get("token")
@@ -84,10 +90,16 @@ class ProxyManager:
             try:
                 keyring.set_password(service_name, token_name, jwt_token)
             except Exception as e:
-                logger.error(f"Set Nginx Proxy Manager's Token To Keyring Error:{e}")
-                raise CustomException()
+                logger.warning(f"Set Nginx Proxy Manager's Token To Keyring Error:{e}")
         else:
-            raise CustomException()
+            details = "Nginx Proxy Manager authentication failed"
+            try:
+                payload = nginx_tokens.json()
+                details = payload.get("message") or payload.get("error", {}).get("message") or details
+            except Exception:
+                if getattr(nginx_tokens, "text", ""):
+                    details = nginx_tokens.text
+            raise CustomException(status_code=500, message="Internal Server Error", details=details)
 
     def _handler_nginx_error(self,response):
         """

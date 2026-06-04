@@ -80,31 +80,59 @@ async def stream_service_logs(
     query = ServiceLogsQuery(keyword=keyword, level=level, time_range=time_range, limit=limit)
 
     async def event_generator():
-        last_digest: Optional[str] = None
         refresh_seconds = 5.0
+        stream_cursor = None
 
         while True:
             if await request.is_disconnected():
                 break
 
             try:
-                response = _build_service_logs_response(session_token=session_token, service_key=service_key, query=query)
-                payload = {
-                    "logs": jsonable_encoder(response),
-                    "refresh_hint_ms": int(refresh_seconds * 1000),
-                }
-                digest, event_json = _serialize_stream_snapshot(payload)
-
-                if digest != last_digest:
-                    last_digest = digest
+                if stream_cursor is None:
+                    response, stream_cursor = _get_core_services_service().open_service_logs_stream(
+                        session_token=session_token,
+                        service_key=service_key,
+                        query=query,
+                    )
+                    payload = {
+                        "logs": jsonable_encoder(response),
+                        "refresh_hint_ms": int(refresh_seconds * 1000),
+                    }
+                    _digest, event_json = _serialize_stream_snapshot(payload)
                     yield f"retry: {int(refresh_seconds * 1000)}\n"
                     yield f"event: snapshot\ndata: {event_json}\n\n"
                 else:
-                    yield ": keep-alive\n\n"
+                    delta = _get_core_services_service().poll_service_logs_stream(session_token=session_token, cursor=stream_cursor)
+                    if delta.snapshot is not None:
+                        refresh_seconds = 5.0
+                        payload = {
+                            "logs": jsonable_encoder(delta.snapshot),
+                            "refresh_hint_ms": int(refresh_seconds * 1000),
+                        }
+                        _digest, event_json = _serialize_stream_snapshot(payload)
+                        yield f"retry: {int(refresh_seconds * 1000)}\n"
+                        yield f"event: snapshot\ndata: {event_json}\n\n"
+                    elif delta.entries:
+                        refresh_seconds = 5.0
+                        payload = {
+                            "append": {
+                                "service": service_key,
+                                "limit": query.limit,
+                                "entries": jsonable_encoder(delta.entries),
+                            },
+                            "refresh_hint_ms": int(refresh_seconds * 1000),
+                        }
+                        _digest, event_json = _serialize_stream_snapshot(payload)
+                        yield f"retry: {int(refresh_seconds * 1000)}\n"
+                        yield f"event: append\ndata: {event_json}\n\n"
+                    else:
+                        refresh_seconds = min(refresh_seconds + 2.5, 15.0)
+                        yield ": keep-alive\n\n"
             except Exception as exc:
                 logger.warning(f"Service logs stream failed for {service_key}: {exc}")
                 payload = json.dumps({"message": "Service logs stream refresh failed"}, separators=(",", ":"))
                 yield f"event: error\ndata: {payload}\n\n"
+                refresh_seconds = min(refresh_seconds + 2.5, 15.0)
 
             await asyncio.sleep(refresh_seconds)
 

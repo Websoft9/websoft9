@@ -78,6 +78,7 @@ class ServiceLogsQuery(BaseModel):
 
 
 class ServiceLogEntry(BaseModel):
+    id: str
     timestamp: Optional[str] = None
     level: Optional[str] = None
     source: Optional[str] = None
@@ -93,6 +94,7 @@ class ServiceLogsResponse(BaseModel):
     time_range: str = "all"
     limit: int
     entries: list[ServiceLogEntry] = Field(default_factory=list)
+    cursor: Optional[str] = None
     unavailable_reason: Optional[str] = None
 
 

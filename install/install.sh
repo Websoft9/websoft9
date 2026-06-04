@@ -1,845 +1,384 @@
 #!/bin/bash
-# Define PATH
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
-# Export PATH
-export PATH
+set -Eeuo pipefail
 
-
-# Command-line options
 # ==============================================================================
-#
-# --version
-# Use the --version option to install a special version for installation. default is latest, for example:
-#
-#  $ sudo bash install.sh --version "0.8.25"
-#
-# --console_port <9000>
-# Use the --console_port option to set Websoft9 cosole port. default is 9000, for example:
-#
-#   $ sudo bash install.sh --console_port 9001
-#
-#
-# --app_http_gateway <80>
-# Use the --app_http_gateway option to set Websoft9 app_http_gateway. default is 80, for example:
-#
-#   $ sudo bash install.sh --app_http_gateway 80
-#
-# --app_https_gateway <443>
-# Use the --app_https_gateway option to set Websoft9 app_https_gateway. default is 443, for example:
-#
-#   $ sudo bash install.sh --app_https_gateway 443
-#
-# --channel <release|rc|dev>
-# Use the --channel option to install a release(production) or dev distribution. default is release, for example:
-#
-#  $ sudo bash install.sh --channel release
-#
-# --path
-# Use the --path option to for installation path for example:
-#
-#  $ sudo bash install.sh --path "/data/websoft9/source"
-#
-# --apps <wordpress,gitlab>
-# Use the --apps option to set Websoft9 appstore dispaly. default is null and display all applicaionts. If you set it, appstore only display the defined, for example:
-#
-#   $ sudo bash install.sh --apps "wordpress,gitlab"
-#
-# --mirrors <https://docker.rainbond.cc,https://registry.inner.websoft9.cn>
-# Use the --mirrors option to set docker image mirrors when can not pull image from docker-hub, for example:
-#
-#   $ sudo bash install.sh --mirrors "https://docker.rainbond.cc,https://registry.inner.websoft9.cn"
-#
-# --devto
-# Use the --devto option to developer mode, devto is the developer code path, for example:
-#
-#  $ sudo bash install.sh --devto "/data/dev/mycode"
-#
-# --execute_mode <auto|install|upgrade>
-# Use the --execute_mode option to tell script is install Websoft9 or Ugrade Websoff9. The default value is auto 
-# and script will automaticlly check it need install or upgrade, for example:
-#
-#  $ sudo bash install.sh --execute_mode "upgrade"
-#
-# --proxy <http://proxy.example.com:8080>
-# Use the --proxy option to set a proxy for downloading resources, for example:
-#
-#   $ sudo bash install.sh --proxy "http://proxy.example.com:8080"
-#
+# Websoft9 Installer — Single-Container Runtime
+# ==============================================================================
+# Usage:
+#   curl -fsSL https://websoft9.github.io/websoft9/install/install.sh | sudo bash
+#   sudo bash install.sh --mode upgrade --version 3.0.0
 # ==============================================================================
 
+readonly LOG_DIR="/var/log/websoft9"
+readonly LOG_FILE="${LOG_DIR}/install.log"
+readonly IMAGE_REPO="websoft9dev/websoft9-product"
+# ── Artifact download URLs (tried in order) ──
+readonly COMPOSE_URLS=(
+    "https://websoft9.github.io/websoft9/docker/docker-compose.yml"
+    "https://artifact.websoft9.com/release/websoft9/docker-compose.yml"
+)
 
-# 设置参数的默认值
-version="latest"
-channel="release"
-execute_mode="auto"
-console_port=""
-app_http_gateway=80
-app_https_gateway=443
-path="/data/websoft9/source"
-apps=""
-mirrors=""
-proxy=""
+VERSION="latest"
+CHANNEL="release"
+MODE="auto"          # auto | install | upgrade
+CHECK_ONLY=false
+CONSOLE_PORT="9000"
+INSTALL_PATH="/opt/websoft9"
+MIRRORS=""
+PROXY=""
+START_TIME=$(date +%s)
+STEP_NUM=0
 
-# 获取参数值
+# ── Logging ──
+init_logging() {
+    mkdir -p "$LOG_DIR"
+    if [[ -f "$LOG_FILE" ]] && [[ $(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0) -gt 1048576 ]]; then
+        mv "$LOG_FILE" "${LOG_FILE}.1"
+    fi
+    echo "" >> "$LOG_FILE"
+    echo "========== $(date '+%Y-%m-%d %H:%M:%S') | install.sh v3.0 ==========" >> "$LOG_FILE"
+}
+log_info()  { echo -e "  ✅  $*" | tee -a "$LOG_FILE"; }
+log_warn()  { echo -e "  ⚠️  $*" | tee -a "$LOG_FILE"; }
+log_error() { echo -e "  ❌  $*" | tee -a "$LOG_FILE" >&2; }
+log_step()  { STEP_NUM=$((STEP_NUM + 1)); echo -e "\n── Step ${STEP_NUM}: $*" | tee -a "$LOG_FILE"; }
+
+# ── Error trap ──
+on_error() {
+    local exit_code=$?
+    log_error "Failed at line ${1} (exit code: ${exit_code})"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Troubleshooting:"
+    echo "  1. Full log:    cat ${LOG_FILE}"
+    echo "  2. Docker:      docker info"
+    echo "  3. Network:     curl -I https://registry-1.docker.io"
+    echo "  4. Support:     https://www.websoft9.com/support"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit "$exit_code"
+}
+trap 'on_error ${LINENO}' ERR
+
+# ── Help ──
+show_help() {
+    cat <<EOF
+Usage: $0 [OPTIONS]
+
+Options:
+  --mode          install | upgrade | auto (default: auto)
+  --check         Run preflight checks only, do not install
+  --version       Image version tag (default: latest)
+  --channel       Release channel: release | rc | dev (default: release)
+  --console_port  Console web port (default: 9000)
+  --path          Install directory (default: /opt/websoft9)
+  --mirrors       Comma-separated Docker registry mirrors
+  --proxy         HTTP/HTTPS proxy
+
+Examples:
+  curl -fsSL https://websoft9.github.io/websoft9/install/install.sh | sudo bash
+  sudo bash install.sh --check
+  sudo bash install.sh --mode upgrade --version 3.0.0
+  sudo bash install.sh --channel dev
+EOF
+    exit 0
+}
+
+# ── Parse args ──
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        --version)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --version"
-                exit 1
-            fi
-            version="$1"
-            shift
-            ;;
-        --console_port)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --console_port"
-                exit 1
-            fi
-            console_port="$1"
-            shift
-            ;;
-        --channel)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --channel"
-                exit 1
-            fi
-            channel="$1"
-            shift
-            ;;
-        --path)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --path"
-                exit 1
-            fi
-            path="$1"
-            shift
-            ;;
-        --apps)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --apps"
-                exit 1
-            fi
-            apps="$1"
-            shift
-            ;;
-        --mirrors)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --mirrors"
-                exit 1
-            fi
-            mirrors="$1"
-            shift
-            ;;
-        --devto)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --devto"
-                exit 1
-            fi
-            devto="$1"
-            shift
-            ;;
-        --execute_mode)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --execute_mode"
-                exit 1
-            fi
-            execute_mode="$1"
-            shift
-            ;;
-        --proxy)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --proxy"
-                exit 1
-            fi
-            proxy="$1"
-            shift
-            ;;
-        --app_http_gateway)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --app_http_gateway"
-                exit 1
-            fi
-            app_http_gateway="$1"
-            shift
-            ;;
-        --app_https_gateway)
-            shift
-            if [[ $1 == --* ]]; then
-                echo "Missing value for --app_https_gateway"
-                exit 1
-            fi
-            app_https_gateway="$1"
-            shift
-            ;;
-        *)
-            echo "Unknown parameter: $1"
-            exit 1
-            ;;
+    case "$1" in
+        --mode)         MODE="$2";         shift 2 ;;
+        --check)        CHECK_ONLY=true;    shift ;;
+        --version)      VERSION="$2";      shift 2 ;;
+        --channel)      CHANNEL="$2";      shift 2 ;;
+        --console_port) CONSOLE_PORT="$2";  shift 2 ;;
+        --path)         INSTALL_PATH="$2";  shift 2 ;;
+        --mirrors)      MIRRORS="$2";       shift 2 ;;
+        --proxy)        PROXY="$2";         shift 2 ;;
+        -h|--help)      show_help ;;
+        *) echo "Unknown option: $1. Use --help."; exit 1 ;;
     esac
 done
 
-# check it is root user or have sudo changed to root user,if not  exit 1
-if [ $(id -u) -ne 0 ]; then
-    echo "You must be the root user to run this script."
+# ── Preflight ──
+if [[ $(id -u) -ne 0 ]]; then
+    echo "❌ Must run as root. Try: sudo bash $0"
+    exit 1
+fi
+[[ -n "$PROXY" ]] && export http_proxy="$PROXY" https_proxy="$PROXY"
+
+init_logging
+
+# ── Determine actual mode ──
+EXISTING_CONTAINER=false
+docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^websoft9$' && EXISTING_CONTAINER=true
+
+if [[ "$MODE" == "auto" ]]; then
+    if $EXISTING_CONTAINER; then
+        MODE="upgrade"
+    else
+        MODE="install"
+    fi
+fi
+
+if [[ "$MODE" != "install" ]] && [[ "$MODE" != "upgrade" ]]; then
+    echo "❌ Invalid mode: $MODE. Use: install | upgrade | auto"
     exit 1
 fi
 
-if [ -n "$proxy" ]; then
-    export http_proxy="$proxy"
-    export https_proxy="$proxy"
+# ── Banner ──
+echo ""
+echo "╔══════════════════════════════════════════╗"
+echo "║       Websoft9 v3.0 — ${MODE^}          ║"
+echo "╚══════════════════════════════════════════╝"
+echo "  Version:      ${VERSION}"
+echo "  Channel:      ${CHANNEL}"
+echo "  Console Port: ${CONSOLE_PORT}"
+echo "  Install Path: ${INSTALL_PATH}"
+echo "  Mirrors:      ${MIRRORS:-none}"
+echo "  Proxy:        ${PROXY:-none}"
+echo "  Log:          ${LOG_FILE}"
+echo ""
+
+# ── Warn on latest tag ──
+if [[ "$VERSION" == "latest" ]]; then
+    log_warn "Using 'latest' tag — image content may change between runs"
+    log_warn "For production, pin a specific version: --version 3.0.0"
 fi
 
-starttime=$(date +%s)
+# ── Step 1: System checks ──
+log_step "Checking system"
 
-# Automaticlly check the $execute_mode to install or upgrade if is auto
-if [ "$execute_mode" = "auto" ]; then
-    if sudo systemctl cat websoft9 >/dev/null 2>&1 && sudo systemctl cat cockpit >/dev/null 2>&1 && sudo docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^websoft9-apphub'; then
-        echo "execute_mode=upgrade"
-        export execute_mode="upgrade"
-    else
-        echo "execute_mode=install"
-        export execute_mode="install"
-    fi
-fi
-
-if [ -z "$console_port" ]; then
-    if [ "$execute_mode" = "upgrade" ]; then
-        grep -q "Origins" /etc/cockpit/cockpit.conf
-        if [ $? -ne 0 ]; then
-            console_port=$(sed -nE "s|ListenStream=([0-9]+)|\1|p" "/usr/lib/systemd/system/cockpit.socket")
-        else
-            console_port=9000
-        fi
-    else
-        console_port=9000
-    fi
-fi
-
-
-# 输出参数值
-echo -e "\n------ Welcome to install Websoft9, it will take 3-5 minutes ------"
-echo -e "\nYour installation parameters are as follows: "
-echo "--version: $version"
-echo "--console_port: $console_port"
-echo "--app_http_gateway: $app_http_gateway"
-echo "--app_https_gateway: $app_https_gateway"
-echo "--channel: $channel"
-echo "--path: $path"
-echo "--apps: $apps"
-echo "--mirrors: $mirrors"
-echo "--devto: $devto"
-echo "--execute_mode: $execute_mode"
-echo "--proxy: $proxy"
-
-echo -e "\nYour OS: "
-cat /etc/os-release | head -n 3  2>/dev/null
-
-# Define global vars
-# export var can send it to subprocess
-
-export console_port
-export http_port=80
-export https_port=443
-export install_path=$path
-export channel
-export version
-export apps
-export mirrors
-export systemd_path="/opt/websoft9/systemd"
-export source_zip="websoft9-$version.zip"
-export source_unzip="websoft9"
-export source_github_pages="https://websoft9.github.io/websoft9"
-# inotify-tools is at epel-release
-export repo_tools_yum="epel-release"
-export tools_yum="git curl wget jq bc unzip inotify-tools yum-utils"
-export tools_apt="git curl wget jq bc unzip inotify-tools"
-export docker_network="websoft9"
-export artifact_url="https://artifact.websoft9.com/$channel/websoft9"
-# export OS release environments
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-else
-    echo "Can't judge your Linux distribution"
+if [[ ! -f /etc/os-release ]]; then
+    log_error "Unsupported OS. Requires Ubuntu, Debian, CentOS, RHEL, Rocky, Fedora"
     exit 1
 fi
-echo Install from url: $artifact_url
+. /etc/os-release
+log_info "OS: $PRETTY_NAME"
 
-if [ -d "$install_path" ]; then
-    echo "Directory $install_path already exists and installation will cover it."
-else
-    sudo mkdir -p "$install_path"
+AVAILABLE_KB=$(df -P / | awk 'NR==2 {print $4}')
+if [[ "$AVAILABLE_KB" -lt 2097152 ]]; then
+    log_error "Insufficient disk space. Need ≥2GB. Available: $((AVAILABLE_KB / 1024 / 1024))GB"
+    exit 1
 fi
-    
-# Define common functions
+log_info "Disk: $((AVAILABLE_KB / 1024 / 1024))GB free"
 
-Wait_apt() {
-    # Function to check if apt is locked
-    local lock_files=("/var/lib/dpkg/lock" "/var/lib/apt/lists/lock")
+if ss -tuln 2>/dev/null | grep -q ":${CONSOLE_PORT} " && ! docker inspect websoft9 &>/dev/null; then
+    log_warn "Port ${CONSOLE_PORT} is in use. Use --console_port to change."
+else
+    log_info "Port ${CONSOLE_PORT}: available"
+fi
 
-    for lock_file in "${lock_files[@]}"; do
-        while fuser "${lock_file}" >/dev/null 2>&1 ; do
-            echo "${lock_file} is locked by another process. Waiting..."
-            sleep 5
-        done
-    done
+# ── Check-only mode: stop here ──
+if $CHECK_ONLY; then
+    echo ""
+    echo "╔══════════════════════════════════════════════╗"
+    echo "║       ✅  Preflight checks passed            ║"
+    echo "╠══════════════════════════════════════════════╣"
+    echo "║  OS:      ${PRETTY_NAME}"
+    echo "║  Disk:    $((AVAILABLE_KB / 1024 / 1024))GB free"
+    echo "║  Port:    ${CONSOLE_PORT}"
+    echo "║  Docker:  $(command -v docker &>/dev/null && echo installed || echo missing)"
+    echo "║  Compose: $(command -v docker &>/dev/null && docker compose version --short 2>/dev/null || echo missing)"
+    echo "╚══════════════════════════════════════════════╝"
+    echo ""
+    echo "All checks passed. Run without --check to install:"
+    echo "  sudo bash install.sh"
+    exit 0
+fi
 
-    echo "APT locks are not held by any processes. You can proceed."
-}
+# ── Step 2: Prerequisites ──
+log_step "Installing prerequisites"
 
-export -f Wait_apt
-
-
-install_tools(){
-    echo_prefix_tools=$'\n[Tools] - '
-    echo "$echo_prefix_tools Starting install necessary tool..."
-
-    if [ "$ID" = "centos" ] || [ "$ID" = "rocky" ] || [ "$ID" = "ol" ] || [ "$ID" = "almalinux" ]; then
-        sudo yum install -y "$repo_tools_yum" >/dev/null
-    elif [ "$ID" = "rhel" ]; then
-        # Check the subscription status, and use an alternative if there is no subscription.
-        if ! subscription-manager status &>/dev/null; then
-            echo "Setting up EPEL repository for Red Hat 9 system..."
-    
-            local version_id=$(rpm -E %rhel)
-            
-            case $version_id in
-                9)
-                    # RHEL 9 / CentOS 9 / Rocky Linux 9
-                    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-                    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-next-release-latest-9.noarch.rpm
-                    ;;
-            esac
-            
-            # Enable EPEL repository
-            dnf config-manager --set-enabled epel epel-next 2>/dev/null || true
-            echo "EPEL repository configured successfully"
-        fi
-    elif [ "$ID" = "amzn" ]; then
-        sudo amazon-linux-extras install epel -y >/dev/null
-        if [ $? -ne 0 ]; then
-            exit 1
-        fi 
-    fi
-    
-    # flush iptables rules when some os have some default rules that block some ports
-    sudo iptables -F || true
-    sudo iptables -X || true
-    sudo iptables -t nat -F || true
-    sudo iptables -t nat -X || true
-    sudo iptables -t mangle -F || true
-    sudo iptables -t mangle -X || true
-    sudo iptables -P INPUT ACCEPT || true
-    sudo iptables -P FORWARD ACCEPT || true
-    sudo iptables -P OUTPUT ACCEPT || true
-    sudo iptables-save > /etc/iptables/rules.v4 || true
-    sudo ip6tables-save > /etc/iptables/rules.v6 || true
-
-    dnf --version >/dev/null 2>&1
-    dnf_status=$?
-    yum --version >/dev/null 2>&1
-    yum_status=$?
-    apt --version >/dev/null 2>&1
-    apt_status=$?
-
-    if [ $dnf_status -eq 0 ]; then
-        for package in $tools_yum; do 
-            echo "Start to install $package"
-            sudo dnf install -y $package > /dev/null
-            if [ $? -ne 0 ]; then
-                exit 1
-            fi 
-        done
-    elif [ $yum_status -eq 0 ]; then
-        for package in $tools_yum; do 
-            echo "Start to install $package"
-            sudo yum install -y $package > /dev/null
-            if [ $? -ne 0 ]; then
-                exit 1
-            fi 
-        done
-    elif [ $apt_status -eq 0 ]; then
-        while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
-            echo "Waiting for other software managers to finish..."
-            sleep 5
-        done
-        sudo apt-get update -y 1>/dev/null 2>&1
-        for package in $tools_apt; do 
-            echo "Start to install $package"
-            sudo apt-get install $package -y > /dev/null
-            if [ $? -ne 0 ]; then
-                exit 1
-            fi                        
-        done
+install_pkg() {
+    local pkg="$1"
+    command -v "$pkg" &>/dev/null && { log_info "$pkg: OK"; return 0; }
+    log_info "Installing $pkg..."
+    if command -v apt-get &>/dev/null; then
+        apt-get update -qq && apt-get install -y -qq "$pkg" >> "$LOG_FILE" 2>&1
+    elif command -v dnf &>/dev/null; then
+        dnf install -y -q "$pkg" >> "$LOG_FILE" 2>&1
+    elif command -v yum &>/dev/null; then
+        yum install -y -q "$pkg" >> "$LOG_FILE" 2>&1
     else
-        echo "You system can not install Websoft9 because not have available Linux Package Manager"
+        log_error "No package manager found"
         exit 1
     fi
 }
+install_pkg curl
+install_pkg jq
 
-download_artifact() {
-    local artifact_url="$1"
-    local source_zip="$2"
-    local max_attempts="$3"
-    
-    for ((i=1; i<=max_attempts; i++)); do
-        wget --timeout=4 --read-timeout=30 -P /tmp "$artifact_url/$source_zip"
-        if [ $? -eq 0 ]; then
-            echo "Downloaded successfully using wget on attempt $i."
+# ── Step 3: Docker ──
+log_step "Setting up Docker"
+
+if command -v docker &>/dev/null; then
+    log_info "Docker: $(docker --version | awk '{print $3}' | sed 's/,//')"
+else
+    log_info "Installing Docker..."
+    curl -fsSL https://get.docker.com | bash >> "$LOG_FILE" 2>&1
+    systemctl enable docker
+    systemctl start docker
+    log_info "Docker installed"
+fi
+
+if ! docker compose version &>/dev/null; then
+    log_error "Docker Compose plugin required"
+    log_error "Install: apt-get install docker-compose-plugin (or dnf equivalent)"
+    exit 1
+fi
+log_info "Compose: $(docker compose version --short)"
+
+if [[ -n "$MIRRORS" ]]; then
+    log_info "Configuring registry mirrors..."
+    JSON="["; FIRST=true
+    IFS=',' read -ra MA <<< "$MIRRORS"
+    for m in "${MA[@]}"; do $FIRST || JSON+=","; JSON+="\"$m\""; FIRST=false; done
+    JSON+="]"
+    mkdir -p /etc/docker
+    echo "{\"registry-mirrors\": $JSON}" > /etc/docker/daemon.json
+    systemctl restart docker
+    log_info "Mirrors configured"
+fi
+
+# ── Step 4: Download docker-compose.yml (artifact, not generated) ──
+log_step "Downloading deployment artifacts"
+
+mkdir -p "$INSTALL_PATH"
+cd "$INSTALL_PATH"
+
+# ── Try multiple sources in order ──
+download_compose() {
+    for url in "${COMPOSE_URLS[@]}"; do
+        log_info "Trying: ${url}"
+        if curl -fsSL --retry 2 --retry-delay 2 --connect-timeout 10 -o docker-compose.yml "${url}" 2>/dev/null; then
+            log_info "Downloaded from: ${url}"
             return 0
-        else
-            echo "Attempt $i failed using wget."
         fi
+        log_warn "Failed: ${url}"
     done
-
-    for ((i=1; i<=max_attempts; i++)); do
-        curl -o /tmp/"$source_zip" "$artifact_url/$source_zip"
-        if [ $? -eq 0 ]; then
-            echo "Downloaded successfully using curl on attempt $i."
-            return 0 
-        else
-            echo "Attempt $i failed using curl."
-        fi
-    done
-
-    echo "Failed to download source package after $((max_attempts * 2)) attempts."
     return 1
 }
 
-download_source_and_checkimage() {
-    echo_prefix_source=$'\n[Download Source] - '
-    echo "$echo_prefix_source Download Websoft9 source code from $artifact_url/$source_zip"
-    
-    find . -type f -name "websoft9*.zip*" -exec rm -f {} \;
-    rm -rf /tmp/$source_unzip
-
-    download_artifact "$artifact_url" "$source_zip" 10
-    if [ $? -ne 0 ]; then
-        echo "Failed to download source package."
-        exit 1
-    fi
-    
-    ## unzip and check image
-    sudo unzip -o "/tmp/$source_zip" -d /tmp > /dev/null
-    if [ $? -ne 0 ]; then
-        echo "Failed to unzip source package."
-        exit 1
-    fi
-    
-    # install docker
-    bash /tmp/$source_unzip/install/install_docker.sh
-
-    cd /tmp/$source_unzip/docker
-    docker compose pull
-    if [ $? -ne 0 ]; then
-    
-        echo "Can not pull images from docker hub, set mirrors...."
-
-        if [ -f "/etc/docker/daemon.json" ]; then
-            if grep -q "registry-mirrors" "/etc/docker/daemon.json"; then
-                mv /etc/docker/daemon.json /etc/docker/daemon.json.bak
-                cp daemon.json /etc/docker/daemon.json
-            else
-                rm -f /etc/docker/daemon.json
-                cp daemon.json /etc/docker/daemon.json
-            fi
-        else
-            cp daemon.json /etc/docker/daemon.json
-        fi
-
-        sudo systemctl daemon-reload
-        sudo systemctl restart docker
-
-        # pull image by new mirrors
-        docker compose pull
-        if [ $? -ne 0 ]; then
-            echo "image pull failed again, exit install"
-            exit 1
-        else
-            echo "image pull success by new mirrors"
-            rm -f /etc/docker/daemon.json
-            if [ -f /etc/docker/daemon.json.bak ]; then
-                mv /etc/docker/daemon.json.bak /etc/docker/daemon.json
-            fi
-            sudo systemctl daemon-reload
-            sudo systemctl restart docker
-        fi
-    else
-        echo "image pull success"
-    fi
-
-    rm -rf /tmp/$source_unzip
-    sudo unzip -o "/tmp/$source_zip" -d "$install_path" > /dev/null
-    if [ $? -ne 0 ]; then
-        echo "Failed to unzip source package."
-        exit 1
-    fi
-
-    cp -r $install_path/$source_unzip/* "$install_path"
-    if [ $? -ne 0 ]; then
-        echo "Move directory failed"
-        exit 1
-    fi
-
-    rm -rf "/tmp/$source_zip" "$install_path/$source_unzip"
-
-}
-
-check_ports() {
-    local ports=("$@")
-
-    echo "Stop Websoft9 Proxy and Cockpit service for reserve ports..."
-    sudo docker stop websoft9-proxy 2>/dev/null || echo "docker stop websoft9-proxy not need "
-    
-    for port in "${ports[@]}"; do
-
-        if [[ $port =~ ^[0-9]+$ ]] && [ $port -ge 0 ] && [ $port -le 65535 ]; then
-            if ss -tuln | grep ":$port " >/dev/null && ! systemctl status cockpit.socket | grep "$port" >/dev/null; then
-                echo "Port $port is in use or not in cockpit.socket, install failed"
-                exit 1
-            fi
-        else
-            echo "Invalid port: $port"
-            exit 1
-        fi
-
-    done
-    sudo docker start websoft9-proxy  2>/dev/null || echo "docker start websoft9-proxy not need "
-    echo "All ports are available"
-}
-
-set_docker(){
-    echo "Set Docker for Websoft9 backend service..."
-    if ! systemctl is-active --quiet firewalld; then
-        echo "firewalld is not running"  
-    else
-        echo "Set firewall for Docker..."
-        sudo sudo firewall-cmd --permanent --new-zone=docker 2> /dev/null
-        sudo firewall-cmd --permanent --zone=docker --add-interface=docker0 2> /dev/null
-        sudo firewall-cmd --permanent --zone=docker --set-target=ACCEPT
-        sudo firewall-cmd --reload
-        sudo systemctl stop firewalld
-        sudo systemctl disable firewalld
-    fi
-
-    if [ "$execute_mode" = "install" ]; then
-        sudo systemctl restart docker   
-    fi 
-}
-
-install_backends() {
-    echo_prefix_backends=$'\n[Backend] - '
-    echo "$echo_prefix_backends Install backend docker services"
-    set_docker
-
-    cd "$install_path/docker"
-    if [ $? -ne 0 ]; then
-        echo "Failed to change directory."
-        exit 1
-    fi
-
-    sudo docker network inspect $docker_network >/dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        echo "Docker network '$docker_network' already exists."
-    else
-        sudo docker network create $docker_network
-        if [ $? -ne 0 ]; then
-            echo "Failed to create docker network."
-            exit 1
-        fi
-    fi
-
-    # set to devloper mode
-    if [ -n "$devto" ]; then
-        sed -i "s|\(- \).*:/websoft9/apphub-dev|\1$devto:/websoft9/apphub-dev|g" docker-compose-dev.yml
-        composefile=docker-compose-dev.yml
-    else
-        composefile=docker-compose.yml
-    fi
-    env_file=.env
-
-    container_names=$(docker ps -a --format "{{.Names}}" --filter "name=websoft9")
-    sudo docker compose -p websoft9 -f $composefile down
-    
-    # delete some dead containers that docker compose cannot deleted
-    if [ ! -z "$container_names" ]; then
-        echo "Deleting containers:"
-        echo $container_names
-        docker rm -f $container_names 2>/dev/null
-    else
-        echo "No containers to delete."
-    fi
-
-    # adjust DCOKER0_IP/CONSOLE_PORT/APP_HTTP_GATEWAY/APP_HTTPS_GATEWAY in .env
-    sed -i "s|^DOCKER0_IP=.*$|DOCKER0_IP=$docker0_ip|g" $env_file
-    sed -i "s|^APP_HTTP_GATEWAY=.*$|APP_HTTP_GATEWAY=$app_http_gateway|g" $env_file
-    sed -i "s|^APP_HTTPS_GATEWAY=.*$|APP_HTTPS_GATEWAY=$app_https_gateway|g" $env_file
-    sed -i "s|^CONSOLE_PORT=.*$|CONSOLE_PORT=$console_port|g" $env_file
-    
-    sudo docker compose -p websoft9 -f $composefile up -d
-    if [ $? -ne 0 ]; then
-        echo "Failed to start docker services."
-        exit 1
-    fi
-
-    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key listen_port --value "$console_port"
-    sudo docker exec -i websoft9-apphub apphub setconfig --section nginx_proxy_manager --key docker0_ip --value "$docker0_ip"
-
-    if [ "$execute_mode" = "install" ]; then
-        sudo docker exec -i websoft9-apphub apphub setconfig --section domain --key wildcard_domain --value ""
-        if [ -n "$apps" ]; then
-            sudo docker exec -i websoft9-apphub apphub setconfig --section initial_apps --key keys --value "$apps"
-        fi
-    fi 
-    
-    if [ -f "/etc/docker/daemon.json.bak" ]; then
-        rm -rf /etc/docker/daemon.json
-        mv /etc/docker/daemon.json.bak /etc/docker/daemon.json
-    fi
-}
-
-install_systemd() {
-    echo -e "\n\n-------- Systemd --------"
-    echo_prefix_systemd=$'\n[Systemd] - '
-    echo "$echo_prefix_systemd Install Systemd service"
-
-    if [ ! -d "$systemd_path" ]; then
-        sudo mkdir -p "$systemd_path"
-    fi
-
-    sudo cp -r $install_path/systemd/script/* "$systemd_path"
-    sudo cp -f "$install_path/systemd/websoft9.service" /lib/systemd/system/
-    if [ $? -ne 0 ]; then
-        echo "Failed to copy Systemd service file."
-        exit 1
-    fi
-
-    sudo systemctl daemon-reload
-    if [ $? -ne 0 ]; then
-        echo "Failed to reload Systemd daemon."
-        exit 1
-    fi
-
-    sudo systemctl enable websoft9.service
-    if [ $? -ne 0 ]; then
-        echo "Failed to enable Systemd service."
-        exit 1
-    fi
-
-    sudo systemctl restart websoft9
-    if [ $? -ne 0 ]; then
-        echo "Failed to start Systemd service."
-        exit 1
-    fi
-}
-
-check_tools() {
-    tools=(git curl wget jq bc unzip)
-    for tool in "${tools[@]}"; do
-        if ! command -v "$tool" &> /dev/null; then
-            echo "Installation failed: $tool is not installed."
-            exit 1
-        fi
-    done
-    echo "All tools are installed."
-}
-
-check_websoft9_artifact() {
-    if [ ! -f "$path/version.json" ]; then
-        echo "Installation failed: websoft9 artifact download or unzip failed."
-        exit 1
-    fi
-    echo "Websoft9 artifact successfully unzipped."
-}
-
-check_docker() {
-
-    if ! command -v docker &> /dev/null; then
-        echo "Installation failed: Docker is not installed."
-        exit 1
-    fi
-
-    if ! docker compose version &> /dev/null; then
-        echo "Installation failed: Docker Compose is not installed."
-        exit 1
-    fi
-
-    echo "Docker and Docker Compose are installed and running."
-}
-
-check_websoft9_images() {
-    if ! docker images | grep -q websoft9; then
-        echo "Installation failed: No websoft9 images found in Docker."
-        exit 1
-    fi
-    echo "websoft9 images are present in Docker."
-}
-
-check_websoft9_project() {
-    if ! docker compose ls | grep -q websoft9; then
-        echo "Installation failed: No websoft9 project found in Docker Compose."
-        exit 1
-    fi
-    echo "websoft9 project are present in Docker Compose."
-}
-
-check_service() {
-    
-    local service_name="$1"
-    if ! systemctl list-units --type=service | grep -q "$service_name"; then
-        echo "Installation failed: $service_name service is not installed."
-        exit 1
-    fi
-
-    echo "$service_name service is installed and running."
-}
-
-check_plugins() {
-    local plugins=("appstore" "myapps" "gitea" "navigator" "nginx" "portainer" "settings")
-    local base_path="/usr/share/cockpit"
-
-    for plugin in "${plugins[@]}"; do
-        if [ ! -d "$base_path/$plugin" ]; then
-            echo "Installation failed: $plugin is missing in $base_path."
-            exit 1
-        fi
-    done
-
-    echo "All required plugins are install successfully."
-}
-
-check_hardware() {
-
-    local mode="$1"
-    local required_space
-    local available_space
-
-    # Get available space from root filesystem (1K blocks)
-    available_space=$(df -P / | awk 'NR==2 {print $4}')
-
-    if [ "$mode" != "install" ] && [ "$mode" != "upgrade" ]; then
-        echo "Error: Invalid argument. Usage: $0 install|upgrade"
-        exit 1
-    fi
-
-    if [ "$mode" = "install" ]; then
-        required_space=3145728  # 3GB = 3 * 1024 * 1024KB
-    else
-        required_space=1048576   # 1GB = 1 * 1024 * 1024KB
-    fi
-
-    # Perform space check
-    if [ "$available_space" -lt "$required_space" ]; then
-        echo "Error: Insufficient disk space on root partition!"
-        exit 1
-    fi
-
-    echo "Disk space check passed. Continuing operation..."
-}
-
-update_prestart(){
-    echo "--------stop Cockpit and Websoft9---------------" 
-    sudo systemctl stop cockpit.socket && sudo systemctl stop cockpit && sudo systemctl stop websoft9
-}
-
-# Configure Docker service with custom environment variables
-configure_docker_service() {
-  echo "[Websoft9] - Configuring Docker service with custom environment variables"
-
-  # Create systemd drop-in directory
-  sudo mkdir -p /etc/systemd/system/docker.service.d
-
-  # Create configuration file with custom environment variable
-  sudo tee /etc/systemd/system/docker.service.d/custom-environment.conf <<-'EOF'
-[Service]
-Environment=DOCKER_MIN_API_VERSION=1.24
-EOF
-
-  # Reload systemd and restart Docker service
-  sudo systemctl daemon-reload
-  sudo systemctl restart docker
-
-  echo "[Websoft9] - Docker service configured with DOCKER_MIN_API_VERSION=1.24"
-}
-
-#--------------- main-----------------------------------------
-log_path="$install_path/install.log"
-check_ports $http_port $https_port $console_port | tee -a  $log_path
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    echo "Port conflict!"
+if ! download_compose; then
+    log_error "Failed to download docker-compose.yml from all sources"
+    log_error "Check network or try again later"
     exit 1
 fi
+log_info "docker-compose.yml downloaded"
 
-check_hardware $execute_mode
+# Determine image tag
+case "$CHANNEL" in
+    release) IMAGE_TAG="${VERSION}" ;;
+    rc)      IMAGE_TAG="${VERSION}" ;;
+    dev)     IMAGE_TAG="${VERSION}-dev" ;;
+    *) log_error "Unknown channel: $CHANNEL"; exit 1 ;;
+esac
+if [[ "$VERSION" == "latest" ]]; then
+    case "$CHANNEL" in release) IMAGE_TAG="latest" ;; rc) IMAGE_TAG="rc" ;; dev) IMAGE_TAG="dev" ;; esac
+fi
+log_info "Image: ${IMAGE_REPO}:${IMAGE_TAG}"
 
-install_tools | tee -a  $log_path
+# ── Step 5: .env ──
+log_step "Writing environment configuration"
 
-check_tools
-
-download_source_and_checkimage | tee -a  $log_path
-
-# configure docker service
-configure_docker_service
-
-check_websoft9_artifact
-
-check_docker
-docker0_ip=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null)
-if [ -n "$docker0_ip" ]; then
-    export docker0_ip
-    echo "Docker0 IP: $docker0_ip"
+# Upgrade: preserve existing .env if present
+if [[ "$MODE" == "upgrade" ]] && [[ -f .env ]]; then
+    log_info "Preserving existing .env (upgrade mode)"
+    cp .env .env.bak
+    # Update version in existing .env
+    sed -i "s|^WEBSOFT9_PRODUCT_VERSION=.*|WEBSOFT9_PRODUCT_VERSION=${VERSION}|" .env
 else
-    echo "Warning: docker0 interface not found"
+    cat > .env <<ENVEOF
+IMAGE_REPO=${IMAGE_REPO}
+IMAGE_TAG=${IMAGE_TAG}
+CONSOLE_PORT=${CONSOLE_PORT}
+NETWORK_NAME=websoft9
+WEBSOFT9_PRODUCT_VERSION=${VERSION}
+ENVEOF
+    log_info ".env created"
+fi
+
+# ── Step 6: Pull image ──
+log_step "Pulling container image"
+
+docker compose pull >> "$LOG_FILE" 2>&1 || {
+    log_error "Failed to pull image. Check network or try --mirrors"
     exit 1
+}
+log_info "Image pulled"
+
+# ── Step 7: Start/restart ──
+if [[ "$MODE" == "upgrade" ]]; then
+    log_step "Upgrading container (data volumes preserved)"
+
+    # Graceful stop
+    log_info "Stopping existing container..."
+    docker compose down >> "$LOG_FILE" 2>&1 || true
+
+    log_info "Starting with new image..."
+    docker compose up -d >> "$LOG_FILE" 2>&1 || {
+        log_error "Upgrade failed. Rolling back..."
+        if [[ -f .env.bak ]]; then
+            cp .env.bak .env
+            docker compose up -d >> "$LOG_FILE" 2>&1 || log_warn "Rollback also failed"
+        fi
+        exit 1
+    }
+    # Clean up backup
+    rm -f .env.bak
+else
+    log_step "Starting container"
+    docker compose up -d >> "$LOG_FILE" 2>&1 || {
+        log_error "Failed to start container. Check: docker logs websoft9"
+        exit 1
+    }
 fi
+log_info "Container running"
 
-check_websoft9_images
+# ── Step 8: Health check ──
+log_step "Health check"
 
-if [ "$execute_mode" = "upgrade" ]; then
-    update_prestart
-fi
+MAX_WAIT=120; WAITED=0
+while [[ $WAITED -lt $MAX_WAIT ]]; do
+    if docker exec websoft9 /websoft9/script/platform-healthcheck.sh --readiness &>/dev/null; then
+        log_info "Healthy after ${WAITED}s"
+        break
+    fi
+    sleep 3; WAITED=$((WAITED + 3))
+done
+[[ $WAITED -ge $MAX_WAIT ]] && log_warn "Health check timed out. Container may still be starting."
 
-install_backends | tee -a  $log_path
+# ── Step 9: Login banner ──
+log_step "Generating login banner"
 
-check_websoft9_project
+HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}') || HOST_IP="<your-server-ip>"
+cat > /etc/issue <<ISSUEEOF
+==========================================
+  Welcome to Websoft9
+  Console: http://${HOST_IP}:${CONSOLE_PORT}
+==========================================
+  OS: \s \v  (\r \m)
+  Hostname: \n
+  Time: \d \t
+==========================================
+\l
+ISSUEEOF
+chmod 644 /etc/issue
 
-bash $install_path/install/install_cockpit.sh | tee -a  $log_path
-if [ $? -ne 0 ]; then
-    echo "install_cockpit failed with error $?. Exiting."
-    exit 1
-fi
-
-check_service cockpit
-
-install_systemd | tee -a  $log_path
-
-check_service websoft9
-
-bash $install_path/install/install_plugins.sh | tee -a  $log_path
-if [ $? -ne 0 ]; then
-    echo "install_plugins failed with error $?. Exiting."
-    exit 1
-fi
-
-check_plugins
-
-echo "Restart Docker for Firewalld..."
-if [ "$execute_mode" = "install" ]; then
-    sudo systemctl restart docker   
-fi 
-
-endtime=$(date +%s)
-runtime=$((endtime-starttime))
-echo "Script execution time: $runtime seconds"
-echo -e "\n-- Install success! ------" 
-echo "Access Websoft9 console by: http://Internet IP:$(docker exec -i websoft9-apphub apphub getconfig --section "nginx_proxy_manager" --key "listen_port") and using Linux user for login"
+# ── Done ──
+ELAPSED=$(($(date +%s) - START_TIME))
+echo ""
+echo "╔══════════════════════════════════════════════╗"
+echo "║          ✅  ${MODE^} Complete              ║"
+echo "╠══════════════════════════════════════════════╣"
+echo "║  Console:   http://${HOST_IP}:${CONSOLE_PORT}"
+echo "║  Directory: ${INSTALL_PATH}"
+echo "║  Log:       ${LOG_FILE}"
+echo "║  Time:      ${ELAPSED}s"
+echo "╠══════════════════════════════════════════════╣"
+echo "║  Manage:                                      ║"
+echo "║    cd ${INSTALL_PATH} && docker compose ps"
+echo "║    docker logs websoft9 -f"
+echo "║    docker compose down      # stop"
+echo "║    docker compose up -d     # start"
+echo "╚══════════════════════════════════════════════╝"
+echo ""

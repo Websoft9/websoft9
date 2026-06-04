@@ -18,7 +18,7 @@ import {
     Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,6 +56,7 @@ type CoreServicesInventoryResponse = {
 }
 
 type ServiceLogEntry = {
+    id: string
     timestamp: string | null
     level: string | null
     source: string | null
@@ -71,11 +72,21 @@ type ServiceLogsResponse = {
     time_range: string
     limit: number
     entries: ServiceLogEntry[]
+    cursor: string | null
     unavailable_reason: string | null
 }
 
-type ServiceLogsStreamPayload = {
+type ServiceLogsSnapshotPayload = {
     logs: ServiceLogsResponse
+    refresh_hint_ms: number
+}
+
+type ServiceLogsAppendPayload = {
+    append: {
+        service: string
+        limit: number
+        entries: ServiceLogEntry[]
+    }
     refresh_hint_ms: number
 }
 
@@ -356,7 +367,7 @@ export function ServicesPage() {
     })
 
     useEffect(() => {
-        if (!supportsEventSource || !activeLogServiceKey || !autoRefreshEnabled || !status?.enabled || !status?.authenticated || !logsQuery.data) {
+        if (!supportsEventSource || !activeLogServiceKey || !autoRefreshEnabled || !status?.enabled || !status?.authenticated) {
             return
         }
 
@@ -371,22 +382,73 @@ export function ServicesPage() {
         )
         const handleSnapshot = (event: Event) => {
             try {
-                const payload = JSON.parse((event as MessageEvent<string>).data) as ServiceLogsStreamPayload
+                const payload = JSON.parse((event as MessageEvent<string>).data) as ServiceLogsSnapshotPayload
                 if (payload.logs) {
-                    queryClient.setQueryData(logsQueryKey, payload.logs)
+                    startTransition(() => {
+                        queryClient.setQueryData(logsQueryKey, payload.logs)
+                    })
                 }
             } catch {
                 // Ignore malformed events and wait for the next snapshot.
             }
         }
 
+        const handleAppend = (event: Event) => {
+            try {
+                const payload = JSON.parse((event as MessageEvent<string>).data) as ServiceLogsAppendPayload
+                const streamEntries = payload.append?.entries ?? []
+                const nextLimit = payload.append?.limit ?? logLimit
+
+                if (streamEntries.length === 0) {
+                    return
+                }
+
+                startTransition(() => {
+                    queryClient.setQueryData(logsQueryKey, (currentData: ServiceLogsResponse | undefined) => {
+                        const existingEntries = currentData?.entries ?? []
+                        const existingIds = new Set(existingEntries.map((entry) => entry.id))
+                        const dedupedNewEntries = streamEntries.filter((entry) => !existingIds.has(entry.id))
+                        const mergedEntries = dedupedNewEntries.length > 0 ? [...existingEntries, ...dedupedNewEntries] : existingEntries
+                        const limitedEntries = mergedEntries.length > nextLimit ? mergedEntries.slice(-nextLimit) : mergedEntries
+
+                        if (currentData) {
+                            return {
+                                ...currentData,
+                                available: true,
+                                limit: nextLimit,
+                                entries: limitedEntries,
+                                cursor: limitedEntries[limitedEntries.length - 1]?.id ?? null,
+                                unavailable_reason: null,
+                            }
+                        }
+
+                        return {
+                            service: payload.append.service,
+                            available: true,
+                            keyword: deferredKeyword || null,
+                            level: logLevel === 'all' ? null : logLevel,
+                            time_range: logTimeRange,
+                            limit: nextLimit,
+                            entries: limitedEntries,
+                            cursor: limitedEntries[limitedEntries.length - 1]?.id ?? null,
+                            unavailable_reason: null,
+                        }
+                    })
+                })
+            } catch {
+                // Ignore malformed events and wait for the next valid append.
+            }
+        }
+
         eventSource.addEventListener('snapshot', handleSnapshot)
+        eventSource.addEventListener('append', handleAppend)
 
         return () => {
             eventSource.removeEventListener('snapshot', handleSnapshot)
+            eventSource.removeEventListener('append', handleAppend)
             eventSource.close()
         }
-    }, [activeLogServiceKey, autoRefreshEnabled, deferredKeyword, logLevel, logLimit, logTimeRange, logsQuery.data, logsQueryKey, queryClient, status?.authenticated, status?.enabled, supportsEventSource])
+    }, [activeLogServiceKey, autoRefreshEnabled, deferredKeyword, logLevel, logLimit, logTimeRange, logsQueryKey, queryClient, status?.authenticated, status?.enabled, supportsEventSource])
 
     const locale = i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en-US'
     const dateFormatter = useMemo(
@@ -450,7 +512,6 @@ export function ServicesPage() {
         '& .MuiOutlinedInput-root': {
             borderRadius: '4px',
             backgroundColor: palette.cardBg,
-            minHeight: 42,
             border: `1px solid ${palette.borderStrong}`,
             boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(15, 23, 42, 0.04)',
         },
@@ -461,8 +522,6 @@ export function ServicesPage() {
             lineHeight: 1.5,
             display: 'flex',
             alignItems: 'center',
-            minHeight: '42px !important',
-            py: 0,
         },
     } as const
 
@@ -895,7 +954,7 @@ export function ServicesPage() {
                                 <Box className="services-page-log-body services-page-log-body-dialog" ref={logBodyRef}>
                                     <Stack spacing={0}>
                                         {logEntries.map((entry, index) => (
-                                            <Box className="services-page-log-entry" data-log-entry-index={index} key={`${entry.source}-${index}-${entry.raw}`} title={entry.raw}>
+                                            <Box className="services-page-log-entry" data-log-entry-index={index} key={entry.id} title={entry.raw}>
                                                 <div className="services-page-log-content">
                                                     <div className="services-page-log-inline">
                                                         {entry.timestamp ? <span className="services-page-log-time">{formatEntryTime(entry.timestamp, timeFormatter)}</span> : null}

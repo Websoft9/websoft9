@@ -1,9 +1,40 @@
 #!/bin/bash
 
+set -euo pipefail
+
+prepare_only="false"
+
+if [[ "${1:-}" == "--prepare-only" ]]; then
+    prepare_only="true"
+    shift
+fi
+
 # Define variables
 credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential}"
 
+DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
+
+# Remove any legacy platform default-host config so NPM no longer owns product-origin routing.
+rm -f /data/nginx/default_host/initproxy.conf
+rm -f /data/nginx/proxy_host/initproxy.conf
+
+# The dedicated platform-gateway now binds 9000 directly.
+rm -f /data/nginx/stream/stream.conf
+
 SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
+
+ensure_nginx_dynamic_files() {
+    local resolver_line
+
+    mkdir -p /etc/nginx/conf.d/include
+    resolver_line="$(awk 'BEGIN{ORS=" "} $1=="nameserver" { sub(/%.*$/, "", $2); print ($2 ~ ":") ? "[" $2 "]" : $2 }' /etc/resolv.conf)"
+
+    if [[ -n "$resolver_line" ]]; then
+        printf 'resolver %sipv6=off valid=10s;\n' "$resolver_line" > /etc/nginx/conf.d/include/resolvers.conf
+    else
+        printf 'resolver 127.0.0.11 ipv6=off valid=10s;\n' > /etc/nginx/conf.d/include/resolvers.conf
+    fi
+}
 
 # If credential file then create it and init credential for NPM
 # Reload NPM docker image Environments
@@ -57,10 +88,12 @@ else
     chmod 600 "$KEY_FILE"
 fi
 
+ensure_nginx_dynamic_files
+
 # 主执行函数
 main() {
     echo "Start the NPM main process..."
-    exec /init "$@"
+    exec /usr/sbin/nginx
 }
 
 # 后台初始化任务
@@ -189,6 +222,10 @@ main() {
   fi
 
 }&
+
+if [[ "$prepare_only" == "true" ]]; then
+    exit 0
+fi
 
 # 执行主进程
 main "$@"

@@ -2,19 +2,17 @@ import {
     Alert,
     Box,
     Button,
-    CircularProgress,
     Chip,
-    IconButton,
+    CircularProgress,
     List,
     ListItemButton,
-    Paper,
     Stack,
     Switch,
     TextField,
     Typography,
 } from '@mui/material'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
@@ -22,6 +20,7 @@ import { useAppColorMode } from '../../app/providers/color-mode'
 import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import './settings-page.css'
 
 type SettingsSummaryItem = {
@@ -42,6 +41,7 @@ type SettingsSummaryItem = {
         default_key_path?: string
         default_certificate?: string
         certificate_validity_days?: string
+        cert_expiry?: string
     } | null
 }
 
@@ -52,8 +52,6 @@ type PlatformGatewayUpdateRequest = {
     ssl_cert: string
     ssl_key: string
 }
-
-type PlatformSslAction = 'default' | 'existing' | 'upload'
 
 type SettingsSummaryGroup = {
     id: string
@@ -66,6 +64,17 @@ type SettingsSummaryResponse = {
 
 type SettingsError = Error & {
     statusCode?: number
+}
+
+type SettingsModuleId = 'app-domain' | 'app-mirror' | 'platform-brand' | 'platform-domain' | 'platform-system'
+
+type SettingsModuleGroup = 'applications' | 'platform'
+
+type SettingsModule = {
+    id: SettingsModuleId
+    group: SettingsModuleGroup
+    titleKey: string
+    descriptionKey: string
 }
 
 async function fetchSettingsSummary() {
@@ -121,8 +130,17 @@ async function updatePlatformGatewaySettings(payload: PlatformGatewayUpdateReque
     if (!response.ok) {
         let message = `Failed to update platform gateway settings: ${response.status}`
         try {
-            const errorPayload = (await response.json()) as { details?: string; message?: string }
-            message = errorPayload.details || errorPayload.message || message
+            // Try JSON first
+            const text = await response.text()
+            if (text) {
+                try {
+                    const errorPayload = JSON.parse(text) as { details?: string; message?: string }
+                    message = errorPayload.details || errorPayload.message || message
+                } catch {
+                    // Not JSON — use raw text if short enough
+                    if (text.length < 200) message = text
+                }
+            }
         } catch {
             // Keep the fallback message.
         }
@@ -131,30 +149,12 @@ async function updatePlatformGatewaySettings(payload: PlatformGatewayUpdateReque
     }
 }
 
-function RefreshIcon() {
-    return (
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.3 0 2.5.42 3.47 1.13L13 10h7V3l-2.35 3.35Z" />
-        </svg>
-    )
-}
-
 const PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH = '/volumes/platform-gateway-certificates'
+const PLATFORM_GATEWAY_BOUND_DOMAIN_DRAFT_KEY = 'platform_gateway.bound_domain'
 const PLATFORM_GATEWAY_CERT_DRAFT_KEY = 'platform_gateway.ssl_cert'
 const PLATFORM_GATEWAY_KEY_DRAFT_KEY = 'platform_gateway.ssl_key'
 const PLATFORM_GATEWAY_HTTPS_DRAFT_KEY = 'platform_gateway.https_enabled'
 const PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY = 'platform_gateway.force_https'
-
-type SettingsModuleId = 'app-domain' | 'app-mirror' | 'platform-brand' | 'platform-domain' | 'platform-security' | 'platform-system'
-
-type SettingsModuleGroup = 'applications' | 'platform'
-
-type SettingsModule = {
-    id: SettingsModuleId
-    group: SettingsModuleGroup
-    titleKey: string
-    descriptionKey: string
-}
 
 const SETTINGS_MODULES: SettingsModule[] = [
     {
@@ -182,12 +182,6 @@ const SETTINGS_MODULES: SettingsModule[] = [
         descriptionKey: 'settingsPage.modules.platformDomain.description',
     },
     {
-        id: 'platform-security',
-        group: 'platform',
-        titleKey: 'settingsPage.modules.platformSecurity.title',
-        descriptionKey: 'settingsPage.modules.platformSecurity.description',
-    },
-    {
         id: 'platform-system',
         group: 'platform',
         titleKey: 'settingsPage.modules.platformSystem.title',
@@ -202,20 +196,34 @@ export function SettingsPage() {
     const surfacePalette = getSurfacePalette(isDarkMode)
     const settingsFieldSx = getSurfaceFieldSx(surfacePalette)
     const navigate = useNavigate()
-    const queryClient = useQueryClient()
     const [drafts, setDrafts] = useState<Record<string, string>>({})
     const [mirrorPendingInputs, setMirrorPendingInputs] = useState<Record<string, string>>({})
-    const [editingKey, setEditingKey] = useState<string | null>(null)
-    const [savingKey, setSavingKey] = useState<string | null>(null)
     const [activeModule, setActiveModule] = useState<SettingsModuleId>('app-domain')
     const [feedback, setFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
-    const [platformSslAction, setPlatformSslAction] = useState<PlatformSslAction>('default')
-    const [platformSecuritySaving, setPlatformSecuritySaving] = useState(false)
-    const { data, error, isLoading, refetch, isFetching } = useQuery<SettingsSummaryResponse, SettingsError>({
+    const [toastOpen, setToastOpen] = useState(false)
+    const [savingModule, setSavingModule] = useState<SettingsModuleId | null>(null)
+    const [reuseLogo, setReuseLogo] = useState<boolean>(false)
+    const [useDomain, setUseDomain] = useState<boolean>(false)
+    const [uploadingLogo, setUploadingLogo] = useState(false)
+    const [applyingLetsEncrypt, setApplyingLetsEncrypt] = useState(false)
+    const [letsEncryptEmail, setLetsEncryptEmail] = useState('')
+    const [certAction, setCertAction] = useState<'letsencrypt' | 'existing' | 'upload'>('letsencrypt')
+    const [certValidityDays, setCertValidityDays] = useState(3650)
+    const [certPem, setCertPem] = useState('')
+    const [keyPem, setKeyPem] = useState('')
+    const [intermediatePem, setIntermediatePem] = useState('')
+    const [certName, setCertName] = useState('')
+    const certPemFileRef = useRef<HTMLInputElement | null>(null)
+    const keyPemFileRef = useRef<HTMLInputElement | null>(null)
+    const intermediatePemFileRef = useRef<HTMLInputElement | null>(null)
+    const logoUploadRef = useRef<HTMLInputElement | null>(null)
+    const faviconUploadRef = useRef<HTMLInputElement | null>(null)
+    const { data, error, isLoading, refetch } = useQuery<SettingsSummaryResponse, SettingsError>({
         queryKey: ['settings-summary'],
         queryFn: fetchSettingsSummary,
         staleTime: 5_000,
     })
+
     const items = data?.groups.flatMap((group) => group.items) ?? []
     const boundDomainItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'bound_domain') ?? null
     const globalDomainItem = items.find((item) => item.group === 'domain' && item.key === 'wildcard_domain') ?? null
@@ -227,14 +235,15 @@ export function SettingsPage() {
     const brandFaviconItem = items.find((item) => item.group === 'platform_brand' && item.key === 'favicon_url') ?? null
     const versionItem = items.find((item) => item.group === 'version' && item.key === 'product') ?? null
     const activeModuleConfig = SETTINGS_MODULES.find((module) => module.id === activeModule) ?? SETTINGS_MODULES[0]
-    const defaultPlatformSslCert = httpsItem?.metadata?.default_cert_path?.trim() || httpsItem?.metadata?.cert_path?.trim() || ''
-    const defaultPlatformSslKey = httpsItem?.metadata?.default_key_path?.trim() || httpsItem?.metadata?.key_path?.trim() || ''
-    const currentSummarySslCert = httpsItem?.metadata?.cert_path?.trim() || defaultPlatformSslCert
-    const currentSummarySslKey = httpsItem?.metadata?.key_path?.trim() || defaultPlatformSslKey
+    const currentSslCert = httpsItem?.metadata?.cert_path?.trim() || ''
+    const currentSslKey = httpsItem?.metadata?.key_path?.trim() || ''
+    const certExpiry = httpsItem?.metadata?.cert_expiry || ''
     const httpsEnabled = (drafts[PLATFORM_GATEWAY_HTTPS_DRAFT_KEY] ?? httpsItem?.value ?? 'false') === 'true'
     const forceHttpsEnabled = httpsEnabled && (drafts[PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY] ?? forceHttpsItem?.value ?? 'false') === 'true'
-    const currentPlatformSslCert = drafts[PLATFORM_GATEWAY_CERT_DRAFT_KEY] ?? currentSummarySslCert
-    const currentPlatformSslKey = drafts[PLATFORM_GATEWAY_KEY_DRAFT_KEY] ?? currentSummarySslKey
+    const boundDomainValue = drafts[PLATFORM_GATEWAY_BOUND_DOMAIN_DRAFT_KEY] ?? boundDomainItem?.value ?? ''
+    // Current cert/key — use draft if set, otherwise current config
+    const sslCert = (drafts[PLATFORM_GATEWAY_CERT_DRAFT_KEY] ?? currentSslCert).trim()
+    const sslKey = (drafts[PLATFORM_GATEWAY_KEY_DRAFT_KEY] ?? currentSslKey).trim()
     const navGroups = useMemo(
         () => [
             {
@@ -252,47 +261,61 @@ export function SettingsPage() {
     )
 
     useEffect(() => {
-        const usesDefaultCertificate =
-            httpsItem?.metadata?.default_certificate === 'true'
-            || (currentSummarySslCert === defaultPlatformSslCert && currentSummarySslKey === defaultPlatformSslKey)
+        const logoVal = brandLogoItem?.value ?? ''
+        const favVal = brandFaviconItem?.value ?? ''
+        if (logoVal && favVal === logoVal) {
+            setReuseLogo(true)
+        }
+    }, [brandLogoItem?.value, brandFaviconItem?.value])
 
-        setPlatformSslAction(usesDefaultCertificate ? 'default' : 'existing')
-    }, [httpsItem?.metadata?.default_certificate, currentSummarySslCert, currentSummarySslKey, defaultPlatformSslCert, defaultPlatformSslKey])
+    useEffect(() => {
+        if (currentSslCert && currentSslKey) setCertAction('existing')
+    }, [currentSslCert, currentSslKey])
 
-    function handleOpenCertificateDirectory() {
-        navigate(`/files?path=${encodeURIComponent(PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH)}`)
+    useEffect(() => {
+        const currentDomain = boundDomainItem?.value ?? ''
+        setUseDomain(Boolean(currentDomain.trim()))
+    }, [boundDomainItem?.value])
+
+    function getDraftKey(item: SettingsSummaryItem) {
+        return `${item.group}.${item.key}`
     }
 
-    function resetPlatformSecurityDrafts() {
+    function hasDraftValue(draftKey: string) {
+        return Object.prototype.hasOwnProperty.call(drafts, draftKey)
+    }
+
+    function setDraftValue(draftKey: string, value: string) {
+        setDrafts((currentDrafts) => ({
+            ...currentDrafts,
+            [draftKey]: value,
+        }))
+    }
+
+    function clearDraftKeys(draftKeys: string[]) {
+        if (!draftKeys.length) {
+            return
+        }
+
         setDrafts((currentDrafts) => {
             const nextDrafts = { ...currentDrafts }
-            delete nextDrafts[PLATFORM_GATEWAY_CERT_DRAFT_KEY]
-            delete nextDrafts[PLATFORM_GATEWAY_KEY_DRAFT_KEY]
-            delete nextDrafts[PLATFORM_GATEWAY_HTTPS_DRAFT_KEY]
-            delete nextDrafts[PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY]
+            for (const draftKey of draftKeys) {
+                delete nextDrafts[draftKey]
+            }
             return nextDrafts
         })
 
-        const usesDefaultCertificate =
-            httpsItem?.metadata?.default_certificate === 'true'
-            || (currentSummarySslCert === defaultPlatformSslCert && currentSummarySslKey === defaultPlatformSslKey)
-
-        setPlatformSslAction(usesDefaultCertificate ? 'default' : 'existing')
+        setMirrorPendingInputs((currentInputs) => {
+            const nextInputs = { ...currentInputs }
+            for (const draftKey of draftKeys) {
+                delete nextInputs[draftKey]
+            }
+            return nextInputs
+        })
     }
 
-    function handleHttpsDraftChange(checked: boolean) {
-        setDrafts((currentDrafts) => ({
-            ...currentDrafts,
-            [PLATFORM_GATEWAY_HTTPS_DRAFT_KEY]: checked ? 'true' : 'false',
-            ...(checked ? {} : { [PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY]: 'false' }),
-        }))
-    }
-
-    function handleForceHttpsDraftChange(checked: boolean) {
-        setDrafts((currentDrafts) => ({
-            ...currentDrafts,
-            [PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY]: checked ? 'true' : 'false',
-        }))
+    function handleOpenCertificateDirectory() {
+        navigate(`/files?path=${encodeURIComponent(PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH)}`)
     }
 
     function isPlatformBrandLogoUrl(value: string) {
@@ -345,268 +368,484 @@ export function SettingsPage() {
         }
     }
 
-    function startEditing(item: SettingsSummaryItem) {
-        const draftKey = `${item.group}.${item.key}`
-        setDrafts((currentDrafts) => ({
-            ...currentDrafts,
-            [draftKey]: item.masked ? '' : item.value,
-        }))
-        if (item.group === 'docker_mirror' && item.key === 'url') {
-            setMirrorPendingInputs((currentInputs) => ({
-                ...currentInputs,
-                [draftKey]: '',
-            }))
+    function getModuleItems(moduleId: SettingsModuleId) {
+        if (moduleId === 'app-domain') {
+            return globalDomainItem ? [globalDomainItem] : []
         }
-        setEditingKey(draftKey)
+
+        if (moduleId === 'app-mirror') {
+            return mirrorItem ? [mirrorItem] : []
+        }
+
+        if (moduleId === 'platform-brand') {
+            return [brandTitleItem, brandLogoItem, brandFaviconItem].filter((item): item is SettingsSummaryItem => item !== null)
+        }
+
+        if (moduleId === 'platform-domain') {
+            return boundDomainItem ? [boundDomainItem] : []
+        }
+
+        return []
+    }
+
+    function getModuleDraftKeys(moduleId: SettingsModuleId) {
+        if (moduleId === 'platform-domain') {
+            return [
+                PLATFORM_GATEWAY_BOUND_DOMAIN_DRAFT_KEY,
+                PLATFORM_GATEWAY_HTTPS_DRAFT_KEY,
+                PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY,
+                PLATFORM_GATEWAY_CERT_DRAFT_KEY,
+                PLATFORM_GATEWAY_KEY_DRAFT_KEY,
+            ]
+        }
+
+        return getModuleItems(moduleId).map(getDraftKey)
+    }
+
+    function resetActiveModuleDrafts() {
+        clearDraftKeys(getModuleDraftKeys(activeModule))
         setFeedback(null)
     }
 
-    function cancelEditing(item: SettingsSummaryItem) {
-        const draftKey = `${item.group}.${item.key}`
-        setDrafts((currentDrafts) => {
-            const nextDrafts = { ...currentDrafts }
-            delete nextDrafts[draftKey]
-            return nextDrafts
-        })
-        setMirrorPendingInputs((currentInputs) => {
-            const nextInputs = { ...currentInputs }
-            delete nextInputs[draftKey]
-            return nextInputs
-        })
-        if (editingKey === draftKey) {
-            setEditingKey(null)
+    function validateItemValue(item: SettingsSummaryItem, nextValue: string) {
+        const trimmed = nextValue.trim()
+
+        if (!trimmed && item.group !== 'domain') {
+            return t('settingsPage.validation.required')
         }
-    }
 
-    async function handleSave(item: SettingsSummaryItem) {
-        const draftKey = `${item.group}.${item.key}`
-        const nextValue = drafts[draftKey] ?? ''
-
-        if (!nextValue.trim()) {
-            setFeedback({ severity: 'error', message: t('settingsPage.validation.required') })
-            return
+        if (item.group === 'domain' && item.key === 'wildcard_domain' && trimmed) {
+            if (/^https?:\/\//i.test(trimmed)) {
+                return t('settingsPage.validation.domainNoProtocol')
+            }
         }
 
         if (item.group === 'docker_mirror' && item.key === 'url') {
             const mirrorEntries = parseMirrorEntries(nextValue)
             if (!isMirrorManifestUrl(nextValue) && !mirrorEntries.length) {
-                setFeedback({ severity: 'error', message: t('settingsPage.validation.url') })
-                return
+                return t('settingsPage.validation.url')
             }
         }
 
-        if (item.group === 'platform_brand' && item.key === 'logo_url' && !isPlatformBrandLogoUrl(nextValue)) {
-            setFeedback({ severity: 'error', message: t('settingsPage.validation.logoUrl') })
-            return
+        if (item.group === 'platform_brand' && (item.key === 'logo_url' || item.key === 'favicon_url') && !isPlatformBrandLogoUrl(nextValue)) {
+            return t('settingsPage.validation.logoUrl')
         }
 
-        setSavingKey(draftKey)
-        setFeedback(null)
-
-        try {
-            await updateSetting(item.group, item.key, nextValue)
-            await refetch()
-            if (item.group === 'platform_brand') {
-                emitPlatformBrandUpdate(item.key, nextValue)
-            }
-            setFeedback({ severity: 'success', message: t('settingsPage.feedback.saveSuccess', { key: draftKey }) })
-            setDrafts((currentDrafts) => {
-                const nextDrafts = { ...currentDrafts }
-                delete nextDrafts[draftKey]
-                return nextDrafts
-            })
-            setMirrorPendingInputs((currentInputs) => {
-                const nextInputs = { ...currentInputs }
-                delete nextInputs[draftKey]
-                return nextInputs
-            })
-            if (editingKey === draftKey) {
-                setEditingKey(null)
-            }
-        } catch (saveError) {
-            setFeedback({
-                severity: 'error',
-                message: saveError instanceof Error ? saveError.message : t('settingsPage.feedback.saveError'),
-            })
-        } finally {
-            setSavingKey(null)
-        }
+        return null
     }
 
-    async function handleRestoreDefault(item: SettingsSummaryItem) {
-        const defaultValue = typeof item.metadata?.default_value === 'string' ? item.metadata.default_value : ''
-        if (!defaultValue) {
-            return
-        }
-
-        const draftKey = `${item.group}.${item.key}`
-        setDrafts((currentDrafts) => ({
-            ...currentDrafts,
-            [draftKey]: defaultValue,
-        }))
-        setEditingKey(draftKey)
-
-        setSavingKey(draftKey)
-        setFeedback(null)
-
-        try {
-            await updateSetting(item.group, item.key, defaultValue)
-            await refetch()
-            if (item.group === 'platform_brand') {
-                emitPlatformBrandUpdate(item.key, defaultValue)
-            }
-            setFeedback({ severity: 'success', message: t('settingsPage.feedback.saveSuccess', { key: draftKey }) })
-            setDrafts((currentDrafts) => {
-                const nextDrafts = { ...currentDrafts }
-                delete nextDrafts[draftKey]
-                return nextDrafts
-            })
-            setMirrorPendingInputs((currentInputs) => {
-                const nextInputs = { ...currentInputs }
-                delete nextInputs[draftKey]
-                return nextInputs
-            })
-            if (editingKey === draftKey) {
-                setEditingKey(null)
-            }
-        } catch (saveError) {
-            setFeedback({
-                severity: 'error',
-                message: saveError instanceof Error ? saveError.message : t('settingsPage.feedback.saveError'),
-            })
-        } finally {
-            setSavingKey(null)
-        }
-    }
-
-    async function handleSavePlatformSecurity() {
-        setPlatformSecuritySaving(true)
-        setFeedback(null)
-
-        try {
-            const nextHttpsEnabled = httpsEnabled ? 'true' : 'false'
-            const nextForceHttps = httpsEnabled && forceHttpsEnabled ? 'true' : 'false'
-            let nextSslCert = currentPlatformSslCert.trim()
-            let nextSslKey = currentPlatformSslKey.trim()
-
-            if (httpsEnabled) {
-                if (platformSslAction === 'default' || platformSslAction === 'upload') {
-                    nextSslCert = defaultPlatformSslCert
-                    nextSslKey = defaultPlatformSslKey
+    async function saveSimpleModule(moduleId: SettingsModuleId) {
+        const moduleItems = getModuleItems(moduleId)
+        const changedEntries = moduleItems
+            .map((item) => {
+                const draftKey = getDraftKey(item)
+                const nextValue = drafts[draftKey] ?? item.value
+                return {
+                    item,
+                    draftKey,
+                    nextValue,
+                    changed: hasDraftValue(draftKey) && nextValue !== item.value,
                 }
+            })
+            .filter((entry) => entry.changed)
 
+        for (const entry of changedEntries) {
+            const validationError = validateItemValue(entry.item, entry.nextValue)
+            if (validationError) {
+                throw new Error(validationError)
+            }
+        }
+
+        if (!changedEntries.length) {
+            return
+        }
+
+        for (const entry of changedEntries) {
+            await updateSetting(entry.item.group, entry.item.key, entry.nextValue)
+        }
+
+        await refetch()
+
+        for (const entry of changedEntries) {
+            if (entry.item.group === 'platform_brand') {
+                emitPlatformBrandUpdate(entry.item.key, entry.nextValue)
+            }
+        }
+
+        clearDraftKeys(changedEntries.map((entry) => entry.draftKey))
+    }
+
+    async function handleSavePlatformDomainModule() {
+        const nextHttpsEnabled = httpsEnabled ? 'true' : 'false'
+        const nextForceHttps = httpsEnabled && forceHttpsEnabled ? 'true' : 'false'
+        let nextSslCert = sslCert
+        let nextSslKey = sslKey
+
+        // Domain validation
+        if (useDomain && !boundDomainValue.trim()) {
+            throw new Error(t('settingsPage.platformSsl.domainRequired'))
+        }
+
+        if (httpsEnabled) {
+            if (!useDomain) {
+                // IP mode: auto-generate self-signed cert if needed
                 if (!nextSslCert || !nextSslKey) {
-                    throw new Error(t('settingsPage.platformSsl.pathRequired'))
+                    const resp = await fetch('/api/settings/platform_gateway/generate-self-signed-cert', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain: '', validity_days: certValidityDays }),
+                    })
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({})) as { details?: string }
+                        throw new Error(err.details || 'Certificate generation failed')
+                    }
+                    const data = await resp.json() as { ssl_cert?: string; ssl_key?: string }
+                    if (data.ssl_cert) nextSslCert = data.ssl_cert
+                    if (data.ssl_key) nextSslKey = data.ssl_key
                 }
-            }
-
-            await updatePlatformGatewaySettings({
-                bound_domain: boundDomainItem?.value ?? '',
-                https_enabled: nextHttpsEnabled,
-                force_https: nextForceHttps,
-                ssl_cert: nextSslCert,
-                ssl_key: nextSslKey,
-            })
-
-            if (nextHttpsEnabled === 'false' && window.location.protocol === 'https:') {
-                window.setTimeout(() => {
-                    const nextUrl = new URL(window.location.href)
-                    nextUrl.protocol = 'http:'
-                    window.location.replace(nextUrl.toString())
-                }, 800)
-                setFeedback({ severity: 'success', message: t('settingsPage.feedback.httpsDisabledRedirecting') })
+            } else if (certAction === 'letsencrypt') {
+                // Domain mode + Let's Encrypt: apply on save
+                const resp = await fetch('/api/settings/platform_gateway/apply-letsencrypt-cert', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: boundDomainValue.trim(), email: letsEncryptEmail.trim() }),
+                })
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({})) as { details?: string }
+                    throw new Error(err.details || 'Let\'s Encrypt application failed')
+                }
+                const data = await resp.json() as { ssl_cert?: string; ssl_key?: string }
+                if (data.ssl_cert) nextSslCert = data.ssl_cert
+                if (data.ssl_key) nextSslKey = data.ssl_key
             } else {
-                await refreshSettingsSummaryAfterGatewayRestart()
-                setFeedback({ severity: 'success', message: t('settingsPage.feedback.platformGatewaySuccess') })
+                // Domain mode + upload: save PEM content first
+                if (!certPem.trim() || !keyPem.trim()) {
+                    throw new Error(t('settingsPage.platformSsl.pemRequired'))
+                }
+                const resp = await fetch('/api/settings/platform_gateway/upload-cert', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cert_pem: certPem,
+                        key_pem: keyPem,
+                        intermediate_pem: intermediatePem,
+                    }),
+                })
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({})) as { details?: string }
+                    throw new Error(err.details || 'Certificate upload failed')
+                }
+                const data = await resp.json() as { ssl_cert?: string; ssl_key?: string }
+                if (data.ssl_cert) nextSslCert = data.ssl_cert
+                if (data.ssl_key) nextSslKey = data.ssl_key
             }
+        }
 
-            resetPlatformSecurityDrafts()
+        const payload = {
+            bound_domain: boundDomainValue.trim(),
+            https_enabled: nextHttpsEnabled,
+            force_https: nextForceHttps,
+            ssl_cert: nextSslCert,
+            ssl_key: nextSslKey,
+        }
+
+        let saveSucceeded = false
+        try {
+            await updatePlatformGatewaySettings(payload)
+            saveSucceeded = true
+        } catch (saveError) {
+            // Gateway restarts after SSL changes — network errors are expected and mean success.
+            const isNetworkError =
+                saveError instanceof TypeError ||
+                (saveError instanceof Error && saveError.message.includes('NetworkError'))
+            if (!isNetworkError) throw saveError
+            // Network error: assume the save reached the backend and nginx is restarting.
+            saveSucceeded = true
+        }
+
+        if (!saveSucceeded) return
+
+        clearDraftKeys(getModuleDraftKeys('platform-domain'))
+        setFeedback({ severity: 'success', message: t('settingsPage.feedback.platformGatewaySuccess') })
+
+        // Reload after a short delay so the new config takes effect.
+        // (Avoid protocol/domain switching here — it breaks session cookies.)
+        window.setTimeout(() => {
+            window.location.reload()
+        }, 1500)
+    }
+
+    async function handleSaveActiveModule() {
+        setSavingModule(activeModule)
+        setFeedback(null)
+
+        try {
+            if (activeModule === 'platform-domain') {
+                await handleSavePlatformDomainModule()
+            } else if (activeModule !== 'platform-system') {
+                await saveSimpleModule(activeModule)
+                setFeedback({ severity: 'success', message: t('settingsPage.feedback.saveSuccess', { key: t(activeModuleConfig.titleKey) }) })
+            }
+            setToastOpen(true)
         } catch (saveError) {
             setFeedback({
                 severity: 'error',
-                message: saveError instanceof Error ? saveError.message : t('settingsPage.feedback.httpsError'),
+                message: saveError instanceof Error ? saveError.message : t('settingsPage.feedback.saveError'),
             })
+            setToastOpen(true)
         } finally {
-            setPlatformSecuritySaving(false)
+            setSavingModule(null)
         }
     }
 
-    async function refreshSettingsSummaryAfterGatewayRestart() {
-        let lastError: unknown = null
-
-        for (const delayMs of [150, 300, 500, 800, 1200, 1600]) {
-            await new Promise((resolve) => window.setTimeout(resolve, delayMs))
-            try {
-                const summary = await fetchSettingsSummary()
-                queryClient.setQueryData(['settings-summary'], summary)
-                return
-            } catch (error) {
-                lastError = error
-            }
+    function handleRestoreDefault(item: SettingsSummaryItem | null) {
+        const defaultValue = item?.metadata?.default_value
+        if (!item || typeof defaultValue !== 'string') {
+            return
         }
 
-        throw lastError instanceof Error ? lastError : new Error(t('settingsPage.feedback.httpsError'))
+        setDraftValue(getDraftKey(item), defaultValue)
     }
 
-    function renderEditableRow(item: SettingsSummaryItem | null, options?: { labelKey?: string; helperText?: string; placeholder?: string; hideRestore?: boolean; maskDisplayValue?: boolean }) {
+    function renderDomainRow(item: SettingsSummaryItem | null) {
         if (!item) {
             return null
         }
 
-        const draftKey = `${item.group}.${item.key}`
-        const isEditing = editingKey === draftKey
-        const isSaving = savingKey === draftKey
-        const currentValue = drafts[draftKey] ?? (item.masked ? '' : item.value)
-        const displayValue = options?.maskDisplayValue ? '' : item.value
+        const draftKey = getDraftKey(item)
+        const currentValue = drafts[draftKey] ?? item.value
+        const isChinese = i18n.resolvedLanguage === 'zh-CN'
+        const helpUrl = isChinese
+            ? 'https://support.websoft9.com/docs/domain-prepare#wildcard'
+            : 'https://support.websoft9.com/en/docs/domain-prepare#wildcard'
 
         return (
-            <div className="settings-form-row" key={draftKey}>
-                <Typography className="settings-form-label">
-                    {options?.labelKey ? t(options.labelKey) : t(`settingsPage.items.${item.group}.${item.key}`, { defaultValue: `${item.group}.${item.key}` })}：
-                </Typography>
+            <div className="settings-form-row settings-form-row--domain-stacked" key={draftKey}>
+                <div className="settings-domain-label-row">
+                    <Typography className="settings-form-label">
+                        {t('settingsPage.items.domain.wildcard_domain')}
+                    </Typography>
+                    <Box
+                        className="settings-domain-help-icon"
+                        component="a"
+                        href={helpUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={t('settingsPage.domain.helpLink')}
+                    >
+                        ?
+                    </Box>
+                </div>
 
                 <div className="settings-form-control settings-form-control--field">
                     <div className="settings-inline-content">
                         <TextField
                             fullWidth
                             size="small"
-                            value={isEditing ? currentValue : displayValue}
-                            onChange={(event) =>
-                                setDrafts((currentDrafts) => ({
-                                    ...currentDrafts,
-                                    [draftKey]: event.target.value,
-                                }))
-                            }
-                            disabled={!isEditing}
-                            placeholder={options?.placeholder ?? t('settingsPage.actions.editValue')}
+                            value={currentValue}
+                            onChange={(event) => setDraftValue(draftKey, event.target.value)}
+                            placeholder={t('settingsPage.domain.placeholder')}
                             sx={settingsFieldSx}
                         />
-                        {options?.helperText ? <Typography className="settings-field-helper settings-field-helper--inline">{options.helperText}</Typography> : null}
+                        <Typography className="settings-field-helper settings-field-helper--inline">
+                            {t('settingsPage.domain.globalDomainHelper')}
+                        </Typography>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    function renderBrandRows() {
+        const titleDraftKey = brandTitleItem ? getDraftKey(brandTitleItem) : ''
+        const logoDraftKey = brandLogoItem ? getDraftKey(brandLogoItem) : ''
+        const faviconDraftKey = brandFaviconItem ? getDraftKey(brandFaviconItem) : ''
+
+        const titleValue = brandTitleItem ? (drafts[titleDraftKey] ?? brandTitleItem.value) : ''
+        const previewTitle = titleValue || 'Websoft9'
+        const logoValue = brandLogoItem ? (drafts[logoDraftKey] ?? brandLogoItem.value) : ''
+        const faviconValue = brandFaviconItem ? (drafts[faviconDraftKey] ?? brandFaviconItem.value) : ''
+
+        function handleUpload(file: File, draftKey: string) {
+            if (!draftKey) return
+            setUploadingLogo(true)
+            const formData = new FormData()
+            formData.append('file', file)
+
+            fetch('/api/media/upload', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include',
+            })
+                .then(async (res) => {
+                    if (!res.ok) throw new Error('Upload failed')
+                    const data = await res.json() as { url?: string }
+                    if (data.url) {
+                        setDraftValue(draftKey, data.url)
+                        if (reuseLogo && faviconDraftKey && draftKey === logoDraftKey) {
+                            setDraftValue(faviconDraftKey, data.url)
+                        }
+                    }
+                })
+                .catch(() => { })
+                .finally(() => setUploadingLogo(false))
+        }
+
+        function handleReuseToggle(next: boolean) {
+            setReuseLogo(next)
+            if (next && logoDraftKey && faviconDraftKey) {
+                const currentLogo = drafts[logoDraftKey] ?? brandLogoItem?.value ?? ''
+                setDraftValue(faviconDraftKey, currentLogo)
+            }
+        }
+
+        const previewLogoSrc = logoValue || '/websoft9.png'
+        const previewFaviconSrc = faviconValue || logoValue || '/favicon.ico?v=20260509c'
+
+        return (
+            <>
+                {/* Preview card */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <div className="settings-brand-preview-card">
+                        <div className="settings-brand-preview-sidebar">
+                            <img className="settings-brand-preview-logo" key={previewLogoSrc} src={previewLogoSrc} alt="Logo preview" />
+                            <span className="settings-brand-preview-title">{previewTitle}</span>
+                        </div>
+                        <div className="settings-brand-preview-browser">
+                            <div className="settings-brand-preview-tab">
+                                <img className="settings-brand-preview-favicon" key={previewFaviconSrc} src={previewFaviconSrc} alt="Favicon preview" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <Stack className="settings-form-actions" direction="row" spacing={0.75}>
-                    {isEditing ? (
-                        <>
-                            <Button className="settings-action-button" disabled={isSaving} onClick={() => void handleSave(item)} size="small" variant="contained">
-                                {t('settingsPage.actions.save')}
-                            </Button>
-                            <Button className="settings-action-button" disabled={isSaving} onClick={() => cancelEditing(item)} size="small" variant="outlined">
-                                {t('settingsPage.actions.cancel')}
-                            </Button>
-                            {!options?.hideRestore && typeof item.metadata?.default_value === 'string' ? (
-                                <Button className="settings-action-button" disabled={isSaving} onClick={() => void handleRestoreDefault(item)} size="small" variant="outlined">
-                                    {t('settingsPage.actions.restore')}
+                {/* Title – first */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <Typography className="settings-form-label">{t('settingsPage.items.platform_brand.title')}</Typography>
+                    <div className="settings-form-control settings-form-control--field">
+                        <div className="settings-inline-content">
+                            <TextField
+                                fullWidth
+                                size="small"
+                                value={titleValue}
+                                onChange={(event) => { if (titleDraftKey) setDraftValue(titleDraftKey, event.target.value) }}
+                                placeholder={t('settingsPage.brand.titlePlaceholder')}
+                                sx={settingsFieldSx}
+                            />
+                            <Typography className="settings-field-helper settings-field-helper--inline">
+                                {t('settingsPage.brand.titleHelper')}
+                            </Typography>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Logo – with upload */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <Typography className="settings-form-label">{t('settingsPage.items.platform_brand.logo_url')}</Typography>
+                    <div className="settings-form-control settings-form-control--field">
+                        <div className="settings-inline-content">
+                            <div className="settings-brand-upload-row">
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    value={logoValue}
+                                    onChange={(event) => {
+                                        if (logoDraftKey) setDraftValue(logoDraftKey, event.target.value)
+                                        if (reuseLogo && faviconDraftKey) setDraftValue(faviconDraftKey, event.target.value)
+                                    }}
+                                    placeholder={t('settingsPage.brand.logoPlaceholder')}
+                                    sx={settingsFieldSx}
+                                />
+                                <Button
+                                    className="settings-action-button"
+                                    size="small"
+                                    variant="outlined"
+                                    disabled={uploadingLogo || savingModule === activeModule}
+                                    onClick={() => logoUploadRef.current?.click()}
+                                >
+                                    {uploadingLogo ? '...' : t('settingsPage.brand.uploadLogo')}
                                 </Button>
-                            ) : null}
-                        </>
-                    ) : (
-                        <Button className="settings-action-button" onClick={() => startEditing(item)} size="small" variant="outlined">
-                            {t('settingsPage.actions.edit')}
-                        </Button>
-                    )}
-                </Stack>
-            </div>
+                                <input
+                                    ref={logoUploadRef}
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) handleUpload(file, logoDraftKey)
+                                        e.target.value = ''
+                                    }}
+                                />
+                            </div>
+                            <Typography className="settings-field-helper settings-field-helper--inline">
+                                {t('settingsPage.brand.uploadLogoHint')}
+                            </Typography>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Favicon – with upload + reuse toggle inline */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <div className="settings-brand-favicon-header">
+                        <Typography className="settings-form-label">{t('settingsPage.items.platform_brand.favicon_url')}</Typography>
+                        <label className="settings-brand-reuse-toggle">
+                            <Typography className="settings-brand-reuse-label">{t('settingsPage.brand.reuseLogoAsFavicon')}</Typography>
+                            <Switch
+                                size="small"
+                                checked={reuseLogo}
+                                disabled={savingModule === activeModule}
+                                onChange={(_, next) => handleReuseToggle(next)}
+                            />
+                        </label>
+                    </div>
+                    <div className="settings-form-control settings-form-control--field">
+                        {reuseLogo ? (
+                            <Typography className="settings-field-helper settings-field-helper--inline">
+                                {t('settingsPage.brand.reuseLogoAsFaviconHelper')}
+                            </Typography>
+                        ) : (
+                            <div className="settings-inline-content">
+                                <div className="settings-brand-upload-row">
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        value={faviconValue}
+                                        onChange={(event) => { if (faviconDraftKey) setDraftValue(faviconDraftKey, event.target.value) }}
+                                        placeholder={t('settingsPage.brand.faviconPlaceholder')}
+                                        sx={settingsFieldSx}
+                                    />
+                                    <Button
+                                        className="settings-action-button"
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={uploadingLogo || savingModule === activeModule}
+                                        onClick={() => faviconUploadRef.current?.click()}
+                                    >
+                                        {uploadingLogo ? '...' : t('settingsPage.brand.uploadLogo')}
+                                    </Button>
+                                    <input
+                                        ref={faviconUploadRef}
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) handleUpload(file, faviconDraftKey)
+                                            e.target.value = ''
+                                        }}
+                                    />
+                                </div>
+                                <Typography className="settings-field-helper settings-field-helper--inline">
+                                    {t('settingsPage.brand.faviconHelper')}
+                                </Typography>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </>
         )
     }
 
@@ -615,11 +854,9 @@ export function SettingsPage() {
             return null
         }
 
-        const draftKey = `${item.group}.${item.key}`
-        const isEditing = editingKey === draftKey
-        const isSaving = savingKey === draftKey
+        const draftKey = getDraftKey(item)
         const currentValue = drafts[draftKey] ?? item.value
-        const entries = parseMirrorEntries(isEditing ? currentValue : item.value)
+        const entries = parseMirrorEntries(currentValue)
         const pendingInput = mirrorPendingInputs[draftKey] ?? ''
 
         function commitPendingMirrorValue() {
@@ -628,10 +865,7 @@ export function SettingsPage() {
                 return
             }
 
-            setDrafts((currentDrafts) => ({
-                ...currentDrafts,
-                [draftKey]: [...entries, nextValue].join(','),
-            }))
+            setDraftValue(draftKey, [...entries, nextValue].join(','))
             setMirrorPendingInputs((currentInputs) => ({
                 ...currentInputs,
                 [draftKey]: '',
@@ -640,214 +874,258 @@ export function SettingsPage() {
 
         function removeMirrorEntry(entryToRemove: string, indexToRemove: number) {
             const nextEntries = entries.filter((entry, index) => !(entry === entryToRemove && index === indexToRemove))
-            setDrafts((currentDrafts) => ({
-                ...currentDrafts,
-                [draftKey]: nextEntries.join(','),
-            }))
+            setDraftValue(draftKey, nextEntries.join(','))
         }
 
         return (
-            <div className="settings-form-row" key={`${draftKey}-mirrors`}>
-                <Typography className="settings-form-label">{t('settingsPage.items.docker_mirror.url')}：</Typography>
+            <div className="settings-form-row settings-form-row--domain-stacked" key={`${draftKey}-mirrors`}>
+                <Typography className="settings-form-label">{t('settingsPage.items.docker_mirror.url')}</Typography>
 
                 <div className="settings-form-control settings-form-control--field">
                     <div className="settings-inline-content">
-                        {isEditing ? (
-                            <Box className="settings-mirror-edit-box">
-                                {entries.map((entry, index) => (
-                                    <Chip className="settings-mirror-edit-chip" key={`${entry}-${index}`} label={entry} onDelete={() => removeMirrorEntry(entry, index)} size="small" />
-                                ))}
-                                <input
-                                    className="settings-mirror-inline-input"
-                                    value={pendingInput}
-                                    onBlur={commitPendingMirrorValue}
-                                    onChange={(event) => {
-                                        setMirrorPendingInputs((currentInputs) => ({
-                                            ...currentInputs,
-                                            [draftKey]: event.target.value,
-                                        }))
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter' || event.key === ',') {
-                                            event.preventDefault()
-                                            commitPendingMirrorValue()
-                                            return
-                                        }
+                        <Box className="settings-mirror-edit-box">
+                            {entries.map((entry, index) => (
+                                <Chip className="settings-mirror-edit-chip" key={`${entry}-${index}`} label={entry} onDelete={() => removeMirrorEntry(entry, index)} size="small" />
+                            ))}
+                            <input
+                                className="settings-mirror-inline-input"
+                                value={pendingInput}
+                                onBlur={commitPendingMirrorValue}
+                                onChange={(event) => {
+                                    setMirrorPendingInputs((currentInputs) => ({
+                                        ...currentInputs,
+                                        [draftKey]: event.target.value,
+                                    }))
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ',') {
+                                        event.preventDefault()
+                                        commitPendingMirrorValue()
+                                        return
+                                    }
 
-                                        if (event.key === 'Backspace' && !pendingInput && entries.length) {
-                                            event.preventDefault()
-                                            const lastIndex = entries.length - 1
-                                            removeMirrorEntry(entries[lastIndex], lastIndex)
-                                        }
-                                    }}
-                                    placeholder={entries.length ? '' : t('settingsPage.mirror.placeholderInline')}
-                                />
+                                    if (event.key === 'Backspace' && !pendingInput && entries.length) {
+                                        event.preventDefault()
+                                        const lastIndex = entries.length - 1
+                                        removeMirrorEntry(entries[lastIndex], lastIndex)
+                                    }
+                                }}
+                                placeholder={entries.length ? '' : t('settingsPage.mirror.placeholderInline')}
+                            />
+                        </Box>
+                        <div className="settings-mirror-helper-row">
+                            <Typography className="settings-field-helper settings-field-helper--inline">{t('settingsPage.mirror.helper')}</Typography>
+                            <Box
+                                className="settings-restore-link"
+                                component="button"
+                                disabled={savingModule === activeModule}
+                                onClick={() => handleRestoreDefault(item)}
+                                type="button"
+                            >
+                                {t('settingsPage.actions.restore')}
                             </Box>
-                        ) : (
-                            <Box className="settings-mirror-box">
-                                {entries.length ? entries.map((entry) => <Box className="settings-mirror-chip" key={entry}>{entry}</Box>) : <Typography className="settings-form-value" variant="body2">{t('settingsPage.values.notConfigured')}</Typography>}
-                            </Box>
-                        )}
-                        <Typography className="settings-field-helper settings-field-helper--inline">{t('settingsPage.mirror.helper')}</Typography>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    function renderPlatformDomainRows() {
+        const boundDraftKey = boundDomainItem ? getDraftKey(boundDomainItem) : ''
+        const boundValue = boundDomainItem ? (drafts[boundDraftKey] ?? boundDomainItem.value) : ''
+        const hasCert = !!(currentSslCert && currentSslKey)
+
+        function handleModeSelect(domain: boolean) {
+            setUseDomain(domain)
+            if (domain) {
+                setDraftValue(PLATFORM_GATEWAY_HTTPS_DRAFT_KEY, 'false')
+                setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, 'false')
+                // Default to existing cert if available, otherwise letsencrypt
+                setCertAction(currentSslCert && currentSslKey ? 'existing' : 'letsencrypt')
+            } else {
+                if (boundDraftKey) setDraftValue(boundDraftKey, '')
+                setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, 'false')
+            }
+        }
+
+        function handlePemFilePick(event: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) {
+            const file = event.target.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = () => setter(reader.result as string)
+            reader.readAsText(file)
+            event.target.value = ''
+        }
+
+        const statusLabel = (v: boolean) => v ? t('settingsPage.platformSsl.statusOn') : t('settingsPage.platformSsl.statusOff')
+
+        return (
+            <>
+                {/* Access mode – always visible */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <Typography className="settings-form-label">{t('settingsPage.platformSsl.accessModeTitle')}</Typography>
+                    <div className="settings-form-control settings-form-control--field">
+                        <div className="settings-access-card">
+                            <div className="settings-access-card-body">
+                                <div className="settings-domain-mode-radios">
+                                    <label className={`settings-domain-mode-radio-label ${!useDomain ? 'checked' : ''}`} onClick={() => handleModeSelect(false)}>
+                                        <span className="settings-domain-mode-radio-btn"><span className="settings-domain-mode-radio-dot" /></span>
+                                        <span className="settings-domain-mode-radio-text">{t('settingsPage.platformSsl.ipModeTitle')}</span>
+                                    </label>
+                                    <label className={`settings-domain-mode-radio-label ${useDomain ? 'checked' : ''}`} onClick={() => handleModeSelect(true)}>
+                                        <span className="settings-domain-mode-radio-btn"><span className="settings-domain-mode-radio-dot" /></span>
+                                        <span className="settings-domain-mode-radio-text">{t('settingsPage.platformSsl.domainModeTitle')}</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <Stack className="settings-form-actions" direction="row" spacing={0.75}>
-                    {isEditing ? (
-                        <>
-                            <Button className="settings-action-button" disabled={isSaving} onClick={() => void handleSave(item)} size="small" variant="contained">
-                                {t('settingsPage.actions.save')}
-                            </Button>
-                            <Button className="settings-action-button" disabled={isSaving} onClick={() => cancelEditing(item)} size="small" variant="outlined">
-                                {t('settingsPage.actions.cancel')}
-                            </Button>
-                            <Button className="settings-action-button" disabled={isSaving} onClick={() => void handleRestoreDefault(item)} size="small" variant="outlined">
-                                {t('settingsPage.actions.restore')}
-                            </Button>
-                        </>
-                    ) : (
-                        <Button className="settings-action-button" onClick={() => startEditing(item)} size="small" variant="outlined">
-                            {t('settingsPage.actions.edit')}
-                        </Button>
-                    )}
-                </Stack>
-            </div>
-        )
-    }
-
-    function renderCertificateRow() {
-        const saveDisabled = platformSecuritySaving || (httpsEnabled && platformSslAction === 'existing' && (!currentPlatformSslCert.trim() || !currentPlatformSslKey.trim()))
-
-        return (
-            <div className="settings-form-row">
-                <Typography className="settings-form-label">{t('settingsPage.items.platform_gateway.certificates')}：</Typography>
-
-                <div className="settings-form-control">
-                    {httpsEnabled ? (
-                        <div className="settings-inline-content settings-inline-content--summary">
-                            <div className="settings-choice-grid">
-                                <button className={`settings-choice-button ${platformSslAction === 'default' ? 'active' : ''}`} onClick={() => setPlatformSslAction('default')} type="button">
-                                    <span className="settings-choice-title">{t('settingsPage.platformSsl.defaultTitle')}</span>
-                                    <span className="settings-choice-description">{t('settingsPage.platformSsl.defaultDescription')}</span>
-                                    <span className="settings-choice-meta">{t('settingsPage.platformSsl.pathPairLabel', { cert: defaultPlatformSslCert, key: defaultPlatformSslKey })}</span>
-                                </button>
-                                <button className={`settings-choice-button ${platformSslAction === 'existing' ? 'active' : ''}`} onClick={() => setPlatformSslAction('existing')} type="button">
-                                    <span className="settings-choice-title">{t('settingsPage.platformSsl.existingTitle')}</span>
-                                    <span className="settings-choice-description">{t('settingsPage.platformSsl.existingDescription')}</span>
-                                    <span className="settings-choice-meta">{t('settingsPage.platformSsl.pathPairLabel', { cert: currentSummarySslCert || t('settingsPage.values.notConfigured'), key: currentSummarySslKey || t('settingsPage.values.notConfigured') })}</span>
-                                </button>
-                                <button className={`settings-choice-button ${platformSslAction === 'upload' ? 'active' : ''}`} onClick={() => setPlatformSslAction('upload')} type="button">
-                                    <span className="settings-choice-title">{t('settingsPage.platformSsl.uploadTitle')}</span>
-                                    <span className="settings-choice-description">{t('settingsPage.platformSsl.uploadDescription')}</span>
-                                    <span className="settings-choice-meta">{PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH}</span>
-                                </button>
+                {/* Domain address – only in domain mode */}
+                {useDomain ? (
+                    <div className="settings-form-row settings-form-row--domain-stacked">
+                        <Typography className="settings-form-label">{t('settingsPage.platformSsl.domainInputLabel')}</Typography>
+                        <div className="settings-form-control settings-form-control--field">
+                            <div className="settings-inline-content">
+                                <TextField fullWidth size="small" value={boundValue}
+                                    onChange={(e) => { if (boundDraftKey) setDraftValue(boundDraftKey, e.target.value) }}
+                                    placeholder={t('settingsPage.platformSsl.domainPlaceholder')} sx={settingsFieldSx} />
+                                <Typography className="settings-field-helper settings-field-helper--inline">{t('settingsPage.platformSsl.domainHint')}</Typography>
                             </div>
+                        </div>
+                    </div>
+                ) : null}
 
-                            {platformSslAction === 'existing' ? (
-                                <div className="settings-platform-ssl-detail">
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        value={currentPlatformSslCert}
-                                        onChange={(event) =>
-                                            setDrafts((currentDrafts) => ({
-                                                ...currentDrafts,
-                                                [PLATFORM_GATEWAY_CERT_DRAFT_KEY]: event.target.value,
-                                            }))
-                                        }
-                                        placeholder={t('settingsPage.platformSsl.certPathPlaceholder')}
-                                        sx={settingsFieldSx}
-                                    />
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        value={currentPlatformSslKey}
-                                        onChange={(event) =>
-                                            setDrafts((currentDrafts) => ({
-                                                ...currentDrafts,
-                                                [PLATFORM_GATEWAY_KEY_DRAFT_KEY]: event.target.value,
-                                            }))
-                                        }
-                                        placeholder={t('settingsPage.platformSsl.keyPathPlaceholder')}
-                                        sx={settingsFieldSx}
-                                    />
-                                    <Typography className="settings-field-helper settings-field-helper--inline">{t('settingsPage.platformSsl.existingDetail')}</Typography>
-                                </div>
-                            ) : null}
+                <div className="settings-ssl-card">
+                    <div className="settings-ssl-card-header">
+                        <div className="settings-ssl-card-headline">
+                            <span className="settings-ssl-card-title">{t('settingsPage.platformSsl.switchTitle')}</span>
+                            <span className="settings-ssl-card-subtitle">{t('settingsPage.platformSsl.switchHelper')}</span>
+                        </div>
+                        <Switch checked={httpsEnabled} disabled={savingModule === activeModule}
+                            onChange={(_, n) => { setDraftValue(PLATFORM_GATEWAY_HTTPS_DRAFT_KEY, n ? 'true' : 'false'); if (!n) setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, 'false') }} />
+                    </div>
+                </div>
 
-                            {platformSslAction === 'upload' ? (
-                                <div className="settings-platform-ssl-detail">
-                                    <Typography className="settings-field-helper settings-field-helper--inline">{t('settingsPage.platformSsl.uploadDetail')}</Typography>
-                                    <Box className="settings-inline-actions">
-                                        <Button className="settings-action-button" onClick={handleOpenCertificateDirectory} size="small" variant="outlined">
-                                            {t('settingsPage.actions.configure')}
-                                        </Button>
+                {httpsEnabled ? (
+                    <>
+                        <div className="settings-ssl-card settings-ssl-card--content">
+                            <div className="settings-ssl-card-header">
+                                <span className="settings-ssl-card-title">{!useDomain ? t('settingsPage.platformSsl.selfSignedTitle') : t('settingsPage.platformSsl.certConfigTitle')}</span>
+                            </div>
+                            <div className="settings-ssl-card-body">
+                                {!useDomain ? (
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0 }}>{t('settingsPage.platformSsl.validityLabel')}</Typography>
+                                        <select className="settings-validity-select" value={certValidityDays} onChange={(e) => setCertValidityDays(Number(e.target.value))}>
+                                            <option value={365}>{t('settingsPage.platformSsl.validity1y')}</option>
+                                            <option value={1095}>{t('settingsPage.platformSsl.validity3y')}</option>
+                                            <option value={1825}>{t('settingsPage.platformSsl.validity5y')}</option>
+                                            <option value={3650}>{t('settingsPage.platformSsl.validity10y')}</option>
+                                        </select>
                                     </Box>
+                                ) : (
+                                    <>
+                                        <div className="settings-ssl-cert-options settings-ssl-cert-options--three">
+                                            <button className={`settings-choice-button ${certAction === 'letsencrypt' ? 'active' : ''}`} onClick={() => setCertAction('letsencrypt')} type="button">
+                                                <span className="settings-choice-badge">{t('settingsPage.platformSsl.recommendedBadge')}</span>
+                                                <span className="settings-choice-title">{t('settingsPage.platformSsl.letsencryptTitle')}</span>
+                                                <span className="settings-choice-description">{t('settingsPage.platformSsl.letsencryptDescription')}</span>
+                                            </button>
+                                            <button className={`settings-choice-button ${certAction === 'existing' ? 'active' : ''}`} onClick={() => setCertAction('existing')} type="button">
+                                                <span className="settings-choice-title">{t('settingsPage.platformSsl.existingCertTitle')}</span>
+                                                <span className="settings-choice-description">{t('settingsPage.platformSsl.existingCertDescription')}</span>
+                                            </button>
+                                            <button className={`settings-choice-button ${certAction === 'upload' ? 'active' : ''}`} onClick={() => setCertAction('upload')} type="button">
+                                                <span className="settings-choice-title">{t('settingsPage.platformSsl.uploadTitle')}</span>
+                                                <span className="settings-choice-description">{t('settingsPage.platformSsl.uploadDescription')}</span>
+                                            </button>
+                                        </div>
+                                        {certAction === 'letsencrypt' ? (
+                                            <div className="settings-ssl-cert-actions">
+                                                <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.emailLabel')}<span className="settings-field-required">*</span></span>
+                                                <TextField fullWidth size="small" value={letsEncryptEmail} onChange={(e) => setLetsEncryptEmail(e.target.value)} placeholder={t('settingsPage.platformSsl.emailPlaceholder')} sx={settingsFieldSx} required />
+                                            </div>
+                                        ) : certAction === 'existing' ? (
+                                            <div className="settings-ssl-cert-actions">
+                                                <div className="settings-ssl-cert-field">
+                                                    <span className="settings-ssl-cert-field-label">
+                                                        {t('settingsPage.platformSsl.existingCertLabel')}
+                                                        <span className="settings-field-required">*</span>
+                                                    </span>
+                                                    <select className="settings-ssl-cert-select" value={currentSslCert} disabled={!hasCert}>
+                                                        {hasCert ? (
+                                                            <option value={currentSslCert}>
+                                                                {(boundDomainValue || boundDomainItem?.value || t('settingsPage.platformSsl.defaultCertName'))}
+                                                                {certExpiry ? `  —  ${t('settingsPage.platformSsl.expiry')}${certExpiry}` : ''}
+                                                            </option>
+                                                        ) : (
+                                                            <option value="">{t('settingsPage.platformSsl.selectCertPlaceholder')}</option>
+                                                        )}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="settings-ssl-cert-fields">
+                                                <div className="settings-ssl-cert-field">
+                                                    <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.certNameLabel')}</span>
+                                                    <input className="settings-ssl-cert-name-input" value={certName} onChange={(e) => setCertName(e.target.value)} placeholder="my-site.com" />
+                                                </div>
+                                                <div className="settings-ssl-cert-grid">
+                                                    <div className="settings-ssl-cert-field">
+                                                        <div className="settings-ssl-cert-field-head">
+                                                            <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.keyPemLabel')}</span>
+                                                            <button className="settings-ssl-upload-btn" onClick={() => keyPemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
+                                                            <input ref={keyPemFileRef} accept=".pem,.key,.crt,.cer,.txt" hidden onChange={(e) => handlePemFilePick(e, setKeyPem)} type="file" />
+                                                        </div>
+                                                        <textarea className="settings-ssl-cert-textarea" rows={5} value={keyPem} onChange={(e) => setKeyPem(e.target.value)} placeholder="-----BEGIN PRIVATE KEY-----" />
+                                                    </div>
+                                                    <div className="settings-ssl-cert-field">
+                                                        <div className="settings-ssl-cert-field-head">
+                                                            <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.certPemLabel')}</span>
+                                                            <button className="settings-ssl-upload-btn" onClick={() => certPemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
+                                                            <input ref={certPemFileRef} accept=".pem,.crt,.cer,.txt" hidden onChange={(e) => handlePemFilePick(e, setCertPem)} type="file" />
+                                                        </div>
+                                                        <textarea className="settings-ssl-cert-textarea" rows={5} value={certPem} onChange={(e) => setCertPem(e.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
+                                                    </div>
+                                                </div>
+                                                <div className="settings-ssl-cert-field">
+                                                    <div className="settings-ssl-cert-field-head">
+                                                        <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.intermediatePemLabel')}</span>
+                                                        <button className="settings-ssl-upload-btn" onClick={() => intermediatePemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
+                                                        <input ref={intermediatePemFileRef} accept=".pem,.crt,.cer,.txt" hidden onChange={(e) => handlePemFilePick(e, setIntermediatePem)} type="file" />
+                                                    </div>
+                                                    <textarea className="settings-ssl-cert-textarea" rows={3} value={intermediatePem} onChange={(e) => setIntermediatePem(e.target.value)} placeholder={t('settingsPage.platformSsl.intermediatePemOptional')} />
+                                                </div>
+                                                <Typography className="settings-field-helper">{t('settingsPage.platformSsl.uploadFormatHint')}</Typography>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        <div className="settings-ssl-card">
+                            <div className="settings-ssl-card-header">
+                                <div className="settings-ssl-card-headline">
+                                    <span className="settings-ssl-card-title">{t('settingsPage.platformSsl.redirectLabel')}</span>
+                                    <span className="settings-ssl-card-subtitle">{t('settingsPage.platformSsl.redirectHelper')}</span>
                                 </div>
-                            ) : null}
+                                <Switch checked={forceHttpsEnabled} disabled={savingModule === activeModule || !httpsEnabled}
+                                    onChange={(_, n) => setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, n ? 'true' : 'false')} />
+                            </div>
                         </div>
-                    ) : (
-                        <div className="settings-inline-content settings-inline-content--summary">
-                            <Typography className="settings-form-value settings-form-value--muted" variant="body2">
-                                {t('settingsPage.platformSsl.disabledHint')}
-                            </Typography>
-                        </div>
-                    )}
-                </div>
-
-                <Stack className="settings-form-actions" direction="row" spacing={0.75}>
-                    <Button className="settings-action-button" disabled={saveDisabled} onClick={() => void handleSavePlatformSecurity()} size="small" variant="contained">
-                        {t('settingsPage.actions.save')}
-                    </Button>
-                    <Button className="settings-action-button" disabled={platformSecuritySaving} onClick={resetPlatformSecurityDrafts} size="small" variant="outlined">
-                        {t('settingsPage.actions.cancel')}
-                    </Button>
-                </Stack>
-            </div>
-        )
-    }
-
-    function renderHttpsOptionsRow() {
-        return (
-            <div className="settings-form-row">
-                <Typography className="settings-form-label">{t('settingsPage.items.platform_gateway.httpsOptions')}：</Typography>
-
-                <div className="settings-form-control settings-form-control--field settings-form-control--switches">
-                    <Box className="settings-switch-stack">
-                        <Box className="settings-switch-item settings-switch-item--rowless">
-                            <Typography className="settings-switch-label">{t('settingsPage.items.platform_gateway.https_enabled')}</Typography>
-                            <Stack className="settings-form-switch" direction="row" spacing={1.25}>
-                                <Switch checked={httpsEnabled} disabled={platformSecuritySaving} onChange={(_, nextChecked) => handleHttpsDraftChange(nextChecked)} />
-                                <Typography color="text.secondary" sx={{ fontWeight: 500 }} variant="body2">
-                                    {httpsEnabled ? t('settingsPage.https.enabled') : t('settingsPage.https.disabled')}
-                                </Typography>
-                            </Stack>
-                            <Typography className="settings-field-helper settings-field-helper--switch">{t('settingsPage.platformSsl.httpsHelper')}</Typography>
-                        </Box>
-                        <Box className="settings-switch-item settings-switch-item--rowless">
-                            <Typography className="settings-switch-label">{t('settingsPage.items.platform_gateway.force_https')}</Typography>
-                            <Stack className="settings-form-switch" direction="row" spacing={1.25}>
-                                <Switch checked={forceHttpsEnabled} disabled={platformSecuritySaving || !httpsEnabled} onChange={(_, nextChecked) => handleForceHttpsDraftChange(nextChecked)} />
-                                <Typography color="text.secondary" sx={{ fontWeight: 500 }} variant="body2">
-                                    {forceHttpsEnabled ? t('settingsPage.https.enabled') : t('settingsPage.https.disabled')}
-                                </Typography>
-                            </Stack>
-                            <Typography className="settings-field-helper settings-field-helper--switch">{t('settingsPage.platformSsl.forceHttpsHelper')}</Typography>
-                        </Box>
-                    </Box>
-                </div>
-
-                <div className="settings-form-actions" />
-            </div>
+                    </>
+                ) : null}
+            </>
         )
     }
 
     function renderUpgradeRow() {
         return (
             <div className="settings-form-row">
-                <Typography className="settings-form-label">
-                    {t('settingsPage.upgrade.label')}：
-                </Typography>
+                <Typography className="settings-form-label">{t('settingsPage.upgrade.label')}：</Typography>
 
                 <Stack className="settings-form-control" direction={{ xs: 'column', md: 'row' }} spacing={1}>
                     <Button disabled size="small" variant="contained">
@@ -871,9 +1149,7 @@ export function SettingsPage() {
 
         return (
             <div className="settings-form-row">
-                <Typography className="settings-form-label">
-                    {t('settingsPage.version.label')}：
-                </Typography>
+                <Typography className="settings-form-label">{t('settingsPage.version.label')}：</Typography>
 
                 <div className="settings-form-control">
                     <Typography className="settings-form-value" variant="body2">
@@ -888,7 +1164,7 @@ export function SettingsPage() {
 
     function renderActiveModuleRows() {
         if (activeModule === 'app-domain') {
-            return renderEditableRow(globalDomainItem, { helperText: t('settingsPage.domain.globalDomainHelper') })
+            return renderDomainRow(globalDomainItem)
         }
 
         if (activeModule === 'app-mirror') {
@@ -896,26 +1172,11 @@ export function SettingsPage() {
         }
 
         if (activeModule === 'platform-brand') {
-            return (
-                <>
-                    {renderEditableRow(brandTitleItem, { helperText: t('settingsPage.brand.titleHelper'), placeholder: t('settingsPage.brand.titlePlaceholder') })}
-                    {renderEditableRow(brandLogoItem, { helperText: t('settingsPage.brand.logoHelper'), placeholder: t('settingsPage.brand.logoPlaceholder'), hideRestore: true, maskDisplayValue: true })}
-                    {renderEditableRow(brandFaviconItem, { helperText: t('settingsPage.brand.faviconHelper'), placeholder: t('settingsPage.brand.faviconPlaceholder'), hideRestore: true, maskDisplayValue: true })}
-                </>
-            )
+            return renderBrandRows()
         }
 
         if (activeModule === 'platform-domain') {
-            return renderEditableRow(boundDomainItem, { helperText: t('settingsPage.domain.boundDomainHelper') })
-        }
-
-        if (activeModule === 'platform-security') {
-            return (
-                <>
-                    {renderHttpsOptionsRow()}
-                    {renderCertificateRow()}
-                </>
-            )
+            return renderPlatformDomainRows()
         }
 
         return (
@@ -925,6 +1186,22 @@ export function SettingsPage() {
             </>
         )
     }
+
+    function moduleHasChanges(moduleId: SettingsModuleId) {
+        const draftKeys = getModuleDraftKeys(moduleId)
+        const hasDrafts = draftKeys.some((draftKey) => hasDraftValue(draftKey))
+
+        if (moduleId === 'app-mirror') {
+            const mirrorDraftKey = mirrorItem ? getDraftKey(mirrorItem) : ''
+            return hasDrafts || Boolean(mirrorDraftKey && (mirrorPendingInputs[mirrorDraftKey] ?? '').trim())
+        }
+
+        return hasDrafts
+    }
+
+    const showModuleFooter = activeModule !== 'platform-system'
+    const saveDisabled = savingModule === activeModule || !moduleHasChanges(activeModule)
+    const resetDisabled = savingModule === activeModule || !moduleHasChanges(activeModule)
 
     if (isLoading) {
         return (
@@ -937,64 +1214,73 @@ export function SettingsPage() {
         )
     }
 
-
     return (
         <Box className="settings-page">
-            <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
-                <PageDescriptionHeader title={t('nav.settings.label')} description={t('settingsPage.hero.description')} descriptionColor="var(--settings-muted)" />
+            <Stack spacing={2}>
+                <PageDescriptionHeader title={t('nav.settings.label')} description={t('settingsPage.hero.description')} />
 
-                <Paper className="settings-shell-card" elevation={0}>
-                    <Box className="settings-page-grid">
-                        <Box className="settings-nav-panel">
-                            <Box className="settings-nav-content">
-                                {navGroups.map((group) => (
-                                    <Box className="settings-nav-group" key={group.id}>
-                                        <Typography className="settings-nav-group-title">{group.title}</Typography>
-                                        <List disablePadding className="settings-nav-list">
-                                            {group.modules.map((module) => (
-                                                <ListItemButton
-                                                    className={`settings-nav-item ${activeModule === module.id ? 'active' : ''}`}
-                                                    key={module.id}
-                                                    onClick={() => setActiveModule(module.id)}
-                                                >
-                                                    <Typography className="settings-nav-item-label">
-                                                        {t(module.titleKey)}
-                                                    </Typography>
-                                                </ListItemButton>
-                                            ))}
-                                        </List>
+                <Box className="settings-page-shell">
+                    <Box className="settings-outer-card">
+                        <Box className="settings-page-grid">
+                            <Box className="settings-nav-area">
+                                <Box className="settings-nav-content">
+                                    {navGroups.map((group) => (
+                                        <Box className="settings-nav-group" key={group.id}>
+                                            <Typography className="settings-nav-group-title">{group.title}</Typography>
+                                            <List disablePadding className="settings-nav-list">
+                                                {group.modules.map((module) => (
+                                                    <ListItemButton
+                                                        className={`settings-nav-item ${activeModule === module.id ? 'active' : ''}`}
+                                                        key={module.id}
+                                                        onClick={() => setActiveModule(module.id)}
+                                                    >
+                                                        <Typography className="settings-nav-item-label">{t(module.titleKey)}</Typography>
+                                                    </ListItemButton>
+                                                ))}
+                                            </List>
+                                        </Box>
+                                    ))}
+                                </Box>
+                            </Box>
+
+                            <Box className="settings-module-area">
+                                <Box className="settings-module-header">
+                                    <span className="settings-module-indicator" />
+                                    <Box className="settings-module-headline">
+                                        <Typography className="settings-module-title">{t(activeModuleConfig.titleKey)}</Typography>
+                                        <Typography className="settings-module-subtitle">{t(activeModuleConfig.descriptionKey)}</Typography>
                                     </Box>
-                                ))}
+                                </Box>
+
+                                <Box className="settings-module-card">
+                                    <Box className="settings-form-table">{renderActiveModuleRows()}</Box>
+
+                                    {showModuleFooter ? (
+                                        <Box className="settings-panel-footer">
+                                            <Stack direction="row" spacing={1}>
+                                                <Button className="settings-action-button settings-action-button--primary" disabled={saveDisabled} onClick={() => void handleSaveActiveModule()} size="small" variant="contained">
+                                                    {savingModule === activeModule ? t('settingsPage.actions.saving') : t('settingsPage.actions.save')}
+                                                </Button>
+                                                <Button className="settings-action-button" disabled={resetDisabled} onClick={resetActiveModuleDrafts} size="small" variant="outlined">
+                                                    {t('settingsPage.actions.reset')}
+                                                </Button>
+                                            </Stack>
+                                        </Box>
+                                    ) : null}
+                                </Box>
                             </Box>
                         </Box>
-
-                        <Paper className="settings-panel settings-panel--module" elevation={0}>
-                            <Box className="settings-panel-header settings-panel-header--with-action">
-                                <Box className="settings-panel-headline">
-                                    <Typography className="settings-panel-title">{t(activeModuleConfig.titleKey)}</Typography>
-                                    <Typography className="settings-panel-subtitle">{t(activeModuleConfig.descriptionKey)}</Typography>
-                                </Box>
-                                <IconButton className="settings-toolbar-icon-button settings-header-icon-button" onClick={() => void refetch()} disabled={isFetching} size="small" title={t('settingsPage.actions.refresh')}>
-                                    {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-                                </IconButton>
-                            </Box>
-
-                            <Box className="settings-form-table">{renderActiveModuleRows()}</Box>
-                        </Paper>
                     </Box>
-                </Paper>
+                </Box>
 
-                {error ? (
-                    <Alert severity="error">
-                        {error.message}
-                    </Alert>
-                ) : null}
+                {error ? <Alert severity="error">{error.message}</Alert> : null}
 
-                {feedback ? (
-                    <Alert severity={feedback.severity}>
-                        {feedback.message}
-                    </Alert>
-                ) : null}
+                <SurfaceFeedbackToast
+                    open={toastOpen}
+                    severity={feedback?.severity ?? 'success'}
+                    message={feedback?.message ?? ''}
+                    onClose={() => setToastOpen(false)}
+                />
             </Stack>
         </Box>
     )

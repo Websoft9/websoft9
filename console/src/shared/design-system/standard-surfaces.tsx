@@ -257,27 +257,23 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
                 severity={severity}
                 variant="filled"
                 sx={{
-                    width: 'fit-content',
+                    width: 'auto',
                     minWidth: 0,
-                    maxWidth: 'min(760px, calc(100% - 24px))',
-                    borderRadius: '12px',
+                    maxWidth: 'min(1200px, calc(100vw - 48px))',
+                    borderRadius: '2px',
                     boxShadow: darkMode ? `0 10px 24px ${palette.overlay}` : '0 10px 24px rgba(15, 23, 42, 0.18)',
                     overflow: 'visible',
-                    scrollbarWidth: 'none',
-                    '&::-webkit-scrollbar': {
-                        display: 'none',
-                        width: 0,
-                        height: 0,
-                    },
                     '& .MuiAlert-message': {
-                        whiteSpace: 'normal',
-                        wordBreak: 'break-word',
-                        overflow: 'visible',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                         minWidth: 0,
+                        maxWidth: 'min(1100px, calc(100vw - 120px))',
                     },
                     '& .MuiAlert-action': {
                         alignItems: 'center',
                         overflow: 'visible',
+                        flexShrink: 0,
                     },
                 }}
             >

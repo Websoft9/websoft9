@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+from hashlib import sha1
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -74,6 +75,29 @@ class ServiceDefinition:
 class HealthProbeResult:
     ok: bool
     detail: Optional[str] = None
+
+
+@dataclass
+class ServiceLogFileCursor:
+    path: Path
+    device: int
+    inode: int
+    position: int
+
+
+@dataclass
+class ServiceLogsStreamCursor:
+    service_key: str
+    query: ServiceLogsQuery
+    entries: list[ServiceLogEntry] = field(default_factory=list)
+    unavailable_reason: Optional[str] = None
+    file_cursors: dict[str, ServiceLogFileCursor] = field(default_factory=dict)
+
+
+@dataclass
+class ServiceLogsStreamDelta:
+    entries: list[ServiceLogEntry] = field(default_factory=list)
+    snapshot: Optional[ServiceLogsResponse] = None
 
 
 DEFAULT_SERVICE_DEFINITIONS = (
@@ -167,27 +191,92 @@ class CoreServicesService:
         self.auth_service._require_authenticated_operator(session_token)
         definition = self._get_definition(service_key)
         entries, unavailable_reason = self._read_service_logs(definition, query.limit)
-        if query.keyword:
-            keyword = query.keyword.lower()
-            entries = [entry for entry in entries if keyword in entry.raw.lower() or keyword in entry.message.lower()]
-        if query.level:
-            allowed_levels = QUERY_LEVEL_TO_ENTRY_LEVELS[query.level]
-            entries = [entry for entry in entries if entry.level in allowed_levels]
-        if query.time_range != "all":
-            cutoff = self._now_provider().astimezone(timezone.utc) - TIME_RANGE_DELTAS[query.time_range]
-            entries = [entry for entry in entries if self._entry_at_or_after(entry, cutoff)]
-        if len(entries) > query.limit:
-            entries = entries[-query.limit:]
-        return ServiceLogsResponse(
-            service=definition.key,
-            available=unavailable_reason is None,
-            keyword=query.keyword,
-            level=query.level,
-            time_range=query.time_range,
-            limit=query.limit,
-            entries=entries,
-            unavailable_reason=unavailable_reason,
+        entries = self._filter_log_entries(entries, query)
+        return self._build_service_logs_payload(definition, query, entries, unavailable_reason)
+
+    def open_service_logs_stream(self, session_token: Optional[str], service_key: str, query: ServiceLogsQuery) -> tuple[ServiceLogsResponse, ServiceLogsStreamCursor]:
+        response = self.get_service_logs(session_token, service_key, query)
+        definition = self._get_definition(service_key)
+        cursor = ServiceLogsStreamCursor(
+            service_key=definition.key,
+            query=query.model_copy(deep=True),
+            entries=list(response.entries),
+            unavailable_reason=response.unavailable_reason,
+            file_cursors=self._capture_log_file_cursors(definition),
         )
+        return response, cursor
+
+    def poll_service_logs_stream(self, session_token: Optional[str], cursor: ServiceLogsStreamCursor) -> ServiceLogsStreamDelta:
+        self.auth_service._require_authenticated_operator(session_token)
+        definition = self._get_definition(cursor.service_key)
+        files = self._recent_log_files(definition.log_root, definition.log_paths)
+        unavailable_reason = "Service raw logs are not currently available"
+
+        if not files:
+            if cursor.unavailable_reason == unavailable_reason and not cursor.entries:
+                cursor.file_cursors = {}
+                return ServiceLogsStreamDelta()
+            cursor.entries = []
+            cursor.unavailable_reason = unavailable_reason
+            cursor.file_cursors = {}
+            return ServiceLogsStreamDelta(snapshot=self._build_service_logs_payload(definition, cursor.query, [], unavailable_reason))
+
+        current_file_keys = {str(path) for path in files}
+        previous_file_keys = set(cursor.file_cursors)
+        if previous_file_keys != current_file_keys:
+            return self._reset_service_logs_stream(session_token, definition, cursor)
+
+        incremental_entries: list[ServiceLogEntry] = []
+        next_file_cursors: dict[str, ServiceLogFileCursor] = {}
+
+        for path in files:
+            file_key = str(path)
+            previous = cursor.file_cursors.get(file_key)
+            if previous is None:
+                return self._reset_service_logs_stream(session_token, definition, cursor)
+
+            try:
+                stat = path.stat()
+            except OSError:
+                return self._reset_service_logs_stream(session_token, definition, cursor)
+
+            if stat.st_ino != previous.inode or stat.st_dev != previous.device or stat.st_size < previous.position:
+                return self._reset_service_logs_stream(session_token, definition, cursor)
+
+            try:
+                file_entries, position = self._read_incremental_log_entries(path, previous.position)
+            except OSError:
+                return self._reset_service_logs_stream(session_token, definition, cursor)
+
+            incremental_entries.extend(file_entries)
+            next_file_cursors[file_key] = ServiceLogFileCursor(path=path, device=stat.st_dev, inode=stat.st_ino, position=position)
+
+        filtered_new_entries = self._filter_log_entries(incremental_entries, cursor.query)
+        next_entries = [*cursor.entries, *filtered_new_entries]
+        removed_entries = False
+
+        if cursor.query.time_range != "all":
+            cutoff = self._now_provider().astimezone(timezone.utc) - TIME_RANGE_DELTAS[cursor.query.time_range]
+            trimmed_entries = [entry for entry in next_entries if self._entry_at_or_after(entry, cutoff)]
+            removed_entries = len(trimmed_entries) != len(next_entries)
+            next_entries = trimmed_entries
+
+        if len(next_entries) > cursor.query.limit:
+            next_entries = next_entries[-cursor.query.limit:]
+
+        cursor.file_cursors = next_file_cursors
+        cursor.unavailable_reason = None
+
+        if removed_entries:
+            cursor.entries = next_entries
+            return ServiceLogsStreamDelta(snapshot=self._build_service_logs_payload(definition, cursor.query, next_entries, None))
+
+        if filtered_new_entries:
+            cursor.entries = next_entries
+            return ServiceLogsStreamDelta(entries=filtered_new_entries)
+
+        cursor.entries = next_entries
+        return ServiceLogsStreamDelta()
 
     def _build_summary(self, definition: ServiceDefinition, statuses: dict[str, str], updated_at: str) -> CoreServiceSummary:
         indicators: list[ServiceIndicator] = []
@@ -321,19 +410,59 @@ class CoreServicesService:
         if not files:
             return [], "Service raw logs are not currently available"
 
-        lines: deque[tuple[str, str]] = deque(maxlen=max(limit * 10, 400))
+        lines: deque[tuple[str, str, str]] = deque(maxlen=max(limit * 10, 400))
         for path in files:
             try:
                 with path.open("r", encoding="utf-8", errors="replace") as handle:
-                    for line in handle:
+                    while True:
+                        offset = handle.tell()
+                        line = handle.readline()
+                        if not line:
+                            break
                         stripped = self._sanitize_log_line(line)
                         if stripped:
-                            lines.append((path.name, stripped))
+                            lines.append((path.name, stripped, f"{path.name}:{offset}"))
             except OSError:
                 continue
 
-        entries = [self._parse_log_line(source, raw_line) for source, raw_line in lines]
+        entries = [self._parse_log_line(source, raw_line, fingerprint) for source, raw_line, fingerprint in lines]
         return [entry for entry in entries if entry is not None], None
+
+    def _read_incremental_log_entries(self, path: Path, start_position: int) -> tuple[list[ServiceLogEntry], int]:
+        entries: list[ServiceLogEntry] = []
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            handle.seek(start_position)
+            while True:
+                offset = handle.tell()
+                line = handle.readline()
+                if not line:
+                    break
+                stripped = self._sanitize_log_line(line)
+                if not stripped:
+                    continue
+                entry = self._parse_log_line(path.name, stripped, f"{path.name}:{offset}")
+                if entry is not None:
+                    entries.append(entry)
+            position = handle.tell()
+        return entries, position
+
+    def _capture_log_file_cursors(self, definition: ServiceDefinition) -> dict[str, ServiceLogFileCursor]:
+        files = self._recent_log_files(definition.log_root, definition.log_paths)
+        cursors: dict[str, ServiceLogFileCursor] = {}
+        for path in files:
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            cursors[str(path)] = ServiceLogFileCursor(path=path, device=stat.st_dev, inode=stat.st_ino, position=stat.st_size)
+        return cursors
+
+    def _reset_service_logs_stream(self, session_token: Optional[str], definition: ServiceDefinition, cursor: ServiceLogsStreamCursor) -> ServiceLogsStreamDelta:
+        response = self.get_service_logs(session_token, definition.key, cursor.query)
+        cursor.entries = list(response.entries)
+        cursor.unavailable_reason = response.unavailable_reason
+        cursor.file_cursors = self._capture_log_file_cursors(definition)
+        return ServiceLogsStreamDelta(snapshot=response)
 
     def _has_log_files(self, log_root: Path, log_paths: Sequence[Path]) -> bool:
         if any(self._is_supported_log_file(path) for path in log_paths):
@@ -374,7 +503,7 @@ class CoreServicesService:
             return "certificate"
         return marker.name
 
-    def _parse_log_line(self, source: str, raw_line: str) -> Optional[ServiceLogEntry]:
+    def _parse_log_line(self, source: str, raw_line: str, fingerprint: str) -> Optional[ServiceLogEntry]:
         raw = raw_line.strip()
         if not raw:
             return None
@@ -384,42 +513,70 @@ class CoreServicesService:
             request = nginx_access_match.group("request").strip()
             status = nginx_access_match.group("status").strip()
             message = f'{request} | status={status}'
-            return ServiceLogEntry(
-                timestamp=self._normalize_timestamp(nginx_access_match.group("ts")),
-                level="INF",
-                source=None,
-                message=message,
-                raw=raw,
-            )
+            return self._build_log_entry(source, fingerprint, raw, self._normalize_timestamp(nginx_access_match.group("ts")), "INF", message)
 
         portainer_match = PORTAINER_LOG_PATTERN.match(raw)
         if portainer_match:
-            return ServiceLogEntry(
-                timestamp=self._normalize_timestamp(portainer_match.group("ts")),
-                level=portainer_match.group("level"),
-                source=None,
-                message=portainer_match.group("message").strip(),
-                raw=raw,
+            return self._build_log_entry(
+                source,
+                fingerprint,
+                raw,
+                self._normalize_timestamp(portainer_match.group("ts")),
+                portainer_match.group("level"),
+                portainer_match.group("message").strip(),
             )
 
         slash_match = SLASH_TIMESTAMP_PATTERN.match(raw)
         if slash_match:
             level, message = self._extract_message_level(slash_match.group("message").strip())
-            return ServiceLogEntry(
-                timestamp=self._normalize_timestamp(slash_match.group("ts")),
-                level=level or self._infer_default_level(message),
-                source=None,
-                message=message,
-                raw=raw,
-            )
+            return self._build_log_entry(source, fingerprint, raw, self._normalize_timestamp(slash_match.group("ts")), level or self._infer_default_level(message), message)
 
         match = ISO_PREFIX_PATTERN.match(raw)
         if match:
             timestamp = self._normalize_timestamp(match.group("ts"))
             level, message = self._extract_message_level(match.group("message").strip())
-            return ServiceLogEntry(timestamp=timestamp, level=level or self._infer_default_level(message), source=None, message=message, raw=raw)
+            return self._build_log_entry(source, fingerprint, raw, timestamp, level or self._infer_default_level(message), message)
         level, message = self._extract_message_level(raw)
-        return ServiceLogEntry(timestamp=None, level=level or self._infer_default_level(message), source=None, message=message, raw=raw)
+        return self._build_log_entry(source, fingerprint, raw, None, level or self._infer_default_level(message), message)
+
+    def _build_log_entry(self, source: str, fingerprint: str, raw: str, timestamp: Optional[str], level: Optional[str], message: str) -> ServiceLogEntry:
+        entry_id = sha1("\x1f".join((source, fingerprint, timestamp or "", level or "", raw)).encode("utf-8")).hexdigest()
+        return ServiceLogEntry(id=entry_id, timestamp=timestamp, level=level, source=source or None, message=message, raw=raw)
+
+    def _filter_log_entries(self, entries: list[ServiceLogEntry], query: ServiceLogsQuery) -> list[ServiceLogEntry]:
+        filtered_entries = entries
+        if query.keyword:
+            keyword = query.keyword.lower()
+            filtered_entries = [entry for entry in filtered_entries if keyword in entry.raw.lower() or keyword in entry.message.lower()]
+        if query.level:
+            allowed_levels = QUERY_LEVEL_TO_ENTRY_LEVELS[query.level]
+            filtered_entries = [entry for entry in filtered_entries if entry.level in allowed_levels]
+        if query.time_range != "all":
+            cutoff = self._now_provider().astimezone(timezone.utc) - TIME_RANGE_DELTAS[query.time_range]
+            filtered_entries = [entry for entry in filtered_entries if self._entry_at_or_after(entry, cutoff)]
+        if len(filtered_entries) > query.limit:
+            filtered_entries = filtered_entries[-query.limit:]
+        return filtered_entries
+
+    def _build_service_logs_payload(
+        self,
+        definition: ServiceDefinition,
+        query: ServiceLogsQuery,
+        entries: list[ServiceLogEntry],
+        unavailable_reason: Optional[str],
+    ) -> ServiceLogsResponse:
+        cursor = entries[-1].id if entries else None
+        return ServiceLogsResponse(
+            service=definition.key,
+            available=unavailable_reason is None,
+            keyword=query.keyword,
+            level=query.level,
+            time_range=query.time_range,
+            limit=query.limit,
+            entries=entries,
+            cursor=cursor,
+            unavailable_reason=unavailable_reason,
+        )
 
     def _normalize_timestamp(self, value: str) -> Optional[str]:
         candidate = value.strip()

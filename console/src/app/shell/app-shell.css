@@ -67,7 +67,7 @@
     flex-shrink: 0;
     background: var(--shell-sidebar-bg);
     color: var(--shell-sidebar-text);
-    padding: 0 6px 14px;
+    padding: 0 6px 0;
     border-right: 1px solid var(--shell-topbar-border);
     backdrop-filter: blur(18px);
     transition: width 180ms ease, padding 180ms ease;
@@ -353,6 +353,19 @@
     font-weight: 400 !important;
     line-height: 1.35 !important;
     font-family: inherit !important;
+}
+
+.app-shell-sidebar-bottom {
+    border-top: 1px solid var(--shell-topbar-border);
+    height: var(--shell-footer-height);
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.app-shell-sidebar-bottom .app-shell-nav-item {
+    margin-bottom: 0;
+    width: 100%;
 }
 
 .app-shell-content {

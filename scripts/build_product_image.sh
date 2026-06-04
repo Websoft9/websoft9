@@ -33,7 +33,7 @@ if [[ -z "$IMAGE_TAG" || -z "$PRODUCT_VERSION" || -z "$PRODUCT_EDITION_KEY" ]]; 
 fi
 
 docker build \
-    -f "$ROOT_DIR/docker/product/Dockerfile" \
+    -f "$ROOT_DIR/docker/Dockerfile" \
     -t "$IMAGE_TAG" \
     --build-arg WEBSOFT9_PRODUCT_VERSION="$PRODUCT_VERSION" \
     --build-arg WEBSOFT9_PRODUCT_EDITION_KEY="$PRODUCT_EDITION_KEY" \

@@ -192,6 +192,7 @@ def test_runtime_logs_router_returns_normalized_payload(monkeypatch):
     assert payload["level"] == "error"
     assert payload["limit"] == 50
     assert len(payload["entries"]) == 1
+    assert payload["entries"][0]["id"]
     assert payload["entries"][0]["level"] == "error"
 
 
@@ -205,3 +206,43 @@ def test_runtime_logs_router_validates_limit(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["message"] == "Request Validation Error"
+
+
+def test_runtime_logs_stream_appends_incremental_entries(tmp_path: Path):
+    log_path = write_runtime_log_file(
+        tmp_path,
+        [
+            {"ts": "2026-05-06T08:49:28.100000Z", "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "bootstrap", "message": "first line"},
+        ],
+    )
+    service = RuntimeLogsService(log_path=str(log_path), auth_service=FakeAuthService())
+
+    snapshot, cursor = service.open_runtime_logs_stream("valid-session", RuntimeLogsQuery(limit=20))
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"ts": "2026-05-06T08:49:29.100000Z", "level": "warning", "component": "platform-entrypoint", "domain": "runtime", "event": "next", "message": "second line"}) + "\n")
+
+    delta = service.poll_runtime_logs_stream("valid-session", cursor)
+
+    assert len(snapshot) == 1
+    assert delta.snapshot is None
+    assert len(delta.entries) == 1
+    assert "second line" in delta.entries[0].message
+
+
+def test_runtime_logs_stream_resets_snapshot_after_truncate(tmp_path: Path):
+    log_path = write_runtime_log_file(
+        tmp_path,
+        [
+            {"ts": "2026-05-06T08:49:28.100000Z", "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "bootstrap", "message": "first line"},
+        ],
+    )
+    service = RuntimeLogsService(log_path=str(log_path), auth_service=FakeAuthService())
+
+    _snapshot, cursor = service.open_runtime_logs_stream("valid-session", RuntimeLogsQuery(limit=20))
+    log_path.write_text(json.dumps({"ts": "2026-05-06T08:49:30.100000Z", "level": "info", "component": "platform-entrypoint", "domain": "runtime", "event": "reset", "message": "ok"}) + "\n", encoding="utf-8")
+
+    delta = service.poll_runtime_logs_stream("valid-session", cursor)
+
+    assert delta.snapshot is not None
+    assert len(delta.snapshot) == 1
+    assert delta.snapshot[0].message == "[platform-entrypoint] ok"

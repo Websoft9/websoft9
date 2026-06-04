@@ -194,9 +194,14 @@ HelperContainerExecutor = FilesAgentExecutor
 
 class FileManagerService:
     def __init__(self, docker_client: Optional[Any] = None, helper_executor: Optional[Any] = None, auth_service: Optional[ProductAuthService] = None):
-        self.docker_client = docker_client or docker.from_env()
+        self.docker_client = docker_client
         self.helper_executor = helper_executor or FilesAgentExecutor()
         self.auth_service = auth_service or ProductAuthService()
+
+    def _get_docker_client(self) -> Any:
+        if self.docker_client is None:
+            self.docker_client = docker.from_env()
+        return self.docker_client
 
     def list_volumes(self, session_token: Optional[str]) -> list[dict[str, Any]]:
         self.auth_service._require_authenticated_operator(session_token)
@@ -403,7 +408,7 @@ class FileManagerService:
 
     def _docker_volumes_root_path(self) -> str:
         try:
-            info = self.docker_client.info()
+            info = self._get_docker_client().info()
             docker_root = info.get("DockerRootDir")
             if docker_root:
                 return os.path.join(str(docker_root), "volumes")
@@ -429,7 +434,7 @@ class FileManagerService:
         return os.path.join(self._docker_volumes_root_path(), volume_name, "_data")
 
     def _resolve_volume(self, volume_name: str) -> Any:
-        volume_manager = getattr(self.docker_client, "volumes", None)
+        volume_manager = getattr(self._get_docker_client(), "volumes", None)
         get_volume = getattr(volume_manager, "get", None)
         try:
             if callable(get_volume):
@@ -455,7 +460,7 @@ class FileManagerService:
 
     def _list_docker_volumes(self, refresh: bool = False) -> list[Any]:
         try:
-            return list(self.docker_client.volumes.list())
+            return list(self._get_docker_client().volumes.list())
         except Exception as exc:
             raise CustomException(500, "File Operation Error", f"Failed to list Docker volumes: {exc}")
 

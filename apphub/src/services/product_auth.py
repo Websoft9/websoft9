@@ -134,6 +134,7 @@ class ProductAuthService:
         password: str,
         display_name: str,
         locale: str = "en",
+        email: Optional[str] = None,
         client_host: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> Tuple[dict[str, Any], str]:
@@ -149,7 +150,7 @@ class ProductAuthService:
                     details="Product-side operator initialization has already been completed",
                 )
 
-            operator = self._build_operator(username=username, password=password, display_name=display_name, locale=locale)
+            operator = self._build_operator(username=username, password=password, display_name=display_name, locale=locale, email=email)
             operators.append(operator)
             self._store_operators(operators)
             session_token = self._create_session(operator_id=operator["id"])
@@ -174,6 +175,8 @@ class ProductAuthService:
 
         with self._lock:
             operator = self._get_operator_by_username(username)
+            if operator is None:
+                operator = self._get_operator_by_email(username)
             if operator is None or operator.get("deleted"):
                 self._append_audit(
                     event="login_denied",
@@ -620,11 +623,7 @@ class ProductAuthService:
         if len(active_operators) != 1:
             return None
 
-        operator = active_operators[0]
-        if operator.get("created_by") != DOCKER_BOOTSTRAP_ACTOR:
-            return None
-
-        return operator
+        return active_operators[0]
 
     def _is_protected_bootstrap_operator(self, operator: dict[str, Any]) -> bool:
         return operator.get("created_by") in {DOCKER_BOOTSTRAP_ACTOR, "bootstrap"}
@@ -804,6 +803,16 @@ class ProductAuthService:
                 return operator
         return None
 
+    def _get_operator_by_email(self, email: str) -> Optional[dict[str, Any]]:
+        normalized_email = email.strip().lower()
+        if not normalized_email:
+            return None
+        for operator in self._load_operators():
+            stored_email = (operator.get("email") or "").strip().lower()
+            if stored_email and stored_email == normalized_email:
+                return operator
+        return None
+
     def _get_operator_by_id(self, operator_id: str) -> Optional[dict[str, Any]]:
         for operator in self._load_operators():
             if operator.get("id") == operator_id:
@@ -912,6 +921,7 @@ class ProductAuthService:
                 id TEXT PRIMARY KEY,
                 username TEXT NOT NULL UNIQUE,
                 display_name TEXT NOT NULL,
+                email TEXT,
                 locale TEXT NOT NULL DEFAULT 'en',
                 password_hash TEXT NOT NULL,
                 disabled INTEGER NOT NULL DEFAULT 0,
@@ -952,6 +962,7 @@ class ProductAuthService:
             );
             """
         )
+        connection.execute("ALTER TABLE operators ADD COLUMN email TEXT") if not self._column_exists(connection, "operators", "email") else None
         connection.execute("ALTER TABLE operators ADD COLUMN locale TEXT NOT NULL DEFAULT 'en'") if not self._column_exists(connection, "operators", "locale") else None
         connection.commit()
 
@@ -960,8 +971,8 @@ class ProductAuthService:
         with self._db_connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, username, display_name, password_hash, disabled, deleted,
-                      created_by, reset_password_eligible, created_at, updated_at, locale
+                    SELECT id, username, display_name, email, password_hash, disabled, deleted,
+                        created_by, reset_password_eligible, created_at, updated_at, locale
                 FROM operators
                 ORDER BY created_at, username
                 """
@@ -975,15 +986,16 @@ class ProductAuthService:
             connection.executemany(
                 """
                 INSERT INTO operators (
-                    id, username, display_name, locale, password_hash, disabled, deleted,
+                    id, username, display_name, email, locale, password_hash, disabled, deleted,
                     created_by, reset_password_eligible, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
                         item["id"],
                         item["username"],
                         item["display_name"],
+                        item.get("email") or None,
                         item.get("locale", "en"),
                         item["password_hash"],
                         int(bool(item.get("disabled", False))),
@@ -1051,6 +1063,7 @@ class ProductAuthService:
             "id": row["id"],
             "username": row["username"],
             "display_name": row["display_name"],
+            "email": row["email"] if "email" in row.keys() else None,
             "locale": row["locale"] if "locale" in row.keys() else "en",
             "password_hash": row["password_hash"],
             "disabled": bool(row["disabled"]),

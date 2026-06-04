@@ -154,7 +154,8 @@ class ProductAuthUpdateUserRequest(BaseModel):
 class ProductAuthInitializeRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=8, max_length=256)
-    display_name: str = Field(min_length=1, max_length=128)
+    display_name: Optional[str] = None
+    email: Optional[str] = None
     locale: str = Field(default="en", max_length=16)
 
     @field_validator("username", mode="before")
@@ -169,13 +170,26 @@ class ProductAuthInitializeRequest(BaseModel):
 
     @field_validator("display_name", mode="before")
     @classmethod
-    def normalize_display_name(cls, value: str) -> str:
+    def normalize_optional_display_name(cls, value: Optional[str]) -> str:
+        if value is None or not str(value).strip():
+            return ""
         return _normalize_display_name(value)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: Optional[str]) -> Optional[str]:
+        return _normalize_email(value)
 
     @field_validator("locale", mode="before")
     @classmethod
     def normalize_locale(cls, value: Optional[str]) -> str:
         return _normalize_locale(value)
+
+    @model_validator(mode="after")
+    def fill_display_name_from_username(self) -> "ProductAuthInitializeRequest":
+        if not self.display_name:
+            self.display_name = self.username
+        return self
 
 
 class ProductAuthLoginRequest(BaseModel):

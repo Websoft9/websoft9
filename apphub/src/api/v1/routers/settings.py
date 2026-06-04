@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query, Path
-from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest
+from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
 
@@ -83,4 +83,47 @@ def apply_platform_gateway_settings(payload: PlatformGatewayBatchUpdateRequest):
         force_https=payload.force_https,
         ssl_cert=payload.ssl_cert,
         ssl_key=payload.ssl_key,
+    )
+
+
+@router.post(
+    "/settings/platform_gateway/generate-self-signed-cert",
+    summary="Generate a self-signed certificate for the platform gateway",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def generate_self_signed_cert(payload: GenerateSelfSignedCertRequest):
+    return SettingsManager().generate_self_signed_cert(domain=payload.domain, validity_days=payload.validity_days)
+
+
+@router.post(
+    "/settings/platform_gateway/apply-letsencrypt-cert",
+    summary="Apply for a Let's Encrypt certificate for the platform gateway",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def apply_letsencrypt_cert(payload: ApplyLetsEncryptCertRequest):
+    return SettingsManager().apply_letsencrypt_cert(domain=payload.domain, email=payload.email)
+
+
+@router.post(
+    "/settings/platform_gateway/upload-cert",
+    summary="Upload PEM certificate content to platform gateway paths",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def upload_cert(payload: UploadCertRequest):
+    return SettingsManager().upload_cert(
+        cert_pem=payload.cert_pem,
+        key_pem=payload.key_pem,
+        intermediate_pem=payload.intermediate_pem,
     )

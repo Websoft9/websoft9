@@ -83,6 +83,7 @@ def initialize_first_operator(
         password=payload.password,
         display_name=payload.display_name,
         locale=payload.locale,
+        email=payload.email,
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )

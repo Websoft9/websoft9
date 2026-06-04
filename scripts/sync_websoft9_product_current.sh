@@ -5,19 +5,22 @@ container_name="${1:-websoft9-product-current}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 console_dir="$repo_root/console"
 apphub_dir="$repo_root/apphub"
-supervisor_src="$repo_root/docker/product/supervisord.conf"
-logging_config_src="$repo_root/docker/product/apphub/logging_config.yaml"
-gateway_conf_dir="$repo_root/docker/product/gateway"
-product_proxy_init_src="$repo_root/docker/product/proxy/init_nginx.sh"
-portainer_init_src="$repo_root/docker/product/deployment/init_portainer.go"
+supervisor_src="$repo_root/docker/supervisord.conf"
+logging_config_src="$repo_root/docker/apphub/logging_config.yaml"
+gateway_conf_dir="$repo_root/docker/gateway"
+product_proxy_init_src="$repo_root/docker/proxy/init_nginx.sh"
+portainer_init_src="$repo_root/docker/deployment/init_portainer.go"
 npm_base_image="${WEBSOFT9_NPM_BASE_IMAGE:-jc21/nginx-proxy-manager:2.12.6}"
-platform_entrypoint_src="$repo_root/docker/product/scripts/platform-entrypoint.sh"
-platform_healthcheck_src="$repo_root/docker/product/scripts/platform-healthcheck.sh"
-platform_sync_config_src="$repo_root/docker/product/scripts/platform-sync-config.sh"
-platform_runtime_assets_src="$repo_root/docker/product/scripts/platform-sync-runtime-assets.py"
-service_control_src="$repo_root/docker/product/scripts/platform-service-control.sh"
-portainer_start_src="$repo_root/docker/product/scripts/platform-start-portainer.sh"
-gateway_start_src="$repo_root/docker/product/scripts/platform-start-gateway.sh"
+platform_container_entrypoint_src="$repo_root/docker/scripts/platform-container-entrypoint.sh"
+platform_entrypoint_src="$repo_root/docker/scripts/platform-entrypoint.sh"
+platform_healthcheck_src="$repo_root/docker/scripts/platform-healthcheck.sh"
+platform_sync_config_src="$repo_root/docker/scripts/platform-sync-config.sh"
+platform_runtime_assets_src="$repo_root/docker/scripts/platform-sync-runtime-assets.py"
+service_control_src="$repo_root/docker/scripts/platform-service-control.sh"
+portainer_start_src="$repo_root/docker/scripts/platform-start-portainer.sh"
+gateway_start_src="$repo_root/docker/scripts/platform-start-gateway.sh"
+npm_backend_start_src="$repo_root/docker/scripts/platform-start-npm-backend.sh"
+npm_nginx_start_src="$repo_root/docker/scripts/platform-start-npm-nginx.sh"
 legacy_files_agent_sidecar="${WEBSOFT9_FILES_AGENT_SIDECAR_NAME:-websoft9-files-agent-current}"
 
 detect_docker_volumes_root() {
@@ -158,6 +161,7 @@ sync_runtime_support_files() {
     docker cp "$gateway_conf_dir/." "$container_name:/etc/websoft9/platform-gateway/"
     docker cp "$init_portainer_bin" "$container_name:/usr/local/bin/init_portainer"
     docker cp "$product_proxy_init_src" "$container_name:/app/init_nginx.sh"
+    docker cp "$platform_container_entrypoint_src" "$container_name:/websoft9/script/platform-container-entrypoint.sh"
     docker cp "$platform_entrypoint_src" "$container_name:/websoft9/script/platform-entrypoint.sh"
     docker cp "$platform_healthcheck_src" "$container_name:/websoft9/script/platform-healthcheck.sh"
     docker cp "$platform_sync_config_src" "$container_name:/websoft9/script/platform-sync-config.sh"
@@ -165,12 +169,18 @@ sync_runtime_support_files() {
     docker cp "$service_control_src" "$container_name:/websoft9/script/platform-service-control.sh"
     docker cp "$portainer_start_src" "$container_name:/websoft9/script/platform-start-portainer.sh"
     docker cp "$gateway_start_src" "$container_name:/websoft9/script/platform-start-gateway.sh"
+    docker cp "$npm_backend_start_src" "$container_name:/websoft9/script/platform-start-npm-backend.sh"
+    docker cp "$npm_nginx_start_src" "$container_name:/websoft9/script/platform-start-npm-nginx.sh"
     docker exec "$container_name" rm -f /etc/websoft9/stream.conf
+    docker exec "$container_name" mkdir -p /var/log/websoft9/nginx-proxy-manager /run/nginx /tmp/nginx/body /tmp/npmuserhome /var/cache/nginx /var/lib/nginx/cache/private /var/lib/nginx/cache/public /var/log/nginx
     docker exec "$container_name" chmod +x /websoft9/script/platform-entrypoint.sh
+    docker exec "$container_name" chmod +x /websoft9/script/platform-container-entrypoint.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-healthcheck.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-config.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-runtime-assets.py
     docker exec "$container_name" chmod +x /websoft9/script/platform-service-control.sh
+    docker exec "$container_name" chmod +x /websoft9/script/platform-start-npm-backend.sh
+    docker exec "$container_name" chmod +x /websoft9/script/platform-start-npm-nginx.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-start-portainer.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-start-gateway.sh
     docker exec "$container_name" chmod +x /app/init_nginx.sh
@@ -230,7 +240,7 @@ restore_npm_frontend_if_needed
 
 echo "[5/6] Syncing runtime assets and restarting runtime services"
 ensure_service_log_runtime_paths
-docker exec "$container_name" sh -lc 'rm -f /data/nginx/stream/stream.conf && nginx -s reload || true && /websoft9/script/platform-sync-config.sh --mode base && /websoft9/script/platform-sync-runtime-assets.py && /websoft9/script/platform-sync-config.sh --mode credentials && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf reread && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf update && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf restart portainer platform-gateway files-agent apphub-api'
+docker exec "$container_name" sh -lc 'rm -f /data/nginx/stream/stream.conf && nginx -s reload || true && /websoft9/script/platform-sync-config.sh --mode base && /websoft9/script/platform-sync-runtime-assets.py && /websoft9/script/platform-sync-config.sh --mode credentials && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf reread && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf update && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf restart portainer platform-gateway files-agent apphub-api npm-backend npm-nginx'
 
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
     if docker exec "$container_name" python3 - <<'PY' >/dev/null 2>&1

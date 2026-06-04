@@ -2,11 +2,29 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+
 class ApiKeySetting(BaseModel):
     key: str = Field(..., title="The api key")
 
+
 class Domain(BaseModel):
     wildcard_domain: str = Field(None, title="The domain name")
+
+
+class GenerateSelfSignedCertRequest(BaseModel):
+    domain: str = Field('', title="Optional domain name for the certificate CN")
+    validity_days: int = Field(3650, title="Certificate validity in days", ge=1, le=36500)
+
+
+class ApplyLetsEncryptCertRequest(BaseModel):
+    domain: str = Field(..., title="Domain name for Let's Encrypt certificate")
+    email: str = Field('', title="Contact email for Let's Encrypt notifications")
+
+
+class UploadCertRequest(BaseModel):
+    cert_pem: str = Field(..., title="Certificate PEM content")
+    key_pem: str = Field(..., title="Private key PEM content")
+    intermediate_pem: str = Field('', title="Optional intermediate/chain certificate PEM")
 
 class PlatformGatewaySetting(BaseModel):
     https_enabled: str = Field(..., title="Whether platform gateway HTTPS is enabled")

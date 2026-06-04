@@ -1,0 +1,19 @@
+# Development docker-compose override — adds build: for local development
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+services:
+  product:
+    image: websoft9-product:dev
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        WEBSOFT9_PRODUCT_VERSION: ${WEBSOFT9_PRODUCT_VERSION:-2.2.24}
+        WEBSOFT9_PRODUCT_EDITION_KEY: ${WEBSOFT9_PRODUCT_EDITION_KEY:-open-source}
+    networks:
+      - websoft9
+
+networks:
+  websoft9:
+    name: ${NETWORK_NAME:-websoft9}
+    external: true

@@ -4,6 +4,7 @@ import {
     Button,
     IconButton,
     InputAdornment,
+    MenuItem,
     Paper,
     Stack,
     TextField,
@@ -18,6 +19,24 @@ import { useProductAuth } from './product-auth-provider'
 
 type ProductAuthPageProps = {
     mode: 'login' | 'setup'
+}
+
+type PlatformBrandState = {
+    title: string
+    logoUrl: string
+}
+
+const DEFAULT_PLATFORM_BRAND_LOGO_URL = '/websoft9.png'
+
+function isValidPlatformBrandLogoUrl(value: string) {
+    const trimmed = value.trim()
+    if (!trimmed) {
+        return false
+    }
+    if (trimmed.startsWith('/')) {
+        return true
+    }
+    return /^https?:\/\//i.test(trimmed)
 }
 
 function resolveNext(search: string) {
@@ -63,28 +82,45 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
-    const { errorMessage, initialize, isLoading, isSubmitting, login, status } = useProductAuth()
+    const { errorMessage, initialize, isLoading, isSubmitting, login, logout, status } = useProductAuth()
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
-    const [displayName, setDisplayName] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+    const [email, setEmail] = useState('')
+    const [emailTouched, setEmailTouched] = useState(false)
     const [localError, setLocalError] = useState<string | null>(null)
+    const [selectedLocale, setSelectedLocale] = useState<'en' | 'zh-CN'>(() => (i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en'))
+    const [platformBrand, setPlatformBrand] = useState<PlatformBrandState>({
+        title: t('brand.title'),
+        logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+    })
+    const [brandLogoSrc, setBrandLogoSrc] = useState(DEFAULT_PLATFORM_BRAND_LOGO_URL)
     const nextPath = useMemo(() => resolveNext(location.search), [location.search])
     const setupPasswordValid = useMemo(
         () => password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password),
         [password],
     )
+    const setupEmailValid = useMemo(
+        () => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()),
+        [email],
+    )
+    const setupPasswordsMatch = useMemo(
+        () => confirmPassword.length > 0 && password === confirmPassword,
+        [confirmPassword, password],
+    )
     const authFieldSx = useMemo(
         () => ({
             '& .MuiOutlinedInput-root': {
-                borderRadius: '18px',
+                borderRadius: '4px',
                 backgroundColor: '#fbfdff',
             },
             '& input:-webkit-autofill': {
                 WebkitBoxShadow: '0 0 0 100px #fbfdff inset',
                 WebkitTextFillColor: '#0f172a',
                 caretColor: '#0f172a',
-                borderRadius: '18px',
+                borderRadius: '4px',
                 transition: 'background-color 9999s ease-out 0s',
             },
             '& input:-webkit-autofill:hover': {
@@ -98,6 +134,91 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
         }),
         [],
     )
+
+    useEffect(() => {
+        setSelectedLocale(i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en')
+    }, [i18n.resolvedLanguage])
+
+    useEffect(() => {
+        let disposed = false
+
+        async function loadPlatformBrand() {
+            try {
+                const response = await fetch('/api/settings/platform_brand', {
+                    credentials: 'include',
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                })
+
+                if (!response.ok) {
+                    return
+                }
+
+                const payload = (await response.json()) as { title?: unknown; logo_url?: unknown }
+                if (disposed) {
+                    return
+                }
+
+                const resolvedTitle = typeof payload.title === 'string' && payload.title.trim() ? payload.title.trim() : t('brand.title')
+                const resolvedLogoUrlRaw = typeof payload.logo_url === 'string' ? payload.logo_url.trim() : ''
+                const resolvedLogoUrl = isValidPlatformBrandLogoUrl(resolvedLogoUrlRaw) ? resolvedLogoUrlRaw : DEFAULT_PLATFORM_BRAND_LOGO_URL
+
+                setPlatformBrand({
+                    title: resolvedTitle,
+                    logoUrl: resolvedLogoUrl,
+                })
+                setBrandLogoSrc(resolvedLogoUrl)
+            } catch {
+                if (!disposed) {
+                    setPlatformBrand({
+                        title: t('brand.title'),
+                        logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+                    })
+                    setBrandLogoSrc(DEFAULT_PLATFORM_BRAND_LOGO_URL)
+                }
+            }
+        }
+
+        void loadPlatformBrand()
+
+        return () => {
+            disposed = true
+        }
+    }, [t])
+
+    useEffect(() => {
+        function handlePlatformBrandUpdate(event: Event) {
+            const customEvent = event as CustomEvent<{ key?: string; value?: string }>
+            const key = customEvent.detail?.key
+            const value = customEvent.detail?.value
+            if (typeof key !== 'string' || typeof value !== 'string') {
+                return
+            }
+
+            if (key === 'title') {
+                setPlatformBrand((current) => ({
+                    ...current,
+                    title: value.trim() || t('brand.title'),
+                }))
+                return
+            }
+
+            if (key === 'logo_url') {
+                const nextLogoUrl = isValidPlatformBrandLogoUrl(value) ? value.trim() : DEFAULT_PLATFORM_BRAND_LOGO_URL
+                setPlatformBrand((current) => ({
+                    ...current,
+                    logoUrl: nextLogoUrl,
+                }))
+                setBrandLogoSrc(nextLogoUrl)
+            }
+        }
+
+        window.addEventListener('websoft9:platform-brand-updated', handlePlatformBrandUpdate as EventListener)
+        return () => {
+            window.removeEventListener('websoft9:platform-brand-updated', handlePlatformBrandUpdate as EventListener)
+        }
+    }, [t])
 
     useEffect(() => {
         if (!status || isLoading) {
@@ -129,17 +250,25 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
         setLocalError(null)
 
         if (mode === 'setup') {
+            if (!setupEmailValid) {
+                setLocalError(t('auth.errors.invalidEmail'))
+                return
+            }
             if (!setupPasswordValid) {
                 setLocalError(t('auth.errors.passwordComplexity'))
+                return
+            }
+            if (!setupPasswordsMatch) {
+                setLocalError(t('auth.errors.passwordMismatch'))
                 return
             }
         }
 
         try {
-            const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+            const locale = selectedLocale
             const nextStatus =
                 mode === 'setup'
-                    ? await initialize({ username, password, displayName })
+                    ? await initialize({ username, password, email: email.trim(), locale })
                     : await login({ username, password })
 
             const prewarmPromise =
@@ -157,7 +286,12 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                 })
             }
 
-            navigate(nextPath, { replace: true })
+            if (mode === 'setup') {
+                await logout()
+                navigate('/auth/login', { replace: true })
+            } else {
+                navigate(nextPath, { replace: true })
+            }
         } catch (error) {
             setLocalError(error instanceof Error ? error.message : t('auth.genericError'))
         }
@@ -179,9 +313,9 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                 elevation={0}
                 sx={{
                     width: '100%',
-                    maxWidth: 440,
+                    maxWidth: 480,
                     p: { xs: 3, md: 4 },
-                    borderRadius: '28px',
+                    borderRadius: '4px',
                     border: '1px solid rgba(148, 163, 184, 0.18)',
                     background: 'rgba(255,255,255,0.97)',
                     backdropFilter: 'blur(12px)',
@@ -190,12 +324,33 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
             >
                 <Stack spacing={3}>
                     <Stack spacing={1.25}>
-                        <Typography color="text.secondary" sx={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                            {mode === 'setup' ? t('auth.setup.eyebrow') : t('auth.login.eyebrow')}
-                        </Typography>
-                        <Typography sx={{ fontSize: { xs: 24, md: 28 }, fontWeight: 600, lineHeight: 1.08, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                            {mode === 'setup' ? t('auth.setup.title') : t('auth.login.title')}
-                        </Typography>
+                        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                            <Box
+                                component="img"
+                                alt={platformBrand.title}
+                                onError={() => setBrandLogoSrc(DEFAULT_PLATFORM_BRAND_LOGO_URL)}
+                                src={brandLogoSrc}
+                                sx={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: '6px',
+                                    objectFit: 'contain',
+                                    backgroundColor: '#ffffff',
+                                    border: '1px solid rgba(148, 163, 184, 0.22)',
+                                    p: 0.75,
+                                }}
+                            />
+                            <Stack spacing={0.25}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#0f172a', lineHeight: 1.1 }}>
+                                    {platformBrand.title}
+                                </Typography>
+                                {mode === 'setup' ? (
+                                    <Typography color="text.secondary" sx={{ fontSize: 13 }}>
+                                        {t('auth.setup.subtitle')}
+                                    </Typography>
+                                ) : null}
+                            </Stack>
+                        </Stack>
                     </Stack>
 
                     {(localError || errorMessage) && <Alert severity="error">{mapAuthErrorMessage(localError ?? errorMessage, t)}</Alert>}
@@ -203,16 +358,42 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                     <Stack component="form" spacing={2.25} onSubmit={handleSubmit}>
                         {mode === 'setup' ? (
                             <TextField
-                                label={t('auth.fields.displayName')}
-                                onChange={(event) => setDisplayName(event.target.value)}
+                                label={t('auth.fields.language')}
+                                onChange={(event) => {
+                                    const nextLocale = event.target.value === 'zh-CN' ? 'zh-CN' : 'en'
+                                    setSelectedLocale(nextLocale)
+                                    void i18n.changeLanguage(nextLocale)
+                                }}
+                                select
+                                size="medium"
+                                sx={authFieldSx}
+                                value={selectedLocale}
+                            >
+                                <MenuItem value="en">{t('locales.en')}</MenuItem>
+                                <MenuItem value="zh-CN">{t('locales.zh-CN')}</MenuItem>
+                            </TextField>
+                        ) : null}
+                        {mode === 'setup' ? (
+                            <TextField
+                                label={t('auth.fields.email')}
+                                onBlur={() => setEmailTouched(true)}
+                                onChange={(event) => {
+                                    setEmail(event.target.value)
+                                    if (!emailTouched) {
+                                        setEmailTouched(true)
+                                    }
+                                }}
+                                error={emailTouched && !setupEmailValid}
+                                helperText={emailTouched && !setupEmailValid ? t('auth.errors.invalidEmail') : ' '}
                                 required
                                 size="medium"
                                 sx={authFieldSx}
-                                value={displayName}
+                                type="email"
+                                value={email}
                             />
                         ) : null}
                         <TextField
-                            label={t('auth.fields.username')}
+                            label={mode === 'setup' ? t('auth.fields.setupUsername') : t('auth.fields.username')}
                             onChange={(event) => setUsername(event.target.value)}
                             required
                             size="medium"
@@ -222,7 +403,12 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                         <TextField
                             label={t('auth.fields.password')}
                             onChange={(event) => setPassword(event.target.value)}
-                            helperText={mode === 'setup' ? t('auth.passwordPolicy') : ' '}
+                            error={mode === 'setup' && password.length > 0 && !setupPasswordValid}
+                            helperText={
+                                mode === 'setup' && password.length > 0 && !setupPasswordValid
+                                    ? t('auth.errors.passwordComplexity')
+                                    : ' '
+                            }
                             required
                             size="medium"
                             type={showPassword ? 'text' : 'password'}
@@ -244,12 +430,40 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                                 },
                             }}
                         />
+                        {mode === 'setup' ? (
+                            <TextField
+                                error={confirmPassword.length > 0 && !setupPasswordsMatch}
+                                helperText={confirmPassword.length > 0 && !setupPasswordsMatch ? t('auth.errors.passwordMismatch') : ' '}
+                                label={t('auth.fields.confirmPassword')}
+                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                required
+                                size="medium"
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                sx={authFieldSx}
+                                value={confirmPassword}
+                                slotProps={{
+                                    input: {
+                                        endAdornment: (
+                                            <InputAdornment position="end">
+                                                <IconButton
+                                                    aria-label={showConfirmPassword ? t('auth.actions.hidePassword') : t('auth.actions.showPassword')}
+                                                    edge="end"
+                                                    onClick={() => setShowConfirmPassword((currentValue) => !currentValue)}
+                                                >
+                                                    {showConfirmPassword ? <IconEyeOff /> : <IconEye />}
+                                                </IconButton>
+                                            </InputAdornment>
+                                        ),
+                                    },
+                                }}
+                            />
+                        ) : null}
                         <Button
-                            disabled={isSubmitting || (mode === 'setup' && !setupPasswordValid)}
+                            disabled={isSubmitting || (mode === 'setup' && (!setupPasswordValid || !setupEmailValid || !setupPasswordsMatch))}
                             size="large"
                             type="submit"
                             variant="contained"
-                            sx={{ minHeight: 54, borderRadius: '18px', fontWeight: 600, boxShadow: '0 12px 28px rgba(37,99,235,0.22)' }}
+                            sx={{ minHeight: 54, borderRadius: '4px', fontWeight: 600, boxShadow: '0 12px 28px rgba(37,99,235,0.22)' }}
                         >
                             {mode === 'setup'
                                 ? isSubmitting

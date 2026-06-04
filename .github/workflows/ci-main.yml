@@ -1,0 +1,110 @@
+name: Main Branch CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'media/**'
+      - 'logs/**'
+      - '.gitignore'
+      - 'LICENSE*'
+
+concurrency:
+  group: ci-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # ── Reuse full PR checks on push to main/dev ──
+  pr-checks:
+    name: PR Checks
+    uses: ./.github/workflows/ci-pr.yml
+    secrets: inherit
+
+  # ── Determine channel and tags ──
+  meta:
+    name: Determine Build Meta
+    runs-on: ubuntu-latest
+    needs: pr-checks
+    outputs:
+      channel: ${{ steps.meta.outputs.channel }}
+      version: ${{ steps.meta.outputs.version }}
+      edition: ${{ steps.meta.outputs.edition }}
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          EDITION=$(jq -r '.edition.key' version.json)
+          BRANCH="${{ github.ref_name }}"
+          SHA_TAG="sha-${GITHUB_SHA:0:8}"
+
+          # ── Unique SHA tag (always) — ensures Build Once traceability ──
+          TAGS="websoft9dev/websoft9-product:${SHA_TAG}"
+
+          # ── Channel tags (supplementary) ──
+          if [[ "$BRANCH" == "dev" ]]; then
+            CHANNEL=dev
+            TAGS="${TAGS},websoft9dev/websoft9-product:dev"
+            TAGS="${TAGS},websoft9dev/websoft9-product:${VERSION}-dev"
+          elif [[ "$VERSION" == *-* ]]; then
+            CHANNEL=rc
+            TAGS="${TAGS},websoft9dev/websoft9-product:rc"
+            TAGS="${TAGS},websoft9dev/websoft9-product:${VERSION}"
+          else
+            CHANNEL=release
+            TAGS="${TAGS},websoft9dev/websoft9-product:latest"
+            TAGS="${TAGS},websoft9dev/websoft9-product:${VERSION}"
+            # Intermediate tags: v3.4.0 → v3, v3.4, v3.4.0
+            IFS='.' read -ra PARTS <<< "$VERSION"
+            if [[ ${#PARTS[@]} -ge 3 ]]; then
+              TAGS="${TAGS},websoft9dev/websoft9-product:${PARTS[0]}"
+              TAGS="${TAGS},websoft9dev/websoft9-product:${PARTS[0]}.${PARTS[1]}"
+              TAGS="${TAGS},websoft9dev/websoft9-product:${PARTS[0]}.${PARTS[1]}.${PARTS[2]}"
+            fi
+          fi
+
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "edition=$EDITION" >> $GITHUB_OUTPUT
+          echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+          echo "✅ Channel: $CHANNEL | Version: $VERSION | SHA: $SHA_TAG"
+
+  # ── Build, scan, push (one build, many tags) ──
+  build-and-push:
+    name: Build & Push Image
+    needs: meta
+    uses: ./.github/workflows/_shared/docker-build.yml
+    with:
+      push: true
+      platforms: linux/amd64
+      tags: ${{ needs.meta.outputs.tags }}
+    secrets: inherit
+
+  # ── Smoke test uses SHA tag (guarantees testing the exact build) ──
+  smoke-test:
+    name: Smoke Test
+    needs: [meta, build-and-push]
+    uses: ./.github/workflows/_shared/smoke-test.yml
+    with:
+      image: websoft9dev/websoft9-product:${{ needs.meta.outputs.sha_tag }}
+
+  # ── Update Docker Hub description (release only) ──
+  dockerhub-description:
+    name: Update DockerHub README
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: websoft9dev/websoft9-product
+          readme-filepath: docker/README.md
