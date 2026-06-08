@@ -65,6 +65,14 @@ jobs:
 
           echo "✅ Channel: $CHANNEL | Version: $VERSION | Branch: $BRANCH"
 
+  build-appstore-dataset:
+    name: Build Appstore Dataset
+    needs: determine-channel
+    uses: ./.github/workflows/build-appstore-catalog.yml
+    with:
+      channel: ${{ needs.determine-channel.outputs.channel }}
+    secrets: inherit
+
   # ── Create hotfix branch from main (release only) ──
   create-hotfix-branch:
     name: Create Hotfix Branch
@@ -74,6 +82,8 @@ jobs:
       github.ref == 'refs/heads/main' &&
       github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Create and push hotfix branch
@@ -110,7 +120,7 @@ jobs:
   # ── Create release archive and upload to Cloudflare R2 ──
   upload-artifacts:
     name: Upload Artifacts
-    needs: [determine-channel, update-changelog]
+    needs: [determine-channel, update-changelog, build-appstore-dataset]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -164,7 +174,7 @@ jobs:
   # ── Create GitHub Release (release or hotfix channels) ──
   github-release:
     name: GitHub Release
-    needs: [determine-channel, update-changelog]
+    needs: [determine-channel, update-changelog, build-appstore-dataset]
     if: |
       needs.determine-channel.outputs.is_release == 'true' ||
       needs.determine-channel.outputs.is_hotfix == 'true'
@@ -189,7 +199,7 @@ jobs:
   # ── Deploy GitHub Pages (release channel only) ──
   pages:
     name: GitHub Pages
-    needs: determine-channel
+    needs: [determine-channel, build-appstore-dataset]
     if: |
       needs.determine-channel.outputs.is_release == 'true' &&
       github.ref == 'refs/heads/main'

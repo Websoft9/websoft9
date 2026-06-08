@@ -169,6 +169,11 @@ type ProductAuthFavoritesResponse = {
     favorites: string[]
 }
 
+type AppStoreSyncResponse = {
+    status: string
+    details: string
+}
+
 type ComposeEnvironmentRow = {
     id: string
     key: string
@@ -858,7 +863,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const installSettingInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
     const deferredSearchValue = useDeferredValue(searchValue)
     const { data, error, isLoading, refetch } = useAppStoreApps()
-    const { data: catalogsData } = useAppStoreCatalogs()
+    const { data: catalogsData, refetch: refetchCatalogs } = useAppStoreCatalogs()
     const { data: favoritesData, refetch: refetchFavorites } = useQuery<ProductAuthFavoritesResponse, Error>({
         queryKey: ['product-auth-favorites'],
         queryFn: fetchFavorites,
@@ -1563,8 +1568,17 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setIsRefreshingStore(true)
 
         try {
-            const [appsResult, favoritesResult] = await Promise.all([
+            const syncResult = await requestJson<AppStoreSyncResponse>('/api/appstore/sync', {
+                method: 'POST',
+            })
+
+            if (syncResult.status !== 'success') {
+                throw new Error(syncResult.details || t('appStorePage.states.errorTitle'))
+            }
+
+            const [appsResult, catalogsResult, favoritesResult] = await Promise.all([
                 refetch(),
+                refetchCatalogs(),
                 refetchFavorites(),
                 new Promise((resolve) => {
                     window.setTimeout(resolve, 450)
@@ -1573,6 +1587,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
             if (appsResult.error) {
                 throw appsResult.error
+            }
+
+            if (catalogsResult.error) {
+                throw catalogsResult.error
             }
 
             if (favoritesResult.error) {

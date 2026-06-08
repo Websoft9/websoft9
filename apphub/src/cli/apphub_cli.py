@@ -15,6 +15,7 @@ from src.services.apikey_manager import APIKeyManager
 from src.services.settings_manager import SettingsManager
 from src.core.exception import CustomException
 from src.core.config import ConfigManager
+from src.services.appstore_sync_manager import AppStoreSyncManager
 from src.services.integration_credentials import IntegrationCredentialProvider
 
 @click.group()
@@ -239,57 +240,52 @@ def commit(appid, github_token):
 
 @cli.command()
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
+@click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Upgrade using the specified artifact channel')
 @click.option('--dev', is_flag=True, help='Upgrade using dev environment')
-def upgrade(target, dev):
+def upgrade(target, channel, dev):
     """Upgrade apps"""
     try:
         if target == 'apps':
-            # 根据是否传入 --dev 参数设置 channel 和 package_name
-            channel = "dev" if dev else "release"
-            media_package = "media-dev.zip" if dev else "media-latest.zip"
-            library_package = "library-dev.zip" if dev else "library-latest.zip"
+            if dev and channel and channel.lower() != 'dev':
+                raise click.ClickException("--dev cannot be combined with a non-dev --channel value")
 
-            # 执行升级 media 的命令
-            if dev:
-                subprocess.run(
-                    [
-                        "bash", "/websoft9/script/update_zip.sh",
-                        "--channel", channel, "--package_name", media_package, "--sync_to", "/websoft9/media"
-                    ],
-                    check=True
-                )
+            resolved_channel = (channel or ('dev' if dev else 'release')).lower()
+            result = AppStoreSyncManager().sync(
+                trigger='cli',
+                channel=resolved_channel,
+                package_types='media,library',
+                force_refresh=True,
+            )
+            dataset_version = result.get('datasetVersion')
+            if dataset_version:
+                click.echo(f"App Store resources ({resolved_channel}) synchronized successfully: {dataset_version}")
             else:
-                subprocess.run(
-                    [
-                        "bash", "/websoft9/script/update_zip.sh",
-                        "--channel", channel, "--package_name", media_package, "--sync_to", "/websoft9/media"
-                    ],
-                    check=True
-                )
-            click.echo(f"Media resources ({channel}) updated successfully.")
-
-            # 执行升级 library 的命令
-            if dev:
-                subprocess.run(
-                    [
-                        "bash", "/websoft9/script/update_zip.sh",
-                        "--channel", channel, "--package_name", library_package, "--sync_to", "/websoft9/library"
-                    ],
-                    check=True
-                )
-            else:
-                subprocess.run(
-                    [
-                        "bash", "/websoft9/script/update_zip.sh",
-                        "--channel", channel, "--package_name", library_package, "--sync_to", "/websoft9/library"
-                    ],
-                    check=True
-                )
-            click.echo(f"Library resources ({channel}) updated successfully.")
+                click.echo(f"App Store resources ({resolved_channel}) synchronized successfully.")
         else:
             click.echo(f"Unknown upgrade target: {target}")
     except subprocess.CalledProcessError as e:
         raise click.ClickException(f"Upgrade command failed: {e}")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@cli.command(name='appstore-versions')
+def appstore_versions():
+    """List locally available App Store dataset versions"""
+    try:
+        result = AppStoreSyncManager().list_versions()
+        click.echo(json.dumps(result))
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@cli.command(name='activate-appstore')
+@click.option('--dataset-version', required=True, help='Activate the specified local App Store dataset version')
+def activate_appstore(dataset_version):
+    """Activate a locally available App Store dataset version"""
+    try:
+        result = AppStoreSyncManager().activate(dataset_version=dataset_version, trigger='cli')
+        click.echo(f"Activated App Store dataset version: {result.get('datasetVersion')}")
     except Exception as e:
         raise click.ClickException(str(e))
 

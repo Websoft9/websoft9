@@ -1,353 +1,130 @@
 # CI/CD Pipeline Guide
 
-This document explains the continuous integration and deployment setup for Websoft9.
+This document describes the current CI/CD implementation in Websoft9 and defines the immediate upgrade direction for the DevOps modernization program.
 
-## Overview
+## Workflow Topology
 
-The CI pipeline automatically runs quality checks and tests on every push and pull request to ensure code quality and reliability.
+Websoft9 uses multiple GitHub Actions workflows instead of a single pipeline file.
 
-## CI Workflow
+- `.github/workflows/ci-pr.yml`: Pull request quality gates and selective checks.
+- `.github/workflows/ci-main.yml`: Main and dev branch continuous integration, image build/push, smoke test.
+- `.github/workflows/release.yml`: Version-driven release packaging and channel distribution.
+- `.github/workflows/security-scan.yml`: Scheduled container vulnerability scanning.
+- `.github/workflows/_shared/docker-build.yml`: Reusable Docker build and security scan workflow.
+- `.github/workflows/_shared/smoke-test.yml`: Reusable smoke test workflow.
 
-The CI pipeline is defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) and includes:
+## Current Pipeline Behavior
 
-### 1. **Lint** - Code Quality Checks
-- **Black**: Code formatting verification
-- **isort**: Import sorting verification
-- **Flake8**: PEP 8 style guide enforcement
-- **Pylint**: Code analysis and linting
+### 1. Pull Request Checks (`ci-pr.yml`)
 
-### 2. **Test** - Automated Testing
-- **pytest**: Unit tests execution
-- **Coverage**: Code coverage measurement (threshold: 70%)
-- **Codecov**: Coverage report upload
+Trigger:
 
-### 3. **Build** - Application Building
-- **pip install**: Dependencies installation
-- **Package build**: Application packaging
-- **CLI verification**: Command-line interface testing
+```yaml
+on:
+  pull_request:
+    branches: [main, dev]
+```
 
-### 4. **Security Scan** - Vulnerability Detection
-- **Safety**: Python dependency vulnerability scanning
-- **Docker Build**: Multi-architecture image building
-- **Trivy**: Container image security scanning
-- **SARIF Upload**: Security findings to GitHub Security tab
+Execution model:
 
-### 5. **Integration Test** - E2E Testing
-- Integration tests (runs only on pull requests)
-- Validates the complete application workflow
+1. Secret scan (`gitleaks`) runs first.
+2. Path-based change detection decides which jobs should run.
+3. Relevant quality jobs run in parallel:
+   - Python (`apphub`): Ruff, format check, mypy, pytest + coverage.
+   - Console (`console`): eslint, typecheck, build, optional tests.
+   - Docker: hadolint.
+   - Shell scripts: shellcheck.
+4. A summary gate evaluates all job results and fails PR when required jobs fail.
 
-### 6. **Summary** - Pipeline Results
-- Aggregates all job results
-- Fails the pipeline if any critical job fails
+### 2. Main/Dev CI (`ci-main.yml`)
 
-## Triggers
-
-The CI pipeline runs automatically on:
+Trigger:
 
 ```yaml
 on:
   push:
     branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
 ```
 
-## Environment Variables
+Execution model:
 
-```yaml
-env:
-  PYTHON_VERSION: '3.11'
-  COVERAGE_THRESHOLD: 70
-```
+1. Reuse `ci-pr.yml` checks through `workflow_call`.
+2. Compute channel/version metadata from `version.json` and branch.
+3. Build once, tag many via shared Docker build workflow.
+4. Run smoke test against SHA-pinned image.
+5. Update DockerHub description on `main`.
 
-## Local Development
+### 3. Release (`release.yml`)
 
-### Setup Development Environment
+Triggers:
+
+- `workflow_dispatch`
+- Push where `version.json` changed on `main`, `dev`, `hotfix*`
+
+Execution model:
+
+1. Determine release channel (`release`, `rc`, `dev`).
+2. Update `CHANGELOG.md` using `changelog_latest.md`.
+3. Build release archive and upload artifacts to Cloudflare R2.
+4. Create GitHub Release for release/hotfix channels.
+5. Deploy GitHub Pages on release channel from `main`.
+
+### 4. Security Scan (`security-scan.yml`)
+
+- Scheduled vulnerability scanning for published images.
+- Uploads SARIF reports to GitHub Security.
+
+## Local Validation Commands
+
+Use these commands before opening a PR.
+
+### AppHub
 
 ```bash
-# Navigate to apphub directory
 cd apphub
-
-# Install production dependencies
 pip install -r requirements.txt
-
-# Install development dependencies
 pip install -r requirements-dev.txt
-
-# Install package in editable mode
-pip install -e .
+ruff check src/
+ruff format --check src/
+mypy src/
+pytest tests/ -v --cov=src --cov-report=term
 ```
 
-### Run Linting Locally
+### Console
 
 ```bash
-# Format code
-black src/
-isort src/
-
-# Check code style
-flake8 src/
-
-# Run linting checks (same as CI)
-black --check src/
-isort --check src/
-flake8 src/
-pylint src/ --exit-zero
+cd console
+npm ci
+npm run lint
+npm run typecheck
+npm run build
+npm run test --if-present
 ```
 
-### Run Tests Locally
+### Docker and Scripts
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test file
-pytest tests/test_basic.py -v
-
-# View coverage report
-open htmlcov/index.html  # macOS
-xdg-open htmlcov/index.html  # Linux
-start htmlcov/index.html  # Windows
+cd /workspace/websoft9
+hadolint docker/Dockerfile
+find scripts install -type f -name "*.sh" -print0 | xargs -0 -I{} shellcheck -e SC1091,SC2034 "{}"
 ```
 
-### Build Docker Image Locally
+## Known Gaps (Baseline)
 
-```bash
-# Navigate to project root
-cd ..
+These gaps are accepted in current baseline and are tracked by the DevOps upgrade plan:
 
-# Build image
-docker build -f docker/Dockerfile -t websoft9-product:local .
+- Console tests are optional and not enforced as a required gate.
+- CLI package quality checks are not fully integrated.
+- Coverage quality gate uses a low threshold in PR checks.
+- Branch protection and required status checks are not fully codified in repository settings.
+- Staging verification and rollback drills are not yet mandatory.
 
-# Scan image with Trivy
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-  aquasec/trivy:latest image websoft9-product:local
-```
+## Immediate Upgrade Priorities
 
-## CI Configuration Files
+1. Enable strict branch protection + required checks for `main` and `dev`.
+2. Enforce deterministic test gates for `console` and `cli`.
+3. Raise quality thresholds incrementally and make failures blocking.
+4. Add supply-chain checks (SAST, dependency license, signed artifacts).
+5. Add staged deployment verification and automated rollback validation.
 
-### Pytest Configuration
-
-**Location**: `apphub/pytest.ini` or `apphub/pyproject.toml`
-
-```ini
-[pytest]
-testpaths = tests
-addopts = -v --strict-markers --cov=src
-```
-
-### Flake8 Configuration
-
-**Location**: `apphub/.flake8`
-
-```ini
-[flake8]
-max-line-length = 127
-max-complexity = 10
-```
-
-### Black & isort Configuration
-
-**Location**: `apphub/pyproject.toml`
-
-```toml
-[tool.black]
-line-length = 127
-target-version = ['py310', 'py311']
-
-[tool.isort]
-profile = "black"
-line_length = 127
-```
-
-## Viewing CI Results
-
-### GitHub Actions UI
-
-1. Go to [Actions tab](https://github.com/Websoft9/websoft9/actions)
-2. Click on the latest workflow run
-3. View detailed logs for each job
-
-### Status Badges
-
-The main README displays CI status:
-
-```markdown
-[![CI Pipeline](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml/badge.svg)](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml)
-```
-
-### Code Coverage
-
-View coverage reports on [Codecov](https://codecov.io/gh/Websoft9/websoft9)
-
-### Security Findings
-
-View security vulnerabilities in the [Security tab](https://github.com/Websoft9/websoft9/security/code-scanning)
-
-## Fixing CI Failures
-
-### Linting Failures
-
-**Problem**: Black or isort formatting issues
-
-**Solution**:
-```bash
-black src/
-isort src/
-git add .
-git commit -m "fix: apply code formatting"
-```
-
-**Problem**: Flake8 style violations
-
-**Solution**: Review the error messages and fix the issues manually, or use:
-```bash
-autopep8 --in-place --aggressive --aggressive src/
-```
-
-### Test Failures
-
-**Problem**: Tests failing
-
-**Solution**:
-1. Run tests locally: `pytest -v`
-2. Fix the failing tests
-3. Verify coverage: `pytest --cov=src`
-4. Commit fixes
-
-**Problem**: Coverage below threshold
-
-**Solution**:
-1. Identify uncovered code: `pytest --cov=src --cov-report=term-missing`
-2. Add tests for uncovered code
-3. Or adjust threshold in `.github/workflows/ci.yml` if appropriate
-
-### Build Failures
-
-**Problem**: Package installation fails
-
-**Solution**:
-1. Verify `requirements.txt` is valid
-2. Test locally: `pip install -r requirements.txt`
-3. Check for missing or conflicting dependencies
-
-### Security Scan Failures
-
-**Problem**: Trivy finds vulnerabilities
-
-**Solution**:
-1. Review the vulnerability report in GitHub Security tab
-2. Update vulnerable dependencies:
-   ```bash
-   pip install --upgrade <package>
-   pip freeze > requirements.txt
-   ```
-3. If no fix available, document the risk or add exception
-
-## Best Practices
-
-### Before Committing
-
-```bash
-# 1. Format code
-black src/
-isort src/
-
-# 2. Run linting
-flake8 src/
-
-# 3. Run tests
-pytest
-
-# 4. Check coverage
-pytest --cov=src --cov-report=term
-
-# 5. Commit
-git add .
-git commit -m "feat: your feature description"
-git push
-```
-
-### Writing Tests
-
-- Write tests for all new features
-- Aim for >70% code coverage
-- Use descriptive test names
-- Use pytest markers (`@pytest.mark.unit`, `@pytest.mark.asyncio`)
-- Mock external dependencies
-
-### Pull Requests
-
-- Ensure all CI checks pass before requesting review
-- Integration tests will run automatically on PRs
-- Address any failing checks promptly
-
-## Continuous Deployment
-
-The CI pipeline does **not** automatically deploy. Deployment is handled by separate workflows:
-
-- **Docker Build**: `.github/workflows/docker.yml`
-- **Release**: `.github/workflows/release.yml`
-
-These workflows are triggered on:
-- Tagged releases
-- Manual workflow dispatch
-
-## Troubleshooting
-
-### GitHub Actions Quota
-
-**Problem**: CI fails due to quota limits
-
-**Solution**: 
-- Free tier has limited minutes
-- Consider self-hosted runners for private repos
-- Optimize CI to run faster (use caching, parallel jobs)
-
-### Cache Issues
-
-**Problem**: Dependencies not caching properly
-
-**Solution**:
-```yaml
-# Clear cache in GitHub Actions UI
-# Or update cache key in workflow file
-```
-
-### Docker Build Timeout
-
-**Problem**: Docker build exceeds time limit
-
-**Solution**:
-- Use smaller base images
-- Reduce number of layers
-- Use multi-stage builds
-- Enable BuildKit cache
-
-## Contributing
-
-When adding new features:
-
-1. Update tests accordingly
-2. Ensure linting passes
-3. Maintain or improve code coverage
-4. Update documentation if needed
-5. Verify CI passes before merging
-
-## References
-
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
-- [pytest Documentation](https://docs.pytest.org/)
-- [Black Documentation](https://black.readthedocs.io/)
-- [Trivy Documentation](https://aquasecurity.github.io/trivy/)
-- [Codecov Documentation](https://docs.codecov.com/)
-
-## Support
-
-For CI/CD related issues:
-1. Check [workflow runs](https://github.com/Websoft9/websoft9/actions)
-2. Review [existing issues](https://github.com/Websoft9/websoft9/issues)
-3. Create a new issue with `ci` label
+See `docs/standards/devops/roadmap_cn.md` for execution phases, main-branch baseline, and acceptance criteria.

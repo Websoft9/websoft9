@@ -1,0 +1,19 @@
+# Default ownership
+* @websoft9
+
+# CI/CD and release automation
+.github/workflows/* @websoft9
+
+# Runtime container and deployment scripts
+docker/** @websoft9
+install/** @websoft9
+scripts/** @websoft9
+
+# Product subsystems
+apphub/** @websoft9
+console/** @websoft9
+cli/** @websoft9
+
+# Standards and architecture docs
+docs/standards/** @websoft9
+docs/architecture/** @websoft9

@@ -123,9 +123,9 @@ class Status:
                 print("No this application!")
                 sys.exit(0)
         
-        else
+        else:
             try: 
-                self.project_path = parameter[project-directory]
+                self.project_path = parameter['project-directory']
             except:
                 print("Directory not exist, please check it")
                 sys.exit(0)

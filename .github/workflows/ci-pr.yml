@@ -16,6 +16,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Governance: branch naming and merge direction ──
+  governance-check:
+    name: Governance Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR branch policy
+        run: |
+          set -euo pipefail
+
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          HEAD_REF="${{ github.event.pull_request.head.ref }}"
+
+          echo "Base branch: $BASE_REF"
+          echo "Head branch: $HEAD_REF"
+
+          if [[ "$BASE_REF" == "main" ]]; then
+            if [[ ! "$HEAD_REF" =~ ^(release/.+|hotfix/.+)$ ]]; then
+              echo "::error::PRs into main must come from release/* or hotfix/* branches"
+              exit 1
+            fi
+          elif [[ "$BASE_REF" == "dev" ]]; then
+            if [[ ! "$HEAD_REF" =~ ^(feature/.+|bugfix/.+|hotfix/.+|release/.+)$ ]]; then
+              echo "::error::PRs into dev must come from feature/*, bugfix/*, hotfix/*, or release/* branches"
+              exit 1
+            fi
+          else
+            echo "::error::Unsupported base branch: $BASE_REF"
+            exit 1
+          fi
+
+          echo "✅ Branch naming and merge direction policy passed"
+
   # ── Security: Secret detection (run first, fail fast) ──
   secret-scan:
     name: Secret Scan
@@ -37,8 +69,10 @@ jobs:
     outputs:
       python: ${{ steps.filter.outputs.python }}
       console: ${{ steps.filter.outputs.console }}
+      cli: ${{ steps.filter.outputs.cli }}
       docker: ${{ steps.filter.outputs.docker }}
       scripts: ${{ steps.filter.outputs.scripts }}
+      appstore_data: ${{ steps.filter.outputs.appstore_data }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -50,12 +84,96 @@ jobs:
               - 'requirements*.txt'
             console:
               - 'console/**'
+            cli:
+              - 'cli/**'
             docker:
               - 'docker/**'
               - 'Dockerfile'
             scripts:
               - 'scripts/**'
               - 'install/**'
+            appstore_data:
+              - '.github/workflows/build-appstore-catalog.yml'
+              - '.github/workflows/release.yml'
+              - 'apphub/src/cli/apphub_cli.py'
+              - 'apphub/src/api/v1/routers/appstore_sync.py'
+              - 'apphub/src/services/appstore_sync_manager.py'
+              - 'apphub/src/services/app_manager.py'
+              - 'apphub/tests/test_apphub_cli_upgrade.py'
+              - 'apphub/tests/test_appstore_sync_manager_versions.py'
+              - 'docker/scripts/platform-sync-runtime-assets.py'
+              - 'scripts/generate_appstore_install_metadata.py'
+              - 'scripts/update_zip.sh'
+              - 'scripts/validate_appstore_catalog_artifact.sh'
+              - 'scripts/validate_appstore_dataset_manifests.sh'
+              - 'scripts/validate_appstore_library_artifact.sh'
+              - 'scripts/validate_appstore_library_metadata.sh'
+              - 'scripts/list_appstore_dataset_versions.sh'
+              - 'scripts/switch_appstore_dataset_manifest.sh'
+              - 'scripts/appstore_dataset_hotfix_helper.sh'
+
+  # ── Version and metadata consistency ──
+  version-consistency:
+    name: Version Consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version metadata
+        run: |
+          set -euo pipefail
+
+          VERSION=$(jq -r '.version' version.json)
+          EDITION_KEY=$(jq -r '.edition.key // empty' version.json)
+
+          if [[ -z "$VERSION" ]] || [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version.json version is invalid: '$VERSION'"
+            exit 1
+          fi
+
+          if [[ -z "$EDITION_KEY" ]]; then
+            echo "::error::version.json edition.key must not be empty"
+            exit 1
+          fi
+
+          if [[ ! -f cli/version ]]; then
+            echo "::error::cli/version file is missing"
+            exit 1
+          fi
+
+          grep -Eq '^stable:[[:space:]]*[0-9]+\.[0-9]+$' cli/version || {
+            echo "::error::cli/version must contain 'stable: <major.minor>'"
+            exit 1
+          }
+
+          grep -Eq '^compatible:[[:space:]]*[0-9]+\.[0-9]+$' cli/version || {
+            echo "::error::cli/version must contain 'compatible: <major.minor>'"
+            exit 1
+          }
+
+          if [[ ! -f apphub/setup.py ]]; then
+            echo "::error::apphub/setup.py is missing"
+            exit 1
+          fi
+
+          grep -Eq "version='[0-9]+(\.[0-9]+){1,2}'" apphub/setup.py || {
+            echo "::error::apphub/setup.py must declare a numeric version"
+            exit 1
+          }
+
+          if [[ ! -f console/package.json ]]; then
+            echo "::error::console/package.json is missing"
+            exit 1
+          fi
+
+          CONSOLE_VERSION=$(jq -r '.version // empty' console/package.json)
+          if [[ -z "$CONSOLE_VERSION" ]]; then
+            echo "::error::console/package.json version must not be empty"
+            exit 1
+          fi
+
+          echo "✅ Version metadata validated"
 
   # ── Python Backend Checks ──
   python-ci:
@@ -149,6 +267,43 @@ jobs:
             echo "⚠️ No test script configured — skipping"
           fi
 
+  # ── CLI Checks ──
+  cli-ci:
+    name: CLI CI
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: cli/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check
+        run: |
+          python -m compileall -q .
+
+      - name: Optional unit tests
+        run: |
+          if python -m unittest discover -p 'test*.py' -v; then
+            echo "✅ CLI tests passed"
+          else
+            echo "::warning::CLI tests failed or are not unittest-compatible"
+          fi
+
   # ── Dockerfile Lint ──
   dockerfile-lint:
     name: Dockerfile Lint
@@ -178,24 +333,782 @@ jobs:
           find scripts/ install/ -type f \( -name "*.sh" -o -executable \) -print0 | \
             xargs -0 -I{} sh -c 'echo "Checking {}" && shellcheck -e SC1091,SC2034 "{}" || true'
 
+  # ── App Store artifact validator smoke checks ──
+  appstore-artifact-ci:
+    name: App Store Artifact CI
+    needs: changes
+    if: needs.changes.outputs.appstore_data == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validator dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq rsync wget zip
+
+      - name: Smoke test AppHub appstore sync entrypoints
+        run: |
+          set -euo pipefail
+          cd apphub
+          python3 -m pytest -q -o addopts='' tests/test_apphub_cli_upgrade.py tests/test_appstore_sync_manager_versions.py
+
+      - name: Smoke test catalog artifact validator
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          mkdir -p "$tmpdir/../library"
+          printf 'demo artifact\n' > "$tmpdir/catalog-dev.zip"
+          sha256sum "$tmpdir/catalog-dev.zip" | awk '{print $1}' > "$tmpdir/catalog-dev.zip.sha256"
+          printf 'legacy media payload\n' > "$tmpdir/media-dev.zip"
+          sha256sum "$tmpdir/media-dev.zip" | awk '{print $1}' > "$tmpdir/media-dev.zip.sha256"
+          printf 'library payload\n' > "$tmpdir/../library/library-dev.zip"
+          sha256sum "$tmpdir/../library/library-dev.zip" | awk '{print $1}' > "$tmpdir/../library/library-dev.zip.sha256"
+          cat > "$tmpdir/../library/apps-index.json" <<'EOF'
+          {"schemaVersion":"1","datasetVersion":"2026.06.05.120000","generatedAt":"2026-06-05T12:00:00Z","apps":[{"key":"mysql"}]}
+          EOF
+          sha256sum "$tmpdir/../library/apps-index.json" | awk '{print $1}' > "$tmpdir/../library/apps-index.json.sha256"
+          cat > "$tmpdir/../library/library-delta-bootstrap-to-2026.06.05.120000.json" <<'EOF'
+          {"scope":"library","mode":"bootstrap","fromVersion":"bootstrap","toVersion":"2026.06.05.120000","changedApps":["mysql"],"generatedAt":"2026-06-05T12:00:00Z"}
+          EOF
+          sha256sum "$tmpdir/../library/library-delta-bootstrap-to-2026.06.05.120000.json" | awk '{print $1}' > "$tmpdir/../library/library-delta-bootstrap-to-2026.06.05.120000.json.sha256"
+          cat > "$tmpdir/../library/apps-delta-bootstrap-to-2026.06.05.120000.json" <<'EOF'
+          {"scope":"apps","mode":"bootstrap","fromVersion":"bootstrap","toVersion":"2026.06.05.120000","addedApps":["mysql"],"removedApps":[],"changedApps":[],"generatedAt":"2026-06-05T12:00:00Z"}
+          EOF
+          sha256sum "$tmpdir/../library/apps-delta-bootstrap-to-2026.06.05.120000.json" | awk '{print $1}' > "$tmpdir/../library/apps-delta-bootstrap-to-2026.06.05.120000.json.sha256"
+          cat > "$tmpdir/catalog-delta-bootstrap-to-2026.06.05.120000.json" <<'EOF'
+          {
+            "entity": "catalog",
+            "mode": "diff",
+            "fromVersion": "bootstrap",
+            "toVersion": "2026.06.05.120000",
+            "generatedAt": "2026-06-05T12:00:00Z"
+          }
+          EOF
+          sha256sum "$tmpdir/catalog-delta-bootstrap-to-2026.06.05.120000.json" | awk '{print $1}' > "$tmpdir/catalog-delta-bootstrap-to-2026.06.05.120000.json.sha256"
+          cat > "$tmpdir/product-delta-bootstrap-to-2026.06.05.120000.json" <<'EOF'
+          {
+            "entity": "product",
+            "mode": "diff",
+            "fromVersion": "bootstrap",
+            "toVersion": "2026.06.05.120000",
+            "generatedAt": "2026-06-05T12:00:00Z"
+          }
+          EOF
+          sha256sum "$tmpdir/product-delta-bootstrap-to-2026.06.05.120000.json" | awk '{print $1}' > "$tmpdir/product-delta-bootstrap-to-2026.06.05.120000.json.sha256"
+          cat > "$tmpdir/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.120000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {
+              "library": "../library/library-delta-bootstrap-to-2026.06.05.120000.json",
+              "apps": "../library/apps-delta-bootstrap-to-2026.06.05.120000.json"
+            },
+            "legacyMediaArchive": "media-dev.zip",
+            "deltaFiles": {
+              "catalog": "catalog-delta-bootstrap-to-2026.06.05.120000.json",
+              "product": "product-delta-bootstrap-to-2026.06.05.120000.json"
+            },
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta-bootstrap-to-2026.06.05.120000.json.sha256",
+              "appsDelta": "../library/apps-delta-bootstrap-to-2026.06.05.120000.json.sha256",
+              "legacyMediaArchive": "media-dev.zip.sha256",
+              "catalogDelta": "catalog-delta-bootstrap-to-2026.06.05.120000.json.sha256",
+              "productDelta": "product-delta-bootstrap-to-2026.06.05.120000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "legacyMediaPackage": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T12:00:00Z"
+          }
+          EOF
+          bash scripts/validate_appstore_catalog_artifact.sh "$tmpdir"
+
+      - name: Smoke test release catalog artifact validator
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          mkdir -p "$tmpdir/../library"
+          printf 'release artifact\n' > "$tmpdir/catalog.zip"
+          sha256sum "$tmpdir/catalog.zip" | awk '{print $1}' > "$tmpdir/catalog.zip.sha256"
+          printf 'release media payload\n' > "$tmpdir/media-latest.zip"
+          sha256sum "$tmpdir/media-latest.zip" | awk '{print $1}' > "$tmpdir/media-latest.zip.sha256"
+          printf 'library payload\n' > "$tmpdir/../library/library-latest.zip"
+          sha256sum "$tmpdir/../library/library-latest.zip" | awk '{print $1}' > "$tmpdir/../library/library-latest.zip.sha256"
+          cat > "$tmpdir/../library/app-store-install-metadata.json" <<'EOF'
+          {"initial_apps":[],"apps":{"mysql":{"settings":{},"is_web_app":false}}}
+          EOF
+          sha256sum "$tmpdir/../library/app-store-install-metadata.json" | awk '{print $1}' > "$tmpdir/../library/app-store-install-metadata.json.sha256"
+          cat > "$tmpdir/../library/apps-index.json" <<'EOF'
+          {"schemaVersion":"1","datasetVersion":"2026.06.05.170000","generatedAt":"2026-06-05T17:00:00Z","apps":[{"key":"mysql"}]}
+          EOF
+          sha256sum "$tmpdir/../library/apps-index.json" | awk '{print $1}' > "$tmpdir/../library/apps-index.json.sha256"
+          cat > "$tmpdir/../library/library-delta-bootstrap-to-2026.06.05.170000.json" <<'EOF'
+          {"scope":"library","mode":"bootstrap","fromVersion":"bootstrap","toVersion":"2026.06.05.170000","changedApps":["mysql"],"generatedAt":"2026-06-05T17:00:00Z"}
+          EOF
+          sha256sum "$tmpdir/../library/library-delta-bootstrap-to-2026.06.05.170000.json" | awk '{print $1}' > "$tmpdir/../library/library-delta-bootstrap-to-2026.06.05.170000.json.sha256"
+          cat > "$tmpdir/../library/apps-delta-bootstrap-to-2026.06.05.170000.json" <<'EOF'
+          {"scope":"apps","mode":"bootstrap","fromVersion":"bootstrap","toVersion":"2026.06.05.170000","addedApps":["mysql"],"removedApps":[],"changedApps":[],"generatedAt":"2026-06-05T17:00:00Z"}
+          EOF
+          sha256sum "$tmpdir/../library/apps-delta-bootstrap-to-2026.06.05.170000.json" | awk '{print $1}' > "$tmpdir/../library/apps-delta-bootstrap-to-2026.06.05.170000.json.sha256"
+          cat > "$tmpdir/catalog-delta-bootstrap-to-2026.06.05.170000.json" <<'EOF'
+          {
+            "entity": "catalog",
+            "mode": "diff",
+            "fromVersion": "bootstrap",
+            "toVersion": "2026.06.05.170000",
+            "generatedAt": "2026-06-05T17:00:00Z"
+          }
+          EOF
+          sha256sum "$tmpdir/catalog-delta-bootstrap-to-2026.06.05.170000.json" | awk '{print $1}' > "$tmpdir/catalog-delta-bootstrap-to-2026.06.05.170000.json.sha256"
+          cat > "$tmpdir/product-delta-bootstrap-to-2026.06.05.170000.json" <<'EOF'
+          {
+            "entity": "product",
+            "mode": "diff",
+            "fromVersion": "bootstrap",
+            "toVersion": "2026.06.05.170000",
+            "generatedAt": "2026-06-05T17:00:00Z"
+          }
+          EOF
+          sha256sum "$tmpdir/product-delta-bootstrap-to-2026.06.05.170000.json" | awk '{print $1}' > "$tmpdir/product-delta-bootstrap-to-2026.06.05.170000.json.sha256"
+          cat > "$tmpdir/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.170000",
+            "channel": "release",
+            "catalogArchive": "catalog.zip",
+            "libraryPackage": "../library/library-latest.zip",
+            "installMetadata": "../library/app-store-install-metadata.json",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {
+              "library": "../library/library-delta-bootstrap-to-2026.06.05.170000.json",
+              "apps": "../library/apps-delta-bootstrap-to-2026.06.05.170000.json"
+            },
+            "legacyMediaArchive": "media-latest.zip",
+            "deltaFiles": {
+              "catalog": "catalog-delta-bootstrap-to-2026.06.05.170000.json",
+              "product": "product-delta-bootstrap-to-2026.06.05.170000.json"
+            },
+            "checksum": {
+              "catalogArchive": "catalog.zip.sha256",
+              "libraryPackage": "../library/library-latest.zip.sha256",
+              "installMetadata": "../library/app-store-install-metadata.json.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta-bootstrap-to-2026.06.05.170000.json.sha256",
+              "appsDelta": "../library/apps-delta-bootstrap-to-2026.06.05.170000.json.sha256",
+              "legacyMediaArchive": "media-latest.zip.sha256",
+              "catalogDelta": "catalog-delta-bootstrap-to-2026.06.05.170000.json.sha256",
+              "productDelta": "product-delta-bootstrap-to-2026.06.05.170000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "legacyMediaPackage": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T17:00:00Z"
+          }
+          EOF
+          bash scripts/validate_appstore_catalog_artifact.sh "$tmpdir"
+
+      - name: Smoke test app-store json delta helper
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          cat > "$tmpdir/previous.json" <<'EOF'
+          [
+            {"key": "mysql", "title": "MySQL"},
+            {"key": "redis", "title": "Redis"}
+          ]
+          EOF
+          cat > "$tmpdir/current.json" <<'EOF'
+          [
+            {"key": "mysql", "title": "MySQL Community"},
+            {"key": "nginx", "title": "Nginx"}
+          ]
+          EOF
+          bash scripts/generate_appstore_json_delta.sh \
+            --current "$tmpdir/current.json" \
+            --previous "$tmpdir/previous.json" \
+            --output "$tmpdir/delta.json" \
+            --entity product \
+            --from-version 2026.06.05.120000 \
+            --to-version 2026.06.05.130000 \
+            --generated-at 2026-06-05T13:00:00Z
+          jq -e '.addedKeys == ["nginx"]' "$tmpdir/delta.json" >/dev/null
+          jq -e '.removedKeys == ["redis"]' "$tmpdir/delta.json" >/dev/null
+          jq -e '.changedKeys == ["mysql"]' "$tmpdir/delta.json" >/dev/null
+
+      - name: Smoke test library artifact validator
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          mkdir -p "$tmpdir/library/apps/mysql"
+          cat > "$tmpdir/library/apps/mysql/variables.json" <<'EOF'
+          {
+            "edition": [
+              {"dist": "community", "version": "8.0"},
+              {"dist": "enterprise", "version": "8.4"}
+            ]
+          }
+          EOF
+          bash scripts/validate_appstore_library_artifact.sh "$tmpdir/library"
+
+      - name: Smoke test library metadata validator
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          printf 'library payload\n' > "$tmpdir/library-dev.zip"
+          sha256sum "$tmpdir/library-dev.zip" | awk '{print $1}' > "$tmpdir/library-dev.zip.sha256"
+          cat > "$tmpdir/app-store-install-metadata.json" <<'EOF'
+          {
+            "initial_apps": [],
+            "apps": {
+              "mysql": {
+                "settings": {},
+                "is_web_app": true
+              }
+            }
+          }
+          EOF
+          sha256sum "$tmpdir/app-store-install-metadata.json" | awk '{print $1}' > "$tmpdir/app-store-install-metadata.json.sha256"
+          cat > "$tmpdir/apps-index.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.140000",
+            "generatedAt": "2026-06-05T14:00:00Z",
+            "apps": [
+              {"key": "mysql"}
+            ]
+          }
+          EOF
+          sha256sum "$tmpdir/apps-index.json" | awk '{print $1}' > "$tmpdir/apps-index.json.sha256"
+          cat > "$tmpdir/library-delta-bootstrap-to-2026.06.05.140000.json" <<'EOF'
+          {
+            "scope": "library",
+            "mode": "bootstrap",
+            "fromVersion": "bootstrap",
+            "toVersion": "2026.06.05.140000",
+            "changedApps": ["mysql"],
+            "generatedAt": "2026-06-05T14:00:00Z"
+          }
+          EOF
+          sha256sum "$tmpdir/library-delta-bootstrap-to-2026.06.05.140000.json" | awk '{print $1}' > "$tmpdir/library-delta-bootstrap-to-2026.06.05.140000.json.sha256"
+          cat > "$tmpdir/apps-delta-bootstrap-to-2026.06.05.140000.json" <<'EOF'
+          {
+            "scope": "apps",
+            "mode": "bootstrap",
+            "fromVersion": "bootstrap",
+            "toVersion": "2026.06.05.140000",
+            "addedApps": ["mysql"],
+            "removedApps": [],
+            "changedApps": [],
+            "generatedAt": "2026-06-05T14:00:00Z"
+          }
+          EOF
+          sha256sum "$tmpdir/apps-delta-bootstrap-to-2026.06.05.140000.json" | awk '{print $1}' > "$tmpdir/apps-delta-bootstrap-to-2026.06.05.140000.json.sha256"
+          cat > "$tmpdir/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.140000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "installMetadata": "app-store-install-metadata.json",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {
+              "library": "library-delta-bootstrap-to-2026.06.05.140000.json",
+              "apps": "apps-delta-bootstrap-to-2026.06.05.140000.json"
+            },
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256",
+              "installMetadata": "app-store-install-metadata.json.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta-bootstrap-to-2026.06.05.140000.json.sha256",
+              "appsDelta": "apps-delta-bootstrap-to-2026.06.05.140000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "appLevelArtifacts": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T14:00:00Z"
+          }
+          EOF
+          bash scripts/validate_appstore_library_metadata.sh "$tmpdir"
+
+      - name: Smoke test install metadata generator
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          mkdir -p "$tmpdir/library/apps/mysql"
+          cat > "$tmpdir/library/apps/mysql/.env" <<'EOF'
+          W9_URL=https://mysql.example.com
+          W9_HTTP_PORT_SET=8080
+          W9_ADMIN_PORT_SET=${W9_HTTP_PORT_SET}
+          EOF
+          cat > "$tmpdir/config.ini" <<'EOF'
+          [initial_apps]
+          keys = mysql,redis
+          EOF
+          python3 scripts/generate_appstore_install_metadata.py \
+            --library-root "$tmpdir/library/apps" \
+            --config-path "$tmpdir/config.ini" \
+            --output "$tmpdir/app-store-install-metadata.json"
+          jq -e '.initial_apps == ["mysql","redis"]' "$tmpdir/app-store-install-metadata.json" >/dev/null
+          jq -e '.apps.mysql.is_web_app == true' "$tmpdir/app-store-install-metadata.json" >/dev/null
+          jq -e '.apps.mysql.settings.W9_ADMIN_PORT_SET == "8080"' "$tmpdir/app-store-install-metadata.json" >/dev/null
+
+      - name: Smoke test library app index helper
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          mkdir -p "$tmpdir/library/apps/mysql"
+          cat > "$tmpdir/library/apps/mysql/variables.json" <<'EOF'
+          {
+            "edition": [
+              {"dist": "community", "version": "8.0"}
+            ]
+          }
+          EOF
+          cat > "$tmpdir/library/apps/mysql/.env" <<'EOF'
+          W9_URL=http://mysql.example.com
+          EOF
+          bash scripts/generate_appstore_library_index.sh \
+            --library-root "$tmpdir/library" \
+            --output-dir "$tmpdir/output" \
+            --dataset-version 2026.06.05.150000 \
+            --generated-at 2026-06-05T15:00:00Z
+          test -f "$tmpdir/output/apps-index-2026.06.05.150000.json"
+          test -f "$tmpdir/output/apps/mysql/bundle-2026.06.05.150000.zip"
+          test -f "$tmpdir/output/apps/mysql/variables-2026.06.05.150000.json"
+          test -f "$tmpdir/output/apps/mysql/env-2026.06.05.150000.env"
+          jq -e '.apps | length == 1' "$tmpdir/output/apps-index-2026.06.05.150000.json" >/dev/null
+          jq -e '.apps[0].key == "mysql"' "$tmpdir/output/apps-index-2026.06.05.150000.json" >/dev/null
+
+      - name: Smoke test library delta helper
+        run: |
+          set -euo pipefail
+          tmpdir=$(mktemp -d)
+          cat > "$tmpdir/previous.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.150000",
+            "generatedAt": "2026-06-05T15:00:00Z",
+            "apps": [
+              {"key": "mysql", "bundle": "apps/mysql/bundle-1.zip"},
+              {"key": "redis", "bundle": "apps/redis/bundle-1.zip"}
+            ]
+          }
+          EOF
+          cat > "$tmpdir/current.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.160000",
+            "generatedAt": "2026-06-05T16:00:00Z",
+            "apps": [
+              {"key": "mysql", "bundle": "apps/mysql/bundle-2.zip"},
+              {"key": "nginx", "bundle": "apps/nginx/bundle-2.zip"}
+            ]
+          }
+          EOF
+          bash scripts/generate_appstore_library_delta.sh \
+            --current-index "$tmpdir/current.json" \
+            --previous-index "$tmpdir/previous.json" \
+            --output-dir "$tmpdir/output" \
+            --from-version 2026.06.05.150000 \
+            --to-version 2026.06.05.160000 \
+            --generated-at 2026-06-05T16:00:00Z
+          jq -e '.changedApps == ["mysql", "nginx", "redis"]' "$tmpdir/output/library-delta-2026.06.05.150000-to-2026.06.05.160000.json" >/dev/null
+          jq -e '.addedApps == ["nginx"]' "$tmpdir/output/apps-delta-2026.06.05.150000-to-2026.06.05.160000.json" >/dev/null
+          jq -e '.removedApps == ["redis"]' "$tmpdir/output/apps-delta-2026.06.05.150000-to-2026.06.05.160000.json" >/dev/null
+          jq -e '.changedApps == ["mysql"]' "$tmpdir/output/apps-delta-2026.06.05.150000-to-2026.06.05.160000.json" >/dev/null
+
+      - name: Smoke test shared dataset manifest validator
+        run: |
+          set -euo pipefail
+          tmp_catalog=$(mktemp -d)
+          tmp_library=$(mktemp -d)
+          cat > "$tmp_catalog/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.160000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {
+              "library": "../library/library-delta-bootstrap-to-2026.06.05.160000.json",
+              "apps": "../library/apps-delta-bootstrap-to-2026.06.05.160000.json"
+            },
+            "legacyMediaArchive": "media-dev.zip",
+            "deltaFiles": {
+              "catalog": "catalog-delta-bootstrap-to-2026.06.05.160000.json",
+              "product": "product-delta-bootstrap-to-2026.06.05.160000.json"
+            },
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta-bootstrap-to-2026.06.05.160000.json.sha256",
+              "appsDelta": "../library/apps-delta-bootstrap-to-2026.06.05.160000.json.sha256",
+              "legacyMediaArchive": "media-dev.zip.sha256",
+              "catalogDelta": "catalog-delta-bootstrap-to-2026.06.05.160000.json.sha256",
+              "productDelta": "product-delta-bootstrap-to-2026.06.05.160000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "legacyMediaPackage": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T16:00:00Z"
+          }
+          EOF
+          cat > "$tmp_library/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.160000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {
+              "library": "library-delta-bootstrap-to-2026.06.05.160000.json",
+              "apps": "apps-delta-bootstrap-to-2026.06.05.160000.json"
+            },
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta-bootstrap-to-2026.06.05.160000.json.sha256",
+              "appsDelta": "apps-delta-bootstrap-to-2026.06.05.160000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "appLevelArtifacts": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T16:00:00Z"
+          }
+          EOF
+          bash scripts/validate_appstore_dataset_manifests.sh "$tmp_catalog/manifest.json" "$tmp_library/manifest.json"
+          
+      - name: Smoke test dataset manifest switch helper
+        run: |
+          set -euo pipefail
+          base=$(mktemp -d)
+          mkdir -p "$base/catalog" "$base/library"
+          cat > "$base/catalog/manifest-2026.06.05.180000.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.180000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T18:00:00Z"
+          }
+          EOF
+          cat > "$base/library/manifest-2026.06.05.180000.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.180000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T18:00:00Z"
+          }
+          EOF
+          bash scripts/switch_appstore_dataset_manifest.sh --catalog-dir "$base/catalog" --library-dir "$base/library" --dataset-version 2026.06.05.180000
+
+      - name: Smoke test dataset version listing helper
+        run: |
+          set -euo pipefail
+          base=$(mktemp -d)
+          mkdir -p "$base/catalog" "$base/library"
+          touch "$base/catalog/manifest-2026.06.05.180000.json"
+          touch "$base/catalog/manifest-2026.06.05.190000.json"
+          touch "$base/library/manifest-2026.06.05.180000.json"
+          touch "$base/library/manifest-2026.06.05.200000.json"
+          result=$(bash scripts/list_appstore_dataset_versions.sh --catalog-dir "$base/catalog" --library-dir "$base/library")
+          [[ "$result" == "2026.06.05.180000" ]]
+
+      - name: Smoke test remote-capable dataset hotfix helper
+        run: |
+          set -euo pipefail
+          root=$(mktemp -d)
+          mkdir -p "$root/dev/websoft9/plugin/catalog" "$root/dev/websoft9/plugin/library"
+          cat > "$root/dev/websoft9/plugin/catalog/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.180000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T18:00:00Z"
+          }
+          EOF
+          cp "$root/dev/websoft9/plugin/catalog/manifest.json" "$root/dev/websoft9/plugin/catalog/manifest-2026.06.05.180000.json"
+          cat > "$root/dev/websoft9/plugin/library/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.180000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T18:00:00Z"
+          }
+          EOF
+          cp "$root/dev/websoft9/plugin/library/manifest.json" "$root/dev/websoft9/plugin/library/manifest-2026.06.05.180000.json"
+          cat > "$root/dev/websoft9/plugin/catalog/manifest-2026.06.05.190000.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.190000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T19:00:00Z"
+          }
+          EOF
+          cat > "$root/dev/websoft9/plugin/library/manifest-2026.06.05.190000.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.190000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T19:00:00Z"
+          }
+          EOF
+          result=$(bash scripts/appstore_dataset_hotfix_helper.sh --mode list --channel dev --local-root "$root")
+          printf '%s\n' "$result" | grep -q 'Shared historical dataset versions:'
+          plan=$(bash scripts/appstore_dataset_hotfix_helper.sh --mode plan --channel dev --dataset-version 2026.06.05.190000 --local-root "$root")
+          printf '%s\n' "$plan" | grep -q 'Plan only. No manifest files were changed.'
+
+      - name: Smoke test v2 dataset hotfix helper
+        run: |
+          set -euo pipefail
+          root=$(mktemp -d)
+          mkdir -p "$root/websoft9/v2/dev/appstore/catalog" "$root/websoft9/v2/dev/appstore/library"
+          cat > "$root/websoft9/v2/dev/appstore/catalog/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.180000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {
+              "library": "../library/library-delta-bootstrap-to-2026.06.05.180000.json",
+              "apps": "../library/apps-delta-bootstrap-to-2026.06.05.180000.json"
+            },
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta-bootstrap-to-2026.06.05.180000.json.sha256",
+              "appsDelta": "../library/apps-delta-bootstrap-to-2026.06.05.180000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "legacyMediaPackage": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T18:00:00Z"
+          }
+          EOF
+          cp "$root/websoft9/v2/dev/appstore/catalog/manifest.json" "$root/websoft9/v2/dev/appstore/catalog/manifest-2026.06.05.180000.json"
+          cat > "$root/websoft9/v2/dev/appstore/library/manifest.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.180000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {
+              "library": "library-delta-bootstrap-to-2026.06.05.180000.json",
+              "apps": "apps-delta-bootstrap-to-2026.06.05.180000.json"
+            },
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta-bootstrap-to-2026.06.05.180000.json.sha256",
+              "appsDelta": "apps-delta-bootstrap-to-2026.06.05.180000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "appLevelArtifacts": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T18:00:00Z"
+          }
+          EOF
+          cp "$root/websoft9/v2/dev/appstore/library/manifest.json" "$root/websoft9/v2/dev/appstore/library/manifest-2026.06.05.180000.json"
+          cat > "$root/websoft9/v2/dev/appstore/catalog/manifest-2026.06.05.190000.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.190000",
+            "channel": "dev",
+            "catalogArchive": "catalog-dev.zip",
+            "libraryPackage": "../library/library-dev.zip",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {
+              "library": "../library/library-delta-2026.06.05.180000-to-2026.06.05.190000.json",
+              "apps": "../library/apps-delta-2026.06.05.180000-to-2026.06.05.190000.json"
+            },
+            "checksum": {
+              "catalogArchive": "catalog-dev.zip.sha256",
+              "libraryPackage": "../library/library-dev.zip.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta-2026.06.05.180000-to-2026.06.05.190000.json.sha256",
+              "appsDelta": "../library/apps-delta-2026.06.05.180000-to-2026.06.05.190000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "legacyMediaPackage": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T19:00:00Z"
+          }
+          EOF
+          cat > "$root/websoft9/v2/dev/appstore/library/manifest-2026.06.05.190000.json" <<'EOF'
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.06.05.190000",
+            "channel": "dev",
+            "libraryPackage": "library-dev.zip",
+            "appsIndex": "apps-index.json",
+            "deltaFiles": {
+              "library": "library-delta-2026.06.05.180000-to-2026.06.05.190000.json",
+              "apps": "apps-delta-2026.06.05.180000-to-2026.06.05.190000.json"
+            },
+            "checksum": {
+              "libraryPackage": "library-dev.zip.sha256",
+              "appsIndex": "apps-index.json.sha256",
+              "libraryDelta": "library-delta-2026.06.05.180000-to-2026.06.05.190000.json.sha256",
+              "appsDelta": "apps-delta-2026.06.05.180000-to-2026.06.05.190000.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "appLevelArtifacts": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "2026-06-05T19:00:00Z"
+          }
+          EOF
+          result=$(bash scripts/appstore_dataset_hotfix_helper.sh --mode list --layout v2 --channel dev --local-root "$root")
+          printf '%s\n' "$result" | grep -q 'Shared historical dataset versions:'
+          plan=$(bash scripts/appstore_dataset_hotfix_helper.sh --mode plan --layout v2 --channel dev --dataset-version 2026.06.05.190000 --local-root "$root")
+          printf '%s\n' "$plan" | grep -q 'Plan only. No manifest files were changed.'
+
+      - name: Smoke test legacy update_zip checksum flow
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          mkdir -p "$tmp/release/websoft9/plugin/media" "$tmp/release/websoft9/plugin/library" "$tmp/payload/media/json" "$tmp/payload/library/apps/mysql" "$tmp/out-media" "$tmp/out-library"
+          printf '{"ok":true}\n' > "$tmp/payload/media/json/product_en.json"
+          printf 'MYSQL_OK=1\n' > "$tmp/payload/library/apps/mysql/.env"
+          (
+            cd "$tmp/payload"
+            zip -qr "$tmp/release/websoft9/plugin/media/media-latest.zip" media
+            zip -qr "$tmp/release/websoft9/plugin/library/library-latest.zip" library
+          )
+          sha256sum "$tmp/release/websoft9/plugin/media/media-latest.zip" | awk '{print $1}' > "$tmp/release/websoft9/plugin/media/media-latest.zip.sha256"
+          sha256sum "$tmp/release/websoft9/plugin/library/library-latest.zip" | awk '{print $1}' > "$tmp/release/websoft9/plugin/library/library-latest.zip.sha256"
+
+          env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
+            python3 -m http.server 18766 --bind 127.0.0.1 --directory "$tmp" >/tmp/websoft9-update-zip-http-checksum.log 2>&1 &
+          server_pid=$!
+          trap 'kill $server_pid >/dev/null 2>&1; rm -rf "$tmp"' EXIT
+
+          env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
+            WEBSOFT9_ARTIFACT_BASE="http://127.0.0.1:18766" \
+            bash scripts/update_zip.sh --channel release --package_name media-latest.zip --sync_to "$tmp/out-media"
+
+          env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY -u all_proxy -u ALL_PROXY \
+            WEBSOFT9_ARTIFACT_BASE="http://127.0.0.1:18766" \
+            bash scripts/update_zip.sh --channel release --package_name library-latest.zip --sync_to "$tmp/out-library"
+
+          test -f "$tmp/out-media/json/product_en.json"
+          test -f "$tmp/out-library/apps/mysql/.env"
+
   # ── Summary Gate ──
   summary:
     name: PR Check Summary
     runs-on: ubuntu-latest
-    needs: [secret-scan, python-ci, console-ci, dockerfile-lint, shellcheck]
+    needs: [governance-check, secret-scan, version-consistency, python-ci, console-ci, cli-ci, dockerfile-lint, shellcheck, appstore-artifact-ci]
     if: always()
     steps:
       - name: Evaluate results
         run: |
           echo "=== PR Check Results ==="
+          echo "Governance:     ${{ needs.governance-check.result }}"
           echo "Secret Scan:    ${{ needs.secret-scan.result }}"
+          echo "Version Check:  ${{ needs.version-consistency.result }}"
           echo "Python CI:      ${{ needs.python-ci.result }}"
           echo "Console CI:     ${{ needs.console-ci.result }}"
+          echo "CLI CI:         ${{ needs.cli-ci.result }}"
           echo "Dockerfile Lint:${{ needs.dockerfile-lint.result }}"
           echo "ShellCheck:     ${{ needs.shellcheck.result }}"
+          echo "AppStore CI:    ${{ needs.appstore-artifact-ci.result }}"
 
           FAIL=false
-          for job in secret-scan python-ci console-ci dockerfile-lint shellcheck; do
+          for job in governance-check secret-scan version-consistency python-ci console-ci cli-ci dockerfile-lint shellcheck appstore-artifact-ci; do
             result="${{ needs[job].result }}"
             if [[ "$result" == "failure" ]] || [[ "$result" == "cancelled" ]]; then
               echo "❌ $job: $result"

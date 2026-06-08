@@ -8,8 +8,14 @@ on:
         description: Release channel
         options:
           - release
+          - rc
           - dev
         default: release
+  workflow_call:
+    inputs:
+      channel:
+        required: true
+        type: string
   repository_dispatch:
     types: [media_dev_event]
 
@@ -31,19 +37,56 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
             echo "channel=dev" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_call" ]]; then
+            echo "channel=${{ inputs.channel }}" >> $GITHUB_OUTPUT
           else
             echo "channel=${{ github.event.inputs.channel }}" >> $GITHUB_OUTPUT
           fi
+
+      - name: Set dataset metadata
+        id: dataset
+        run: |
+          DATASET_VERSION="$(date -u +%Y.%m.%d.%H%M%S)"
+          GENERATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "dataset_version=${DATASET_VERSION}" >> $GITHUB_OUTPUT
+          echo "generated_at=${GENERATED_AT}" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip rsync jq
+
       - name: Install AWS CLI
         run: |
           python -m pip install --upgrade pip
           pip install awscli
+
+      - name: Restore previous catalog metadata if present
+        id: previous_catalog
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          mkdir -p previous/catalog
+
+          if aws s3 cp "s3://artifact/${CHANNEL}/websoft9/plugin/catalog/manifest.json" previous/catalog/manifest.json --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"; then
+            PREVIOUS_DATASET_VERSION=$(jq -r '.datasetVersion // empty' previous/catalog/manifest.json)
+            echo "dataset_version=$PREVIOUS_DATASET_VERSION" >> $GITHUB_OUTPUT
+            for name in catalog_zh.json catalog_en.json product_zh.json product_en.json; do
+              aws s3 cp "s3://artifact/${CHANNEL}/websoft9/plugin/catalog/${name}" "previous/catalog/${name}" --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com" || true
+            done
+          else
+            echo "dataset_version=" >> $GITHUB_OUTPUT
+            echo "No previous catalog manifest found for channel ${CHANNEL}; bootstrap deltas will be generated."
+          fi
 
       # ── Shared: Fetch catalog data ──
       - name: Fetch catalog data from Contentful
@@ -87,16 +130,121 @@ jobs:
              echo ${ITEMS[@]} | jq -s '.' > $DATA_DIR/product_${LOCALE:0:2}.json
            done
 
-      # ── Dev only: Download library and merge version data ──
-      - name: Download library data and merge versions (dev only)
-        if: steps.channel.outputs.channel == 'dev'
+      # ── Shared: Download library and merge version data ──
+      - name: Download library data and merge versions
+        id: library
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          aws s3 cp s3://artifact/dev/websoft9/plugin/library/library-dev.zip ./ --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
-          unzip -o library-dev.zip -d ./library-dev/
+          set -euo pipefail
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          SOURCE_LIBRARY_CHANNEL="$CHANNEL"
+          if [[ "$CHANNEL" == "dev" ]]; then
+            LIBRARY_PACKAGE="library-dev.zip"
+          else
+            LIBRARY_PACKAGE="library-latest.zip"
+          fi
+          SOURCE_LIBRARY_PACKAGE="$LIBRARY_PACKAGE"
+
+          mkdir -p previous/library
+          if aws s3 cp "s3://artifact/${CHANNEL}/websoft9/plugin/library/manifest.json" previous/library/manifest.json --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"; then
+            PREVIOUS_LIBRARY_DATASET_VERSION=$(jq -r '.datasetVersion // empty' previous/library/manifest.json)
+            echo "previous_dataset_version=$PREVIOUS_LIBRARY_DATASET_VERSION" >> $GITHUB_OUTPUT
+            aws s3 cp "s3://artifact/${CHANNEL}/websoft9/plugin/library/apps-index.json" previous/library/apps-index.json --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com" || true
+          elif [[ "$CHANNEL" != "dev" ]] && aws s3 cp "s3://artifact/dev/websoft9/plugin/library/manifest.json" previous/library/manifest.json --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"; then
+            PREVIOUS_LIBRARY_DATASET_VERSION=$(jq -r '.datasetVersion // empty' previous/library/manifest.json)
+            echo "previous_dataset_version=$PREVIOUS_LIBRARY_DATASET_VERSION" >> $GITHUB_OUTPUT
+            aws s3 cp "s3://artifact/dev/websoft9/plugin/library/apps-index.json" previous/library/apps-index.json --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com" || true
+            echo "No previous library manifest found for channel ${CHANNEL}; using dev manifest as bootstrap baseline."
+          else
+            echo "previous_dataset_version=" >> $GITHUB_OUTPUT
+            echo "No previous library manifest found; bootstrap library deltas will be generated."
+          fi
+
+          if aws s3 cp "s3://artifact/${CHANNEL}/websoft9/plugin/library/${LIBRARY_PACKAGE}" ./source-library.zip --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"; then
+            SOURCE_LIBRARY_CHANNEL="$CHANNEL"
+            SOURCE_LIBRARY_PACKAGE="$LIBRARY_PACKAGE"
+          elif [[ "$CHANNEL" != "dev" ]] && aws s3 cp "s3://artifact/dev/websoft9/plugin/library/library-dev.zip" ./source-library.zip --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"; then
+            SOURCE_LIBRARY_CHANNEL="dev"
+            SOURCE_LIBRARY_PACKAGE="library-dev.zip"
+            echo "No ${LIBRARY_PACKAGE} found for channel ${CHANNEL}; using dev/library-dev.zip as bootstrap source."
+          else
+            echo "Unable to locate a source library package for channel ${CHANNEL}." >&2
+            exit 1
+          fi
+
+          unzip -o ./source-library.zip -d ./library-dev/
+          bash scripts/validate_appstore_library_artifact.sh ./library-dev/library
+
+          mkdir -p library-output
+          cp ./source-library.zip "library-output/${LIBRARY_PACKAGE}"
+          sha256sum "library-output/${LIBRARY_PACKAGE}" | awk '{print $1}' > "library-output/${LIBRARY_PACKAGE}.sha256"
+
+          bash scripts/generate_appstore_library_index.sh \
+            --library-root ./library-dev/library \
+            --output-dir library-output \
+            --dataset-version "${{ steps.dataset.outputs.dataset_version }}" \
+            --generated-at "${{ steps.dataset.outputs.generated_at }}"
+
+          PREVIOUS_LIBRARY_DATASET_VERSION="${PREVIOUS_LIBRARY_DATASET_VERSION:-}"
+          if [[ -z "$PREVIOUS_LIBRARY_DATASET_VERSION" ]]; then
+            PREVIOUS_LIBRARY_DATASET_VERSION="bootstrap"
+          fi
+
+          bash scripts/generate_appstore_library_delta.sh \
+            --current-index library-output/apps-index-${{ steps.dataset.outputs.dataset_version }}.json \
+            --previous-index previous/library/apps-index.json \
+            --output-dir library-output \
+            --from-version "$PREVIOUS_LIBRARY_DATASET_VERSION" \
+            --to-version "${{ steps.dataset.outputs.dataset_version }}" \
+            --generated-at "${{ steps.dataset.outputs.generated_at }}"
+
+          python3 scripts/generate_appstore_install_metadata.py \
+            --library-root ./library-dev/library/apps \
+            --config-path ./apphub/src/config/config.ini \
+            --output library-output/app-store-install-metadata.json
+
+          sha256sum "library-output/app-store-install-metadata.json" | awk '{print $1}' > "library-output/app-store-install-metadata.json.sha256"
+
+          sha256sum "library-output/library-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json" | awk '{print $1}' > "library-output/library-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256"
+          sha256sum "library-output/apps-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json" | awk '{print $1}' > "library-output/apps-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256"
+
+          cat > library-output/manifest.json <<EOF
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "${{ steps.dataset.outputs.dataset_version }}",
+            "channel": "${CHANNEL}",
+            "libraryPackage": "${LIBRARY_PACKAGE}",
+            "installMetadata": "app-store-install-metadata.json",
+            "appsIndex": "apps-index-${{ steps.dataset.outputs.dataset_version }}.json",
+            "deltaFiles": {
+              "library": "library-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json",
+              "apps": "apps-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json"
+            },
+            "checksum": {
+              "libraryPackage": "${LIBRARY_PACKAGE}.sha256",
+              "installMetadata": "app-store-install-metadata.json.sha256",
+              "appsIndex": "apps-index-${{ steps.dataset.outputs.dataset_version }}.json.sha256",
+              "libraryDelta": "library-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256",
+              "appsDelta": "apps-delta-${PREVIOUS_LIBRARY_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "appLevelArtifacts": true,
+              "schemaVersion": "1"
+            },
+            "generatedAt": "${{ steps.dataset.outputs.generated_at }}"
+          }
+          EOF
+
+          bash scripts/validate_appstore_library_metadata.sh library-output
+          cp library-output/manifest.json "library-output/manifest-${{ steps.dataset.outputs.dataset_version }}.json"
+          echo "dataset_version=${{ steps.dataset.outputs.dataset_version }}" >> $GITHUB_OUTPUT
+          echo "library_package=${LIBRARY_PACKAGE}" >> $GITHUB_OUTPUT
+          echo "source_library_channel=${SOURCE_LIBRARY_CHANNEL}" >> $GITHUB_OUTPUT
+          echo "source_library_package=${SOURCE_LIBRARY_PACKAGE}" >> $GITHUB_OUTPUT
 
           IFS=',' read -ra LOCALE_ARRAY <<< "$LOCALES"
           for LOCALE in "${LOCALE_ARRAY[@]}"; do
@@ -132,30 +280,231 @@ jobs:
       - name: Package catalog archive
         id: archive
         run: |
+          set -euo pipefail
           CHANNEL="${{ steps.channel.outputs.channel }}"
           if [[ "$CHANNEL" == "dev" ]]; then
             ARCHIVE_NAME="catalog-dev"
+            LEGACY_MEDIA_ARCHIVE="media-dev.zip"
           else
             ARCHIVE_NAME="catalog"
+            LEGACY_MEDIA_ARCHIVE="media-latest.zip"
           fi
+
+          PREVIOUS_DATASET_VERSION="${{ steps.previous_catalog.outputs.dataset_version }}"
+          if [[ -z "$PREVIOUS_DATASET_VERSION" ]]; then
+            PREVIOUS_DATASET_VERSION="bootstrap"
+          fi
+
+          LIBRARY_FIELDS=$(cat <<'EOF'
+            ,
+            "libraryPackage": "../library/__LIBRARY_PACKAGE__",
+            "installMetadata": "../library/app-store-install-metadata.json",
+            "appsIndex": "../library/apps-index.json",
+            "libraryDeltaFiles": {
+              "library": "../library/library-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json",
+              "apps": "../library/apps-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json"
+            }
+EOF
+)
+          LIBRARY_CHECKSUM_FIELDS=$(cat <<'EOF'
+              ,
+              "libraryPackage": "../library/__LIBRARY_PACKAGE__.sha256",
+              "installMetadata": "../library/app-store-install-metadata.json.sha256",
+              "appsIndex": "../library/apps-index.json.sha256",
+              "libraryDelta": "../library/library-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json.sha256",
+              "appsDelta": "../library/apps-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json.sha256"
+EOF
+)
+          LIBRARY_FIELDS="${LIBRARY_FIELDS//__LIBRARY_PACKAGE__/${{ steps.library.outputs.library_package }}}"
+          LIBRARY_FIELDS="${LIBRARY_FIELDS//__LIBRARY_FROM_VERSION__/${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}}"
+          LIBRARY_FIELDS="${LIBRARY_FIELDS//__LIBRARY_TO_VERSION__/${{ steps.dataset.outputs.dataset_version }}}"
+          LIBRARY_CHECKSUM_FIELDS="${LIBRARY_CHECKSUM_FIELDS//__LIBRARY_PACKAGE__/${{ steps.library.outputs.library_package }}}"
+          LIBRARY_CHECKSUM_FIELDS="${LIBRARY_CHECKSUM_FIELDS//__LIBRARY_FROM_VERSION__/${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}}"
+          LIBRARY_CHECKSUM_FIELDS="${LIBRARY_CHECKSUM_FIELDS//__LIBRARY_TO_VERSION__/${{ steps.dataset.outputs.dataset_version }}}"
 
           rsync -av json media
           zip -r "${ARCHIVE_NAME}.zip" media/
           mkdir -p output
           mv "${ARCHIVE_NAME}.zip" output/
-          echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
+          cp "output/${ARCHIVE_NAME}.zip" "output/${LEGACY_MEDIA_ARCHIVE}"
+          sha256sum "output/${ARCHIVE_NAME}.zip" | awk '{print $1}' > "output/${ARCHIVE_NAME}.zip.sha256"
+          sha256sum "output/${LEGACY_MEDIA_ARCHIVE}" | awk '{print $1}' > "output/${LEGACY_MEDIA_ARCHIVE}.sha256"
 
-      # ── Release: Upload as GitHub Artifact ──
-      - name: Upload catalog to GitHub Artifacts (release)
-        if: steps.channel.outputs.channel == 'release'
+          for name in catalog_zh.json catalog_en.json product_zh.json product_en.json; do
+            cp "json/${name}" "output/${name}"
+            sha256sum "output/${name}" | awk '{print $1}' > "output/${name}.sha256"
+          done
+
+          temp_delta_dir=$(mktemp -d)
+
+          bash scripts/generate_appstore_json_delta.sh \
+            --current json/catalog_zh.json \
+            --previous previous/catalog/catalog_zh.json \
+            --output "$temp_delta_dir/catalog-zh.json" \
+            --entity catalog \
+            --from-version "$PREVIOUS_DATASET_VERSION" \
+            --to-version "${{ steps.dataset.outputs.dataset_version }}" \
+            --generated-at "${{ steps.dataset.outputs.generated_at }}"
+
+          bash scripts/generate_appstore_json_delta.sh \
+            --current json/catalog_en.json \
+            --previous previous/catalog/catalog_en.json \
+            --output "$temp_delta_dir/catalog-en.json" \
+            --entity catalog \
+            --from-version "$PREVIOUS_DATASET_VERSION" \
+            --to-version "${{ steps.dataset.outputs.dataset_version }}" \
+            --generated-at "${{ steps.dataset.outputs.generated_at }}"
+
+          bash scripts/generate_appstore_json_delta.sh \
+            --current json/product_zh.json \
+            --previous previous/catalog/product_zh.json \
+            --output "$temp_delta_dir/product-zh.json" \
+            --entity product \
+            --from-version "$PREVIOUS_DATASET_VERSION" \
+            --to-version "${{ steps.dataset.outputs.dataset_version }}" \
+            --generated-at "${{ steps.dataset.outputs.generated_at }}"
+
+          bash scripts/generate_appstore_json_delta.sh \
+            --current json/product_en.json \
+            --previous previous/catalog/product_en.json \
+            --output "$temp_delta_dir/product-en.json" \
+            --entity product \
+            --from-version "$PREVIOUS_DATASET_VERSION" \
+            --to-version "${{ steps.dataset.outputs.dataset_version }}" \
+            --generated-at "${{ steps.dataset.outputs.generated_at }}"
+
+          jq -n \
+            --arg entity catalog \
+            --arg fromVersion "$PREVIOUS_DATASET_VERSION" \
+            --arg toVersion "${{ steps.dataset.outputs.dataset_version }}" \
+            --arg generatedAt "${{ steps.dataset.outputs.generated_at }}" \
+            --slurpfile zh "$temp_delta_dir/catalog-zh.json" \
+            --slurpfile en "$temp_delta_dir/catalog-en.json" \
+            '{
+              entity: $entity,
+              mode: "diff",
+              fromVersion: $fromVersion,
+              toVersion: $toVersion,
+              locales: {
+                zh: $zh[0],
+                en: $en[0]
+              },
+              generatedAt: $generatedAt
+            }' > "output/catalog-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json"
+
+          jq -n \
+            --arg entity product \
+            --arg fromVersion "$PREVIOUS_DATASET_VERSION" \
+            --arg toVersion "${{ steps.dataset.outputs.dataset_version }}" \
+            --arg generatedAt "${{ steps.dataset.outputs.generated_at }}" \
+            --slurpfile zh "$temp_delta_dir/product-zh.json" \
+            --slurpfile en "$temp_delta_dir/product-en.json" \
+            '{
+              entity: $entity,
+              mode: "diff",
+              fromVersion: $fromVersion,
+              toVersion: $toVersion,
+              locales: {
+                zh: $zh[0],
+                en: $en[0]
+              },
+              generatedAt: $generatedAt
+            }' > "output/product-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json"
+
+          rm -rf "$temp_delta_dir"
+
+          sha256sum "output/catalog-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json" | awk '{print $1}' > "output/catalog-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256"
+          sha256sum "output/product-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json" | awk '{print $1}' > "output/product-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256"
+
+          cat > output/manifest.json <<EOF
+          {
+            "schemaVersion": "1",
+            "datasetVersion": "${{ steps.dataset.outputs.dataset_version }}",
+            "channel": "${CHANNEL}",
+            "catalogArchive": "${ARCHIVE_NAME}.zip"${LIBRARY_FIELDS},
+            "legacyMediaArchive": "${LEGACY_MEDIA_ARCHIVE}",
+            "catalogFiles": [
+              "catalog_zh.json",
+              "catalog_en.json",
+              "product_zh.json",
+              "product_en.json"
+            ],
+            "deltaFiles": {
+              "catalog": "catalog-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json",
+              "product": "product-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json"
+            },
+            "compatibility": {
+              "legacyPluginPaths": true,
+              "legacyMediaPackage": true,
+              "embeddedMediaRequired": false,
+              "schemaVersion": "1"
+            },
+            "checksum": {
+              "catalogArchive": "${ARCHIVE_NAME}.zip.sha256"${LIBRARY_CHECKSUM_FIELDS},
+              "legacyMediaArchive": "${LEGACY_MEDIA_ARCHIVE}.sha256",
+              "catalogDelta": "catalog-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256",
+              "productDelta": "product-delta-${PREVIOUS_DATASET_VERSION}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256"
+            },
+            "generatedAt": "${{ steps.dataset.outputs.generated_at }}"
+          }
+          EOF
+
+          cp output/manifest.json "output/manifest-${{ steps.dataset.outputs.dataset_version }}.json"
+
+          echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
+          echo "legacy_media_archive=${LEGACY_MEDIA_ARCHIVE}" >> $GITHUB_OUTPUT
+          echo "dataset_version=${{ steps.dataset.outputs.dataset_version }}" >> $GITHUB_OUTPUT
+
+      - name: Validate catalog artifact metadata
+        run: |
+          bash scripts/validate_appstore_catalog_artifact.sh output
+
+      - name: Validate shared dataset manifests
+        run: |
+          bash scripts/validate_appstore_dataset_manifests.sh output/manifest.json library-output/manifest.json
+
+      - name: Upload catalog to GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: appstore-catalog
-          path: output/catalog.zip
+          name: appstore-catalog-${{ steps.channel.outputs.channel }}
+          path: output/
 
-      # ── Dev: Upload to Cloudflare R2 ──
-      - name: Upload catalog to Cloudflare R2 (dev)
-        if: steps.channel.outputs.channel == 'dev'
+      - name: Prepare appstore v2 bundle
+        run: |
+          set -euo pipefail
+          mkdir -p v2-output/catalog v2-output/library v2-output/manifests
+          rsync -a output/ v2-output/catalog/
+          rsync -a library-output/ v2-output/library/
+
+          cat > v2-output/manifests/appstore.json <<EOF
+          {
+            "schemaVersion": "1",
+            "productLine": "websoft9",
+            "layoutVersion": "v2",
+            "channel": "${{ steps.channel.outputs.channel }}",
+            "datasetVersion": "${{ steps.dataset.outputs.dataset_version }}",
+            "generatedAt": "${{ steps.dataset.outputs.generated_at }}",
+            "domains": {
+              "catalog": "../catalog/manifest.json",
+              "library": "../library/manifest.json"
+            },
+            "compatibility": {
+              "legacyPublishRoot": "../../${{ steps.channel.outputs.channel }}/websoft9/plugin",
+              "dualPublish": true,
+              "schemaVersion": "1"
+            }
+          }
+          EOF
+
+          cp v2-output/manifests/appstore.json "v2-output/manifests/appstore-${{ steps.dataset.outputs.dataset_version }}.json"
+
+      - name: Upload appstore v2 bundle to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: appstore-v2-${{ steps.channel.outputs.channel }}
+          path: v2-output/
+
+      - name: Upload catalog metadata to Cloudflare R2
         uses: ryand56/r2-upload-action@latest
         with:
           r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -163,12 +512,40 @@ jobs:
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
           source-dir: output
-          destination-dir: ./dev/websoft9/plugin/catalog
+          destination-dir: ./${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog
 
-      - name: Purge Cloudflare Cache (dev)
-        if: steps.channel.outputs.channel == 'dev'
+      - name: Upload legacy media package to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          aws s3 cp "output/${{ steps.archive.outputs.legacy_media_archive }}" "s3://artifact/${CHANNEL}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}" --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+          aws s3 cp "output/${{ steps.archive.outputs.legacy_media_archive }}.sha256" "s3://artifact/${CHANNEL}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}.sha256" --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+
+      - name: Upload library metadata to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          aws s3 cp library-output "s3://artifact/${CHANNEL}/websoft9/plugin/library/" --recursive --endpoint-url="https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+
+      - name: Upload appstore v2 bundle to Cloudflare R2
+        uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: v2-output
+          destination-dir: ./websoft9/v2/${{ steps.channel.outputs.channel }}/appstore
+
+      - name: Purge Cloudflare Cache
         uses: jakejarvis/cloudflare-purge-action@master
         env:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PURGE_URLS: '["https://artifact.websoft9.com/dev/websoft9/plugin/catalog/catalog-dev.zip"]'
+          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/${{ steps.archive.outputs.archive_name }}.zip","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/${{ steps.archive.outputs.archive_name }}.zip.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/manifest.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/${{ steps.library.outputs.library_package }}","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/${{ steps.library.outputs.library_package }}.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/manifest.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-index.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-index.json.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/app-store-install-metadata.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/app-store-install-metadata.json.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/library-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/library-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/manifest.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/${{ steps.archive.outputs.archive_name }}.zip","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/${{ steps.archive.outputs.archive_name }}.zip.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/manifest.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/${{ steps.library.outputs.library_package }}","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/${{ steps.library.outputs.library_package }}.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/apps-index.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/apps-index.json.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/app-store-install-metadata.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/app-store-install-metadata.json.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/manifests/appstore.json"]'

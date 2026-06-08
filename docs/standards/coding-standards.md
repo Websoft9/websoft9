@@ -1137,4 +1137,4 @@ disallow_untyped_defs = true
 **Review Status**: Active  
 **Next Steps**: [testing-standards.md](./testing-standards.md) - Testing Standards Documentation
 
-**Related Documentation**: [API Design](./api-design.md) | [Testing Standards](./testing-standards.md) | [DevOps Process](./devops-process.md)
+**Related Documentation**: [API Design](./api-design.md) | [Testing Standards](./testing-standards.md) | [DevOps Package](./devops/README.md)

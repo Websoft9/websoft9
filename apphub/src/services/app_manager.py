@@ -280,8 +280,10 @@ class AppManger:
         channel = "release"
         if version_file.exists():
             try:
-                version = json.loads(version_file.read_text(encoding="utf-8")).get("version", "")
+                version = str(json.loads(version_file.read_text(encoding="utf-8")).get("version", "")).lower()
                 if "rc" in version:
+                    channel = "rc"
+                elif "dev" in version:
                     channel = "dev"
             except Exception:
                 channel = "release"

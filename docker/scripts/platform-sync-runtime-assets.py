@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import configparser
+import datetime
+import hashlib
 import json
 import os
 import re
@@ -27,6 +29,10 @@ def log(message: str) -> None:
 
 
 def detect_channel() -> str:
+    explicit_channel = (os.getenv("WEBSOFT9_RUNTIME_ASSET_CHANNEL") or "").strip().lower()
+    if explicit_channel in {"release", "rc", "dev"}:
+        return explicit_channel
+
     version_file = Path("/websoft9/apphub/src/config/product_metadata.json")
     if not version_file.exists():
         return "release"
@@ -36,7 +42,12 @@ def detect_channel() -> str:
     except Exception:
         return "release"
 
-    return "dev" if "rc" in version else "release"
+    normalized_version = version.lower()
+    if "rc" in normalized_version:
+        return "rc"
+    if "dev" in normalized_version:
+        return "dev"
+    return "release"
 
 
 def resolve_package_name(channel: str, package_type: str) -> str:
@@ -65,6 +76,13 @@ def sync_tree(source: Path, target: Path) -> None:
             shutil.copy2(item, destination)
 
 
+def replace_tree(source: Path, target: Path) -> None:
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True, exist_ok=True)
+    sync_tree(source, target)
+
+
 def extract_sync_root(extract_dir: Path, package_type: str) -> Path:
     direct_child = extract_dir / package_type
     if direct_child.exists():
@@ -90,14 +108,601 @@ def download_file(url: str, destination: Path) -> None:
         shutil.copyfileobj(response, output)
 
 
-def sync_package(package_type: str, target_dir: Path, marker_path: Path, channel: str, artifact_base: str) -> None:
-    if marker_exists(marker_path, package_type):
-        log(f"[platform-assets] {package_type} already present at {marker_path}")
-        return
+def download_json(url: str) -> object:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Websoft9-Product-Bootstrap/1.0",
+            "Accept": "application/json,*/*;q=0.8",
+        },
+    )
+
+    with urllib.request.urlopen(request) as response:
+        return json.load(response)
+
+
+def download_text(url: str) -> str:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Websoft9-Product-Bootstrap/1.0",
+            "Accept": "text/plain,*/*;q=0.8",
+        },
+    )
+
+    with urllib.request.urlopen(request) as response:
+        return response.read().decode("utf-8")
+
+
+def resolve_json_url(base_url: str, relative_path: str) -> str:
+    return urllib.request.urljoin(base_url if base_url.endswith("/") else f"{base_url}/", relative_path)
+
+
+def compute_sha256(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with file_path.open("rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def resolve_checksum_value(base_url: str, relative_path: str) -> str:
+    checksum_payload = download_text(resolve_json_url(base_url, relative_path)).strip()
+    checksum_value = checksum_payload.split()[0] if checksum_payload else ""
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", checksum_value):
+        raise RuntimeError(f"invalid checksum payload: {relative_path}")
+    return checksum_value.lower()
+
+
+def verify_downloaded_file_checksum(base_url: str, relative_path: str, checksum_relative: str, file_path: Path) -> None:
+    expected_checksum = resolve_checksum_value(base_url, checksum_relative)
+    actual_checksum = compute_sha256(file_path)
+    if actual_checksum.lower() != expected_checksum:
+        raise RuntimeError(f"checksum mismatch for {relative_path}: expected {expected_checksum}, got {actual_checksum}")
+
+
+def load_sync_state(state_path: Path) -> dict[str, object]:
+    if not state_path.exists():
+        return {}
+
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def write_sync_state(state_path: Path, payload: dict[str, object]) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
+
+
+def fetch_appstore_manifests(artifact_base: str, channel: str) -> dict[str, object]:
+    appstore_manifest_url = f"{artifact_base}/websoft9/v2/{channel}/appstore/manifests/appstore.json"
+    appstore_manifest = download_json(appstore_manifest_url)
+    if not isinstance(appstore_manifest, dict):
+        raise RuntimeError(f"invalid appstore manifest payload: {appstore_manifest_url}")
+
+    domains = appstore_manifest.get("domains")
+    if not isinstance(domains, dict):
+        raise RuntimeError(f"appstore manifest is missing domains: {appstore_manifest_url}")
+
+    catalog_relative = domains.get("catalog")
+    library_relative = domains.get("library")
+    if not isinstance(catalog_relative, str) or not isinstance(library_relative, str):
+        raise RuntimeError(f"appstore manifest domains are invalid: {appstore_manifest_url}")
+
+    catalog_manifest_url = resolve_json_url(appstore_manifest_url, catalog_relative)
+    library_manifest_url = resolve_json_url(appstore_manifest_url, library_relative)
+    catalog_manifest = download_json(catalog_manifest_url)
+    library_manifest = download_json(library_manifest_url)
+    if not isinstance(catalog_manifest, dict) or not isinstance(library_manifest, dict):
+        raise RuntimeError("catalog or library manifest payload is invalid")
+
+    return {
+        "appstore_manifest_url": appstore_manifest_url,
+        "catalog_manifest_url": catalog_manifest_url,
+        "library_manifest_url": library_manifest_url,
+        "appstore_manifest": appstore_manifest,
+        "catalog_manifest": catalog_manifest,
+        "library_manifest": library_manifest,
+    }
+
+
+def fetch_delta_payload(base_manifest_url: str, relative_path: str | None) -> dict[str, object] | None:
+    if not isinstance(relative_path, str) or not relative_path:
+        return None
+
+    payload = download_json(resolve_json_url(base_manifest_url, relative_path))
+    return payload if isinstance(payload, dict) else None
+
+
+def delta_payload_has_changes(payload: dict[str, object] | None, keys: tuple[str, ...]) -> bool:
+    if payload is None:
+        return True
+
+    mode = payload.get("mode")
+    if mode == "bootstrap":
+        return True
+
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, list) and len(value) > 0:
+            return True
+
+    return False
+
+
+def delta_payload_matches_version_chain(
+    payload: dict[str, object] | None,
+    previous_dataset_version: object,
+    latest_dataset_version: object,
+) -> bool:
+    if payload is None:
+        return False
+
+    from_version = payload.get("fromVersion")
+    to_version = payload.get("toVersion")
+    return from_version == previous_dataset_version and to_version == latest_dataset_version
+
+
+def delta_payload_string_list(payload: dict[str, object] | None, key: str) -> list[str]:
+    if payload is None:
+        return []
+
+    value = payload.get(key)
+    if not isinstance(value, list):
+        return []
+
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def resolve_library_delta_context(
+    manifest_bundle: dict[str, object] | None,
+    previous_dataset_version: object,
+    latest_dataset_version: object,
+) -> dict[str, object] | None:
+    if not manifest_bundle:
+        return None
+
+    library_manifest = manifest_bundle.get("library_manifest")
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
+    if not isinstance(library_manifest, dict):
+        return None
+
+    delta_files = library_manifest.get("deltaFiles")
+    if not isinstance(delta_files, dict):
+        return None
+
+    library_delta = fetch_delta_payload(library_manifest_url, delta_files.get("library") if isinstance(delta_files.get("library"), str) else None)
+    apps_delta = fetch_delta_payload(library_manifest_url, delta_files.get("apps") if isinstance(delta_files.get("apps"), str) else None)
+
+    if not delta_payload_matches_version_chain(library_delta, previous_dataset_version, latest_dataset_version):
+        return None
+    if not delta_payload_matches_version_chain(apps_delta, previous_dataset_version, latest_dataset_version):
+        return None
+
+    return {
+        "libraryDelta": library_delta or {},
+        "appsDelta": apps_delta or {},
+        "changedApps": sorted(set(delta_payload_string_list(library_delta, "changedApps"))),
+        "addedApps": sorted(set(delta_payload_string_list(apps_delta, "addedApps"))),
+        "removedApps": sorted(set(delta_payload_string_list(apps_delta, "removedApps"))),
+        "updatedApps": sorted(set(delta_payload_string_list(apps_delta, "changedApps"))),
+    }
+
+
+def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dict[str, dict[str, object]]:
+    if not manifest_bundle:
+        return {}
+
+    library_manifest = manifest_bundle.get("library_manifest")
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
+    if not isinstance(library_manifest, dict):
+        return {}
+
+    compatibility = library_manifest.get("compatibility")
+    if not isinstance(compatibility, dict) or compatibility.get("appLevelArtifacts") is not True:
+        return {}
+
+    apps_index_relative = library_manifest.get("appsIndex")
+    if not isinstance(apps_index_relative, str) or not apps_index_relative:
+        return {}
+
+    payload = download_json(resolve_json_url(library_manifest_url, apps_index_relative))
+    if not isinstance(payload, dict):
+        return {}
+
+    apps = payload.get("apps")
+    if not isinstance(apps, list):
+        return {}
+
+    app_map: dict[str, dict[str, object]] = {}
+    for item in apps:
+        if not isinstance(item, dict):
+            continue
+        key = item.get("key")
+        if isinstance(key, str) and key:
+            app_map[key] = item
+
+    return app_map
+
+
+def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previous_dataset_version: object, latest_dataset_version: object) -> dict[str, bool]:
+    plan = {
+        "media": True,
+        "library": True,
+    }
+
+    if not manifest_bundle:
+        return plan
+
+    if not latest_dataset_version or previous_dataset_version in {None, "", latest_dataset_version}:
+        return plan
+
+    catalog_manifest = manifest_bundle.get("catalog_manifest")
+    catalog_manifest_url = str(manifest_bundle.get("catalog_manifest_url", ""))
+    if isinstance(catalog_manifest, dict):
+        catalog_delta = fetch_delta_payload(catalog_manifest_url, catalog_manifest.get("deltaFiles", {}).get("catalog") if isinstance(catalog_manifest.get("deltaFiles"), dict) else None)
+        product_delta = fetch_delta_payload(catalog_manifest_url, catalog_manifest.get("deltaFiles", {}).get("product") if isinstance(catalog_manifest.get("deltaFiles"), dict) else None)
+        plan["media"] = (
+            not delta_payload_matches_version_chain(catalog_delta, previous_dataset_version, latest_dataset_version)
+            or not delta_payload_matches_version_chain(product_delta, previous_dataset_version, latest_dataset_version)
+            or delta_payload_has_changes(catalog_delta, ("addedKeys", "removedKeys", "changedKeys"))
+            or delta_payload_has_changes(product_delta, ("addedKeys", "removedKeys", "changedKeys"))
+        )
+
+    library_manifest = manifest_bundle.get("library_manifest")
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
+    if isinstance(library_manifest, dict):
+        library_delta_context = resolve_library_delta_context(manifest_bundle, previous_dataset_version, latest_dataset_version)
+        library_delta = library_delta_context.get("libraryDelta") if library_delta_context else fetch_delta_payload(library_manifest_url, library_manifest.get("deltaFiles", {}).get("library") if isinstance(library_manifest.get("deltaFiles"), dict) else None)
+        apps_delta = library_delta_context.get("appsDelta") if library_delta_context else fetch_delta_payload(library_manifest_url, library_manifest.get("deltaFiles", {}).get("apps") if isinstance(library_manifest.get("deltaFiles"), dict) else None)
+        plan["library"] = (
+            not delta_payload_matches_version_chain(library_delta, previous_dataset_version, latest_dataset_version)
+            or not delta_payload_matches_version_chain(apps_delta, previous_dataset_version, latest_dataset_version)
+            or delta_payload_has_changes(library_delta, ("changedApps",))
+            or delta_payload_has_changes(apps_delta, ("addedApps", "removedApps", "changedApps"))
+        )
+
+    return plan
+
+
+def resolve_package_url(package_type: str, channel: str, artifact_base: str, manifest_bundle: dict[str, object] | None) -> str:
+    if manifest_bundle:
+        if package_type == "media":
+            catalog_manifest_url = str(manifest_bundle["catalog_manifest_url"])
+            catalog_manifest = manifest_bundle["catalog_manifest"]
+            if isinstance(catalog_manifest, dict):
+                package_name = catalog_manifest.get("legacyMediaArchive") or catalog_manifest.get("catalogArchive")
+                if isinstance(package_name, str) and package_name:
+                    return resolve_json_url(catalog_manifest_url, package_name)
+
+        if package_type == "library":
+            library_manifest_url = str(manifest_bundle["library_manifest_url"])
+            library_manifest = manifest_bundle["library_manifest"]
+            if isinstance(library_manifest, dict):
+                package_name = library_manifest.get("libraryPackage")
+                if isinstance(package_name, str) and package_name:
+                    return resolve_json_url(library_manifest_url, package_name)
 
     package_name = resolve_package_name(channel, package_type)
-    package_url = f"{artifact_base}/{channel}/websoft9/plugin/{package_type}/{package_name}"
-    log(f"[platform-assets] syncing missing {package_type} assets from {package_url}")
+    return f"{artifact_base}/{channel}/websoft9/plugin/{package_type}/{package_name}"
+
+
+def stage_snapshot(source_root: Path, snapshot_root: Path, dataset_version: str, package_type: str) -> dict[str, Path]:
+    staging_dir = snapshot_root / "staging" / dataset_version / package_type
+    release_dir = snapshot_root / "releases" / dataset_version / package_type
+    current_dir = snapshot_root / "current" / package_type
+
+    replace_tree(source_root, staging_dir)
+    replace_tree(staging_dir, release_dir)
+    replace_tree(staging_dir, current_dir)
+
+    return {
+        "staging": staging_dir,
+        "release": release_dir,
+        "current": current_dir,
+    }
+
+
+def resolve_reusable_package_source(previous_state: dict[str, object], package_type: str, target_dir: Path, marker_path: Path) -> Path | None:
+    snapshots = previous_state.get("snapshots")
+    if isinstance(snapshots, dict):
+        package_snapshots = snapshots.get(package_type)
+        if isinstance(package_snapshots, dict):
+            release_path = package_snapshots.get("release")
+            if isinstance(release_path, str) and release_path:
+                release_dir = Path(release_path)
+                if release_dir.exists():
+                    return release_dir
+
+    if marker_exists(marker_path, package_type) and target_dir.exists():
+        return target_dir
+
+    return None
+
+
+def promote_existing_package_snapshot(
+    source_root: Path,
+    target_dir: Path,
+    marker_path: Path,
+    snapshot_root: Path,
+    dataset_version: str,
+    package_type: str,
+) -> dict[str, str]:
+    snapshot_paths = stage_snapshot(source_root, snapshot_root, dataset_version, package_type)
+    if not marker_exists(marker_path, package_type):
+        sync_tree(snapshot_paths["current"], target_dir)
+
+    if not marker_exists(marker_path, package_type):
+        raise RuntimeError(f"{package_type} assets are still missing after snapshot promotion: {marker_path}")
+
+    log(f"[platform-assets] promoted existing {package_type} snapshot into dataset {dataset_version}")
+    return {key: str(value) for key, value in snapshot_paths.items()}
+
+
+def sync_library_delta_target(source_root: Path, target_dir: Path, changed_apps: list[str], removed_apps: list[str], marker_path: Path) -> None:
+    source_apps_dir = source_root / "apps"
+
+    if not target_dir.exists() or not marker_exists(marker_path, "library"):
+        replace_tree(source_root, target_dir)
+        return
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for item in source_root.iterdir():
+        if item.name == "apps":
+            continue
+        destination = target_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, destination, dirs_exist_ok=True)
+        else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, destination)
+
+    target_apps_dir = target_dir / "apps"
+    target_apps_dir.mkdir(parents=True, exist_ok=True)
+
+    for app_key in removed_apps:
+        app_path = target_apps_dir / app_key
+        if app_path.is_dir():
+            shutil.rmtree(app_path)
+        elif app_path.exists():
+            app_path.unlink()
+
+    for app_key in changed_apps:
+        source_app_path = source_apps_dir / app_key
+        if not source_app_path.exists():
+            raise RuntimeError(f"library delta references missing app payload: {app_key}")
+        destination = target_apps_dir / app_key
+        if destination.exists():
+            if destination.is_dir():
+                shutil.rmtree(destination)
+            else:
+                destination.unlink()
+        shutil.copytree(source_app_path, destination)
+
+
+def sync_library_package_delta(
+    reusable_source: Path,
+    target_dir: Path,
+    marker_path: Path,
+    channel: str,
+    artifact_base: str,
+    manifest_bundle: dict[str, object],
+    snapshot_root: Path,
+    dataset_version: str,
+    delta_context: dict[str, object],
+) -> dict[str, str]:
+    changed_apps = sorted(set(delta_context.get("changedApps", [])) | set(delta_context.get("addedApps", [])) | set(delta_context.get("updatedApps", [])))
+    removed_apps = sorted(set(delta_context.get("removedApps", [])))
+
+    if not changed_apps and not removed_apps:
+        return promote_existing_package_snapshot(reusable_source, target_dir, marker_path, snapshot_root, dataset_version, "library")
+
+    package_url = resolve_package_url("library", channel, artifact_base, manifest_bundle)
+    package_name = Path(urllib.request.urlparse(package_url).path).name or resolve_package_name(channel, "library")
+    log(f"[platform-assets] applying library app delta from {package_url}; changed={changed_apps or []} removed={removed_apps or []}")
+
+    with tempfile.TemporaryDirectory(prefix="websoft9-library-delta-") as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        zip_path = temp_dir / package_name
+        extract_dir = temp_dir / "extract"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+
+        download_file(package_url, zip_path)
+
+        with zipfile.ZipFile(zip_path) as archive:
+            archive.extractall(extract_dir)
+
+        source_root = extract_sync_root(extract_dir, "library")
+        staged_root = temp_dir / "staged-library"
+        replace_tree(reusable_source, staged_root)
+
+        staged_apps_dir = staged_root / "apps"
+        staged_apps_dir.mkdir(parents=True, exist_ok=True)
+        source_apps_dir = source_root / "apps"
+
+        for app_key in removed_apps:
+            app_path = staged_apps_dir / app_key
+            if app_path.is_dir():
+                shutil.rmtree(app_path)
+            elif app_path.exists():
+                app_path.unlink()
+
+        for app_key in changed_apps:
+            source_app_path = source_apps_dir / app_key
+            if not source_app_path.exists():
+                raise RuntimeError(f"library delta references missing app payload: {app_key}")
+            destination = staged_apps_dir / app_key
+            if destination.exists():
+                if destination.is_dir():
+                    shutil.rmtree(destination)
+                else:
+                    destination.unlink()
+            shutil.copytree(source_app_path, destination)
+
+        snapshot_paths = stage_snapshot(staged_root, snapshot_root, dataset_version, "library")
+        sync_library_delta_target(snapshot_paths["current"], target_dir, changed_apps, removed_apps, marker_path)
+
+    if not marker_exists(marker_path, "library"):
+        raise RuntimeError(f"library assets are still missing after delta sync: {marker_path}")
+
+    log(f"[platform-assets] applied library app delta into {target_dir}")
+    return {key: str(value) for key, value in snapshot_paths.items()}
+
+
+def extract_app_bundle(bundle_path: Path, apps_root: Path, app_key: str) -> None:
+    extract_dir = bundle_path.parent / f"extract-{app_key}"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(bundle_path) as archive:
+        archive.extractall(extract_dir)
+
+    extracted_root = extract_dir / app_key
+    if not extracted_root.exists():
+        children = [item for item in extract_dir.iterdir() if item.is_dir()]
+        if len(children) == 1:
+            extracted_root = children[0]
+        else:
+            raise RuntimeError(f"invalid app bundle structure for {app_key}: {bundle_path}")
+
+    destination = apps_root / app_key
+    if destination.exists():
+        shutil.rmtree(destination)
+    shutil.copytree(extracted_root, destination)
+
+
+def hydrate_app_sidecar(
+    base_url: str,
+    app_key: str,
+    app_root: Path,
+    relative_path: object,
+    checksum_relative: object,
+    local_name: str,
+    temp_dir: Path,
+) -> None:
+    if relative_path in {None, ""}:
+        return
+
+    if not isinstance(relative_path, str):
+        raise RuntimeError(f"invalid {local_name} artifact entry for app: {app_key}")
+    if not isinstance(checksum_relative, str) or not checksum_relative:
+        raise RuntimeError(f"missing checksum for {local_name} artifact of app: {app_key}")
+
+    local_path = temp_dir / f"{app_key}-{local_name}"
+    download_file(resolve_json_url(base_url, relative_path), local_path)
+    verify_downloaded_file_checksum(base_url, relative_path, checksum_relative, local_path)
+    shutil.copy2(local_path, app_root / local_name)
+
+
+def sync_library_app_artifacts_delta(
+    reusable_source: Path,
+    target_dir: Path,
+    marker_path: Path,
+    manifest_bundle: dict[str, object],
+    snapshot_root: Path,
+    dataset_version: str,
+    delta_context: dict[str, object],
+) -> dict[str, str]:
+    changed_apps = sorted(set(delta_context.get("changedApps", [])) | set(delta_context.get("addedApps", [])) | set(delta_context.get("updatedApps", [])))
+    removed_apps = sorted(set(delta_context.get("removedApps", [])))
+
+    if not changed_apps and not removed_apps:
+        return promote_existing_package_snapshot(reusable_source, target_dir, marker_path, snapshot_root, dataset_version, "library")
+
+    apps_index = resolve_library_apps_index(manifest_bundle)
+    if not apps_index:
+        raise RuntimeError("library manifest does not expose app-level artifacts")
+
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
+    log(f"[platform-assets] applying library app artifacts delta; changed={changed_apps or []} removed={removed_apps or []}")
+
+    with tempfile.TemporaryDirectory(prefix="websoft9-library-app-artifacts-") as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        staged_root = temp_dir / "staged-library"
+        replace_tree(reusable_source, staged_root)
+        staged_apps_dir = staged_root / "apps"
+        staged_apps_dir.mkdir(parents=True, exist_ok=True)
+
+        for app_key in removed_apps:
+            app_path = staged_apps_dir / app_key
+            if app_path.is_dir():
+                shutil.rmtree(app_path)
+            elif app_path.exists():
+                app_path.unlink()
+
+        for app_key in changed_apps:
+            app_metadata = apps_index.get(app_key)
+            if not isinstance(app_metadata, dict):
+                raise RuntimeError(f"appsIndex is missing changed app metadata: {app_key}")
+
+            bundle_relative = app_metadata.get("bundle")
+            if not isinstance(bundle_relative, str) or not bundle_relative:
+                raise RuntimeError(f"appsIndex bundle entry is missing for app: {app_key}")
+            checksum = app_metadata.get("checksum")
+            if not isinstance(checksum, dict):
+                raise RuntimeError(f"appsIndex checksum entry is missing for app: {app_key}")
+            bundle_checksum_relative = checksum.get("bundle")
+            if not isinstance(bundle_checksum_relative, str) or not bundle_checksum_relative:
+                raise RuntimeError(f"appsIndex bundle checksum entry is missing for app: {app_key}")
+
+            bundle_path = temp_dir / f"{app_key}.zip"
+            download_file(resolve_json_url(library_manifest_url, bundle_relative), bundle_path)
+            verify_downloaded_file_checksum(library_manifest_url, bundle_relative, bundle_checksum_relative, bundle_path)
+            extract_app_bundle(bundle_path, staged_apps_dir, app_key)
+
+            app_root = staged_apps_dir / app_key
+            hydrate_app_sidecar(
+                library_manifest_url,
+                app_key,
+                app_root,
+                app_metadata.get("variables"),
+                checksum.get("variables"),
+                "variables.json",
+                temp_dir,
+            )
+            hydrate_app_sidecar(
+                library_manifest_url,
+                app_key,
+                app_root,
+                app_metadata.get("env"),
+                checksum.get("env"),
+                ".env",
+                temp_dir,
+            )
+
+        snapshot_paths = stage_snapshot(staged_root, snapshot_root, dataset_version, "library")
+        sync_library_delta_target(snapshot_paths["current"], target_dir, changed_apps, removed_apps, marker_path)
+
+    if not marker_exists(marker_path, "library"):
+        raise RuntimeError(f"library assets are still missing after app-artifact delta sync: {marker_path}")
+
+    log(f"[platform-assets] applied library app artifacts delta into {target_dir}")
+    return {key: str(value) for key, value in snapshot_paths.items()}
+
+
+def sync_package(
+    package_type: str,
+    target_dir: Path,
+    marker_path: Path,
+    channel: str,
+    artifact_base: str,
+    manifest_bundle: dict[str, object] | None = None,
+    snapshot_root: Path | None = None,
+    dataset_version: str | None = None,
+) -> dict[str, str] | None:
+    force_refresh = (os.getenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC") or "0").strip().lower() in {"1", "true", "yes", "on"}
+
+    if marker_exists(marker_path, package_type) and not force_refresh:
+        log(f"[platform-assets] {package_type} already present at {marker_path}")
+        return None
+
+    package_url = resolve_package_url(package_type, channel, artifact_base, manifest_bundle)
+    package_name = Path(urllib.request.urlparse(package_url).path).name or resolve_package_name(channel, package_type)
+    action = "refreshing" if force_refresh else "syncing missing"
+    log(f"[platform-assets] {action} {package_type} assets from {package_url}")
 
     with tempfile.TemporaryDirectory(prefix=f"websoft9-{package_type}-") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
@@ -111,12 +716,19 @@ def sync_package(package_type: str, target_dir: Path, marker_path: Path, channel
             archive.extractall(extract_dir)
 
         source_root = extract_sync_root(extract_dir, package_type)
+        snapshot_paths = None
+        if snapshot_root is not None and dataset_version:
+            snapshot_paths = stage_snapshot(source_root, snapshot_root, dataset_version, package_type)
+            source_root = snapshot_paths["current"]
         sync_tree(source_root, target_dir)
 
     if not marker_exists(marker_path, package_type):
         raise RuntimeError(f"{package_type} assets are still missing after sync: {marker_path}")
 
     log(f"[platform-assets] synced {package_type} assets into {target_dir}")
+    if snapshot_paths:
+        return {key: str(value) for key, value in snapshot_paths.items()}
+    return None
 
 
 def load_initial_apps(config_path: Path) -> list[str]:
@@ -208,6 +820,10 @@ def write_json_file(path: Path, payload: object) -> None:
     path.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
 
 
+def is_force_refresh_enabled() -> bool:
+    return (os.getenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC") or "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def main() -> int:
     channel = detect_channel()
     artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com")
@@ -215,6 +831,8 @@ def main() -> int:
     config_path = Path(os.getenv("WEBSOFT9_APPHUB_CONFIG", "/websoft9/apphub/src/config/config.ini"))
     library_apps_root = Path(os.getenv("WEBSOFT9_LIBRARY_APPS_ROOT", "/websoft9/library/apps"))
     install_metadata_path = Path(os.getenv("WEBSOFT9_APP_STORE_INSTALL_METADATA", "/websoft9/media/json/app-store-install-metadata.json"))
+    sync_state_path = Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", "/websoft9/apphub/src/config/appstore_sync_state.json"))
+    snapshot_root = Path(os.getenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", "/websoft9/appstore"))
 
     packages = [
         (
@@ -239,11 +857,135 @@ def main() -> int:
         packages = [package for package in packages if package[0] in requested_package_types]
 
     try:
-        for package_type, target_dir, marker_path in packages:
-            sync_package(package_type, target_dir, marker_path, channel, artifact_base)
+        previous_state = load_sync_state(sync_state_path)
+        force_refresh = is_force_refresh_enabled()
+        manifest_bundle = None
+        latest_dataset_version = None
+        latest_generated_at = None
+        should_skip_package_sync = False
+        applied_dataset_version = None
+        package_snapshot_paths: dict[str, dict[str, str]] = {}
+        library_delta_context = None
+        package_sync_plan = {
+            "media": True,
+            "library": True,
+        }
 
-        install_metadata = build_app_store_install_metadata(library_apps_root, config_path)
+        try:
+            manifest_bundle = fetch_appstore_manifests(artifact_base, channel)
+            appstore_manifest = manifest_bundle["appstore_manifest"]
+            if isinstance(appstore_manifest, dict):
+                latest_dataset_version = appstore_manifest.get("datasetVersion")
+                latest_generated_at = appstore_manifest.get("generatedAt")
+                if not force_refresh and previous_state.get("datasetVersion") == latest_dataset_version:
+                    should_skip_package_sync = True
+                    log(f"[platform-assets] appstore dataset {latest_dataset_version} already active for channel {channel}")
+                package_sync_plan = determine_package_sync_plan(
+                    manifest_bundle,
+                    previous_state.get("datasetVersion"),
+                    latest_dataset_version,
+                )
+                library_delta_context = resolve_library_delta_context(
+                    manifest_bundle,
+                    previous_state.get("datasetVersion"),
+                    latest_dataset_version,
+                )
+        except Exception as exc:
+            log(f"[platform-assets] appstore manifests unavailable, falling back to legacy package resolution: {exc}")
+
+        applied_dataset_version = latest_dataset_version or previous_state.get("datasetVersion") or datetime.datetime.utcnow().strftime("%Y.%m.%d.%H%M%S")
+
+        if not should_skip_package_sync:
+            for package_type, target_dir, marker_path in packages:
+                reusable_source = resolve_reusable_package_source(previous_state, package_type, target_dir, marker_path)
+                if not force_refresh and not package_sync_plan.get(package_type, True):
+                    if reusable_source is not None:
+                        log(f"[platform-assets] skipping {package_type} package sync because manifest deltas report no changes; reusing {reusable_source}")
+                        package_snapshot_paths[package_type] = promote_existing_package_snapshot(
+                            reusable_source,
+                            target_dir,
+                            marker_path,
+                            snapshot_root,
+                            str(applied_dataset_version),
+                            package_type,
+                        )
+                        continue
+
+                    log(f"[platform-assets] manifest deltas report no {package_type} changes but no reusable source was found; falling back to full sync")
+                if (
+                    package_type == "library"
+                    and not force_refresh
+                    and reusable_source is not None
+                    and isinstance(library_delta_context, dict)
+                ):
+                    try:
+                        package_snapshot_paths[package_type] = sync_library_app_artifacts_delta(
+                            reusable_source,
+                            target_dir,
+                            marker_path,
+                            manifest_bundle,
+                            snapshot_root,
+                            str(applied_dataset_version),
+                            library_delta_context,
+                        )
+                    except Exception as exc:
+                        log(f"[platform-assets] app-level library delta unavailable, falling back to library package delta: {exc}")
+                        package_snapshot_paths[package_type] = sync_library_package_delta(
+                            reusable_source,
+                            target_dir,
+                            marker_path,
+                            channel,
+                            artifact_base,
+                            manifest_bundle,
+                            snapshot_root,
+                            str(applied_dataset_version),
+                            library_delta_context,
+                        )
+                    continue
+                snapshot_paths = sync_package(
+                    package_type,
+                    target_dir,
+                    marker_path,
+                    channel,
+                    artifact_base,
+                    manifest_bundle,
+                    snapshot_root,
+                    str(applied_dataset_version),
+                )
+                if snapshot_paths:
+                    package_snapshot_paths[package_type] = snapshot_paths
+
+        install_metadata_url = f"{artifact_base}/websoft9/v2/{channel}/appstore/library/app-store-install-metadata.json"
+        if manifest_bundle:
+            library_manifest_url = str(manifest_bundle["library_manifest_url"])
+            library_manifest = manifest_bundle["library_manifest"]
+            if isinstance(library_manifest, dict):
+                install_metadata_relative = library_manifest.get("installMetadata")
+                if isinstance(install_metadata_relative, str) and install_metadata_relative:
+                    install_metadata_url = resolve_json_url(library_manifest_url, install_metadata_relative)
+
+        try:
+            install_metadata = download_json(install_metadata_url)
+            log(f"[platform-assets] downloaded app store install metadata from {install_metadata_url}")
+        except Exception as exc:
+            log(f"[platform-assets] remote install metadata unavailable, falling back to local generation: {exc}")
+            install_metadata = build_app_store_install_metadata(library_apps_root, config_path)
+
         write_json_file(install_metadata_path, install_metadata)
+        write_sync_state(
+            sync_state_path,
+            {
+                "channel": channel,
+                "datasetVersion": applied_dataset_version,
+                "generatedAt": latest_generated_at,
+                "lastSyncedAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                "syncMode": sync_mode,
+                "updated": not should_skip_package_sync,
+                "snapshotRoot": str(snapshot_root),
+                "snapshots": package_snapshot_paths,
+                "packageSyncPlan": package_sync_plan,
+            },
+        )
         log(f"[platform-assets] wrote app store install metadata to {install_metadata_path} (mode={sync_mode})")
     except Exception as exc:
         log(f"[platform-assets] asset sync failed (mode={sync_mode}): {exc}")

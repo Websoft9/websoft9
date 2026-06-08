@@ -866,6 +866,6 @@ pytest -m e2e         # Only run E2E tests
 
 **Document Maintainer**: Winston (Architect Agent)  
 **Review Status**: Active  
-**Next Steps**: [devops-process.md](./devops-process.md) - DevOps Process Standards
+**Next Steps**: [devops/README.md](./devops/README.md) - DevOps Package Entry
 
-**Related Documentation**: [API Design](./api-design.md) | [Coding Standards](./coding-standards.md) | [DevOps Process](./devops-process.md)
+**Related Documentation**: [API Design](./api-design.md) | [Coding Standards](./coding-standards.md) | [DevOps Package](./devops/README.md)

@@ -15,6 +15,15 @@
 - [ ] Test coverage improvement
 - [ ] CI/CD improvement
 
+## Delivery Classification
+
+<!-- Mark the primary delivery class for this PR -->
+
+- [ ] Normal change to merge into `dev`
+- [ ] Release preparation / candidate stabilization
+- [ ] Application hotfix
+- [ ] App-store data / artifact governance change
+
 ## Related Issue
 
 <!-- Link to the issue this PR addresses, if applicable -->
@@ -76,6 +85,15 @@ Fixes #(issue number)
 - [ ] Requires Docker image rebuild
 - [ ] Requires configuration updates
 - [ ] No special deployment steps needed
+
+## Release Channel Impact
+
+<!-- If known, mark the intended artifact channel impact -->
+
+- [ ] Dev only
+- [ ] RC candidate
+- [ ] Formal release
+- [ ] No direct release impact
 
 ---
 
