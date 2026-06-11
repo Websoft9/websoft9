@@ -304,8 +304,8 @@ jobs:
               "library": "../library/library-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json",
               "apps": "../library/apps-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json"
             }
-EOF
-)
+          EOF
+          )
           LIBRARY_CHECKSUM_FIELDS=$(cat <<'EOF'
               ,
               "libraryPackage": "../library/__LIBRARY_PACKAGE__.sha256",
@@ -313,8 +313,8 @@ EOF
               "appsIndex": "../library/apps-index.json.sha256",
               "libraryDelta": "../library/library-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json.sha256",
               "appsDelta": "../library/apps-delta-__LIBRARY_FROM_VERSION__-to-__LIBRARY_TO_VERSION__.json.sha256"
-EOF
-)
+          EOF
+          )
           LIBRARY_FIELDS="${LIBRARY_FIELDS//__LIBRARY_PACKAGE__/${{ steps.library.outputs.library_package }}}"
           LIBRARY_FIELDS="${LIBRARY_FIELDS//__LIBRARY_FROM_VERSION__/${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}}"
           LIBRARY_FIELDS="${LIBRARY_FIELDS//__LIBRARY_TO_VERSION__/${{ steps.dataset.outputs.dataset_version }}}"
@@ -548,4 +548,31 @@ EOF
         env:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PURGE_URLS: '["https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/${{ steps.archive.outputs.archive_name }}.zip","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/${{ steps.archive.outputs.archive_name }}.zip.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/manifest.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/${{ steps.library.outputs.library_package }}","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/${{ steps.library.outputs.library_package }}.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/manifest.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-index.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-index.json.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/app-store-install-metadata.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/app-store-install-metadata.json.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/library-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/library-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json","https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/manifest.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/${{ steps.archive.outputs.archive_name }}.zip","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/${{ steps.archive.outputs.archive_name }}.zip.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/manifest.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/${{ steps.library.outputs.library_package }}","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/${{ steps.library.outputs.library_package }}.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/apps-index.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/apps-index.json.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/app-store-install-metadata.json","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/app-store-install-metadata.json.sha256","https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/manifests/appstore.json"]'
+          PURGE_URLS: >-
+            ["https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/${{ steps.archive.outputs.archive_name }}.zip",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/${{ steps.archive.outputs.archive_name }}.zip.sha256",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/catalog/manifest.json",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/media/${{ steps.archive.outputs.legacy_media_archive }}.sha256",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/${{ steps.library.outputs.library_package }}",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/${{ steps.library.outputs.library_package }}.sha256",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/manifest.json",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-index.json",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-index.json.sha256",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/app-store-install-metadata.json",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/app-store-install-metadata.json.sha256",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/library-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/library-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json",
+            "https://artifact.websoft9.com/${{ steps.channel.outputs.channel }}/websoft9/plugin/library/apps-delta-${{ steps.library.outputs.previous_dataset_version || 'bootstrap' }}-to-${{ steps.dataset.outputs.dataset_version }}.json.sha256",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/manifest.json",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/${{ steps.archive.outputs.archive_name }}.zip",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/catalog/${{ steps.archive.outputs.archive_name }}.zip.sha256",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/manifest.json",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/${{ steps.library.outputs.library_package }}",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/${{ steps.library.outputs.library_package }}.sha256",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/apps-index.json",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/apps-index.json.sha256",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/app-store-install-metadata.json",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/library/app-store-install-metadata.json.sha256",
+            "https://artifact.websoft9.com/websoft9/v2/${{ steps.channel.outputs.channel }}/appstore/manifests/appstore.json"]

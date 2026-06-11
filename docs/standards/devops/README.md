@@ -28,6 +28,10 @@
 2. [app-store-release-governance_cn.md](./app-store-release-governance_cn.md) 的“17.1 实施顺序”，这里是当前第一优先级的主实施步骤
 3. [app-store-release-governance_cn.md](./app-store-release-governance_cn.md) 的“17.4 第一批实施文件清单”，这里是第一批真正要改的文件面
 
+如果你现在要去独立的 `docker-library` 仓库做发布流程改造，优先看：
+
+1. [docker-library-release-governance_cn.md](./docker-library-release-governance_cn.md)
+
 ## 3. 文档分工
 
 | 文件 | 角色 | 说明 |
@@ -36,6 +40,7 @@
 | [entry-baseline_cn.md](./entry-baseline_cn.md) | 入口 | 固定阅读顺序和最小制度基线 |
 | [branching-and-artifacts_cn.md](./branching-and-artifacts_cn.md) | 说明 | 解释分支、通道、制品和兼容思路 |
 | [app-store-release-governance_cn.md](./app-store-release-governance_cn.md) | 执行 | 处理应用商店数据制品治理、兼容、R2 布局和发布规则 |
+| [docker-library-release-governance_cn.md](./docker-library-release-governance_cn.md) | 执行 | 独立约束 docker-library 仓库的 library 制品发布、命名、校验、回滚和 workflow 改造 |
 | [incident-hotfix-runbook_cn.md](./incident-hotfix-runbook_cn.md) | 执行 | 处理代码 Hotfix、数据 Hotfix、回滚和值班 |
 | [repo-protection-and-checks_cn.md](./repo-protection-and-checks_cn.md) | 执行 | 处理仓库门禁与 required checks |
 | [github-manual-configuration_cn.md](./github-manual-configuration_cn.md) | 执行 | 处理 GitHub 平台侧手工配置 |

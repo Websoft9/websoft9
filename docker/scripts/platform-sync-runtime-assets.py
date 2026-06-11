@@ -23,6 +23,11 @@ except Exception:  # pragma: no cover - bootstrap fallback
 
 ENV_REFERENCE_PATTERN = re.compile(r"\$\{?(\w+)\}?")
 
+SUPPORTED_SCHEMA_VERSIONS = {"1"}
+
+# ── v2 manifest URL templates ──────────────────────────────────────────
+_V2_APPSTORE_MANIFEST_PATH = "appstore/{channel}/manifests/appstore-manifest.json"
+
 
 def log(message: str) -> None:
     print(message, flush=True)
@@ -135,7 +140,12 @@ def download_text(url: str) -> str:
 
 
 def resolve_json_url(base_url: str, relative_path: str) -> str:
-    return urllib.request.urljoin(base_url if base_url.endswith("/") else f"{base_url}/", relative_path)
+    """Resolve a relative path against a manifest URL.
+
+    urljoin treats base_url as a file when the path does not end with /,
+    automatically stripping the last component before resolution.
+    """
+    return urllib.request.urljoin(base_url, relative_path)
 
 
 def compute_sha256(file_path: Path) -> str:
@@ -177,27 +187,72 @@ def write_sync_state(state_path: Path, payload: dict[str, object]) -> None:
     state_path.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
 
 
+def _resolve_appstore_manifest_url(artifact_base: str, channel: str) -> str:
+    """Resolve the current appstore v2 manifest URL for the requested channel."""
+    v2_url = f"{artifact_base}/{_V2_APPSTORE_MANIFEST_PATH.format(channel=channel)}"
+    download_json(v2_url)
+    return v2_url
+
+
+def _check_schema_version(manifest: dict[str, object], manifest_url: str, label: str = "appstore") -> None:
+    schema_version = manifest.get("schemaVersion")
+    if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise RuntimeError(
+            f"unsupported {label} schemaVersion: {schema_version}. "
+            f"Supported versions: {', '.join(sorted(SUPPORTED_SCHEMA_VERSIONS))}. "
+            f"Please upgrade your Websoft9 platform."
+        )
+
+
+def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url: str) -> tuple[str, str]:
+    """Resolve catalog/library manifest paths from appstore manifest.
+
+    Supports both v2 spec format (catalog.manifest / library.manifest) and
+    legacy format (domains.catalog / domains.library).
+    """
+    # v2 spec: { "catalog": { "manifest": "..." }, "library": { "manifest": "..." } }
+    catalog = appstore_manifest.get("catalog")
+    library = appstore_manifest.get("library")
+    if isinstance(catalog, dict) and isinstance(library, dict):
+        catalog_rel = catalog.get("manifest")
+        library_rel = library.get("manifest")
+        if isinstance(catalog_rel, str) and isinstance(library_rel, str):
+            return catalog_rel, library_rel
+
+    # Legacy: { "domains": { "catalog": "...", "library": "..." } }
+    domains = appstore_manifest.get("domains")
+    if isinstance(domains, dict):
+        catalog_rel = domains.get("catalog")
+        library_rel = domains.get("library")
+        if isinstance(catalog_rel, str) and isinstance(library_rel, str):
+            return catalog_rel, library_rel
+
+    raise RuntimeError(f"appstore manifest has unrecognized structure: {manifest_url}")
+
+
 def fetch_appstore_manifests(artifact_base: str, channel: str) -> dict[str, object]:
-    appstore_manifest_url = f"{artifact_base}/websoft9/v2/{channel}/appstore/manifests/appstore.json"
+    appstore_manifest_url = _resolve_appstore_manifest_url(artifact_base, channel)
     appstore_manifest = download_json(appstore_manifest_url)
     if not isinstance(appstore_manifest, dict):
         raise RuntimeError(f"invalid appstore manifest payload: {appstore_manifest_url}")
 
-    domains = appstore_manifest.get("domains")
-    if not isinstance(domains, dict):
-        raise RuntimeError(f"appstore manifest is missing domains: {appstore_manifest_url}")
+    _check_schema_version(appstore_manifest, appstore_manifest_url, "appstore")
 
-    catalog_relative = domains.get("catalog")
-    library_relative = domains.get("library")
-    if not isinstance(catalog_relative, str) or not isinstance(library_relative, str):
-        raise RuntimeError(f"appstore manifest domains are invalid: {appstore_manifest_url}")
+    catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
 
-    catalog_manifest_url = resolve_json_url(appstore_manifest_url, catalog_relative)
-    library_manifest_url = resolve_json_url(appstore_manifest_url, library_relative)
+    # Sub-manifest paths (e.g. "catalog/manifest.json") are relative to the
+    # appstore channel root, NOT to the root manifest URL (which lives under
+    # manifests/).  Construct the absolute URLs from the channel base.
+    appstore_base = f"{artifact_base}/appstore/{channel}"
+    catalog_manifest_url = f"{appstore_base}/{catalog_relative}"
+    library_manifest_url = f"{appstore_base}/{library_relative}"
     catalog_manifest = download_json(catalog_manifest_url)
     library_manifest = download_json(library_manifest_url)
     if not isinstance(catalog_manifest, dict) or not isinstance(library_manifest, dict):
         raise RuntimeError("catalog or library manifest payload is invalid")
+
+    _check_schema_version(catalog_manifest, catalog_manifest_url, "catalog")
+    _check_schema_version(library_manifest, library_manifest_url, "library")
 
     return {
         "appstore_manifest_url": appstore_manifest_url,
@@ -270,6 +325,22 @@ def resolve_library_delta_context(
     if not isinstance(library_manifest, dict):
         return None
 
+    # ── v2 spec: single appsDelta file with all change lists ─────────
+    apps_delta_relative = library_manifest.get("appsDelta")
+    if isinstance(apps_delta_relative, str) and apps_delta_relative:
+        apps_delta = fetch_delta_payload(library_manifest_url, apps_delta_relative)
+        if delta_payload_matches_version_chain(apps_delta, previous_dataset_version, latest_dataset_version):
+            return {
+                "appsDelta": apps_delta or {},
+                "changedApps": sorted(set(delta_payload_string_list(apps_delta, "changedApps"))),
+                "addedApps": sorted(set(delta_payload_string_list(apps_delta, "addedApps"))),
+                "removedApps": sorted(set(delta_payload_string_list(apps_delta, "removedApps"))),
+                "updatedApps": sorted(set(delta_payload_string_list(apps_delta, "changedApps"))),
+            }
+        # Version chain mismatch – delta can't be applied; caller will fall back to full sync
+        return None
+
+    # ── Legacy: deltaFiles.library + deltaFiles.apps ─────────────────
     delta_files = library_manifest.get("deltaFiles")
     if not isinstance(delta_files, dict):
         return None
@@ -301,9 +372,12 @@ def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dic
     if not isinstance(library_manifest, dict):
         return {}
 
-    compatibility = library_manifest.get("compatibility")
-    if not isinstance(compatibility, dict) or compatibility.get("appLevelArtifacts") is not True:
-        return {}
+    # ── v2 spec: supportsPartialUpdate ──────────────────────────────
+    if library_manifest.get("supportsPartialUpdate") is not True:
+        # Legacy: compatibility.appLevelArtifacts
+        compatibility = library_manifest.get("compatibility")
+        if not isinstance(compatibility, dict) or compatibility.get("appLevelArtifacts") is not True:
+            return {}
 
     apps_index_relative = library_manifest.get("appsIndex")
     if not isinstance(apps_index_relative, str) or not apps_index_relative:
@@ -321,14 +395,34 @@ def resolve_library_apps_index(manifest_bundle: dict[str, object] | None) -> dic
     for item in apps:
         if not isinstance(item, dict):
             continue
-        key = item.get("key")
+        # v2 spec uses "app" key; legacy may use "key"
+        key = item.get("app") or item.get("key")
         if isinstance(key, str) and key:
-            app_map[key] = item
+            # Normalize v2 per-app package/checksum entries into legacy bundle shape
+            # so sync_library_app_artifacts_delta can consume both formats.
+            normalized = dict(item)
+            if "package" in normalized and "bundle" not in normalized:
+                pkg = normalized.get("package")
+                if isinstance(pkg, dict):
+                    normalized["bundle"] = pkg.get("latest")
+            if "checksum" in normalized:
+                chk = normalized.get("checksum")
+                if isinstance(chk, dict) and "bundle" not in chk:
+                    chk["bundle"] = chk.get("latest")
+            app_map[key] = normalized
 
     return app_map
 
 
-def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previous_dataset_version: object, latest_dataset_version: object) -> dict[str, bool]:
+def _resolve_component_dataset_version(appstore_manifest: dict[str, object], component: str) -> object:
+    """Extract per-component datasetVersion from v2 appstore manifest."""
+    block = appstore_manifest.get(component)
+    if isinstance(block, dict):
+        return block.get("datasetVersion")
+    return None
+
+
+def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previous_state: dict[str, object], latest_dataset_version: object) -> dict[str, bool]:
     plan = {
         "media": True,
         "library": True,
@@ -337,33 +431,62 @@ def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previ
     if not manifest_bundle:
         return plan
 
-    if not latest_dataset_version or previous_dataset_version in {None, "", latest_dataset_version}:
+    if not latest_dataset_version:
         return plan
 
-    catalog_manifest = manifest_bundle.get("catalog_manifest")
-    catalog_manifest_url = str(manifest_bundle.get("catalog_manifest_url", ""))
-    if isinstance(catalog_manifest, dict):
-        catalog_delta = fetch_delta_payload(catalog_manifest_url, catalog_manifest.get("deltaFiles", {}).get("catalog") if isinstance(catalog_manifest.get("deltaFiles"), dict) else None)
-        product_delta = fetch_delta_payload(catalog_manifest_url, catalog_manifest.get("deltaFiles", {}).get("product") if isinstance(catalog_manifest.get("deltaFiles"), dict) else None)
-        plan["media"] = (
-            not delta_payload_matches_version_chain(catalog_delta, previous_dataset_version, latest_dataset_version)
-            or not delta_payload_matches_version_chain(product_delta, previous_dataset_version, latest_dataset_version)
-            or delta_payload_has_changes(catalog_delta, ("addedKeys", "removedKeys", "changedKeys"))
-            or delta_payload_has_changes(product_delta, ("addedKeys", "removedKeys", "changedKeys"))
-        )
+    previous_root_dsv = previous_state.get("datasetVersion")
+    if previous_root_dsv in {None, ""}:
+        return plan
 
-    library_manifest = manifest_bundle.get("library_manifest")
-    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
-    if isinstance(library_manifest, dict):
-        library_delta_context = resolve_library_delta_context(manifest_bundle, previous_dataset_version, latest_dataset_version)
-        library_delta = library_delta_context.get("libraryDelta") if library_delta_context else fetch_delta_payload(library_manifest_url, library_manifest.get("deltaFiles", {}).get("library") if isinstance(library_manifest.get("deltaFiles"), dict) else None)
-        apps_delta = library_delta_context.get("appsDelta") if library_delta_context else fetch_delta_payload(library_manifest_url, library_manifest.get("deltaFiles", {}).get("apps") if isinstance(library_manifest.get("deltaFiles"), dict) else None)
-        plan["library"] = (
-            not delta_payload_matches_version_chain(library_delta, previous_dataset_version, latest_dataset_version)
-            or not delta_payload_matches_version_chain(apps_delta, previous_dataset_version, latest_dataset_version)
-            or delta_payload_has_changes(library_delta, ("changedApps",))
-            or delta_payload_has_changes(apps_delta, ("addedApps", "removedApps", "changedApps"))
-        )
+    appstore_manifest = manifest_bundle.get("appstore_manifest")
+    if not isinstance(appstore_manifest, dict):
+        return plan
+
+    # ── v2: use per-component datasetVersions when available ──────
+    catalog_dsv = _resolve_component_dataset_version(appstore_manifest, "catalog")
+    library_dsv = _resolve_component_dataset_version(appstore_manifest, "library")
+
+    previous_catalog_dsv = previous_state.get("catalogDatasetVersion")
+    previous_library_dsv = previous_state.get("libraryDatasetVersion")
+
+    # media / catalog
+    if catalog_dsv is not None and previous_catalog_dsv is not None:
+        if catalog_dsv == previous_catalog_dsv:
+            plan["media"] = False
+
+    # library
+    if library_dsv is not None and previous_library_dsv is not None:
+        if library_dsv == previous_library_dsv:
+            plan["library"] = False
+    elif library_dsv is not None and previous_root_dsv == latest_dataset_version:
+        # No per-component history yet – root hasn't changed either
+        plan["library"] = False
+
+    # If v2 detection couldn't determine no-change, fall through to
+    # delta-based detection (legacy or v2 appsDelta).
+    if plan["library"]:
+        library_delta_context = resolve_library_delta_context(manifest_bundle, previous_root_dsv, latest_dataset_version)
+        if library_delta_context is not None:
+            apps_delta = library_delta_context.get("appsDelta", {})
+            if isinstance(apps_delta, dict) and not delta_payload_has_changes(apps_delta, ("addedApps", "removedApps", "changedApps")):
+                plan["library"] = False
+
+    if plan["media"]:
+        # Legacy catalog delta detection
+        catalog_manifest = manifest_bundle.get("catalog_manifest")
+        catalog_manifest_url = str(manifest_bundle.get("catalog_manifest_url", ""))
+        if isinstance(catalog_manifest, dict):
+            delta_files = catalog_manifest.get("deltaFiles")
+            if isinstance(delta_files, dict):
+                catalog_delta_payload = fetch_delta_payload(catalog_manifest_url, delta_files.get("catalog"))
+                product_delta_payload = fetch_delta_payload(catalog_manifest_url, delta_files.get("product"))
+                if (
+                    delta_payload_matches_version_chain(catalog_delta_payload, previous_root_dsv, latest_dataset_version)
+                    and delta_payload_matches_version_chain(product_delta_payload, previous_root_dsv, latest_dataset_version)
+                    and not delta_payload_has_changes(catalog_delta_payload, ("addedKeys", "removedKeys", "changedKeys"))
+                    and not delta_payload_has_changes(product_delta_payload, ("addedKeys", "removedKeys", "changedKeys"))
+                ):
+                    plan["media"] = False
 
     return plan
 
@@ -374,6 +497,11 @@ def resolve_package_url(package_type: str, channel: str, artifact_base: str, man
             catalog_manifest_url = str(manifest_bundle["catalog_manifest_url"])
             catalog_manifest = manifest_bundle["catalog_manifest"]
             if isinstance(catalog_manifest, dict):
+                # v2 spec: fullPackage points to the catalog zip
+                full_pkg = catalog_manifest.get("fullPackage")
+                if isinstance(full_pkg, str) and full_pkg:
+                    return resolve_json_url(catalog_manifest_url, full_pkg)
+                # Legacy field names
                 package_name = catalog_manifest.get("legacyMediaArchive") or catalog_manifest.get("catalogArchive")
                 if isinstance(package_name, str) and package_name:
                     return resolve_json_url(catalog_manifest_url, package_name)
@@ -382,10 +510,18 @@ def resolve_package_url(package_type: str, channel: str, artifact_base: str, man
             library_manifest_url = str(manifest_bundle["library_manifest_url"])
             library_manifest = manifest_bundle["library_manifest"]
             if isinstance(library_manifest, dict):
+                # v2 spec: fullPackage.latest for the channel-tagged full zip
+                full_pkg = library_manifest.get("fullPackage")
+                if isinstance(full_pkg, dict):
+                    latest = full_pkg.get("latest")
+                    if isinstance(latest, str) and latest:
+                        return resolve_json_url(library_manifest_url, latest)
+                # Legacy field name
                 package_name = library_manifest.get("libraryPackage")
                 if isinstance(package_name, str) and package_name:
                     return resolve_json_url(library_manifest_url, package_name)
 
+    # Ultimate fallback: legacy flat URL structure
     package_name = resolve_package_name(channel, package_type)
     return f"{artifact_base}/{channel}/websoft9/plugin/{package_type}/{package_name}"
 
@@ -716,6 +852,25 @@ def sync_package(
             archive.extractall(extract_dir)
 
         source_root = extract_sync_root(extract_dir, package_type)
+
+        # v2 catalog zip ships JSON files flat; the runtime layout expects
+        # them under a json/ subdirectory (matching the legacy media.zip shape).
+        if package_type == "media" and not (source_root / "json").is_dir():
+            json_files = sorted(source_root.glob("*.json"))
+            if json_files:
+                json_dir = temp_dir / "wrapped-media"
+                nested_json = json_dir / "json"
+                nested_json.mkdir(parents=True, exist_ok=True)
+                for json_file in json_files:
+                    shutil.move(str(json_file), str(nested_json / json_file.name))
+                # Carry over any non-JSON contents (logos, screenshots, etc.)
+                for item in source_root.iterdir():
+                    if item.is_dir():
+                        shutil.copytree(item, json_dir / item.name)
+                    elif not item.name.endswith(".json"):
+                        shutil.copy2(item, json_dir / item.name)
+                source_root = json_dir
+
         snapshot_paths = None
         if snapshot_root is not None and dataset_version:
             snapshot_paths = stage_snapshot(source_root, snapshot_root, dataset_version, package_type)
@@ -862,6 +1017,8 @@ def main() -> int:
         manifest_bundle = None
         latest_dataset_version = None
         latest_generated_at = None
+        latest_catalog_dsv = None
+        latest_library_dsv = None
         should_skip_package_sync = False
         applied_dataset_version = None
         package_snapshot_paths: dict[str, dict[str, str]] = {}
@@ -877,12 +1034,15 @@ def main() -> int:
             if isinstance(appstore_manifest, dict):
                 latest_dataset_version = appstore_manifest.get("datasetVersion")
                 latest_generated_at = appstore_manifest.get("generatedAt")
+                # Resolve per-component datasetVersions (v2) for state tracking
+                latest_catalog_dsv = _resolve_component_dataset_version(appstore_manifest, "catalog")
+                latest_library_dsv = _resolve_component_dataset_version(appstore_manifest, "library")
                 if not force_refresh and previous_state.get("datasetVersion") == latest_dataset_version:
                     should_skip_package_sync = True
                     log(f"[platform-assets] appstore dataset {latest_dataset_version} already active for channel {channel}")
                 package_sync_plan = determine_package_sync_plan(
                     manifest_bundle,
-                    previous_state.get("datasetVersion"),
+                    previous_state,
                     latest_dataset_version,
                 )
                 library_delta_context = resolve_library_delta_context(
@@ -955,7 +1115,9 @@ def main() -> int:
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
 
-        install_metadata_url = f"{artifact_base}/websoft9/v2/{channel}/appstore/library/app-store-install-metadata.json"
+        # ── install metadata ──────────────────────────────────────────
+        # Only consume remote install metadata when the active manifest declares it.
+        install_metadata = None
         if manifest_bundle:
             library_manifest_url = str(manifest_bundle["library_manifest_url"])
             library_manifest = manifest_bundle["library_manifest"]
@@ -963,29 +1125,33 @@ def main() -> int:
                 install_metadata_relative = library_manifest.get("installMetadata")
                 if isinstance(install_metadata_relative, str) and install_metadata_relative:
                     install_metadata_url = resolve_json_url(library_manifest_url, install_metadata_relative)
+                    try:
+                        install_metadata = download_json(install_metadata_url)
+                        log(f"[platform-assets] downloaded app store install metadata from {install_metadata_url}")
+                    except Exception as exc:
+                        log(f"[platform-assets] declared install metadata unavailable, falling back to local generation: {exc}")
 
-        try:
-            install_metadata = download_json(install_metadata_url)
-            log(f"[platform-assets] downloaded app store install metadata from {install_metadata_url}")
-        except Exception as exc:
-            log(f"[platform-assets] remote install metadata unavailable, falling back to local generation: {exc}")
+        if install_metadata is None:
             install_metadata = build_app_store_install_metadata(library_apps_root, config_path)
 
         write_json_file(install_metadata_path, install_metadata)
-        write_sync_state(
-            sync_state_path,
-            {
-                "channel": channel,
-                "datasetVersion": applied_dataset_version,
-                "generatedAt": latest_generated_at,
-                "lastSyncedAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-                "syncMode": sync_mode,
-                "updated": not should_skip_package_sync,
-                "snapshotRoot": str(snapshot_root),
-                "snapshots": package_snapshot_paths,
-                "packageSyncPlan": package_sync_plan,
-            },
-        )
+
+        state_payload: dict[str, object] = {
+            "channel": channel,
+            "datasetVersion": applied_dataset_version,
+            "generatedAt": latest_generated_at,
+            "lastSyncedAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "syncMode": sync_mode,
+            "updated": not should_skip_package_sync,
+            "snapshotRoot": str(snapshot_root),
+            "snapshots": package_snapshot_paths,
+            "packageSyncPlan": package_sync_plan,
+        }
+        if latest_catalog_dsv is not None:
+            state_payload["catalogDatasetVersion"] = latest_catalog_dsv
+        if latest_library_dsv is not None:
+            state_payload["libraryDatasetVersion"] = latest_library_dsv
+        write_sync_state(sync_state_path, state_payload)
         log(f"[platform-assets] wrote app store install metadata to {install_metadata_path} (mode={sync_mode})")
     except Exception as exc:
         log(f"[platform-assets] asset sync failed (mode={sync_mode}): {exc}")

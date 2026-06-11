@@ -162,9 +162,16 @@ COPY docker/scripts/platform-start-npm-nginx.sh /websoft9/script/platform-start-
 COPY docker/scripts/platform-start-portainer.sh /websoft9/script/platform-start-portainer.sh
 COPY docker/scripts/platform-sync-config.sh /websoft9/script/platform-sync-config.sh
 COPY docker/scripts/platform-sync-runtime-assets.py /websoft9/script/platform-sync-runtime-assets.py
+COPY docker/crontab /etc/cron.d/websoft9-appstore
 
+RUN chmod 0644 /etc/cron.d/websoft9-appstore
+
+ARG WEBSOFT9_APPSTORE_CHANNEL=dev
+
+# Pre-populate app store assets during image build so first-load browsing uses
+# a prepared local dataset instead of waiting for runtime warm-up.
 RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
-    WEBSOFT9_RUNTIME_ASSET_TYPES=media,library \
+    WEBSOFT9_RUNTIME_ASSET_CHANNEL="$WEBSOFT9_APPSTORE_CHANNEL" \
     python3 /websoft9/script/platform-sync-runtime-assets.py
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \

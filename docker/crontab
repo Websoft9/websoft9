@@ -1,0 +1,5 @@
+# Websoft9 Platform — App Store daily auto-sync
+# Runs every day at 03:00 UTC and logs to supervisor log stream.
+# Uses dev channel during active development; switch to release for production.
+0 3 * * * root /usr/local/bin/apphub upgrade apps --channel dev >> /var/log/supervisord.log 2>&1
+

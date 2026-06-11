@@ -169,9 +169,22 @@ type ProductAuthFavoritesResponse = {
     favorites: string[]
 }
 
-type AppStoreSyncResponse = {
-    status: string
-    details: string
+type AppStoreSyncStatusResponse = {
+    status: 'running' | 'idle'
+    lastSyncedAt?: string
+    datasetVersion?: string
+}
+
+type AppStoreStateResponse = {
+    channel?: string
+    datasetVersion?: string
+    catalogDatasetVersion?: string
+    libraryDatasetVersion?: string
+    generatedAt?: string
+    lastSyncedAt?: string
+    syncMode?: string
+    updated?: boolean
+    snapshotRoot?: string
 }
 
 type ComposeEnvironmentRow = {
@@ -226,6 +239,37 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
 async function fetchFavorites() {
     return requestJson<ProductAuthFavoritesResponse>('/api/auth/favorites', { method: 'GET' })
+}
+
+function formatFullSyncTimestamp(value: string | undefined, locale: string) {
+    if (!value) {
+        return null
+    }
+
+    const timestamp = new Date(value)
+    if (Number.isNaN(timestamp.getTime())) {
+        return null
+    }
+
+    if (locale.toLowerCase().startsWith('zh')) {
+        const year = timestamp.getFullYear()
+        const month = String(timestamp.getMonth() + 1).padStart(2, '0')
+        const day = String(timestamp.getDate()).padStart(2, '0')
+        const hour = String(timestamp.getHours()).padStart(2, '0')
+        const minute = String(timestamp.getMinutes()).padStart(2, '0')
+        const second = String(timestamp.getSeconds()).padStart(2, '0')
+        return `${year}年${month}月${day}日 ${hour}:${minute}:${second}`
+    }
+
+    return new Intl.DateTimeFormat(locale, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    }).format(timestamp)
 }
 
 async function installComposeApp(payload: {
@@ -839,6 +883,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installFeedback, setInstallFeedback] = useState<InstallFeedback | null>(null)
     const [isSubmittingInstall, setIsSubmittingInstall] = useState(false)
     const [isRefreshingStore, setIsRefreshingStore] = useState(false)
+    const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false)
+    const [refreshFeedback, setRefreshFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
     const [wildcardDomain, setWildcardDomain] = useState('')
     const [isDomainEnabled, setIsDomainEnabled] = useState(true)
     const [customDomain, setCustomDomain] = useState('')
@@ -855,6 +901,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [isFavoritesOpen, setIsFavoritesOpen] = useState(false)
     const [detailDialogSource, setDetailDialogSource] = useState<DetailDialogSource>('catalog')
     const [contentViewportRect, setContentViewportRect] = useState<ContentViewportRect | null>(null)
+    const previousSyncStatusRef = useRef<AppStoreSyncStatusResponse['status'] | null>(null)
     const appIdInputRef = useRef<HTMLInputElement | null>(null)
     const customDomainInputRef = useRef<HTMLInputElement | null>(null)
     const composeFileInputRef = useRef<HTMLInputElement | null>(null)
@@ -869,10 +916,26 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         queryFn: fetchFavorites,
         staleTime: 10_000,
     })
+    const { data: appStoreState, refetch: refetchAppStoreState } = useQuery<AppStoreStateResponse, Error>({
+        queryKey: ['appstore-state'],
+        queryFn: () => requestJson<AppStoreStateResponse>('/api/appstore/state'),
+        staleTime: 30_000,
+        refetchOnWindowFocus: true,
+    })
+    const { data: appStoreSyncStatus, refetch: refetchAppStoreSyncStatus } = useQuery<AppStoreSyncStatusResponse, Error>({
+        queryKey: ['appstore-sync-status'],
+        queryFn: () => requestJson<AppStoreSyncStatusResponse>('/api/appstore/sync/status'),
+        staleTime: 0,
+        refetchOnWindowFocus: true,
+        refetchInterval: isRefreshingStore ? 2_000 : false,
+    })
 
     const apps = data ?? []
     const catalogs = catalogsData ?? []
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
+    const effectiveIsSyncRunning = isRefreshingStore || appStoreSyncStatus?.status === 'running'
+    const lastSyncedAt = appStoreSyncStatus?.lastSyncedAt ?? appStoreState?.lastSyncedAt
+    const formattedFullSyncAt = formatFullSyncTimestamp(lastSyncedAt, resolvedLocale)
     const sourceParam = searchParams.get('source')
     const selectedInstallSource: InstallSourceKey = lockedInstallSource ?? (sourceParam === 'compose' ? 'compose' : 'marketplace')
     const quickAppKey = searchParams.get('app')?.trim().toLowerCase() ?? ''
@@ -935,6 +998,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const normalizedCustomDomain = normalizeCustomDomain(customDomain)
     const hasCustomAccessDomain = Boolean(normalizedCustomDomain)
     const availableVersions = selectedApp ? getAppStoreInstallDistributions(selectedApp).flatMap((distribution) => distribution.versions) : []
+    const syncStatusTitle = effectiveIsSyncRunning ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')
     const keywordMatchedApps = useMemo(() => apps.filter((app) => matchesAppStoreSearch(app, deferredSearchValue)), [apps, deferredSearchValue])
     const mainCategoryCounts = useMemo(() => {
         const counts = new Map<string, number>()
@@ -1560,47 +1624,91 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setSearchValue(value)
     }
 
-    async function handleRefreshStore() {
-        if (isRefreshingStore) {
+    useEffect(() => {
+        const currentStatus = appStoreSyncStatus?.status
+        if (!currentStatus) {
             return
         }
 
-        setIsRefreshingStore(true)
+        const previousStatus = previousSyncStatusRef.current
+        previousSyncStatusRef.current = currentStatus
 
-        try {
-            const syncResult = await requestJson<AppStoreSyncResponse>('/api/appstore/sync', {
-                method: 'POST',
-            })
-
-            if (syncResult.status !== 'success') {
-                throw new Error(syncResult.details || t('appStorePage.states.errorTitle'))
+        if (currentStatus === 'running') {
+            if (!isRefreshingStore) {
+                setIsRefreshingStore(true)
             }
+            return
+        }
 
-            const [appsResult, catalogsResult, favoritesResult] = await Promise.all([
+        if (previousStatus === 'running') {
+            setIsRefreshingStore(false)
+            void Promise.all([
                 refetch(),
                 refetchCatalogs(),
                 refetchFavorites(),
-                new Promise((resolve) => {
-                    window.setTimeout(resolve, 450)
-                }),
+                refetchAppStoreState(),
             ])
+                .then(() => {
+                    setRefreshFeedback({
+                        severity: 'success',
+                        message: t('appStorePage.feedback.refreshComplete'),
+                    })
+                })
+                .catch(() => {
+                    setRefreshFeedback({
+                        severity: 'error',
+                        message: t('appStorePage.states.errorTitle'),
+                    })
+                })
+            return
+        }
 
-            if (appsResult.error) {
-                throw appsResult.error
-            }
-
-            if (catalogsResult.error) {
-                throw catalogsResult.error
-            }
-
-            if (favoritesResult.error) {
-                throw favoritesResult.error
-            }
-
-        } catch (refreshError) {
-            setInstallError(refreshError instanceof Error ? refreshError.message : t('appStorePage.states.errorTitle'))
-        } finally {
+        if (isRefreshingStore) {
             setIsRefreshingStore(false)
+        }
+    }, [appStoreSyncStatus?.status, isRefreshingStore, refetch, refetchAppStoreState, refetchCatalogs, refetchFavorites, t])
+
+    async function handleRefreshStore() {
+        if (effectiveIsSyncRunning) {
+            setInstallError(t('appStorePage.actions.syncAlreadyRunning'))
+            return
+        }
+
+        // Check if a sync is already running
+        try {
+            const statusResp = await requestJson<{ status: string }>('/api/appstore/sync/status')
+            if (statusResp.status === 'running') {
+                setInstallError(t('appStorePage.actions.syncAlreadyRunning'))
+                return
+            }
+        } catch {
+            // proceed even if status check fails
+        }
+
+        captureContentViewport()
+        setRefreshConfirmOpen(true)
+    }
+
+    async function executeRefreshStore() {
+        setRefreshConfirmOpen(false)
+        setIsRefreshingStore(true)
+        setRefreshFeedback(null)
+
+        try {
+            const syncResult = await requestJson<{ status: string; message?: string }>('/api/appstore/sync', {
+                method: 'POST',
+            })
+
+            if (syncResult.status !== 'accepted' && syncResult.status !== 'already_running') {
+                throw new Error(syncResult.message || t('appStorePage.states.errorTitle'))
+            }
+            await Promise.all([
+                refetchAppStoreSyncStatus(),
+                refetchAppStoreState(),
+            ])
+        } catch (refreshError) {
+            setIsRefreshingStore(false)
+            setInstallError(refreshError instanceof Error ? refreshError.message : t('appStorePage.states.errorTitle'))
         }
     }
 
@@ -1772,7 +1880,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             descriptionColor={palette.subtleText}
                             sx={{ mb: 0.75 }}
                             actions={(
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375, flexShrink: 0 }}>
+                                <Box
+                                    sx={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '26px 26px',
+                                        gridTemplateRows: '20px',
+                                        columnGap: 0,
+                                        justifyItems: 'center',
+                                        alignItems: 'center',
+                                        flexShrink: 0,
+                                        alignSelf: 'start',
+                                        pt: 0,
+                                        mt: 0.05,
+                                    }}
+                                >
                                     <Tooltip title={t('appStorePage.actions.favoriteList', { count: favoriteApps.length }).replace(/\s*\(\d+\)$/, '')}>
                                         <IconButton
                                             color="inherit"
@@ -1780,15 +1901,22 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 openFavoritesDialog()
                                             }}
                                             size="small"
-                                            className="app-shell-page-action"
                                             aria-label={favoriteListAriaLabel}
                                             sx={{
-                                                width: 30,
-                                                height: 30,
-                                                padding: 0.35,
+                                                width: 26,
+                                                minWidth: 26,
+                                                maxWidth: 26,
+                                                height: 26,
+                                                minHeight: 26,
+                                                maxHeight: 26,
+                                                padding: 0.25,
+                                                borderRadius: '2px',
+                                                color: palette.subtleText,
+                                                gridColumn: '1',
+                                                gridRow: '1',
                                                 '&:hover': {
-                                                    borderColor: palette.borderStrong,
                                                     background: palette.panelSoft,
+                                                    color: palette.text,
                                                     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
                                                 },
                                                 '& .MuiSvgIcon-root': {
@@ -1797,34 +1925,60 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 '& .MuiBadge-badge': {
                                                     backgroundColor: palette.danger,
                                                     color: palette.accentContrast,
-                                                    minWidth: 15,
-                                                    height: 15,
-                                                    padding: '0 4px',
-                                                    fontSize: 9,
+                                                    minWidth: 13,
+                                                    height: 13,
+                                                    padding: '0 3px',
+                                                    fontSize: 8,
                                                     lineHeight: 1,
-                                                    transform: 'scale(0.9) translate(38%, -34%)',
+                                                    transform: 'translate(42%, -42%) scale(0.92)',
+                                                    transformOrigin: '100% 0%',
                                                 },
                                             }}
                                             title={favoriteListAriaLabel}
                                         >
-                                            <Badge badgeContent={favoriteApps.length} color="error" max={99} overlap="circular">
+                                            <Badge
+                                                badgeContent={favoriteApps.length}
+                                                color="error"
+                                                max={99}
+                                                overlap="circular"
+                                                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                                            >
                                                 <FavoriteIcon />
                                             </Badge>
                                         </IconButton>
                                     </Tooltip>
-                                    <Tooltip title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
+                                    <Tooltip title={syncStatusTitle}>
                                         <IconButton
                                             color="inherit"
                                             onClick={() => {
                                                 void handleRefreshStore()
                                             }}
                                             size="small"
-                                            disabled={isRefreshingStore}
-                                            className="app-shell-page-action"
-                                            title={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
-                                            sx={{ width: 30, height: 30, padding: 0.35 }}
+                                            title={syncStatusTitle}
+                                            sx={{
+                                                width: 26,
+                                                minWidth: 26,
+                                                maxWidth: 26,
+                                                height: 26,
+                                                minHeight: 26,
+                                                maxHeight: 26,
+                                                padding: 0.25,
+                                                borderRadius: '2px',
+                                                color: palette.subtleText,
+                                                gridColumn: '2',
+                                                gridRow: '1',
+                                                ml: -0.2,
+                                                '&:hover': {
+                                                    background: palette.panelSoft,
+                                                    color: palette.text,
+                                                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+                                                },
+                                                '& .MuiSvgIcon-root': {
+                                                    fontSize: 16.5,
+                                                },
+                                            }}
                                         >
-                                            {isRefreshingStore ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                            {effectiveIsSyncRunning ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
                                         </IconButton>
                                     </Tooltip>
                                 </Box>
@@ -2351,11 +2505,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <Stack spacing={1.5} sx={{ pb: 0.5 }}>
                             <FavoriteSectionHeading title={resultsSectionTitle} />
 
-                            {isLoading || isRefreshingStore ? (
-                                <SurfaceStateCard detail={isRefreshingStore ? t('appStorePage.actions.refreshing') : t('appStorePage.states.loading')} loading darkMode={isDarkMode} />
+                            {isLoading ? (
+                                <SurfaceStateCard detail={t('appStorePage.states.loading')} loading darkMode={isDarkMode} />
                             ) : null}
 
-                            {!isLoading && !isRefreshingStore && error ? (
+                            {!isLoading && error ? (
                                 <SurfaceNoticeAlert
                                     detail={t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
                                     action={
@@ -2369,11 +2523,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                 />
                             ) : null}
 
-                            {!isLoading && !isRefreshingStore && !error && filteredApps.length === 0 ? (
+                            {!isLoading && !error && filteredApps.length === 0 ? (
                                 <SurfaceStateCard detail={t('appStorePage.states.emptyDetail')} title={t('appStorePage.states.emptyTitle')} darkMode={isDarkMode} />
                             ) : null}
 
-                            {!isLoading && !isRefreshingStore && !error && filteredApps.length > 0 ? (
+                            {!isLoading && !error && filteredApps.length > 0 ? (
                                 <Stack spacing={1.5}>
                                     <Box
                                         sx={{
@@ -2935,6 +3089,102 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 severity={installError ? 'error' : installFeedback?.severity ?? 'success'}
                 darkMode={isDarkMode}
             />
+
+            <SurfaceFeedbackToast
+                message={refreshFeedback?.message ?? ''}
+                onClose={() => setRefreshFeedback(null)}
+                open={Boolean(refreshFeedback)}
+                scope="content"
+                scopeRect={contentViewportRect}
+                severity={refreshFeedback?.severity ?? 'success'}
+                darkMode={isDarkMode}
+            />
+
+            <AppStoreScopedOverlay
+                open={refreshConfirmOpen}
+                scopeRect={contentViewportRect}
+                onClose={() => setRefreshConfirmOpen(false)}
+                maxWidth={440}
+                verticalPlacement="top"
+                darkMode={isDarkMode}
+            >
+                <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, flexShrink: 0, backgroundColor: palette.dialogBg }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+                        <Typography sx={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: palette.text }}>
+                            {t('appStorePage.actions.refreshConfirmTitle')}
+                        </Typography>
+                        <IconButton
+                            color="inherit"
+                            onClick={() => {
+                                setRefreshConfirmOpen(false)
+                            }}
+                            size="small"
+                            sx={{
+                                width: 38,
+                                height: 38,
+                                color: palette.subtleText,
+                                borderRadius: '999px',
+                                backgroundColor: 'transparent',
+                                '&:hover': {
+                                    backgroundColor: 'transparent',
+                                    color: palette.text,
+                                    opacity: 0.84,
+                                },
+                            }}
+                            title={t('appStorePage.actions.close')}
+                        >
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                </DialogTitle>
+                <DialogContent
+                    dividers
+                    sx={{
+                        px: { xs: 2, md: 2.5 },
+                        py: 2,
+                        backgroundColor: palette.dialogBg,
+                        '&.MuiDialogContent-dividers': {
+                            borderTopColor: palette.border,
+                            borderBottomColor: palette.border,
+                        },
+                    }}
+                >
+                    <Box sx={{ display: 'grid', gap: 1.25 }}>
+                        <Typography sx={{ fontSize: 14, color: palette.subtleText, lineHeight: 1.7 }}>
+                            {t('appStorePage.actions.refreshConfirmMessage')}
+                        </Typography>
+                        {formattedFullSyncAt ? (
+                            <Typography sx={{ fontSize: 13, color: palette.text, lineHeight: 1.6, fontWeight: 500 }}>
+                                {t('appStorePage.actions.lastSyncAt', { value: formattedFullSyncAt })}
+                            </Typography>
+                        ) : null}
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.dialogBg }}>
+                    <Button
+                        color="inherit"
+                        onClick={() => setRefreshConfirmOpen(false)}
+                        variant="contained"
+                        sx={{
+                            minWidth: 68,
+                            backgroundColor: palette.actionBg,
+                            color: palette.subtleText,
+                            borderRadius: 0,
+                            boxShadow: 'none',
+                            '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none', color: palette.text },
+                        }}
+                    >
+                        {t('appStorePage.actions.cancel')}
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={() => void executeRefreshStore()}
+                        sx={{ minWidth: 92, borderRadius: 0, textTransform: 'none', boxShadow: 'none' }}
+                    >
+                        {t('appStorePage.actions.confirmRefresh')}
+                    </Button>
+                </DialogActions>
+            </AppStoreScopedOverlay>
         </Box>
     )
 }

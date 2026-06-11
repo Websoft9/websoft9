@@ -14,7 +14,6 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
@@ -149,7 +148,6 @@ async function updatePlatformGatewaySettings(payload: PlatformGatewayUpdateReque
     }
 }
 
-const PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH = '/volumes/platform-gateway-certificates'
 const PLATFORM_GATEWAY_BOUND_DOMAIN_DRAFT_KEY = 'platform_gateway.bound_domain'
 const PLATFORM_GATEWAY_CERT_DRAFT_KEY = 'platform_gateway.ssl_cert'
 const PLATFORM_GATEWAY_KEY_DRAFT_KEY = 'platform_gateway.ssl_key'
@@ -195,7 +193,6 @@ export function SettingsPage() {
     const isDarkMode = colorMode === 'dark'
     const surfacePalette = getSurfacePalette(isDarkMode)
     const settingsFieldSx = getSurfaceFieldSx(surfacePalette)
-    const navigate = useNavigate()
     const [drafts, setDrafts] = useState<Record<string, string>>({})
     const [mirrorPendingInputs, setMirrorPendingInputs] = useState<Record<string, string>>({})
     const [activeModule, setActiveModule] = useState<SettingsModuleId>('app-domain')
@@ -205,7 +202,6 @@ export function SettingsPage() {
     const [reuseLogo, setReuseLogo] = useState<boolean>(false)
     const [useDomain, setUseDomain] = useState<boolean>(false)
     const [uploadingLogo, setUploadingLogo] = useState(false)
-    const [applyingLetsEncrypt, setApplyingLetsEncrypt] = useState(false)
     const [letsEncryptEmail, setLetsEncryptEmail] = useState('')
     const [certAction, setCertAction] = useState<'letsencrypt' | 'existing' | 'upload'>('letsencrypt')
     const [certValidityDays, setCertValidityDays] = useState(3650)
@@ -312,10 +308,6 @@ export function SettingsPage() {
             }
             return nextInputs
         })
-    }
-
-    function handleOpenCertificateDirectory() {
-        navigate(`/files?path=${encodeURIComponent(PLATFORM_GATEWAY_CERTIFICATES_BROWSER_PATH)}`)
     }
 
     function isPlatformBrandLogoUrl(value: string) {
@@ -957,8 +949,6 @@ export function SettingsPage() {
             reader.readAsText(file)
             event.target.value = ''
         }
-
-        const statusLabel = (v: boolean) => v ? t('settingsPage.platformSsl.statusOn') : t('settingsPage.platformSsl.statusOff')
 
         return (
             <>

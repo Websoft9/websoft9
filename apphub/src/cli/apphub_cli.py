@@ -242,7 +242,8 @@ def commit(appid, github_token):
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
 @click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Upgrade using the specified artifact channel')
 @click.option('--dev', is_flag=True, help='Upgrade using dev environment')
-def upgrade(target, channel, dev):
+@click.option('--force-refresh', is_flag=True, help='Force a full App Store sync instead of using incremental update detection')
+def upgrade(target, channel, dev, force_refresh):
     """Upgrade apps"""
     try:
         if target == 'apps':
@@ -254,7 +255,8 @@ def upgrade(target, channel, dev):
                 trigger='cli',
                 channel=resolved_channel,
                 package_types='media,library',
-                force_refresh=True,
+                force_refresh=force_refresh,
+                background=False,
             )
             dataset_version = result.get('datasetVersion')
             if dataset_version:
