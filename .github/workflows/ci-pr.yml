@@ -1,4 +1,4 @@
-name: PR Checks
+name: Pull Request Validation
 
 on:
   pull_request:
@@ -32,13 +32,13 @@ jobs:
           echo "Head branch: $HEAD_REF"
 
           if [[ "$BASE_REF" == "main" ]]; then
-            if [[ ! "$HEAD_REF" =~ ^(release/.+|hotfix/.+)$ ]]; then
-              echo "::error::PRs into main must come from release/* or hotfix/* branches"
+            if [[ "$HEAD_REF" != "dev" ]]; then
+              echo "::error::PRs into main must come from dev"
               exit 1
             fi
           elif [[ "$BASE_REF" == "dev" ]]; then
-            if [[ ! "$HEAD_REF" =~ ^(feature/.+|bugfix/.+|hotfix/.+|release/.+)$ ]]; then
-              echo "::error::PRs into dev must come from feature/*, bugfix/*, hotfix/*, or release/* branches"
+            if [[ ! "$HEAD_REF" =~ ^(feature/.+|bugfix/.+|chore/.+|refactor/.+|docs/.+|test/.+)$ ]]; then
+              echo "::error::PRs into dev must come from feature/*, bugfix/*, chore/*, refactor/*, docs/*, or test/* branches"
               exit 1
             fi
           else
@@ -93,7 +93,6 @@ jobs:
               - 'scripts/**'
               - 'install/**'
             appstore_data:
-              - '.github/workflows/build-appstore-catalog.yml'
               - '.github/workflows/release.yml'
               - 'apphub/src/cli/apphub_cli.py'
               - 'apphub/src/api/v1/routers/appstore_sync.py'

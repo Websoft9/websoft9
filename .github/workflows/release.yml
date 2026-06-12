@@ -1,100 +1,84 @@
-name: Release
+name: Main Release Publish
 
 on:
   workflow_dispatch:
-    inputs:
-      channel:
-        type: choice
-        description: Release channel
-        options:
-          - auto
-          - release
-          - rc
-          - dev
-        default: auto
   push:
     branches:
       - main
-      - dev
-      - 'hotfix*'
     paths:
       - version.json
 
 jobs:
-  # ── Determine release channel and metadata ──
+  # ── Determine release metadata ──
   determine-channel:
-    name: Determine Channel
+    name: Determine Release Meta
     runs-on: ubuntu-latest
     outputs:
       channel: ${{ steps.channel.outputs.channel }}
       version: ${{ steps.channel.outputs.version }}
       version_core: ${{ steps.channel.outputs.version_core }}
-      is-release: ${{ steps.channel.outputs.is_release }}
-      is-hotfix: ${{ steps.channel.outputs.is_hotfix }}
+      sha_tag: ${{ steps.channel.outputs.sha_tag }}
     steps:
       - uses: actions/checkout@v4
       - id: channel
         run: |
           VERSION=$(jq -r '.version' version.json)
           VERSION_CORE="${VERSION%%-*}"
-          BRANCH="${{ github.ref_name }}"
-          MANUAL_CHANNEL="${{ github.event.inputs.channel }}"
-
-          # Determine channel
-          if [[ "$MANUAL_CHANNEL" != "" ]] && [[ "$MANUAL_CHANNEL" != "auto" ]]; then
-            CHANNEL="$MANUAL_CHANNEL"
-          elif [[ "$BRANCH" == "dev" ]]; then
-            CHANNEL=dev
-          elif [[ "$BRANCH" == hotfix* ]] || [[ "$VERSION" == *-* ]]; then
-            CHANNEL=rc
-          else
-            CHANNEL=release
-          fi
-
-          IS_RELEASE=false
-          [[ "$CHANNEL" == "release" ]] && IS_RELEASE=true
-
-          IS_HOTFIX=false
-          [[ "$BRANCH" == hotfix* ]] && IS_HOTFIX=true
+          SHA_TAG="sha-${GITHUB_SHA:0:8}"
+          CHANNEL=release
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "version_core=$VERSION_CORE" >> $GITHUB_OUTPUT
-          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
-          echo "is_hotfix=$IS_HOTFIX" >> $GITHUB_OUTPUT
+          echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
 
-          echo "✅ Channel: $CHANNEL | Version: $VERSION | Branch: $BRANCH"
+          echo "✅ Release | Version: $VERSION | SHA: $SHA_TAG"
 
-  build-appstore-dataset:
-    name: Build Appstore Dataset
+  image-meta:
+    name: Determine Image Tags
     needs: determine-channel
-    uses: ./.github/workflows/build-appstore-catalog.yml
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+      smoke_image: ${{ steps.meta.outputs.smoke_image }}
+    steps:
+      - id: meta
+        run: |
+          VERSION="${{ needs.determine-channel.outputs.version }}"
+          VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
+          SHA_TAG="${{ needs.determine-channel.outputs.sha_tag }}"
+
+          TAGS="websoft9dev/websoft9:${SHA_TAG}"
+          TAGS="${TAGS},websoft9dev/websoft9:latest"
+          TAGS="${TAGS},websoft9dev/websoft9:${VERSION}"
+          IFS='.' read -ra PARTS <<< "$VERSION_CORE"
+          if [[ ${#PARTS[@]} -ge 2 ]]; then
+            TAGS="${TAGS},websoft9dev/websoft9:${PARTS[0]}"
+            TAGS="${TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}"
+          fi
+          if [[ ${#PARTS[@]} -ge 3 ]]; then
+            TAGS="${TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}.${PARTS[2]}"
+          fi
+
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "smoke_image=websoft9dev/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
+
+  build-and-push-image:
+    name: Build & Push Image
+    needs: [determine-channel, image-meta]
+    uses: ./.github/workflows/_shared/docker-build.yml
     with:
-      channel: ${{ needs.determine-channel.outputs.channel }}
+      push: true
+      platforms: linux/amd64
+      tags: ${{ needs.image-meta.outputs.tags }}
     secrets: inherit
 
-  # ── Create hotfix branch from main (release only) ──
-  create-hotfix-branch:
-    name: Create Hotfix Branch
-    needs: determine-channel
-    if: |
-      needs.determine-channel.outputs.is-release == 'true' &&
-      github.ref == 'refs/heads/main' &&
-      github.event_name != 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create and push hotfix branch
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          BRANCH="hotfix-$TIMESTAMP"
-          git checkout -b "$BRANCH"
-          git push origin "$BRANCH"
-          echo "✅ Created hotfix branch: $BRANCH"
+  smoke-test-image:
+    name: Smoke Test Image
+    needs: [image-meta, build-and-push-image]
+    uses: ./.github/workflows/_shared/smoke-test.yml
+    with:
+      image: ${{ needs.image-meta.outputs.smoke_image }}
 
   # ── Update CHANGELOG ──
   update-changelog:
@@ -120,7 +104,7 @@ jobs:
   # ── Create release archive and upload to Cloudflare R2 ──
   upload-artifacts:
     name: Upload Artifacts
-    needs: [determine-channel, update-changelog, build-appstore-dataset]
+    needs: [determine-channel, update-changelog, build-and-push-image, smoke-test-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +112,8 @@ jobs:
       - name: Create release archive
         run: |
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
+          VERSION="${{ needs.determine-channel.outputs.version }}"
+          CHANNEL="${{ needs.determine-channel.outputs.channel }}"
 
           mkdir -p artifacts websoft9
 
@@ -142,12 +128,20 @@ jobs:
           # Create versioned zip
           zip -r "websoft9-${VERSION_CORE}.zip" websoft9
           cp "websoft9-${VERSION_CORE}.zip" artifacts/
-          cp install/install.sh artifacts/
-          cp install/uninstall.sh artifacts/
-          cp docker/docker-compose.yml artifacts/
-          cp version.json artifacts/
-          cp CHANGELOG.md artifacts/
-          cp mirrors.json artifacts/
+          cp install/install.sh artifacts/install.sh
+          cp install/uninstall.sh artifacts/uninstall.sh
+          cp docker/docker-compose.yml artifacts/docker-compose.yml
+          cp version.json artifacts/version.json
+          cp CHANGELOG.md artifacts/CHANGELOG.md
+          cp mirrors.json artifacts/mirrors.json
+
+          # Stable and versioned aliases inside the new platform publish root
+          cp artifacts/install.sh "artifacts/install-${CHANNEL}.sh"
+          cp artifacts/uninstall.sh "artifacts/uninstall-${CHANNEL}.sh"
+          cp artifacts/docker-compose.yml "artifacts/docker-compose-${CHANNEL}.yml"
+          cp artifacts/install.sh "artifacts/install-${VERSION}.sh"
+          cp artifacts/uninstall.sh "artifacts/uninstall-${VERSION}.sh"
+          cp artifacts/docker-compose.yml "artifacts/docker-compose-${VERSION}.yml"
 
           # Also create latest symlink
           cp "artifacts/websoft9-${VERSION_CORE}.zip" artifacts/websoft9-latest.zip
@@ -162,22 +156,30 @@ jobs:
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
           source-dir: artifacts
-          destination-dir: ./${{ needs.determine-channel.outputs.channel }}/websoft9
+          destination-dir: ./websoft9/${{ needs.determine-channel.outputs.channel }}/platform
 
       - name: Purge Cloudflare Cache
         uses: jakejarvis/cloudflare-purge-action@master
         env:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PURGE_URLS: '["https://artifact.websoft9.com/${{ needs.determine-channel.outputs.channel }}/websoft9/websoft9-latest.zip"]'
+          PURGE_URLS: >-
+            ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/websoft9-latest.zip",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/websoft9-${{ needs.determine-channel.outputs.version_core }}.zip",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/install.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/uninstall.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/install-${{ needs.determine-channel.outputs.channel }}.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/uninstall-${{ needs.determine-channel.outputs.channel }}.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/docker-compose-${{ needs.determine-channel.outputs.channel }}.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/install-${{ needs.determine-channel.outputs.version }}.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/uninstall-${{ needs.determine-channel.outputs.version }}.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/docker-compose-${{ needs.determine-channel.outputs.version }}.yml"]'
 
-  # ── Create GitHub Release (release or hotfix channels) ──
+  # ── Create GitHub Release ──
   github-release:
     name: GitHub Release
-    needs: [determine-channel, update-changelog, build-appstore-dataset]
-    if: |
-      needs.determine-channel.outputs.is_release == 'true' ||
-      needs.determine-channel.outputs.is_hotfix == 'true'
+    needs: [determine-channel, update-changelog]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -194,15 +196,13 @@ jobs:
           name: ${{ needs.determine-channel.outputs.version }}
           body: ${{ needs.update-changelog.outputs.changelog_body }}
           draft: false
-          prerelease: ${{ needs.determine-channel.outputs.is_release == 'false' }}
+          prerelease: false
 
-  # ── Deploy GitHub Pages (release channel only) ──
+  # ── Deploy GitHub Pages ──
   pages:
     name: GitHub Pages
-    needs: [determine-channel, build-appstore-dataset]
-    if: |
-      needs.determine-channel.outputs.is_release == 'true' &&
-      github.ref == 'refs/heads/main'
+    needs: determine-channel
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       pages: write
@@ -233,17 +233,11 @@ jobs:
           CHANNEL="${{ needs.determine-channel.outputs.channel }}"
           CHANGELOG=$(cat changelog_latest.md 2>/dev/null | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g' || echo "No changelog")
 
-          if [[ "$CHANNEL" == "rc" ]]; then
-            VERSION_DISPLAY="${VERSION}（预发布）"
-          else
-            VERSION_DISPLAY="$VERSION"
-          fi
-
           curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${{ secrets.WIXIN_ROBOT_KEY }}' \
             -H 'Content-Type: application/json' \
             -d "{
               \"msgtype\": \"markdown\",
               \"markdown\": {
-                \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 发布通道：<font color=\\\"comment\\\">${CHANNEL}</font>\\n> 最新版本：<font color=\\\"comment\\\">${VERSION_DISPLAY}</font>\\n> 更新内容：\\n${CHANGELOG}\\n>\"
+                \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 发布通道：<font color=\\\"comment\\\">${CHANNEL}</font>\\n> 最新版本：<font color=\\\"comment\\\">${VERSION}</font>\\n> 更新内容：\\n${CHANGELOG}\\n>\"
               }
             }"

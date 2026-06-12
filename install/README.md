@@ -1,75 +1,91 @@
 # Websoft9 Install
 
-Single-container runtime install and uninstall scripts.
+This directory contains the current installation scripts and their implementation baseline.
 
-## Quick Install
+It does not define the final lifecycle standard for the product.
+
+For the ongoing redesign of install, upgrade, uninstall, and legacy-to-modern migration, use [docs/platform-lifecycle/platform-lifecycle-governance_cn.md](../docs/platform-lifecycle/platform-lifecycle-governance_cn.md).
+
+## 1. Current Implementation Boundary
+
+The current scripts reflect the repository's present implementation, not the long-term target design.
+
+Current scope is limited to:
+
+1. Single-container installation
+2. Single-container same-model upgrade
+3. Single-container uninstall
+4. Standalone Docker installation helper
+
+Current scripts do not yet define the final standard for:
+
+1. Legacy Cockpit multi-container to current single-container one-click upgrade
+2. Long-term iterative upgrade policy for future versions
+3. Unified lifecycle governance across install, upgrade, uninstall, and rollback
+
+## 2. Current Scripts
+
+| Script | Current role |
+|---|---|
+| `install.sh` | Unified install and upgrade entry for same-model upgrade and legacy-to-modern migration |
+| `uninstall.sh` | Current single-container uninstall implementation |
+| `install_docker.sh` | Current Docker and Compose installation helper |
+| `install_podman.sh` | Experimental or alternative runtime helper |
+
+## 3. Current Usage Baseline
+
+These commands describe the current implementation baseline only.
 
 ```bash
-# Default install (release channel, latest version)
-curl -fsSL https://websoft9.github.io/websoft9/install/install.sh | sudo bash
+# Default install
+curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/install.sh | bash
 
-# With options
-sudo bash install.sh --channel release --version latest --console_port 9000
-```
+# Install with parameters
+bash install.sh --channel release --version latest --console_port 9000
 
-## Quick Uninstall
+# Upgrade or migration
+curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/install.sh | bash -s -- --mode upgrade
 
-```bash
-# Remove container + data volumes
-curl -fsSL https://websoft9.github.io/websoft9/install/uninstall.sh | sudo bash
+# Same-model upgrade only
+bash install.sh --mode upgrade --version 3.0.0
 
-# Remove container only (keep data)
+# Uninstall and remove runtime
+curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | sudo bash
+
+# Uninstall and keep data
 sudo bash uninstall.sh --keep-data
 
-# Remove everything including images
+# Uninstall and purge images
 sudo bash uninstall.sh --purge
 ```
 
-## Scripts
+## 4. Current Known Limits
 
-| Script | Purpose |
+1. Upgrade detection is still implementation-oriented, not lifecycle-oriented
+2. Legacy environment recognition is not yet the final design
+3. Asset migration rules are not yet the final design
+4. Rollback policy is not yet the final design
+5. New install and modern-to-modern upgrade support non-root execution only when Docker and Docker Compose are already available and the current user can access Docker
+6. Legacy Cockpit-based migration upgrade still requires root because it manipulates systemd and old host-level control surfaces
+
+## 5. Supported OS Baseline
+
+Supported operating systems should be documented with the install surface, not embedded in release metadata.
+
+Current baseline:
+
+| Distribution | Supported versions |
 |---|---|
-| `install.sh` | Main entry point — installs Docker, pulls image, starts container |
-| `uninstall.sh` | Stop container, remove data, optional image purge |
-| `install_docker.sh` | Standalone Docker + Compose installation |
-| `install_podman.sh` | Standalone Podman installation (alternative) |
+| Fedora | 40, 39 |
+| Red Hat Enterprise Linux | 9 |
+| CentOS | 8 |
+| Oracle Linux | 9, 8, 7 |
+| Rocky Linux | 9 |
+| CentOS Stream | 9, 8 |
+| Debian | 12, 11 |
+| Ubuntu | 24.04, 22.04 |
+| OpenEuler | 24 |
 
-## Install Options
+## 6. Planning Reference
 
-| Option | Default | Description |
-|---|---|---|
-| `--version` | latest | Image version tag |
-| `--channel` | release | Release channel: release / rc / dev |
-| `--console_port` | 9000 | Console web UI port |
-| `--path` | /opt/websoft9 | Installation directory |
-| `--mirrors` | — | Comma-separated Docker registry mirrors |
-| `--proxy` | — | HTTP proxy for downloads |
-
-## Uninstall Options
-
-| Option | Description |
-|---|---|
-| `--keep-data` | Remove container only, preserve named volumes |
-| `--purge` | Remove container + volumes + images |
-| `--path` | Installation path (default: /opt/websoft9) |
-
-## Architecture
-
-- **No systemd service** — Docker `restart: always` handles lifecycle
-- **No Cockpit** — Console UI is bundled in the container image
-- **No plugins** — All frontend is built into the single image
-- **Single container** — All services run in one container
-
-## Develop
-
-```bash
-# Build and test locally
-cd docker
-docker compose up -d
-
-# Check health
-docker exec websoft9 /websoft9/script/platform-healthcheck.sh --readiness
-
-# View logs
-docker logs websoft9 -f
-```
+Before changing or replacing these scripts, align with the lifecycle redesign in [docs/platform-lifecycle/platform-lifecycle-governance_cn.md](../docs/platform-lifecycle/platform-lifecycle-governance_cn.md).

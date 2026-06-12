@@ -102,12 +102,11 @@
 
 | Secret | 用途 | 关联 workflow |
 |---|---|---|
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare R2 上传 | `build-appstore-catalog.yml`, `release.yml` |
-| `CLOUDFLARE_R2_SECRET_ID` | Cloudflare R2 Access Key | `build-appstore-catalog.yml`, `release.yml` |
-| `CLOUDFLARE_R2_SECRET_KEY` | Cloudflare R2 Secret Key | `build-appstore-catalog.yml`, `release.yml` |
-| `CLOUDFLARE_ZONE_ID` | Cloudflare Cache Purge | `build-appstore-catalog.yml`, `release.yml` |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare Cache Purge | `build-appstore-catalog.yml`, `release.yml` |
-| `CONTENTFUL_GRAPHQLTOKEN` | 读取 Contentful GraphQL 数据 | `build-appstore-catalog.yml` |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare R2 上传 | `release.yml` |
+| `CLOUDFLARE_R2_SECRET_ID` | Cloudflare R2 Access Key | `release.yml` |
+| `CLOUDFLARE_R2_SECRET_KEY` | Cloudflare R2 Secret Key | `release.yml` |
+| `CLOUDFLARE_ZONE_ID` | Cloudflare Cache Purge | `release.yml` |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare Cache Purge | `release.yml` |
 | `DOCKER_USERNAME` | 推送 Docker 镜像 | `ci-main.yml` |
 | `DOCKER_PASSWORD` | 推送 Docker 镜像 | `ci-main.yml` |
 
@@ -119,8 +118,7 @@
 |---|---|---|
 | `GITLEAKS_LICENSE` | Secret Scan 授权 | `ci-pr.yml` |
 | `CODECOV_TOKEN` | 覆盖率上报 | `ci-pr.yml` |
-| `WIXIN_ROBOT_KEY` | 企业微信通知 | `release.yml`, `webhook.yml` |
-| `CONTENTFUL_TOKEN` | Contentful 同步任务 | `sync_contentful.yml` |
+| `WIXIN_ROBOT_KEY` | 企业微信通知 | `release.yml` |
 
 ## 5. Actions 设置
 
@@ -166,8 +164,8 @@
 2. 回到 `Rulesets`，将 `PR Check Summary` 加入 `main` 和 `dev` 的 required status checks
 3. 确认 `main` / `dev` 的 ruleset 都已生效
 3. 手动打开 Actions 页面，确认 workflow 没有因为缺 secret 报错
-4. 手动执行一次 `build-appstore-catalog.yml` 的 `dev` 通道运行
-5. 手动执行一次 `release.yml` 的 `dev` 或 `rc` 通道运行做冒烟验证
+4. 如需验证应用商店数据发布，请在 `docker-library` 仓库执行对应的 appstore 发布 workflow
+5. 手动执行一次 `release.yml` 的正式发布链路做冒烟验证
 
 ## 9. 当前结论
 
@@ -175,7 +173,7 @@
 
 1. `main` / `dev` 分支保护
 2. required check 配置
-3. Cloudflare / Docker / Contentful / 通知类 secrets
+3. Cloudflare / Docker / 通知类 secrets
 4. GitHub Pages 发布来源配置
 
 如果这些项没有配置完整，即使仓库中的 workflow 文件已经存在，也不能视为整套治理真正上线。

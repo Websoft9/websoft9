@@ -663,7 +663,7 @@ Catalog 侧：
 
 1. `.github/workflows/media.yml`：正式通道的 media 全量包与基础 JSON 产出
 2. `.github/workflows/media_dev.yml`：开发通道的 media 全量包、基础 JSON 和轻量增量产出
-3. `.github/workflows/sync_contentful.yml`：Contentful 环境同步
+3. `docker-library` 仓库的 `sync_contentful.yml`：Contentful 环境同步
 
 Library 侧：
 
@@ -1228,7 +1228,7 @@ flowchart LR
 4. Library 全量包、apps 索引、每个 app 的目录级/数据级制品可以在 R2 中找到且具备 checksum
 5. 同一 `datasetVersion` 下，catalog 和 library 制品能互相对应，不发生版本漂移
 6. 新制品发布失败时，旧全量更新链路仍能独立成功
-7. 当前实施分支中的 `.github/workflows/build-appstore-catalog.yml`、`docker-library` 发布链路、`scripts/update_zip.sh` / 运行时自动更新链路之间的职责边界保持清晰
+7. 当前实施分支中的 `docker-library/appstore-publish.yml`、`docker-library` 发布链路、`scripts/update_zip.sh` / 运行时自动更新链路之间的职责边界保持清晰
 8. 执行人员只需依赖本文即可知道先改哪些 workflow、哪些脚本、哪些路径不能动
 9. 旧版本应用商店页面读取 `/websoft9/media/json/*.json` 不受影响
 10. 旧平台读取 `/websoft9/library` 中现有结构不受影响
@@ -1239,7 +1239,7 @@ flowchart LR
 
 | 目的 | 文件 |
 |---|---|
-| 应用商店数据构建 | `.github/workflows/build-appstore-catalog.yml` |
+| 应用商店数据发布 | `docker-library` 仓库中的 `appstore-publish.yml` |
 | 平台正式发布附带脚本 | `.github/workflows/release.yml` |
 | 旧链路底层下载脚本 | `scripts/update_zip.sh` |
 | 定时进程配置 | `docker/supervisord.conf` |

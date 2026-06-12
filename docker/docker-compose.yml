@@ -5,7 +5,7 @@
 
 services:
   product:
-    image: ${IMAGE_REPO:-websoft9dev/websoft9-product}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-websoft9dev/websoft9}:${IMAGE_TAG:-latest}
     container_name: websoft9
     restart: always
     ports:

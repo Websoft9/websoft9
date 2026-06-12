@@ -101,7 +101,7 @@
 
 | 目的 | 文件 |
 |---|---|
-| 应用商店数据构建 workflow | `.github/workflows/build-appstore-catalog.yml` |
+| 应用商店数据发布 workflow | `docker-library` 仓库中的 `appstore-publish.yml` |
 | 运行时 catalog 读取 | `apphub/src/services/app_manager.py` |
 | 兼容 API 暴露 | `apphub/src/api/v1/routers/app.py` |
 | 运行时升级入口 | `apphub/src/cli/apphub_cli.py` |
@@ -129,7 +129,7 @@
 
 1. 实施人员知道应用商店属于平台能力，不再把它整体归到 DevOps
 2. 实施人员知道展示数据、安装元数据、运行时消费分别落在哪些文件和系统里
-3. 当前实施分支中的 `build-appstore-catalog.yml`、`app_manager.py`、兼容 API 的关系已经讲清楚
+3. 当前实施分支中的 `docker-library/appstore-publish.yml`、`app_manager.py`、兼容 API 的关系已经讲清楚
 4. 后续改制品规则时，不会误改平台模块定义
 
 ## 10. 当前结论

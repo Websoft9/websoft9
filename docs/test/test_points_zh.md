@@ -270,7 +270,7 @@
 
 ## 五、兼容性测试
 
-- [ ] 条件：系统环境为 [系统支持OS](https://github.com/Websoft9/websoft9/blob/main/version.json)
+- [ ] 条件：系统环境为 [系统支持OS](../../install/README.md)
  操作：执行 Websoft9 安装脚本。
  预测结果：安装成功，面板及应用可正常访问。
 

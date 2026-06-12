@@ -62,21 +62,29 @@ Need root privileges user to install Websoft9, if you use no-root user you can `
 
 ```
 # Install by default
-wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh
 
 # Install Websoft9 with parameters
-wget -O install.sh https://websoft9.github.io/websoft9/install/install.sh && bash install.sh --port 9000 --channel release --path "/data/websoft9/source" --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh --console_port 9000 --channel release --path "/data/websoft9/source" --version "latest"
+
+# Upgrade current single-container installation
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh --mode upgrade --version "latest"
 ```
-After installation, access it by: **http://Internet IP:9000** and using **Linux user** for login
+After installation, access it by: **http://Internet IP:9000**
+
+For lifecycle redesign, legacy-to-modern upgrade planning, and the future install script rewrite baseline, see [docs/platform-lifecycle/platform-lifecycle-governance_cn.md](docs/platform-lifecycle/platform-lifecycle-governance_cn.md).
 
 ## Uninstall
 
 ```
 # Uninstall by default
-curl https://websoft9.github.io/websoft9/install/uninstall.sh | bash
+curl https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | bash
+
+# Uninstall and keep data
+wget -O - https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | bash /dev/stdin --keep-data
 
 # Uninstall all
-wget -O - https://websoft9.github.io/websoft9/install/uninstall.sh | bash /dev/stdin --cockpit --files
+wget -O - https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | bash /dev/stdin --purge
 ```
 
 # Contributing

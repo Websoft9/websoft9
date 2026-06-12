@@ -3,7 +3,7 @@
 
 services:
   product:
-    image: websoft9-product:dev
+    image: websoft9dev/websoft9:dev
     build:
       context: ..
       dockerfile: docker/Dockerfile
