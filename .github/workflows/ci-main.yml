@@ -52,7 +52,7 @@ jobs:
   build-and-push:
     name: Build & Push Image
     needs: meta
-    uses: ./.github/workflows/_shared/docker-build.yml
+    uses: ./.github/workflows/docker-build.yml
     with:
       push: true
       platforms: linux/amd64
@@ -63,7 +63,7 @@ jobs:
   smoke-test:
     name: Smoke Test
     needs: [meta, build-and-push]
-    uses: ./.github/workflows/_shared/smoke-test.yml
+    uses: ./.github/workflows/smoke-test.yml
     with:
       image: websoft9dev/websoft9:${{ needs.meta.outputs.sha_tag }}
 

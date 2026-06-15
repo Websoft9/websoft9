@@ -66,7 +66,7 @@ jobs:
   build-and-push-image:
     name: Build & Push Image
     needs: [determine-channel, image-meta]
-    uses: ./.github/workflows/_shared/docker-build.yml
+    uses: ./.github/workflows/docker-build.yml
     with:
       push: true
       platforms: linux/amd64
@@ -76,7 +76,7 @@ jobs:
   smoke-test-image:
     name: Smoke Test Image
     needs: [image-meta, build-and-push-image]
-    uses: ./.github/workflows/_shared/smoke-test.yml
+    uses: ./.github/workflows/smoke-test.yml
     with:
       image: ${{ needs.image-meta.outputs.smoke_image }}
 
