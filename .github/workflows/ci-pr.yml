@@ -124,7 +124,7 @@ jobs:
           set -euo pipefail
 
           VERSION=$(jq -r '.version' version.json)
-          EDITION_KEY=$(jq -r '.edition.key // empty' version.json)
+          EDITION_KEY=$(jq -r '.edition_key // empty' version.json)
 
           if [[ -z "$VERSION" ]] || [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::version.json version is invalid: '$VERSION'"
@@ -132,7 +132,7 @@ jobs:
           fi
 
           if [[ -z "$EDITION_KEY" ]]; then
-            echo "::error::version.json edition.key must not be empty"
+            echo "::error::version.json edition_key must not be empty"
             exit 1
           fi
 

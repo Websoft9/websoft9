@@ -55,7 +55,7 @@ Execution model:
 3. Build once, tag many via shared Docker build workflow.
 4. Run smoke test against the SHA-pinned image.
 5. Publish dev candidate image tags.
-6. Upload dev artifacts to `artifact/websoft9/dev` without creating a GitHub Release.
+6. Upload the dev install surface to `artifact/websoft9/dev` and publish the dev zip bundle through a GitHub prerelease.
 
 Current dev image tags:
 
@@ -81,9 +81,9 @@ Triggers:
 Execution model:
 
 1. Determine release metadata from `version.json`.
-2. Update `CHANGELOG.md` using `changelog_latest.md`.
-3. Build release archive and upload artifacts to Cloudflare R2.
-4. Create GitHub Release for `main` release.
+2. Extract the current version's release notes directly from `CHANGELOG.md`.
+3. Upload the install surface to Cloudflare R2.
+4. Publish the release zip bundle and release notes through GitHub Release.
 5. Deploy GitHub Pages from `main`.
 
 Current release image tags:
@@ -115,10 +115,10 @@ Current active usage:
 Practical rule:
 
 1. Keep `version`.
-2. Keep only `edition.key` for release/build logic.
+2. Keep only `edition_key` for release/build logic.
 3. Do not keep plugin version maps in this file.
 4. Keep OS support matrices in install-facing documentation instead of release metadata.
-5. Keep runtime-facing edition display fields such as `edition.name` and `edition.max_apps` out of this file.
+5. Keep runtime-facing edition display fields such as edition names and max-app limits out of this file.
 6. Move runtime-facing product fields to `apphub/src/config/product_metadata.json` or code-owned catalogs.
 
 Current recommendation:

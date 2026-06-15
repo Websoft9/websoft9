@@ -1,6 +1,4 @@
 {
   "version": "3.0.0",
-  "edition": {
-    "key": "open-source"
-  }
+  "edition_key": "free"
 }

@@ -48,7 +48,7 @@ jobs:
         id: version
         run: |
           VERSION=$(jq -r '.version' version.json)
-          EDITION=$(jq -r '.edition.key' version.json)
+          EDITION=$(jq -r '.edition_key' version.json)
           echo "semver=$VERSION" >> $GITHUB_OUTPUT
           echo "edition=$EDITION" >> $GITHUB_OUTPUT
 

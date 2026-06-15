@@ -50,7 +50,7 @@ curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash -s -
 bash install.sh --mode upgrade --version 3.0.0
 
 # Uninstall and remove runtime
-curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | sudo bash
+curl -fsSL https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash
 
 # Uninstall and keep data
 sudo bash uninstall.sh --keep-data

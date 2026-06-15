@@ -187,7 +187,7 @@ flowchart TD
 补充说明：
 
 1. `version.json` 现在仍然需要保留，但它应该被视为“程序发布元数据文件”，而不是运行时全局配置中心。
-2. 当前活动工作流真正需要的是发布身份信息，例如 `version` 和 `edition.key`。
+2. 当前活动工作流真正需要的是发布身份信息，例如 `version` 和 `edition_key`。
 3. `edition.name`、`edition.max_apps` 这类展示或运行时字段，应该继续留在代码目录或镜像内生成的产品元数据里，而不是回写到 `version.json`。
 4. 运行时实际消费的产品元数据，应该优先落到镜像内生成的 `apphub/src/config/product_metadata.json`，而不是继续把所有运行时信息塞回 `version.json`。
 5. `plugins` 不再属于 `version.json` 的职责范围；如果旧升级链还需要这类信息，应改由升级入口或独立 legacy 数据承接。

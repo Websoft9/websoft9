@@ -1,3 +1,8 @@
+## 3.0.0
+
+### Fix
+- Update default docker registry mirrors in `daemon.json` fallback config to enhance pull success rate.
+
 ## 0.8.29 release on 2023-11-04
 
 1. gitea,myapps,appstore update

@@ -78,13 +78,13 @@ For lifecycle redesign, legacy-to-modern upgrade planning, and the future instal
 
 ```
 # Uninstall by default
-curl https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | bash
+curl https://artifact.websoft9.com/websoft9/release/uninstall.sh | bash
 
 # Uninstall and keep data
-wget -O - https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | bash /dev/stdin --keep-data
+wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | bash /dev/stdin --keep-data
 
 # Uninstall all
-wget -O - https://artifact.websoft9.com/websoft9/release/platform/uninstall.sh | bash /dev/stdin --purge
+wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | bash /dev/stdin --purge
 ```
 
 # Contributing

@@ -25,7 +25,7 @@ jobs:
       channel: ${{ steps.meta.outputs.channel }}
       candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
       version: ${{ steps.meta.outputs.version }}
-      edition: ${{ steps.meta.outputs.edition }}
+      edition_key: ${{ steps.meta.outputs.edition_key }}
       alias_tags: ${{ steps.meta.outputs.alias_tags }}
       sha_tag: ${{ steps.meta.outputs.sha_tag }}
       tags: ${{ steps.meta.outputs.tags }}
@@ -34,7 +34,7 @@ jobs:
       - id: meta
         run: |
           VERSION=$(jq -r '.version' version.json)
-          EDITION=$(jq -r '.edition.key' version.json)
+          EDITION=$(jq -r '.edition_key' version.json)
           SHA_TAG="sha-${GITHUB_SHA:0:8}"
 
           CHANNEL=dev
@@ -50,7 +50,7 @@ jobs:
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "edition=$EDITION" >> $GITHUB_OUTPUT
+          echo "edition_key=$EDITION" >> $GITHUB_OUTPUT
           echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
@@ -103,15 +103,22 @@ jobs:
     name: Upload Dev Artifacts
     needs: [meta, promote-tags, smoke-test]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create dev archive
+      - name: Create dev distribution bundles
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
+          EDITION_KEY="${{ needs.meta.outputs.edition_key }}"
+          CHANNEL="${{ needs.meta.outputs.channel }}"
           SHA_TAG="${{ needs.meta.outputs.sha_tag }}"
+          CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
+          ALIAS_TAGS="${{ needs.meta.outputs.alias_tags }}"
+          GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-          mkdir -p artifacts websoft9
+          mkdir -p release-assets r2-artifacts websoft9
 
           cp -r docker websoft9/
           cp -r scripts websoft9/
@@ -121,30 +128,71 @@ jobs:
           cp mirrors.json websoft9/
 
           zip -r "websoft9-${VERSION}-${SHA_TAG}.zip" websoft9
-          cp "websoft9-${VERSION}-${SHA_TAG}.zip" artifacts/
-          cp install/install.sh artifacts/install.sh
-          cp install/uninstall.sh artifacts/uninstall.sh
-          cp docker/docker-compose.yml artifacts/docker-compose.yml
-          cp version.json artifacts/version.json
-          cp CHANGELOG.md artifacts/CHANGELOG.md
-          cp mirrors.json artifacts/mirrors.json
+          cp "websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/
+          cp "release-assets/websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/websoft9-dev.zip
+          cp install/install.sh r2-artifacts/install.sh
+          cp install/uninstall.sh r2-artifacts/uninstall.sh
+          cp docker/docker-compose.yml r2-artifacts/docker-compose.yml
+          cp version.json r2-artifacts/version.json
+          cp CHANGELOG.md r2-artifacts/CHANGELOG.md
+          cp mirrors.json r2-artifacts/mirrors.json
+          cp version.json release-assets/version.json
+          cp CHANGELOG.md release-assets/CHANGELOG.md
+          cp mirrors.json release-assets/mirrors.json
 
-          cp "artifacts/websoft9-${VERSION}-${SHA_TAG}.zip" artifacts/websoft9-dev.zip
+          jq -n \
+            --arg schema_version "1" \
+            --arg product "websoft9" \
+            --arg channel "$CHANNEL" \
+            --arg version "$VERSION" \
+            --arg edition_key "$EDITION_KEY" \
+            --arg git_sha "$GITHUB_SHA" \
+            --arg generated_at "$GENERATED_AT" \
+            --arg repository "websoft9dev/websoft9" \
+            --arg candidate_tag "$CANDIDATE_TAG" \
+            --arg alias_tags "$ALIAS_TAGS" \
+            '{
+              schema_version: ($schema_version | tonumber),
+              product: $product,
+              channel: $channel,
+              version: $version,
+              edition_key: $edition_key,
+              git_sha: $git_sha,
+              generated_at: $generated_at,
+              image: {
+                repository: $repository,
+                candidate_tag: $candidate_tag,
+                alias_tags: ($alias_tags | split(","))
+              }
+            }' > manifest.json
+
+          cp manifest.json r2-artifacts/manifest.json
+          cp manifest.json release-assets/manifest.json
 
           (
-            cd artifacts
+            cd r2-artifacts
             sha256sum \
-              "websoft9-${VERSION}-${SHA_TAG}.zip" \
-              websoft9-dev.zip \
               install.sh \
               uninstall.sh \
               docker-compose.yml \
               version.json \
               CHANGELOG.md \
-              mirrors.json > SHA256SUMS
+              mirrors.json \
+              manifest.json > SHA256SUMS
           )
 
-          echo "✅ Dev candidate artifacts created: websoft9-${VERSION}-${SHA_TAG}.zip"
+          (
+            cd release-assets
+            sha256sum \
+              "websoft9-${VERSION}-${SHA_TAG}.zip" \
+              websoft9-dev.zip \
+              version.json \
+              CHANGELOG.md \
+              mirrors.json \
+              manifest.json > SHA256SUMS
+          )
+
+          echo "✅ Dev candidate bundles created: websoft9-${VERSION}-${SHA_TAG}.zip"
 
       - name: Upload to Cloudflare R2
         uses: ryand56/r2-upload-action@latest
@@ -153,7 +201,7 @@ jobs:
           r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
-          source-dir: artifacts
+          source-dir: r2-artifacts
           destination-dir: ./websoft9/${{ needs.meta.outputs.channel }}
 
       - name: Purge Cloudflare Cache
@@ -162,11 +210,29 @@ jobs:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PURGE_URLS: >-
-            ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/websoft9-dev.zip",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install.sh",
+            ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/uninstall.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/manifest.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/SHA256SUMS"]
+
+      - name: Publish Dev GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-artifacts
+          target_commitish: dev
+          name: Dev Artifacts
+          prerelease: true
+          draft: false
+          generate_release_notes: false
+          make_latest: false
+          files: |
+            release-assets/websoft9-${{ needs.meta.outputs.version }}-${{ needs.meta.outputs.sha_tag }}.zip
+            release-assets/websoft9-dev.zip
+            release-assets/manifest.json
+            release-assets/SHA256SUMS
+            release-assets/version.json
+            release-assets/CHANGELOG.md
 
   # ── Docker Hub description is maintained by the release workflow ──
   dockerhub-description:

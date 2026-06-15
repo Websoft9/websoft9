@@ -109,9 +109,9 @@ jobs:
             docker buildx imagetools create -t "$target" "$SOURCE_IMAGE"
           done
 
-  # ── Update CHANGELOG ──
-  update-changelog:
-    name: Update CHANGELOG
+  # ── Extract release notes from CHANGELOG ──
+  release-notes:
+    name: Resolve Release Notes
     needs: determine-channel
     runs-on: ubuntu-latest
     outputs:
@@ -120,29 +120,62 @@ jobs:
       - uses: actions/checkout@v4
       - id: changelog
         run: |
-          CHANGELOG_CONTENT=$(cat changelog_latest.md 2>/dev/null || echo "No changelog entry")
+          VERSION="${{ needs.determine-channel.outputs.version }}"
+          CHANGELOG_CONTENT=$(python3 - "$VERSION" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+version = sys.argv[1]
+pattern = re.compile(rf"^##\s+{re.escape(version)}(?:\s|$|-)")
+lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+captured = []
+capture = False
+
+for line in lines:
+    if line.startswith("## "):
+        if capture:
+            break
+        if pattern.match(line):
+            capture = True
+    if capture:
+        captured.append(line)
+
+print("\n".join(captured))
+PY
+          )
+
+          if [[ -z "$CHANGELOG_CONTENT" ]]; then
+            echo "::error::CHANGELOG.md is missing a release section for version $VERSION"
+            exit 1
+          fi
+
           echo "body<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+          echo "✅ Release notes resolved from CHANGELOG.md"
 
-          CURRENT_DATE=$(date +%Y-%m-%d)
-          printf "## ${{ needs.determine-channel.outputs.version }} release on $CURRENT_DATE\n$CHANGELOG_CONTENT\n$(cat CHANGELOG.md)" > CHANGELOG.tmp
-          mv CHANGELOG.tmp CHANGELOG.md
-          echo "✅ CHANGELOG.md updated"
-
-  # ── Create release archive and upload to Cloudflare R2 ──
+  # ── Create release distribution bundles and upload install surface to R2 ──
   upload-artifacts:
     name: Upload Artifacts
-    needs: [determine-channel, update-changelog, promote-release-tags, smoke-test-image]
+    needs: [determine-channel, image-meta, release-notes, promote-release-tags, smoke-test-image]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create release archive
+      - name: Create release distribution bundles
         run: |
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
           VERSION="${{ needs.determine-channel.outputs.version }}"
-          mkdir -p artifacts websoft9
+          SHA_TAG="${{ needs.determine-channel.outputs.sha_tag }}"
+          GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EDITION_KEY=$(jq -r '.edition_key' version.json)
+          CANDIDATE_TAG="${{ needs.image-meta.outputs.candidate_tag }}"
+          ALIAS_TAGS="${{ needs.image-meta.outputs.alias_tags }}"
+
+          mkdir -p release-assets r2-artifacts websoft9
 
           # Include only what's needed for single-container deployment
           cp -r docker websoft9/
@@ -154,31 +187,75 @@ jobs:
 
           # Create versioned zip
           zip -r "websoft9-${VERSION_CORE}.zip" websoft9
-          cp "websoft9-${VERSION_CORE}.zip" artifacts/
-          cp install/install.sh artifacts/install.sh
-          cp install/uninstall.sh artifacts/uninstall.sh
-          cp docker/docker-compose.yml artifacts/docker-compose.yml
-          cp version.json artifacts/version.json
-          cp CHANGELOG.md artifacts/CHANGELOG.md
-          cp mirrors.json artifacts/mirrors.json
+          cp "websoft9-${VERSION_CORE}.zip" release-assets/
+          cp install/install.sh r2-artifacts/install.sh
+          cp install/uninstall.sh r2-artifacts/uninstall.sh
+          cp docker/docker-compose.yml r2-artifacts/docker-compose.yml
+          cp version.json r2-artifacts/version.json
+          cp CHANGELOG.md r2-artifacts/CHANGELOG.md
+          cp mirrors.json r2-artifacts/mirrors.json
+          cp version.json release-assets/version.json
+          cp CHANGELOG.md release-assets/CHANGELOG.md
+          cp mirrors.json release-assets/mirrors.json
 
           # Provide a moving alias for the latest stable bundle.
-          cp "artifacts/websoft9-${VERSION_CORE}.zip" artifacts/websoft9-latest.zip
+          cp "release-assets/websoft9-${VERSION_CORE}.zip" release-assets/websoft9-latest.zip
+
+          jq -n \
+            --arg schema_version "1" \
+            --arg product "websoft9" \
+            --arg channel "release" \
+            --arg version "$VERSION" \
+            --arg version_core "$VERSION_CORE" \
+            --arg edition_key "$EDITION_KEY" \
+            --arg git_sha "$GITHUB_SHA" \
+            --arg generated_at "$GENERATED_AT" \
+            --arg repository "websoft9dev/websoft9" \
+            --arg candidate_tag "$CANDIDATE_TAG" \
+            --arg alias_tags "$ALIAS_TAGS" \
+            '{
+              schema_version: ($schema_version | tonumber),
+              product: $product,
+              channel: $channel,
+              version: $version,
+              version_core: $version_core,
+              edition_key: $edition_key,
+              git_sha: $git_sha,
+              generated_at: $generated_at,
+              image: {
+                repository: $repository,
+                candidate_tag: $candidate_tag,
+                alias_tags: ($alias_tags | split(","))
+              }
+            }' > manifest.json
+
+          cp manifest.json r2-artifacts/manifest.json
+          cp manifest.json release-assets/manifest.json
 
           (
-            cd artifacts
+            cd r2-artifacts
             sha256sum \
-              "websoft9-${VERSION_CORE}.zip" \
-              websoft9-latest.zip \
               install.sh \
               uninstall.sh \
               docker-compose.yml \
               version.json \
               CHANGELOG.md \
-              mirrors.json > SHA256SUMS
+              mirrors.json \
+              manifest.json > SHA256SUMS
           )
 
-          echo "✅ Archive created: websoft9-${VERSION_CORE}.zip"
+          (
+            cd release-assets
+            sha256sum \
+              "websoft9-${VERSION_CORE}.zip" \
+              websoft9-latest.zip \
+              version.json \
+              CHANGELOG.md \
+              mirrors.json \
+              manifest.json > SHA256SUMS
+          )
+
+          echo "✅ Release bundles created: websoft9-${VERSION_CORE}.zip"
 
       - name: Upload to Cloudflare R2
         uses: ryand56/r2-upload-action@latest
@@ -187,7 +264,7 @@ jobs:
           r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
-          source-dir: artifacts
+          source-dir: r2-artifacts
           destination-dir: ./websoft9/${{ needs.determine-channel.outputs.channel }}
 
       - name: Purge Cloudflare Cache
@@ -196,32 +273,25 @@ jobs:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PURGE_URLS: >-
-            ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/websoft9-latest.zip",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/websoft9-${{ needs.determine-channel.outputs.version_core }}.zip",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install.sh",
+            ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/uninstall.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/manifest.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/SHA256SUMS"]'
-
-  # ── Create GitHub Release ──
-  github-release:
-    name: GitHub Release
-    needs: [determine-channel, update-changelog]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            version.json
-            CHANGELOG.md
+            release-assets/websoft9-${{ needs.determine-channel.outputs.version_core }}.zip
+            release-assets/websoft9-latest.zip
+            release-assets/manifest.json
+            release-assets/SHA256SUMS
+            release-assets/version.json
+            release-assets/CHANGELOG.md
           tag_name: ${{ needs.determine-channel.outputs.version }}
           name: ${{ needs.determine-channel.outputs.version }}
-          body: ${{ needs.update-changelog.outputs.changelog_body }}
+          body: ${{ needs.release-notes.outputs.changelog_body }}
           draft: false
           prerelease: false
 
@@ -250,7 +320,7 @@ jobs:
   # ── WeChat work notification ──
   notify:
     name: WeChat Notification
-    needs: [determine-channel, update-changelog]
+    needs: [determine-channel, release-notes]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -258,7 +328,7 @@ jobs:
         run: |
           VERSION="${{ needs.determine-channel.outputs.version }}"
           CHANNEL="${{ needs.determine-channel.outputs.channel }}"
-          CHANGELOG=$(cat changelog_latest.md 2>/dev/null | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g' || echo "No changelog")
+          CHANGELOG=$(printf '%s' '${{ needs.release-notes.outputs.changelog_body }}' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
 
           curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${{ secrets.WIXIN_ROBOT_KEY }}' \
             -H 'Content-Type: application/json' \
