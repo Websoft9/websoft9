@@ -55,7 +55,7 @@ Execution model:
 3. Build once, tag many via shared Docker build workflow.
 4. Run smoke test against the SHA-pinned image.
 5. Publish dev candidate image tags.
-6. Upload the dev install surface to `artifact/websoft9/dev` and publish the dev zip bundle through a GitHub prerelease.
+6. Upload the dev install surface to `artifact/websoft9/dev`, including `manifest.json`, and publish the dev zip bundle through a GitHub prerelease.
 
 Current dev image tags:
 
@@ -81,8 +81,8 @@ Triggers:
 Execution model:
 
 1. Determine release metadata from `version.json`.
-2. Extract the current version's release notes directly from `CHANGELOG.md`.
-3. Upload the install surface to Cloudflare R2.
+2. Extract the current version's release notes directly from the matching Keep a Changelog style section in `CHANGELOG.md`.
+3. Upload the install surface and `manifest.json` to Cloudflare R2.
 4. Publish the release zip bundle and release notes through GitHub Release.
 5. Deploy GitHub Pages from `main`.
 
@@ -126,6 +126,23 @@ Current recommendation:
 1. Short term: keep `version.json`, but shrink it toward release-only metadata.
 2. Legacy upgrade compatibility should be handled by the upgrade entry or dedicated legacy data, not by expanding `version.json`.
 3. Long term: make `version.json` the single source of release identity, while runtime display metadata is derived at build time.
+
+## Artifact Manifest
+
+Program release channels now publish a product-level `manifest.json` alongside the install surface.
+
+Current role:
+
+1. Describe the install surface filenames and checksum file.
+2. Describe the image repository, default moving tag, and current version tag.
+3. Record build metadata such as channel, version, edition key, git SHA, and generation time.
+4. Provide a machine-readable handoff for installers and external automation.
+
+Installer behavior:
+
+1. `install.sh` fetches `manifest.json` when available.
+2. The installer uses manifest metadata to resolve the compose artifact path and preferred image tags.
+3. If the manifest is unavailable or invalid, the installer falls back to built-in defaults for backward compatibility.
 
 ### 4. Registry Security Scan (`security-scan.yml`)
 

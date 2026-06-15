@@ -36,6 +36,8 @@ Current scripts do not yet define the final standard for:
 
 These commands describe the current implementation baseline only.
 
+The current installer will fetch `manifest.json` from the target channel when it is available, use it to resolve the compose artifact path and image tag defaults, and then persist the consumed manifest into the install directory for traceability.
+
 ```bash
 # Default install
 curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash

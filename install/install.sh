@@ -16,7 +16,7 @@ fi
 
 
 readonly LOG_FILE="${LOG_DIR}/install.log"
-readonly IMAGE_REPO="websoft9dev/websoft9"
+readonly DEFAULT_IMAGE_REPO="websoft9dev/websoft9"
 readonly ARTIFACT_BASE="https://artifact.websoft9.com"
 readonly PAGES_BASE="https://websoft9.github.io/websoft9"
 readonly ARTIFACT_PROGRAM_ROOT="websoft9"
@@ -55,8 +55,14 @@ LEGACY_ENV_FILE=""
 LEGACY_COMPOSE_FILE=""
 LEGACY_COCKPIT_PORT=""
 BACKUP_DIR=""
+IMAGE_REPO="$DEFAULT_IMAGE_REPO"
 IMAGE_TAG=""
 WORK_IMAGE=""
+MANIFEST_URL=""
+MANIFEST_VERSION=""
+MANIFEST_IMAGE_DEFAULT_TAG=""
+MANIFEST_IMAGE_VERSION_TAG=""
+REMOTE_COMPOSE_FILE="docker-compose.yml"
 OLD_COCKPIT_ACTIVE=false
 OLD_COCKPIT_SOCKET_ACTIVE=false
 OLD_WEBSOFT9_SERVICE_ACTIVE=false
@@ -583,6 +589,7 @@ download_compose() {
 	mkdir -p "$INSTALL_PATH"
 	local url
 	local compose_urls=(
+		"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/${CHANNEL}/${REMOTE_COMPOSE_FILE}"
 		"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/${CHANNEL}/docker-compose.yml"
 		"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/${CHANNEL}/platform/docker-compose.yml"
 	)
@@ -605,6 +612,52 @@ download_compose() {
 	return 1
 }
 
+load_channel_manifest() {
+	mkdir -p "$INSTALL_PATH"
+	local url
+	local tmp_manifest
+	local manifest_urls=(
+		"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/${CHANNEL}/manifest.json"
+	)
+
+	tmp_manifest=$(mktemp)
+	for url in "${manifest_urls[@]}"; do
+		log_info "Trying manifest: ${url}"
+		if ! curl -fsSL --retry 2 --retry-delay 2 --connect-timeout 10 -o "$tmp_manifest" "$url" 2>/dev/null; then
+			continue
+		fi
+
+		if ! jq -e '.schema_version == 1 and .product == "websoft9"' "$tmp_manifest" >/dev/null 2>&1; then
+			log_warn "Ignoring manifest with unsupported schema or product: ${url}"
+			continue
+		fi
+
+		local manifest_channel
+		manifest_channel=$(jq -r '.channel // empty' "$tmp_manifest")
+		if [[ -n "$manifest_channel" ]] && [[ "$manifest_channel" != "$CHANNEL" ]]; then
+			log_warn "Ignoring manifest for unexpected channel '${manifest_channel}': ${url}"
+			continue
+		fi
+
+		MANIFEST_URL="$url"
+		MANIFEST_VERSION=$(jq -r '.version // empty' "$tmp_manifest")
+		IMAGE_REPO=$(jq -r '.image.repository // empty' "$tmp_manifest")
+		[[ -n "$IMAGE_REPO" ]] || IMAGE_REPO="$DEFAULT_IMAGE_REPO"
+		REMOTE_COMPOSE_FILE=$(jq -r '.install.compose_file // "docker-compose.yml"' "$tmp_manifest")
+		MANIFEST_IMAGE_DEFAULT_TAG=$(jq -r '.image.default_tag // empty' "$tmp_manifest")
+		MANIFEST_IMAGE_VERSION_TAG=$(jq -r '.image.version_tag // empty' "$tmp_manifest")
+		cp "$tmp_manifest" "${INSTALL_PATH}/manifest.json"
+		log_info "Resolved manifest: ${url}"
+		rm -f "$tmp_manifest"
+		return 0
+	done
+
+	rm -f "$tmp_manifest"
+	IMAGE_REPO="$DEFAULT_IMAGE_REPO"
+	log_warn "Channel manifest was not found; falling back to built-in install defaults"
+	return 1
+}
+
 patch_compose_ports() {
 	sed -i \
 		-e "s|- \"80:80\"|- \"${APP_HTTP_GATEWAY}:80\"|" \
@@ -613,19 +666,25 @@ patch_compose_ports() {
 }
 
 determine_image_tag() {
-	case "$CHANNEL" in
-		release) IMAGE_TAG="$VERSION" ;;
-		rc) IMAGE_TAG="$VERSION" ;;
-		dev) IMAGE_TAG="${VERSION}-dev" ;;
-		*) log_error "Unknown channel: ${CHANNEL}"; exit 1 ;;
-	esac
-
-	if [[ "$VERSION" == "latest" ]]; then
+	if [[ "$VERSION" == "latest" ]] && [[ -n "$MANIFEST_IMAGE_DEFAULT_TAG" ]]; then
+		IMAGE_TAG="$MANIFEST_IMAGE_DEFAULT_TAG"
+	elif [[ -n "$MANIFEST_VERSION" ]] && [[ "$VERSION" == "$MANIFEST_VERSION" ]] && [[ -n "$MANIFEST_IMAGE_VERSION_TAG" ]]; then
+		IMAGE_TAG="$MANIFEST_IMAGE_VERSION_TAG"
+	else
 		case "$CHANNEL" in
-			release) IMAGE_TAG="latest" ;;
-			rc) IMAGE_TAG="rc" ;;
-			dev) IMAGE_TAG="dev" ;;
+			release) IMAGE_TAG="$VERSION" ;;
+			rc) IMAGE_TAG="$VERSION" ;;
+			dev) IMAGE_TAG="${VERSION}-dev" ;;
+			*) log_error "Unknown channel: ${CHANNEL}"; exit 1 ;;
 		esac
+
+		if [[ "$VERSION" == "latest" ]]; then
+			case "$CHANNEL" in
+				release) IMAGE_TAG="latest" ;;
+				rc) IMAGE_TAG="rc" ;;
+				dev) IMAGE_TAG="dev" ;;
+			esac
+		fi
 	fi
 
 	WORK_IMAGE="${IMAGE_REPO}:${IMAGE_TAG}"
@@ -651,6 +710,7 @@ EOF
 
 prepare_modern_runtime_artifacts() {
 	log_step "Preparing deployment artifacts"
+	load_channel_manifest || true
 	download_compose || {
 		log_error "Failed to download docker-compose.yml"
 		exit 1

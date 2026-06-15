@@ -145,8 +145,11 @@ jobs:
             --arg git_sha "$(git rev-parse HEAD)" \
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
+            --arg default_tag "dev" \
+            --arg version_tag "${VERSION}-dev" \
             --arg candidate_tag "$CANDIDATE_TAG" \
             --arg alias_tags "$ALIAS_TAGS" \
+            --arg sha_tag "$SHA_TAG" \
             '{
               schema_version: ($schema_version | tonumber),
               product: $product,
@@ -155,10 +158,25 @@ jobs:
               edition_key: $edition_key,
               git_sha: $git_sha,
               generated_at: $generated_at,
+              install: {
+                compose_file: "docker-compose.yml",
+                install_script: "install.sh",
+                uninstall_script: "uninstall.sh",
+                changelog_file: "CHANGELOG.md",
+                version_file: "version.json",
+                mirrors_file: "mirrors.json",
+                checksum_file: "SHA256SUMS"
+              },
               image: {
                 repository: $repository,
+                default_tag: $default_tag,
+                version_tag: $version_tag,
                 candidate_tag: $candidate_tag,
                 alias_tags: ($alias_tags | split(","))
+              },
+              distribution: {
+                bundle_file: ("websoft9-" + $version + "-" + $sha_tag + ".zip"),
+                alias_bundle_file: "websoft9-dev.zip"
               }
             }' > manifest.json
 
