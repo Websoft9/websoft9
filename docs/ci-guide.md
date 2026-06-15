@@ -55,7 +55,7 @@ Execution model:
 3. Build once, tag many via shared Docker build workflow.
 4. Run smoke test against the SHA-pinned image.
 5. Publish dev candidate image tags.
-6. Upload dev platform artifacts to `artifact/websoft9/dev/platform` without creating a GitHub Release.
+6. Upload dev artifacts to `artifact/websoft9/dev` without creating a GitHub Release.
 
 Current dev image tags:
 

@@ -142,8 +142,6 @@ jobs:
         run: |
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
           VERSION="${{ needs.determine-channel.outputs.version }}"
-          CHANNEL="${{ needs.determine-channel.outputs.channel }}"
-
           mkdir -p artifacts websoft9
 
           # Include only what's needed for single-container deployment
@@ -164,16 +162,21 @@ jobs:
           cp CHANGELOG.md artifacts/CHANGELOG.md
           cp mirrors.json artifacts/mirrors.json
 
-          # Stable and versioned aliases inside the new platform publish root
-          cp artifacts/install.sh "artifacts/install-${CHANNEL}.sh"
-          cp artifacts/uninstall.sh "artifacts/uninstall-${CHANNEL}.sh"
-          cp artifacts/docker-compose.yml "artifacts/docker-compose-${CHANNEL}.yml"
-          cp artifacts/install.sh "artifacts/install-${VERSION}.sh"
-          cp artifacts/uninstall.sh "artifacts/uninstall-${VERSION}.sh"
-          cp artifacts/docker-compose.yml "artifacts/docker-compose-${VERSION}.yml"
-
-          # Also create latest symlink
+          # Provide a moving alias for the latest stable bundle.
           cp "artifacts/websoft9-${VERSION_CORE}.zip" artifacts/websoft9-latest.zip
+
+          (
+            cd artifacts
+            sha256sum \
+              "websoft9-${VERSION_CORE}.zip" \
+              websoft9-latest.zip \
+              install.sh \
+              uninstall.sh \
+              docker-compose.yml \
+              version.json \
+              CHANGELOG.md \
+              mirrors.json > SHA256SUMS
+          )
 
           echo "✅ Archive created: websoft9-${VERSION_CORE}.zip"
 
@@ -185,7 +188,7 @@ jobs:
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
           source-dir: artifacts
-          destination-dir: ./websoft9/${{ needs.determine-channel.outputs.channel }}/platform
+          destination-dir: ./websoft9/${{ needs.determine-channel.outputs.channel }}
 
       - name: Purge Cloudflare Cache
         uses: jakejarvis/cloudflare-purge-action@master
@@ -193,17 +196,12 @@ jobs:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PURGE_URLS: >-
-            ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/websoft9-latest.zip",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/websoft9-${{ needs.determine-channel.outputs.version_core }}.zip",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/install.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/uninstall.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/docker-compose.yml",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/install-${{ needs.determine-channel.outputs.channel }}.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/uninstall-${{ needs.determine-channel.outputs.channel }}.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/docker-compose-${{ needs.determine-channel.outputs.channel }}.yml",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/install-${{ needs.determine-channel.outputs.version }}.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/uninstall-${{ needs.determine-channel.outputs.version }}.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/platform/docker-compose-${{ needs.determine-channel.outputs.version }}.yml"]'
+            ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/websoft9-latest.zip",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/websoft9-${{ needs.determine-channel.outputs.version_core }}.zip",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/uninstall.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/SHA256SUMS"]'
 
   # ── Create GitHub Release ──
   github-release:

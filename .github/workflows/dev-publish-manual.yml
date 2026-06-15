@@ -105,7 +105,6 @@ jobs:
       - name: Create dev archive
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
-          CHANNEL="${{ needs.meta.outputs.channel }}"
           SHA_TAG="${{ needs.meta.outputs.sha_tag }}"
 
           mkdir -p artifacts websoft9
@@ -127,9 +126,19 @@ jobs:
           cp mirrors.json artifacts/mirrors.json
 
           cp "artifacts/websoft9-${VERSION}-${SHA_TAG}.zip" artifacts/websoft9-dev.zip
-          cp artifacts/install.sh artifacts/install-dev.sh
-          cp artifacts/uninstall.sh artifacts/uninstall-dev.sh
-          cp artifacts/docker-compose.yml artifacts/docker-compose-dev.yml
+
+          (
+            cd artifacts
+            sha256sum \
+              "websoft9-${VERSION}-${SHA_TAG}.zip" \
+              websoft9-dev.zip \
+              install.sh \
+              uninstall.sh \
+              docker-compose.yml \
+              version.json \
+              CHANGELOG.md \
+              mirrors.json > SHA256SUMS
+          )
 
           echo "✅ Manual dev candidate artifacts created: websoft9-${VERSION}-${SHA_TAG}.zip"
 
@@ -141,7 +150,7 @@ jobs:
           r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
           r2-bucket: artifact
           source-dir: artifacts
-          destination-dir: ./websoft9/${{ needs.meta.outputs.channel }}/platform
+          destination-dir: ./websoft9/${{ needs.meta.outputs.channel }}
 
       - name: Purge Cloudflare Cache
         uses: jakejarvis/cloudflare-purge-action@master
@@ -149,10 +158,8 @@ jobs:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PURGE_URLS: >-
-            ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/websoft9-dev.zip",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/install.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/uninstall.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/docker-compose.yml",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/install-dev.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/uninstall-dev.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/docker-compose-dev.yml"]
+            ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/websoft9-dev.zip",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/uninstall.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/SHA256SUMS"]

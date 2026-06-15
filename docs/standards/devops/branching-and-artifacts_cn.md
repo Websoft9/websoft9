@@ -28,7 +28,7 @@
 
 1. 程序制品的长期分支已经收敛为 `dev` 和 `main`
 2. `dev` 分支上的 [ci-main.yml](../../../.github/workflows/ci-main.yml) 负责候选镜像构建、漏洞扫描与 smoke test，镜像仓库名为 `websoft9dev/websoft9`
-3. `main` 分支上的 [release.yml](../../../.github/workflows/release.yml) 负责正式镜像标签、安装制品上传、GitHub Release、Pages 与通知；R2 发布根目录为 `artifact/websoft9/{channel}/platform`
+3. `main` 分支上的 [release.yml](../../../.github/workflows/release.yml) 负责正式镜像标签、安装制品上传、GitHub Release、Pages 与通知；R2 发布根目录为 `artifact/websoft9/{channel}`
 4. 程序制品通道当前只保留 `dev` 和 `release` 两层，不再把 `rc` 作为默认常设通道
 5. 程序制品正式发布不再自动创建 `hotfix/*` 分支，也不再依赖手工 `channel` 推断
 
