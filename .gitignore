@@ -1,6 +1,6 @@
 __pycache__
 .idea
-logs
+/logs/
 .venv
 .vscode
 .pytest_cache

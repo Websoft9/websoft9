@@ -1,0 +1,360 @@
+.logs-page-shell {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.app-shell-root--dark .logs-page-shell {
+    color: var(--ds-color-text-strong);
+}
+
+.logs-page-toolbar-panel,
+.logs-page-toolbar-panel.MuiPaper-root,
+.logs-page-panel,
+.logs-page-panel.MuiPaper-root {
+    border: 1px solid var(--ds-color-border);
+    background: var(--ds-color-surface-bg);
+    border-radius: var(--ds-radius-panel) !important;
+    box-shadow: var(--ds-shadow-sm);
+}
+
+.logs-page-grid {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.logs-page-toolbar-panel {
+    padding: 12px 16px;
+}
+
+.logs-page-panel {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+}
+
+.logs-page-stream {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0 0 14px;
+    background: var(--ds-color-surface-bg);
+}
+
+.logs-page-stream-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 16px 0;
+    scrollbar-gutter: stable;
+}
+
+.logs-page-load-more-row {
+    display: flex;
+    justify-content: center;
+    padding: 6px 16px 0;
+}
+
+.logs-page-load-more-button,
+.logs-page-load-more-button.MuiButton-root {
+    border-radius: 2px !important;
+}
+
+.logs-page-stream-status {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--ds-color-accent-soft);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease, transform 140ms ease, background-color 140ms ease;
+    transform: scale(0.8);
+}
+
+.logs-page-stream-status[data-updating='true'] {
+    opacity: 1;
+    transform: scale(1);
+    background: var(--ds-color-accent-strong);
+}
+
+.logs-page-toolbar {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    width: 100%;
+}
+
+.logs-page-toolbar-classic {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+}
+
+.logs-page-toolbar-select {
+    flex: 0 0 auto;
+    width: 180px;
+}
+
+.logs-page-toolbar-search {
+    flex: 1 1 520px;
+    min-width: 380px;
+}
+
+.logs-page-toolbar-actions {
+    align-items: center;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.logs-page-toolbar-field .MuiOutlinedInput-root {
+    background: var(--ds-color-surface-bg);
+    border-radius: var(--ds-radius-field);
+    min-height: var(--ds-form-height);
+    box-shadow: var(--ds-shadow-sm);
+}
+
+.logs-page-toolbar-field .MuiInputBase-input,
+.logs-page-toolbar-field .MuiSelect-select {
+    color: var(--ds-color-text-strong);
+    font-size: 14px;
+    font-weight: 400;
+    min-height: auto;
+    padding-bottom: 6.5px;
+    padding-top: 6.5px;
+}
+
+.app-shell-root--dark .logs-page-toolbar-field .MuiInputBase-input,
+.app-shell-root--dark .logs-page-toolbar-field .MuiSelect-select,
+.app-shell-root--dark .logs-page-auto-refresh .MuiFormControlLabel-label,
+.app-shell-root--dark .logs-page-entry-time,
+.app-shell-root--dark .logs-page-group-title {
+    color: var(--ds-color-text-strong);
+}
+
+.logs-page-toolbar-field .MuiInputBase-input::placeholder {
+    color: var(--ds-color-text-muted);
+    opacity: 1;
+}
+
+.app-shell-root--dark .logs-page-toolbar-field .MuiInputBase-input::placeholder {
+    color: var(--ds-color-text-muted);
+}
+
+.logs-page-toolbar-field .MuiOutlinedInput-notchedOutline {
+    border-color: var(--ds-color-border-strong);
+}
+
+.app-shell-root--dark .logs-page-toolbar-field .MuiOutlinedInput-notchedOutline {
+    border-color: var(--ds-color-border-strong);
+}
+
+.logs-page-toolbar-field:hover .MuiOutlinedInput-notchedOutline {
+    border-color: var(--ds-color-accent);
+}
+
+.logs-page-toolbar-field.Mui-focused .MuiOutlinedInput-notchedOutline,
+.logs-page-toolbar-field .Mui-focused .MuiOutlinedInput-notchedOutline {
+    border-color: var(--ds-color-accent-strong);
+    box-shadow: var(--ds-focus-ring);
+}
+
+.logs-page-toolbar-field .MuiInputLabel-root {
+    display: none;
+}
+
+.logs-page-icon-button,
+.logs-page-icon-button.MuiIconButton-root {
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--ds-color-border-strong) !important;
+    border-radius: var(--ds-radius-panel) !important;
+    background: linear-gradient(180deg, var(--ds-color-surface-bg) 0%, var(--ds-color-surface-soft) 100%) !important;
+    color: var(--ds-color-text-muted) !important;
+    box-shadow: var(--ds-shadow-sm) !important;
+}
+
+.app-shell-root--dark .logs-page-icon-button,
+.app-shell-root--dark .logs-page-icon-button.MuiIconButton-root {
+    border-color: var(--ds-color-border) !important;
+    background: var(--ds-color-surface-soft) !important;
+    color: var(--ds-color-text-strong) !important;
+    box-shadow: none !important;
+}
+
+.logs-page-icon-button:hover,
+.logs-page-icon-button.MuiIconButton-root:hover {
+    background: linear-gradient(180deg, var(--ds-color-surface-soft) 0%, color-mix(in srgb, var(--ds-color-surface-soft) 70%, var(--ds-color-border-strong) 30%) 100%);
+    border-color: var(--ds-color-accent);
+    color: var(--ds-color-text-strong);
+    box-shadow: var(--ds-shadow-md);
+}
+
+.app-shell-root--dark .logs-page-icon-button:hover,
+.app-shell-root--dark .logs-page-icon-button.MuiIconButton-root:hover {
+    background: color-mix(in srgb, var(--ds-color-surface-soft) 88%, var(--ds-color-accent) 12%) !important;
+    border-color: var(--ds-color-accent) !important;
+    color: var(--ds-color-text-strong) !important;
+    box-shadow: none !important;
+}
+
+.logs-page-icon-button.Mui-disabled,
+.logs-page-icon-button.MuiIconButton-root.Mui-disabled {
+    background: linear-gradient(180deg, var(--ds-color-surface-bg) 0%, var(--ds-color-surface-soft) 100%);
+    border-color: var(--ds-color-border);
+}
+
+.logs-page-auto-refresh {
+    margin-left: 0;
+}
+
+.logs-page-auto-refresh .MuiFormControlLabel-label {
+    color: var(--ds-color-text-muted);
+    font-size: 13px;
+}
+
+.logs-page-empty-state {
+    flex: 1 1 auto;
+    display: grid;
+    gap: 6px;
+    min-height: 100%;
+    padding: 32px 24px;
+    place-content: center;
+    text-align: center;
+    width: 100%;
+}
+
+.logs-page-group-divider {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 24px;
+}
+
+.logs-page-group-divider::before {
+    content: '';
+    position: absolute;
+    inset: 50% 0 auto;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.app-shell-root--dark .logs-page-group-divider::before {
+    border-top-color: rgba(71, 85, 105, 0.55);
+}
+
+.logs-page-group-title {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding-right: 12px;
+    background: #fff;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.app-shell-root--dark .logs-page-group-title {
+    background: #111827;
+}
+
+.logs-page-entry {
+    display: block;
+    padding: 5px 0;
+    background: transparent;
+}
+
+.logs-page-entry-time {
+    color: #64748b;
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    font-size: 15px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    line-height: 1.4;
+}
+
+.logs-page-entry-inline {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    min-width: 0;
+}
+
+.logs-page-level-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    color: #475569;
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.logs-page-level-tag-info {
+    color: #0f766e;
+}
+
+.logs-page-level-tag-warning {
+    color: #b45309;
+}
+
+.logs-page-level-tag-error {
+    color: #b91c1c;
+}
+
+.logs-page-entry-message {
+    flex: 1 1 420px;
+    min-width: 0;
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    color: #0f172a;
+    font-size: 15px !important;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.app-shell-root--dark .logs-page-entry-message {
+    color: #e5edf5;
+}
+
+@media (max-width: 720px) {
+    .logs-page-toolbar-actions {
+        align-items: stretch;
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .logs-page-toolbar-search,
+    .logs-page-toolbar-select {
+        width: 100%;
+    }
+
+    .logs-page-stream {
+        padding: 0;
+    }
+
+    .logs-page-stream-body {
+        padding: 12px;
+    }
+}
