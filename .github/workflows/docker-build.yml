@@ -39,6 +39,7 @@ jobs:
     outputs:
       primary_tag: ${{ steps.meta.outputs.version }}
       digest: ${{ steps.build.outputs.digest }}
+      scan_image: ${{ steps.scan-image.outputs.image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -69,6 +70,12 @@ jobs:
         run: |
           echo "version=${{ steps.version.outputs.semver }}" >> $GITHUB_OUTPUT
 
+      - name: Select scan image
+        id: scan-image
+        run: |
+          PRIMARY_TAG=$(printf '%s' '${{ inputs.tags }}' | cut -d',' -f1)
+          echo "image=$PRIMARY_TAG" >> $GITHUB_OUTPUT
+
       - name: Build and push image
         id: build
         uses: docker/build-push-action@v6
@@ -93,7 +100,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ fromJSON(steps.build.outputs.metadata)['image.name'] }}
+          image-ref: ${{ steps.scan-image.outputs.image }}
           format: sarif
           output: trivy-results.sarif
           exit-code: '1'
