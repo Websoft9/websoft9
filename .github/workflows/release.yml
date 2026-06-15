@@ -48,6 +48,9 @@ jobs:
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
           SHA_TAG="${{ needs.determine-channel.outputs.sha_tag }}"
 
+          # Release tags intentionally keep immutable identifiers separate from moving aliases.
+          # - sha-<commit> and <version>: immutable references for audit and rollback
+          # - <major>.<minor>, <major>, latest: moving aliases for compatibility lines
           TAGS="websoft9dev/websoft9:${SHA_TAG}"
           TAGS="${TAGS},websoft9dev/websoft9:latest"
           TAGS="${TAGS},websoft9dev/websoft9:${VERSION}"

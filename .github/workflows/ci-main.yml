@@ -36,6 +36,10 @@ jobs:
           SHA_TAG="sha-${GITHUB_SHA:0:8}"
 
           CHANNEL=dev
+          # Dev tags intentionally mix one immutable trace tag with two moving aliases.
+          # - sha-<commit>: exact build identity for smoke tests and rollback
+          # - dev: latest dev channel pointer
+          # - <version>-dev: human-readable dev candidate alias
           TAGS="websoft9dev/websoft9:${SHA_TAG}"
           TAGS="${TAGS},websoft9dev/websoft9:dev"
           TAGS="${TAGS},websoft9dev/websoft9:${VERSION}-dev"

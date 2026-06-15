@@ -10,8 +10,8 @@ Websoft9 uses multiple GitHub Actions workflows instead of a single pipeline fil
 - `.github/workflows/ci-main.yml` (`Dev Candidate Build`): Dev branch continuous integration, image build/push, smoke test.
 - `.github/workflows/release.yml` (`Main Release Publish`): Version-driven release packaging and channel distribution.
 - `.github/workflows/security-scan.yml` (`Registry Security Scan`): Scheduled container vulnerability scanning.
-- `.github/workflows/_shared/docker-build.yml`: Reusable Docker build and security scan workflow.
-- `.github/workflows/_shared/smoke-test.yml`: Reusable smoke test workflow.
+- `.github/workflows/docker-build.yml`: Reusable Docker build and security scan workflow.
+- `.github/workflows/smoke-test.yml`: Reusable smoke test workflow.
 
 Appstore publishing and Contentful synchronization are no longer owned by this repository. They are handled in the `docker-library` project workflows.
 
@@ -57,6 +57,18 @@ Execution model:
 5. Publish dev candidate image tags.
 6. Upload dev platform artifacts to `artifact/websoft9/dev/platform` without creating a GitHub Release.
 
+Current dev image tags:
+
+1. `sha-<commit>`: Immutable build identity for smoke tests, traceability, rollback, and security evidence.
+2. `dev`: Moving alias for the latest dev candidate.
+3. `<version>-dev`: Human-readable moving alias for the current semantic dev candidate line.
+
+Practical rule:
+
+1. Use `sha-<commit>` when exact reproduction matters.
+2. Use `dev` for fast-moving shared dev environments.
+3. Treat `<version>-dev` as a convenience alias, not as an immutable release artifact.
+
 The default merge flow is short-lived branch -> `dev` -> `main`.
 
 ### 3. Main Release Publish (`release.yml`)
@@ -74,6 +86,20 @@ Execution model:
 4. Create GitHub Release for `main` release.
 5. Deploy GitHub Pages from `main`.
 
+Current release image tags:
+
+1. `sha-<commit>`: Immutable build identity.
+2. `<version>` such as `3.0.0`: Immutable semantic release tag.
+3. `<major>.<minor>` such as `3.0`: Moving alias for the latest patch in that minor line.
+4. `<major>` such as `3`: Moving alias for the latest release in that major line.
+5. `latest`: Moving alias for the current stable release.
+
+Practical rule:
+
+1. Use `sha-<commit>` or the full `<version>` tag for rollback, audit, and reproducible deployment.
+2. Use `<major>.<minor>` or `<major>` only when consumers explicitly want a moving compatibility line.
+3. Keep `latest` reserved for the current stable release and never use it for dev channel publication.
+
 Appstore catalog/library publishing is no longer owned by this repository. It is published from the `docker-library` project workflow on the `dev` branch.
 
 ## Version Metadata Boundary
@@ -82,7 +108,7 @@ Appstore catalog/library publishing is no longer owned by this repository. It is
 
 Current active usage:
 
-1. `ci-pr.yml`, `ci-main.yml`, `release.yml`, and `_shared/docker-build.yml` read release metadata from `version.json`.
+1. `ci-pr.yml`, `ci-main.yml`, `release.yml`, and `docker-build.yml` read release metadata from `version.json`.
 2. Release artifacts still package `version.json` together with the published program bundle.
 3. The runtime product metadata actually consumed by AppHub and the console is generated into `apphub/src/config/product_metadata.json` during image build.
 
