@@ -39,6 +39,8 @@ jobs:
     needs: determine-channel
     runs-on: ubuntu-latest
     outputs:
+      candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
+      alias_tags: ${{ steps.meta.outputs.alias_tags }}
       tags: ${{ steps.meta.outputs.tags }}
       smoke_image: ${{ steps.meta.outputs.smoke_image }}
     steps:
@@ -48,22 +50,23 @@ jobs:
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
           SHA_TAG="${{ needs.determine-channel.outputs.sha_tag }}"
 
-          # Release tags intentionally keep immutable identifiers separate from moving aliases.
-          # - sha-<commit> and <version>: immutable references for audit and rollback
-          # - <major>.<minor>, <major>, latest: moving aliases for compatibility lines
-          TAGS="websoft9dev/websoft9:${SHA_TAG}"
-          TAGS="${TAGS},websoft9dev/websoft9:latest"
-          TAGS="${TAGS},websoft9dev/websoft9:${VERSION}"
+          # Release publication uses a two-stage model.
+          # Stage 1 publishes only the immutable sha-<commit> candidate.
+          # Stage 2 promotes stable and compatibility aliases after validation passes.
+          CANDIDATE_TAG="websoft9dev/websoft9:${SHA_TAG}"
+          ALIAS_TAGS="websoft9dev/websoft9:latest,websoft9dev/websoft9:${VERSION}"
           IFS='.' read -ra PARTS <<< "$VERSION_CORE"
           if [[ ${#PARTS[@]} -ge 2 ]]; then
-            TAGS="${TAGS},websoft9dev/websoft9:${PARTS[0]}"
-            TAGS="${TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}"
+            ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}"
+            ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}"
           fi
           if [[ ${#PARTS[@]} -ge 3 ]]; then
-            TAGS="${TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}.${PARTS[2]}"
+            ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}.${PARTS[2]}"
           fi
 
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "candidate_tag=$CANDIDATE_TAG" >> $GITHUB_OUTPUT
+          echo "alias_tags=$ALIAS_TAGS" >> $GITHUB_OUTPUT
+          echo "tags=$CANDIDATE_TAG" >> $GITHUB_OUTPUT
           echo "smoke_image=websoft9dev/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
 
   build-and-push-image:
@@ -73,7 +76,7 @@ jobs:
     with:
       push: true
       platforms: linux/amd64
-      tags: ${{ needs.image-meta.outputs.tags }}
+      tags: ${{ needs.image-meta.outputs.candidate_tag }}
     secrets: inherit
 
   smoke-test-image:
@@ -82,6 +85,29 @@ jobs:
     uses: ./.github/workflows/smoke-test.yml
     with:
       image: ${{ needs.image-meta.outputs.smoke_image }}
+
+  promote-release-tags:
+    name: Promote Release Tags
+    needs: [image-meta, build-and-push-image, smoke-test-image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Promote candidate to release aliases
+        run: |
+          SOURCE_IMAGE="${{ needs.image-meta.outputs.candidate_tag }}"
+          IFS=',' read -ra TARGETS <<< "${{ needs.image-meta.outputs.alias_tags }}"
+          for target in "${TARGETS[@]}"; do
+            echo "Promoting $SOURCE_IMAGE -> $target"
+            docker buildx imagetools create -t "$target" "$SOURCE_IMAGE"
+          done
 
   # ── Update CHANGELOG ──
   update-changelog:
@@ -107,7 +133,7 @@ jobs:
   # ── Create release archive and upload to Cloudflare R2 ──
   upload-artifacts:
     name: Upload Artifacts
-    needs: [determine-channel, update-changelog, build-and-push-image, smoke-test-image]
+    needs: [determine-channel, update-changelog, promote-release-tags, smoke-test-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

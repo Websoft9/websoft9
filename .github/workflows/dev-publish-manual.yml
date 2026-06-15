@@ -18,8 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       channel: ${{ steps.meta.outputs.channel }}
+      candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
       version: ${{ steps.meta.outputs.version }}
       edition: ${{ steps.meta.outputs.edition }}
+      alias_tags: ${{ steps.meta.outputs.alias_tags }}
       sha_tag: ${{ steps.meta.outputs.sha_tag }}
       tags: ${{ steps.meta.outputs.tags }}
     steps:
@@ -34,9 +36,12 @@ jobs:
           SHA_TAG="sha-$(git rev-parse --short=8 HEAD)"
 
           CHANNEL=dev
-          TAGS="websoft9dev/websoft9:${SHA_TAG}"
-          TAGS="${TAGS},websoft9dev/websoft9:dev"
-          TAGS="${TAGS},websoft9dev/websoft9:${VERSION}-dev"
+          CANDIDATE_TAG="websoft9dev/websoft9:${SHA_TAG}"
+          ALIAS_TAGS="websoft9dev/websoft9:dev,websoft9dev/websoft9:${VERSION}-dev"
+          TAGS="$CANDIDATE_TAG"
+
+          echo "candidate_tag=$CANDIDATE_TAG" >> $GITHUB_OUTPUT
+          echo "alias_tags=$ALIAS_TAGS" >> $GITHUB_OUTPUT
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -53,7 +58,7 @@ jobs:
     with:
       push: true
       platforms: linux/amd64
-      tags: ${{ needs.meta.outputs.tags }}
+      tags: ${{ needs.meta.outputs.candidate_tag }}
       context: .
       dockerfile: docker/Dockerfile
     secrets: inherit
@@ -65,9 +70,32 @@ jobs:
     with:
       image: websoft9dev/websoft9:${{ needs.meta.outputs.sha_tag }}
 
+  promote-tags:
+    name: Promote Dev Tags
+    needs: [meta, build-and-push, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Promote candidate to dev aliases
+        run: |
+          SOURCE_IMAGE="${{ needs.meta.outputs.candidate_tag }}"
+          IFS=',' read -ra TARGETS <<< "${{ needs.meta.outputs.alias_tags }}"
+          for target in "${TARGETS[@]}"; do
+            echo "Promoting $SOURCE_IMAGE -> $target"
+            docker buildx imagetools create -t "$target" "$SOURCE_IMAGE"
+          done
+
   upload-artifacts:
     name: Upload Dev Artifacts
-    needs: [meta, build-and-push, smoke-test]
+    needs: [meta, promote-tags, smoke-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
