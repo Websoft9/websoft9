@@ -1,0 +1,130 @@
+name: Manual Dev Candidate Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch or tag to publish as a dev candidate
+        required: true
+        default: dev
+
+concurrency:
+  group: manual-dev-publish-${{ inputs.source_ref }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    name: Determine Build Meta
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.meta.outputs.channel }}
+      version: ${{ steps.meta.outputs.version }}
+      edition: ${{ steps.meta.outputs.edition }}
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - id: meta
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          EDITION=$(jq -r '.edition.key' version.json)
+          SHA_TAG="sha-$(git rev-parse --short=8 HEAD)"
+
+          CHANNEL=dev
+          TAGS="websoft9dev/websoft9:${SHA_TAG}"
+          TAGS="${TAGS},websoft9dev/websoft9:dev"
+          TAGS="${TAGS},websoft9dev/websoft9:${VERSION}-dev"
+
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "edition=$EDITION" >> $GITHUB_OUTPUT
+          echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+          echo "✅ Manual dev candidate | Ref: ${{ inputs.source_ref }} | Version: $VERSION | SHA: $SHA_TAG"
+
+  build-and-push:
+    name: Build & Push Image
+    needs: meta
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      push: true
+      platforms: linux/amd64
+      tags: ${{ needs.meta.outputs.tags }}
+      context: .
+      dockerfile: docker/Dockerfile
+    secrets: inherit
+
+  smoke-test:
+    name: Smoke Test
+    needs: [meta, build-and-push]
+    uses: ./.github/workflows/smoke-test.yml
+    with:
+      image: websoft9dev/websoft9:${{ needs.meta.outputs.sha_tag }}
+
+  upload-artifacts:
+    name: Upload Dev Artifacts
+    needs: [meta, build-and-push, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Create dev archive
+        run: |
+          VERSION="${{ needs.meta.outputs.version }}"
+          CHANNEL="${{ needs.meta.outputs.channel }}"
+          SHA_TAG="${{ needs.meta.outputs.sha_tag }}"
+
+          mkdir -p artifacts websoft9
+
+          cp -r docker websoft9/
+          cp -r scripts websoft9/
+          cp -r install websoft9/
+          cp version.json websoft9/
+          cp CHANGELOG.md websoft9/
+          cp mirrors.json websoft9/
+
+          zip -r "websoft9-${VERSION}-${SHA_TAG}.zip" websoft9
+          cp "websoft9-${VERSION}-${SHA_TAG}.zip" artifacts/
+          cp install/install.sh artifacts/install.sh
+          cp install/uninstall.sh artifacts/uninstall.sh
+          cp docker/docker-compose.yml artifacts/docker-compose.yml
+          cp version.json artifacts/version.json
+          cp CHANGELOG.md artifacts/CHANGELOG.md
+          cp mirrors.json artifacts/mirrors.json
+
+          cp "artifacts/websoft9-${VERSION}-${SHA_TAG}.zip" artifacts/websoft9-dev.zip
+          cp artifacts/install.sh artifacts/install-dev.sh
+          cp artifacts/uninstall.sh artifacts/uninstall-dev.sh
+          cp artifacts/docker-compose.yml artifacts/docker-compose-dev.yml
+
+          echo "✅ Manual dev candidate artifacts created: websoft9-${VERSION}-${SHA_TAG}.zip"
+
+      - name: Upload to Cloudflare R2
+        uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: artifacts
+          destination-dir: ./websoft9/${{ needs.meta.outputs.channel }}/platform
+
+      - name: Purge Cloudflare Cache
+        uses: jakejarvis/cloudflare-purge-action@master
+        env:
+          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PURGE_URLS: >-
+            ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/websoft9-dev.zip",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/install.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/uninstall.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/install-dev.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/uninstall-dev.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/platform/docker-compose-dev.yml"]
