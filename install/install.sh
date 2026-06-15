@@ -19,7 +19,7 @@ readonly LOG_FILE="${LOG_DIR}/install.log"
 readonly IMAGE_REPO="websoft9dev/websoft9"
 readonly ARTIFACT_BASE="https://artifact.websoft9.com"
 readonly PAGES_BASE="https://websoft9.github.io/websoft9"
-readonly PLATFORM_ARTIFACT_DIR="websoft9/platform"
+readonly ARTIFACT_PROGRAM_ROOT="websoft9"
 readonly LEGACY_DEFAULT_PATH="/data/websoft9/source"
 readonly MODERN_CONTAINER_NAME="websoft9"
 readonly LEGACY_CONTAINER_NAMES=("websoft9-apphub" "websoft9-deployment" "websoft9-git" "websoft9-proxy")
@@ -118,7 +118,7 @@ Options:
   --proxy             HTTP/HTTPS proxy
 
 Examples:
-	curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/install.sh | bash
+	curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash
   bash install.sh --check
   bash install.sh --mode upgrade --version 3.0.0
 
@@ -583,14 +583,15 @@ download_compose() {
 	mkdir -p "$INSTALL_PATH"
 	local url
 	local compose_urls=(
-		"${ARTIFACT_BASE}/${CHANNEL}/${PLATFORM_ARTIFACT_DIR}/docker-compose.yml"
+		"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/${CHANNEL}/docker-compose.yml"
+		"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/${CHANNEL}/platform/docker-compose.yml"
 	)
 
 	if [[ "$CHANNEL" == "release" ]]; then
 		compose_urls+=(
 			"${PAGES_BASE}/docker/docker-compose.yml"
-			"${ARTIFACT_BASE}/release/${PLATFORM_ARTIFACT_DIR}/docker-compose.yml"
-			"${ARTIFACT_BASE}/release/websoft9/docker-compose.yml"
+			"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/release/platform/docker-compose.yml"
+			"${ARTIFACT_BASE}/${ARTIFACT_PROGRAM_ROOT}/release/websoft9/docker-compose.yml"
 		)
 	fi
 

@@ -38,13 +38,13 @@ These commands describe the current implementation baseline only.
 
 ```bash
 # Default install
-curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/install.sh | bash
+curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash
 
 # Install with parameters
 bash install.sh --channel release --version latest --console_port 9000
 
 # Upgrade or migration
-curl -fsSL https://artifact.websoft9.com/websoft9/release/platform/install.sh | bash -s -- --mode upgrade
+curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash -s -- --mode upgrade
 
 # Same-model upgrade only
 bash install.sh --mode upgrade --version 3.0.0
