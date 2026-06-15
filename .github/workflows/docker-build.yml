@@ -113,6 +113,16 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
+      - name: Print Trivy high severity summary
+        if: failure()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.scan-image.outputs.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          timeout: 10m
+
       - name: Trivy scan summary (on failure)
         if: failure()
         run: |
