@@ -339,14 +339,21 @@
 }
 
 @media (max-width: 720px) {
-    .logs-page-toolbar-actions {
+    .logs-page-toolbar-classic {
         align-items: stretch;
+    }
+
+    .logs-page-toolbar-actions {
+        align-items: center;
+        flex-direction: row !important;
+        justify-content: space-between;
         margin-left: 0;
         width: 100%;
     }
 
     .logs-page-toolbar-search,
     .logs-page-toolbar-select {
+        min-width: 0;
         width: 100%;
     }
 

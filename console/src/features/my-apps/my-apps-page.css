@@ -53,6 +53,25 @@
     min-width: 160px;
 }
 
+@media (max-width: 720px) {
+    .myapps-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .myapps-toolbar-search {
+        order: 1;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .myapps-toolbar-select {
+        order: 2;
+        width: 100%;
+    }
+}
+
 /* Bootstrap-like form controls */
 .form-select,
 .form-control {
@@ -123,13 +142,13 @@
 .myapps-card-grid {
     display: grid;
     gap: 18px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     margin: 0;
 }
 
 @media (min-width: 640px) {
     .myapps-card-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

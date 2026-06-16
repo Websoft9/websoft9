@@ -410,6 +410,10 @@
     white-space: nowrap;
 }
 
+.app-shell-topbar-pill-label {
+    display: inline-block;
+}
+
 .app-shell-topbar-pill .MuiButton-endIcon {
     margin-left: 4px;
     margin-right: 0;
@@ -1026,6 +1030,17 @@
     gap: 18px;
 }
 
+.app-shell-main--integration {
+    min-height: calc(100dvh - var(--shell-topbar-height) - var(--shell-footer-height, 40px));
+}
+
+.app-shell-main-body--integration {
+    position: relative;
+    height: 100%;
+    min-height: calc(100dvh - var(--shell-topbar-height) - var(--shell-footer-height, 40px));
+    gap: 0;
+}
+
 .app-shell-main--dashboard .app-shell-main-body {
     gap: 14px;
 }
@@ -1131,6 +1146,32 @@
     font-size: 18px;
 }
 
+@media (max-width: 599px) {
+
+    .app-shell-page-action,
+    .app-shell-page-action.MuiIconButton-root {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px !important;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(248, 250, 252, 0.92);
+        color: #64748b;
+    }
+
+    .app-shell-page-action:hover,
+    .app-shell-page-action.MuiIconButton-root:hover {
+        background: rgba(241, 245, 249, 0.96);
+        border-color: rgba(148, 163, 184, 0.24);
+    }
+
+    .app-shell-root--dark .app-shell-page-action,
+    .app-shell-root--dark .app-shell-page-action.MuiIconButton-root {
+        background: rgba(15, 23, 42, 0.72);
+        border-color: rgba(71, 85, 105, 0.65);
+        color: #cbd5e1;
+    }
+}
+
 .app-shell-footer {
     display: flex;
     align-items: center;
@@ -1194,13 +1235,13 @@
 @media (max-width: 767px) {
     .app-shell-root {
         --shell-footer-height: 64px;
-        height: auto;
+        height: 100dvh;
         min-height: 100dvh;
     }
 
     .app-shell-content {
-        height: auto;
-        min-height: 100%;
+        height: 100%;
+        min-height: 0;
     }
 
     .app-shell-footer {
@@ -1324,7 +1365,8 @@
 }
 
 /* Mobile responsive navigation */
-.app-shell-hamburger {
+.app-shell-hamburger,
+.app-shell-hamburger.MuiButton-root {
     display: none;
     flex-shrink: 0;
     margin-right: 4px;
@@ -1339,7 +1381,9 @@
 }
 
 @media (max-width: 767px) {
-    .app-shell-hamburger {
+
+    .app-shell-hamburger,
+    .app-shell-hamburger.MuiButton-root {
         display: inline-flex;
     }
 
@@ -1351,6 +1395,7 @@
         position: fixed;
         top: 0;
         left: 0;
+        width: min(84vw, 280px);
         height: 100%;
         z-index: 1300;
         transform: translateX(-100%);
@@ -1367,13 +1412,54 @@
     }
 
     .app-shell-topbar {
-        padding-left: 8px;
+        padding: 0 8px 0 4px;
         justify-content: flex-start;
+        gap: 4px;
+    }
+
+    .app-shell-hamburger,
+    .app-shell-hamburger.MuiButton-root {
+        min-width: 32px;
+        width: 32px;
+        height: 32px;
+        margin-right: 0;
+        padding: 0;
     }
 
     .app-shell-topbar-actions {
         flex: 1;
         justify-content: flex-end;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .app-shell-topbar-pill,
+    .app-shell-topbar-pill.MuiButton-root {
+        min-width: 38px;
+        padding: 0 8px;
+    }
+
+    .app-shell-topbar-pill .MuiButton-startIcon {
+        margin-right: 0;
+    }
+
+    .app-shell-topbar-pill .MuiButton-endIcon {
+        display: none;
+    }
+
+    .app-shell-topbar-pill-label,
+    .app-shell-user-trigger-copy {
+        display: none;
+    }
+
+    .app-shell-user-trigger--topbar,
+    .app-shell-user-trigger--topbar.MuiButton-root {
+        min-width: 36px;
+        padding: 2px;
+    }
+
+    .app-shell-footer-separator {
+        display: none;
     }
 
     .app-shell-content {
@@ -1421,6 +1507,13 @@
     .app-shell-topbar-pill,
     .app-shell-topbar-pill.MuiButton-root {
         padding: 0 10px;
+    }
+
+
+    @media (max-width: 767px) {
+        .app-shell-sidebar {
+            width: min(84vw, 280px);
+        }
     }
 
     .app-shell-user-trigger-name,

@@ -226,6 +226,21 @@ function ServicesScopedOverlay({ open, scopeRect, onClose, darkMode, maxWidth = 
         <Box
             className={darkMode ? 'app-shell-root--dark' : undefined}
             sx={{
+                '--ds-color-page-bg': darkMode ? '#111827' : '#f4f6f8',
+                '--ds-color-surface-bg': darkMode ? '#111827' : '#ffffff',
+                '--ds-color-surface-soft': darkMode ? '#111827' : '#f4f6f8',
+                '--ds-color-border': darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(145, 158, 171, 0.16)',
+                '--ds-color-border-strong': darkMode ? 'color-mix(in srgb, rgba(255, 255, 255, 0.08) 65%, #f9fafb 35%)' : 'rgba(203, 213, 225, 0.9)',
+                '--ds-color-text-strong': darkMode ? '#f9fafb' : '#212b36',
+                '--ds-color-text-muted': darkMode ? '#9aa4b2' : '#637381',
+                '--ds-color-floating-bg': darkMode ? 'rgba(17, 24, 39, 0.96)' : 'rgba(255, 255, 255, 0.92)',
+                '--ds-color-accent': darkMode ? '#60a5fa' : '#1767d1',
+                '--ds-color-accent-strong': darkMode ? '#93c5fd' : '#2563eb',
+                '--ds-color-accent-soft': darkMode ? 'rgba(96, 165, 250, 0.18)' : 'rgba(37, 99, 235, 0.18)',
+                '--ds-focus-ring': darkMode ? '0 0 0 0.2rem rgba(147, 197, 253, 0.18)' : '0 0 0 0.2rem rgba(23, 103, 209, 0.15)',
+                '--ds-shadow-sm': darkMode ? '0 12px 28px rgba(2, 6, 23, 0.24)' : '0 2px 5px rgba(15, 23, 42, 0.08)',
+                '--ds-shadow-md': darkMode ? '0 16px 36px rgba(2, 6, 23, 0.28)' : '0 10px 28px rgba(15, 23, 42, 0.06)',
+                '--ds-shadow-lg': darkMode ? '0 20px 48px rgba(0, 0, 0, 0.36)' : '0 20px 40px rgba(145, 158, 171, 0.16)',
                 position: 'fixed',
                 top: scopeRect.top,
                 left: scopeRect.left,
@@ -709,13 +724,15 @@ export function ServicesPage() {
                                             <MenuItem value="stopped">{t('servicesPage.filters.stateOptions.stopped')}</MenuItem>
                                             <MenuItem value="unavailable">{t('servicesPage.filters.stateOptions.unavailable')}</MenuItem>
                                         </TextField>
-                                        <Tooltip title={isFetching ? t('servicesPage.states.loading') : t('servicesPage.actions.refresh')}>
-                                            <span>
-                                                <IconButton className="services-page-icon-button" onClick={() => { void refetch() }} disabled={isFetching} size="small" sx={topActionButtonSx}>
-                                                    {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-                                                </IconButton>
-                                            </span>
-                                        </Tooltip>
+                                        <Box className="services-page-toolbar-refresh">
+                                            <Tooltip title={isFetching ? t('servicesPage.states.loading') : t('servicesPage.actions.refresh')}>
+                                                <span>
+                                                    <IconButton className="services-page-icon-button" onClick={() => { void refetch() }} disabled={isFetching} size="small" sx={topActionButtonSx}>
+                                                        {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        </Box>
                                     </Stack>
                                 </Box>
 

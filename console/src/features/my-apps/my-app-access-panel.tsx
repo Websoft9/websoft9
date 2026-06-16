@@ -1090,7 +1090,7 @@ ${customCertIntermediate.trim()}`
                                             <div className={`myapps-access-entry-icon ${isAdminCard ? 'is-admin' : 'is-app'}`}>
                                                 {isAdminCard ? <IconEntryAdmin /> : <IconEntryApp />}
                                             </div>
-                                            <div className="myapps-access-entry-copy">
+                                            <div className="myapps-access-entry-content">
                                                 <div className="myapps-access-entry-title-row">
                                                     <div className="myapps-access-entry-title">{card.title}</div>
                                                 </div>
@@ -1099,22 +1099,24 @@ ${customCertIntermediate.trim()}`
                                                     <a className="myapps-access-entry-link" href={card.url} rel="noreferrer" target="_blank">
                                                         {card.url}
                                                     </a>
+                                                </div>
+                                                <div className="myapps-access-entry-actions">
                                                     <button className="myapps-access-entry-copy-btn" onClick={() => void copyTextWithFallback(card.url)} title={t('myAppsDetailPage.accessPanel.copySuccess')} type="button">
                                                         <IconCopy />
                                                     </button>
+                                                    <a
+                                                        aria-label={card.url}
+                                                        className="myapps-access-entry-action"
+                                                        href={card.url}
+                                                        rel="noreferrer"
+                                                        target="_blank"
+                                                        title={card.url}
+                                                    >
+                                                        <IconOpenLink />
+                                                    </a>
                                                 </div>
                                             </div>
                                         </div>
-                                        <a
-                                            aria-label={card.url}
-                                            className="myapps-access-entry-action"
-                                            href={card.url}
-                                            rel="noreferrer"
-                                            target="_blank"
-                                            title={card.url}
-                                        >
-                                            <IconOpenLink />
-                                        </a>
                                     </div>
                                 )
                             })}
@@ -1189,6 +1191,28 @@ ${customCertIntermediate.trim()}`
                     color: palette.text,
                     border: `1px solid ${palette.borderStrong}`,
                     boxShadow: isDarkMode ? '0 24px 64px rgba(2,6,23,0.56)' : '0 16px 40px rgba(15,23,42,0.16)',
+                    '--myapps-detail-surface': palette.dialogBg,
+                    '--myapps-detail-surface-soft': isDarkMode ? '#111827' : '#f8f9fc',
+                    '--myapps-detail-border': isDarkMode ? 'rgba(71, 85, 105, 0.52)' : '#eef2f7',
+                    '--myapps-detail-border-strong': isDarkMode ? 'rgba(71, 85, 105, 0.82)' : '#ced4da',
+                    '--myapps-detail-text': palette.text,
+                    '--myapps-detail-text-strong': palette.text,
+                    '--myapps-detail-muted': isDarkMode ? '#94a3b8' : '#6c757d',
+                    '--myapps-detail-subtle': isDarkMode ? '#94a3b8' : '#98a6ad',
+                    '--myapps-detail-choice-bg': isDarkMode ? '#111827' : '#ffffff',
+                    '--myapps-detail-choice-border': isDarkMode ? 'rgba(71, 85, 105, 0.82)' : '#d7dee9',
+                    '--myapps-detail-choice-ring': isDarkMode
+                        ? 'inset 0 0 0 1px rgba(255, 255, 255, 0.03)'
+                        : 'inset 0 0 0 1px rgba(255, 255, 255, 0.65)',
+                    '--myapps-detail-form-field-bg': isDarkMode ? '#0f172a' : '#ffffff',
+                    '--myapps-detail-form-field-border': isDarkMode ? 'rgba(71, 85, 105, 0.88)' : '#c3cfdd',
+                    '--myapps-detail-form-field-shadow': isDarkMode
+                        ? 'inset 0 0 0 1px rgba(148, 163, 184, 0.12)'
+                        : 'inset 0 0 0 1px rgba(148, 163, 184, 0.12)',
+                    '--myapps-detail-form-panel-border': isDarkMode ? 'rgba(71, 85, 105, 0.82)' : '#d7dee9',
+                    '--myapps-detail-form-panel-shadow': isDarkMode
+                        ? 'inset 0 0 0 1px rgba(148, 163, 184, 0.08)'
+                        : 'inset 0 0 0 1px rgba(148, 163, 184, 0.08)',
                 }}
             >
                 <Box sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, borderBottom: `1px solid ${palette.divider}`, backgroundColor: palette.dialogBg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>

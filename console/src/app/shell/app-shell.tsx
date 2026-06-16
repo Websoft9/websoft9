@@ -146,6 +146,10 @@ function ChevronDownIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="m7 10 5 5 5-5H7Z" /></SvgIcon>
 }
 
+function MenuIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M4 7h16v2H4V7Zm0 4h16v2H4v-2Zm0 4h16v2H4v-2Z" /></SvgIcon>
+}
+
 function LogoutIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="M10 17v-3H3v-4h7V7l5 5-5 5Zm8 2h-6v-2h6V7h-6V5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z" /></SvgIcon>
 }
@@ -185,6 +189,7 @@ export function AppShell() {
     })
     const [applicationsExpanded, setApplicationsExpanded] = useState(true)
     const [mobileNavOpen, setMobileNavOpen] = useState(false)
+    const [isMobileViewport, setIsMobileViewport] = useState(false)
     const [platformBrand, setPlatformBrand] = useState<PlatformBrandState>({
         title: t('brand.title'),
         logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
@@ -211,6 +216,7 @@ export function AppShell() {
     const normalizedLocale = normalizeSupportedLocale(resolvedLocale)
     const currentLocaleLabel = t(`locales.${normalizedLocale}`)
     const currentAppearanceLabel = colorMode === 'light' ? t('preferences.light') : t('preferences.dark')
+    const isNavCollapsed = navCollapsed && !isMobileViewport
     const footerLinks = useMemo(
         () => [
             {
@@ -421,10 +427,33 @@ export function AppShell() {
     }, [isApplicationsContext])
 
     useEffect(() => {
-        if (!navCollapsed && collapsedApplicationsAnchor) {
+        if (typeof window === 'undefined') {
+            return undefined
+        }
+
+        const mediaQuery = window.matchMedia('(max-width: 767px)')
+        const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
+            setIsMobileViewport(event.matches)
+        }
+
+        handleChange(mediaQuery)
+
+        const listener = (event: MediaQueryListEvent) => {
+            handleChange(event)
+        }
+
+        mediaQuery.addEventListener('change', listener)
+
+        return () => {
+            mediaQuery.removeEventListener('change', listener)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!isNavCollapsed && collapsedApplicationsAnchor) {
             setCollapsedApplicationsAnchor(null)
         }
-    }, [collapsedApplicationsAnchor, navCollapsed])
+    }, [collapsedApplicationsAnchor, isNavCollapsed])
 
     useEffect(() => {
         setCollapsedApplicationsAnchor(null)
@@ -496,7 +525,7 @@ export function AppShell() {
     }
 
     return (
-        <Box className={`app-shell-root app-shell-root--${colorMode} ${navCollapsed ? 'app-shell-root--collapsed' : ''} ${mobileNavOpen ? 'app-shell-root--mobile-nav-open' : ''}`}>
+        <Box className={`app-shell-root app-shell-root--${colorMode} ${isNavCollapsed ? 'app-shell-root--collapsed' : ''} ${mobileNavOpen ? 'app-shell-root--mobile-nav-open' : ''}`}>
             <Box className="app-shell-frame">
                 <Box className="app-shell-mobile-backdrop" onClick={() => setMobileNavOpen(false)} />
                 <Box component="aside" className="app-shell-sidebar">
@@ -540,17 +569,17 @@ export function AppShell() {
                                                             component={NavLink}
                                                             to={myAppsNavigationTarget}
                                                             onMouseEnter={(event) => {
-                                                                if (navCollapsed) {
+                                                                if (isNavCollapsed) {
                                                                     openCollapsedApplicationsMenu(event.currentTarget)
                                                                 }
                                                             }}
                                                             onMouseLeave={() => {
-                                                                if (navCollapsed) {
+                                                                if (isNavCollapsed) {
                                                                     closeCollapsedApplicationsMenuWithDelay()
                                                                 }
                                                             }}
                                                             onClick={(event) => {
-                                                                if (!navCollapsed) {
+                                                                if (!isNavCollapsed) {
                                                                     if (isApplicationsContext) {
                                                                         event.preventDefault()
                                                                     }
@@ -562,7 +591,7 @@ export function AppShell() {
                                                                 <Box className="app-shell-nav-item-icon">
                                                                     <ShellNavIcon segment={item.segment} />
                                                                 </Box>
-                                                                {navCollapsed ? (
+                                                                {isNavCollapsed ? (
                                                                     <Box className="app-shell-nav-item-collapsed-indicator">
                                                                         <ChevronSmallRightIcon />
                                                                     </Box>
@@ -571,7 +600,7 @@ export function AppShell() {
                                                             <Typography className="app-shell-nav-item-label" variant="body2">
                                                                 {t(`nav.${item.pageKey}.label`)}
                                                             </Typography>
-                                                            {!navCollapsed ? (
+                                                            {!isNavCollapsed ? (
                                                                 <Box
                                                                     className="app-shell-nav-item-trailing"
                                                                     aria-hidden="true"
@@ -586,7 +615,7 @@ export function AppShell() {
                                                             ) : null}
                                                         </ListItemButton>
 
-                                                        {!navCollapsed && applicationsExpanded ? (
+                                                        {!isNavCollapsed && applicationsExpanded ? (
                                                             <Box className="app-shell-subnav">
                                                                 {applicationSubNavigation.map((subItem) => (
                                                                     <ListItemButton
@@ -606,7 +635,7 @@ export function AppShell() {
                                                             </Box>
                                                         ) : null}
 
-                                                        {navCollapsed ? (
+                                                        {isNavCollapsed ? (
                                                             <Popper
                                                                 anchorEl={collapsedApplicationsAnchor}
                                                                 open={Boolean(collapsedApplicationsAnchor)}
@@ -682,27 +711,40 @@ export function AppShell() {
                             ))}
                         </Box>
 
-                        <Box className="app-shell-sidebar-bottom">
-                            <ListItemButton
-                                className="app-shell-nav-item app-shell-nav-item--collapse"
-                                onClick={() => setNavCollapsed((v) => !v)}
-                                aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
-                            >
-                                <Box className="app-shell-nav-item-icon" aria-hidden="true">
-                                    {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
-                                </Box>
-                                {!navCollapsed && (
-                                    <Typography className="app-shell-nav-item-label" variant="body2">
-                                        {t('navigation.collapse', { defaultValue: 'Collapse' })}
-                                    </Typography>
-                                )}
-                            </ListItemButton>
-                        </Box>
+                        {!isMobileViewport ? (
+                            <Box className="app-shell-sidebar-bottom">
+                                <ListItemButton
+                                    className="app-shell-nav-item app-shell-nav-item--collapse"
+                                    onClick={() => setNavCollapsed((v) => !v)}
+                                    aria-label={navCollapsed ? t('navigation.expand', { defaultValue: 'Expand menu' }) : t('navigation.collapse', { defaultValue: 'Collapse menu' })}
+                                >
+                                    <Box className="app-shell-nav-item-icon" aria-hidden="true">
+                                        {navCollapsed ? <SidebarExpandIcon /> : <SidebarCollapseIcon />}
+                                    </Box>
+                                    {!navCollapsed && (
+                                        <Typography className="app-shell-nav-item-label" variant="body2">
+                                            {t('navigation.collapse', { defaultValue: 'Collapse' })}
+                                        </Typography>
+                                    )}
+                                </ListItemButton>
+                            </Box>
+                        ) : null}
                     </Box>
                 </Box>
 
                 <Box className="app-shell-content">
                     <Box className="app-shell-topbar">
+                        {!mobileNavOpen ? (
+                            <Button
+                                color="inherit"
+                                onClick={() => setMobileNavOpen(true)}
+                                className="app-shell-icon-button app-shell-hamburger"
+                                aria-label={t('navigation.expand', { defaultValue: 'Open navigation' })}
+                                title={t('navigation.expand', { defaultValue: 'Open navigation' })}
+                            >
+                                <MenuIcon />
+                            </Button>
+                        ) : null}
                         <Box className="app-shell-topbar-actions">
                             <Button
                                 color="inherit"
@@ -715,7 +757,7 @@ export function AppShell() {
                                 startIcon={<GlobeIcon />}
                                 endIcon={<ChevronDownIcon />}
                             >
-                                {currentLocaleLabel}
+                                <span className="app-shell-topbar-pill-label">{currentLocaleLabel}</span>
                             </Button>
                             <Button
                                 color="inherit"
@@ -728,7 +770,7 @@ export function AppShell() {
                                 startIcon={colorMode === 'light' ? <SunIcon /> : <MoonIcon />}
                                 endIcon={<ChevronDownIcon />}
                             >
-                                {currentAppearanceLabel}
+                                <span className="app-shell-topbar-pill-label">{currentAppearanceLabel}</span>
                             </Button>
                             <Button
                                 color="inherit"
@@ -757,16 +799,17 @@ export function AppShell() {
                     </Box>
                     <Box
                         component="main"
-                        className={`app-shell-main ${location.pathname === '/dashboard' ? 'app-shell-main--dashboard' : ''} ${useWhiteWorkspaceSurface ? 'app-shell-main--white-surface' : ''}`}
+                        className={`app-shell-main ${location.pathname === '/dashboard' ? 'app-shell-main--dashboard' : ''} ${activeIntegrationRoute ? 'app-shell-main--integration' : ''} ${useWhiteWorkspaceSurface ? 'app-shell-main--white-surface' : ''}`}
                         id="app-shell-main"
                         sx={{
                             px: activeIntegrationRoute ? 0 : { xs: 2, md: 3 },
                             py: activeIntegrationRoute ? 0 : terminalRoute ? { xs: 1, md: 1.25 } : location.pathname === '/dashboard' ? { xs: 2, md: 2.25 } : { xs: 2.5, md: 3 },
+                            minHeight: activeIntegrationRoute ? 'calc(100dvh - var(--shell-topbar-height) - var(--shell-footer-height, 40px))' : undefined,
                             overflowX: terminalRoute ? 'hidden' : undefined,
-                            overflowY: activeIntegrationRoute ? 'hidden' : location.pathname === '/dashboard' || terminalRoute ? 'hidden' : 'auto',
+                            overflowY: activeIntegrationRoute || terminalRoute ? 'hidden' : 'auto',
                         }}
                     >
-                        <Box className="app-shell-main-body">
+                        <Box className={`app-shell-main-body ${activeIntegrationRoute ? 'app-shell-main-body--integration' : ''}`}>
                             <PersistentIntegrationWorkspaces />
                             <Suspense fallback={<AppShellRouteFallback />}>
                                 <Outlet />

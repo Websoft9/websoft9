@@ -98,6 +98,10 @@
     margin-left: auto !important;
 }
 
+.services-page-toolbar-refresh {
+    display: flex;
+}
+
 .services-page-dialog-titlebar {
     align-items: center;
     display: flex;
@@ -471,6 +475,11 @@
         width: 100%;
     }
 
+    .services-page-toolbar-search {
+        min-width: 0;
+        width: 100%;
+    }
+
     .services-page-toolbar-select {
         width: 100%;
     }
@@ -628,6 +637,11 @@
 
     .services-page-toolbar-search,
     .services-page-toolbar-select {
+        width: 100%;
+    }
+
+    .services-page-toolbar-refresh {
+        justify-content: flex-end;
         width: 100%;
     }
 

@@ -334,6 +334,11 @@
         padding: 0;
     }
 
+    .overview-page-panel-header {
+        align-items: flex-start;
+        gap: 8px;
+    }
+
     .overview-page-title {
         font-size: 24px !important;
     }

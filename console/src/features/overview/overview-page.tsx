@@ -304,8 +304,8 @@ export function OverviewPage() {
                         <Box className="overview-page-dashboard-grid">
                             <Paper className="overview-page-panel overview-page-panel-runtime" elevation={0}>
                                 <Stack className="overview-page-panel-stack" spacing={2.8}>
-                                    <Stack className="overview-page-panel-header" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                        <Box>
+                                    <Stack className="overview-page-panel-header" direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                                        <Box sx={{ minWidth: 0, flex: '1 1 auto' }}>
                                             <Typography className="overview-page-panel-title">{t('overviewPage.cards.runtime.title')}</Typography>
                                             <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.runtime.subtitle')}</Typography>
                                             {runtimeAlertSummary ? (
@@ -353,8 +353,8 @@ export function OverviewPage() {
 
                             <Paper className="overview-page-panel overview-page-panel-server" elevation={0}>
                                 <Stack className="overview-page-panel-stack" spacing={2.8}>
-                                    <Stack className="overview-page-panel-header" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                                        <Box>
+                                    <Stack className="overview-page-panel-header" direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+                                        <Box sx={{ minWidth: 0, flex: '1 1 auto' }}>
                                             <Typography className="overview-page-panel-title">{t('overviewPage.cards.host.title')}</Typography>
                                             <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.hostRuntime.description')}</Typography>
                                         </Box>

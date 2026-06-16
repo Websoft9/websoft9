@@ -478,6 +478,15 @@
     color: #2563eb;
 }
 
+.terminal-workspace-header-actions {
+    max-width: 100%;
+}
+
+.terminal-workspace-host-button,
+.terminal-workspace-host-button.MuiButton-root {
+    white-space: nowrap;
+}
+
 .terminal-access-summary {
     display: flex;
     align-items: center;
@@ -1069,6 +1078,14 @@
     line-clamp: 2;
 }
 
+.terminal-files-grid-card-kind {
+    color: var(--terminal-files-subtle-text, #64748b);
+    font-size: 11px;
+    line-height: 1.2;
+    margin-top: 4px;
+    text-align: center;
+}
+
 .terminal-files-browser-editor {
     background: var(--terminal-files-editor-bg, #ffffff);
     display: flex;
@@ -1151,6 +1168,20 @@
     min-width: 0;
 }
 
+.terminal-files-list-name-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.terminal-files-list-kind {
+    color: var(--terminal-files-subtle-text, #64748b);
+    font-size: 11px;
+    line-height: 1.2;
+}
+
 .terminal-file-icon {
     width: 12px;
     height: 12px;
@@ -1196,12 +1227,25 @@
     width: 100%;
 }
 
+.terminal-files-inspector-header-copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
 .terminal-files-inspector-header-title {
     color: var(--terminal-files-text, #111827);
-    flex: 1 1 auto;
     font-size: 15px;
     font-weight: 600;
     min-width: 0;
+}
+
+.terminal-files-inspector-header-meta {
+    color: var(--terminal-files-subtle-text, #64748b);
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 .terminal-files-inspector-header-actions {
@@ -1698,9 +1742,264 @@
         border-left: 0;
         border-top: 1px solid rgba(226, 232, 240, 0.96);
     }
+
+    .terminal-session-strip,
+    .terminal-session-tabs {
+        min-height: 34px;
+    }
+
+    .terminal-session-tab {
+        min-height: 34px;
+    }
+
+    .terminal-session-tab-toggle {
+        gap: 8px;
+        padding: 6px 10px;
+    }
+
+    .terminal-session-tab-title {
+        font-size: 12px;
+    }
+
+    .terminal-session-tab-status {
+        width: 8px;
+        height: 8px;
+    }
+
+    .terminal-session-tab-close {
+        width: 24px;
+        font-size: 16px;
+    }
+
+    .terminal-session-add {
+        min-height: 34px;
+    }
+
+    .terminal-workspace-header-actions {
+        gap: 6px !important;
+    }
+
+    .terminal-view-nav-button {
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+
+    .terminal-workspace-host-button,
+    .terminal-workspace-host-button.MuiButton-root {
+        min-width: 84px;
+        min-height: 34px;
+        padding: 0 12px;
+        font-size: 12px;
+    }
+
+    .terminal-shell-toolbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 10px;
+    }
+
+    .terminal-shell-toolbar-left {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .terminal-shell-toolbar-right {
+        margin-left: auto;
+    }
+
+    .terminal-shell-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .terminal-shell-toolbar-right .MuiButton-root {
+        min-height: 30px;
+        padding: 0 10px;
+        font-size: 12px;
+    }
+
+    .terminal-shell-toolbar-icon-button.MuiButton-root {
+        min-width: 30px;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+    }
+
+    .terminal-shell-body {
+        gap: 6px;
+        padding: 10px;
+    }
+
+    .terminal-shell-empty-connected-look {
+        padding: 16px;
+    }
+
+    .terminal-shell-empty-connected-look .MuiTypography-root:first-of-type {
+        font-size: 18px !important;
+    }
+
+    .terminal-shell-empty-connected-look .MuiTypography-root:last-of-type {
+        font-size: 13px !important;
+        line-height: 1.6 !important;
+    }
+
+    .terminal-shell-empty-connected-look>.MuiStack-root>.MuiBox-root {
+        width: 64px !important;
+        height: 64px !important;
+        border-radius: 18px !important;
+    }
+
+    .terminal-files-toolbar-row {
+        gap: 10px;
+    }
+
+    .terminal-files-toolbar-group {
+        gap: 6px;
+        justify-content: center;
+        width: 100%;
+        display: grid;
+    }
+
+    .terminal-files-toolbar-row>.terminal-files-toolbar-group:first-child {
+        grid-template-columns: repeat(4, 36px);
+    }
+
+    .terminal-files-toolbar-group-actions {
+        justify-content: center;
+        grid-template-columns: repeat(3, 36px);
+    }
+
+    .terminal-files-toolbar-button {
+        width: 36px;
+        height: 36px;
+    }
+
+    .terminal-files-toolbar-button .MuiSvgIcon-root,
+    .terminal-files-toolbar-glyph-svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .terminal-files-toolbar-paths {
+        gap: 8px;
+        width: 100%;
+    }
+
+    .terminal-files-path-input,
+    .terminal-files-search-input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .terminal-files-search-input {
+        max-width: none;
+    }
+
+    .terminal-files-path-input .MuiInputBase-input,
+    .terminal-files-search-input .MuiInputBase-input,
+    .terminal-files-search-input .MuiInputBase-input::placeholder,
+    .terminal-files-path-input .MuiInputBase-input::placeholder {
+        font-size: 13px;
+    }
+
+    .terminal-files-browser-editor-header,
+    .terminal-files-inspector-header,
+    .terminal-files-inspector-body,
+    .terminal-files-browser-editor-body {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .terminal-files-inspector-header-main {
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    .terminal-files-inspector-header-title {
+        font-size: 14px;
+    }
+
+    .terminal-files-inspector-header-actions {
+        gap: 4px;
+        margin-left: auto;
+        width: auto;
+    }
+
+    .terminal-files-layout {
+        gap: 6px;
+    }
+
+    .terminal-files-browser-panel,
+    .terminal-files-inspector-panel {
+        min-width: 0;
+    }
+
+    .terminal-files-inspector-body {
+        padding-top: 10px;
+    }
+
+    .terminal-files-toolbar-button-small {
+        width: 30px !important;
+        height: 30px !important;
+    }
+
+    .terminal-files-inspector-row {
+        grid-template-columns: 1fr;
+        row-gap: 4px;
+        padding: 5px 0;
+    }
+
+    .terminal-files-inspector-label,
+    .terminal-files-inspector-value {
+        font-size: 13px;
+    }
+
+    .terminal-files-footer {
+        height: auto;
+        min-height: 38px;
+        padding: 8px 10px;
+    }
+
+    .terminal-files-footer-stats {
+        font-size: 11.5px;
+    }
 }
 
 @media (max-width: 899px) {
+
+    .terminal-shell-body-files {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .terminal-files-pane-embedded {
+        flex: 0 0 auto;
+        min-height: max-content;
+        overflow: visible;
+    }
+
+    .terminal-files-layout {
+        height: auto;
+        overflow: visible;
+    }
+
+    .terminal-files-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .terminal-files-browser-panel {
+        height: 220px;
+        min-height: 220px;
+    }
+
+    .terminal-files-inspector-panel {
+        min-height: 220px;
+    }
 
     .terminal-access-grid,
     .terminal-inline-reconnect-row {
@@ -1732,9 +2031,33 @@
         display: none;
     }
 
-    .terminal-view-nav {
+    .terminal-workspace-header-actions {
         width: 100%;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .terminal-view-nav {
+        width: auto;
+        flex: 1 1 auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-auto-flow: row;
+    }
+
+    .terminal-view-nav-button {
+        width: 100%;
+        padding-left: 12px;
+        padding-right: 12px;
+        text-align: center;
+    }
+
+    .terminal-workspace-host-button,
+    .terminal-workspace-host-button.MuiButton-root {
+        width: auto;
+        min-width: 96px;
+        flex: 0 0 auto;
     }
 
     .terminal-access-auth-nav {
@@ -1749,6 +2072,51 @@
 
     .terminal-access-auth-button:last-child {
         border-bottom: 0;
+    }
+}
+
+@media (max-width: 540px) {
+
+    .terminal-files-browser-panel {
+        height: 150px;
+        min-height: 150px;
+    }
+
+    .terminal-files-inspector-panel {
+        height: 220px;
+        min-height: 220px;
+        max-height: 220px;
+    }
+
+    .terminal-files-list-header {
+        display: none;
+    }
+
+    .terminal-files-list-row {
+        gap: 0;
+        grid-template-columns: 1fr;
+    }
+
+    .terminal-files-list-row> :nth-child(n + 2) {
+        display: none;
+    }
+
+    .terminal-files-list-row-frame {
+        align-items: flex-start;
+        padding: 10px 12px;
+    }
+
+    .terminal-files-list-name {
+        width: 100%;
+    }
+
+    .terminal-files-list-name-content {
+        width: 100%;
+    }
+
+    .terminal-files-list-kind {
+        font-size: 11.5px;
+        line-height: 1.35;
     }
 }
 

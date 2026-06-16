@@ -367,6 +367,48 @@ function getVisualKind(item: Pick<HostAccessFileItem, 'item_type' | 'name'>): Fi
     return 'file'
 }
 
+function getBrowserEntryCategoryLabel(entry: Pick<HostAccessFileItem, 'item_type' | 'name'>, locale: string): string {
+    const zh = isChineseLocale(locale)
+    if (entry.item_type === 'symlink') {
+        return zh ? '符号链接' : 'Symbolic link'
+    }
+
+    const kind = getVisualKind(entry)
+    if (kind === 'directory') {
+        return zh ? '文件夹' : 'Folder'
+    }
+    if (kind === 'image') {
+        return zh ? '图片' : 'Image'
+    }
+    if (kind === 'config') {
+        return zh ? '配置' : 'Config'
+    }
+    if (kind === 'certificate') {
+        return zh ? '证书' : 'Certificate'
+    }
+    if (kind === 'code') {
+        return zh ? '代码' : 'Code'
+    }
+    if (kind === 'document') {
+        return zh ? '文档' : 'Document'
+    }
+    if (kind === 'archive') {
+        return zh ? '压缩包' : 'Archive'
+    }
+    if (kind === 'spreadsheet') {
+        return zh ? '表格' : 'Spreadsheet'
+    }
+    if (kind === 'media') {
+        return zh ? '媒体' : 'Media'
+    }
+
+    return zh ? '文件' : 'File'
+}
+
+function getBrowserCategoryLabel(locale: string): string {
+    return isChineseLocale(locale) ? '类别' : 'Type'
+}
+
 function parentDirectory(path: string): string {
     const normalized = normalizeDirectory(path)
     if (normalized === '/') {
@@ -1443,6 +1485,7 @@ export function TerminalPage() {
     const terminalHostRef = useRef<HTMLDivElement | null>(null)
     const terminalShellRef = useRef<HTMLDivElement | null>(null)
     const terminalWorkspaceShellRef = useRef<HTMLDivElement | null>(null)
+    const browserInspectorBodyRef = useRef<HTMLDivElement | null>(null)
     const xtermRef = useRef<XTerm | null>(null)
     const fitAddonRef = useRef<FitAddon | null>(null)
     const activeSessionRef = useRef<TerminalSession | null>(null)
@@ -2611,6 +2654,14 @@ export function TerminalPage() {
             window.clearTimeout(timer)
         }
     }, [workspaceView, isTerminalFullscreen])
+
+    useEffect(() => {
+        if (workspaceView !== 'files') {
+            return
+        }
+
+        browserInspectorBodyRef.current?.scrollTo({ top: 0 })
+    }, [workspaceView, inspectorEntry?.path])
 
     async function handleAccessSubmit() {
         if (!validateAccessForm()) {
@@ -3808,7 +3859,17 @@ export function TerminalPage() {
                     sx={{ mt: { xs: 0.25, md: 0.45 } }}
                     actions={
                         status?.enabled ? (
-                            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+                            <Stack
+                                direction="row"
+                                spacing={1}
+                                className="terminal-workspace-header-actions"
+                                sx={{
+                                    width: '100%',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    justifyContent: 'flex-end',
+                                }}
+                            >
                                 <div className="terminal-view-nav" role="tablist" aria-label="workspace view selector">
                                     {([
                                         ['terminal', copy.viewTerminal],
@@ -3833,7 +3894,7 @@ export function TerminalPage() {
                                         )
                                     })}
                                 </div>
-                                <Button disabled={isDisconnecting} onClick={openHostSelector} variant="contained">
+                                <Button className="terminal-workspace-host-button" disabled={isDisconnecting} onClick={openHostSelector} variant="contained">
                                     {copy.hostSelectorTitle}
                                 </Button>
                             </Stack>
@@ -3967,7 +4028,7 @@ export function TerminalPage() {
                                                     </div>
                                                 </div>
 
-                                                <div className="terminal-shell-body">
+                                                <div className={`terminal-shell-body ${workspaceView === 'files' ? 'terminal-shell-body-files' : ''}`}>
                                                     {workspaceView === 'files' ? (
                                                         <div className="terminal-files-pane terminal-files-shell terminal-files-pane-embedded" style={{ ...terminalFilesThemeVars, borderLeftColor: palette.border }}>
                                                             <div className="terminal-files-toolbar-row">
@@ -4061,7 +4122,10 @@ export function TerminalPage() {
                                                                                                 <button key={entry.path} className={`terminal-files-list-row terminal-files-list-row-frame ${selected ? 'terminal-files-list-row-selected' : ''}`} onClick={() => handleBrowseEntry(entry)} onContextMenu={(event) => openBrowserContextMenu(event, entry)} onDoubleClick={() => handleBrowseEntryOpen(entry)} type="button">
                                                                                                     <div className="terminal-files-list-name">
                                                                                                         <FileItemGlyph kind={getVisualKind(entry)} variant="list" active={selected && entry.item_type === 'directory'} />
-                                                                                                        <span className="terminal-files-truncate">{entry.name}</span>
+                                                                                                        <div className="terminal-files-list-name-content">
+                                                                                                            <span className="terminal-files-truncate">{entry.name}</span>
+                                                                                                            <span className="terminal-files-list-kind">{getBrowserEntryCategoryLabel(entry, locale)}</span>
+                                                                                                        </div>
                                                                                                     </div>
                                                                                                     <div>{entry.mode || '—'}</div>
                                                                                                     <div>{formatBrowserIdentity(entry.owner)}</div>
@@ -4084,6 +4148,7 @@ export function TerminalPage() {
                                                                                                     <FileItemGlyph kind={getVisualKind(entry)} variant="card" active={selected && entry.item_type === 'directory'} />
                                                                                                     <div className="terminal-files-grid-card-body">
                                                                                                         <div className="terminal-files-grid-card-title">{entry.name}</div>
+                                                                                                        <div className="terminal-files-grid-card-kind">{getBrowserEntryCategoryLabel(entry, locale)}</div>
                                                                                                     </div>
                                                                                                 </div>
                                                                                             </button>
@@ -4130,7 +4195,10 @@ export function TerminalPage() {
                                                                 <div className="terminal-files-inspector-panel">
                                                                     <div className="terminal-files-inspector-header terminal-files-inspector-header-classic">
                                                                         <div className="terminal-files-inspector-header-main">
-                                                                            <div className="terminal-files-inspector-header-title terminal-files-truncate">{inspectorEntry?.name || copy.inspectorTitle}</div>
+                                                                            <div className="terminal-files-inspector-header-copy">
+                                                                                <div className="terminal-files-inspector-header-title terminal-files-truncate">{inspectorEntry?.name || copy.inspectorTitle}</div>
+                                                                                {inspectorEntry ? <div className="terminal-files-inspector-header-meta">{`${getBrowserCategoryLabel(locale)}: ${getBrowserEntryCategoryLabel(inspectorEntry, locale)}`}</div> : null}
+                                                                            </div>
                                                                             <div className="terminal-files-inspector-header-actions">
                                                                                 <IconButton className="terminal-files-toolbar-button terminal-files-toolbar-button-small terminal-files-toolbar-button-danger" disabled={!canDeleteSelectedItem} onClick={() => activeBrowserEntry ? openBrowserActionDialog({ type: 'delete', item: activeBrowserEntry }) : undefined} size="small" title={copy.deleteAction}>
                                                                                     <ToolbarGlyph kind="trash" />
@@ -4144,9 +4212,10 @@ export function TerminalPage() {
                                                                             </div>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="terminal-files-inspector-body terminal-files-inspector-body-classic">
+                                                                    <div ref={browserInspectorBodyRef} className="terminal-files-inspector-body terminal-files-inspector-body-classic">
                                                                         {inspectorEntry ? (
                                                                             <div className="terminal-files-inspector-rows terminal-files-inspector-rows-classic">
+                                                                                <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{getBrowserCategoryLabel(locale)}</Typography><Typography className="terminal-files-inspector-value">{getBrowserEntryCategoryLabel(inspectorEntry, locale)}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.modeLabel}</Typography><Typography className="terminal-files-inspector-value">{inspectorEntry.mode || '—'}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.ownerLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.owner)}</Typography></div>
                                                                                 <div className="terminal-files-inspector-row"><Typography className="terminal-files-inspector-label">{copy.groupLabel}</Typography><Typography className="terminal-files-inspector-value">{formatBrowserIdentity(inspectorEntry.group)}</Typography></div>

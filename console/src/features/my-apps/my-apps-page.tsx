@@ -773,7 +773,7 @@ export function MyAppsPage() {
                                 size="small"
                                 className="app-shell-page-action"
                                 title={t('applicationsHubPage.menu.action')}
-                                sx={{ width: 30, height: 30, padding: 0.35 }}
+                                sx={{ width: { xs: 34, md: 30 }, height: { xs: 34, md: 30 }, padding: 0.35 }}
                             >
                                 <IconCompose />
                             </IconButton>
@@ -787,7 +787,7 @@ export function MyAppsPage() {
                             disabled={manualRefreshing}
                             className="app-shell-page-action"
                             title={manualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
-                            sx={{ width: 30, height: 30, padding: 0.35 }}
+                            sx={{ width: { xs: 34, md: 30 }, height: { xs: 34, md: 30 }, padding: 0.35 }}
                         >
                             {manualRefreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh />}
                         </IconButton>

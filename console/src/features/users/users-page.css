@@ -61,6 +61,13 @@
     min-width: 0;
 }
 
+.users-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
 .users-toolbar-search {
     flex: 0 0 auto;
     width: clamp(440px, 38vw, 560px);
@@ -567,6 +574,16 @@
     .users-toolbar-search {
         width: 100%;
         min-width: 100%;
+    }
+
+    .users-toolbar-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .users-toolbar-button,
+    .users-toolbar-button.MuiButton-root {
+        flex: 1 1 auto;
     }
 
     .users-dialog-field-grid-halves {

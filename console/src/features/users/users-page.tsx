@@ -883,14 +883,16 @@ export function UsersPage() {
                                             size="small"
                                             value={searchValue}
                                         />
-                                        {currentUserIsSystem ? (
-                                            <Button className="users-toolbar-button" onClick={openCreateDialog} variant="contained" sx={{ borderRadius: 0, boxShadow: 'none', textTransform: 'none', fontWeight: 600 }}>
-                                                {t('usersPage.create.submit')}
-                                            </Button>
-                                        ) : null}
-                                        <IconButton className="users-toolbar-icon-button" onClick={() => void refetch()} disabled={isFetching} size="small" title={t('usersPage.actions.refresh')} sx={topActionButtonSx}>
-                                            {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
-                                        </IconButton>
+                                        <Box className="users-toolbar-actions">
+                                            {currentUserIsSystem ? (
+                                                <Button className="users-toolbar-button" onClick={openCreateDialog} variant="contained" sx={{ borderRadius: 0, boxShadow: 'none', textTransform: 'none', fontWeight: 600 }}>
+                                                    {t('usersPage.create.submit')}
+                                                </Button>
+                                            ) : null}
+                                            <IconButton className="users-toolbar-icon-button" onClick={() => void refetch()} disabled={isFetching} size="small" title={t('usersPage.actions.refresh')} sx={topActionButtonSx}>
+                                                {isFetching ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                            </IconButton>
+                                        </Box>
                                     </Box>
                                 </Box>
 

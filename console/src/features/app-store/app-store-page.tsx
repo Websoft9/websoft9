@@ -1882,11 +1882,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             actions={(
                                 <Box
                                     sx={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '26px 26px',
-                                        gridTemplateRows: '20px',
-                                        columnGap: 0,
-                                        justifyItems: 'center',
+                                        display: { xs: 'flex', md: 'grid' },
+                                        gridTemplateColumns: { md: '26px 26px' },
+                                        gridTemplateRows: { md: '20px' },
+                                        columnGap: { md: 0 },
+                                        gap: { xs: 0.75, md: 0 },
+                                        justifyContent: 'flex-end',
+                                        justifyItems: { md: 'center' },
                                         alignItems: 'center',
                                         flexShrink: 0,
                                         alignSelf: 'start',
@@ -1902,18 +1904,19 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             }}
                                             size="small"
                                             aria-label={favoriteListAriaLabel}
+                                            className="app-shell-page-action"
                                             sx={{
-                                                width: 26,
-                                                minWidth: 26,
-                                                maxWidth: 26,
-                                                height: 26,
-                                                minHeight: 26,
-                                                maxHeight: 26,
+                                                width: { xs: 34, md: 26 },
+                                                minWidth: { xs: 34, md: 26 },
+                                                maxWidth: { xs: 34, md: 26 },
+                                                height: { xs: 34, md: 26 },
+                                                minHeight: { xs: 34, md: 26 },
+                                                maxHeight: { xs: 34, md: 26 },
                                                 padding: 0.25,
-                                                borderRadius: '2px',
+                                                borderRadius: { xs: '10px', md: '2px' },
                                                 color: palette.subtleText,
-                                                gridColumn: '1',
-                                                gridRow: '1',
+                                                gridColumn: { md: '1' },
+                                                gridRow: { md: '1' },
                                                 '&:hover': {
                                                     background: palette.panelSoft,
                                                     color: palette.text,
@@ -1955,19 +1958,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             }}
                                             size="small"
                                             title={syncStatusTitle}
+                                            className="app-shell-page-action"
                                             sx={{
-                                                width: 26,
-                                                minWidth: 26,
-                                                maxWidth: 26,
-                                                height: 26,
-                                                minHeight: 26,
-                                                maxHeight: 26,
+                                                width: { xs: 34, md: 26 },
+                                                minWidth: { xs: 34, md: 26 },
+                                                maxWidth: { xs: 34, md: 26 },
+                                                height: { xs: 34, md: 26 },
+                                                minHeight: { xs: 34, md: 26 },
+                                                maxHeight: { xs: 34, md: 26 },
                                                 padding: 0.25,
-                                                borderRadius: '2px',
+                                                borderRadius: { xs: '10px', md: '2px' },
                                                 color: palette.subtleText,
-                                                gridColumn: '2',
-                                                gridRow: '1',
-                                                ml: -0.2,
+                                                gridColumn: { md: '2' },
+                                                gridRow: { md: '1' },
+                                                ml: { xs: 0, md: -0.2 },
                                                 '&:hover': {
                                                     background: palette.panelSoft,
                                                     color: palette.text,
