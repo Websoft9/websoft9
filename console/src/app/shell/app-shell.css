@@ -36,21 +36,21 @@
 }
 
 .app-shell-root--dark {
-    --shell-bg: #161c24;
+    --shell-bg: #111827;
     --shell-text: #f9fafb;
-    --shell-sidebar-bg: #0b1220;
+    --shell-sidebar-bg: #111827;
     --shell-sidebar-text: #dfe3ea;
     --shell-sidebar-muted: rgba(223, 227, 234, 0.52);
     --shell-sidebar-hover: rgba(255, 255, 255, 0.08);
     --shell-sidebar-active: rgba(32, 101, 209, 0.3);
-    --shell-topbar-bg: #1f2937;
+    --shell-topbar-bg: #111827;
     --shell-topbar-border: rgba(255, 255, 255, 0.08);
-    --shell-surface-bg: #1f2937;
+    --shell-surface-bg: #111827;
     --shell-surface-soft: #111827;
     --shell-surface-border: rgba(255, 255, 255, 0.08);
     --shell-subtle-text: #9aa4b2;
     --shell-strong-text: #f9fafb;
-    --shell-floating-bg: rgba(31, 41, 55, 0.94);
+    --shell-floating-bg: rgba(17, 24, 39, 0.96);
     --shell-floating-shadow: 0 20px 48px rgba(0, 0, 0, 0.36);
 }
 

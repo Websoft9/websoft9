@@ -23,6 +23,9 @@ from src.services.file_manager import DOCKER_VOLUMES_ROOT_SENTINEL, FileManagerS
 DOCKER_VOLUMES_ROOT = "/var/lib/docker/volumes"
 WORDPRESS_ROOT = f"{DOCKER_VOLUMES_ROOT}/wordpress_data/_data"
 GITEA_ROOT = f"{DOCKER_VOLUMES_ROOT}/websoft9_gitea/_data"
+ALT_DOCKER_VOLUMES_ROOT = "/srv/websoft9/volumes"
+ALT_WORDPRESS_ROOT = f"{ALT_DOCKER_VOLUMES_ROOT}/wordpress_data/_data"
+ALT_GITEA_ROOT = f"{ALT_DOCKER_VOLUMES_ROOT}/websoft9_gitea/_data"
 
 
 def create_test_app() -> FastAPI:
@@ -149,6 +152,51 @@ class FakeFilesAgentExecutor:
                     "items": [],
                 },
             },
+            ALT_WORDPRESS_ROOT: {
+                "/": {
+                    "metadata": {
+                        "name": "wordpress_data",
+                        "path": "/",
+                        "item_type": "directory",
+                        "size": 4096,
+                        "mode": "drwx------",
+                        "owner": "root",
+                        "group": "root",
+                        "accessed_at": "2026-04-29T11:11:21Z",
+                        "modified_at": "2025-09-23T14:49:09Z",
+                        "created_at": "2025-09-23T14:49:09Z",
+                        "text_editable": False,
+                    },
+                    "items": [
+                        {
+                            "name": "config",
+                            "path": "/config",
+                            "item_type": "directory",
+                            "size": 0,
+                            "mode": "drwx------",
+                            "owner": "root",
+                            "group": "root",
+                            "accessed_at": "2026-04-29T11:11:21Z",
+                            "modified_at": "2026-04-29T10:00:00Z",
+                            "created_at": "2026-04-29T09:00:00Z",
+                            "text_editable": False,
+                        },
+                        {
+                            "name": "notes.txt",
+                            "path": "/notes.txt",
+                            "item_type": "file",
+                            "size": 12,
+                            "mode": "-rw-r--r--",
+                            "owner": "root",
+                            "group": "root",
+                            "accessed_at": "2026-04-29T11:11:21Z",
+                            "modified_at": "2026-04-29T10:00:00Z",
+                            "created_at": "2026-04-29T09:00:00Z",
+                            "text_editable": True,
+                        },
+                    ],
+                },
+            },
             DOCKER_VOLUMES_ROOT: {
                 "/": {
                     "metadata": {
@@ -194,6 +242,24 @@ class FakeFilesAgentExecutor:
                     ],
                 }
             },
+            ALT_GITEA_ROOT: {
+                "/": {
+                    "metadata": {
+                        "name": "websoft9_gitea",
+                        "path": "/",
+                        "item_type": "directory",
+                        "size": 4096,
+                        "mode": "drwx------",
+                        "owner": "root",
+                        "group": "root",
+                        "accessed_at": "2026-04-29T11:11:21Z",
+                        "modified_at": "2025-09-23T14:49:09Z",
+                        "created_at": "2025-09-23T14:49:09Z",
+                        "text_editable": False,
+                    },
+                    "items": [],
+                },
+            },
         }
         self.contents = {(WORDPRESS_ROOT, "/notes.txt"): "hello world\n"}
         self.downloads = {(WORDPRESS_ROOT, "/notes.txt"): b"hello world\n"}
@@ -223,6 +289,19 @@ class FakeFilesAgentExecutor:
                 "modified_at": "2026-04-29T10:00:00Z",
                 "created_at": "2026-04-29T09:00:00Z",
                 "text_editable": True,
+            },
+            (ALT_WORDPRESS_ROOT, "/"): {
+                "name": "wordpress_data",
+                "path": "/",
+                "item_type": "directory",
+                "size": 4096,
+                "mode": "drwx------",
+                "owner": "root (0)",
+                "group": "root (0)",
+                "accessed_at": "2026-04-29T11:11:21Z",
+                "modified_at": "2025-09-23T14:49:09Z",
+                "created_at": "2025-09-23T14:49:09Z",
+                "text_editable": False,
             },
             (DOCKER_VOLUMES_ROOT, "/"): {
                 "name": "volumes",
@@ -317,7 +396,7 @@ def test_file_manager_lists_volumes_and_browse_root(monkeypatch, tmp_path):
         volumes_response = client.get("/files/volumes")
         assert volumes_response.status_code == 200
         payload = volumes_response.json()
-        assert [item["volume_name"] for item in payload["volumes"]] == ["websoft9_gitea", "wordpress_data"]
+        assert [item["volume_name"] for item in payload["volumes"]] == ["websoft9_gitea", "wordpress_data", "platform-gateway-certificates"]
 
         browse_response = client.get("/files/tree", params={"volume_id": "wordpress_data", "path": "/"})
         assert browse_response.status_code == 200
@@ -512,3 +591,37 @@ def test_file_manager_falls_back_to_docker_root_when_mountpoint_is_missing(monke
         metadata_response = client.get("/files/metadata", params={"volume_id": "wordpress_data", "path": "/"})
         assert metadata_response.status_code == 200
         assert service.helper_executor.last_metadata_call == (WORDPRESS_ROOT, "/", "wordpress_data")
+
+
+def test_file_manager_falls_back_to_configured_root_when_mountpoint_is_inaccessible(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS", ALT_DOCKER_VOLUMES_ROOT)
+
+    docker_client = FakeDockerClient(
+        [
+            FakeVolume(
+                "wordpress_data",
+                labels={"com.docker.compose.project": "wordpress"},
+                mountpoint="/missing/wordpress_data/_data",
+            ),
+            FakeVolume(
+                "websoft9_gitea",
+                labels={"owner": "websoft9"},
+                mountpoint="/missing/websoft9_gitea/_data",
+            ),
+        ]
+    )
+    service = FileManagerService(docker_client=docker_client, helper_executor=FakeFilesAgentExecutor())
+    monkeypatch.setattr(files_router, "_get_file_manager_service", lambda: service)
+    monkeypatch.setattr("src.services.file_manager.os.path.isdir", lambda path: path in {
+        ALT_DOCKER_VOLUMES_ROOT,
+        ALT_WORDPRESS_ROOT,
+        ALT_GITEA_ROOT,
+    })
+
+    with TestClient(create_test_app()) as client:
+        authenticate(client)
+        metadata_response = client.get("/files/metadata", params={"volume_id": "wordpress_data", "path": "/"})
+        assert metadata_response.status_code == 200
+        assert service.helper_executor.last_metadata_call == (ALT_WORDPRESS_ROOT, "/", "wordpress_data")

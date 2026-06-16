@@ -1989,12 +1989,12 @@ export function MyAppDetailPage() {
                     boxShadow: isDarkMode ? '0 24px 64px rgba(2, 6, 23, 0.56)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
                 }}
             >
-                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panel }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>
                         {t('myAppsDetailPage.dialogs.redeployTitle')}
                     </Typography>
                 </Box>
-                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panel }}>
                     <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.dialogs.redeployBody')}</Typography>
                     <Box sx={{ mt: 1.5, display: 'inline-flex', alignItems: 'center', gap: 0.75, color: dialogPalette.text }}>
                         <Typography sx={{ fontSize: 14, color: dialogPalette.text }}>{t('myAppsDetailPage.dialogs.redeployPullImage')}</Typography>
@@ -2011,7 +2011,7 @@ export function MyAppDetailPage() {
                         </div>
                     ) : null}
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25, backgroundColor: dialogPalette.panel }}>
                     <Button onClick={() => setRedeployDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                     <Button
                         disabled={actionInProgress !== null}
@@ -2050,12 +2050,12 @@ export function MyAppDetailPage() {
                     boxShadow: isDarkMode ? '0 24px 64px rgba(2, 6, 23, 0.56)' : '0 16px 40px rgba(15, 23, 42, 0.16)',
                 }}
             >
-                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panel }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>
                         {isComposeApp ? t('myAppsDetailPage.dialogs.removeTitle') : t('myAppsDetailPage.dialogs.uninstallTitle')}
                     </Typography>
                 </Box>
-                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panel }}>
                     <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>
                         {isComposeApp
                             ? t('myAppsDetailPage.dialogs.removeBody', { appId: data?.app_id ?? appId ?? '-' })
@@ -2068,7 +2068,7 @@ export function MyAppDetailPage() {
                         </Box>
                     ) : null}
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25, backgroundColor: dialogPalette.panel }}>
                     <Button onClick={() => setUninstallDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.cancel')}</Button>
                     <Button
                         sx={dialogWarningButtonSx}

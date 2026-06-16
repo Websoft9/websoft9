@@ -640,13 +640,13 @@ export function VolumeFileManagerDialog({
     }), [scopeRect])
 
     const terminalFilesThemeVars = useMemo(() => ({
-        '--terminal-files-surface-bg': darkMode ? '#111827' : '#ffffff',
-        '--terminal-files-surface-soft': darkMode ? 'rgba(15, 23, 42, 0.85)' : '#f8fafc',
-        '--terminal-files-border': darkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(203, 213, 225, 0.9)',
-        '--terminal-files-text': darkMode ? '#f8fafc' : '#334155',
-        '--terminal-files-subtle-text': darkMode ? '#94a3b8' : '#64748b',
-        '--terminal-files-editor-bg': darkMode ? '#0f172a' : '#ffffff',
-    }) as CSSProperties, [darkMode])
+        '--terminal-files-surface-bg': dialogPalette.panel,
+        '--terminal-files-surface-soft': dialogPalette.panelSoft,
+        '--terminal-files-border': dialogPalette.border,
+        '--terminal-files-text': dialogPalette.text,
+        '--terminal-files-subtle-text': dialogPalette.subtleText,
+        '--terminal-files-editor-bg': dialogPalette.panel,
+    }) as CSSProperties, [dialogPalette.border, dialogPalette.panel, dialogPalette.panelSoft, dialogPalette.subtleText, dialogPalette.text])
 
     const editorDirty = editorPath !== null && editorContent !== editorInitialContent
     const filteredEntries = useMemo(() => {
@@ -853,10 +853,10 @@ export function VolumeFileManagerDialog({
             node.style.top = `${top}px`
             node.style.minWidth = `${menuWidth}px`
             node.style.padding = '6px 0'
-            node.style.border = `1px solid ${darkMode ? 'rgba(71, 85, 105, 0.72)' : '#cbd5e1'}`
+            node.style.border = `1px solid ${dialogPalette.border}`
             node.style.borderRadius = '2px'
-            node.style.background = darkMode ? '#111827' : '#ffffff'
-            node.style.color = darkMode ? '#f8fafc' : '#334155'
+            node.style.background = dialogPalette.panel
+            node.style.color = dialogPalette.text
             node.style.boxShadow = darkMode ? '0 18px 44px rgba(2, 6, 23, 0.58)' : '0 18px 40px rgba(15, 23, 42, 0.18)'
             node.style.overflow = 'hidden'
             node.style.zIndex = '1708'
@@ -874,7 +874,7 @@ export function VolumeFileManagerDialog({
                 button.style.padding = '0 14px'
                 button.style.border = 'none'
                 button.style.background = 'transparent'
-                button.style.color = action.disabled ? (darkMode ? '#64748b' : '#94a3b8') : (darkMode ? '#f8fafc' : '#334155')
+                button.style.color = action.disabled ? surfacePalette.placeholderText : dialogPalette.text
                 button.style.cursor = action.disabled ? 'default' : 'pointer'
                 button.style.fontSize = '13.5px'
                 button.style.textAlign = 'left'
@@ -1345,7 +1345,7 @@ export function VolumeFileManagerDialog({
                 contentStrategy="viewport-fixed"
                 sx={[dialogStyle, { zIndex: 1605 }]}
             >
-                <div className={darkMode ? 'app-shell-root--dark' : undefined} style={{ height: '100%', padding: '14px 14px 16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div className={darkMode ? 'app-shell-root--dark' : undefined} style={{ height: '100%', padding: '14px 14px 16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', minHeight: 0, backgroundColor: dialogPalette.panel }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 2px 12px', flex: '0 0 auto' }}>
                         <div>
                             <Typography sx={{ fontSize: 18, fontWeight: 700, color: darkMode ? '#e2e8f0' : '#334155', lineHeight: 1.35 }}>{t('myAppsDetailPage.tabs.volumes.fileManager.title', { name: volumeLabel })}</Typography>
@@ -1584,7 +1584,7 @@ export function VolumeFileManagerDialog({
                     }}
                 >
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                        <div style={{ padding: '12px 18px', borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                        <div style={{ padding: '12px 18px', borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panel }}>
                             <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>{actionDialogTitle}</Typography>
                         </div>
                         <div style={{ padding: '16px 18px', borderBottom: `1px solid ${dialogPalette.divider}`, display: 'grid', gap: 16, minHeight: 0 }}>
@@ -1614,7 +1614,7 @@ export function VolumeFileManagerDialog({
                                         <TextField fullWidth size="small" label={t('filesPage.metadata.owner')} value={propertiesForm.owner} onChange={(event) => setPropertiesForm((current) => current ? { ...current, owner: event.target.value } : current)} />
                                         <TextField fullWidth size="small" label={t('filesPage.metadata.group')} value={propertiesForm.group} onChange={(event) => setPropertiesForm((current) => current ? { ...current, group: event.target.value } : current)} />
                                     </Stack>
-                                    <div style={{ display: 'grid', gap: 10, border: `1px solid ${dialogPalette.divider}`, background: dialogPalette.panelSoft, padding: 14 }}>
+                                    <div style={{ display: 'grid', gap: 10, border: `1px solid ${dialogPalette.divider}`, background: dialogPalette.panel, padding: 14 }}>
                                         <PermissionMatrix label={t('myAppsDetailPage.tabs.volumes.fileManager.permissions.owner')} value={propertiesForm.ownerPermissions} onChange={(next) => setPropertiesForm((current) => current ? { ...current, ownerPermissions: next } : current)} />
                                         <PermissionMatrix label={t('myAppsDetailPage.tabs.volumes.fileManager.permissions.group')} value={propertiesForm.groupPermissions} onChange={(next) => setPropertiesForm((current) => current ? { ...current, groupPermissions: next } : current)} />
                                         <PermissionMatrix label={t('myAppsDetailPage.tabs.volumes.fileManager.permissions.other')} value={propertiesForm.otherPermissions} onChange={(next) => setPropertiesForm((current) => current ? { ...current, otherPermissions: next } : current)} />
@@ -1622,7 +1622,7 @@ export function VolumeFileManagerDialog({
                                 </Stack>
                             ) : null}
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 18px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '10px 18px', backgroundColor: dialogPalette.panel }}>
                             <Button onClick={closeActionDialog} sx={dialogCancelButtonSx}>{t('filesPage.dialogs.cancel')}</Button>
                             <Button
                                 variant="contained"

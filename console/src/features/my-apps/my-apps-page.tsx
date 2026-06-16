@@ -727,13 +727,32 @@ export function MyAppsPage() {
         <Box
             className="myapps-page-shell"
             sx={{
+                '--myapps-surface': palette.panelBg,
+                '--myapps-surface-soft': palette.panelBg,
+                '--myapps-surface-hover': palette.panelHover,
+                '--myapps-border': palette.borderStrong,
+                '--myapps-text': palette.text,
+                '--myapps-muted': palette.subtleText,
+                '--myapps-heading': palette.subtleText,
+                '--myapps-input-bg': palette.panelBg,
+                '--myapps-primary': palette.accent,
+                '--myapps-badge-success-bg': 'var(--ds-color-success-bg)',
+                '--myapps-badge-success-text': 'var(--ds-color-success-text)',
+                '--myapps-badge-warning-bg': 'var(--ds-color-warning-bg)',
+                '--myapps-badge-warning-text': 'var(--ds-color-warning-text)',
+                '--myapps-badge-info-bg': 'var(--ds-color-info-bg)',
+                '--myapps-badge-info-text': 'var(--ds-color-info-text)',
+                '--myapps-badge-danger-bg': 'var(--ds-color-danger-bg)',
+                '--myapps-badge-danger-text': 'var(--ds-color-danger-text)',
+                '--myapps-badge-dark-bg': 'var(--ds-color-neutral-bg)',
+                '--myapps-badge-dark-text': 'var(--ds-color-neutral-text)',
                 height: 'calc(100vh - 120px)',
                 position: 'relative',
                 mx: { xs: -1, md: -3 },
                 my: { xs: -1.25, md: -2.25 },
                 px: { xs: 2, md: 3 },
                 py: { xs: 1.25, md: 1.5 },
-                backgroundColor: palette.pageBg,
+                backgroundColor: palette.panelBg,
                 color: palette.text,
                 overflowY: 'auto',
                 overflowX: 'hidden',
@@ -839,7 +858,7 @@ export function MyAppsPage() {
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
                                     {/* Box icon */}
                                     <svg viewBox="0 0 64 64" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect width="64" height="64" rx="16" fill={isDarkMode ? '#162033' : '#f1f2f7'} />
+                                        <rect width="64" height="64" rx="16" fill={palette.panelSoft} />
                                         <path d="M32 16l14 7v14l-14 7-14-7V23l14-7z" stroke={isDarkMode ? '#64748b' : '#b0b8d1'} strokeWidth="2" strokeLinejoin="round" />
                                         <path d="M32 16v14M18 23l14 7 14-7" stroke={isDarkMode ? '#64748b' : '#b0b8d1'} strokeWidth="2" />
                                     </svg>

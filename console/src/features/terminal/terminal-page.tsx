@@ -379,7 +379,7 @@ function parentDirectory(path: string): string {
 function buildPalette(isDarkMode: boolean) {
     const surfacePalette = getSurfacePalette(isDarkMode)
     return {
-        pageBg: isDarkMode ? '#0f172a' : '#ffffff',
+        pageBg: surfacePalette.panelBg,
         cardBg: surfacePalette.panelBg,
         cardSoft: surfacePalette.panelSoft,
         terminalBg: isDarkMode ? '#020617' : '#0b1220',
@@ -3705,7 +3705,7 @@ export function TerminalPage() {
                         py: 1,
                         border: `1px solid ${palette.border}`,
                         borderRadius: '2px',
-                        backgroundColor: alpha(palette.cardBg, 0.98),
+                        backgroundColor: palette.cardBg,
                     }}
                 >
                     <Stack spacing={0.25} sx={{ minWidth: 0, flex: '1 1 auto', overflow: 'hidden' }}>

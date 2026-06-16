@@ -267,7 +267,7 @@ function ServicesScopedOverlay({ open, scopeRect, onClose, darkMode, maxWidth = 
                         maxHeight: `${availableHeight}px`,
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: darkMode ? '#182235' : '#ffffff',
+                        backgroundColor: darkMode ? '#111827' : '#ffffff',
                         color: darkMode ? '#e5edf5' : '#0f172a',
                         borderRadius: '2px',
                         border: darkMode ? '1px solid rgba(148, 163, 184, 0.2)' : undefined,
@@ -720,7 +720,7 @@ export function ServicesPage() {
                                 </Box>
 
                                 {showInventoryLoadingCard ? (
-                                    <SurfaceStateCard detail={t('servicesPage.states.loading')} loading />
+                                    <SurfaceStateCard detail={t('servicesPage.states.loading')} loading darkMode={isDarkMode} />
                                 ) : null}
 
                                 {!showInventoryLoadingCard ? (
@@ -841,7 +841,7 @@ export function ServicesPage() {
                 open={Boolean(activeLogService)}
                 scopeRect={contentScopeRect}
             >
-                <DialogTitle sx={{ px: 3, py: 2, backgroundColor: isDarkMode ? '#182235' : '#ffffff', borderBottom: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)'}` }}>
+                <DialogTitle sx={{ px: 3, py: 2, backgroundColor: isDarkMode ? '#111827' : '#ffffff', borderBottom: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)'}` }}>
                     <Box className="services-page-dialog-titlebar">
                         <Typography className="services-page-log-title" variant="subtitle1">
                             {activeLogService ? t('servicesPage.dialogs.logsTitle', { service: activeLogService.label }) : t('servicesPage.dialogs.logsFallbackTitle')}
@@ -853,7 +853,7 @@ export function ServicesPage() {
                         </Stack>
                     </Box>
                 </DialogTitle>
-                <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', px: 3, py: 2, backgroundColor: isDarkMode ? '#182235' : '#ffffff', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottom: 'none' } }}>
+                <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', px: 3, py: 2, backgroundColor: isDarkMode ? '#111827' : '#ffffff', '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottom: 'none' } }}>
                     <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
                         <Stack
                             className="services-page-log-toolbar"

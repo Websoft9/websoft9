@@ -3,6 +3,15 @@ import { createTheme } from '@mui/material/styles'
 export function createAppTheme(mode: 'light' | 'dark') {
     return createTheme({
         cssVariables: true,
+        components: {
+            MuiButton: {
+                styleOverrides: {
+                    root: {
+                        textTransform: 'none',
+                    },
+                },
+            },
+        },
         palette: {
             mode,
             primary: {
@@ -13,8 +22,8 @@ export function createAppTheme(mode: 'light' | 'dark') {
             },
             background: mode === 'dark'
                 ? {
-                    default: '#161c24',
-                    paper: '#1f2937',
+                    default: '#0f172a',
+                    paper: '#111827',
                 }
                 : {
                     default: '#f5f7fb',

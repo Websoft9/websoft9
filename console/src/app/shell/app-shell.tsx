@@ -2,14 +2,12 @@ import {
     Avatar,
     Box,
     Button,
-    CircularProgress,
     List,
     ListItemButton,
     Menu,
     Paper,
     Popper,
     SvgIcon,
-    Stack,
     Typography,
 } from '@mui/material'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -154,11 +152,15 @@ function LogoutIcon() {
 
 function AppShellRouteFallback() {
     return (
-        <Box sx={{ display: 'grid', minHeight: 'calc(100vh - 180px)', placeItems: 'center', px: 2 }}>
-            <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
-                <CircularProgress size={28} />
-                <Typography variant="body2" color="text.secondary">Loading workspace...</Typography>
-            </Stack>
+        <Box sx={{ minHeight: 'calc(100vh - 180px)', px: 2 }} aria-hidden="true">
+            <Box
+                sx={{
+                    height: 1,
+                    width: '100%',
+                    borderRadius: 2,
+                    backgroundColor: 'transparent',
+                }}
+            />
         </Box>
     )
 }

@@ -1199,7 +1199,7 @@ ${customCertIntermediate.trim()}`
                         <svg fill="currentColor" height="18" viewBox="0 0 24 24" width="18"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
                     </IconButton>
                 </Box>
-                <Box sx={{ px: { xs: 2, md: 2.5 }, py: 1.125, overflowY: 'auto', maxHeight: '65vh' }}>
+                <Box sx={{ px: { xs: 2, md: 2.5 }, py: 1.125, overflowY: 'auto', maxHeight: '65vh', backgroundColor: palette.dialogBg }}>
                     <div className="myapps-bind-dialog-form">
                         {showComposeTargetSelector ? (
                             <div className="myapps-bind-target-group">
@@ -1649,14 +1649,14 @@ ${customCertIntermediate.trim()}`
                         {t('myAppsDetailPage.accessPanel.deleteConfirmTitle')}
                     </Typography>
                 </Box>
-                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${palette.divider}` }}>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${palette.divider}`, backgroundColor: palette.dialogBg }}>
                     <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: palette.subtleText }}>
                         {t('myAppsDetailPage.accessPanel.deleteConfirmDescription', {
                             domains: currentDomains.join(', ') || '-',
                         })}
                     </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25, backgroundColor: palette.dialogBg }}>
                     <Button
                         disabled={isDeleting}
                         onClick={() => setShowDeleteConfirm(false)}

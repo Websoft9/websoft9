@@ -29,8 +29,8 @@
 /* ── Outer card – single wrapper ─────────── */
 .settings-outer-card {
     overflow: hidden;
-    background: #ffffff;
-    border: 1px solid #eef2f7;
+    background: var(--shell-surface-bg, #ffffff);
+    border: 1px solid var(--shell-surface-border, #eef2f7);
     border-radius: 2px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
@@ -38,12 +38,12 @@
 .app-shell-root--dark .settings-outer-card {
     background: #111827;
     border-color: rgba(71, 85, 105, 0.65);
-    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+    box-shadow: none;
 }
 
 /* ── Left nav – stretches with right side ── */
 .settings-nav-area {
-    border-right: 1px solid #eef2f7;
+    border-right: 1px solid var(--shell-surface-border, #eef2f7);
     background: transparent;
 }
 
@@ -154,16 +154,16 @@
 /* ── Content card – matches app-detail overview card style ── */
 .settings-module-card {
     overflow: hidden;
-    background: linear-gradient(180deg, #ffffff 0%, #f8f9fc 100%);
-    border: 1px solid #eef2f7;
+    background: transparent;
+    border: 1px solid var(--shell-surface-border, #eef2f7);
     border-radius: 2px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    box-shadow: none;
 }
 
 .app-shell-root--dark .settings-module-card {
-    background: linear-gradient(180deg, #182235 0%, #162033 100%);
+    background: transparent;
     border-color: rgba(71, 85, 105, 0.52);
-    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+    box-shadow: none;
 }
 
 /* ── Form area – app-detail overview style ── */
@@ -182,7 +182,7 @@
     column-gap: 18px;
     row-gap: 10px;
     padding: 14px 0;
-    border-top: 1px solid #eef2f7;
+    border-top: 1px solid var(--shell-surface-border, #eef2f7);
     background: transparent;
     border-radius: 0;
     box-shadow: none;
@@ -602,6 +602,7 @@
     outline: none;
     cursor: pointer;
 }
+
 .settings-ssl-cert-select:focus {
     border-color: var(--ds-color-accent-strong);
 }
@@ -688,6 +689,7 @@
     gap: 8px;
     margin-bottom: 10px;
 }
+
 .settings-ssl-cert-options--three {
     grid-template-columns: 1fr 1fr 1fr;
 }
@@ -912,9 +914,9 @@
     justify-content: space-between;
     gap: 16px;
     padding: 16px;
-    border: 1px solid #eef2f7;
+    border: 1px solid var(--shell-surface-border, #eef2f7);
     border-radius: 2px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8f9fc 100%);
+    background: transparent;
 }
 
 .settings-brand-preview-sidebar {
@@ -950,9 +952,9 @@
     align-items: center;
     gap: 6px;
     padding: 5px 10px;
-    border: 1px solid #eef2f7;
+    border: 1px solid var(--shell-surface-border, #eef2f7);
     border-radius: 2px;
-    background: #ffffff;
+    background: transparent;
 }
 
 .settings-brand-preview-favicon {
@@ -1135,23 +1137,27 @@
         min-height: 0;
     }
 }
+
 /* ── Summary card rows ─────────────────── */
 .settings-summary-rows {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
+
 .settings-summary-row {
     display: flex;
     align-items: center;
     gap: 12px;
 }
+
 .settings-summary-label {
     font-size: 12px;
     color: var(--shell-subtle-text);
     min-width: 80px;
     flex-shrink: 0;
 }
+
 .settings-summary-value {
     font-size: 13px;
     font-weight: 500;

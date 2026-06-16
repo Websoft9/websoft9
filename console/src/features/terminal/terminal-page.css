@@ -86,7 +86,7 @@
 }
 
 .app-shell-root--dark .terminal-connections-toolbar-field .MuiOutlinedInput-root {
-    background: #0f172a;
+    background: #111827;
     border: 1px solid rgba(71, 85, 105, 0.82);
     box-shadow: none;
 }
@@ -586,7 +586,7 @@
     flex-direction: column;
     flex: 1 1 auto;
     gap: 8px;
-    background: #ffffff;
+    background: var(--terminal-files-surface-bg, #ffffff);
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -616,11 +616,11 @@
 .terminal-files-toolbar-button {
     align-items: center;
     appearance: none;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border: 1px solid rgba(203, 213, 225, 0.9);
+    background: linear-gradient(180deg, var(--terminal-files-surface-bg, #ffffff) 0%, var(--terminal-files-surface-soft, #f8fafc) 100%);
+    border: 1px solid var(--terminal-files-border, rgba(203, 213, 225, 0.9));
     border-radius: 4px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-    color: #475569;
+    color: var(--terminal-files-text, #475569);
     cursor: pointer;
     display: inline-flex;
     height: 42px;
@@ -647,15 +647,15 @@
 }
 
 .terminal-files-toolbar-button:hover:not(:disabled) {
-    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-    border-color: rgba(148, 163, 184, 0.95);
-    color: #334155;
+    background: linear-gradient(180deg, var(--terminal-files-surface-soft, #f8fafc) 0%, color-mix(in srgb, var(--terminal-files-surface-soft, #f8fafc) 78%, var(--terminal-files-border, #cbd5e1)) 100%);
+    border-color: color-mix(in srgb, var(--terminal-files-border, #cbd5e1) 92%, transparent);
+    color: var(--terminal-files-text, #334155);
 }
 
 .terminal-files-toolbar-button:disabled {
-    background: #f0f2f5;
-    border-color: #c7cdd5;
-    color: #8b97a5;
+    background: color-mix(in srgb, var(--terminal-files-surface-soft, #f8fafc) 88%, var(--terminal-files-border, #cbd5e1));
+    border-color: color-mix(in srgb, var(--terminal-files-border, #cbd5e1) 92%, transparent);
+    color: var(--terminal-files-subtle-text, #8b97a5);
     cursor: default;
 }
 
@@ -827,7 +827,7 @@
 
 .terminal-files-path-input .MuiOutlinedInput-root,
 .terminal-files-search-input .MuiOutlinedInput-root {
-    background: #ffffff;
+    background: var(--terminal-files-surface-bg, #ffffff);
     border-radius: 4px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
@@ -840,9 +840,14 @@
 .terminal-files-search-input .MuiInputBase-input,
 .terminal-files-search-input .MuiInputBase-input::placeholder,
 .terminal-files-path-input .MuiInputBase-input::placeholder {
-    color: #94a3b8;
+    color: var(--terminal-files-subtle-text, #94a3b8);
     font-size: 14px;
     opacity: 1;
+}
+
+.terminal-files-path-input .MuiInputBase-input,
+.terminal-files-search-input .MuiInputBase-input {
+    color: var(--terminal-files-text, #334155);
 }
 
 .terminal-files-layout {
@@ -857,8 +862,8 @@
 
 .terminal-files-browser-panel,
 .terminal-files-inspector-panel {
-    background: #ffffff;
-    border: 1px solid rgba(203, 213, 225, 0.9);
+    background: var(--terminal-files-surface-bg, #ffffff);
+    border: 1px solid var(--terminal-files-border, rgba(203, 213, 225, 0.9));
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     display: flex;
     flex-direction: column;
@@ -1239,7 +1244,7 @@
 }
 
 .terminal-files-inspector-label {
-    color: #475569;
+    color: var(--terminal-files-subtle-text, #475569);
     font-size: 14px;
     font-weight: 400;
     margin-bottom: 0;
@@ -1247,7 +1252,7 @@
 }
 
 .terminal-files-inspector-value {
-    color: #475569;
+    color: var(--terminal-files-text, #475569);
     font-size: 14px;
     overflow-wrap: anywhere;
     white-space: normal;
@@ -1255,8 +1260,8 @@
 
 .terminal-files-editor-textarea .MuiInputBase-root {
     align-items: stretch;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
+    background: var(--terminal-files-editor-bg, #ffffff);
+    border: 1px solid var(--terminal-files-border, #cbd5e1);
     border-radius: 4px;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     flex: 1 1 auto;
@@ -1325,10 +1330,10 @@
 
 .terminal-files-footer {
     align-items: center;
-    background: #ffffff;
-    border: 1px solid rgba(203, 213, 225, 0.9);
+    background: var(--terminal-files-surface-bg, #ffffff);
+    border: 1px solid var(--terminal-files-border, rgba(203, 213, 225, 0.9));
     box-sizing: border-box;
-    color: #39424c;
+    color: var(--terminal-files-text, #39424c);
     display: flex;
     flex: 0 0 42px;
     justify-content: space-between;
@@ -1352,7 +1357,7 @@
     align-items: center;
     background: transparent;
     border: none;
-    color: #24303c;
+    color: var(--terminal-files-text, #24303c);
     cursor: pointer;
     display: inline-flex;
     justify-content: center;
@@ -1364,7 +1369,7 @@
 }
 
 .terminal-files-footer-button-active {
-    color: #24303c;
+    color: var(--terminal-files-text, #24303c);
 }
 
 .terminal-session-strip {
@@ -1832,19 +1837,41 @@
 .app-shell-root--dark .terminal-files-search-input .MuiOutlinedInput-root,
 .app-shell-root--dark .terminal-files-editor-textarea .MuiInputBase-root,
 .app-shell-root--dark .terminal-files-grid-card-hitbox {
-    background: #0f172a;
-    color: #cbd5e1;
+    color: var(--terminal-files-text, #cbd5e1);
+}
+
+.app-shell-root--dark .terminal-files-toolbar-button {
+    background: var(--terminal-files-surface-soft, #111827);
+    box-shadow: none;
+}
+
+.app-shell-root--dark .terminal-files-path-input .MuiOutlinedInput-root,
+.app-shell-root--dark .terminal-files-search-input .MuiOutlinedInput-root,
+.app-shell-root--dark .terminal-files-editor-textarea .MuiInputBase-root,
+.app-shell-root--dark .terminal-files-grid-card-hitbox {
+    background: var(--terminal-files-surface-soft, #111827);
+    box-shadow: none;
+}
+
+.app-shell-root--dark .terminal-files-toolbar-button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--terminal-files-surface-soft, #111827) 92%, white);
+    color: var(--terminal-files-text, #eff6ff);
 }
 
 .app-shell-root--dark .terminal-files-toolbar-button:disabled {
-    background: #1e293b;
-    color: #64748b;
+    background: color-mix(in srgb, var(--terminal-files-surface-soft, #111827) 92%, var(--terminal-files-border, rgba(71, 85, 105, 0.65)));
+    color: var(--terminal-files-subtle-text, #64748b);
 }
 
 .app-shell-root--dark .terminal-files-toolbar-button-primary {
     background: #1d4ed8;
     border-color: #1d4ed8;
     color: #eff6ff;
+}
+
+.app-shell-root--dark .terminal-files-toolbar-button-primary:hover:not(:disabled) {
+    background: #2563eb;
+    border-color: #2563eb;
 }
 
 .app-shell-root--dark .terminal-files-list-header {

@@ -111,6 +111,17 @@ export function SurfaceDialog({ children, paperSx, scope = 'viewport', scopeRect
                         backgroundColor: scope === 'content' ? palette.overlay : darkMode ? 'rgba(2, 6, 23, 0.42)' : 'rgba(15, 23, 42, 0.24)',
                         backdropFilter: scope === 'content' ? 'none' : 'blur(2px)',
                     },
+                    '& .MuiDialogTitle-root, & .MuiDialogContent-root, & .MuiDialogActions-root': {
+                        backgroundColor: palette.dialogBg,
+                        color: palette.text,
+                    },
+                    '& .MuiDialogContent-root.MuiDialogContent-dividers': {
+                        borderTopColor: palette.divider,
+                        borderBottomColor: palette.divider,
+                    },
+                    '& .MuiDialogActions-root': {
+                        borderTopColor: palette.divider,
+                    },
                     '& .MuiDialog-container': {
                         alignItems: 'center',
                         justifyContent: 'center',

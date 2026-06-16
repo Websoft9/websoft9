@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 
 import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
+import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './logs-page.css'
@@ -145,6 +146,8 @@ function RefreshIcon() {
 
 export function LogsPage() {
     const { t, i18n } = useTranslation('shell')
+    const { colorMode } = useAppColorMode()
+    const isDarkMode = colorMode === 'dark'
     const { status, isLoading: authLoading } = useProductAuth()
     const queryClient = useQueryClient()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
@@ -471,7 +474,7 @@ export function LogsPage() {
                     </Paper>
 
                     <Paper className={`logs-page-panel${isFetching && !isLoading ? ' logs-page-stream-updating' : ''}`} elevation={0}>
-                        {showLoadingCard ? <SurfaceStateCard detail={t('logsPage.states.loading')} loading /> : null}
+                        {showLoadingCard ? <SurfaceStateCard detail={t('logsPage.states.loading')} loading darkMode={isDarkMode} /> : null}
 
                         {!showLoadingCard ? (
                             <Box className="logs-page-stream">

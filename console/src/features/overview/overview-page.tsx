@@ -146,6 +146,7 @@ function RefreshIcon() {
 export function OverviewPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
+    const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
     const queryClient = useQueryClient()
     const [isManualRefreshing, setIsManualRefreshing] = useState(false)
@@ -268,7 +269,7 @@ export function OverviewPage() {
                 ) : null}
 
                 {(isLoading && !data) || isManualRefreshing ? (
-                    <SurfaceStateCard detail={t('overviewPage.states.loading')} loading />
+                    <SurfaceStateCard detail={t('overviewPage.states.loading')} loading darkMode={isDarkMode} />
                 ) : null}
 
                 {data && !isManualRefreshing ? (

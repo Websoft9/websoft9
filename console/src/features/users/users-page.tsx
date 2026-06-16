@@ -211,7 +211,7 @@ function UsersScopedOverlay({ open, scopeRect, onClose, darkMode, maxWidth = 600
                         maxHeight: `${availableHeight}px`,
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: darkMode ? '#182235' : '#fff',
+                        backgroundColor: darkMode ? '#111827' : '#fff',
                         borderRadius: '2px',
                         color: darkMode ? '#e5edf5' : '#0f172a',
                         border: darkMode ? '1px solid rgba(148, 163, 184, 0.2)' : undefined,
@@ -467,7 +467,7 @@ export function UsersPage() {
                         borderRadius: 0,
                         mt: 0.5,
                         zIndex: 1501,
-                        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+                        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
                         color: isDarkMode ? '#e5edf5' : '#0f172a',
                     },
                 },
@@ -480,13 +480,13 @@ export function UsersPage() {
         px: { xs: 2, md: 2.5 },
         py: { xs: 1.75, md: 2 },
         flexShrink: 0,
-        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
     } as const
 
     const dialogContentSx = {
         px: 0,
         py: 0,
-        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
         '&.MuiDialogContent-dividers': {
             borderTopColor: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)',
             borderBottomColor: isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)',
@@ -498,7 +498,7 @@ export function UsersPage() {
         py: 2,
         flexShrink: 0,
         borderTop: `1px solid ${isDarkMode ? 'rgba(71, 85, 105, 0.65)' : 'rgba(226, 232, 240, 0.9)'}`,
-        backgroundColor: isDarkMode ? '#182235' : '#ffffff',
+        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
     } as const
 
     const computedCreateErrors = useMemo<UserFieldErrors>(() => {
@@ -894,7 +894,7 @@ export function UsersPage() {
                                     </Box>
                                 </Box>
 
-                                {showLoadingCard ? <SurfaceStateCard detail={t('usersPage.states.loading')} loading /> : null}
+                                {showLoadingCard ? <SurfaceStateCard detail={t('usersPage.states.loading')} loading darkMode={isDarkMode} /> : null}
 
                                 {!showLoadingCard ? (
                                     <Box sx={{ overflowX: 'auto', border: `1px solid ${palette.border}` }}>
