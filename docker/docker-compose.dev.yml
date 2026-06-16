@@ -16,7 +16,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - product_data:/data
+      - websoft9_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -27,7 +27,7 @@ services:
       - websoft9
 
 volumes:
-  product_data:
+  websoft9_data:
 
 networks:
   websoft9:

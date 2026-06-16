@@ -23,6 +23,10 @@ on:
         type: string
         default: docker/Dockerfile
         description: Path to Dockerfile
+      appstore_channel:
+        type: string
+        default: release
+        description: App store channel stamped into image build metadata
     outputs:
       image_tag:
         description: Primary image tag
@@ -88,6 +92,7 @@ jobs:
           build-args: |
             WEBSOFT9_PRODUCT_VERSION=${{ steps.version.outputs.semver }}
             WEBSOFT9_PRODUCT_EDITION_KEY=${{ steps.version.outputs.edition }}
+            WEBSOFT9_APPSTORE_CHANNEL=${{ inputs.appstore_channel }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           sbom: true

@@ -61,6 +61,7 @@ jobs:
       tags: ${{ needs.meta.outputs.candidate_tag }}
       context: .
       dockerfile: docker/Dockerfile
+      appstore_channel: ${{ needs.meta.outputs.channel }}
     secrets: inherit
 
   smoke-test:
@@ -113,13 +114,21 @@ jobs:
           CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
           ALIAS_TAGS="${{ needs.meta.outputs.alias_tags }}"
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          COMPOSE_FILE="docker-compose.dev.yml"
 
           mkdir -p release-assets r2-artifacts websoft9
+
+          jq \
+            --arg version "$VERSION" \
+            --arg edition_key "$EDITION_KEY" \
+            --arg channel "$CHANNEL" \
+            '.version = $version | .edition_key = $edition_key | .channel = $channel' \
+            version.json > staged-version.json
 
           cp -r docker websoft9/
           cp -r scripts websoft9/
           cp -r install websoft9/
-          cp version.json websoft9/
+          cp staged-version.json websoft9/version.json
           cp CHANGELOG.md websoft9/
           cp mirrors.json websoft9/
 
@@ -128,11 +137,11 @@ jobs:
           cp "release-assets/websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/websoft9-dev.zip
           cp install/install.sh r2-artifacts/install.sh
           cp install/uninstall.sh r2-artifacts/uninstall.sh
-          cp docker/docker-compose.yml r2-artifacts/docker-compose.yml
-          cp version.json r2-artifacts/version.json
+          cp docker/docker-compose.dev.yml "r2-artifacts/${COMPOSE_FILE}"
+          cp staged-version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
           cp mirrors.json r2-artifacts/mirrors.json
-          cp version.json release-assets/version.json
+          cp staged-version.json release-assets/version.json
           cp CHANGELOG.md release-assets/CHANGELOG.md
           cp mirrors.json release-assets/mirrors.json
 
@@ -159,7 +168,7 @@ jobs:
               git_sha: $git_sha,
               generated_at: $generated_at,
               install: {
-                compose_file: "docker-compose.yml",
+                compose_file: "docker-compose.dev.yml",
                 install_script: "install.sh",
                 uninstall_script: "uninstall.sh",
                 changelog_file: "CHANGELOG.md",
@@ -188,7 +197,7 @@ jobs:
             sha256sum \
               install.sh \
               uninstall.sh \
-              docker-compose.yml \
+              "$COMPOSE_FILE" \
               version.json \
               CHANGELOG.md \
               mirrors.json \
@@ -226,8 +235,9 @@ jobs:
           PURGE_URLS: >-
             ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/uninstall.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.dev.yml",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/manifest.json",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/version.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/SHA256SUMS"]
 
       - name: Publish Dev GitHub prerelease
