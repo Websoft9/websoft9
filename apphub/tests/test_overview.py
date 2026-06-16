@@ -1,4 +1,5 @@
 import sys
+import types
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,7 @@ from src.schemas.coreServices import CoreServiceSummary
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.overview import OverviewTaskItem
 from src.services.overview_service import OverviewService
+from src.services.overview_stream_cache import overview_stream_cache
 
 
 def create_test_app() -> FastAPI:
@@ -361,7 +363,10 @@ def test_overview_default_app_loader_builds_lightweight_inventory():
                 {"Labels": {"com.docker.compose.project": "demo"}, "State": "running", "Names": ["/demo"]},
             ]
 
-    with patch("src.services.portainer_manager.PortainerManager", return_value=FakePortainerManager()):
+    fake_portainer_module = types.ModuleType("src.services.portainer_manager")
+    fake_portainer_module.PortainerManager = lambda: FakePortainerManager()
+
+    with patch.dict(sys.modules, {"src.services.portainer_manager": fake_portainer_module}):
         inventory = service._load_overview_apps()
 
     assert any(app.get("app_id") == "demo" and app.get("status") == 1 for app in inventory)
@@ -381,7 +386,7 @@ def test_overview_router_returns_normalized_payload():
     app = create_test_app()
     client = TestClient(app)
 
-    overview_router._overview_service = OverviewService(
+    overview_stream_cache._overview_service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
         host_summary_loader=lambda: {
@@ -427,6 +432,7 @@ def test_overview_router_returns_normalized_payload():
         tasks_loader=lambda: [],
         now_provider=lambda: datetime(2026, 5, 7, 9, 0, tzinfo=timezone.utc),
     )
+    overview_stream_cache._entries.clear()
 
     response = client.get("/overview", cookies={"websoft9_operator_session": "valid-session"})
 

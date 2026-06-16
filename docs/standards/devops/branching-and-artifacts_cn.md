@@ -188,8 +188,8 @@ flowchart TD
 
 1. `version.json` 现在仍然需要保留，但它应该被视为“程序发布元数据文件”，而不是运行时全局配置中心。
 2. 当前活动工作流真正需要的是发布身份信息，例如 `version` 和 `edition_key`。
-3. `edition.name`、`edition.max_apps` 这类展示或运行时字段，应该继续留在代码目录或镜像内生成的产品元数据里，而不是回写到 `version.json`。
-4. 运行时实际消费的产品元数据，应该优先落到镜像内生成的 `apphub/src/config/product_metadata.json`，而不是继续把所有运行时信息塞回 `version.json`。
+3. `edition.name`、`edition.max_apps` 这类展示或运行时字段，应该继续留在代码目录或运行态持久层里，而不是回写到 `version.json`。
+4. 运行时实际消费的版本身份来自镜像内的 `/websoft9/version.json`，可变 edition 状态来自现有 AppHub SQLite，不再依赖 `apphub/src/config/product_metadata.json`。
 5. `plugins` 不再属于 `version.json` 的职责范围；如果旧升级链还需要这类信息，应改由升级入口或独立 legacy 数据承接。
 6. OS 支持矩阵已经迁移到安装文档维护，不再属于 `version.json` 的职责范围。
 7. 旧版本兼容不应通过污染新版本主线发布元数据来完成。

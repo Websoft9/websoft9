@@ -1,22 +1,35 @@
-# Development docker-compose override — adds build: for local development
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# Development docker-compose.yml — standalone local build runtime
+# Usage: docker compose -f docker-compose.dev.yml up -d --build
 
 services:
   product:
     image: websoft9dev/websoft9:dev
+    container_name: websoft9-dev
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        WEBSOFT9_PRODUCT_VERSION: ${WEBSOFT9_PRODUCT_VERSION:-2.2.25}
-        WEBSOFT9_PRODUCT_EDITION_KEY: ${WEBSOFT9_PRODUCT_EDITION_KEY:-free}
-        WEBSOFT9_APPSTORE_CHANNEL: ${WEBSOFT9_APPSTORE_CHANNEL:-dev}
-    environment:
-      - WEBSOFT9_RUNTIME_ASSET_CHANNEL=dev
+        WEBSOFT9_APPSTORE_CHANNEL: dev
+    ports:
+      - "${CONSOLE_PORT:-9000}:9000"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - product_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      - "owner=websoft9"
+      - "com.docker.compose.w9_http.port=9000"
     networks:
       - websoft9
+
+volumes:
+  product_data:
 
 networks:
   websoft9:
     name: ${NETWORK_NAME:-websoft9}
-    external: true
+    driver: bridge

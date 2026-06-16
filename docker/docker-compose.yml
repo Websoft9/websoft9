@@ -1,7 +1,5 @@
 # Production docker-compose.yml — single-container runtime
-# Usage: docker compose up -d
-#
-# For local development: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# Usage: docker compose -f docker-compose.yml up -d
 
 services:
   product:
@@ -13,11 +11,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - product_data:/data
-      - product_custom:/etc/custom
-      - product_letsencrypt:/etc/letsencrypt
-      - product_modsec:/etc/modsec
-      - product_logs:/var/log/websoft9
+      - websoft9_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -28,11 +22,7 @@ services:
       - websoft9
 
 volumes:
-  product_data:
-  product_custom:
-  product_letsencrypt:
-  product_modsec:
-  product_logs:
+  websoft9_data:
 
 networks:
   websoft9:

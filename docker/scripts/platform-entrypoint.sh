@@ -8,9 +8,41 @@ supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9
 supervisor_socket="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
 status_interval="${WEBSOFT9_STATUS_INTERVAL:-60}"
 strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-1800}"
-platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/var/log/websoft9/platform-runtime.log}"
+platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/data/logs/platform-runtime.log}"
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
-service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/var/log/websoft9}"
+service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
+custom_root="${WEBSOFT9_CUSTOM_ROOT:-/data/config}"
+
+ensure_legacy_compat_link() {
+  local target_path="$1"
+  local legacy_path="$2"
+  local legacy_parent
+
+  mkdir -p "$target_path"
+  legacy_parent="$(dirname "$legacy_path")"
+  mkdir -p "$legacy_parent"
+
+  if [[ -L "$legacy_path" ]]; then
+    return 0
+  fi
+
+  if [[ -d "$legacy_path" ]]; then
+    if [[ -n "$(find "$legacy_path" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+      cp -a "$legacy_path/." "$target_path/"
+    fi
+    rm -rf "$legacy_path"
+  elif [[ -e "$legacy_path" ]]; then
+    rm -f "$legacy_path"
+  fi
+
+  ln -s "$target_path" "$legacy_path"
+}
+
+ensure_data_managed_paths() {
+  mkdir -p "$custom_root" "$service_log_root"
+  ensure_legacy_compat_link "$custom_root" /etc/custom
+  ensure_legacy_compat_link "$service_log_root" /var/log/websoft9
+}
 
 write_runtime_event() {
   local level="$1"
@@ -265,6 +297,7 @@ monitor_runtime() {
 main() {
   trap shutdown_supervisor EXIT INT TERM
 
+  ensure_data_managed_paths
   log_event "info" "runtime.start" "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"

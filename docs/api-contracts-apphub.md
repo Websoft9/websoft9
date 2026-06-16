@@ -185,7 +185,7 @@
 
 ### 标准日志源
 
-- 标准日志文件路径: `/var/log/websoft9/platform-runtime.log`
+- 标准日志文件路径: `/data/logs/platform-runtime.log`
 - 格式: JSON Lines，每行一个独立 JSON 对象
 - 时间统一使用 UTC ISO 8601，例如 `2026-05-06T01:35:03Z`
 

@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 import click
 from dotenv import dotenv_values, set_key,unset_key
 from src.services.apikey_manager import APIKeyManager
+from src.services.product_metadata import write_product_edition
 from src.services.settings_manager import SettingsManager
 from src.core.exception import CustomException
 from src.core.config import ConfigManager
@@ -126,6 +127,17 @@ def getsysconfig(section, key):
             click.echo(f"{value}")
     except CustomException as e:
         raise click.ClickException(e.details)
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@cli.command()
+@click.option('--edition', 'edition_key', required=True, help='Edition key: free | starter | standard | enterprise')
+def setproductedition(edition_key):
+    """Set runtime product edition state"""
+    try:
+        edition = write_product_edition(edition_key)
+        click.echo(f"Set product edition to {edition.key} (max_apps={edition.max_apps})")
     except Exception as e:
         raise click.ClickException(str(e))
     
@@ -250,7 +262,7 @@ def upgrade(target, channel, dev, force_refresh):
             if dev and channel and channel.lower() != 'dev':
                 raise click.ClickException("--dev cannot be combined with a non-dev --channel value")
 
-            resolved_channel = (channel or ('dev' if dev else 'release')).lower()
+            resolved_channel = (channel or ('dev' if dev else '')).lower() or None
             result = AppStoreSyncManager().sync(
                 trigger='cli',
                 channel=resolved_channel,
@@ -258,11 +270,12 @@ def upgrade(target, channel, dev, force_refresh):
                 force_refresh=force_refresh,
                 background=False,
             )
+            active_channel = str(result.get('channel') or resolved_channel or 'release').lower()
             dataset_version = result.get('datasetVersion')
             if dataset_version:
-                click.echo(f"App Store resources ({resolved_channel}) synchronized successfully: {dataset_version}")
+                click.echo(f"App Store resources ({active_channel}) synchronized successfully: {dataset_version}")
             else:
-                click.echo(f"App Store resources ({resolved_channel}) synchronized successfully.")
+                click.echo(f"App Store resources ({active_channel}) synchronized successfully.")
         else:
             click.echo(f"Unknown upgrade target: {target}")
     except subprocess.CalledProcessError as e:

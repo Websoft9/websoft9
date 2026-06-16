@@ -50,7 +50,7 @@ class HostAccessService:
     _file_browser_clients: dict[str, dict[str, Any]] = {}
 
     def __init__(self, data_dir: Optional[str] = None, auth_service: Optional[ProductAuthService] = None):
-        self.data_dir = Path(data_dir or "/etc/custom/host-access")
+        self.data_dir = Path(data_dir or os.getenv("WEBSOFT9_HOST_ACCESS_DATA_DIR") or "/data/config/host-access")
         self.database_file = self.data_dir / "host-access.sqlite"
         self.auth_service = auth_service or ProductAuthService()
 

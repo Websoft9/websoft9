@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-PLATFORM_RUNTIME_LOG_PATH = os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", "/var/log/websoft9/platform-runtime.log")
+PLATFORM_RUNTIME_LOG_PATH = os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", "/data/logs/platform-runtime.log")
 
 
 def normalize_runtime_level(value: Optional[str]) -> str:

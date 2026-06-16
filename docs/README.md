@@ -78,6 +78,19 @@ Deployment & Operations
 
 ---
 
+#### [Edition Strategy](product/edition-strategy_cn.md)
+**Purpose**: Define the minimal product-edition, cloud marketplace, and upgrade strategy for Community, Standard, and Enterprise offers
+
+**Key Sections:**
+- Single-image multi-edition strategy
+- Marketplace initialization model
+- Edition entitlement file design
+- Community to Standard upgrade flow
+
+**Audience**: Product, architecture, development, release, marketplace operations
+
+---
+
 #### [PRD - Product Requirements Document](prd.md)
 **Purpose**: Detailed functional and non-functional requirements
 

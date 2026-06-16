@@ -423,7 +423,7 @@ class FileManagerService:
         raise CustomException(500, "File Operation Error", "Unable to resolve Docker volumes root path")
 
     def _platform_gateway_certificates_root_path(self) -> str:
-        default_cert = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert")
+        default_cert = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
         return os.path.dirname(default_cert)
 
     def _resolve_volume_root_path(self, volume_name: str) -> str:

@@ -59,6 +59,22 @@ integration_credentials_module = types.ModuleType('src.services.integration_cred
 integration_credentials_module.IntegrationCredentialProvider = object
 sys.modules.setdefault('src.services.integration_credentials', integration_credentials_module)
 
+app_status_module = types.ModuleType('src.services.app_status')
+
+
+class _InstallStateStore:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+def _utc_now():
+    return '2026-01-01T00:00:00Z'
+
+
+app_status_module.InstallStateStore = _InstallStateStore
+app_status_module._utc_now = _utc_now
+sys.modules['src.services.app_status'] = app_status_module
+
 appstore_sync_manager_module = types.ModuleType('src.services.appstore_sync_manager')
 
 
@@ -97,9 +113,34 @@ def test_upgrade_apps_accepts_rc_channel_and_uses_unified_sync_manager(monkeypat
         'trigger': 'cli',
         'channel': 'rc',
         'package_types': 'media,library',
-        'force_refresh': True,
+        'force_refresh': False,
+        'background': False,
     }]
     assert 'App Store resources (rc) synchronized successfully: 2026.06.08.120000' in result.output
+
+
+def test_upgrade_apps_without_channel_uses_metadata_default(monkeypatch):
+    calls = []
+
+    class FakeSyncManager:
+        def sync(self, **kwargs):
+            calls.append(kwargs)
+            return {'status': 'success', 'datasetVersion': '2026.06.08.120000', 'channel': 'release'}
+
+    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', FakeSyncManager)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ['upgrade', 'apps'])
+
+    assert result.exit_code == 0
+    assert calls == [{
+        'trigger': 'cli',
+        'channel': None,
+        'package_types': 'media,library',
+        'force_refresh': False,
+        'background': False,
+    }]
+    assert 'App Store resources (release) synchronized successfully: 2026.06.08.120000' in result.output
 
 
 def test_upgrade_apps_rejects_conflicting_dev_and_release_channel(monkeypatch):

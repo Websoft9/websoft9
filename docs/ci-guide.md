@@ -110,7 +110,7 @@ Current active usage:
 
 1. `ci-pr.yml`, `ci-main.yml`, `release.yml`, and `docker-build.yml` read release metadata from `version.json`.
 2. Release artifacts still package `version.json` together with the published program bundle.
-3. The runtime product metadata actually consumed by AppHub and the console is generated into `apphub/src/config/product_metadata.json` during image build.
+3. The runtime release identity used inside the image is copied to `/websoft9/version.json`, while mutable runtime edition state is stored in the existing AppHub SQLite database.
 
 Practical rule:
 
@@ -119,13 +119,13 @@ Practical rule:
 3. Do not keep plugin version maps in this file.
 4. Keep OS support matrices in install-facing documentation instead of release metadata.
 5. Keep runtime-facing edition display fields such as edition names and max-app limits out of this file.
-6. Move runtime-facing product fields to `apphub/src/config/product_metadata.json` or code-owned catalogs.
+6. Move runtime-facing product fields to code-owned catalogs plus SQLite-backed runtime state instead of reintroducing a JSON runtime truth source.
 
 Current recommendation:
 
 1. Short term: keep `version.json`, but shrink it toward release-only metadata.
 2. Legacy upgrade compatibility should be handled by the upgrade entry or dedicated legacy data, not by expanding `version.json`.
-3. Long term: make `version.json` the single source of release identity, while runtime display metadata is derived at build time.
+3. Long term: keep `version.json` as the single source of release identity, while runtime display and edition state are derived from code catalogs and persisted runtime state.
 
 ## Artifact Manifest
 

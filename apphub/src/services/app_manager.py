@@ -276,17 +276,8 @@ class AppManger:
             return
 
         artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com").rstrip("/")
-        version_file = Path("/websoft9/apphub/src/config/product_metadata.json")
-        channel = "release"
-        if version_file.exists():
-            try:
-                version = str(json.loads(version_file.read_text(encoding="utf-8")).get("version", "")).lower()
-                if "rc" in version:
-                    channel = "rc"
-                elif "dev" in version:
-                    channel = "dev"
-            except Exception:
-                channel = "release"
+        from src.services.product_runtime_state import read_release_channel
+        channel = read_release_channel(Path("/websoft9/version.json"))
 
         package_name = os.getenv("WEBSOFT9_MEDIA_PACKAGE", "media-dev.zip" if channel == "dev" else "media-latest.zip")
         package_url = f"{artifact_base}/{channel}/websoft9/plugin/media/{package_name}"

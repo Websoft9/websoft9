@@ -551,7 +551,7 @@ def _parse_identity_value(value: str | None, *, kind: str) -> int | None:
 @lru_cache(maxsize=1)
 def _allowed_roots() -> tuple[str, ...]:
     raw = os.getenv("WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS", "/var/lib/docker/volumes")
-    platform_cert_path = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert")
+    platform_cert_path = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
     values = []
     for part in raw.split(":"):
         normalized = os.path.realpath(part.strip())

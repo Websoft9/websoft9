@@ -38,14 +38,20 @@ def detect_channel() -> str:
     if explicit_channel in {"release", "rc", "dev"}:
         return explicit_channel
 
-    version_file = Path("/websoft9/apphub/src/config/product_metadata.json")
+    version_file = Path("/websoft9/version.json")
     if not version_file.exists():
         return "release"
 
     try:
-        version = json.loads(version_file.read_text(encoding="utf-8")).get("version", "")
+        payload = json.loads(version_file.read_text(encoding="utf-8"))
     except Exception:
         return "release"
+
+    channel = str(payload.get("channel") or "").strip().lower()
+    if channel in {"release", "rc", "dev"}:
+        return channel
+
+    version = payload.get("version", "")
 
     normalized_version = version.lower()
     if "rc" in normalized_version:

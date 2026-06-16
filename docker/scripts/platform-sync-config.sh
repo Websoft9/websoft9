@@ -44,7 +44,7 @@ set_system_config() {
 
 write_apphub_gateway_auth() {
   local trust_key=""
-  local internal_gateway_auth_dir="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-/etc/custom/internal-gateway-auth}"
+  local internal_gateway_auth_dir="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-/data/config/internal-gateway-auth}"
   local internal_gateway_trust_key_file="$internal_gateway_auth_dir/trust_key"
   local gateway_dir="/etc/websoft9/platform-gateway"
   local gateway_auth_file="$gateway_dir/apphub-auth.conf"
@@ -71,8 +71,8 @@ EOF
 
 sync_base() {
   set_config_if_missing platform_gateway https_enabled "${WEBSOFT9_PLATFORM_HTTPS_ENABLED:-false}"
-  set_config_if_missing platform_gateway ssl_cert "${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert}"
-  set_config_if_missing platform_gateway ssl_key "${WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH:-/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key}"
+  set_config_if_missing platform_gateway ssl_cert "${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert}"
+  set_config_if_missing platform_gateway ssl_key "${WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH:-/data/config/platform-gateway/ssl/websoft9-platform-gateway.key}"
   set_system_config docker_library path "${WEBSOFT9_LIBRARY_PATH:-/websoft9/library/apps}"
   set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
   write_apphub_gateway_auth

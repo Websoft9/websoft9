@@ -54,7 +54,7 @@
 2. Docker 安装能力收敛到 `install/install_docker.sh`
 3. 卸载入口收敛到 `install/uninstall.sh`
 4. 运行面收敛到 `docker/docker-compose.yml` 中的 `websoft9` 单容器
-5. 持久化模型收敛到 `product_data`、`product_custom`、`product_letsencrypt`、`product_modsec`、`product_logs` 等卷
+5. 持久化模型收敛到 `product_data` 单卷；历史 `product_custom`、`product_logs`、`product_letsencrypt` 与 `product_modsec` 仅保留升级回滚兼容识别，不再作为当前运行时挂载
 6. 当前升级能力只覆盖当前单容器版本之间的升级，不覆盖旧系统到新系统
 
 ### 3.3 旧新系统差异为什么重要
@@ -349,13 +349,13 @@
 | 旧控制台入口 | Cockpit `ListenStream` 与旧 `CONSOLE_PORT` | 新 `CONSOLE_PORT` 对应 9000 入口 | 识别旧端口并映射到新入口策略 | 新入口可达，旧端口占用状态可解释 | 恢复旧 Cockpit 监听和旧代理入口 |
 | HTTP/HTTPS 入口 | 旧 `APP_HTTP_GATEWAY`、`APP_HTTPS_GATEWAY` 与 `websoft9-proxy` 暴露端口 | 新 80/443 入口 | 复用或转换端口映射 | 80/443 可达，代理链路正常 | 恢复旧 proxy 暴露规则 |
 | AppHub 配置 | `apphub_config` 卷挂载到 `/websoft9/apphub/src/config` | 新 `.env` 与容器内运行时配置模型 | 提取并转换必要配置键 | 新容器启动成功，配置项生效 | 恢复旧 `apphub_config` 备份并启动旧运行时 |
-| AppHub 日志 | `apphub_logs` 卷挂载到 `/websoft9/apphub/logs` | `product_logs:/var/log/websoft9` 或归档位置 | 归档或合并日志 | 日志可读取，归档不丢失 | 恢复旧日志卷挂载 |
+| AppHub 日志 | `apphub_logs` 卷挂载到 `/websoft9/apphub/logs` | `product_data:/data` 下的 `/data/logs/legacy-apphub` 子树 | 归档或合并日志 | 日志可读取，归档不丢失 | 恢复旧日志卷挂载 |
 | Gitea 数据 | `gitea:/data` | `product_data:/data` 下的 `/data/gitea` 子树 | 复制或导入到新数据根 | 关键目录与元数据存在 | 恢复旧 `gitea` 卷并切回旧运行时 |
 | Portainer 数据 | `portainer:/data` | `product_data:/data` 下的 `/data/portainer` 子树 | 复制或导入到新数据根 | 目标目录存在且权限正确 | 恢复旧 `portainer` 卷 |
 | 代理业务数据 | `nginx_data:/data` | `product_data:/data` 下的 `/data/nginx-proxy-manager` 或 `/data/nginx/*` | 分目录迁移 | 代理配置与主机条目存在 | 恢复旧 `nginx_data` 卷 |
-| 证书 | `nginx_letsencrypt:/etc/letsencrypt` | `product_letsencrypt:/etc/letsencrypt` | 卷级复制或挂载复用 | 证书文件存在，权限正确 | 恢复旧 `nginx_letsencrypt` 卷 |
-| ModSecurity 配置 | `nginx_modsec:/etc/modsec` | `product_modsec:/etc/modsec` | 卷级复制或挂载复用 | 配置文件存在，容器可启动 | 恢复旧 `nginx_modsec` 卷 |
-| 自定义代理配置 | `nginx_var:/etc/custom` | `product_custom:/etc/custom` | 卷级复制或挂载复用 | 自定义配置存在，入口正常 | 恢复旧 `nginx_var` 卷 |
+| 证书 | `nginx_letsencrypt:/etc/letsencrypt` | 升级期兼容备份资产，不再挂载到现代运行时 | 仅在升级回滚或人工提取时保留归档 | 证书归档可读取 | 恢复旧 `nginx_letsencrypt` 卷 |
+| ModSecurity 配置 | `nginx_modsec:/etc/modsec` | 升级期兼容备份资产，不再挂载到现代运行时 | 仅在升级回滚或人工提取时保留归档 | 归档可读取 | 恢复旧 `nginx_modsec` 卷 |
+| 自定义代理配置 | `nginx_var:/etc/custom` | `product_data:/data` 下的 `/data/config` 子树 | 复制到统一数据根并保留兼容软链接 | 自定义配置存在，入口正常 | 恢复旧 `nginx_var` 卷 |
 | 旧部署物料 | 旧 compose、旧 `.env`、旧安装目录 `/data/websoft9/source` | 新安装目录和标准部署物料 | 归档旧物料并生成新物料 | 新物料完整，旧物料已归档 | 恢复旧 compose 和旧 `.env` |
 | 旧控制面遗留 | `/etc/cockpit`、`/usr/share/cockpit`、`/lib/systemd/system/websoft9.service`、Cockpit 包 | 新系统不再继承 | 切换成功后按策略停用或清理 | 新系统独立运行，旧控制面状态已记录 | 重新启用旧 systemd 与 Cockpit |
 

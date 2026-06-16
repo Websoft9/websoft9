@@ -11,9 +11,11 @@ gateway_conf_dir="$repo_root/docker/gateway"
 product_proxy_init_src="$repo_root/docker/proxy/init_nginx.sh"
 portainer_init_src="$repo_root/docker/deployment/init_portainer.go"
 npm_base_image="${WEBSOFT9_NPM_BASE_IMAGE:-jc21/nginx-proxy-manager:2.12.6}"
+version_file_src="$repo_root/version.json"
 platform_container_entrypoint_src="$repo_root/docker/scripts/platform-container-entrypoint.sh"
 platform_entrypoint_src="$repo_root/docker/scripts/platform-entrypoint.sh"
 platform_healthcheck_src="$repo_root/docker/scripts/platform-healthcheck.sh"
+platform_product_metadata_src="$repo_root/docker/scripts/platform-ensure-product-metadata.py"
 platform_sync_config_src="$repo_root/docker/scripts/platform-sync-config.sh"
 platform_runtime_assets_src="$repo_root/docker/scripts/platform-sync-runtime-assets.py"
 service_control_src="$repo_root/docker/scripts/platform-service-control.sh"
@@ -161,9 +163,11 @@ sync_runtime_support_files() {
     docker cp "$gateway_conf_dir/." "$container_name:/etc/websoft9/platform-gateway/"
     docker cp "$init_portainer_bin" "$container_name:/usr/local/bin/init_portainer"
     docker cp "$product_proxy_init_src" "$container_name:/app/init_nginx.sh"
+    docker cp "$version_file_src" "$container_name:/websoft9/version.json"
     docker cp "$platform_container_entrypoint_src" "$container_name:/websoft9/script/platform-container-entrypoint.sh"
     docker cp "$platform_entrypoint_src" "$container_name:/websoft9/script/platform-entrypoint.sh"
     docker cp "$platform_healthcheck_src" "$container_name:/websoft9/script/platform-healthcheck.sh"
+    docker cp "$platform_product_metadata_src" "$container_name:/websoft9/script/platform-ensure-product-metadata.py"
     docker cp "$platform_sync_config_src" "$container_name:/websoft9/script/platform-sync-config.sh"
     docker cp "$platform_runtime_assets_src" "$container_name:/websoft9/script/platform-sync-runtime-assets.py"
     docker cp "$service_control_src" "$container_name:/websoft9/script/platform-service-control.sh"
@@ -176,6 +180,7 @@ sync_runtime_support_files() {
     docker exec "$container_name" chmod +x /websoft9/script/platform-entrypoint.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-container-entrypoint.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-healthcheck.sh
+    docker exec "$container_name" chmod +x /websoft9/script/platform-ensure-product-metadata.py
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-config.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-sync-runtime-assets.py
     docker exec "$container_name" chmod +x /websoft9/script/platform-service-control.sh

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE_TAG=""
 PRODUCT_VERSION=""
 PRODUCT_EDITION_KEY=""
+APPSTORE_CHANNEL="release"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -20,6 +21,10 @@ while [[ $# -gt 0 ]]; do
             PRODUCT_EDITION_KEY="$2"
             shift 2
             ;;
+        --appstore-channel)
+            APPSTORE_CHANNEL="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown argument: $1" >&2
             exit 1
@@ -28,13 +33,23 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$IMAGE_TAG" || -z "$PRODUCT_VERSION" || -z "$PRODUCT_EDITION_KEY" ]]; then
-    echo "Usage: scripts/build_product_image.sh --tag <image:tag> --version <semver> --edition-key <free|starter|standard|enterprise>" >&2
+    echo "Usage: scripts/build_product_image.sh --tag <image:tag> --version <semver> --edition-key <free|starter|standard|enterprise> [--appstore-channel <release|rc|dev>]" >&2
     exit 1
 fi
+
+case "$APPSTORE_CHANNEL" in
+    release|rc|dev)
+        ;;
+    *)
+        echo "Unsupported app store channel: $APPSTORE_CHANNEL" >&2
+        exit 1
+        ;;
+esac
 
 docker build \
     -f "$ROOT_DIR/docker/Dockerfile" \
     -t "$IMAGE_TAG" \
     --build-arg WEBSOFT9_PRODUCT_VERSION="$PRODUCT_VERSION" \
     --build-arg WEBSOFT9_PRODUCT_EDITION_KEY="$PRODUCT_EDITION_KEY" \
+    --build-arg WEBSOFT9_APPSTORE_CHANNEL="$APPSTORE_CHANNEL" \
     "$ROOT_DIR"

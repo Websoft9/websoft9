@@ -25,6 +25,10 @@ readonly MODERN_CONTAINER_NAME="websoft9"
 readonly LEGACY_CONTAINER_NAMES=("websoft9-apphub" "websoft9-deployment" "websoft9-git" "websoft9-proxy")
 readonly LEGACY_VOLUME_NAMES=("apphub_logs" "apphub_config" "portainer" "gitea" "nginx_data" "nginx_letsencrypt" "nginx_modsec" "nginx_var")
 readonly MODERN_VOLUME_NAMES=("product_data" "product_custom" "product_letsencrypt" "product_modsec" "product_logs")
+readonly MODERN_DATA_CUSTOM_SUBDIR="config"
+readonly MODERN_DATA_LOGS_SUBDIR="logs"
+readonly MODERN_DATA_LETSENCRYPT_SUBDIR="compat/letsencrypt"
+readonly MODERN_DATA_MODSEC_SUBDIR="compat/modsec"
 
 VALIDATION_REPORT_FILE=""
 LEGACY_MIGRATION_PLAN_FILE=""
@@ -405,8 +409,9 @@ ensure_supported_os() {
 		log_error "Unsupported OS"
 		exit 1
 	}
-	. /etc/os-release
-	log_info "OS: ${PRETTY_NAME}"
+	local os_pretty_name
+	os_pretty_name=$( (. /etc/os-release && echo "${PRETTY_NAME}") )
+	log_info "OS: ${os_pretty_name}"
 }
 
 check_disk() {
@@ -523,6 +528,54 @@ capture_runtime_metadata() {
 	docker images > "${BACKUP_DIR}/docker-images.txt" 2>&1 || true
 }
 
+backup_running_product_runtime_state() {
+	command_exists docker || return 0
+	has_container "$MODERN_CONTAINER_NAME" || return 0
+	docker exec "$MODERN_CONTAINER_NAME" python3 /websoft9/script/platform-ensure-product-metadata.py > "${BACKUP_DIR}/product-runtime-state.json" 2>> "$LOG_FILE" || true
+}
+
+resolve_runtime_product_version() {
+	if [[ "$VERSION" != "latest" ]]; then
+		printf '%s\n' "$VERSION"
+		return 0
+	fi
+
+	if [[ -n "$MANIFEST_VERSION" ]]; then
+		printf '%s\n' "$MANIFEST_VERSION"
+		return 0
+	fi
+
+	return 0
+}
+
+ensure_runtime_product_metadata() {
+	log_step "Ensuring runtime product metadata"
+	local resolved_version=""
+	local command=(python3 /websoft9/script/platform-ensure-product-metadata.py)
+	resolved_version="$(resolve_runtime_product_version)"
+	if [[ -n "$resolved_version" ]]; then
+		command+=(--version "$resolved_version")
+	fi
+
+	case "$MODE:$ENV_KIND" in
+		install:*)
+			command+=(--edition-key free)
+			;;
+		upgrade:modern)
+			if [[ -f "${BACKUP_DIR}/product-runtime-state.json" ]]; then
+				docker cp "${BACKUP_DIR}/product-runtime-state.json" "$MODERN_CONTAINER_NAME:/tmp/product-runtime-state.previous.json" >> "$LOG_FILE" 2>&1
+				command+=(--source-metadata /tmp/product-runtime-state.previous.json --edition-key free)
+			fi
+			;;
+		upgrade:legacy)
+			command+=(--legacy-system-ini /data/legacy/apphub-config/system.ini --edition-key free)
+			;;
+	esac
+
+	docker exec "$MODERN_CONTAINER_NAME" "${command[@]}" >> "$LOG_FILE" 2>&1
+	docker exec "$MODERN_CONTAINER_NAME" rm -f /tmp/product-runtime-state.previous.json >> "$LOG_FILE" 2>&1 || true
+}
+
 backup_file_if_exists() {
 	local source_path="$1"
 	local dest_name="$2"
@@ -560,6 +613,7 @@ backup_modern_state() {
 	log_step "Backing up modern runtime state"
 	prepare_backup_dir
 	capture_runtime_metadata
+	backup_running_product_runtime_state
 	backup_file_if_exists "${INSTALL_PATH}/docker-compose.yml" "modern-docker-compose.yml"
 	backup_file_if_exists "${INSTALL_PATH}/.env" "modern.env"
 	backup_named_volume "product_data" "product_data.tar"
@@ -567,6 +621,13 @@ backup_modern_state() {
 	backup_named_volume "product_letsencrypt" "product_letsencrypt.tar"
 	backup_named_volume "product_modsec" "product_modsec.tar"
 	backup_named_volume "product_logs" "product_logs.tar"
+}
+
+migrate_modern_retired_assets() {
+	restore_archive_to_volume "product_custom.tar" "product_data" "$MODERN_DATA_CUSTOM_SUBDIR"
+	restore_archive_to_volume "product_logs.tar" "product_data" "$MODERN_DATA_LOGS_SUBDIR"
+	restore_archive_to_volume "product_letsencrypt.tar" "product_data" "$MODERN_DATA_LETSENCRYPT_SUBDIR"
+	restore_archive_to_volume "product_modsec.tar" "product_data" "$MODERN_DATA_MODSEC_SUBDIR"
 }
 
 backup_legacy_state() {
@@ -770,15 +831,15 @@ validate_legacy_backup_payload() {
 
 	local required_assets=(
 		"apphub_config.tar:product_data/legacy/apphub-config:required"
-		"apphub_logs.tar:product_logs/legacy-apphub:required"
+		"apphub_logs.tar:product_data/${MODERN_DATA_LOGS_SUBDIR}/legacy-apphub:required"
 		"nginx_data.tar:product_data/nginx-proxy-manager:required"
 	)
 	local optional_assets=(
 		"gitea.tar:product_data/gitea:optional"
 		"portainer.tar:product_data/portainer:optional"
-		"nginx_letsencrypt.tar:product_letsencrypt/:optional"
-		"nginx_modsec.tar:product_modsec/:optional"
-		"nginx_var.tar:product_custom/:optional"
+		"nginx_letsencrypt.tar:product_data/${MODERN_DATA_LETSENCRYPT_SUBDIR}:optional"
+		"nginx_modsec.tar:product_data/${MODERN_DATA_MODSEC_SUBDIR}:optional"
+		"nginx_var.tar:product_data/${MODERN_DATA_CUSTOM_SUBDIR}:optional"
 	)
 	local asset_spec
 	local archive_name
@@ -874,13 +935,13 @@ write_legacy_migration_plan() {
 
 	local migration_assets=(
 		"apphub_config.tar:product_data/legacy/apphub-config:required"
-		"apphub_logs.tar:product_logs/legacy-apphub:required"
+		"apphub_logs.tar:product_data/${MODERN_DATA_LOGS_SUBDIR}/legacy-apphub:required"
 		"nginx_data.tar:product_data/nginx-proxy-manager:required"
 		"gitea.tar:product_data/gitea:optional"
 		"portainer.tar:product_data/portainer:optional"
-		"nginx_letsencrypt.tar:product_letsencrypt/:optional"
-		"nginx_modsec.tar:product_modsec/:optional"
-		"nginx_var.tar:product_custom/:optional"
+		"nginx_letsencrypt.tar:product_data/${MODERN_DATA_LETSENCRYPT_SUBDIR}:optional"
+		"nginx_modsec.tar:product_data/${MODERN_DATA_MODSEC_SUBDIR}:optional"
+		"nginx_var.tar:product_data/${MODERN_DATA_CUSTOM_SUBDIR}:optional"
 	)
 	local asset_spec
 	local archive_name
@@ -904,10 +965,10 @@ target_https_port=${APP_HTTPS_GATEWAY}
 gitea=product_data/gitea
 portainer=product_data/portainer
 nginx_data=product_data/nginx-proxy-manager
-nginx_letsencrypt=product_letsencrypt/
-nginx_modsec=product_modsec/
-nginx_var=product_custom/
-apphub_logs=product_logs/legacy-apphub
+nginx_letsencrypt=product_data/${MODERN_DATA_LETSENCRYPT_SUBDIR}
+nginx_modsec=product_data/${MODERN_DATA_MODSEC_SUBDIR}
+nginx_var=product_data/${MODERN_DATA_CUSTOM_SUBDIR}
+apphub_logs=product_data/${MODERN_DATA_LOGS_SUBDIR}/legacy-apphub
 apphub_config=product_data/legacy/apphub-config
 
 [rollback]
@@ -933,13 +994,13 @@ migrate_legacy_assets() {
 	log_step "Migrating legacy assets"
 	local migration_assets=(
 		"apphub_config.tar:product_data:legacy/apphub-config:required"
-		"apphub_logs.tar:product_logs:legacy-apphub:required"
+		"apphub_logs.tar:product_data:${MODERN_DATA_LOGS_SUBDIR}/legacy-apphub:required"
 		"nginx_data.tar:product_data:nginx-proxy-manager:required"
 		"gitea.tar:product_data:gitea:optional"
 		"portainer.tar:product_data:portainer:optional"
-		"nginx_letsencrypt.tar:product_letsencrypt::optional"
-		"nginx_modsec.tar:product_modsec::optional"
-		"nginx_var.tar:product_custom::optional"
+		"nginx_letsencrypt.tar:product_data:${MODERN_DATA_LETSENCRYPT_SUBDIR}:optional"
+		"nginx_modsec.tar:product_data:${MODERN_DATA_MODSEC_SUBDIR}:optional"
+		"nginx_var.tar:product_data:${MODERN_DATA_CUSTOM_SUBDIR}:optional"
 	)
 	local asset_spec
 	local archive_name
@@ -1120,6 +1181,10 @@ run_install_flow() {
 		log_error "Modern install health check failed"
 		exit 1
 	}
+	ensure_runtime_product_metadata || {
+		log_error "Modern install product metadata initialization failed"
+		exit 1
+	}
 	write_runtime_validation_report
 }
 
@@ -1127,6 +1192,7 @@ run_modern_upgrade_flow() {
 	backup_modern_state
 	prepare_modern_runtime_artifacts
 	pull_target_image
+	migrate_modern_retired_assets
 	start_modern_runtime || {
 		restore_modern_runtime
 		log_error "Modern upgrade failed"
@@ -1135,6 +1201,11 @@ run_modern_upgrade_flow() {
 	if ! health_check; then
 		restore_modern_runtime
 		log_error "Modern upgrade health check failed"
+		exit 1
+	fi
+	if ! ensure_runtime_product_metadata; then
+		restore_modern_runtime
+		log_error "Modern upgrade product metadata migration failed"
 		exit 1
 	fi
 	write_runtime_validation_report
@@ -1158,6 +1229,11 @@ run_legacy_upgrade_flow() {
 	if ! health_check; then
 		restore_legacy_runtime
 		log_error "Legacy migration health check failed"
+		exit 1
+	fi
+	if ! ensure_runtime_product_metadata; then
+		restore_legacy_runtime
+		log_error "Legacy migration product metadata migration failed"
 		exit 1
 	fi
 	write_runtime_validation_report

@@ -29,7 +29,7 @@ uvicorn_logger = logging.getLogger("uvicorn")
 uvicorn_logger.setLevel(logging.INFO)
 
 API_KEY_NAME = "x-api-key"
-INTERNAL_GATEWAY_TRUST_KEY_FILE = os.getenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", "/etc/custom/internal-gateway-auth/trust_key")
+INTERNAL_GATEWAY_TRUST_KEY_FILE = os.getenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", "/data/config/internal-gateway-auth/trust_key")
 
 async def verify_key(connection: HTTPConnection):
     # logger.access("request.url.path: "+request.url.path)

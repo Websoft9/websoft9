@@ -53,14 +53,22 @@ LABEL org.opencontainers.image.description="Converged Websoft9 runtime with AppH
 ENV WEBSOFT9_RUNTIME_LAYOUT=single-container-target \
     WEBSOFT9_APPHUB_HEALTH_URL=http://127.0.0.1:8080/api/healthz \
     WEBSOFT9_MEDIA_HEALTH_URL=http://127.0.0.1:8081/healthz \
+    WEBSOFT9_CUSTOM_ROOT=/data/config \
+    WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR=/data/config/internal-gateway-auth \
+    WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE=/data/config/internal-gateway-auth/trust_key \
+    WEBSOFT9_HOST_ACCESS_DATA_DIR=/data/config/host-access \
+    WEBSOFT9_INSTALL_TRACKING_DIR=/data/config/apphub \
+    WEBSOFT9_PRODUCT_AUTH_DATA_DIR=/data/config/product-auth \
     WEBSOFT9_GITEA_CREDENTIAL_PATH=/data/gitea/credential \
     WEBSOFT9_PORTAINER_CREDENTIAL_PATH=/data/portainer/credential \
-    WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH=/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert \
-    WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH=/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key \
+    WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH=/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert \
+    WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH=/data/config/platform-gateway/ssl/websoft9-platform-gateway.key \
     WEBSOFT9_NPM_CREDENTIAL_PATH=/data/nginx-proxy-manager/credential.json \
     WEBSOFT9_NPM_SSL_DIR=/data/nginx-proxy-manager/custom_ssl \
     WEBSOFT9_NPM_CERT_MARKER=/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert \
     WEBSOFT9_NPM_SSL_KEY_PATH=/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key \
+    WEBSOFT9_SERVICE_LOG_ROOT=/data/logs \
+    WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH=/data/logs/platform-runtime.log \
     WEBSOFT9_SUPERVISOR_CONFIG=/etc/supervisor/conf.d/websoft9-platform.conf \
     WEBSOFT9_SUPERVISOR_SOCKET=/run/supervisor.sock \
     WEBSOFT9_SUPERVISOR_PIDFILE=/run/supervisord.pid \
@@ -90,6 +98,7 @@ RUN apt-get update && \
 
 ARG WEBSOFT9_PRODUCT_VERSION=
 ARG WEBSOFT9_PRODUCT_EDITION_KEY=
+ARG WEBSOFT9_APPSTORE_CHANNEL=release
 
 COPY --from=npm-runtime /app /app
 COPY --from=npm-runtime /etc/nginx /etc/nginx
@@ -117,31 +126,37 @@ COPY --from=portainer-runtime /portainer /portainer
 COPY --from=portainer-runtime /public /opt/websoft9-portainer/public
 COPY --from=portainer-init-builder /build/init_portainer /usr/local/bin/init_portainer
 
+COPY version.json /websoft9/version.json
 COPY apphub /websoft9/apphub
-RUN WEBSOFT9_PRODUCT_VERSION="${WEBSOFT9_PRODUCT_VERSION}" WEBSOFT9_PRODUCT_EDITION_KEY="${WEBSOFT9_PRODUCT_EDITION_KEY}" python3 - <<'PY'
-import json
+RUN WEBSOFT9_PRODUCT_VERSION="${WEBSOFT9_PRODUCT_VERSION}" WEBSOFT9_PRODUCT_EDITION_KEY="${WEBSOFT9_PRODUCT_EDITION_KEY}" WEBSOFT9_APPSTORE_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" python3 - <<'PY'
 import os
+import sys
+import json
 from pathlib import Path
 
-from src.core.product_catalog import PRODUCT_EDITION_ALIASES, PRODUCT_EDITIONS
+sys.path.insert(0, "/websoft9/apphub")
 
-metadata_path = Path("/websoft9/apphub/src/config/product_metadata.json")
-payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+from src.services.product_runtime_state import initialize_product_runtime_state, read_release_version_file
+
+version_path = Path("/websoft9/version.json")
+payload = read_release_version_file(version_path)
 
 version = (os.environ.get("WEBSOFT9_PRODUCT_VERSION") or str(payload.get("version") or "")).strip()
 edition_key = (os.environ.get("WEBSOFT9_PRODUCT_EDITION_KEY") or str(payload.get("edition_key") or "")).strip()
-canonical_edition_key = PRODUCT_EDITION_ALIASES.get(edition_key, edition_key)
+channel = (os.environ.get("WEBSOFT9_APPSTORE_CHANNEL") or str(payload.get("channel") or "release")).strip().lower()
 
 if not version:
     raise SystemExit("WEBSOFT9_PRODUCT_VERSION is required for product image builds")
-if canonical_edition_key not in PRODUCT_EDITIONS:
-    supported = ", ".join(sorted(PRODUCT_EDITIONS))
-    raise SystemExit(f"Unsupported WEBSOFT9_PRODUCT_EDITION_KEY: {edition_key}. Supported keys: {supported}")
 
-metadata_path.write_text(
-    json.dumps({"version": version, "edition_key": canonical_edition_key}, indent=4) + "\n",
-    encoding="utf-8",
-)
+if channel not in {"release", "rc", "dev"}:
+    raise SystemExit(f"Unsupported WEBSOFT9_APPSTORE_CHANNEL: {channel}")
+
+payload["version"] = version
+payload["edition_key"] = edition_key
+payload["channel"] = channel
+version_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+initialize_product_runtime_state()
 PY
 COPY --from=console-builder /build/console/dist /etc/websoft9/console
 COPY docker/proxy/config/http.conf /data/nginx/custom/http.conf
@@ -161,17 +176,15 @@ COPY docker/scripts/platform-start-npm-backend.sh /websoft9/script/platform-star
 COPY docker/scripts/platform-start-npm-nginx.sh /websoft9/script/platform-start-npm-nginx.sh
 COPY docker/scripts/platform-start-portainer.sh /websoft9/script/platform-start-portainer.sh
 COPY docker/scripts/platform-sync-config.sh /websoft9/script/platform-sync-config.sh
+COPY docker/scripts/platform-ensure-product-metadata.py /websoft9/script/platform-ensure-product-metadata.py
 COPY docker/scripts/platform-sync-runtime-assets.py /websoft9/script/platform-sync-runtime-assets.py
 COPY docker/crontab /etc/cron.d/websoft9-appstore
 
 RUN chmod 0644 /etc/cron.d/websoft9-appstore
 
-ARG WEBSOFT9_APPSTORE_CHANNEL=dev
-
 # Pre-populate app store assets during image build so first-load browsing uses
 # a prepared local dataset instead of waiting for runtime warm-up.
 RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
-    WEBSOFT9_RUNTIME_ASSET_CHANNEL="$WEBSOFT9_APPSTORE_CHANNEL" \
     python3 /websoft9/script/platform-sync-runtime-assets.py
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \
@@ -189,12 +202,12 @@ RUN chmod +x /app/init_nginx.sh \
     /websoft9/script/platform-start-npm-backend.sh \
     /websoft9/script/platform-start-npm-nginx.sh \
     /websoft9/script/platform-start-portainer.sh \
+    /websoft9/script/platform-ensure-product-metadata.py \
     /websoft9/script/platform-sync-config.sh \
     /websoft9/script/platform-sync-runtime-assets.py && \
     mkdir -p /etc/websoft9 \
     /etc/websoft9/console \
     /etc/websoft9/platform-gateway \
-    /etc/letsencrypt \
     /run/nginx \
     /run/websoft9 \
     /tmp/nginx/body \
@@ -203,7 +216,8 @@ RUN chmod +x /app/init_nginx.sh \
     /var/lib/nginx/cache/private \
     /var/lib/nginx/cache/public \
     /var/log/nginx \
-    /var/log/websoft9 \
+    /data/config \
+    /data/logs \
     /data/nginx/custom \
     /data/nginx/default_host \
     /data/nginx/default_www \
@@ -219,7 +233,7 @@ RUN chmod +x /app/init_nginx.sh \
     /websoft9/library/apps \
     /websoft9/apphub/swagger-ui
 
-VOLUME ["/data/gitea", "/data/portainer", "/data/nginx-proxy-manager", "/etc/letsencrypt", "/etc/modsec", "/etc/custom", "/var/log/websoft9"]
+VOLUME ["/data/gitea", "/data/portainer", "/data/nginx-proxy-manager"]
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=6 CMD ["/websoft9/script/platform-healthcheck.sh", "--readiness"]
 

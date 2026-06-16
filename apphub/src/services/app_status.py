@@ -29,7 +29,7 @@ class InstallStateStore:
         self.reconfigure(data_dir)
 
     def reconfigure(self, data_dir: str | None = None) -> None:
-        base_dir = data_dir or os.getenv("WEBSOFT9_INSTALL_TRACKING_DIR") or "/etc/custom/apphub"
+        base_dir = data_dir or os.getenv("WEBSOFT9_INSTALL_TRACKING_DIR") or "/data/config/apphub"
         self.data_dir = Path(base_dir)
         self.database_file = self.data_dir / "install-tracking.sqlite"
         self._ensure_storage()

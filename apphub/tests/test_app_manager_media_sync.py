@@ -79,7 +79,7 @@ def _patch_path_factory(monkeypatch, metadata_path: Path):
     real_path = Path
 
     def fake_path(value):
-        if str(value) == '/websoft9/apphub/src/config/product_metadata.json':
+        if str(value) == '/websoft9/version.json':
             return metadata_path
         return real_path(value)
 
@@ -87,8 +87,8 @@ def _patch_path_factory(monkeypatch, metadata_path: Path):
 
 
 def test_sync_media_assets_uses_rc_channel_for_rc_versions(monkeypatch, tmp_path):
-    metadata_path = tmp_path / 'product_metadata.json'
-    metadata_path.write_text(json.dumps({'version': '2.1.0-rc.1'}), encoding='utf-8')
+    metadata_path = tmp_path / 'version.json'
+    metadata_path.write_text(json.dumps({'version': '2.1.0', 'channel': 'rc'}), encoding='utf-8')
     _patch_path_factory(monkeypatch, metadata_path)
 
     requested_urls = []
@@ -109,8 +109,8 @@ def test_sync_media_assets_uses_rc_channel_for_rc_versions(monkeypatch, tmp_path
 
 
 def test_sync_media_assets_uses_dev_channel_for_dev_versions(monkeypatch, tmp_path):
-    metadata_path = tmp_path / 'product_metadata.json'
-    metadata_path.write_text(json.dumps({'version': '2.1.0-dev.3'}), encoding='utf-8')
+    metadata_path = tmp_path / 'version.json'
+    metadata_path.write_text(json.dumps({'version': '2.1.0', 'channel': 'dev'}), encoding='utf-8')
     _patch_path_factory(monkeypatch, metadata_path)
 
     requested_urls = []

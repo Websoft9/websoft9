@@ -47,7 +47,7 @@ class ProductAuthService:
     _lock = threading.RLock()
 
     def __init__(self, data_dir: Optional[str] = None):
-        self.data_dir = Path(data_dir or os.getenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR") or "/etc/custom/product-auth")
+        self.data_dir = Path(data_dir or os.getenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR") or "/data/config/product-auth")
         self.database_file = self.data_dir / "product-auth.sqlite"
 
     def get_status(self, session_token: Optional[str] = None) -> dict[str, Any]:
@@ -660,6 +660,13 @@ class ProductAuthService:
             status_code=403,
             message="Permission Denied",
             details="You can only edit your own profile and password",
+        )
+
+    def _permission_denied_internal_support(self) -> CustomException:
+        return CustomException(
+            status_code=403,
+            message="Permission Denied",
+            details="Only the system user can change the product edition",
         )
 
     def _resolve_session(self, session_token: str) -> Optional[dict[str, Any]]:

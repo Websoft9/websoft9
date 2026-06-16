@@ -108,10 +108,10 @@ DEFAULT_SERVICE_DEFINITIONS = (
         supervisor_program="platform-gateway",
         health_url=os.getenv("WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL", "http://127.0.0.1:9000/w9gateway/healthz"),
         health_verify_tls=False,
-        log_root=Path("/var/log/websoft9"),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")),
         log_paths=(
-            Path("/var/log/websoft9/platform-gateway-access.log"),
-            Path("/var/log/websoft9/platform-gateway-error.log"),
+            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "platform-gateway-access.log",
+            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "platform-gateway-error.log",
         ),
     ),
     ServiceDefinition(
@@ -130,7 +130,7 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_GITEA_HEALTH_URL", "http://127.0.0.1:3000/"),
         workspace_route="repository",
         integration_key="gitea",
-        log_root=Path("/var/log/websoft9/gitea"),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "gitea",
         markers=(Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", "/data/gitea/credential")),),
     ),
     ServiceDefinition(
@@ -142,7 +142,7 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_verify_tls=True,
         workspace_route="containers",
         integration_key="portainer",
-        log_root=Path("/var/log/websoft9/portainer"),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "portainer",
         markers=(Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "/data/portainer/credential")),),
     ),
     ServiceDefinition(
@@ -153,7 +153,7 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_NPM_HEALTH_URL", "http://127.0.0.1:81/"),
         workspace_route="gateway",
         integration_key="npm",
-        log_root=Path("/var/log/websoft9/nginx-proxy-manager"),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "nginx-proxy-manager",
         markers=(
             Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json")),
             Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", "/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert")),

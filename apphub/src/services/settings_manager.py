@@ -529,10 +529,10 @@ class SettingsManager:
         return "true" if value else "false"
 
     def _default_ssl_cert_path(self) -> str:
-        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.cert")
+        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
 
     def _default_ssl_key_path(self) -> str:
-        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/etc/custom/platform-gateway/ssl/websoft9-platform-gateway.key")
+        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.key")
 
     def generate_self_signed_cert(self, domain: str = "", validity_days: int = 3650) -> Dict[str, str]:
         """Generate a self-signed certificate and return the cert/key paths."""
