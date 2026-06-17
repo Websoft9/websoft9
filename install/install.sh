@@ -124,15 +124,15 @@ if [ -n "$_SUBCMD" ]; then
         modern)
           bdir="$(backup_new_dir modern)"
           backup_modern_pre_upgrade "$OPT_PATH" "$bdir"
-          log_info "备份点: $bdir"
+          log_info "Backup point: $bdir"
           ;;
         legacy)
           bdir="$(backup_new_dir legacy)"
           backup_legacy_pre_migration "$bdir"
-          log_info "备份点: $bdir"
+          log_info "Backup point: $bdir"
           ;;
         *)
-          die "$EXIT_ENV_GUARD" "当前无已安装的 Websoft9，无需备份" ;;
+          die "$EXIT_ENV_GUARD" "No installed Websoft9 found, nothing to back up" ;;
       esac
       ;;
   esac
@@ -144,7 +144,7 @@ env_kind="$(detect_environment)"
 
 case "$env_kind" in
   empty)
-    log_step "未检测到 Websoft9，开始全新安装..."
+    log_step "No Websoft9 installation detected. Starting fresh install..."
     run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
     ;;
 
@@ -152,12 +152,12 @@ case "$env_kind" in
     _cur_ver="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' \
       "$MODERN_CONTAINER_NAME" 2>/dev/null || true)"
     if [ -n "$_cur_ver" ]; then
-      log_info "检测到 Websoft9 已安装（当前版本: ${_cur_ver}）"
+      log_info "Websoft9 is already installed (current version: ${_cur_ver})"
     else
-      log_info "检测到 Websoft9 已安装"
+      log_info "Websoft9 is already installed"
     fi
-    if ! _confirm "是否升级到最新版本？" "y"; then
-      log_info "已取消，退出。"
+    if ! _confirm "Upgrade to the latest version?" "y"; then
+      log_info "Cancelled."
       exit "$EXIT_OK"
     fi
     if [ "$env_kind" = "modern" ]; then
@@ -168,10 +168,10 @@ case "$env_kind" in
     ;;
 
   mixed)
-    log_warn "检测到残留组件，环境状态异常。建议先手动清理后重新运行安装脚本。"
+    log_warn "Residual components detected; environment is in an inconsistent state. It is recommended to clean up manually before re-running."
     if [ "$OPT_FORCE" != "1" ]; then
-      if ! _confirm "仍要强制继续？（存在风险）" "n"; then
-        log_info "已取消，退出。"
+      if ! _confirm "Force continue anyway? (risky)" "n"; then
+        log_info "Cancelled."
         exit "$EXIT_OK"
       fi
     fi
@@ -179,7 +179,7 @@ case "$env_kind" in
     ;;
 
   *)
-    die "$EXIT_ENV_GUARD" "环境状态未知（${env_kind}），请联系支持团队" ;;
+    die "$EXIT_ENV_GUARD" "Unknown environment state (${env_kind}), please contact support" ;;
 esac
 
 exit "$EXIT_OK"

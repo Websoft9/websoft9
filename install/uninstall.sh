@@ -1,15 +1,16 @@
 #!/bin/bash
-# uninstall.sh — Websoft9 卸载独立入口（与 install.sh uninstall 子命令共享 lib/uninstall.sh）
-# 该文件保留历史制品契约：用户可单独下载 uninstall.sh 直接执行。
-# 发布构建时（install/build-bundle.sh）会内联 lib，生成自包含单文件 uninstall.sh。
+# uninstall.sh — Websoft9 standalone uninstall entry
+# Preserves the historical artifact contract: users can download and run this file directly.
+# At publish time (install/build-bundle.sh) the lib/ files are inlined into a self-contained single file.
 #
-# 参数面（与 install.sh 卸载相关参数保持一致）：
-#   --mode <stop|standard|purge>   卸载模式（默认 standard）
-#   --path <dir>                   安装目录（默认 /opt/websoft9）
-#   --keep-data <true|false>       是否保留数据（默认 true）
-#   --yes                          对破坏性操作进行确认
-#   --dry-run                      仅计划，不做破坏性操作
-#   --remove-legacy-controlplane   显式清理旧 Cockpit/systemd 遗留
+# Options:
+#   --mode <stop|standard|purge>   uninstall mode (default: standard)
+#   --path <dir>                   install directory (default: /opt/websoft9)
+#   --keep-data [true|false]       retain data volume (default: true; bare flag = true)
+#   --purge                        shortcut for --mode purge
+#   --yes                          skip confirmations
+#   --dry-run                      plan only, no destructive actions
+#   --remove-legacy-controlplane   also clean up legacy Cockpit/systemd remnants
 
 set -o pipefail
 
@@ -69,11 +70,11 @@ while [ $# -gt 0 ]; do
     --dry-run)        W9_DRY_RUN="1"; export W9_DRY_RUN; shift ;;
     --remove-legacy-controlplane) OPT_REMOVE_CONTROLPLANE="1"; shift ;;
     -h|--help)        usage; exit "$EXIT_OK" ;;
-    *) die "$EXIT_USAGE" "未知参数: $1" ;;
+    *) die "$EXIT_USAGE" "Unknown option: $1 (use -h for help)" ;;
   esac
 done
 
 env_kind="$(detect_environment)"
-log_info "环境识别结果: ${env_kind}"
+log_info "Environment: ${env_kind}"
 run_uninstall "$env_kind" "$OPT_MODE" "$OPT_PATH" "$OPT_KEEP_DATA" "$OPT_YES" "$OPT_REMOVE_CONTROLPLANE"
 exit "$EXIT_OK"

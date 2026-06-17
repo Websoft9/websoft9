@@ -33,8 +33,8 @@ _detect_legacy_auxiliary() {
 
 # 打印关键观察信号（供 detect 命令做人工审计）
 detect_print_signals() {
-  log_info "现代容器存在: $(container_exists "$MODERN_CONTAINER_NAME" && echo yes || echo no)"
-  log_info "现代主卷存在: $(volume_exists "$MODERN_DATA_VOLUME" && echo yes || echo no)"
+  log_info "Modern container exists: $(container_exists "$MODERN_CONTAINER_NAME" && echo yes || echo no)"
+  log_info "Modern data volume exists: $(volume_exists "$MODERN_DATA_VOLUME" && echo yes || echo no)"
   local name found_c="" found_v=""
   for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
     container_exists "$name" && found_c="${found_c} ${name}"
@@ -42,9 +42,9 @@ detect_print_signals() {
   for name in "${LEGACY_VOLUME_NAMES[@]}"; do
     volume_exists "$name" && found_v="${found_v} ${name}"
   done
-  log_info "旧版容器:${found_c:- 无}"
-  log_info "旧版卷:${found_v:- 无}"
-  log_info "旧版宿主机/systemd 辅助信号: $(_detect_legacy_auxiliary && echo yes || echo no)"
+  log_info "Legacy containers:${found_c:- none}"
+  log_info "Legacy volumes:${found_v:- none}"
+  log_info "Legacy host/systemd signals: $(_detect_legacy_auxiliary && echo yes || echo no)"
 }
 
 # 主识别函数：将结果回显到 stdout（empty|legacy|modern|mixed）

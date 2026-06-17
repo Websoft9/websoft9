@@ -11,6 +11,17 @@ MODERN_COMPOSE_PROJECT="websoft9"
 MODERN_DATA_VOLUME="websoft9_data"
 MODERN_DATA_MOUNT="/data"
 
+# Resolve the actual container name from a compose file.
+# Reads the first `container_name:` entry; falls back to MODERN_CONTAINER_NAME.
+_resolve_container_name() {
+  local compose_file="$1"
+  local name
+  if [ -f "$compose_file" ]; then
+    name="$(grep -m1 'container_name:' "$compose_file" 2>/dev/null | awk '{print $2}' | tr -d "'\"")"
+  fi
+  echo "${name:-$MODERN_CONTAINER_NAME}"
+}
+
 # compose 默认环境变量（与 docker-compose.yml 的 ${VAR:-default} 一致）
 DEFAULT_IMAGE_REPO="websoft9dev/websoft9"
 DEFAULT_IMAGE_TAG="latest"
@@ -75,7 +86,7 @@ command_exists() { command -v "$@" >/dev/null 2>&1; }
 
 require_root() {
   if [ "$(id -u)" -ne 0 ] && ! command_exists sudo; then
-    die "$EXIT_PRECHECK" "需要 root 权限或可用的 sudo 来执行生命周期操作。"
+    die "$EXIT_PRECHECK" "Root privileges (or sudo) are required."
   fi
 }
 
@@ -183,35 +194,35 @@ ensure_deployment_material() {
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     local local_compose
     if local_compose="$(resolve_bundled_compose)"; then
-      log_info "(dry-run) 使用本地部署物料: $local_compose"
+      log_info "(dry-run) using local deployment material: $local_compose"
     else
-      log_info "(dry-run) 将从制品分发根下载部署物料: ${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
+      log_info "(dry-run) will download deployment material from: ${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
     fi
     return 0
   fi
 
   local local_compose
   if local_compose="$(resolve_bundled_compose)"; then
-    log_info "使用本地部署物料: $local_compose"
+    log_info "Using local deployment material: $local_compose"
     cp -a "$local_compose" "$compose_dst"
     return 0
   fi
 
   # 远程制品：从同源目录下载 manifest -> compose_file -> compose
   local base="${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
-  log_info "未发现本地物料，从制品分发根下载: $base"
+  log_info "No local material found, downloading from: $base"
   local manifest compose_name
   manifest="$(_w9_fetch "${base}/manifest.json")" || manifest=""
   compose_name="$(printf '%s' "$manifest" | sed -n 's/.*"compose_file"[^"]*"\([^"]*\)".*/\1/p' | head -n1)"
   [ -z "$compose_name" ] && compose_name="docker-compose.yml"
 
   if ! _w9_download "${base}/${compose_name}" "$compose_dst"; then
-    die "$EXIT_PRECHECK" "下载部署物料失败: ${base}/${compose_name}"
+    die "$EXIT_PRECHECK" "Failed to download deployment material: ${base}/${compose_name}"
   fi
   # 元数据为可选增强项，失败不阻塞
   _w9_download "${base}/version.json" "${install_path}/version.json" || true
   _w9_download "${base}/mirrors.json" "${install_path}/mirrors.json" || true
-  log_info "部署物料已下载到: $compose_dst"
+  log_info "Deployment material downloaded to: $compose_dst"
 }
 
 # 确保 Docker 就绪：优先本地 install_docker.sh，否则按通道从制品分发根下载后执行。
@@ -224,7 +235,7 @@ ensure_docker_installed() {
   local c
   for c in "${candidates[@]}"; do
     if [ -f "$c" ]; then
-      log_info "使用本地 Docker 安装脚本: $c"
+      log_info "Using local Docker install script: $c"
       bash "$c"
       return $?
     fi
@@ -233,7 +244,7 @@ ensure_docker_installed() {
   local base="${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
   local tmp
   tmp="$(mktemp)"
-  log_info "未发现本地 Docker 安装脚本，从制品分发根下载: ${base}/install_docker.sh"
+  log_info "No local Docker install script found, downloading from: ${base}/install_docker.sh"
   if _w9_download "${base}/install_docker.sh" "$tmp"; then
     bash "$tmp"
     local rc=$?
@@ -254,7 +265,7 @@ write_env_file() {
   local volumes_root="$6"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
-    log_info "(dry-run) 写入 .env -> $env_path"
+    log_info "(dry-run) writing .env -> $env_path"
     return 0
   fi
 

@@ -17,12 +17,12 @@ _uninstall_modern() {
   local keep_data="$3"
   local assume_yes="$4"
 
-  log_info "==== 现代卸载 (mode=${mode}) ===="
+  log_info "==== Uninstall started (mode=${mode}) ===="
 
-  # 停止/删除运行实体
+  # Stop / remove running entities
   case "$mode" in
     stop)
-      log_step "停止现代容器（保留物料与数据）"
+      log_step "Stopping container (keeping material and data)"
       if [ -f "${install_path}/docker-compose.yml" ]; then
         run_cmd modern_compose "$install_path" stop || true
       else
@@ -30,43 +30,41 @@ _uninstall_modern() {
       fi
       ;;
     standard|purge)
-      log_step "停止并删除现代容器与部署物料"
+      log_step "Stopping and removing container and deployment material"
       if [ -f "${install_path}/docker-compose.yml" ]; then
         run_cmd modern_compose "$install_path" down || true
       else
         run_cmd docker rm -f "$MODERN_CONTAINER_NAME" 2>/dev/null || true
       fi
       ;;
-    *) die "$EXIT_USAGE" "未知卸载模式: $mode" ;;
+    *) die "$EXIT_USAGE" "Unknown uninstall mode: $mode" ;;
   esac
 
-  # 数据处理
+  # Data handling
   if [ "$mode" = "purge" ]; then
     if [ "$assume_yes" != "1" ]; then
-      die "$EXIT_USAGE" "purge 模式将删除数据卷 ${MODERN_DATA_VOLUME}，需显式 --yes 确认"
+      die "$EXIT_USAGE" "purge mode will delete data volume ${MODERN_DATA_VOLUME}, requires explicit --yes"
     fi
-    log_step "彻底清理：删除主数据卷 ${MODERN_DATA_VOLUME}"
-    run_cmd docker volume rm "$MODERN_DATA_VOLUME" 2>/dev/null || log_warn "删除数据卷失败或不存在"
-    # 删除安装目录物料
+    log_step "Purge: deleting data volume ${MODERN_DATA_VOLUME}"
+    run_cmd docker volume rm "$MODERN_DATA_VOLUME" 2>/dev/null || log_warn "Failed to delete data volume (may not exist)"
     if [ -d "$install_path" ]; then
       run_cmd rm -f "${install_path}/docker-compose.yml" "${install_path}/.env" 2>/dev/null || true
     fi
   elif [ "$mode" = "standard" ]; then
     if [ "$keep_data" = "0" ]; then
       if [ "$assume_yes" != "1" ]; then
-        die "$EXIT_USAGE" "--keep-data=false 将删除数据卷，需显式 --yes 确认"
+        die "$EXIT_USAGE" "--keep-data=false will delete data volume, requires explicit --yes"
       fi
-      log_step "按 --keep-data=false 删除主数据卷 ${MODERN_DATA_VOLUME}"
-      run_cmd docker volume rm "$MODERN_DATA_VOLUME" 2>/dev/null || log_warn "删除数据卷失败或不存在"
+      log_step "Deleting data volume as requested: ${MODERN_DATA_VOLUME}"
+      run_cmd docker volume rm "$MODERN_DATA_VOLUME" 2>/dev/null || log_warn "Failed to delete data volume (may not exist)"
     else
-      log_info "保留主数据卷: ${MODERN_DATA_VOLUME}"
+      log_info "Data volume retained: ${MODERN_DATA_VOLUME}"
     fi
   fi
 
-  # 结果清单
-  log_info "卸载结果清单："
-  log_info "  运行实体: 已按 mode=${mode} 处理"
-  log_info "  数据卷 ${MODERN_DATA_VOLUME}: $(volume_exists "$MODERN_DATA_VOLUME" && echo 保留 || echo 已删除)"
+  log_info "Uninstall summary:"
+  log_info "  Container: processed (mode=${mode})"
+  log_info "  Data volume ${MODERN_DATA_VOLUME}: $(volume_exists "$MODERN_DATA_VOLUME" && echo retained || echo deleted)"
 }
 
 # 旧系统卸载（仅在显式 --remove-legacy-controlplane 或目标环境为 legacy 时）
@@ -76,17 +74,17 @@ _uninstall_legacy() {
   local assume_yes="$3"
   local remove_controlplane="$4"
 
-  log_info "==== 旧系统卸载 (mode=${mode}) ===="
+  log_info "==== Legacy uninstall started (mode=${mode}) ===="
 
-  # 停止旧容器
-  log_step "停止旧版容器"
+  # Stop legacy containers
+  log_step "Stopping legacy containers"
   local name
   for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
     container_running "$name" && run_cmd docker stop "$name" 2>/dev/null || true
   done
 
   if [ "$mode" = "stop" ]; then
-    log_info "停用模式：旧容器已停止，物料与数据保留"
+    log_info "Stop mode: legacy containers stopped, material and data retained"
     return 0
   fi
 
@@ -98,23 +96,23 @@ _uninstall_legacy() {
   # 数据卷处理
   if [ "$mode" = "purge" ] || { [ "$mode" = "standard" ] && [ "$keep_data" = "0" ]; }; then
     if [ "$assume_yes" != "1" ]; then
-      die "$EXIT_USAGE" "删除旧数据卷需显式 --yes 确认"
+      die "$EXIT_USAGE" "Deleting legacy data volumes requires explicit --yes"
     fi
-    log_step "删除旧版数据卷"
+    log_step "Deleting legacy data volumes"
     local v
     for v in "${LEGACY_VOLUME_NAMES[@]}"; do
       volume_exists "$v" && run_cmd docker volume rm "$v" 2>/dev/null || true
     done
   else
-    log_info "保留旧版数据卷（可用作回退源）"
+    log_info "Legacy data volumes retained (available as rollback source)"
   fi
 
-  # 旧控制面遗留（Cockpit / systemd）——独立显式开关
+  # Legacy control plane (Cockpit / systemd) — explicit opt-in only
   if [ "$remove_controlplane" = "1" ]; then
     if [ "$assume_yes" != "1" ]; then
-      die "$EXIT_USAGE" "清理旧 Cockpit/systemd 遗留需显式 --yes 确认"
+      die "$EXIT_USAGE" "Removing legacy Cockpit/systemd requires explicit --yes"
     fi
-    log_step "清理旧 Cockpit / systemd 控制面遗留"
+    log_step "Removing legacy Cockpit / systemd control plane"
     if command_exists systemctl; then
       local unit
       for unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
@@ -124,15 +122,15 @@ _uninstall_legacy() {
         fi
       done
     fi
-    log_warn "Cockpit 软件包与 /etc/cockpit、旧安装目录默认不在脚本内强删，请按需人工处理: ${LEGACY_INSTALL_DIR}"
+    log_warn "Cockpit packages, /etc/cockpit, and legacy install directory are not force-deleted by this script. Clean up manually if needed: ${LEGACY_INSTALL_DIR}"
   else
-    log_warn "未指定 --remove-legacy-controlplane，旧 Cockpit/systemd 遗留保留未处理"
+    log_warn "--remove-legacy-controlplane not specified; legacy Cockpit/systemd left untouched"
   fi
 
-  log_info "旧系统卸载结果清单："
-  log_info "  旧容器: 已按 mode=${mode} 处理"
-  log_info "  旧数据卷: $( [ "$mode" = "purge" ] && echo 已删除 || echo 视模式保留 )"
-  log_info "  旧控制面遗留: $( [ "$remove_controlplane" = "1" ] && echo 已停用/禁用 || echo 未处理 )"
+  log_info "Legacy uninstall summary:"
+  log_info "  Legacy containers: processed (mode=${mode})"
+  log_info "  Legacy volumes: $( [ "$mode" = "purge" ] && echo deleted || echo retained)"
+  log_info "  Legacy control plane: $( [ "$remove_controlplane" = "1" ] && echo stopped/disabled || echo not touched )"
 }
 
 # 卸载主流程：按环境识别结果分流
@@ -146,6 +144,11 @@ run_uninstall() {
 
   require_root
 
+  # Resolve actual container name from the installed compose file (if present)
+  local _compose_file="${install_path}/docker-compose.yml"
+  MODERN_CONTAINER_NAME="$(_resolve_container_name "$_compose_file")"
+  export MODERN_CONTAINER_NAME
+
   case "$env_kind" in
     modern)
       _uninstall_modern "$mode" "$install_path" "$keep_data" "$assume_yes"
@@ -158,13 +161,13 @@ run_uninstall() {
       _uninstall_legacy "$mode" "$keep_data" "$assume_yes" "$remove_controlplane"
       ;;
     mixed)
-      die "$EXIT_ENV_GUARD" "检测到 mixed 环境，卸载不自动执行，请先人工治理收敛到 modern 或 legacy"
+      die "$EXIT_ENV_GUARD" "Mixed environment detected. Please resolve manually before uninstalling."
       ;;
     empty)
-      log_info "环境为 empty，无可卸载实体"
+      log_info "Nothing installed, nothing to uninstall"
       ;;
     *)
-      die "$EXIT_ENV_GUARD" "未知环境，卸载拒绝执行: $env_kind"
+      die "$EXIT_ENV_GUARD" "Unknown environment, refusing to uninstall: $env_kind"
       ;;
   esac
 }

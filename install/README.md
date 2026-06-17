@@ -116,7 +116,7 @@ bash install.sh --console-port 8080
 
 ## uninstall.sh — 命令参考
 
-独立卸载脚本，保留历史契约（可单独下载并执行），功能与 `install.sh uninstall` 等同。
+独立卸载脚本，保留历史契约（可单独下载并执行），功能与 `install.sh` 内置卸载流程等同。
 
 ### 语法
 

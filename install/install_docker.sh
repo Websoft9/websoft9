@@ -1,218 +1,289 @@
 #!/bin/bash
+# install_docker.sh — Install Docker Engine + Docker Compose plugin
+# Called by install.sh when Docker is absent; also published as a standalone artifact.
+#
+# Strategy:
+#   1. Try the official get.docker.com script (with mirror fallbacks).
+#   2. If the official script reports an unsupported distro, fall back to a
+#      distro-specific repo-based installation.
+#   3. Start and enable the Docker daemon.
+
+set -o pipefail
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
-# Download docker install script
-download_docker_script() {
-  local urls=("https://get.docker.com" "https://proxy.websoft9.com/?url=https://get.docker.com")
-  local output="get-docker.sh"
-  local retries=10
-  local timeout=5
+# ---------------------------------------------------------------------------
+# Logging (matches Websoft9 format)
+# ---------------------------------------------------------------------------
+_w9_ts() { date +"%Y-%m-%d %H:%M:%S"; }
+log_info()  { echo "[Websoft9][$(_w9_ts)][INFO ] $*"; }
+log_warn()  { echo "[Websoft9][$(_w9_ts)][WARN ] $*" >&2; }
+log_error() { echo "[Websoft9][$(_w9_ts)][ERROR] $*" >&2; }
+log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
 
-  download_with_tool() {
-    local tool=$1
-    local url=$2
-    local count=0
-    until [ $count -ge $retries ]; do
-      count=$((count+1))
-      echo "[Websoft9] - Attempting to download official Docker install script from: $url using $tool (attempt $count of $retries)"
-      if [ "$tool" = "curl" ]; then
-        curl -fsSL --max-time $timeout $url -o $output
-      else
-        wget --timeout=$timeout -O $output $url
-      fi
-      if verify_download; then
-        echo "[Websoft9] - Download official Docker install script succeeded from: $url using $tool"
-        return 0
-      fi
-      sleep 1
-    done
-    echo "[Websoft9] - Download official Docker install script failed from: $url using $tool after $retries attempts"
+command_exists() { command -v "$@" >/dev/null 2>&1; }
+
+# ---------------------------------------------------------------------------
+# Detect distro
+# ---------------------------------------------------------------------------
+detect_distro() {
+  if [ -r /etc/os-release ]; then
+    lsb_dist="$(. /etc/os-release && echo "${ID:-}" | tr '[:upper:]' '[:lower:]')"
+  else
+    lsb_dist="unknown"
+  fi
+  echo "$lsb_dist"
+}
+
+# ---------------------------------------------------------------------------
+# Download helpers
+# ---------------------------------------------------------------------------
+_download() {
+  local url="$1" dest="$2" timeout="${3:-30}"
+  if command_exists curl; then
+    curl -fsSL --max-time "$timeout" -o "$dest" "$url" 2>/dev/null
+  elif command_exists wget; then
+    wget -q --timeout="$timeout" -O "$dest" "$url" 2>/dev/null
+  else
+    log_error "Neither curl nor wget found"
     return 1
-  }
+  fi
+}
 
-  verify_download() {
-    if [ -f "$output" ] && [ -s "$output" ]; then
-      echo "[Websoft9] - Verification official Docker install script succeeded: $output"
-      return 0
-    else
-      echo "[Websoft9] - Verification failed: $output is missing or empty"
-      return 1
-    fi
-  }
+# ---------------------------------------------------------------------------
+# Download official get.docker.com script (with mirror fallbacks)
+# ---------------------------------------------------------------------------
+download_docker_script() {
+  local urls=(
+    "https://get.docker.com"
+    "https://proxy.websoft9.com/?url=https://get.docker.com"
+  )
+  local dest="get-docker.sh"
+  local attempt max_attempts=3
 
   for url in "${urls[@]}"; do
-    download_with_tool "curl" $url && break
+    log_info "Downloading Docker install script from: $url"
+    for attempt in $(seq 1 "$max_attempts"); do
+      if _download "$url" "$dest" 30 && [ -s "$dest" ]; then
+        log_info "Download succeeded (attempt $attempt)"
+        return 0
+      fi
+      log_warn "Attempt $attempt/$max_attempts failed, retrying..."
+      sleep 2
+    done
+    log_warn "All attempts failed for: $url"
   done
 
-  if [ $? -ne 0 ]; then
-    for url in "${urls[@]}"; do
-      download_with_tool "wget" $url && break
-    done
-  fi
-
-  if [ $? -ne 0 ]; then
-    echo "[Websoft9] - Download failed after $retries attempts, please check your network connection."
-    exit 1
-  fi
+  log_error "Could not download the Docker install script from any source"
+  return 1
 }
 
-# install docker by custom
-install_docker_custom() {
-  if [ -n "$1" ]; then
-    lsb_dist=$(echo "$1" | tr '[:upper:]' '[:lower:]')
-  else
-    if [ -r /etc/os-release ]; then
-      lsb_dist="$(. /etc/os-release && echo "$ID" | tr '[:upper:]' '[:lower:]')"
-    else
-      echo "[Websoft9] - Unable to determine distribution. Exiting."
-      exit 1
-    fi
-  fi
-
-  echo "[Websoft9] - Beginning custom Docker installation for: $lsb_dist"
-
-  local repos_base=("https://download.docker.com/linux" "https://mirrors.aliyun.com/docker-ce/linux" "https://mirror.azure.cn/docker-ce/linux")
-  local repos
-
-  install_docker_from_repo() {
-    local repo=$1
-    if command_exists dnf5; then
-      echo "[Websoft9] - Using dnf5 package manager for Docker installation from repo: $repo."
-      sudo dnf -y -q install dnf-plugins-core
-      sudo dnf5 config-manager addrepo --save-filename=docker-ce.repo --from-repofile=$repo
-      sudo dnf makecache
-      package_manager="dnf5"
-    elif command_exists dnf; then
-      echo "[Websoft9] - Using dnf package manager for Docker installation from repo: $repo."
-      sudo dnf -y -q install dnf-plugins-core
-      sudo dnf config-manager --add-repo $repo
-      sudo dnf makecache
-      package_manager="dnf"
-    else
-      echo "[Websoft9] - Using yum package manager for Docker installation from repo: $repo."
-      sudo yum -y -q install yum-utils
-      sudo yum-config-manager --add-repo $repo
-      sudo yum makecache
-      package_manager="yum"
-    fi
-    sudo $package_manager install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  }
-
-  if command_exists dnf5 || command_exists dnf || command_exists yum; then
-    if [ "$lsb_dist" = "amzn" ]; then
-      sudo yum makecache
-      sudo yum install -y docker 
-      sudo mkdir -p /usr/local/lib/docker/cli-plugins/
-      sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
-      sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-    elif [ "$lsb_dist" = "openeuler" ]; then
-      sudo dnf update -y
-      sudo dnf -y install dnf-plugins-core
-      sudo dnf config-manager --add-repo=https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
-      sudo sed -i 's+$releasever+8+'  /etc/yum.repos.d/docker-ce.repo
-      sudo dnf makecache
-      sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    else
-      if [ "$lsb_dist" = "ol" ] &&  grep -q 'VERSION_ID="7' /etc/os-release; then
-        echo "[Websoft9] - Detected Oracle Linux 7. Executing specific installation steps."
-        sudo yum install -y oraclelinux-developer-release-el7
-        sudo yum-config-manager --enable ol7_preview
-      fi
-      repos=("${repos_base[@]/%//${lsb_dist}/docker-ce.repo}")
-      sudo dnf remove -y podman || sudo yum remove -y podman
-
-      for repo in "${repos[@]}"; do
-        install_docker_from_repo $repo && break
-      done
-
-      if [ $? -ne 0 ]; then
-        echo "[Websoft9] - Installation failed with ${lsb_dist} repo, retrying with rhel and centos repos."
-        for fallback_dist in "rhel" "centos"; do
-          repos=("${repos_base[@]/%//${fallback_dist}/docker-ce.repo}")
-          for repo in "${repos[@]}"; do
-            install_docker_from_repo $repo && break 2
-          done
-        done
-      fi
-    fi
-  elif command_exists apt; then
-    repos=("${repos_base[@]/%//ubuntu}")
-    for repo in "${repos[@]}"; do
-      sudo apt-get update
-      sudo apt-get install ca-certificates curl
-      sudo install -m 0755 -d /etc/apt/keyrings
-      sudo curl -fsSL $repo/gpg -o /etc/apt/keyrings/docker.asc
-      sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-      echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] $repo \
-        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-      sudo apt-get update
-      if sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
-        break
-      fi
-    done
-  else
-    echo "[Websoft9] - Unsupported system distribution: $1. Exiting."
-    exit 1
-  fi
-
-  if sudo systemctl start docker && sudo systemctl enable docker; then
+# ---------------------------------------------------------------------------
+# Start and enable Docker daemon
+# ---------------------------------------------------------------------------
+_start_docker() {
+  log_step "Starting and enabling Docker daemon"
+  if systemctl start docker && systemctl enable docker >/dev/null 2>&1; then
     if command_exists docker && docker compose version >/dev/null 2>&1; then
-        echo "[Websoft9] - Docker and Docker Compose installation verified successfully."
-        return 0
-    else
-        echo "[Websoft9] - Docker or Docker Compose installation verification failed."
-        exit 1
+      log_info "Docker and Docker Compose are ready"
+      return 0
     fi
-  else
-    echo "[Websoft9] - Failed to start Docker."
+    log_error "Docker or Docker Compose verification failed after start"
     return 1
   fi
+  log_error "Failed to start Docker daemon"
+  return 1
 }
 
-# Install docker by official script
+# ---------------------------------------------------------------------------
+# Repo-based installation helper
+# ---------------------------------------------------------------------------
+_install_from_repo() {
+  local repo="$1"
+  log_info "Adding Docker repo: $repo"
+
+  if command_exists dnf5; then
+    dnf -y -q install dnf-plugins-core >/dev/null 2>&1 || true
+    dnf5 config-manager addrepo --save-filename=docker-ce.repo --from-repofile="$repo" >/dev/null 2>&1
+    dnf makecache -q >/dev/null 2>&1 || true
+    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  elif command_exists dnf; then
+    dnf -y -q install dnf-plugins-core >/dev/null 2>&1 || true
+    dnf config-manager --add-repo "$repo" >/dev/null 2>&1
+    dnf makecache -q >/dev/null 2>&1 || true
+    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  else
+    yum -y -q install yum-utils >/dev/null 2>&1 || true
+    yum-config-manager --add-repo "$repo" >/dev/null 2>&1
+    yum makecache -q >/dev/null 2>&1 || true
+    yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Custom distro-specific installation (fallback)
+# ---------------------------------------------------------------------------
+install_docker_custom() {
+  local lsb_dist="${1:-$(detect_distro)}"
+  log_step "Custom repo-based Docker installation for: $lsb_dist"
+
+  local repos_base=(
+    "https://download.docker.com/linux"
+    "https://mirrors.aliyun.com/docker-ce/linux"
+    "https://mirror.azure.cn/docker-ce/linux"
+  )
+
+  # Amazon Linux
+  if [ "$lsb_dist" = "amzn" ]; then
+    log_info "Detected Amazon Linux, using yum"
+    yum makecache -q >/dev/null 2>&1 || true
+    yum install -y docker
+    mkdir -p /usr/local/lib/docker/cli-plugins/
+    log_info "Downloading Docker Compose plugin for Amazon Linux..."
+    _download \
+      "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+      "/usr/local/lib/docker/cli-plugins/docker-compose" 120 \
+      || log_warn "Compose plugin download failed; install manually if needed"
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose 2>/dev/null || true
+    _start_docker && return 0
+    return 1
+  fi
+
+  # OpenEuler
+  if [ "$lsb_dist" = "openeuler" ]; then
+    log_info "Detected OpenEuler, using Aliyun mirror"
+    dnf update -y -q >/dev/null 2>&1 || true
+    dnf -y install dnf-plugins-core >/dev/null 2>&1 || true
+    dnf config-manager --add-repo=https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo >/dev/null 2>&1
+    sed -i 's+$releasever+8+' /etc/yum.repos.d/docker-ce.repo 2>/dev/null || true
+    dnf makecache -q >/dev/null 2>&1 || true
+    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    _start_docker && return 0
+    return 1
+  fi
+
+  # RPM-based (RHEL, CentOS, Rocky, Fedora, Oracle Linux ...)
+  if command_exists dnf5 || command_exists dnf || command_exists yum; then
+    # Oracle Linux 7 special case
+    if [ "$lsb_dist" = "ol" ] && grep -q 'VERSION_ID="7' /etc/os-release 2>/dev/null; then
+      log_info "Detected Oracle Linux 7, enabling preview repo"
+      yum install -y oraclelinux-developer-release-el7
+      yum-config-manager --enable ol7_preview >/dev/null 2>&1
+    fi
+
+    dnf remove -y podman 2>/dev/null || yum remove -y podman 2>/dev/null || true
+
+    local repo dist
+    for dist in "$lsb_dist" rhel centos; do
+      for base in "${repos_base[@]}"; do
+        repo="${base}/${dist}/docker-ce.repo"
+        if _install_from_repo "$repo"; then
+          _start_docker && return 0
+          return 1
+        fi
+      done
+    done
+
+    log_error "All repo-based install attempts failed for: $lsb_dist"
+    return 1
+  fi
+
+  # Debian / Ubuntu (APT)
+  if command_exists apt || command_exists apt-get; then
+    local repo base
+    for base in "${repos_base[@]}"; do
+      repo="${base}/ubuntu"
+      log_info "Trying APT repo: $repo"
+      apt-get update -qq >/dev/null 2>&1 || true
+      apt-get install -y -q ca-certificates curl >/dev/null 2>&1
+      install -m 0755 -d /etc/apt/keyrings
+      if _download "${repo}/gpg" /etc/apt/keyrings/docker.asc 30; then
+        chmod a+r /etc/apt/keyrings/docker.asc
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] $repo \
+          $(. /etc/os-release && echo "${VERSION_CODENAME:-stable}") stable" | \
+          tee /etc/apt/sources.list.d/docker.list >/dev/null
+        apt-get update -qq >/dev/null 2>&1 || true
+        if apt-get install -y docker-ce docker-ce-cli containerd.io \
+             docker-buildx-plugin docker-compose-plugin; then
+          _start_docker && return 0
+          return 1
+        fi
+      fi
+      log_warn "APT install failed from $repo, trying next"
+    done
+    log_error "APT-based Docker installation failed"
+    return 1
+  fi
+
+  log_error "Unsupported distribution: $lsb_dist"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Official script install (primary path)
+# ---------------------------------------------------------------------------
 install_docker_official() {
-  # define install command parameters
-  install_params=("" "--mirror Aliyun" "--mirror AzureChinaCloud")
-  install_timeout=300  # set timeout for each install attempt in seconds
-  
-  for param in "${install_params[@]}"; do
-    cmd="sh get-docker.sh $param"
-    echo "[Websoft9] - Attempting to install Docker with command: $cmd"
-    output=$(timeout $install_timeout $cmd 2>&1)
+  local mirrors=("" "--mirror Aliyun" "--mirror AzureChinaCloud")
+  local install_timeout=300
+  local lsb_dist
+  lsb_dist="$(detect_distro)"
+
+  for mirror in "${mirrors[@]}"; do
+    local cmd="sh get-docker.sh${mirror:+ $mirror}"
+    log_step "Running: $cmd  (timeout ${install_timeout}s, please wait...)"
+
+    local output exit_code
+    output="$(timeout "$install_timeout" sh -c "$cmd" 2>&1)"
+    exit_code=$?
+
     echo "$output"
+
+    if [ "$exit_code" -eq 124 ]; then
+      log_warn "Timed out after ${install_timeout}s, trying next mirror"
+      continue
+    fi
+
     if echo "$output" | grep -q "ERROR: Unsupported distribution"; then
-      lsb_dist=$(echo "$output" | grep "ERROR: Unsupported distribution" | awk -F"'" '{print $2}')
-      echo "[Websoft9] - Detected unsupported distribution: $lsb_dist. Executing custom operation."
-      install_docker_custom "$lsb_dist"
-      exit 1
-    elif echo "$output" | grep -q "ERROR"; then
-      echo "[Websoft9] - Docker installation failed with command: $cmd"
-      install_docker_custom "$lsb_dist"
-      exit 1
-    elif command_exists docker && docker compose version >/dev/null 2>&1; then
-      echo "[Websoft9] - Docker installation succeeded with command: $cmd"
-      return 0
-    elif echo "$output" | grep -q "timeout"; then
-      echo "[Websoft9] - Docker installation attempt timed out with command: $cmd. Trying next mirror."
+      local unsupported_dist
+      unsupported_dist="$(echo "$output" | grep "ERROR: Unsupported distribution" | awk -F"'" '{print $2}')"
+      log_warn "Distribution '${unsupported_dist:-$lsb_dist}' not supported by official script; switching to custom install"
+      install_docker_custom "${unsupported_dist:-$lsb_dist}"
+      return $?
+    fi
+
+    if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qi "^ERROR"; then
+      log_warn "Official script failed (mirror: '${mirror:-default}'), trying next"
+      continue
+    fi
+
+    if command_exists docker && docker compose version >/dev/null 2>&1; then
+      log_info "Docker installation succeeded via official script"
+      _start_docker
+      return $?
     fi
   done
-  
-  echo "[Websoft9] - Docker installation failed after use official script. Attempting custom installation."
+
+  log_warn "Official script exhausted all mirrors, falling back to custom installation"
   install_docker_custom "$lsb_dist"
-  exit 1
+  return $?
 }
 
-command_exists() {
-	command -v "$@" > /dev/null 2>&1
-}
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+log_step "Installing Docker Engine"
 
-# download docker install script
-download_docker_script
+if command_exists docker && docker compose version >/dev/null 2>&1; then
+  log_info "Docker is already installed: $(docker --version)"
+  exit 0
+fi
 
-# install docker
+if ! download_docker_script; then
+  log_warn "Official script unavailable, using custom installation"
+  install_docker_custom
+  exit $?
+fi
+
 install_docker_official
+exit $?
