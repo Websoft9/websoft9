@@ -72,7 +72,7 @@ run_upgrade_modern() {
 
   # 3. Switch material: update compose + .env, pull new image
   install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
-  if ! modern_compose "$install_path" pull; then
+  if ! pull_image_with_mirrors "$install_path"; then
     log_error "Failed to pull new image, rolling back"
     _upgrade_modern_rollback "$install_path" "$backup_dir"
     die "$EXIT_RUNTIME" "Upgrade failed (image pull)"

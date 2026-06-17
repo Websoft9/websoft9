@@ -57,9 +57,10 @@ install_prepare_material() {
 # Pull image and start container
 install_start() {
   local install_path="$1"
+  log_step "Pulling image"
+  pull_image_with_mirrors "$install_path" || die "$EXIT_RUNTIME" "Failed to pull image"
   log_step "Starting container"
-  run_cmd modern_compose "$install_path" pull
-  run_cmd modern_compose "$install_path" up -d
+  run_cmd modern_compose "$install_path" up -d || die "$EXIT_RUNTIME" "Failed to start container"
 }
 
 # Rollback on post-install validation failure

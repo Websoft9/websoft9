@@ -182,7 +182,7 @@ def action_directory(payload):
         size = 0 if item_type == "directory" else entry_stat.st_size
         items.append({
             "name": entry.name,
-            "path": normalize_item_path(target_path, entry.path),
+            "path": normalize_item_path(ROOT, entry.path),
             "item_type": item_type,
             "size": size,
             "mode": stat.filemode(entry_stat.st_mode),

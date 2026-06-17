@@ -292,3 +292,76 @@ modern_compose() {
     -f "${install_path}/docker-compose.yml" \
     "$@"
 }
+
+# 镜像拉取（带镜像加速回退）
+# 先尝试 docker compose pull 直拉；失败后从 artifact 服务器下载 mirrors.json，
+# 逐个重试镜像加速地址，任一成功则 docker tag 回原镜像名并返回 0；
+# 全部失败返回 1，调用方应终止安装流程。
+pull_image_with_mirrors() {
+  local install_path="$1"
+  local channel="${W9_CHANNEL:-release}"
+  local mirrors_url="https://artifact.websoft9.com/${channel}/websoft9/mirrors.json"
+  local mirrors_file="/tmp/websoft9-mirrors-$$.json"
+
+  # 从 .env 读取镜像名（已由 install_prepare_material 写入）
+  local env_file="${install_path}/.env"
+  local image_repo image_tag
+  if [ -f "$env_file" ]; then
+    image_repo="$(grep -m1 '^IMAGE_REPO=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+    image_tag="$(grep -m1 '^IMAGE_TAG=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+  fi
+  image_repo="${image_repo:-$DEFAULT_IMAGE_REPO}"
+  image_tag="${image_tag:-$DEFAULT_IMAGE_TAG}"
+  local image_ref="${image_repo}:${image_tag}"
+
+  # 1. 先尝试直拉（利用 Docker daemon 已配置的镜像加速）
+  log_info "Pulling image: $image_ref"
+  if modern_compose "$install_path" pull; then
+    return 0
+  fi
+  log_warn "Direct pull failed, trying mirror accelerators..."
+
+  # 2. 下载 mirrors.json
+  if ! _w9_download "$mirrors_url" "$mirrors_file"; then
+    log_error "Failed to download mirror list from $mirrors_url"
+    rm -f "$mirrors_file"
+    return 1
+  fi
+
+  # 3. 解析 mirror 列表（纯 bash，不依赖 jq/python）
+  local mirrors
+  mirrors="$(grep -o '"[^"]*"' "$mirrors_file" | tr -d '"' | grep -v '^mirrors$')"
+  if [ -z "$mirrors" ]; then
+    log_error "No mirrors found in mirror list"
+    rm -f "$mirrors_file"
+    return 1
+  fi
+
+  log_info "Loaded $(echo "$mirrors" | wc -l) mirror(s), trying in order..."
+
+  # 4. 逐个重试镜像加速地址
+  local mirror success=1
+  while IFS= read -r mirror; do
+    [ -z "$mirror" ] && continue
+    local mirror_image="${mirror}/${image_repo}:${image_tag}"
+    log_info "Trying mirror: $mirror"
+
+    if docker pull "$mirror_image"; then
+      docker tag "$mirror_image" "$image_ref"
+      log_info "Pull succeeded via mirror: $mirror"
+      success=0
+      break
+    else
+      log_warn "Mirror $mirror failed, trying next..."
+    fi
+  done <<< "$mirrors"
+
+  rm -f "$mirrors_file"
+
+  if [ "$success" -ne 0 ]; then
+    log_error "All mirrors exhausted — image pull failed"
+    return 1
+  fi
+
+  return 0
+}

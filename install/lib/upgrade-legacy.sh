@@ -308,7 +308,7 @@ run_upgrade_legacy() {
 
   # 阶段 6：启动接管
   log_step "启动现代运行时接管"
-  if ! modern_compose "$install_path" pull; then
+  if ! pull_image_with_mirrors "$install_path"; then
     die "$EXIT_RUNTIME" "迁移失败（镜像拉取）；旧运行时未删除，可人工回退。备份: $backup_dir"
   fi
   if ! modern_compose "$install_path" up -d; then
