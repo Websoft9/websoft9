@@ -1,19 +1,13 @@
 #!/bin/bash
-# install.sh — Websoft9 生命周期统一入口（§9）
-# 职责：参数解析、模式分发、统一日志入口、统一退出码。
-# 不直接实现迁移细节、卷复制细节、环境识别细节（下沉到 lib/*.sh）。
+# install.sh — Websoft9 安装 / 升级入口
+# 用法: bash install.sh [选项]
 #
-# 命令面（§9.2）：
-#   install    面向 empty，全新安装现代运行时
-#   upgrade    自动分流 modern(迭代升级) / legacy(跨代迁移)
-#   uninstall  按环境分流卸载（modern / legacy）
-#   detect     输出环境识别结果与关键观察信号
-#   backup     显式生成备份点（modern / legacy）
+# 自动识别当前环境：
+#   未安装 → 全新安装
+#   已安装 → 升级（询问确认后执行）
+#   残留异常 → 警告后询问是否继续
 #
-# 参数面（§9.3）：
-#   通用:   --channel --version --path --proxy
-#   入口:   --console-port
-#   安全:   --mode --force --dry-run --yes --keep-data
+# 卸载请使用: bash uninstall.sh [--purge]
 
 set -o pipefail
 
@@ -40,169 +34,152 @@ export W9_LIB_DIR
 
 usage() {
   cat <<EOF
-Websoft9 生命周期工具
+Websoft9 安装 / 升级工具
 
 用法:
-  install.sh <command> [options]
+  bash install.sh [选项]
 
-命令:
-  install      全新安装（仅 empty 环境）
-  upgrade      升级（modern 自动迭代升级 / legacy 自动跨代迁移）
-  uninstall    卸载（modern / legacy 分流）
-  detect       输出环境识别结果与关键信号
-  backup       显式生成备份点
+  自动识别：未安装时全新安装，已安装时升级。
 
-通用参数:
-  --channel <release|rc|dev>   发布通道（默认 release）
-  --version <tag>              镜像标签（IMAGE_TAG，默认 latest）
-  --path <dir>                 安装目录（默认 ${DEFAULT_INSTALL_PATH}）
-  --proxy <url>                下载代理（预留）
+选项:
+  --channel <release|rc|dev>  发布通道（默认 release）
+  --console-port <port>       控制台端口（默认 ${DEFAULT_CONSOLE_PORT}）
+  --dry-run                   演练：仅前置检查，不实际操作
+  --yes                       跳过所有交互确认（适合 CI / 自动化）
+  -h, --help                  显示此帮助
 
-入口参数:
-  --console-port <port>        控制台入口端口（默认 ${DEFAULT_CONSOLE_PORT}）
+高级选项（通常无需修改）:
+  --version <tag>             镜像标签（默认 latest）
+  --path <dir>                安装目录（默认 ${DEFAULT_INSTALL_PATH}）
+  --image-repo <repo>         镜像仓库（默认 ${DEFAULT_IMAGE_REPO}）
+  --network <name>            Docker 网络名（默认 ${DEFAULT_NETWORK_NAME}）
+  --force                     跳过非破坏性前置检查
 
-安全参数:
-  --mode <stop|standard|purge> 卸载模式（默认 standard）
-  --force                      放宽非破坏性检查（不绕过 mixed 停止规则）
-  --dry-run                    仅前置检查与计划，不做破坏性操作
-  --yes                        对破坏性操作进行确认
-  --keep-data <true|false>     卸载/失败清理是否保留数据（默认 true）
-  --remove-legacy-controlplane 卸载时显式清理旧 Cockpit/systemd 遗留
-
-镜像参数:
-  --image-repo <repo>          镜像仓库（IMAGE_REPO，默认 ${DEFAULT_IMAGE_REPO}）
-  --network <name>             网络名（NETWORK_NAME，默认 ${DEFAULT_NETWORK_NAME}）
+卸载请使用: bash uninstall.sh [--purge]
 EOF
 }
 
 # ---- 参数默认值 ----
-CMD=""
 OPT_CHANNEL="release"
 OPT_VERSION="$DEFAULT_IMAGE_TAG"
 OPT_PATH="$DEFAULT_INSTALL_PATH"
-OPT_PROXY=""
 OPT_CONSOLE_PORT="$DEFAULT_CONSOLE_PORT"
-OPT_MODE="standard"
 OPT_FORCE="0"
 OPT_YES="0"
-OPT_KEEP_DATA="1"
-OPT_REMOVE_CONTROLPLANE="0"
 OPT_IMAGE_REPO="$DEFAULT_IMAGE_REPO"
 OPT_NETWORK="$DEFAULT_NETWORK_NAME"
 OPT_VOLUMES_ROOT="$DEFAULT_DOCKER_VOLUMES_ROOT"
 
-# 第一个非选项参数作为命令
-if [ $# -eq 0 ]; then usage; exit "$EXIT_USAGE"; fi
-CMD="$1"; shift
+# 隐藏子命令（调试/运维用，不在 usage 中列出）
+_SUBCMD=""
+case "${1:-}" in
+  detect|backup) _SUBCMD="$1"; shift ;;
+esac
 
 # ---- 解析选项 ----
 while [ $# -gt 0 ]; do
   case "$1" in
-    --channel)        OPT_CHANNEL="$2"; shift 2 ;;
-    --version)        OPT_VERSION="$2"; shift 2 ;;
-    --path)           OPT_PATH="$2"; shift 2 ;;
-    --proxy)          OPT_PROXY="$2"; shift 2 ;;
-    --console-port)   OPT_CONSOLE_PORT="$2"; shift 2 ;;
-    --mode)           OPT_MODE="$2"; shift 2 ;;
-    --force)          OPT_FORCE="1"; shift ;;
-    --dry-run)        W9_DRY_RUN="1"; export W9_DRY_RUN; shift ;;
-    --yes)            OPT_YES="1"; shift ;;
-    --keep-data)
-      case "$2" in
-        true|TRUE|1)  OPT_KEEP_DATA="1" ;;
-        false|FALSE|0) OPT_KEEP_DATA="0" ;;
-        *) die "$EXIT_USAGE" "--keep-data 仅接受 true/false" ;;
-      esac
-      shift 2 ;;
-    --remove-legacy-controlplane) OPT_REMOVE_CONTROLPLANE="1"; shift ;;
-    --image-repo)     OPT_IMAGE_REPO="$2"; shift 2 ;;
-    --network)        OPT_NETWORK="$2"; shift 2 ;;
-    -h|--help)        usage; exit "$EXIT_OK" ;;
-    *) die "$EXIT_USAGE" "未知参数: $1" ;;
+    --channel)      OPT_CHANNEL="$2"; shift 2 ;;
+    --version)      OPT_VERSION="$2"; shift 2 ;;
+    --path)         OPT_PATH="$2"; shift 2 ;;
+    --console-port) OPT_CONSOLE_PORT="$2"; shift 2 ;;
+    --force)        OPT_FORCE="1"; shift ;;
+    --dry-run)      W9_DRY_RUN="1"; export W9_DRY_RUN; shift ;;
+    --yes)          OPT_YES="1"; shift ;;
+    --image-repo)   OPT_IMAGE_REPO="$2"; shift 2 ;;
+    --network)      OPT_NETWORK="$2"; shift 2 ;;
+    -h|--help)      usage; exit "$EXIT_OK" ;;
+    *) die "$EXIT_USAGE" "未知参数: $1（使用 -h 查看帮助）" ;;
   esac
 done
 
-# 通道与版本：dev/rc 通道在未显式指定 version 时回落到 latest
 [ -z "$OPT_VERSION" ] && OPT_VERSION="$DEFAULT_IMAGE_TAG"
-
-# 导出通道与制品分发根，供物料/依赖下载（单文件 install.sh 真实安装场景）
-# 制品分发根可用环境变量 W9_ARTIFACT_BASE 覆盖（默认 https://artifact.websoft9.com/websoft9）。
 export W9_CHANNEL="$OPT_CHANNEL"
 
-# ---- 命令分发 ----
-case "$CMD" in
-  detect)
-    log_info "环境识别信号："
-    detect_print_signals
-    env_kind="$(detect_environment)"
-    log_info "环境识别结果: ${env_kind}"
-    echo "$env_kind"
+# ---- 交互确认 ----
+# 返回 0=确认，1=拒绝；--yes 时自动确认
+_confirm() {
+  local prompt="$1" default="${2:-n}"
+  [ "$OPT_YES" = "1" ] && return 0
+  local hint; [ "$default" = "y" ] && hint="[Y/n]" || hint="[y/N]"
+  printf "%s %s " "$prompt" "$hint"
+  read -r _ans </dev/tty
+  case "${_ans:-$default}" in
+    y|Y|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# ---- 隐藏子命令（调试/运维） ----
+if [ -n "$_SUBCMD" ]; then
+  case "$_SUBCMD" in
+    detect)
+      detect_print_signals
+      env_kind="$(detect_environment)"
+      echo "$env_kind"
+      ;;
+    backup)
+      env_kind="$(detect_environment)"
+      case "$env_kind" in
+        modern)
+          bdir="$(backup_new_dir modern)"
+          backup_modern_pre_upgrade "$OPT_PATH" "$bdir"
+          log_info "备份点: $bdir"
+          ;;
+        legacy)
+          bdir="$(backup_new_dir legacy)"
+          backup_legacy_pre_migration "$bdir"
+          log_info "备份点: $bdir"
+          ;;
+        *)
+          die "$EXIT_ENV_GUARD" "当前无已安装的 Websoft9，无需备份" ;;
+      esac
+      ;;
+  esac
+  exit "$EXIT_OK"
+fi
+
+# ---- 主流程：自动识别环境并操作 ----
+env_kind="$(detect_environment)"
+
+case "$env_kind" in
+  empty)
+    log_step "未检测到 Websoft9，开始全新安装..."
+    run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
     ;;
 
-  install)
-    env_kind="$(detect_environment)"
-    log_info "环境识别结果: ${env_kind}"
-    case "$env_kind" in
-      empty)
-        run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
-        ;;
-      modern)
-        die "$EXIT_ENV_GUARD" "检测到 modern 环境，请使用 upgrade 而非 install" ;;
-      legacy)
-        die "$EXIT_ENV_GUARD" "检测到 legacy 环境，请使用 upgrade 进行跨代迁移" ;;
-      *)
-        die "$EXIT_ENV_GUARD" "环境为 ${env_kind}，install 仅面向 empty" ;;
-    esac
+  modern|legacy)
+    _cur_ver="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' \
+      "$MODERN_CONTAINER_NAME" 2>/dev/null || true)"
+    if [ -n "$_cur_ver" ]; then
+      log_info "检测到 Websoft9 已安装（当前版本: ${_cur_ver}）"
+    else
+      log_info "检测到 Websoft9 已安装"
+    fi
+    if ! _confirm "是否升级到最新版本？" "y"; then
+      log_info "已取消，退出。"
+      exit "$EXIT_OK"
+    fi
+    if [ "$env_kind" = "modern" ]; then
+      run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
+    else
+      run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
+    fi
     ;;
 
-  upgrade)
-    env_kind="$(detect_environment)"
-    log_info "环境识别结果: ${env_kind}"
-    case "$env_kind" in
-      modern)
-        run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
-        ;;
-      legacy)
-        run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
-        ;;
-      empty)
-        die "$EXIT_ENV_GUARD" "环境为 empty，请先使用 install" ;;
-      mixed|*)
-        die "$EXIT_ENV_GUARD" "环境为 ${env_kind}，不自动升级，请先人工治理（见 §12）" ;;
-    esac
+  mixed)
+    log_warn "检测到残留组件，环境状态异常。建议先手动清理后重新运行安装脚本。"
+    if [ "$OPT_FORCE" != "1" ]; then
+      if ! _confirm "仍要强制继续？（存在风险）" "n"; then
+        log_info "已取消，退出。"
+        exit "$EXIT_OK"
+      fi
+    fi
+    run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
     ;;
-
-  uninstall)
-    env_kind="$(detect_environment)"
-    log_info "环境识别结果: ${env_kind}"
-    run_uninstall "$env_kind" "$OPT_MODE" "$OPT_PATH" "$OPT_KEEP_DATA" "$OPT_YES" "$OPT_REMOVE_CONTROLPLANE"
-    ;;
-
-  backup)
-    env_kind="$(detect_environment)"
-    log_info "环境识别结果: ${env_kind}"
-    case "$env_kind" in
-      modern)
-        bdir="$(backup_new_dir modern)"
-        backup_modern_pre_upgrade "$OPT_PATH" "$bdir"
-        log_info "现代备份点: $bdir"
-        ;;
-      legacy)
-        bdir="$(backup_new_dir legacy)"
-        backup_legacy_pre_migration "$bdir"
-        log_info "旧版备份点: $bdir"
-        ;;
-      *)
-        die "$EXIT_ENV_GUARD" "环境为 ${env_kind}，无可备份的标准运行时" ;;
-    esac
-    ;;
-
-  -h|--help|help)
-    usage ;;
 
   *)
-    usage
-    die "$EXIT_USAGE" "未知命令: $CMD" ;;
+    die "$EXIT_ENV_GUARD" "环境状态未知（${env_kind}），请联系支持团队" ;;
 esac
 
 exit "$EXIT_OK"
