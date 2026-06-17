@@ -4539,6 +4539,22 @@ export function TerminalPage() {
                                 placeholder={copy.searchConnectionsPlaceholder}
                                 size="small"
                                 value={profileSearchValue}
+                                sx={{
+                                    '& .MuiOutlinedInput-root': {
+                                        bgcolor: isDarkMode ? '#111827' : '#fff',
+                                        boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(15, 23, 42, 0.04)',
+                                    },
+                                    '& .MuiInputBase-input': {
+                                        color: isDarkMode ? '#e5edf5' : '#334155',
+                                    },
+                                    '& .MuiInputBase-input::placeholder': {
+                                        color: isDarkMode ? '#64748b' : '#94a3b8',
+                                        opacity: 1,
+                                    },
+                                    '& .MuiOutlinedInput-notchedOutline': {
+                                        borderColor: isDarkMode ? 'rgba(71, 85, 105, 0.8)' : 'rgba(203, 213, 225, 0.9)',
+                                    },
+                                }}
                             />
                             {quickConnectList}
                         </Box>

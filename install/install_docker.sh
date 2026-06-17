@@ -336,27 +336,32 @@ if command_exists docker && docker compose version >/dev/null 2>&1; then
   exit 0
 fi
 
-# Strategy (order matters — repos with mirrors are much faster in China):
-#   1. Custom repo-based install (uses Aliyun/Azure mirrors).
-#   2. If the distro is unknown to our custom path, try the official script.
-#   3. Official script as last resort with mirror fallbacks.
+# Strategy:
+#   1. Primary: download and run the official get.docker.com script.
+#      The script supports --mirror Aliyun / --mirror AzureChinaCloud, so
+#      overseas vs domestic connectivity is handled by retrying with mirrors.
+#   2. Fallback: if the official script reports an unsupported distro, or
+#      exhausts all mirrors, switch to distro-specific repo-based installation
+#      (install_docker_custom) as a last resort.
 
 lsb_dist="$(detect_distro)"
 log_info "Detected distribution: $lsb_dist"
 
-if [ "$lsb_dist" != "unknown" ]; then
-  log_step "Trying repo-based installation first (faster with mirrors)"
-  if install_docker_custom "$lsb_dist"; then
-    log_info "Docker installed successfully via repo"
-    exit 0
-  fi
-  log_warn "Repo-based install failed, trying official script"
+log_step "Trying official Docker install script (with mirror fallbacks)"
+if download_docker_script; then
+  install_docker_official
+  exit $?
 fi
 
-if ! download_docker_script; then
-  log_error "Could not download Docker install script from any source"
+log_warn "Could not download official script, falling back to custom repo-based install"
+if [ "$lsb_dist" != "unknown" ]; then
+  if install_docker_custom "$lsb_dist"; then
+    log_info "Docker installed successfully via custom repo path"
+    exit 0
+  fi
+  log_error "All Docker installation methods failed"
   exit 1
 fi
 
-install_docker_official
-exit $?
+log_error "Unsupported distribution and official script unavailable"
+exit 1

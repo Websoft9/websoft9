@@ -1454,16 +1454,16 @@ export function FilesPage() {
                 <Paper className="files-shell-toolbar" elevation={0}>
                     <div className="files-toolbar-row files-toolbar-row-classic files-toolbar-row-shell">
                         <div className="files-toolbar-group">
-                            <IconButton className="files-toolbar-button" disabled={navigationIndex <= 0} onClick={handleNavigateBack} size="small" title={t('filesPage.actions.back')}>
+                            <IconButton className="files-toolbar-button" disabled={navigationIndex <= 0 || isEditing} onClick={handleNavigateBack} size="small" title={t('filesPage.actions.back')}>
                                 <ToolbarGlyph kind="back" />
                             </IconButton>
-                            <IconButton className="files-toolbar-button" disabled={navigationIndex >= navigationHistory.length - 1} onClick={handleNavigateForward} size="small" title={t('filesPage.actions.forward')}>
+                            <IconButton className="files-toolbar-button" disabled={navigationIndex >= navigationHistory.length - 1 || isEditing} onClick={handleNavigateForward} size="small" title={t('filesPage.actions.forward')}>
                                 <ToolbarGlyph kind="forward" />
                             </IconButton>
-                            <IconButton className="files-toolbar-button" disabled={navigationIndex <= 0 && !selectedVolume} onClick={handleNavigateUp} size="small" title={t('filesPage.actions.up')}>
+                            <IconButton className="files-toolbar-button" disabled={(navigationIndex <= 0 && !selectedVolume) || isEditing} onClick={handleNavigateUp} size="small" title={t('filesPage.actions.up')}>
                                 <ToolbarGlyph kind="up" />
                             </IconButton>
-                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={(isVolumeRoot ? isRootDirectoryFetching : isDirectoryFetching) || isVolumeLoading} onClick={handleRefresh} size="small" title={t('filesPage.states.retry')}>
+                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={(isVolumeRoot ? isRootDirectoryFetching : isDirectoryFetching) || isVolumeLoading || isEditing} onClick={handleRefresh} size="small" title={t('filesPage.states.retry')}>
                                 <ToolbarGlyph kind="refresh" />
                             </IconButton>
                         </div>
@@ -1483,6 +1483,7 @@ export function FilesPage() {
                                 className="files-path-input files-path-input-classic"
                                 placeholder={t('filesPage.filters.pathLabel')}
                                 slotProps={{ htmlInput: { list: 'files-path-suggestions' } }}
+                                disabled={isEditing}
                             />
                             <datalist id="files-path-suggestions">
                                 {pathSuggestions.map((suggestion) => (
@@ -1496,17 +1497,18 @@ export function FilesPage() {
                                 className="files-search-input files-search-input-classic"
                                 placeholder={t('filesPage.filters.searchPlaceholder')}
                                 slotProps={{ input: { endAdornment: <ToolbarGlyph kind="search" /> } }}
+                                disabled={isEditing}
                             />
                         </div>
 
                         <div className="files-toolbar-group files-toolbar-group-actions">
-                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={isActionSubmitting} onClick={() => openActionDialog({ type: 'create-folder', parentPath: currentPath })} size="small" title={t('filesPage.actions.createFolder')}>
+                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={isActionSubmitting || isEditing} onClick={() => openActionDialog({ type: 'create-folder', parentPath: currentPath })} size="small" title={t('filesPage.actions.createFolder')}>
                                 <ToolbarGlyph kind="folder" />
                             </IconButton>
-                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={isActionSubmitting} onClick={() => openActionDialog({ type: 'create-file', parentPath: currentPath })} size="small" title={t('filesPage.actions.createFile')}>
+                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={isActionSubmitting || isEditing} onClick={() => openActionDialog({ type: 'create-file', parentPath: currentPath })} size="small" title={t('filesPage.actions.createFile')}>
                                 <ToolbarGlyph kind="file" />
                             </IconButton>
-                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={isActionSubmitting} onClick={() => uploadInputRef.current?.click()} size="small" title={t('filesPage.actions.upload')}>
+                            <IconButton className="files-toolbar-button files-toolbar-button-primary" disabled={isActionSubmitting || isEditing} onClick={() => uploadInputRef.current?.click()} size="small" title={t('filesPage.actions.upload')}>
                                 <ToolbarGlyph kind="upload" />
                             </IconButton>
                             <input ref={uploadInputRef} hidden type="file" onChange={handleUploadChange} />

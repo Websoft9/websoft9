@@ -68,6 +68,7 @@ OPT_FORCE="0"
 OPT_YES="0"
 OPT_IMAGE_REPO="$DEFAULT_IMAGE_REPO"
 OPT_NETWORK="$DEFAULT_NETWORK_NAME"
+_OPT_VERSION_EXPLICIT=""
 
 # 隐藏子命令（调试/运维用，不在 usage 中列出）
 _SUBCMD=""
@@ -79,7 +80,7 @@ esac
 while [ $# -gt 0 ]; do
   case "$1" in
     --channel)      OPT_CHANNEL="$2"; shift 2 ;;
-    --version)      OPT_VERSION="$2"; shift 2 ;;
+    --version)      OPT_VERSION="$2"; _OPT_VERSION_EXPLICIT="1"; shift 2 ;;
     --path)         OPT_PATH="$2"; shift 2 ;;
     --console-port) OPT_CONSOLE_PORT="$2"; shift 2 ;;
     --force)        OPT_FORCE="1"; shift ;;
@@ -93,6 +94,14 @@ while [ $# -gt 0 ]; do
 done
 
 [ -z "$OPT_VERSION" ] && OPT_VERSION="$DEFAULT_IMAGE_TAG"
+
+# For non-release channels, default image tag to the channel name
+# (e.g. --channel dev → IMAGE_TAG=dev) unless the user explicitly
+# passed --version.
+if [ -z "$_OPT_VERSION_EXPLICIT" ] && [ "$OPT_CHANNEL" != "release" ]; then
+    OPT_VERSION="$OPT_CHANNEL"
+fi
+
 export W9_CHANNEL="$OPT_CHANNEL"
 
 # ---- 交互确认 ----

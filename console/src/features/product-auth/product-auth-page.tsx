@@ -82,7 +82,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
-    const { errorMessage, initialize, isLoading, isSubmitting, login, logout, status } = useProductAuth()
+    const { errorMessage, initialize, isLoading, isSubmitting, login, status } = useProductAuth()
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -287,8 +287,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
             }
 
             if (mode === 'setup') {
-                await logout()
-                navigate('/auth/login', { replace: true })
+                navigate('/overview', { replace: true })
             } else {
                 navigate(nextPath, { replace: true })
             }
