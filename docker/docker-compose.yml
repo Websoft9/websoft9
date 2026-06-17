@@ -4,10 +4,8 @@
 services:
   product:
     image: ${IMAGE_REPO:-websoft9dev/websoft9}:${IMAGE_TAG:-latest}
-    container_name: websoft9
+    container_name: ${CONTAINER_NAME:-websoft9}
     restart: always
-    environment:
-      WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS: ${WEBSOFT9_DOCKER_VOLUMES_ROOT:-/var/lib/docker/volumes}
     ports:
       - "${CONSOLE_PORT:-9000}:9000"
       - "80:80"
@@ -15,7 +13,6 @@ services:
     volumes:
       - websoft9_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${WEBSOFT9_DOCKER_VOLUMES_ROOT:-/var/lib/docker/volumes}:${WEBSOFT9_DOCKER_VOLUMES_ROOT:-/var/lib/docker/volumes}
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     labels:

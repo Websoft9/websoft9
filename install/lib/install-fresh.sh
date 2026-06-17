@@ -47,11 +47,10 @@ install_prepare_material() {
   local image_tag="$3"
   local network_name="$4"
   local console_port="$5"
-  local volumes_root="$6"
 
   log_step "Preparing deployment material"
   ensure_deployment_material "$install_path" "${W9_CHANNEL:-release}"
-  write_env_file "${install_path}/.env" "$image_repo" "$image_tag" "$network_name" "$console_port" "$volumes_root"
+  write_env_file "${install_path}/.env" "$image_repo" "$image_tag" "$network_name" "$console_port"
   log_info "Deployment material and .env ready"
 }
 
@@ -77,15 +76,22 @@ run_install() {
   local image_repo="$3"
   local image_tag="$4"
   local network_name="$5"
-  local volumes_root="$6"
 
   log_info "==== Installation started ===="
 
-  install_precheck "$console_port" "$install_path"
-  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port" "$volumes_root"
+  # Derive container name from channel (keep instances isolated)
+  case "${W9_CHANNEL:-release}" in
+    dev)  CONTAINER_NAME="websoft9-dev" ;;
+    rc)   CONTAINER_NAME="websoft9-rc" ;;
+    *)    CONTAINER_NAME="websoft9" ;;
+  esac
+  export CONTAINER_NAME
 
-  # Resolve actual container name from the copied compose file
-  MODERN_CONTAINER_NAME="$(_resolve_container_name "${install_path}/docker-compose.yml")"
+  install_precheck "$console_port" "$install_path"
+  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
+
+  # Sync the global constant for downstream health checks etc.
+  MODERN_CONTAINER_NAME="$CONTAINER_NAME"
   export MODERN_CONTAINER_NAME
 
   install_start "$install_path"

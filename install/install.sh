@@ -34,28 +34,28 @@ export W9_LIB_DIR
 
 usage() {
   cat <<EOF
-Websoft9 安装 / 升级工具
+Websoft9 Install / Upgrade Tool
 
-用法:
-  bash install.sh [选项]
+Usage:
+  bash install.sh [options]
 
-  自动识别：未安装时全新安装，已安装时升级。
+  Auto-detect: fresh install if nothing is running, upgrade if already installed.
 
-选项:
-  --channel <release|rc|dev>  发布通道（默认 release）
-  --console-port <port>       控制台端口（默认 ${DEFAULT_CONSOLE_PORT}）
-  --dry-run                   演练：仅前置检查，不实际操作
-  --yes                       跳过所有交互确认（适合 CI / 自动化）
-  -h, --help                  显示此帮助
+Options:
+  --channel <release|rc|dev>  Release channel (default: release)
+  --console-port <port>       Console port (default: ${DEFAULT_CONSOLE_PORT})
+  --dry-run                   Dry run: pre-flight checks only, no changes
+  --yes                       Skip all confirmation prompts (CI / automation)
+  -h, --help                  Show this help
 
-高级选项（通常无需修改）:
-  --version <tag>             镜像标签（默认 latest）
-  --path <dir>                安装目录（默认 ${DEFAULT_INSTALL_PATH}）
-  --image-repo <repo>         镜像仓库（默认 ${DEFAULT_IMAGE_REPO}）
-  --network <name>            Docker 网络名（默认 ${DEFAULT_NETWORK_NAME}）
-  --force                     跳过非破坏性前置检查
+Advanced options (usually not needed):
+  --version <tag>             Image tag (default: latest)
+  --path <dir>                Install directory (default: ${DEFAULT_INSTALL_PATH})
+  --image-repo <repo>         Image repository (default: ${DEFAULT_IMAGE_REPO})
+  --network <name>            Docker network name (default: ${DEFAULT_NETWORK_NAME})
+  --force                     Skip non-destructive pre-flight checks
 
-卸载请使用: bash uninstall.sh [--purge]
+Uninstall: bash uninstall.sh [--purge]
 EOF
 }
 
@@ -68,7 +68,6 @@ OPT_FORCE="0"
 OPT_YES="0"
 OPT_IMAGE_REPO="$DEFAULT_IMAGE_REPO"
 OPT_NETWORK="$DEFAULT_NETWORK_NAME"
-OPT_VOLUMES_ROOT="$DEFAULT_DOCKER_VOLUMES_ROOT"
 
 # 隐藏子命令（调试/运维用，不在 usage 中列出）
 _SUBCMD=""
@@ -89,7 +88,7 @@ while [ $# -gt 0 ]; do
     --image-repo)   OPT_IMAGE_REPO="$2"; shift 2 ;;
     --network)      OPT_NETWORK="$2"; shift 2 ;;
     -h|--help)      usage; exit "$EXIT_OK" ;;
-    *) die "$EXIT_USAGE" "未知参数: $1（使用 -h 查看帮助）" ;;
+    *) die "$EXIT_USAGE" "Unknown option: $1 (use -h for help)" ;;
   esac
 done
 
@@ -145,7 +144,7 @@ env_kind="$(detect_environment)"
 case "$env_kind" in
   empty)
     log_step "No Websoft9 installation detected. Starting fresh install..."
-    run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
+    run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     ;;
 
   modern|legacy)
@@ -161,9 +160,9 @@ case "$env_kind" in
       exit "$EXIT_OK"
     fi
     if [ "$env_kind" = "modern" ]; then
-      run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
+      run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     else
-      run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
+      run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     fi
     ;;
 
@@ -175,7 +174,7 @@ case "$env_kind" in
         exit "$EXIT_OK"
       fi
     fi
-    run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK" "$OPT_VOLUMES_ROOT"
+    run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     ;;
 
   *)

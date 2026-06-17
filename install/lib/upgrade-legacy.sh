@@ -277,7 +277,6 @@ run_upgrade_legacy() {
   local image_repo="$3"
   local image_tag="$4"
   local network_name="$5"
-  local volumes_root="$6"
 
   log_info "==== 旧版到新版迁移开始 (legacy) ===="
   require_root
@@ -299,7 +298,7 @@ run_upgrade_legacy() {
   _legacy_transform_volumes
 
   # 准备现代部署物料（不覆盖已转换的 websoft9_data）
-  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port" "$volumes_root"
+  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) 迁移前置（识别/备份/停旧/转换/物料）完成，停止于启动接管前"

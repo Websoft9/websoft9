@@ -25,59 +25,18 @@ npm_backend_start_src="$repo_root/docker/scripts/platform-start-npm-backend.sh"
 npm_nginx_start_src="$repo_root/docker/scripts/platform-start-npm-nginx.sh"
 legacy_files_agent_sidecar="${WEBSOFT9_FILES_AGENT_SIDECAR_NAME:-websoft9-files-agent-current}"
 
-detect_docker_volumes_root() {
-    local docker_root
-    docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
-    docker_root="${docker_root//$'\r'/}"
-    docker_root="${docker_root%%[[:space:]]*}"
-    if [[ -n "$docker_root" ]]; then
-        printf '%s\n' "$docker_root/volumes"
-        return 0
-    fi
-
-    local mountpoint
-    mountpoint="$(docker volume inspect $(docker volume ls -q) --format '{{.Mountpoint}}' 2>/dev/null | head -n1 || true)"
-    mountpoint="${mountpoint//$'\r'/}"
-    mountpoint="${mountpoint%%[[:space:]]*}"
-    if [[ -n "$mountpoint" ]]; then
-        python3 - "$mountpoint" <<'PY'
-import os
-import sys
-
-print(os.path.dirname(os.path.dirname(os.path.realpath(sys.argv[1]))))
-PY
-        return 0
-    fi
-
-    echo "Unable to detect Docker volumes root" >&2
-    exit 1
-}
-
-docker_volumes_root="${WEBSOFT9_DOCKER_VOLUMES_ROOT:-$(detect_docker_volumes_root)}"
-
 ensure_single_container_files_runtime() {
-    local has_files_bind="false"
     local needs_port_rewire="false"
-
-    if docker inspect "$container_name" --format '{{range .Mounts}}{{if and (eq .Type "bind") (eq .Source "'"$docker_volumes_root"'") (eq .Destination "'"$docker_volumes_root"'")}}present{{end}}{{end}}' | grep -q 'present'; then
-        has_files_bind="true"
-    fi
 
     if docker inspect "$container_name" --format '{{range $containerPort, $bindings := .HostConfig.PortBindings}}{{range $bindings}}{{printf "%s|%s\n" .HostPort $containerPort}}{{end}}{{end}}' | grep -q '^9000|8889/tcp$'; then
         needs_port_rewire="true"
     fi
 
-    if [[ "$has_files_bind" == "true" && "$needs_port_rewire" == "false" ]]; then
+    if [[ "$needs_port_rewire" == "false" ]]; then
         return 0
     fi
 
-    if [[ "$has_files_bind" != "true" && "$needs_port_rewire" == "true" ]]; then
-        echo "Single-container files runtime missing $docker_volumes_root bind and host port 9000 still targets container port 8889; recreating $container_name"
-    elif [[ "$has_files_bind" != "true" ]]; then
-        echo "Single-container files runtime missing $docker_volumes_root bind; recreating $container_name"
-    else
-        echo "Host port 9000 still targets container port 8889; recreating $container_name to publish container port 9000 instead"
-    fi
+    echo "Host port 9000 still targets container port 8889; recreating $container_name to publish container port 9000 instead"
 
     local image_name
     image_name="$(docker inspect "$container_name" --format '{{.Config.Image}}')"
@@ -93,7 +52,6 @@ ensure_single_container_files_runtime() {
     local -a mount_args
     while IFS='|' read -r mount_type mount_name mount_source mount_destination mount_rw; do
         [[ -z "$mount_type" || -z "$mount_destination" ]] && continue
-        [[ "$mount_destination" == "$docker_volumes_root" ]] && continue
         if [[ "$mount_type" == "bind" ]]; then
             local bind_spec="type=bind,src=$mount_source,dst=$mount_destination"
             if [[ "$mount_rw" == "false" ]]; then
@@ -129,10 +87,8 @@ ensure_single_container_files_runtime() {
         --name "$container_name" \
         --restart "$restart_policy" \
         --network "$network_name" \
-        -e "WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS=$docker_volumes_root" \
         "${publish_args[@]}" \
         "${mount_args[@]}" \
-        --mount type=bind,src="$docker_volumes_root",dst="$docker_volumes_root" \
         "$image_name" >/dev/null
 
     for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do

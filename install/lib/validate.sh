@@ -51,8 +51,8 @@ validate_console_entry() {
   fi
   local i
   for i in $(seq 1 30); do
-    if curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/" \
-       || curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/api"; then
+    if curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/" \
+       || curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/api"; then
       log_info "Console entry reachable"
       return 0
     fi
@@ -72,7 +72,7 @@ validate_api() {
   fi
   local i
   for i in $(seq 1 30); do
-    if curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/api"; then
+    if curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/api"; then
       log_info "Product API root reachable"
       return 0
     fi

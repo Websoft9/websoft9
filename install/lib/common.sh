@@ -11,13 +11,19 @@ MODERN_COMPOSE_PROJECT="websoft9"
 MODERN_DATA_VOLUME="websoft9_data"
 MODERN_DATA_MOUNT="/data"
 
-# Resolve the actual container name from a compose file.
-# Reads the first `container_name:` entry; falls back to MODERN_CONTAINER_NAME.
+# Resolve the actual container name. Priority:
+#   1) CONTAINER_NAME env var (set by the caller based on channel)
+#   2) Hardcoded container_name: line in the compose file
+#   3) Default MODERN_CONTAINER_NAME
 _resolve_container_name() {
   local compose_file="$1"
+  [ -n "${CONTAINER_NAME:-}" ] && { echo "$CONTAINER_NAME"; return 0; }
   local name
   if [ -f "$compose_file" ]; then
     name="$(grep -m1 'container_name:' "$compose_file" 2>/dev/null | awk '{print $2}' | tr -d "'\"")"
+    # If the compose file uses a variable (e.g. ${CONTAINER_NAME:-websoft9}), strip it to the default
+    name="${name#\$\{CONTAINER_NAME:-}"
+    name="${name%\}}"
   fi
   echo "${name:-$MODERN_CONTAINER_NAME}"
 }
@@ -27,7 +33,6 @@ DEFAULT_IMAGE_REPO="websoft9dev/websoft9"
 DEFAULT_IMAGE_TAG="latest"
 DEFAULT_NETWORK_NAME="websoft9"
 DEFAULT_CONSOLE_PORT="9000"
-DEFAULT_DOCKER_VOLUMES_ROOT="/var/lib/docker/volumes"
 DEFAULT_INSTALL_PATH="/opt/websoft9"
 
 # 制品分发根（单文件 install.sh 在无本地物料时从此处按通道下载部署物料）
@@ -262,7 +267,6 @@ write_env_file() {
   local image_tag="$3"
   local network_name="$4"
   local console_port="$5"
-  local volumes_root="$6"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) writing .env -> $env_path"
@@ -275,7 +279,7 @@ IMAGE_REPO=${image_repo}
 IMAGE_TAG=${image_tag}
 NETWORK_NAME=${network_name}
 CONSOLE_PORT=${console_port}
-WEBSOFT9_DOCKER_VOLUMES_ROOT=${volumes_root}
+CONTAINER_NAME=${CONTAINER_NAME}
 EOF
 }
 

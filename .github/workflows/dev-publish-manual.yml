@@ -114,7 +114,7 @@ jobs:
           CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
           ALIAS_TAGS="${{ needs.meta.outputs.alias_tags }}"
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          COMPOSE_FILE="docker-compose.dev.yml"
+          COMPOSE_FILE="docker-compose.yml"
 
           mkdir -p release-assets r2-artifacts websoft9
 
@@ -139,7 +139,7 @@ jobs:
           cp install/dist/install.sh r2-artifacts/install.sh
           cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
           cp install/install_docker.sh r2-artifacts/install_docker.sh
-          cp docker/docker-compose.dev.yml "r2-artifacts/${COMPOSE_FILE}"
+          cp docker/docker-compose.yml "r2-artifacts/${COMPOSE_FILE}"
           cp staged-version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
           cp mirrors.json r2-artifacts/mirrors.json
@@ -170,7 +170,7 @@ jobs:
               git_sha: $git_sha,
               generated_at: $generated_at,
               install: {
-                compose_file: "docker-compose.dev.yml",
+                compose_file: "docker-compose.yml",
                 install_script: "install.sh",
                 uninstall_script: "uninstall.sh",
                 docker_install_script: "install_docker.sh",
@@ -240,7 +240,7 @@ jobs:
             ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/uninstall.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install_docker.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.dev.yml",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.yml",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/manifest.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/version.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/SHA256SUMS"]

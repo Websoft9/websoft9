@@ -36,7 +36,22 @@ detect_distro() {
 }
 
 # ---------------------------------------------------------------------------
-# Download helpers
+# Progress helper — print dots in background while a long operation runs
+# Usage: _with_dots <pid> [label]
+#   Kills the dot loop when the tracked pid exits.
+# ---------------------------------------------------------------------------
+_with_dots() {
+  local pid="$1" label="${2:-working}"
+  printf "[Websoft9] %s " "$label"
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "."
+    sleep 2
+  done
+  wait "$pid"  # collect exit code
+  printf "\n"
+  return $?
+}
+
 # ---------------------------------------------------------------------------
 _download() {
   local url="$1" dest="$2" timeout="${3:-30}"
@@ -59,13 +74,17 @@ download_docker_script() {
     "https://proxy.websoft9.com/?url=https://get.docker.com"
   )
   local dest="get-docker.sh"
-  local attempt max_attempts=3
+  local attempt max_attempts=5
 
   for url in "${urls[@]}"; do
     log_info "Downloading Docker install script from: $url"
     for attempt in $(seq 1 "$max_attempts"); do
-      if _download "$url" "$dest" 30 && [ -s "$dest" ]; then
-        log_info "Download succeeded (attempt $attempt)"
+      log_info "Attempt $attempt/$max_attempts ..."
+      # Run download in background so we can show dots
+      (_download "$url" "$dest" 30) &
+      _with_dots $! "downloading" || true
+      if [ -s "$dest" ]; then
+        log_info "Download succeeded"
         return 0
       fi
       log_warn "Attempt $attempt/$max_attempts failed, retrying..."
@@ -93,6 +112,37 @@ _start_docker() {
   fi
   log_error "Failed to start Docker daemon"
   return 1
+}
+
+# ---------------------------------------------------------------------------
+# Quick connectivity check — returns 0 if the URL is reachable within N seconds
+# ---------------------------------------------------------------------------
+_url_reachable() {
+  local url="$1" timeout="${2:-2}"
+  if command_exists curl; then
+    curl -fsS --max-time "$timeout" --connect-timeout "$timeout" "$url" >/dev/null 2>&1
+  elif command_exists wget; then
+    wget -q --timeout="$timeout" --spider "$url" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+# Decide repo ordering: China mirrors first if docker.com is slow/unreachable
+_build_repo_list() {
+  local dist="$1"
+  local docker_com="https://download.docker.com/linux"
+  local aliyun="https://mirrors.aliyun.com/docker-ce/linux"
+  local azure_cn="https://mirror.azure.cn/docker-ce/linux"
+
+  # Quick probe (2s) — if docker.com responds, prefer it first (faster overseas)
+  if _url_reachable "$docker_com" 2; then
+    log_info "Docker official repo is reachable, preferring it"
+    printf '%s\n' "$docker_com" "$aliyun" "$azure_cn"
+  else
+    log_info "Docker official repo is slow/unreachable, using mirrors first"
+    printf '%s\n' "$aliyun" "$azure_cn" "$docker_com"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -127,11 +177,9 @@ install_docker_custom() {
   local lsb_dist="${1:-$(detect_distro)}"
   log_step "Custom repo-based Docker installation for: $lsb_dist"
 
-  local repos_base=(
-    "https://download.docker.com/linux"
-    "https://mirrors.aliyun.com/docker-ce/linux"
-    "https://mirror.azure.cn/docker-ce/linux"
-  )
+  # Build repo list ordered by network reachability (domestic vs overseas)
+  local repos_base=()
+  mapfile -t repos_base < <(_build_repo_list "$lsb_dist")
 
   # Amazon Linux
   if [ "$lsb_dist" = "amzn" ]; then
@@ -225,43 +273,52 @@ install_docker_custom() {
 # ---------------------------------------------------------------------------
 install_docker_official() {
   local mirrors=("" "--mirror Aliyun" "--mirror AzureChinaCloud")
-  local install_timeout=300
+  local install_timeout=600
   local lsb_dist
   lsb_dist="$(detect_distro)"
 
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
-    log_step "Running: $cmd  (timeout ${install_timeout}s, please wait...)"
+    log_step "Running: $cmd  (up to ${install_timeout}s)"
 
-    local output exit_code
-    output="$(timeout "$install_timeout" sh -c "$cmd" 2>&1)"
-    exit_code=$?
+    # Run in background, pipe output to a temp log AND a small exit-code file
+    local tmplog exit_file exit_code
+    tmplog="$(mktemp)"
+    exit_file="$(mktemp)"
+    (
+      timeout "$install_timeout" sh -c "$cmd"
+      echo $? > "$exit_file"
+    ) 2>&1 | tee "$tmplog" &
 
-    echo "$output"
+    _with_dots $! "Installing Docker"
 
-    if [ "$exit_code" -eq 124 ]; then
+    exit_code="$(cat "$exit_file" 2>/dev/null || echo unknown)"
+    rm -f "$exit_file"
+
+    if [ "$exit_code" = "124" ] || [ "$exit_code" = "unknown" ]; then
+      rm -f "$tmplog"
       log_warn "Timed out after ${install_timeout}s, trying next mirror"
       continue
     fi
 
-    if echo "$output" | grep -q "ERROR: Unsupported distribution"; then
+    if grep -q "ERROR: Unsupported distribution" "$tmplog" 2>/dev/null; then
       local unsupported_dist
-      unsupported_dist="$(echo "$output" | grep "ERROR: Unsupported distribution" | awk -F"'" '{print $2}')"
+      unsupported_dist="$(grep "ERROR: Unsupported distribution" "$tmplog" | awk -F"'" '{print $2}')"
+      rm -f "$tmplog"
       log_warn "Distribution '${unsupported_dist:-$lsb_dist}' not supported by official script; switching to custom install"
       install_docker_custom "${unsupported_dist:-$lsb_dist}"
       return $?
     fi
 
-    if [ "$exit_code" -ne 0 ] || echo "$output" | grep -qi "^ERROR"; then
-      log_warn "Official script failed (mirror: '${mirror:-default}'), trying next"
-      continue
-    fi
+    rm -f "$tmplog"
 
     if command_exists docker && docker compose version >/dev/null 2>&1; then
       log_info "Docker installation succeeded via official script"
       _start_docker
       return $?
     fi
+
+    log_warn "Official script finished but Docker is not available; trying next mirror"
   done
 
   log_warn "Official script exhausted all mirrors, falling back to custom installation"
@@ -279,10 +336,26 @@ if command_exists docker && docker compose version >/dev/null 2>&1; then
   exit 0
 fi
 
+# Strategy (order matters — repos with mirrors are much faster in China):
+#   1. Custom repo-based install (uses Aliyun/Azure mirrors).
+#   2. If the distro is unknown to our custom path, try the official script.
+#   3. Official script as last resort with mirror fallbacks.
+
+lsb_dist="$(detect_distro)"
+log_info "Detected distribution: $lsb_dist"
+
+if [ "$lsb_dist" != "unknown" ]; then
+  log_step "Trying repo-based installation first (faster with mirrors)"
+  if install_docker_custom "$lsb_dist"; then
+    log_info "Docker installed successfully via repo"
+    exit 0
+  fi
+  log_warn "Repo-based install failed, trying official script"
+fi
+
 if ! download_docker_script; then
-  log_warn "Official script unavailable, using custom installation"
-  install_docker_custom
-  exit $?
+  log_error "Could not download Docker install script from any source"
+  exit 1
 fi
 
 install_docker_official

@@ -10,13 +10,13 @@
 
 ```bash
 wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh
-bash install.sh install
+bash install.sh
 ```
 
 或使用 `curl`：
 
 ```bash
-curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash -s -- install
+curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | bash
 ```
 
 ### 卸载
@@ -169,7 +169,7 @@ bash uninstall.sh --keep-data --remove-legacy-controlplane
 
 ```bash
 # 使用内网镜像站（适合离线或受限网络环境）
-W9_ARTIFACT_BASE=https://my-mirror.example.com/websoft9 bash install.sh install
+W9_ARTIFACT_BASE=https://my-mirror.example.com/websoft9 bash install.sh
 ```
 
 ---

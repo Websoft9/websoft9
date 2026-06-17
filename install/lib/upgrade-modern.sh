@@ -35,7 +35,6 @@ run_upgrade_modern() {
   local image_repo="$3"
   local image_tag="$4"
   local network_name="$5"
-  local volumes_root="$6"
 
   log_info "==== Upgrade started ===="
 
@@ -44,7 +43,13 @@ run_upgrade_modern() {
     die "$EXIT_RUNTIME" "Existing deployment material not found: ${install_path}/docker-compose.yml"
   fi
 
-  # Resolve actual container name from the existing compose file
+  # Derive container name from channel (keep instances isolated)
+  case "${W9_CHANNEL:-release}" in
+    dev)  CONTAINER_NAME="websoft9-dev" ;;
+    rc)   CONTAINER_NAME="websoft9-rc" ;;
+    *)    CONTAINER_NAME="websoft9" ;;
+  esac
+  export CONTAINER_NAME
   MODERN_CONTAINER_NAME="$(_resolve_container_name "${install_path}/docker-compose.yml")"
   export MODERN_CONTAINER_NAME
 
@@ -66,7 +71,7 @@ run_upgrade_modern() {
   fi
 
   # 3. Switch material: update compose + .env, pull new image
-  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port" "$volumes_root"
+  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
   if ! modern_compose "$install_path" pull; then
     log_error "Failed to pull new image, rolling back"
     _upgrade_modern_rollback "$install_path" "$backup_dir"

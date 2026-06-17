@@ -1,7 +1,6 @@
 import base64
 import os
 import time
-import stat
 from pathlib import PurePosixPath
 from typing import Any, Optional
 
@@ -411,24 +410,16 @@ class FileManagerService:
             info = self._get_docker_client().info()
             docker_root = info.get("DockerRootDir")
             if docker_root:
-                candidate = os.path.join(str(docker_root), "volumes")
-                if os.path.isdir(candidate):
-                    return candidate
+                return os.path.join(str(docker_root), "volumes")
         except Exception:
             pass
 
         for volume in self._list_docker_volumes():
             mountpoint = self._volume_attrs(volume).get("Mountpoint")
             if mountpoint:
-                candidate = str(PurePosixPath(str(mountpoint)).parent.parent)
-                if os.path.isdir(candidate):
-                    return candidate
+                return str(PurePosixPath(str(mountpoint)).parent.parent)
 
-        for candidate in self._configured_volume_root_paths():
-            if os.path.isdir(candidate):
-                return candidate
-
-        raise CustomException(500, "File Operation Error", "Unable to resolve Docker volumes root path")
+        return "/var/lib/docker/volumes"
 
     def _platform_gateway_certificates_root_path(self) -> str:
         default_cert = os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
@@ -438,27 +429,8 @@ class FileManagerService:
         volume = self._resolve_volume(volume_name)
         mountpoint = self._volume_attrs(volume).get("Mountpoint")
         if mountpoint:
-            candidate = os.path.realpath(str(mountpoint))
-            if os.path.isdir(candidate):
-                return candidate
-
-        for root_path in self._configured_volume_root_paths():
-            candidate = os.path.join(root_path, volume_name, "_data")
-            if os.path.isdir(candidate):
-                return candidate
-
-        if mountpoint:
             return os.path.realpath(str(mountpoint))
         return os.path.join(self._docker_volumes_root_path(), volume_name, "_data")
-
-    def _configured_volume_root_paths(self) -> tuple[str, ...]:
-        raw = os.getenv("WEBSOFT9_FILES_AGENT_ALLOWED_ROOTS", "/var/lib/docker/volumes")
-        candidates: list[str] = []
-        for part in raw.split(":"):
-            normalized = os.path.realpath(part.strip())
-            if normalized and normalized not in candidates:
-                candidates.append(normalized)
-        return tuple(candidates)
 
     def _resolve_volume(self, volume_name: str) -> Any:
         volume_manager = getattr(self._get_docker_client(), "volumes", None)
