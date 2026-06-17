@@ -135,8 +135,10 @@ jobs:
           zip -r "websoft9-${VERSION}-${SHA_TAG}.zip" websoft9
           cp "websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/
           cp "release-assets/websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/websoft9-dev.zip
-          cp install/install.sh r2-artifacts/install.sh
-          cp install/uninstall.sh r2-artifacts/uninstall.sh
+          bash install/build-bundle.sh install/dist
+          cp install/dist/install.sh r2-artifacts/install.sh
+          cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
+          cp install/install_docker.sh r2-artifacts/install_docker.sh
           cp docker/docker-compose.dev.yml "r2-artifacts/${COMPOSE_FILE}"
           cp staged-version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
@@ -171,6 +173,7 @@ jobs:
                 compose_file: "docker-compose.dev.yml",
                 install_script: "install.sh",
                 uninstall_script: "uninstall.sh",
+                docker_install_script: "install_docker.sh",
                 changelog_file: "CHANGELOG.md",
                 version_file: "version.json",
                 mirrors_file: "mirrors.json",
@@ -197,6 +200,7 @@ jobs:
             sha256sum \
               install.sh \
               uninstall.sh \
+              install_docker.sh \
               "$COMPOSE_FILE" \
               version.json \
               CHANGELOG.md \
@@ -235,6 +239,7 @@ jobs:
           PURGE_URLS: >-
             ["https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/uninstall.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/install_docker.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/docker-compose.dev.yml",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/manifest.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.meta.outputs.channel }}/version.json",

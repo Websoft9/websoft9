@@ -1,0 +1,279 @@
+#!/bin/bash
+# common.sh — Websoft9 生命周期脚本共享层
+# 职责：固定代码事实常量、统一日志、统一退出码、通用工具函数。
+# 不负责：环境识别、安装、升级、迁移、卸载等具体路径动作。
+
+# ---------------------------------------------------------------------------
+# 现代运行时事实（对齐 docker/docker-compose.yml 与入口脚本）
+# ---------------------------------------------------------------------------
+MODERN_CONTAINER_NAME="websoft9"
+MODERN_COMPOSE_PROJECT="websoft9"
+MODERN_DATA_VOLUME="websoft9_data"
+MODERN_DATA_MOUNT="/data"
+
+# compose 默认环境变量（与 docker-compose.yml 的 ${VAR:-default} 一致）
+DEFAULT_IMAGE_REPO="websoft9dev/websoft9"
+DEFAULT_IMAGE_TAG="latest"
+DEFAULT_NETWORK_NAME="websoft9"
+DEFAULT_CONSOLE_PORT="9000"
+DEFAULT_DOCKER_VOLUMES_ROOT="/var/lib/docker/volumes"
+DEFAULT_INSTALL_PATH="/opt/websoft9"
+
+# 制品分发根（单文件 install.sh 在无本地物料时从此处按通道下载部署物料）
+DEFAULT_ARTIFACT_BASE="https://artifact.websoft9.com/websoft9"
+
+# ---------------------------------------------------------------------------
+# 旧版（Cockpit 多容器时代）运行时事实
+# ---------------------------------------------------------------------------
+LEGACY_CONTAINER_NAMES=(websoft9-apphub websoft9-deployment websoft9-git websoft9-proxy)
+LEGACY_VOLUME_NAMES=(apphub_logs apphub_config portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
+LEGACY_SYSTEMD_UNITS=(websoft9.service cockpit.socket cockpit.service)
+LEGACY_HOST_COMPOSE_DIR="/data/compose"
+LEGACY_INSTALL_DIR="/data/websoft9/source"
+LEGACY_COMPOSE_PROJECT="websoft9"
+
+# ---------------------------------------------------------------------------
+# 统一退出码
+# ---------------------------------------------------------------------------
+EXIT_OK=0
+EXIT_USAGE=2
+EXIT_PRECHECK=3
+EXIT_ENV_GUARD=4      # mixed / unknown / 环境不匹配目标路径
+EXIT_RUNTIME=5        # 启动 / 切换 / 运行时失败
+EXIT_VALIDATE=6       # 健康检查 / 验收失败
+EXIT_ROLLBACK=7       # 回退过程失败
+
+# ---------------------------------------------------------------------------
+# 日志
+# ---------------------------------------------------------------------------
+_w9_ts() { date +"%Y-%m-%d %H:%M:%S"; }
+
+log_info()  { echo "[Websoft9][$(_w9_ts)][INFO ] $*"; }
+log_warn()  { echo "[Websoft9][$(_w9_ts)][WARN ] $*" >&2; }
+log_error() { echo "[Websoft9][$(_w9_ts)][ERROR] $*" >&2; }
+log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
+
+# dry-run 感知执行：W9_DRY_RUN=1 时只打印不执行
+run_cmd() {
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) $*"
+    return 0
+  fi
+  "$@"
+}
+
+die() {
+  local code="$1"; shift
+  log_error "$*"
+  exit "$code"
+}
+
+# ---------------------------------------------------------------------------
+# 通用探测工具
+# ---------------------------------------------------------------------------
+command_exists() { command -v "$@" >/dev/null 2>&1; }
+
+require_root() {
+  if [ "$(id -u)" -ne 0 ] && ! command_exists sudo; then
+    die "$EXIT_PRECHECK" "需要 root 权限或可用的 sudo 来执行生命周期操作。"
+  fi
+}
+
+# Docker 可用性
+docker_available() {
+  command_exists docker && docker info >/dev/null 2>&1
+}
+
+# compose 可用性
+compose_available() {
+  command_exists docker && docker compose version >/dev/null 2>&1
+}
+
+# 容器是否存在（任意状态）
+container_exists() {
+  docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$1"
+}
+
+# 容器是否正在运行
+container_running() {
+  docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$1"
+}
+
+# 命名卷是否存在
+volume_exists() {
+  docker volume inspect "$1" >/dev/null 2>&1
+}
+
+# systemd 单元是否存在
+systemd_unit_present() {
+  command_exists systemctl || return 1
+  systemctl list-unit-files "$1" 2>/dev/null | grep -q "$1"
+}
+
+# 端口是否被占用（返回 0 表示被占用）
+port_in_use() {
+  local port="$1"
+  if command_exists ss; then
+    ss -lnt 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}\$"
+  elif command_exists netstat; then
+    netstat -lnt 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}\$"
+  else
+    return 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# 部署物料定位
+# ---------------------------------------------------------------------------
+# 解析仓库内 docker-compose.yml 源路径（供安装/升级复制到安装目录）。
+# 优先使用脚本相邻或仓库内的 compose，便于在仓库内直接运行与测试。
+resolve_bundled_compose() {
+  local candidates=(
+    "${W9_LIB_DIR}/../../docker/docker-compose.yml"
+    "${W9_LIB_DIR}/../docker-compose.yml"
+    "${W9_LIB_DIR}/docker-compose.yml"
+  )
+  local c dir base
+  for c in "${candidates[@]}"; do
+    if [ -f "$c" ]; then
+      dir="$(cd "$(dirname "$c")" && pwd)"
+      base="$(basename "$c")"
+      echo "${dir}/${base}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# HTTP 抓取到 stdout（curl 优先，回落 wget）
+_w9_fetch() {
+  local url="$1"
+  if command_exists curl; then
+    curl -fsSL --max-time 30 "$url" 2>/dev/null
+  elif command_exists wget; then
+    wget -qO- --timeout=30 "$url" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+# HTTP 下载到文件（curl 优先，回落 wget）
+_w9_download() {
+  local url="$1" dst="$2"
+  if command_exists curl; then
+    curl -fsSL --max-time 60 "$url" -o "$dst" 2>/dev/null
+  elif command_exists wget; then
+    wget -q --timeout=60 -O "$dst" "$url" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+# 确保部署物料（docker-compose.yml）就位：
+# 1) 优先使用脚本相邻或仓库/解压包内的 compose（开发与 bundle 解压场景）；
+# 2) 否则按通道从制品分发根下载（单文件 install.sh 真实安装场景）。
+# 物料落到 install_path/docker-compose.yml。
+ensure_deployment_material() {
+  local install_path="$1"
+  local channel="${2:-${W9_CHANNEL:-release}}"
+  local compose_dst="${install_path}/docker-compose.yml"
+
+  run_cmd mkdir -p "$install_path"
+
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    local local_compose
+    if local_compose="$(resolve_bundled_compose)"; then
+      log_info "(dry-run) 使用本地部署物料: $local_compose"
+    else
+      log_info "(dry-run) 将从制品分发根下载部署物料: ${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
+    fi
+    return 0
+  fi
+
+  local local_compose
+  if local_compose="$(resolve_bundled_compose)"; then
+    log_info "使用本地部署物料: $local_compose"
+    cp -a "$local_compose" "$compose_dst"
+    return 0
+  fi
+
+  # 远程制品：从同源目录下载 manifest -> compose_file -> compose
+  local base="${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
+  log_info "未发现本地物料，从制品分发根下载: $base"
+  local manifest compose_name
+  manifest="$(_w9_fetch "${base}/manifest.json")" || manifest=""
+  compose_name="$(printf '%s' "$manifest" | sed -n 's/.*"compose_file"[^"]*"\([^"]*\)".*/\1/p' | head -n1)"
+  [ -z "$compose_name" ] && compose_name="docker-compose.yml"
+
+  if ! _w9_download "${base}/${compose_name}" "$compose_dst"; then
+    die "$EXIT_PRECHECK" "下载部署物料失败: ${base}/${compose_name}"
+  fi
+  # 元数据为可选增强项，失败不阻塞
+  _w9_download "${base}/version.json" "${install_path}/version.json" || true
+  _w9_download "${base}/mirrors.json" "${install_path}/mirrors.json" || true
+  log_info "部署物料已下载到: $compose_dst"
+}
+
+# 确保 Docker 就绪：优先本地 install_docker.sh，否则按通道从制品分发根下载后执行。
+ensure_docker_installed() {
+  local channel="${1:-${W9_CHANNEL:-release}}"
+  local candidates=(
+    "${W9_LIB_DIR}/../install_docker.sh"
+    "${W9_LIB_DIR}/install_docker.sh"
+  )
+  local c
+  for c in "${candidates[@]}"; do
+    if [ -f "$c" ]; then
+      log_info "使用本地 Docker 安装脚本: $c"
+      bash "$c"
+      return $?
+    fi
+  done
+
+  local base="${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}"
+  local tmp
+  tmp="$(mktemp)"
+  log_info "未发现本地 Docker 安装脚本，从制品分发根下载: ${base}/install_docker.sh"
+  if _w9_download "${base}/install_docker.sh" "$tmp"; then
+    bash "$tmp"
+    local rc=$?
+    rm -f "$tmp"
+    return $rc
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+# 生成标准 .env（仅写入与现代 compose 事实对齐的键）
+write_env_file() {
+  local env_path="$1"
+  local image_repo="$2"
+  local image_tag="$3"
+  local network_name="$4"
+  local console_port="$5"
+  local volumes_root="$6"
+
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) 写入 .env -> $env_path"
+    return 0
+  fi
+
+  cat >"$env_path" <<EOF
+# Generated by Websoft9 installer on $(_w9_ts)
+IMAGE_REPO=${image_repo}
+IMAGE_TAG=${image_tag}
+NETWORK_NAME=${network_name}
+CONSOLE_PORT=${console_port}
+WEBSOFT9_DOCKER_VOLUMES_ROOT=${volumes_root}
+EOF
+}
+
+# 统一的 compose 调用封装（固定项目名与 env 文件）
+modern_compose() {
+  local install_path="$1"; shift
+  docker compose \
+    -p "$MODERN_COMPOSE_PROJECT" \
+    --env-file "${install_path}/.env" \
+    -f "${install_path}/docker-compose.yml" \
+    "$@"
+}

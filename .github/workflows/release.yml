@@ -188,8 +188,10 @@ PY
           # Create versioned zip
           zip -r "websoft9-${VERSION_CORE}.zip" websoft9
           cp "websoft9-${VERSION_CORE}.zip" release-assets/
-          cp install/install.sh r2-artifacts/install.sh
-          cp install/uninstall.sh r2-artifacts/uninstall.sh
+          bash install/build-bundle.sh install/dist
+          cp install/dist/install.sh r2-artifacts/install.sh
+          cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
+          cp install/install_docker.sh r2-artifacts/install_docker.sh
           cp docker/docker-compose.yml r2-artifacts/docker-compose.yml
           cp version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
@@ -228,6 +230,7 @@ PY
                 compose_file: "docker-compose.yml",
                 install_script: "install.sh",
                 uninstall_script: "uninstall.sh",
+                docker_install_script: "install_docker.sh",
                 changelog_file: "CHANGELOG.md",
                 version_file: "version.json",
                 mirrors_file: "mirrors.json",
@@ -254,6 +257,7 @@ PY
             sha256sum \
               install.sh \
               uninstall.sh \
+              install_docker.sh \
               docker-compose.yml \
               version.json \
               CHANGELOG.md \
@@ -292,6 +296,7 @@ PY
           PURGE_URLS: >-
             ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/uninstall.sh",
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install_docker.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/docker-compose.yml",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/manifest.json",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/SHA256SUMS"]'
