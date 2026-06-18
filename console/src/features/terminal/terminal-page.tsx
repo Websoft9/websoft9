@@ -29,6 +29,7 @@ import type { CSSProperties, ChangeEvent, MouseEvent as ReactMouseEvent, ReactNo
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FitAddon } from '@xterm/addon-fit'
+import { ClipboardAddon } from '@xterm/addon-clipboard'
 import { Terminal as XTerm } from 'xterm'
 
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
@@ -2549,6 +2550,7 @@ export function TerminalPage() {
         }
 
         const terminal = new XTerm({
+            allowProposedApi: true,
             cursorBlink: true,
             convertEol: false,
             fontFamily: 'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
@@ -2558,6 +2560,8 @@ export function TerminalPage() {
         })
         const fitAddon = new FitAddon()
         terminal.loadAddon(fitAddon)
+        const clipboardAddon = new ClipboardAddon()
+        terminal.loadAddon(clipboardAddon)
         terminal.open(terminalHostRef.current)
         fitAddon.fit()
         terminal.onData((data) => {
@@ -2566,6 +2570,20 @@ export function TerminalPage() {
                 return
             }
             sendSessionPayload(session.id, { type: 'input', data })
+        })
+
+        terminal.attachCustomKeyEventHandler((event) => {
+            if (event.ctrlKey && event.shiftKey && (event.key === 'C' || event.key === 'c')) {
+                return true
+            }
+            if (event.ctrlKey && event.shiftKey && (event.key === 'V' || event.key === 'v')) {
+                return true
+            }
+            if (event.ctrlKey && event.key === 'c' && terminal.hasSelection()) {
+                document.execCommand('copy')
+                return false
+            }
+            return true
         })
 
         const observer = new ResizeObserver(() => {

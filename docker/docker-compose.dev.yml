@@ -1,11 +1,15 @@
 # Development docker-compose.yml — local build + single-container runtime
 # Usage: docker compose -f docker-compose.dev.yml up -d --build
 
+name: websoft9-dev
+
 services:
   product:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        WEBSOFT9_APPSTORE_CHANNEL: dev
     image: websoft9dev/websoft9:dev
     container_name: ${CONTAINER_NAME:-websoft9-dev}
     restart: unless-stopped

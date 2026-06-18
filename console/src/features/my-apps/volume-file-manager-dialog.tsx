@@ -649,6 +649,7 @@ export function VolumeFileManagerDialog({
     }) as CSSProperties, [dialogPalette.border, dialogPalette.panel, dialogPalette.panelSoft, dialogPalette.subtleText, dialogPalette.text])
 
     const editorDirty = editorPath !== null && editorContent !== editorInitialContent
+    const isEditing = editorPath !== null
     const filteredEntries = useMemo(() => {
         const keyword = directorySearch.trim().toLowerCase()
         const visibleEntries = showHiddenFiles ? entries : entries.filter((entry) => !entry.name.startsWith('.'))
@@ -829,19 +830,19 @@ export function VolumeFileManagerDialog({
             const menuWidth = 188
             const actionItems = item
                 ? [
-                    { key: 'copy', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.copy'), disabled: actionSubmitting },
-                    { key: 'cut', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.move'), disabled: actionSubmitting || item.path === '/' || item.path === currentPath },
-                    { key: 'download', label: t('filesPage.actions.download'), disabled: item.item_type !== 'file' || actionSubmitting },
-                    { key: 'rename', label: t('filesPage.actions.rename'), disabled: actionSubmitting },
-                    { key: 'delete', label: t('filesPage.actions.delete'), disabled: actionSubmitting || (item.path === '/' && item.item_type === 'directory') },
-                    { key: 'properties', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.properties'), disabled: actionSubmitting },
-                    { key: 'edit', label: t('filesPage.actions.edit'), disabled: !item.text_editable || item.item_type !== 'file' || actionSubmitting },
+                    { key: 'copy', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.copy'), disabled: actionSubmitting || isEditing },
+                    { key: 'cut', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.move'), disabled: actionSubmitting || isEditing || item.path === '/' || item.path === currentPath },
+                    { key: 'download', label: t('filesPage.actions.download'), disabled: item.item_type !== 'file' || actionSubmitting || isEditing },
+                    { key: 'rename', label: t('filesPage.actions.rename'), disabled: actionSubmitting || isEditing },
+                    { key: 'delete', label: t('filesPage.actions.delete'), disabled: actionSubmitting || isEditing || (item.path === '/' && item.item_type === 'directory') },
+                    { key: 'properties', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.properties'), disabled: actionSubmitting || isEditing },
+                    { key: 'edit', label: t('filesPage.actions.edit'), disabled: !item.text_editable || item.item_type !== 'file' || actionSubmitting || isEditing },
                 ]
                 : [
-                    { key: 'paste', label: t('filesPage.actions.paste'), disabled: !browserClipboard || actionSubmitting },
-                    { key: 'create-folder', label: t('filesPage.actions.createFolder'), disabled: actionSubmitting },
-                    { key: 'create-file', label: t('filesPage.actions.createFile'), disabled: actionSubmitting },
-                    { key: 'properties', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.properties'), disabled: !currentDirectoryMetadata || actionSubmitting },
+                    { key: 'paste', label: t('filesPage.actions.paste'), disabled: !browserClipboard || actionSubmitting || isEditing },
+                    { key: 'create-folder', label: t('filesPage.actions.createFolder'), disabled: actionSubmitting || isEditing },
+                    { key: 'create-file', label: t('filesPage.actions.createFile'), disabled: actionSubmitting || isEditing },
+                    { key: 'properties', label: t('myAppsDetailPage.tabs.volumes.fileManager.actions.properties'), disabled: !currentDirectoryMetadata || actionSubmitting || isEditing },
                 ]
             const menuHeight = actionItems.length * 36 + 12
             const left = Math.max(12, Math.min(mouseX, window.innerWidth - menuWidth - 12))
@@ -1072,7 +1073,7 @@ export function VolumeFileManagerDialog({
                 method: 'PUT',
                 body: JSON.stringify({ volume_id: volumeId, path: editorPath, content: editorContent }),
             })
-            setEditorInitialContent(editorContent)
+            clearEditorState()
             await refreshCurrentDirectory()
         } catch (error) {
             setFeedback({ message: error instanceof Error ? error.message : t('filesPage.feedback.genericError') })
@@ -1286,9 +1287,9 @@ export function VolumeFileManagerDialog({
     const selectedBrowserEntry = selectedEntry
     const activeBrowserEntry = selectedBrowserEntry ?? currentDirectoryMetadata
     const inspectorEntry = activeBrowserEntry
-    const canDeleteSelectedItem = Boolean(activeBrowserEntry && activeBrowserEntry.path !== '/' && editorPath === null && !actionSubmitting)
-    const canShowInspectorProperties = Boolean(activeBrowserEntry) && !actionSubmitting
-    const canEditSelectedItem = Boolean(selectedBrowserEntry?.item_type === 'file' && selectedBrowserEntry?.text_editable) && !actionSubmitting
+    const canDeleteSelectedItem = Boolean(activeBrowserEntry && activeBrowserEntry.path !== '/' && !isEditing && !actionSubmitting)
+    const canShowInspectorProperties = Boolean(activeBrowserEntry) && !isEditing && !actionSubmitting
+    const canEditSelectedItem = Boolean(selectedBrowserEntry?.item_type === 'file' && selectedBrowserEntry?.text_editable) && !isEditing && !actionSubmitting
     const actionDialogTitle = dialogState?.type === 'create-folder'
         ? t('filesPage.dialogs.createFolderTitle')
         : dialogState?.type === 'create-file'
@@ -1356,16 +1357,16 @@ export function VolumeFileManagerDialog({
                     <div className="terminal-files-shell" style={{ ...terminalFilesThemeVars, color: darkMode ? '#e5edf5' : '#334155', gap: 12, flex: '1 1 auto', minHeight: 0 }}>
                         <div className="terminal-files-toolbar-row">
                             <div className="terminal-files-toolbar-group">
-                                <button className="terminal-files-toolbar-button" disabled={historyIndex <= 0 || loading} onClick={() => navigateToHistory(historyIndex - 1)} title={t('filesPage.actions.back')} type="button">
+                                <button className="terminal-files-toolbar-button" disabled={historyIndex <= 0 || loading || isEditing} onClick={() => navigateToHistory(historyIndex - 1)} title={t('filesPage.actions.back')} type="button">
                                     <TerminalNavGlyph kind="back" />
                                 </button>
-                                <button className="terminal-files-toolbar-button" disabled={historyIndex >= history.length - 1 || loading} onClick={() => navigateToHistory(historyIndex + 1)} title={t('filesPage.actions.forward')} type="button">
+                                <button className="terminal-files-toolbar-button" disabled={historyIndex >= history.length - 1 || loading || isEditing} onClick={() => navigateToHistory(historyIndex + 1)} title={t('filesPage.actions.forward')} type="button">
                                     <TerminalNavGlyph kind="forward" />
                                 </button>
-                                <button className="terminal-files-toolbar-button" disabled={currentPath === '/' || loading} onClick={() => void loadDirectory(parentPath(currentPath))} title={t('filesPage.actions.up')} type="button">
+                                <button className="terminal-files-toolbar-button" disabled={currentPath === '/' || loading || isEditing} onClick={() => void loadDirectory(parentPath(currentPath))} title={t('filesPage.actions.up')} type="button">
                                     <TerminalNavGlyph kind="up" />
                                 </button>
-                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={loading} onClick={() => void refreshCurrentDirectory()} title={t('myAppsDetailPage.tabs.volumes.fileManager.actions.refresh')} type="button">
+                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={loading || isEditing} onClick={() => void refreshCurrentDirectory()} title={t('myAppsDetailPage.tabs.volumes.fileManager.actions.refresh')} type="button">
                                     <TerminalNavGlyph kind="refresh" />
                                 </button>
                             </div>
@@ -1390,6 +1391,7 @@ export function VolumeFileManagerDialog({
                                         }
                                         void loadDirectory(parsedPath)
                                     }}
+                                    disabled={isEditing}
                                 />
                                 <TextField
                                     className="terminal-files-search-input"
@@ -1398,17 +1400,18 @@ export function VolumeFileManagerDialog({
                                     onChange={(event) => setDirectorySearch(event.target.value)}
                                     placeholder={t('filesPage.filters.searchPlaceholder')}
                                     slotProps={{ input: { endAdornment: <TerminalNavGlyph kind="search" /> } }}
+                                    disabled={isEditing}
                                 />
                             </div>
 
                             <div className="terminal-files-toolbar-group terminal-files-toolbar-group-actions">
-                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={actionSubmitting} onClick={() => openActionDialog({ type: 'create-folder' })} title={t('filesPage.actions.createFolder')} type="button">
+                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={actionSubmitting || isEditing} onClick={() => openActionDialog({ type: 'create-folder' })} title={t('filesPage.actions.createFolder')} type="button">
                                     <FolderCreateIcon />
                                 </button>
-                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={actionSubmitting} onClick={() => openActionDialog({ type: 'create-file' })} title={t('filesPage.actions.createFile')} type="button">
+                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={actionSubmitting || isEditing} onClick={() => openActionDialog({ type: 'create-file' })} title={t('filesPage.actions.createFile')} type="button">
                                     <FileCreateIcon />
                                 </button>
-                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={actionSubmitting} onClick={() => uploadInputRef.current?.click()} title={t('filesPage.actions.upload')} type="button">
+                                <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={actionSubmitting || isEditing} onClick={() => uploadInputRef.current?.click()} title={t('filesPage.actions.upload')} type="button">
                                     <UploadFileIcon />
                                 </button>
                                 <input ref={uploadInputRef} hidden type="file" onChange={(event) => void handleUploadChange(event)} />

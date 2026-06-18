@@ -236,7 +236,7 @@ export function AppShell() {
             },
             {
                 key: 'ticket',
-                href: isChineseLocale ? 'https://websoft9.com/ticket' : 'https://websoft9.com/en-US/ticket',
+                href: isChineseLocale ? 'https://support.websoft9.com/docs/helpdesk/#contact' : 'https://support.websoft9.com/en/docs/helpdesk#contact',
                 label: t('footer.ticket'),
             },
         ],

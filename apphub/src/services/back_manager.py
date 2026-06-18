@@ -1,20 +1,21 @@
 import json
 import os
 import re
+import subprocess
 import docker
-import configparser
 import requests
-from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Any, Dict, List, Optional
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
+from src.services.portainer_manager import PortainerManager
 
-DEFAULT_DOCKER_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+DEFAULT_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+RESTIC_CACHE_PATH = "/data/restic-cache"
 
 
-def _normalize_image_accelerator(value: str) -> str:
+def _normalize_mirror(value: str) -> str:
     normalized = value.strip().rstrip("/")
     if normalized.startswith("http://"):
         normalized = normalized[7:]
@@ -22,347 +23,303 @@ def _normalize_image_accelerator(value: str) -> str:
         normalized = normalized[8:]
     return normalized
 
+
+def _fetch_mirrors() -> List[str]:
+    try:
+        config_manager = ConfigManager("config.ini")
+        configured = (config_manager.get_value("docker_mirror", "url") or "").strip() or DEFAULT_MIRROR_URL
+        if configured.startswith("http://") or configured.startswith("https://"):
+            resp = requests.get(configured)
+            if resp.status_code != 200:
+                logger.error(f"Failed to download mirrors: {resp.text}")
+                return []
+            return [_normalize_mirror(str(m)) for m in resp.json().get("mirrors", []) if str(m).strip()]
+        return [_normalize_mirror(m) for m in configured.replace("\n", ",").split(",") if m.strip()]
+    except Exception as e:
+        logger.error(f"Failed to load mirrors: {e}")
+        return []
+
+
 class BackupManager:
-    """Docker Volume Backup Manager using Restic"""
+    """Volume Backup Manager using Restic — hybrid local binary + Docker runner"""
+
+    RESTIC_LOCAL_ARGS = ["--insecure-no-password", "--json"]
 
     def __init__(self):
-        """Initialize BackupManager"""
         try:
             self.docker_client = docker.from_env()
-            
-            # Load backup repository path from config
+
             config_manager = ConfigManager("system.ini")
             self.repository_path = config_manager.get_value("volume_backup", "repopath")
-            self.hostname = config_manager.get_value("volume_backup", "hostname")
-            self.restic_image = config_manager.get_value("volume_backup", "image")        
-            
-            # Initialize repository if needed
-            self._init_repository()         
+            self.restic_image = config_manager.get_value("volume_backup", "image") or "restic/restic"
+
+            # Verify local restic binary for read-only operations
+            if not os.path.isfile("/usr/local/bin/restic") or not os.access("/usr/local/bin/restic", os.X_OK):
+                raise CustomException(500, "Restic binary not found at /usr/local/bin/restic", "Restic Unavailable")
+
+            # Ensure cache dir exists
+            os.makedirs(RESTIC_CACHE_PATH, exist_ok=True)
+
+            self._init_repository()
+        except CustomException:
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize BackupManager: {e}")
             raise CustomException()
-    
 
-    def _ensure_image_with_mirrors(self):
-        """
-        Ensure the restic image exists locally. If not, attempt to pull the image using mirrors.
-        """
+    # ------------------------------------------------------------------
+    #  Local Restic execution — for list / delete / repo ops (fast, no Docker)
+    # ------------------------------------------------------------------
+    def _run_restic_local(self, command: List[str]) -> str:
+        full_cmd = ["/usr/local/bin/restic", "-r", self.repository_path] + command + self.RESTIC_LOCAL_ARGS
         try:
-            # Check if the image already exists locally
+            result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=3600)
+            if result.returncode != 0:
+                err = result.stderr.strip() or f"exit code {result.returncode}"
+                raise CustomException(500, err, "Restic Error")
+            return result.stdout
+        except CustomException:
+            raise
+        except subprocess.TimeoutExpired:
+            raise CustomException(500, "Restic operation timed out after 3600s", "Restic Timeout")
+        except FileNotFoundError:
+            raise CustomException(500, "Restic binary not found", "Restic Unavailable")
+        except Exception as e:
+            raise CustomException(500, f"Restic command failed: {e}", "Restic Error")
+
+    # ------------------------------------------------------------------
+    #  Docker Restic execution — for backup / restore (needs volume mounts)
+    # ------------------------------------------------------------------
+    def _resolve_host_path(self, container_path: str) -> str:
+        """Resolve a container-internal path to its host-level equivalent
+        by inspecting the Docker volume mounts of the current container."""
+        container_path = os.path.realpath(container_path)
+        try:
+            # Inspect own container to find bind mounts
+            own_id = os.environ.get("HOSTNAME") or ""
+            if own_id:
+                try:
+                    info = self.docker_client.containers.get(own_id)
+                    mounts = info.attrs.get("Mounts") or []
+                    for mount in mounts:
+                        dest = mount.get("Destination") or ""
+                        dest_real = os.path.realpath(dest)
+                        if container_path == dest_real or container_path.startswith(dest_real + os.sep):
+                            source = mount.get("Source") or ""
+                            return container_path.replace(dest_real, source, 1)
+                except Exception:
+                    pass
+            return container_path
+        except Exception:
+            return container_path
+
+    def _ensure_restic_image(self):
+        try:
             self.docker_client.images.get(self.restic_image)
             return
         except docker.errors.ImageNotFound:
-            logger.access(f"Image {self.restic_image} not found locally. Attempting to pull...")
-        except Exception as e:
-            logger.error(f"Unexpected error while checking image {self.restic_image}: {e}")
-            raise CustomException(500, f"Unexpected error while checking image {self.restic_image}: {e}", "Image Check Error")
+            logger.access(f"Pulling Restic image: {self.restic_image}")
 
-        # Attempt to pull the image directly
         try:
             self.docker_client.images.pull(self.restic_image)
             return
         except Exception as e:
-            logger.error(f"Direct pull of image {self.restic_image} failed, Begin mirror pull")
+            logger.warn(f"Direct pull of {self.restic_image} failed, trying mirrors: {e}")
 
-        # Load mirrors from a remote URL
-        try:
-            config_manager = ConfigManager("config.ini")
-            configured = (config_manager.get_value("docker_mirror", "url") or "").strip() or DEFAULT_DOCKER_MIRROR_URL
-            if configured.startswith("http://") or configured.startswith("https://"):
-                response = requests.get(configured)
-                if response.status_code != 200:
-                    logger.error(f"Failed to download image accelerators: {response.text}")
-                    raise CustomException(500, "Failed to download image accelerators", "Mirror Configuration Error")
-                mirrors = [_normalize_image_accelerator(str(item)) for item in response.json().get("mirrors", []) if str(item).strip()]
-            else:
-                mirrors = [_normalize_image_accelerator(item) for item in configured.replace("\n", ",").split(",") if item.strip()]
-        except Exception as e:
-            logger.error(f"Failed to fetch Docker mirrors: {e}")
-            raise CustomException(500, "Failed to fetch Docker mirrors", "Mirror Fetch Error")
-
-        # Attempt to pull the image using mirrors
-        for mirror in mirrors:
+        for mirror in _fetch_mirrors():
+            mirrored = f"{mirror}/{self.restic_image}"
             try:
-                mirrored_image = f"{mirror}/{self.restic_image}"
-                self.docker_client.images.pull(mirrored_image)
-
-                # Rename the image tag back to the original tag
-                self.docker_client.images.get(mirrored_image).tag(self.restic_image)
-                self.docker_client.images.remove(mirrored_image, force=True)  # Remove the mirrored tag
-                logger.access(f"Successfully pulled image {mirrored_image} using mirror.")
+                self.docker_client.images.pull(mirrored)
+                img = self.docker_client.images.get(mirrored)
+                img.tag(self.restic_image)
+                self.docker_client.images.remove(mirrored, force=True)
+                logger.access(f"Pulled {self.restic_image} via mirror: {mirror}")
                 return
-            except Exception as e:
-                logger.error(f"Pulling image {mirrored_image} using mirror failed: {e}")
+            except Exception as ex:
+                logger.warn(f"Mirror {mirror} failed: {ex}")
 
-        # If all attempts fail, raise an exception
-        logger.error(f"Failed to pull image {self.restic_image} using all mirrors.")
-        raise CustomException(500, f"Failed to pull image {self.restic_image} using all mirrors", "Image Pull Error")
+        raise CustomException(500, f"Failed to pull {self.restic_image}", "Image Pull Error")
 
+    def _run_restic_container(self, command: List[str], extra_volumes: Dict[str, Dict[str, str]]) -> str:
+        self._ensure_restic_image()
 
-    def _check_repository(self) -> bool:
-        """
-        Check if repository is initialized by reading config
+        volumes: Dict[str, Dict[str, str]] = {
+            self._resolve_host_path(self.repository_path): {"bind": "/repo", "mode": "rw"},
+            self._resolve_host_path(RESTIC_CACHE_PATH): {"bind": "/root/.cache/restic", "mode": "rw"},
+        }
+        volumes.update(extra_volumes)
 
-        Returns:
-            bool: True if repository exists and is accessible, False otherwise
-        """
         try:
-            volumes = {self.repository_path: {'bind': '/repo', 'mode': 'rw'}}
-            command = ['-r', '/repo', 'cat', 'config', '--insecure-no-password', '--json']
-            
-            output = self._run_container(command, volumes)
-            
-            # Parse repository config JSON
-            try:
-                config = json.loads(output)
-                return bool(config.get('id') and config.get('version'))
-            except (json.JSONDecodeError, KeyError):
-                return False
-        except CustomException:
-            return False
-        except Exception as e:
-            logger.error(f"Repository check error: {e}")
-            return False
-
-
-    def _init_repository(self):
-        """
-        Initialize restic repository if needed
-
-        Generated command:
-        docker run --rm --hostname {hostname from config} \
-        -v {repository_path}:/repo \
-        restic/restic -r /repo init --insecure-no-password --json
-        """
-        try:
-            # First check if repository already exists
-            if self._check_repository():
-                return
-                    
-            volumes = {self.repository_path: {'bind': '/repo', 'mode': 'rw'}}
-            command = ['-r', '/repo', 'init', '--insecure-no-password', '--json']
-            
-            output = self._run_container(command, volumes)
-            
-            # Simple validation of initialization
-            try:
-                result = json.loads(output)
-                if result.get('message_type') != 'initialized':
-                    logger.error(f"Unexpected initialization response: {result}")
-            except (json.JSONDecodeError, KeyError):
-                pass           
-        except CustomException as e:
-            logger.error(f"Repository initialization failed: {e}")
-            raise CustomException()
-        except Exception as e:
-            logger.error(f"Initialization error: {e}")
-            raise CustomException()
-
-
-    def _run_container(self, command: List[str], volumes: Dict[str, Dict[str, str]], remove: bool = True) -> str:
-        self._ensure_image_with_mirrors()  # Ensure the image exists before running the container
-        try:
-            container = self.docker_client.containers.run(
+            result = self.docker_client.containers.run(
                 image=self.restic_image,
-                command=command,
+                command=["-r", "/repo"] + command + self.RESTIC_LOCAL_ARGS,
                 volumes=volumes,
-                hostname=self.hostname,
-                remove=remove,  
+                remove=True,
                 detach=False,
                 stdout=True,
-                stderr=True
+                stderr=True,
             )
-            result = container.decode('utf-8') if isinstance(container, bytes) else str(container)
-            return result
-            
+            output = result.decode("utf-8") if isinstance(result, bytes) else str(result)
+            return output
         except docker.errors.ContainerError as e:
-            # Container exited with non-zero status, let caller handle the specific logic
-            error_output = e.stderr.decode('utf-8') if e.stderr else str(e)
-            error_message = json.loads(error_output).get("message", "Unknown error")
-            raise CustomException(500, error_message, "Internal Server Error")
+            stderr_output = e.stderr.decode("utf-8") if e.stderr else str(e)
+            msg = "Unknown error"
+            try:
+                msg = json.loads(stderr_output).get("message", msg)
+            except (json.JSONDecodeError, KeyError):
+                pass
+            raise CustomException(500, msg, "Restic Container Error")
         except Exception as e:
-            raise CustomException(500, "Run container failed", "Internal Server Error")
+            raise CustomException(500, f"Restic container failed: {e}", "Container Error")
 
-
-    def create_backup(self, app_id: str) -> Dict:
-        """
-        Create backup for an app by app_id. 自动从 app_manager 获取挂载卷信息。
-
-        Args:
-            app_id: Application ID
-
-        Returns:
-            Backup result dict
-        """
+    # ------------------------------------------------------------------
+    #  Repository management (local — only touches repo path)
+    # ------------------------------------------------------------------
+    def _check_repository(self) -> bool:
         try:
-            # 自动获取 volume_mappings
+            cfg = json.loads(self._run_restic_local(["cat", "config"]))
+            return bool(cfg.get("id") and cfg.get("version"))
+        except CustomException:
+            return False
+        except (json.JSONDecodeError, KeyError):
+            return False
+
+    def _init_repository(self):
+        if self._check_repository():
+            return
+        try:
+            output = self._run_restic_local(["init"])
+            result = json.loads(output)
+            if result.get("message_type") != "initialized":
+                logger.error(f"Unexpected init response: {result}")
+        except CustomException as e:
+            logger.error(f"Repository init failed: {e}")
+            raise
+
+    # ------------------------------------------------------------------
+    #  Read-only operations — local binary (fast, no Docker)
+    # ------------------------------------------------------------------
+    def list_snapshots(self, app_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        try:
+            if not self._check_repository():
+                raise CustomException(400, "Repository not initialized", "Repository Error")
+
+            command = ["snapshots"]
+            if app_id:
+                command.extend(["--tag", app_id])
+
+            output = self._run_restic_local(command)
+            return json.loads(output) if output.strip() else []
+        except (json.JSONDecodeError, KeyError):
+            raise CustomException(500, "Failed to parse snapshot list", "Parse Error")
+        except CustomException:
+            raise
+        except Exception as e:
+            raise CustomException(500, f"List snapshots error: {e}", "List Error")
+
+    def delete_snapshot(self, snapshot_id: str) -> None:
+        try:
+            if not self._check_repository():
+                raise CustomException(400, "Repository not initialized", "Repository Error")
+
+            output = self._run_restic_local(["forget", snapshot_id])
+            if output.strip():
+                raise CustomException(400, f"Delete failed: {output}", f"Snapshot: {snapshot_id}")
+        except CustomException:
+            raise
+        except Exception as e:
+            raise CustomException(500, str(e), "Delete Error")
+
+    # ------------------------------------------------------------------
+    #  Read-write operations — Docker runner (needs volume mounts)
+    # ------------------------------------------------------------------
+    def create_backup(self, app_id: str) -> None:
+        try:
             app_info = AppManger().get_app_by_id(app_id)
             volumes_info = getattr(app_info, "volumes", [])
-            volume_mappings = {}
+
+            extra_volumes: Dict[str, Dict[str, str]] = {}
+            container_paths: List[str] = []
             for v in volumes_info:
                 mountpoint = v.get("Mountpoint")
                 name = v.get("Name")
                 if mountpoint and name:
-                    volume_mappings[mountpoint] = f"/{name}"
+                    extra_volumes[mountpoint] = {"bind": f"/{name}", "mode": "rw"}
+                    container_paths.append(f"/{name}")
 
-            # Ensure repository is initialized
+            if not container_paths:
+                raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
+
             if not self._check_repository():
-                logger.error("Repository not initialized. Attempting to initialize...")
+                logger.info("Repository not initialized, re-initializing...")
                 self._init_repository()
 
-            # Prepare volumes - repository mount is always required
-            volumes = {self.repository_path: {'bind': '/repo', 'mode': 'rw'}}
-            backup_paths = []
+            command = ["backup"] + container_paths + ["--tag", app_id]
+            output = self._run_restic_container(command, extra_volumes)
 
-            # Add data volumes from volume_mappings (这些是需要备份的路径)
-            for host_path, container_path in volume_mappings.items():
-                volumes[host_path] = {'bind': container_path, 'mode': 'rw'}
-                backup_paths.append(container_path)
+            for line in output.strip().split("\n"):
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                if data.get("message_type") == "summary" and "snapshot_id" in data:
+                    logger.access(f"Backup successful for app: {app_id}")
+                    return
 
-            # Build command - follow the working format
-            command = ['-r', '/repo', 'backup'] + backup_paths + ['--json']
-            command.extend(['--tag', app_id])
-            command.append('--insecure-no-password')
-
-            # Execute backup
-            output = self._run_container(command, volumes)
-
-            # Check if backup was successful
-            try:
-                for line in output.strip().split('\n'):
-                    if line.strip():
-                        json_data = json.loads(line)
-                        if json_data.get('message_type') == 'summary' and 'snapshot_id' in json_data:
-                            logger.access(f"Backup successful for app: {app_id}")
-                            return
-            except Exception as e:
-                logger.error(f"Error parsing backup output: {e}")
-            logger.error(f"Backup failed for app: {app_id}")
-            raise CustomException(f"Backup failed for app: {app_id}")
-        except CustomException as e:
-            logger.error(f"Backup failed for app: {app_id}, error: {e}")
-            raise CustomException()
+            raise CustomException(500, f"Backup failed for app: {app_id}", "Backup Failed")
+        except CustomException:
+            raise
         except Exception as e:
-            logger.error(f"Backup error for app: {app_id}, error: {e}")
-            raise CustomException()
+            logger.error(f"Backup error for app: {app_id}: {e}")
+            raise CustomException(500, str(e), "Backup Error")
 
-    def list_snapshots(self, app_id: str = None) -> List[Dict]:
-        """List snapshots filtered by app_id"""
-        try:
-            # Ensure repository is initialized
-            if not self._check_repository():
-                logger.error("Repository not initialized. Cannot list snapshots.")
-                raise CustomException(400, "Repository not initialized", "Repository Error")
-            
-            # Prepare volumes and command
-            volumes = {self.repository_path: {'bind': '/repo', 'mode': 'rw'}}
-            command = ['-r', '/repo', 'snapshots', '--json', '--insecure-no-password']
-
-            # Add app_id to the command if provided
-            if app_id:
-                command.extend(['--tag', app_id])
-
-            # Execute the command
-            output = self._run_container(command, volumes)
-
-            # Parse JSON output
-            snapshots = json.loads(output) if output.strip() else []
-
-            return snapshots
-
-        except CustomException as e:
-            logger.error(f"List snapshots failed: {e}")
-            raise CustomException(f"Failed to list snapshots: {e}")
-        except Exception as e:
-            logger.error(f"List snapshots error: {e}")
-            raise CustomException(f"Unexpected error while listing snapshots: {e}")
-
-    def delete_snapshot(self, snapshot_id: str) -> None:
-        """Delete a snapshot by its ID"""
-        try:
-            # Ensure repository is initialized
-            if not self._check_repository():
-                logger.error("Repository not initialized. Cannot delete snapshot.")
-                raise CustomException(400, "Repository not initialized", "Repository Error")
-            
-            volumes = {self.repository_path: {'bind': '/repo', 'mode': 'rw'}}
-            command = ['-r', '/repo', 'forget', snapshot_id, '--insecure-no-password', '--json']
-            
-            output = self._run_container(command, volumes)
-            
-            # If no output, assume success
-            if not output.strip():
-                return
-            
-            # If output exists, treat it as an error
-            logger.error(f"Delete snapshot failed: {output}")
-            raise CustomException(status_code=400, message=f"Delete snapshot failed: {output}", details=f"Snapshot ID: {snapshot_id}")
-            
-        except CustomException as e:
-            logger.error(f"Delete snapshot error: {e}")
-            raise e
-        except Exception as e:
-            logger.error(f"Unexpected error while deleting snapshot {snapshot_id}: {e}")
-            raise CustomException()
-
-    def restore_backup(self, app_id: str,snapshot_id: str) -> None:
-        """
-        Restore backup to specified location.
-
-        Args:
-            snapshot_id (str): Snapshot ID to restore.
-            app_id (str): Application ID to restore to.
-
-        Raises:
-            CustomException: If restore fails or mappings are not provided.
-        """
+    def restore_backup(self, app_id: str, snapshot_id: str) -> None:
         try:
             logger.access(f"Restoring snapshot: {snapshot_id}")
 
-            # Ensure repository is initialized
             if not self._check_repository():
-                logger.error("Repository not initialized. Cannot restore backup.")
                 raise CustomException(400, "Repository not initialized", "Repository Error")
 
-            # 自动获取 restore_mappings
             app_info = AppManger().get_app_by_id(app_id)
             volumes_info = getattr(app_info, "volumes", [])
-            restore_mappings = {}
+            endpoint_id = app_info.get("endpointId") if isinstance(app_info, dict) else getattr(app_info, "endpointId", None)
+
+            extra_volumes: Dict[str, Dict[str, str]] = {}
             for v in volumes_info:
                 mountpoint = v.get("Mountpoint")
                 name = v.get("Name")
                 if mountpoint and name:
-                    restore_mappings[mountpoint] = f"/{name}"
+                    extra_volumes[mountpoint] = {"bind": f"/{name}", "mode": "rw"}
 
-            # Prepare volumes for the restore operation
-            volumes = {self.repository_path: {'bind': '/repo', 'mode': 'rw'}}
-            for host_path, container_path in restore_mappings.items():
-                volumes[host_path] = {'bind': container_path, 'mode': 'rw'}
+            # Stop containers before restore to release file locks and caches
+            portainer = PortainerManager()
+            if endpoint_id:
+                try:
+                    portainer.stop_stack(app_id, endpoint_id)
+                    logger.access(f"Stopped containers for app {app_id} before restore")
+                except Exception as exc:
+                    logger.warn(f"Failed to stop containers for app {app_id}: {exc}")
 
-            # Build the restore command
-            command = ['-r', '/repo', 'restore', snapshot_id, '--target', '/', '--insecure-no-password', '--json']
+            output = self._run_restic_container(["restore", snapshot_id, "--target", "/"], extra_volumes)
 
-            # Execute the restore command
-            output = self._run_container(command, volumes)
+            # Start containers after restore
+            if endpoint_id:
+                try:
+                    portainer.start_stack(app_id, endpoint_id)
+                    logger.access(f"Started containers for app {app_id} after restore")
+                except Exception as exc:
+                    logger.warn(f"Failed to start containers for app {app_id}: {exc}")
 
-            # Parse the output to check for success
-            for line in output.strip().split('\n'):
-                if line.strip():
-                    try:
-                        json_data = json.loads(line)
-                        if json_data.get('message_type') == 'summary':
-                            logger.access(f"Snapshot {snapshot_id} restored successfully")
-                            return
-                    except json.JSONDecodeError:
-                        logger.error(f"Invalid JSON output during restore: {line}")
-                        raise CustomException(500, f"Invalid output during restore: {line}", "Internal Server Error")
+            for line in output.strip().split("\n"):
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                if data.get("message_type") == "summary":
+                    logger.access(f"Snapshot {snapshot_id} restored successfully")
+                    return
 
-            # If no summary message is found, assume failure
-            logger.error(f"Restore failed for snapshot: {snapshot_id}")
-            raise CustomException(500, f"Restore failed for snapshot: {snapshot_id}", "Internal Server Error")
-        except CustomException as e:
-            logger.error(f"Restore snapshot failed: {e}")
-            raise e
+            raise CustomException(500, f"Restore failed for snapshot: {snapshot_id}", "Restore Failed")
+        except CustomException:
+            raise
         except Exception as e:
-            logger.error(f"Unexpected error while restoring snapshot {snapshot_id}: {e}")
-            raise CustomException()
+            logger.error(f"Restore error: {e}")
+            raise CustomException(500, str(e), "Restore Error")

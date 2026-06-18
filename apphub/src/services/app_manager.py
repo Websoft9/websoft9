@@ -703,10 +703,10 @@ class AppManger:
                         app_id=stack_name,
                         endpointId=endpointId,
                         app_name=app_name,
-                        logo_url=self._resolve_available_app_logo_url(logo_map, app_name, stack_name),
+                        logo_url=self._resolve_available_app_logo_url(logo_map, app_name, stack_name) if app_name else None,
                         app_dist=app_dist,
                         app_version=app_version,
-                        app_official=True,
+                        app_official=bool(app_name) or bool(gitConfig),
                         is_php_app=is_php_app,
                         is_monitor_app=is_monitor_app,
                         proxy_enabled=proxy_enabled,
@@ -720,6 +720,19 @@ class AppManger:
                         error=stack_error,
                     )
                     apps_info.append(app_info)
+
+            # Add container projects not managed by Portainer as external apps
+            for project_name, project_containers in containers_by_project.items():
+                if project_name in stack_names:
+                    continue  # already handled above
+                if project_name == "websoft9":
+                    continue  # hide platform stack
+                apps_info.append(AppResponse(
+                    app_id=project_name,
+                    endpointId=endpointId,
+                    app_official=False,
+                    containers=project_containers,
+                ))
 
             now = datetime.now(timezone.utc)
 

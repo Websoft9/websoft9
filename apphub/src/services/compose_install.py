@@ -192,23 +192,6 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
         env_lines = [f"{entry.key}={entry.value}" for entry in payload.env]
         FileHelper.write_file(os.path.join(workspace_path, ".env"), "\n".join(env_lines) + "\n")
 
-        metadata_path = os.path.join(workspace_path, COMPOSE_METADATA_PATH)
-        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-        FileHelper.write_file(
-            metadata_path,
-            json.dumps(
-                {
-                    "dist": "compose",
-                    "app_name": payload.app_id,
-                    "version": "custom",
-                    "domain": payload.domain,
-                    "tracked_app_id": app_id,
-                },
-                ensure_ascii=True,
-                indent=2,
-            ) + "\n",
-        )
-
         for mount in payload.mounts:
             target_path = os.path.join(workspace_path, mount.path)
             os.makedirs(os.path.dirname(target_path), exist_ok=True)

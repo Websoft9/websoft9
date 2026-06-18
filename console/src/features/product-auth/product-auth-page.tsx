@@ -42,7 +42,7 @@ function isValidPlatformBrandLogoUrl(value: string) {
 function resolveNext(search: string) {
     const params = new URLSearchParams(search)
     const next = params.get('next')
-    return next && next.startsWith('/') ? next : '/users'
+    return next && next.startsWith('/') ? next : '/dashboard'
 }
 
 function targetsIntegrationWorkspace(path: string) {
@@ -82,7 +82,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
-    const { errorMessage, initialize, isLoading, isSubmitting, login, status } = useProductAuth()
+    const { errorMessage, initialize, isLoading, isSubmitting, login, logout, status } = useProductAuth()
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -287,7 +287,8 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
             }
 
             if (mode === 'setup') {
-                navigate('/overview', { replace: true })
+                await logout()
+                navigate('/auth/login', { replace: true })
             } else {
                 navigate(nextPath, { replace: true })
             }
@@ -354,7 +355,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
 
                     {(localError || errorMessage) && <Alert severity="error">{mapAuthErrorMessage(localError ?? errorMessage, t)}</Alert>}
 
-                    <Stack component="form" spacing={2.25} onSubmit={handleSubmit}>
+                    <Stack component="form" spacing={1} onSubmit={handleSubmit}>
                         {mode === 'setup' ? (
                             <TextField
                                 label={t('auth.fields.language')}
@@ -367,6 +368,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                                 size="medium"
                                 sx={authFieldSx}
                                 value={selectedLocale}
+                                helperText=" "
                             >
                                 <MenuItem value="en">{t('locales.en')}</MenuItem>
                                 <MenuItem value="zh-CN">{t('locales.zh-CN')}</MenuItem>
@@ -398,6 +400,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                             size="medium"
                             sx={authFieldSx}
                             value={username}
+                            helperText=" "
                         />
                         <TextField
                             label={t('auth.fields.password')}

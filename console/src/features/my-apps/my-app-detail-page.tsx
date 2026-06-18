@@ -1125,7 +1125,8 @@ export function MyAppDetailPage() {
             const composeRoute = `/myapps/${encodeURIComponent(data.app_id)}?tab=compose`
             markPendingComposeReturn(data.app_id)
             rememberMyAppsDetailRoute(composeRoute)
-            openProductPath(getComposeRepositoryTarget(data), navigate, composeRoute)
+            openProductPath(getComposeRepositoryTarget(data), navigate, composeRoute, true)
+            setComposeStep(1)
             return
         }
 
@@ -1468,7 +1469,7 @@ export function MyAppDetailPage() {
                                                                                 <td>{getContainerStatus(c)}</td>
                                                                                 <td className="myapps-cell-center">
                                                                                     <div className="myapps-table-actions-inline">
-                                                                                        <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`)}` : '#'} title={t('myAppsDetailPage.tabs.container.actions.viewLogs')} className="myapps-table-action-link" onClick={(event) => {
+                                                                                        <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`)}` : '#'} className="myapps-table-action-link" onClick={(event) => {
                                                                                             if (!containerId) return
                                                                                             event.preventDefault()
                                                                                             window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`)}`, '_blank')
@@ -1476,7 +1477,7 @@ export function MyAppDetailPage() {
                                                                                             <i className="dripicons-document-remove noti-icon" />
                                                                                         </a>
                                                                                         {state === 'running' ? (
-                                                                                            <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`)}` : '#'} title={t('myAppsDetailPage.tabs.container.actions.viewStats')} className="myapps-table-action-link" onClick={(event) => {
+                                                                                            <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`)}` : '#'} className="myapps-table-action-link" onClick={(event) => {
                                                                                                 if (!containerId) return
                                                                                                 event.preventDefault()
                                                                                                 window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`)}`, '_blank')
@@ -1485,7 +1486,7 @@ export function MyAppDetailPage() {
                                                                                             </a>
                                                                                         ) : null}
                                                                                         {state === 'running' ? (
-                                                                                            <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`)}` : '#'} title={t('myAppsDetailPage.tabs.container.actions.viewTerminal')} className="myapps-table-action-link" onClick={(event) => {
+                                                                                            <a href={containerId ? `/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`)}` : '#'} className="myapps-table-action-link" onClick={(event) => {
                                                                                                 if (!containerId) return
                                                                                                 event.preventDefault()
                                                                                                 window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`)}`, '_blank')

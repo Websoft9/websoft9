@@ -1348,7 +1348,7 @@
 .myapps-table-actions-text {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
 }
 
 .myapps-table-actions-inline {

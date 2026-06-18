@@ -1,6 +1,8 @@
 # Production docker-compose.yml — single-container runtime
 # Usage: docker compose -f docker-compose.yml up -d
 
+name: websoft9
+
 services:
   product:
     image: ${IMAGE_REPO:-websoft9dev/websoft9}:${IMAGE_TAG:-latest}

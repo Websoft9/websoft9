@@ -85,6 +85,7 @@ WORKDIR /websoft9
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
     bash \
+    bzip2 \
     ca-certificates \
     cron \
     curl \
@@ -99,6 +100,22 @@ RUN apt-get update && \
 ARG WEBSOFT9_PRODUCT_VERSION=
 ARG WEBSOFT9_PRODUCT_EDITION_KEY=
 ARG WEBSOFT9_APPSTORE_CHANNEL=release
+
+# Restic backup binary — single static build, no runtime deps
+# Retry with mirror fallback for Chinese network environments
+RUN RESTIC_URL="https://github.com/restic/restic/releases/download/v0.17.3/restic_0.17.3_linux_amd64.bz2" \
+    RESTIC_MIRROR="https://ghproxy.com/${RESTIC_URL}" \
+    && for url in "$RESTIC_URL" "$RESTIC_MIRROR"; do \
+         echo "Trying: $url" \
+         && if curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 300 "$url" | bzip2 -d > /usr/local/bin/restic; then \
+              chmod +x /usr/local/bin/restic \
+              && restic version \
+              && echo "Restic installed from: $url" \
+              && break; \
+         fi; \
+         echo "Failed: $url, trying next..."; \
+       done \
+    && [ -x /usr/local/bin/restic ] || (echo "All Restic download sources failed" && false)
 
 COPY --from=npm-runtime /app /app
 COPY --from=npm-runtime /etc/nginx /etc/nginx
@@ -184,8 +201,10 @@ RUN chmod 0644 /etc/cron.d/websoft9-appstore
 
 # Pre-populate app store assets during image build so first-load browsing uses
 # a prepared local dataset instead of waiting for runtime warm-up.
+# Non-fatal: build continues even if remote assets are unavailable (runtime cron retries).
 RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
-    python3 /websoft9/script/platform-sync-runtime-assets.py
+    WEBSOFT9_RUNTIME_ASSET_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" \
+    python3 /websoft9/script/platform-sync-runtime-assets.py || true
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \
     printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisorctl "$@"' > /usr/local/bin/supervisorctl && \

@@ -115,7 +115,7 @@ def download_file(url: str, destination: Path) -> None:
         },
     )
 
-    with urllib.request.urlopen(request) as response, destination.open("wb") as output:
+    with urllib.request.urlopen(request, timeout=30) as response, destination.open("wb") as output:
         shutil.copyfileobj(response, output)
 
 
@@ -128,7 +128,7 @@ def download_json(url: str) -> object:
         },
     )
 
-    with urllib.request.urlopen(request) as response:
+    with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
 
 
@@ -141,7 +141,7 @@ def download_text(url: str) -> str:
         },
     )
 
-    with urllib.request.urlopen(request) as response:
+    with urllib.request.urlopen(request, timeout=30) as response:
         return response.read().decode("utf-8")
 
 
@@ -516,8 +516,11 @@ def resolve_package_url(package_type: str, channel: str, artifact_base: str, man
             library_manifest_url = str(manifest_bundle["library_manifest_url"])
             library_manifest = manifest_bundle["library_manifest"]
             if isinstance(library_manifest, dict):
-                # v2 spec: fullPackage.latest for the channel-tagged full zip
+                # v2 spec: fullPackage as string (e.g. "full/latest.zip")
                 full_pkg = library_manifest.get("fullPackage")
+                if isinstance(full_pkg, str) and full_pkg:
+                    return resolve_json_url(library_manifest_url, full_pkg)
+                # v2 spec (alt): fullPackage.latest for the channel-tagged full zip
                 if isinstance(full_pkg, dict):
                     latest = full_pkg.get("latest")
                     if isinstance(latest, str) and latest:

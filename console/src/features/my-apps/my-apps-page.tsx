@@ -886,6 +886,16 @@ export function MyAppsPage() {
                                         {renderCards(platformApps, 'managed')}
                                     </div>
                                 </div>
+                            ) : hasVisibleOtherApps ? (
+                                <div>
+                                    <h4 className="myapps-section-heading">{t('myAppsPage.sections.officialApps')}</h4>
+                                    <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, backgroundColor: palette.panelBg }}>
+                                        <CardContent sx={{ textAlign: 'center', py: 5 }}>
+                                            <Typography sx={{ fontWeight: 600, fontSize: 16, color: palette.text }}>{t('myAppsPage.states.noAppsInstalled')}</Typography>
+                                            <Typography color={palette.subtleText} variant="body2" sx={{ mt: 1 }}>{t('myAppsPage.states.emptyDetail')}</Typography>
+                                        </CardContent>
+                                    </Card>
+                                </div>
                             ) : null}
 
                             {hasVisibleOtherApps ? (

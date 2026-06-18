@@ -40,10 +40,27 @@ def _read_compose_metadata(gitea: GiteaManager, app_id: str) -> dict:
         return {}
 
 
-def _check_gitea_dist(gitea: GiteaManager, app_id: str) -> str | None:
-    metadata = _read_compose_metadata(gitea, app_id)
-    value = metadata.get("dist")
-    return str(value).strip() if isinstance(value, str) and str(value).strip() else None
+def _is_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int) -> bool:
+    """Determine if an app is a custom compose app by checking Portainer stack properties.
+    
+    Compose apps have a GitConfig (deployed via Gitea) but no W9_APP_NAME env var
+    (unlike marketplace apps which set W9_APP_NAME in container env)."""
+    try:
+        stack = portainer.get_stack_by_name(app_id, endpoint_id)
+        if not stack:
+            return False
+        git_config = stack.get("GitConfig") or {}
+        if not git_config:
+            return False
+        containers = portainer.get_containers_by_stack_name(app_id, endpoint_id) or []
+        for c in containers:
+            env = c.get("Config", {}).get("Env") or []
+            for e in env:
+                if e.startswith("W9_APP_NAME="):
+                    return False  # has marketplace env → not compose
+        return True
+    except Exception:
+        return False
 
 
 def _require_stack(portainer: PortainerManager, app_id: str, endpoint_id: int) -> dict:
@@ -54,10 +71,9 @@ def _require_stack(portainer: PortainerManager, app_id: str, endpoint_id: int) -
     return stack
 
 
-def _require_compose_app(portainer: PortainerManager, gitea: GiteaManager, app_id: str, endpoint_id: int):
-    """Validate that the app's metadata marks it as a custom compose app, return AppResponse."""
-    dist = _check_gitea_dist(gitea, app_id)
-    if dist != _COMPOSE_DIST:
+def _require_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int):
+    """Validate that the app is a custom compose app, return AppResponse."""
+    if not _is_compose_app(portainer, app_id, endpoint_id):
         raise CustomException(
             400, "Invalid Request",
             f"'{app_id}' is not a custom compose application (dist={dist!r})"
@@ -96,15 +112,11 @@ class ComposeAppManager:
         from src.services.app_manager import AppManger
         portainer = PortainerManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        gitea = GiteaManager()
-        try:
-            stacks = portainer.get_stacks(eid) or []
-        except Exception:
-            stacks = []
+        stacks = portainer.get_stacks(eid) or []
         compose_app_ids = [
             stack.get("Name")
             for stack in stacks
-            if stack.get("Name") and _check_gitea_dist(gitea, stack["Name"]) == _COMPOSE_DIST
+            if stack.get("Name") and _is_compose_app(portainer, stack["Name"], eid)
         ]
         result = []
         for app_id in compose_app_ids:
@@ -119,7 +131,7 @@ class ComposeAppManager:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        return _require_compose_app(portainer, gitea, app_id, eid)
+        return _require_compose_app(portainer, app_id, eid)
 
     # ── Content (Gitea) ────────────────────────────────────────────────────────
 
@@ -153,21 +165,21 @@ class ComposeAppManager:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        _require_compose_app(portainer, gitea, app_id, eid)
+        _require_compose_app(portainer, app_id, eid)
         portainer.start_stack(app_id, eid)
 
     def stop_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        _require_compose_app(portainer, gitea, app_id, eid)
+        _require_compose_app(portainer, app_id, eid)
         portainer.stop_stack(app_id, eid)
 
     def restart_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        _require_compose_app(portainer, gitea, app_id, eid)
+        _require_compose_app(portainer, app_id, eid)
         portainer.restart_stack(app_id, eid)
 
     # ── Redeploy (same content, from Gitea) ────────────────────────────────────
@@ -182,7 +194,7 @@ class ComposeAppManager:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        _require_compose_app(portainer, gitea, app_id, eid)
+        _require_compose_app(portainer, app_id, eid)
         stack = _require_stack(portainer, app_id, eid)
         stack_id = stack.get("Id")
         if stack_id is None:
@@ -213,7 +225,7 @@ class ComposeAppManager:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        _require_compose_app(portainer, gitea, app_id, eid)
+        _require_compose_app(portainer, app_id, eid)
         stack = _require_stack(portainer, app_id, eid)
         stack_id = stack.get("Id")
         if stack_id is None:
@@ -284,7 +296,7 @@ class ComposeAppManager:
         portainer = PortainerManager()
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
-        _require_compose_app(portainer, gitea, app_id, eid)
+        _require_compose_app(portainer, app_id, eid)
 
         stack = portainer.get_stack_by_name(app_id, eid)
         if stack:

@@ -997,7 +997,6 @@ export function FilesPage() {
                 body: JSON.stringify({ volume_id: activeVolumeId, path: editorPath, content: editorContent }),
             })
             clearEditorState(true)
-            setFeedback({ severity: 'success', message: t('filesPage.feedback.saveSuccess') })
             if (selectedVolume) {
                 await refetchDirectory()
             } else {

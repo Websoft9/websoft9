@@ -5,14 +5,35 @@
 # 输入：install/install.sh、install/uninstall.sh（含 WEBSOFT9_LIB_SOURCING 标记块）
 # 输出：install/dist/install.sh、install/dist/uninstall.sh（自包含）
 #
-# 用法：bash install/build-bundle.sh [输出目录]
-#   默认输出目录：install/dist
+# 用法：
+#   bash install/build-bundle.sh [--channel <release|rc|dev>] [输出目录]
+#   默认通道：release  默认输出目录：install/dist
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 LIB_DIR="${HERE}/lib"
-OUT_DIR="${1:-${HERE}/dist}"
+
+# ── 参数解析 ────────────────────────────────────────────────
+OPT_CHANNEL="release"
+OUT_DIR=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --channel) OPT_CHANNEL="$2"; shift 2 ;;
+    --channel=*) OPT_CHANNEL="${1#*=}"; shift ;;
+    -*) log "错误：未知选项 $1"; exit 2 ;;
+    *) OUT_DIR="$1"; shift ;;
+  esac
+done
+
+[ -z "$OUT_DIR" ] && OUT_DIR="${HERE}/dist"
+[ -z "$OPT_CHANNEL" ] && OPT_CHANNEL="release"
+
+case "$OPT_CHANNEL" in
+  release|rc|dev) ;;
+  *) log "错误：不支持的通道: ${OPT_CHANNEL}（仅支持 release/rc/dev）"; exit 2 ;;
+esac
 
 BEGIN_MARK="# >>> WEBSOFT9_LIB_SOURCING >>>"
 END_MARK="# <<< WEBSOFT9_LIB_SOURCING <<<"
@@ -82,6 +103,15 @@ main() {
   build_one "${HERE}/install.sh"   "${OUT_DIR}/install.sh"
   build_one "${HERE}/uninstall.sh" "${OUT_DIR}/uninstall.sh"
 
+  # 将默认通道 bake 到输出脚本中（OPT_CHANNEL="release" → OPT_CHANNEL="dev" 等）
+  if [ "$OPT_CHANNEL" != "release" ]; then
+    local f
+    for f in install.sh uninstall.sh; do
+      sed -i "s/^OPT_CHANNEL=\"release\"$/OPT_CHANNEL=\"${OPT_CHANNEL}\"/" "${OUT_DIR}/${f}"
+    done
+    log "已将默认通道 bake 为: ${OPT_CHANNEL}"
+  fi
+
   # 自检：语法 + 确认无残留 source 行
   local f
   for f in install.sh uninstall.sh; do
@@ -94,7 +124,7 @@ main() {
       exit 1
     fi
   done
-  log "构建完成，自检通过：${OUT_DIR}/install.sh, ${OUT_DIR}/uninstall.sh"
+  log "构建完成，自检通过：${OUT_DIR}/install.sh, ${OUT_DIR}/uninstall.sh（通道：${OPT_CHANNEL}）"
 }
 
 main "$@"
