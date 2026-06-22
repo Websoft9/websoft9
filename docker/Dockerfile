@@ -1,3 +1,5 @@
+# Websoft9 Single-Container Runtime Image
+# Build: docker build -f docker/Dockerfile -t websoft9dev/websoft9:dev .
 FROM node:22-bookworm-slim AS console-builder
 
 WORKDIR /build/console

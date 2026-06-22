@@ -31,5 +31,5 @@ volumes:
 
 networks:
   websoft9:
-    name: ${NETWORK_NAME:-websoft9-dev}
+    name: ${NETWORK_NAME:-websoft9}
     driver: bridge
