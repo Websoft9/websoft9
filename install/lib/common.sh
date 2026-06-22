@@ -34,6 +34,7 @@ DEFAULT_IMAGE_TAG="latest"
 DEFAULT_NETWORK_NAME="websoft9"
 DEFAULT_CONSOLE_PORT="9000"
 DEFAULT_INSTALL_PATH="/opt/websoft9"
+DEFAULT_WEBSOFT9_DATA_ROOT="/data"
 
 # 制品分发根（单文件 install.sh 在无本地物料时从此处按通道下载部署物料）
 DEFAULT_ARTIFACT_BASE="https://artifact.websoft9.com/websoft9"
@@ -142,9 +143,11 @@ port_in_use() {
 # 部署物料定位
 # ---------------------------------------------------------------------------
 # 解析仓库内 docker-compose.yml 源路径（供安装/升级复制到安装目录）。
-# 优先使用脚本相邻或仓库内的 compose，便于在仓库内直接运行与测试。
+# 优先使用当前工作区内的 compose，兼容源码入口与 dist 单文件入口。
 resolve_bundled_compose() {
   local candidates=(
+    "${W9_ROOT_DIR}/../docker/docker-compose.yml"
+    "${W9_ROOT_DIR}/../../docker/docker-compose.yml"
     "${W9_LIB_DIR}/../../docker/docker-compose.yml"
     "${W9_LIB_DIR}/../docker-compose.yml"
     "${W9_LIB_DIR}/docker-compose.yml"
@@ -280,14 +283,53 @@ IMAGE_TAG=${image_tag}
 NETWORK_NAME=${network_name}
 CONSOLE_PORT=${console_port}
 CONTAINER_NAME=${CONTAINER_NAME}
+WEBSOFT9_DATA_ROOT=${WEBSOFT9_DATA_ROOT:-$DEFAULT_WEBSOFT9_DATA_ROOT}
 EOF
+}
+
+resolve_runtime_data_root() {
+  local install_path="${1:-$DEFAULT_INSTALL_PATH}"
+  local env_file="${install_path}/.env"
+  local data_root="${WEBSOFT9_DATA_ROOT:-}"
+  if [ -z "$data_root" ] && [ -f "$env_file" ]; then
+    data_root="$(grep -m1 '^WEBSOFT9_DATA_ROOT=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+  fi
+  echo "${data_root:-$DEFAULT_WEBSOFT9_DATA_ROOT}"
+}
+
+resolve_modern_compose_project() {
+  local install_path="${1:-$DEFAULT_INSTALL_PATH}"
+  local env_file="${install_path}/.env"
+  local container_name="${CONTAINER_NAME:-}"
+
+  if [ -z "$container_name" ] && [ -f "$env_file" ]; then
+    container_name="$(grep -m1 '^CONTAINER_NAME=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+  fi
+
+  case "${container_name:-}" in
+    websoft9-dev) echo "websoft9-dev" ;;
+    websoft9-rc) echo "websoft9-rc" ;;
+    *) echo "$MODERN_COMPOSE_PROJECT" ;;
+  esac
+}
+
+ensure_shared_network() {
+  local network_name="${1:-$DEFAULT_NETWORK_NAME}"
+  if docker network inspect "$network_name" >/dev/null 2>&1; then
+    log_info "Reusing shared Docker network: $network_name"
+    return 0
+  fi
+  log_step "Creating shared Docker network: $network_name"
+  run_cmd docker network create "$network_name" >/dev/null
 }
 
 # 统一的 compose 调用封装（固定项目名与 env 文件）
 modern_compose() {
   local install_path="$1"; shift
+  local compose_project
+  compose_project="$(resolve_modern_compose_project "$install_path")"
   docker compose \
-    -p "$MODERN_COMPOSE_PROJECT" \
+    -p "$compose_project" \
     --env-file "${install_path}/.env" \
     -f "${install_path}/docker-compose.yml" \
     "$@"

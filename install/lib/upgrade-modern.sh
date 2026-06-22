@@ -21,8 +21,8 @@ _upgrade_modern_rollback() {
     run_cmd cp -a "${backup_dir}/docker-compose.yml" "${install_path}/docker-compose.yml"
   fi
 
-  # Restore data volume
-  restore_volume "$MODERN_DATA_VOLUME" "$backup_dir" || log_warn "Data volume rollback failed, check backup manually: $backup_dir"
+  # Restore data root
+  restore_host_directory "$(resolve_runtime_data_root "$install_path")" modern-data-root.tar.gz "$backup_dir" || log_warn "Data root rollback failed, check backup manually: $backup_dir"
 
   # Restart old runtime
   run_cmd modern_compose "$install_path" up -d || log_error "Failed to restart old runtime after rollback"
@@ -40,7 +40,13 @@ run_upgrade_modern() {
 
   require_root
   if [ ! -f "${install_path}/docker-compose.yml" ]; then
-    die "$EXIT_RUNTIME" "Existing deployment material not found: ${install_path}/docker-compose.yml"
+    if _detect_modern_data_root; then
+      log_warn "Existing deployment material not found: ${install_path}/docker-compose.yml"
+      log_warn "Modern data root markers exist; continuing in recovery mode and recreating deployment material"
+      run_cmd mkdir -p "$install_path"
+    else
+      die "$EXIT_RUNTIME" "Existing deployment material not found: ${install_path}/docker-compose.yml"
+    fi
   fi
 
   # Derive container name from channel (keep instances isolated)

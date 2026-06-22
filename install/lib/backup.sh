@@ -6,6 +6,18 @@
 # 备份根目录
 W9_BACKUP_ROOT="${W9_BACKUP_ROOT:-/var/lib/websoft9/backups}"
 
+MODERN_DATA_MANAGED_DIRS=(
+  config
+  logs
+  gitea
+  portainer
+  nginx
+  nginx-proxy-manager
+  letsencrypt
+  custom_ssl
+  .w9-migration
+)
+
 # 生成一个新的备份目录路径（不创建内容，仅返回路径）
 backup_new_dir() {
   local tag="${1:-backup}"
@@ -59,6 +71,27 @@ backup_volume() {
     sh -c "cd /w9src && tar czf /w9backup/${volume_name}.tar.gz ."
 }
 
+backup_host_directory() {
+  local source_dir="$1"
+  local archive_name="$2"
+  local backup_dir="$3"
+  if [ ! -d "$source_dir" ]; then
+    log_warn "Directory not found, skipping backup: $source_dir"
+    return 0
+  fi
+  run_cmd mkdir -p "$backup_dir"
+  local managed=() name
+  for name in "${MODERN_DATA_MANAGED_DIRS[@]}"; do
+    [ -e "${source_dir}/${name}" ] && managed+=("$name")
+  done
+  if [ "${#managed[@]}" -eq 0 ]; then
+    log_warn "No managed Websoft9 data directories found under: $source_dir"
+    return 0
+  fi
+  log_step "Backing up managed Websoft9 data under: $source_dir"
+  run_cmd tar czf "${backup_dir}/${archive_name}" -C "$source_dir" "${managed[@]}"
+}
+
 # 从备份 tar 恢复一个命名卷（覆盖式）
 restore_volume() {
   local volume_name="$1"
@@ -77,12 +110,32 @@ restore_volume() {
     sh -c "cd /w9dst && rm -rf ./* && tar xzf /w9backup/${volume_name}.tar.gz"
 }
 
+restore_host_directory() {
+  local target_dir="$1"
+  local archive_name="$2"
+  local backup_dir="$3"
+  local archive="${backup_dir}/${archive_name}"
+  if [ ! -f "$archive" ]; then
+    log_warn "Directory backup not found, skipping restore: $archive"
+    return 1
+  fi
+  log_step "Restoring managed Websoft9 data into: $target_dir"
+  run_cmd mkdir -p "$target_dir"
+  local name
+  for name in "${MODERN_DATA_MANAGED_DIRS[@]}"; do
+    run_cmd rm -rf "${target_dir}/${name}"
+  done
+  run_cmd tar xzf "$archive" -C "$target_dir"
+}
+
 # 升级前现代备份点：物料 + 主数据卷
 backup_modern_pre_upgrade() {
   local install_path="$1"
   local backup_dir="$2"
+  local data_root
+  data_root="$(resolve_runtime_data_root "$install_path")"
   backup_modern_material "$install_path" "$backup_dir"
-  backup_volume "$MODERN_DATA_VOLUME" "$backup_dir"
+  backup_host_directory "$data_root" modern-data-root.tar.gz "$backup_dir"
   log_info "Pre-upgrade backup created: $backup_dir"
 }
 

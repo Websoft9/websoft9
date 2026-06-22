@@ -216,10 +216,12 @@ TRANSFORM
 
 # --- 阶段 4 + 5：卷结构转换 + 凭据合成（单 alpine 容器内完成）---
 _legacy_transform_volumes() {
+  local install_path="$1"
   log_step "卷结构转换 + 凭据合成"
 
-  # 目标主卷
-  run_cmd docker volume create "$MODERN_DATA_VOLUME" >/dev/null
+  local data_root
+  data_root="$(resolve_runtime_data_root "$install_path")"
+  run_cmd mkdir -p "$data_root"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) 跳过实际卷转换"
@@ -231,7 +233,7 @@ _legacy_transform_volumes() {
   _legacy_write_transform_script "${tmpdir}/transform.sh"
 
   # 动态拼装存在的旧卷挂载
-  local mounts=(-v "${MODERN_DATA_VOLUME}:/data" -v "${tmpdir}:/w9script:ro")
+  local mounts=(-v "${data_root}:/data" -v "${tmpdir}:/w9script:ro")
   _add_ro_volume() { volume_exists "$1" && mounts+=(-v "$1:/legacy/$2:ro"); }
   _add_ro_volume nginx_data        nginx_data
   _add_ro_volume nginx_letsencrypt nginx_letsencrypt
@@ -295,9 +297,9 @@ run_upgrade_legacy() {
   _legacy_stop_runtime
 
   # 阶段 4 + 5：卷结构转换 + 凭据合成
-  _legacy_transform_volumes
+  _legacy_transform_volumes "$install_path"
 
-  # 准备现代部署物料（不覆盖已转换的 websoft9_data）
+  # 准备现代部署物料（不覆盖已转换的宿主机数据根）
   install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then

@@ -50,6 +50,7 @@ install_prepare_material() {
 
   log_step "Preparing deployment material"
   ensure_deployment_material "$install_path" "${W9_CHANNEL:-release}"
+  ensure_shared_network "$network_name" || die "$EXIT_RUNTIME" "Failed to prepare shared Docker network: $network_name"
   write_env_file "${install_path}/.env" "$image_repo" "$image_tag" "$network_name" "$console_port"
   log_info "Deployment material and .env ready"
 }

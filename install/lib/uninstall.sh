@@ -16,6 +16,8 @@ _uninstall_modern() {
   local install_path="$2"
   local keep_data="$3"
   local assume_yes="$4"
+  local data_root
+  data_root="$(resolve_runtime_data_root "$install_path")"
 
   log_info "==== Uninstall started (mode=${mode}) ===="
 
@@ -43,28 +45,26 @@ _uninstall_modern() {
   # Data handling
   if [ "$mode" = "purge" ]; then
     if [ "$assume_yes" != "1" ]; then
-      die "$EXIT_USAGE" "purge mode will delete data volume ${MODERN_DATA_VOLUME}, requires explicit --yes"
+      die "$EXIT_USAGE" "purge mode touches bind-mounted data root ${data_root}, requires explicit --yes"
     fi
-    log_step "Purge: deleting data volume ${MODERN_DATA_VOLUME}"
-    run_cmd docker volume rm "$MODERN_DATA_VOLUME" 2>/dev/null || log_warn "Failed to delete data volume (may not exist)"
+    die "$EXIT_USAGE" "Automatic deletion of bind-mounted data root is not supported. Remove ${data_root} manually if you really intend to purge all data."
     if [ -d "$install_path" ]; then
       run_cmd rm -f "${install_path}/docker-compose.yml" "${install_path}/.env" 2>/dev/null || true
     fi
   elif [ "$mode" = "standard" ]; then
     if [ "$keep_data" = "0" ]; then
       if [ "$assume_yes" != "1" ]; then
-        die "$EXIT_USAGE" "--keep-data=false will delete data volume, requires explicit --yes"
+        die "$EXIT_USAGE" "--keep-data=false targets bind-mounted data root ${data_root}, requires explicit --yes"
       fi
-      log_step "Deleting data volume as requested: ${MODERN_DATA_VOLUME}"
-      run_cmd docker volume rm "$MODERN_DATA_VOLUME" 2>/dev/null || log_warn "Failed to delete data volume (may not exist)"
+      die "$EXIT_USAGE" "Automatic deletion of bind-mounted data root is not supported. Remove ${data_root} manually if you really intend to delete runtime data."
     else
-      log_info "Data volume retained: ${MODERN_DATA_VOLUME}"
+      log_info "Data root retained: ${data_root}"
     fi
   fi
 
   log_info "Uninstall summary:"
   log_info "  Container: processed (mode=${mode})"
-  log_info "  Data volume ${MODERN_DATA_VOLUME}: $(volume_exists "$MODERN_DATA_VOLUME" && echo retained || echo deleted)"
+  log_info "  Data root ${data_root}: $([ -d "$data_root" ] && echo retained || echo missing)"
 }
 
 # 旧系统卸载（仅在显式 --remove-legacy-controlplane 或目标环境为 legacy 时）

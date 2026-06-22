@@ -41,6 +41,10 @@ validate_container_health() {
   return 1
 }
 
+_curl_local_probe() {
+  curl --noproxy '*' -fs -o /dev/null --max-time 5 "$1"
+}
+
 # Check that the console port is reachable
 validate_console_entry() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
@@ -51,8 +55,8 @@ validate_console_entry() {
   fi
   local i
   for i in $(seq 1 30); do
-    if curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/" \
-       || curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/api"; then
+    if _curl_local_probe "http://127.0.0.1:${console_port}/" \
+       || _curl_local_probe "http://127.0.0.1:${console_port}/api"; then
       log_info "Console entry reachable"
       return 0
     fi
@@ -72,7 +76,7 @@ validate_api() {
   fi
   local i
   for i in $(seq 1 30); do
-    if curl -fs -o /dev/null --max-time 5 "http://127.0.0.1:${console_port}/api"; then
+    if _curl_local_probe "http://127.0.0.1:${console_port}/api"; then
       log_info "Product API root reachable"
       return 0
     fi
@@ -84,13 +88,15 @@ validate_api() {
 
 # Check that the main data volume exists and the key subtree is readable
 validate_data_root() {
-  log_step "Checking data volume: ${MODERN_DATA_VOLUME}:${MODERN_DATA_MOUNT}"
+  local data_root
+  data_root="$(resolve_runtime_data_root "$DEFAULT_INSTALL_PATH")"
+  log_step "Checking data root bind: ${data_root}:${MODERN_DATA_MOUNT}"
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) skipping data root check"
     return 0
   fi
-  if ! volume_exists "$MODERN_DATA_VOLUME"; then
-    log_error "Data volume not found: $MODERN_DATA_VOLUME"
+  if [ ! -d "$data_root" ]; then
+    log_error "Data root not found: $data_root"
     return 1
   fi
   if container_running "$MODERN_CONTAINER_NAME"; then

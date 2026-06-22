@@ -4,8 +4,16 @@
 # 不负责：安装、升级、卸载等具体动作。
 
 # 强信号：现代运行实体是否存在
+_detect_modern_data_root() {
+  local data_root
+  data_root="$(resolve_runtime_data_root "$DEFAULT_INSTALL_PATH")"
+  [ -f "${data_root}/config/apphub/install-tracking.sqlite" ] && return 0
+  [ -d "${data_root}/portainer/compose" ] && return 0
+  return 1
+}
+
 _detect_modern_strong() {
-  container_exists "$MODERN_CONTAINER_NAME" || volume_exists "$MODERN_DATA_VOLUME"
+  container_exists "$MODERN_CONTAINER_NAME" || [ -f "${DEFAULT_INSTALL_PATH}/docker-compose.yml" ] || _detect_modern_data_root
 }
 
 # 强信号：旧版运行实体（容器或卷）是否存在
@@ -34,7 +42,9 @@ _detect_legacy_auxiliary() {
 # 打印关键观察信号（供 detect 命令做人工审计）
 detect_print_signals() {
   log_info "Modern container exists: $(container_exists "$MODERN_CONTAINER_NAME" && echo yes || echo no)"
-  log_info "Modern data volume exists: $(volume_exists "$MODERN_DATA_VOLUME" && echo yes || echo no)"
+  log_info "Modern deployment material exists: $([ -f "${DEFAULT_INSTALL_PATH}/docker-compose.yml" ] && echo yes || echo no)"
+  log_info "Modern data root configured: $(resolve_runtime_data_root "$DEFAULT_INSTALL_PATH")"
+  log_info "Modern data root markers exist: $(_detect_modern_data_root && echo yes || echo no)"
   local name found_c="" found_v=""
   for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
     container_exists "$name" && found_c="${found_c} ${name}"
