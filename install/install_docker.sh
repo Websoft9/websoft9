@@ -23,6 +23,27 @@ log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
 
 command_exists() { command -v "$@" >/dev/null 2>&1; }
 
+# Pipe stdout/stderr through log_info so every line gets the Websoft9 prefix
+_log_pipe() {
+  while IFS= read -r line; do
+    log_info "$line"
+  done
+}
+
+# Run a command and prefix its combined output with log format.
+# Exit code is preserved via temp file (pipelines lose it with pipefail).
+_run_logged() {
+  local exit_file exit_code
+  exit_file="$(mktemp)"
+  (
+    "$@"
+    echo $? > "$exit_file"
+  ) 2>&1 | _log_pipe
+  exit_code="$(cat "$exit_file" 2>/dev/null || echo 1)"
+  rm -f "$exit_file"
+  return "$exit_code"
+}
+
 # ---------------------------------------------------------------------------
 # Detect distro
 # ---------------------------------------------------------------------------
@@ -156,17 +177,17 @@ _install_from_repo() {
     dnf -y -q install dnf-plugins-core >/dev/null 2>&1 || true
     dnf5 config-manager addrepo --save-filename=docker-ce.repo --from-repofile="$repo" >/dev/null 2>&1
     dnf makecache -q >/dev/null 2>&1 || true
-    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    _run_logged dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   elif command_exists dnf; then
     dnf -y -q install dnf-plugins-core >/dev/null 2>&1 || true
     dnf config-manager --add-repo "$repo" >/dev/null 2>&1
     dnf makecache -q >/dev/null 2>&1 || true
-    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    _run_logged dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   else
     yum -y -q install yum-utils >/dev/null 2>&1 || true
     yum-config-manager --add-repo "$repo" >/dev/null 2>&1
     yum makecache -q >/dev/null 2>&1 || true
-    yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    _run_logged yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
 }
 
@@ -185,7 +206,7 @@ install_docker_custom() {
   if [ "$lsb_dist" = "amzn" ]; then
     log_info "Detected Amazon Linux, using yum"
     yum makecache -q >/dev/null 2>&1 || true
-    yum install -y docker
+    _run_logged yum install -y docker
     mkdir -p /usr/local/lib/docker/cli-plugins/
     log_info "Downloading Docker Compose plugin for Amazon Linux..."
     _download \
@@ -205,7 +226,7 @@ install_docker_custom() {
     dnf config-manager --add-repo=https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo >/dev/null 2>&1
     sed -i 's+$releasever+8+' /etc/yum.repos.d/docker-ce.repo 2>/dev/null || true
     dnf makecache -q >/dev/null 2>&1 || true
-    dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    _run_logged dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     _start_docker && return 0
     return 1
   fi
@@ -252,7 +273,7 @@ install_docker_custom() {
           $(. /etc/os-release && echo "${VERSION_CODENAME:-stable}") stable" | \
           tee /etc/apt/sources.list.d/docker.list >/dev/null
         apt-get update -qq >/dev/null 2>&1 || true
-        if apt-get install -y docker-ce docker-ce-cli containerd.io \
+        if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
           _start_docker && return 0
           return 1
@@ -287,31 +308,21 @@ install_docker_official() {
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
 
-    # Run with visible output so slow apt-get steps don't look stuck
-    local exit_file exit_code
-    exit_file="$(mktemp)"
-    (
-      timeout "$install_timeout" sh -c "$cmd"
-      echo $? > "$exit_file"
-    ) 2>&1 | while IFS= read -r line; do
-      log_info "$line"
-    done
-
-    exit_code="$(cat "$exit_file" 2>/dev/null || echo unknown)"
-    rm -f "$exit_file"
-
-    if [ "$exit_code" = "124" ] || [ "$exit_code" = "unknown" ]; then
-      log_warn "Timed out after ${install_timeout}s, trying next mirror"
-      continue
+    if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
+      if command_exists docker && docker compose version >/dev/null 2>&1; then
+        log_info "Docker installation succeeded via official script"
+        _start_docker
+        return $?
+      fi
+      log_warn "Official script finished but Docker is not available; trying next mirror"
+    else
+      local ec=$?
+      if [ "$ec" = "124" ]; then
+        log_warn "Timed out after ${install_timeout}s, trying next mirror"
+      else
+        log_warn "Official script exited with code $ec, trying next mirror"
+      fi
     fi
-
-    if command_exists docker && docker compose version >/dev/null 2>&1; then
-      log_info "Docker installation succeeded via official script"
-      _start_docker
-      return $?
-    fi
-
-    log_warn "Official script finished but Docker is not available; trying next mirror"
   done
 
   log_warn "Official script exhausted all mirrors, falling back to custom installation"
