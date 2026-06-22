@@ -889,10 +889,27 @@ export function MyAppsPage() {
                             ) : hasVisibleOtherApps ? (
                                 <div>
                                     <h4 className="myapps-section-heading">{t('myAppsPage.sections.officialApps')}</h4>
-                                    <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, backgroundColor: palette.panelBg }}>
-                                        <CardContent sx={{ textAlign: 'center', py: 5 }}>
-                                            <Typography sx={{ fontWeight: 600, fontSize: 16, color: palette.text }}>{t('myAppsPage.states.noAppsInstalled')}</Typography>
-                                            <Typography color={palette.subtleText} variant="body2" sx={{ mt: 1 }}>{t('myAppsPage.states.emptyDetail')}</Typography>
+                                    <Card elevation={0} sx={{ border: `1px solid ${palette.border}`, mt: 2, backgroundColor: palette.panelBg }}>
+                                        <CardContent>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12 }}>
+                                                <svg viewBox="0 0 64 64" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <rect width="64" height="64" rx="16" fill={palette.panelSoft} />
+                                                    <path d="M32 16l14 7v14l-14 7-14-7V23l14-7z" stroke={isDarkMode ? '#64748b' : '#b0b8d1'} strokeWidth="2" strokeLinejoin="round" />
+                                                    <path d="M32 16v14M18 23l14 7 14-7" stroke={isDarkMode ? '#64748b' : '#b0b8d1'} strokeWidth="2" />
+                                                </svg>
+                                                <Typography sx={{ fontWeight: 600, fontSize: 16, color: palette.text, mt: 1 }}>
+                                                    {t('myAppsPage.states.noAppsInstalled')}
+                                                </Typography>
+                                                <Typography color={palette.subtleText} variant="body2" sx={{ textAlign: 'center', maxWidth: 400, lineHeight: 1.7 }}>
+                                                    {t('myAppsPage.states.emptyDetail')}
+                                                </Typography>
+                                                <button
+                                                    className="myapps-empty-btn"
+                                                    onClick={() => navigate('/applications/deploy')}
+                                                >
+                                                    {t('myAppsPage.states.goToAppStore')}
+                                                </button>
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 </div>

@@ -74,7 +74,7 @@ download_docker_script() {
     "https://proxy.websoft9.com/?url=https://get.docker.com"
   )
   local dest="get-docker.sh"
-  local attempt max_attempts=5
+  local attempt max_attempts=10
 
   for url in "${urls[@]}"; do
     log_info "Downloading Docker install script from: $url"
@@ -273,7 +273,7 @@ install_docker_custom() {
 # ---------------------------------------------------------------------------
 install_docker_official() {
   local mirrors=("" "--mirror Aliyun" "--mirror AzureChinaCloud")
-  local install_timeout=600
+  local install_timeout=3600
   local lsb_dist
   lsb_dist="$(detect_distro)"
 
@@ -281,36 +281,21 @@ install_docker_official() {
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
 
-    # Run in background, pipe output to a temp log AND a small exit-code file
-    local tmplog exit_file exit_code
-    tmplog="$(mktemp)"
+    # Run with visible output so slow apt-get steps don't look stuck
+    local exit_file exit_code
     exit_file="$(mktemp)"
     (
       timeout "$install_timeout" sh -c "$cmd"
       echo $? > "$exit_file"
-    ) 2>&1 | tee "$tmplog" &
-
-    _with_dots $! "Installing Docker"
+    ) 2>&1
 
     exit_code="$(cat "$exit_file" 2>/dev/null || echo unknown)"
     rm -f "$exit_file"
 
     if [ "$exit_code" = "124" ] || [ "$exit_code" = "unknown" ]; then
-      rm -f "$tmplog"
       log_warn "Timed out after ${install_timeout}s, trying next mirror"
       continue
     fi
-
-    if grep -q "ERROR: Unsupported distribution" "$tmplog" 2>/dev/null; then
-      local unsupported_dist
-      unsupported_dist="$(grep "ERROR: Unsupported distribution" "$tmplog" | awk -F"'" '{print $2}')"
-      rm -f "$tmplog"
-      log_warn "Distribution '${unsupported_dist:-$lsb_dist}' not supported by official script; switching to custom install"
-      install_docker_custom "${unsupported_dist:-$lsb_dist}"
-      return $?
-    fi
-
-    rm -f "$tmplog"
 
     if command_exists docker && docker compose version >/dev/null 2>&1; then
       log_info "Docker installation succeeded via official script"
