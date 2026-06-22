@@ -246,8 +246,6 @@ class PortainerAPI:
                 "Name": stack_name,
                 "RepositoryURL": repositoryURL,
                 "ComposeFile": "docker-compose.yml",
-                "RepositoryReferenceName": "refs/heads/main",
-                "PullImage": True,
                 "repositoryAuthentication": True,
                 "RepositoryUsername": usr_name,
                 "RepositoryPassword": usr_password,
