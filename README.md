@@ -56,19 +56,19 @@ password: websoft9
 
 # Installation
 
-Websoft9 installation requires host root privileges. Use the root account directly, or run the installer with `sudo bash ...` from a regular user.
+Websoft9 installation requires host root privileges. When started from a local script file by a regular user, the installer will automatically re-run itself with `sudo`.
 
 ## Install & Upgrade
 
 ```
 # Install by default
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh
 
 # Install Websoft9 with parameters
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --console-port 9000 --channel release --path "/data/websoft9/source" --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh --console-port 9000 --channel release --path "/data/websoft9/source" --version "latest"
 
 # Upgrade current single-container installation
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh --version "latest"
 ```
 After installation, access it by: **http://Internet IP:9000**
 

@@ -10,7 +10,7 @@
 
 ```bash
 wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh
-sudo bash install.sh
+bash install.sh
 ```
 
 或使用 `curl`：
@@ -23,10 +23,10 @@ curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | sudo bash
 
 ```bash
 wget -O uninstall.sh https://artifact.websoft9.com/websoft9/release/uninstall.sh
-sudo bash uninstall.sh
+bash uninstall.sh
 ```
 
-> 安装与卸载需要宿主机 root 权限。支持两种方式：直接使用 root 用户执行，或由普通用户通过 `sudo bash ...` 执行。
+> 安装与卸载需要宿主机 root 权限。若以普通用户从本地脚本文件执行，脚本会自动使用 `sudo` 重新执行；若通过管道执行，请直接使用 `sudo bash`。
 
 ---
 
@@ -62,7 +62,7 @@ install/
 ### 语法
 
 ```
-sudo bash install.sh [选项]
+bash install.sh [选项]
 ```
 
 自动识别当前环境，**未安装时全新安装，已安装时升级**，无需区分命令。
@@ -99,19 +99,19 @@ sudo bash install.sh [选项]
 
 ```bash
 # 标准安装（自动判断安装或升级）
-sudo bash install.sh
+bash install.sh
 
 # 指定发布通道
-sudo bash install.sh --channel rc
+bash install.sh --channel rc
 
 # CI/自动化，跳过所有确认
-sudo bash install.sh --yes
+bash install.sh --yes
 
 # 演练：只做前置检查，不实际操作
-sudo bash install.sh --dry-run
+bash install.sh --dry-run
 
 # 指定控制台端口
-sudo bash install.sh --console-port 8080
+bash install.sh --console-port 8080
 ```
 
 ---
@@ -123,7 +123,7 @@ sudo bash install.sh --console-port 8080
 ### 语法
 
 ```
-sudo bash uninstall.sh [options]
+bash uninstall.sh [options]
 ```
 
 ### 参数
@@ -143,16 +143,16 @@ sudo bash uninstall.sh [options]
 
 ```bash
 # 标准卸载（交互确认）
-sudo bash uninstall.sh
+bash uninstall.sh
 
 # 完全清除，跳过确认
-sudo bash uninstall.sh --purge --keep-data false --yes
+bash uninstall.sh --purge --keep-data false --yes
 
 # 仅停服，不删容器
-sudo bash uninstall.sh --mode stop
+bash uninstall.sh --mode stop
 
 # 保留数据，清理旧版遗留组件
-sudo bash uninstall.sh --keep-data --remove-legacy-controlplane
+bash uninstall.sh --keep-data --remove-legacy-controlplane
 ```
 
 ---
@@ -171,7 +171,7 @@ sudo bash uninstall.sh --keep-data --remove-legacy-controlplane
 
 ```bash
 # 使用内网镜像站（适合离线或受限网络环境）
-W9_ARTIFACT_BASE=https://my-mirror.example.com/websoft9 sudo bash install.sh
+W9_ARTIFACT_BASE=https://my-mirror.example.com/websoft9 bash install.sh
 ```
 
 ---

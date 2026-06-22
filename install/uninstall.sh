@@ -35,7 +35,9 @@ usage() {
 Websoft9 卸载工具
 
 用法:
-  sudo bash uninstall.sh [options]
+  bash uninstall.sh [options]
+
+  以普通用户从本地脚本文件启动时，会自动使用 sudo 重新执行。
 
 选项:
   --mode <stop|standard|purge>   卸载模式（默认 standard）
@@ -47,6 +49,8 @@ Websoft9 卸载工具
   -h, --help                     显示帮助
 EOF
 }
+
+ORIGINAL_ARGS=("$@")
 
 OPT_MODE="standard"
 OPT_PATH="$DEFAULT_INSTALL_PATH"
@@ -74,7 +78,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-require_root
+ensure_root_or_sudo_reexec "${ORIGINAL_ARGS[@]}"
 
 env_kind="$(detect_environment)"
 log_info "Environment: ${env_kind}"
