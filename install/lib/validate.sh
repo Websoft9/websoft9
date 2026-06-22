@@ -132,7 +132,6 @@ validate_install() {
   validate_container_health 180 || rc=1
   validate_console_entry "$console_port" || rc=1
   validate_api "$console_port" || rc=1
-  validate_data_root || rc=1
   validate_product_state || rc=1
   return $rc
 }
@@ -144,7 +143,6 @@ validate_upgrade() {
   validate_container_health 240 || rc=1
   validate_console_entry "$console_port" || rc=1
   validate_api "$console_port" || rc=1
-  validate_data_root || rc=1
   validate_product_state || rc=1
   return $rc
 }

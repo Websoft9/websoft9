@@ -17,6 +17,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ── Detect what changed to skip unnecessary image builds ──
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.filter.outputs.image }}
+      install: ${{ steps.filter.outputs.install }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            image:
+              - 'docker/Dockerfile'
+              - 'docker/proxy/**'
+              - 'docker/gateway/**'
+              - 'docker/apphub/**'
+              - 'docker/scripts/**'
+              - 'docker/supervisord.conf'
+              - 'docker/crontab'
+              - 'docker/deployment/**'
+              - 'console/**'
+              - 'apphub/**'
+              - 'version.json'
+            install:
+              - 'install/**'
+              - 'scripts/**'
+              - 'mirrors.json'
+              - 'CHANGELOG.md'
+              - 'docker/docker-compose.yml'
+              - 'docker/docker-compose.dev.yml'
+
   # ── Determine dev candidate tags ──
   meta:
     name: Determine Build Meta
@@ -59,7 +92,8 @@ jobs:
   # ── Build, scan, push dev candidate image ──
   build-and-push:
     name: Build & Push Image
-    needs: meta
+    needs: [meta, changes]
+    if: needs.changes.outputs.image == 'true'
     uses: ./.github/workflows/docker-build.yml
     with:
       push: true
@@ -71,14 +105,16 @@ jobs:
   # ── Smoke test uses SHA tag (guarantees testing the exact build) ──
   smoke-test:
     name: Smoke Test
-    needs: [meta, build-and-push]
+    needs: [meta, changes, build-and-push]
+    if: needs.changes.outputs.image == 'true'
     uses: ./.github/workflows/smoke-test.yml
     with:
       image: websoft9dev/websoft9:${{ needs.meta.outputs.sha_tag }}
 
   promote-tags:
     name: Promote Dev Tags
-    needs: [meta, build-and-push, smoke-test]
+    needs: [meta, changes, build-and-push, smoke-test]
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Set up Docker Buildx
@@ -102,7 +138,11 @@ jobs:
   # ── Publish dev artifacts to R2 without creating a formal release ──
   upload-artifacts:
     name: Upload Dev Artifacts
-    needs: [meta, promote-tags, smoke-test]
+    needs: [meta, changes, promote-tags]
+    if: |
+      always() &&
+      !cancelled() &&
+      (needs.changes.outputs.install == 'true' || needs.promote-tags.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
