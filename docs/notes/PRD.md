@@ -108,7 +108,7 @@ UI 自适应各种屏幕尺寸
 一键自动化安装程序，类似：
 
 ```
-curl https://websoft9.github.io/stackhub/install/install.sh | bash
+curl https://websoft9.github.io/stackhub/install/install.sh | sudo bash
 ```
 
 主要步骤包括：

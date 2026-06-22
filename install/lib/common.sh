@@ -90,8 +90,8 @@ die() {
 command_exists() { command -v "$@" >/dev/null 2>&1; }
 
 require_root() {
-  if [ "$(id -u)" -ne 0 ] && ! command_exists sudo; then
-    die "$EXIT_PRECHECK" "Root privileges (or sudo) are required."
+  if [ "$(id -u)" -ne 0 ]; then
+    die "$EXIT_PRECHECK" "Root privileges are required. Please re-run this command with sudo or as root."
   fi
 }
 

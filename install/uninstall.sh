@@ -35,7 +35,7 @@ usage() {
 Websoft9 卸载工具
 
 用法:
-  uninstall.sh [options]
+  sudo bash uninstall.sh [options]
 
 选项:
   --mode <stop|standard|purge>   卸载模式（默认 standard）
@@ -73,6 +73,8 @@ while [ $# -gt 0 ]; do
     *) die "$EXIT_USAGE" "Unknown option: $1 (use -h for help)" ;;
   esac
 done
+
+require_root
 
 env_kind="$(detect_environment)"
 log_info "Environment: ${env_kind}"

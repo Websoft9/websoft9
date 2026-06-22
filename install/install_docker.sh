@@ -23,6 +23,13 @@ log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
 
 command_exists() { command -v "$@" >/dev/null 2>&1; }
 
+require_root() {
+  if [ "$(id -u)" -ne 0 ]; then
+    log_error "Root privileges are required. Please re-run this command with sudo or as root."
+    exit 1
+  fi
+}
+
 # Pipe stdout/stderr through log_info so every line gets the Websoft9 prefix
 _log_pipe() {
   while IFS= read -r line; do
@@ -334,6 +341,8 @@ install_docker_official() {
 # Main
 # ---------------------------------------------------------------------------
 log_step "Installing Docker Engine"
+
+require_root
 
 if command_exists docker && docker compose version >/dev/null 2>&1; then
   log_info "Docker is already installed: $(docker --version)"

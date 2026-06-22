@@ -890,7 +890,7 @@ groups:
 **One-Line Installer:**
 ```bash
 wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh
-bash install.sh
+sudo bash install.sh
 ```
 
 **Installation Steps:**

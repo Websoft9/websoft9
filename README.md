@@ -56,19 +56,19 @@ password: websoft9
 
 # Installation
 
-Need root privileges user to install Websoft9, if you use no-root user you can `sudo su` for it
+Websoft9 installation requires host root privileges. Use the root account directly, or run the installer with `sudo bash ...` from a regular user.
 
 ## Install & Upgrade
 
 ```
 # Install by default
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
 
 # Install Websoft9 with parameters
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh --console_port 9000 --channel release --path "/data/websoft9/source" --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --console-port 9000 --channel release --path "/data/websoft9/source" --version "latest"
 
 # Upgrade current single-container installation
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && bash install.sh --mode upgrade --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --version "latest"
 ```
 After installation, access it by: **http://Internet IP:9000**
 
@@ -78,13 +78,13 @@ For lifecycle redesign, legacy-to-modern upgrade planning, and the future instal
 
 ```
 # Uninstall by default
-curl https://artifact.websoft9.com/websoft9/release/uninstall.sh | bash
+curl -fsSL https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash
 
 # Uninstall and keep data
-wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | bash /dev/stdin --keep-data
+wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash -s -- --keep-data
 
 # Uninstall all
-wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | bash /dev/stdin --purge
+wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash -s -- --purge
 ```
 
 # Contributing
