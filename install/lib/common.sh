@@ -95,33 +95,6 @@ require_root() {
   fi
 }
 
-ensure_root_or_sudo_reexec() {
-  if [ "$(id -u)" -eq 0 ]; then
-    return 0
-  fi
-
-  if ! command_exists sudo; then
-    die "$EXIT_PRECHECK" "Root privileges are required. sudo is not available, please re-run this command as root."
-  fi
-
-  if [ "${W9_SUDO_REEXEC:-0}" = "1" ]; then
-    die "$EXIT_PRECHECK" "Automatic sudo elevation failed. Please re-run this command with sudo or as root."
-  fi
-
-  case "${W9_SCRIPT:-}" in
-    ""|/dev/fd/*|/proc/self/fd/*)
-      die "$EXIT_PRECHECK" "This invocation cannot be re-run automatically with sudo. Please run the script from a local file or use sudo bash directly."
-      ;;
-  esac
-
-  if [ ! -r "${W9_SCRIPT:-}" ]; then
-    die "$EXIT_PRECHECK" "Cannot re-run script with sudo because the script path is not readable: ${W9_SCRIPT:-unknown}"
-  fi
-
-  log_info "Re-running with sudo..."
-  exec sudo -E env W9_SUDO_REEXEC=1 bash "$W9_SCRIPT" "$@"
-}
-
 # Docker 可用性
 docker_available() {
   command_exists docker && docker info >/dev/null 2>&1

@@ -413,7 +413,7 @@ This PRD defines the **Functional Requirements (FR)** and **Non-Functional Requi
 
 - **Logs**: Structured JSON logs for all services
 - **Monitoring**: Health check endpoints for all critical services
-- **Updates**: One-command upgrade (`bash install.sh`; existing installs automatically enter the upgrade flow and the script auto-escalates with sudo when needed)
+- **Updates**: One-command upgrade (`sudo bash install.sh`; existing installs automatically enter the upgrade flow)
 - **Rollback**: Ability to restore from backup in < 30 minutes
 - **Documentation**: Inline code comments for complex logic
 

@@ -23,39 +23,12 @@ log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
 
 command_exists() { command -v "$@" >/dev/null 2>&1; }
 
-ensure_root_or_sudo_reexec() {
-  if [ "$(id -u)" -eq 0 ]; then
-    return 0
-  fi
-
-  if ! command_exists sudo; then
-    log_error "Root privileges are required. sudo is not available, please re-run this command as root."
+require_root() {
+  if [ "$(id -u)" -ne 0 ]; then
+    log_error "Root privileges are required. Please re-run this command with sudo or as root."
     exit 1
   fi
-
-  if [ "${W9_SUDO_REEXEC:-0}" = "1" ]; then
-    log_error "Automatic sudo elevation failed. Please re-run this command with sudo or as root."
-    exit 1
-  fi
-
-  case "${W9_SCRIPT:-$0}" in
-    ""|/dev/fd/*|/proc/self/fd/*)
-      log_error "This invocation cannot be re-run automatically with sudo. Please run the script from a local file or use sudo bash directly."
-      exit 1
-      ;;
-  esac
-
-  if [ ! -r "${W9_SCRIPT:-$0}" ]; then
-    log_error "Cannot re-run script with sudo because the script path is not readable: ${W9_SCRIPT:-$0}"
-    exit 1
-  fi
-
-  log_info "Re-running with sudo..."
-  exec sudo -E env W9_SUDO_REEXEC=1 bash "${W9_SCRIPT:-$0}" "$@"
 }
-
-W9_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-ORIGINAL_ARGS=("$@")
 
 # Pipe stdout/stderr through log_info so every line gets the Websoft9 prefix
 _log_pipe() {
@@ -369,7 +342,7 @@ install_docker_official() {
 # ---------------------------------------------------------------------------
 log_step "Installing Docker Engine"
 
-ensure_root_or_sudo_reexec "${ORIGINAL_ARGS[@]}"
+require_root
 
 if command_exists docker && docker compose version >/dev/null 2>&1; then
   log_info "Docker is already installed: $(docker --version)"

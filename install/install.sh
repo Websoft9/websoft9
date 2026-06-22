@@ -1,13 +1,13 @@
 #!/bin/bash
 # install.sh — Websoft9 安装 / 升级入口
-# 用法: bash install.sh [选项]
+# 用法: sudo bash install.sh [选项]
 #
 # 自动识别当前环境：
 #   未安装 → 全新安装
 #   已安装 → 升级（询问确认后执行）
 #   残留异常 → 警告后询问是否继续
 #
-# 卸载请使用: bash uninstall.sh [--purge]
+# 卸载请使用: sudo bash uninstall.sh [--purge]
 
 set -o pipefail
 
@@ -37,10 +37,9 @@ usage() {
 Websoft9 Install / Upgrade Tool
 
 Usage:
-  bash install.sh [options]
+  sudo bash install.sh [options]
 
   Auto-detect: fresh install if nothing is running, upgrade if already installed.
-  When launched by a regular user from a local file, the script will re-run itself with sudo automatically.
 
 Options:
   --channel <release|rc|dev>  Release channel (default: release)
@@ -56,11 +55,9 @@ Advanced options (usually not needed):
   --network <name>            Docker network name (default: ${DEFAULT_NETWORK_NAME})
   --force                     Skip non-destructive pre-flight checks
 
-Uninstall: bash uninstall.sh [--purge]
+Uninstall: sudo bash uninstall.sh [--purge]
 EOF
 }
-
-ORIGINAL_ARGS=("$@")
 
 # ---- 参数默认值 ----
 OPT_CHANNEL="release"
@@ -123,7 +120,7 @@ _confirm() {
 
 # ---- 隐藏子命令（调试/运维） ----
 if [ -n "$_SUBCMD" ]; then
-  ensure_root_or_sudo_reexec "${ORIGINAL_ARGS[@]}"
+  require_root
   case "$_SUBCMD" in
     detect)
       detect_print_signals
@@ -151,7 +148,7 @@ if [ -n "$_SUBCMD" ]; then
   exit "$EXIT_OK"
 fi
 
-ensure_root_or_sudo_reexec "${ORIGINAL_ARGS[@]}"
+require_root
 
 # ---- 主流程：自动识别环境并操作 ----
 env_kind="$(detect_environment)"

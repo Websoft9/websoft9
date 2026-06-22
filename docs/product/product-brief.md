@@ -276,7 +276,7 @@ Websoft9 is a **containerized application management platform** that integrates 
    - Technical blogs and tutorials
 
 3. **Direct Installation** (DIY Users)
-   - Single-command installer: `wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && bash install.sh`
+   - Single-command installer: `wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && sudo bash install.sh`
 
 ### Pricing Model
 
