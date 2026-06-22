@@ -12,6 +12,9 @@ platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/data/logs/plat
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
 service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
 custom_root="${WEBSOFT9_CUSTOM_ROOT:-/data/config}"
+platform_network_name="${WEBSOFT9_PLATFORM_NETWORK_NAME:-websoft9}"
+platform_container_ref="${WEBSOFT9_PLATFORM_CONTAINER_REF:-${HOSTNAME:-}}"
+docker_socket_path="${WEBSOFT9_DOCKER_SOCKET_PATH:-/var/run/docker.sock}"
 
 ensure_legacy_compat_link() {
   local target_path="$1"
@@ -173,6 +176,87 @@ update_runtime_status() {
   return 1
 }
 
+docker_api_request() {
+  local method="$1"
+  local path="$2"
+  local payload="${3:-}"
+  local curl_args=(
+    --silent
+    --show-error
+    --unix-socket "$docker_socket_path"
+    --write-out $'\n%{http_code}'
+    --request "$method"
+  )
+
+  if [[ -n "$payload" ]]; then
+    curl_args+=(--header 'Content-Type: application/json' --data "$payload")
+  fi
+
+  curl "${curl_args[@]}" "http://localhost${path}"
+}
+
+docker_api_status() {
+  local response="$1"
+  printf '%s' "$response" | tail -n 1
+}
+
+docker_api_body() {
+  local response="$1"
+  printf '%s' "$response" | sed '$d'
+}
+
+ensure_platform_network() {
+  log_event "info" "runtime-network.ensure" "phase=runtime-network action=ensure name=$platform_network_name"
+
+  if [[ ! -S "$docker_socket_path" ]]; then
+    log_event "warning" "runtime-network.skip" "phase=runtime-network result=skip reason=docker-socket-unavailable path=$docker_socket_path"
+    return 0
+  fi
+
+  local network_response
+  local network_status
+  network_response="$(docker_api_request GET "/networks/$platform_network_name")"
+  network_status="$(docker_api_status "$network_response")"
+
+  if [[ "$network_status" == "404" ]]; then
+    docker_api_request POST "/networks/create" "{\"Name\":\"$platform_network_name\",\"Driver\":\"bridge\"}" >/dev/null
+    log_event "info" "runtime-network.created" "phase=runtime-network result=created name=$platform_network_name"
+  elif [[ "$network_status" != "200" ]]; then
+    log_event "warning" "runtime-network.skip" "phase=runtime-network result=skip reason=network-inspect-failed status=$network_status"
+    return 0
+  else
+    log_event "info" "runtime-network.exists" "phase=runtime-network result=exists name=$platform_network_name"
+  fi
+
+  if [[ -z "$platform_container_ref" ]]; then
+    log_event "warning" "runtime-network.skip-connect" "phase=runtime-network result=skip-connect reason=missing-container-ref"
+    return 0
+  fi
+
+  local container_response
+  local container_status
+  local container_body
+  container_response="$(docker_api_request GET "/containers/$platform_container_ref/json")"
+  container_status="$(docker_api_status "$container_response")"
+  container_body="$(docker_api_body "$container_response")"
+
+  if [[ "$container_status" == "404" ]]; then
+    log_event "warning" "runtime-network.skip-connect" "phase=runtime-network result=skip-connect reason=container-not-found ref=$platform_container_ref"
+    return 0
+  elif [[ "$container_status" != "200" ]]; then
+    log_event "warning" "runtime-network.skip-connect" "phase=runtime-network result=skip-connect reason=container-inspect-failed status=$container_status ref=$platform_container_ref"
+    return 0
+  fi
+
+  if printf '%s' "$container_body" | grep -Fq "\"$platform_network_name\":{"; then
+    log_event "info" "runtime-network.attached" "phase=runtime-network result=attached name=$platform_network_name ref=$platform_container_ref"
+    return 0
+  fi
+
+  docker_api_request POST "/networks/$platform_network_name/connect" "{\"Container\":\"$platform_container_ref\"}" >/dev/null
+  log_event "info" "runtime-network.connected" "phase=runtime-network result=connected name=$platform_network_name ref=$platform_container_ref"
+}
+
 ensure_service_log_roots() {
   mkdir -p "$service_log_root/gitea" "$service_log_root/portainer" "$service_log_root/nginx-proxy-manager"
 
@@ -303,6 +387,7 @@ main() {
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   sync_runtime_config base
   start_supervisor
+  ensure_platform_network
   start_apphub_core
   bootstrap_product_auth
   bootstrap_platform_gateway

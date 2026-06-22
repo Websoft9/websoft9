@@ -20,6 +20,8 @@ services:
     labels:
       - "owner=websoft9"
       - "com.docker.compose.w9_http.port=9000"
+    networks:
+      - websoft9
 
 volumes:
   websoft9_data:

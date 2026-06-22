@@ -12,6 +12,14 @@ git_module = types.ModuleType('git')
 git_module.Repo = object
 sys.modules.setdefault('git', git_module)
 
+jwt_module = types.ModuleType('jwt')
+sys.modules.setdefault('jwt', jwt_module)
+
+keyring_module = types.ModuleType('keyring')
+keyring_module.get_password = lambda *args, **kwargs: None
+keyring_module.set_password = lambda *args, **kwargs: None
+sys.modules.setdefault('keyring', keyring_module)
+
 from src.services import app_manager as app_manager_module
 from src.services.app_manager import AppManger
 from src.services.app_status import appInstalling, appInstallingError
@@ -70,3 +78,20 @@ def test_get_app_by_id_marks_active_stack_without_containers_as_error(monkeypatc
     assert app.status == 4
     assert app.error == 'No containers were created for this stack.'
     assert app.containers == []
+
+
+def test_get_apps_preserves_original_install_error(monkeypatch):
+    _patch_dependencies(monkeypatch)
+    appInstallingError['tracking-1'] = {
+        'app_id': 'php_t87jd',
+        'app_name': 'wordpress',
+        'status': 4,
+        'error': 'Failed to deploy a stack: compose up operation failed: network websoft9 declared as external, but could not be found',
+    }
+
+    apps = AppManger().get_apps(endpointId=21)
+
+    assert len(apps) == 1
+    assert apps[0].app_id == 'php_t87jd'
+    assert apps[0].status == 4
+    assert apps[0].error == 'Failed to deploy a stack: compose up operation failed: network websoft9 declared as external, but could not be found'

@@ -251,6 +251,82 @@ class AppManger:
 
         return stack_status, None
 
+    def _get_install_error_by_app_id(self, app_id: str | None) -> dict[str, Any] | None:
+        if not app_id:
+            return None
+
+        for _, app in appInstallingError.items():
+            if app.get("app_id") == app_id:
+                return app
+        return None
+
+    def _resolve_display_error(self, app_id: str | None, runtime_error: str | None) -> str | None:
+        install_error = self._get_install_error_by_app_id(app_id)
+        if install_error:
+            preserved_error = str(install_error.get("error") or "").strip()
+            if preserved_error:
+                return preserved_error
+
+        if runtime_error == self._missing_stack_containers_error:
+            logged_error = self._get_logged_stack_deploy_error(app_id)
+            if logged_error:
+                return logged_error
+
+        return runtime_error
+
+    def _get_logged_stack_deploy_error(self, app_id: str | None, max_lines: int = 200) -> str | None:
+        if not app_id:
+            return None
+
+        log_dirs: list[Path] = []
+        configured_log_dir = os.getenv("WEBSOFT9_LOG_DIR")
+        if configured_log_dir:
+            log_dirs.append(Path(configured_log_dir))
+
+        current_log_dir = Path(os.getcwd()) / "logs"
+        repo_log_dir = Path(__file__).resolve().parents[2] / "logs"
+
+        log_dirs.extend([current_log_dir, repo_log_dir])
+
+        seen_paths: set[Path] = set()
+        stack_error_prefix = f"Create stack:{app_id} "
+
+        for log_dir in log_dirs:
+            error_log_path = log_dir / "apphub_error.log"
+            if error_log_path in seen_paths or not error_log_path.exists():
+                continue
+            seen_paths.add(error_log_path)
+
+            try:
+                with error_log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+                    recent_lines = handle.readlines()[-max_lines:]
+            except OSError:
+                continue
+
+            for line in reversed(recent_lines):
+                if stack_error_prefix not in line:
+                    continue
+
+                details_match = re.search(r'error:\s*\d+:(\{.*\})\s*$', line.strip())
+                if details_match:
+                    try:
+                        payload = json.loads(details_match.group(1))
+                    except json.JSONDecodeError:
+                        payload = None
+
+                    if isinstance(payload, dict):
+                        details = str(payload.get("details") or "").strip()
+                        if details:
+                            return details
+
+                suffix = line.split(stack_error_prefix, 1)[-1]
+                if " error: " in suffix:
+                    fallback = suffix.split(" error: ", 1)[-1].strip()
+                    if fallback:
+                        return fallback
+
+        return None
+
     def _ensure_media_asset(self, file_name: str) -> str:
         base_path = ConfigManager("system.ini").get_value("app_media", "path")
         asset_path = os.path.join(base_path, file_name)
@@ -654,6 +730,11 @@ class AppManger:
             stacks = portainerManager.get_stacks(endpointId)
             all_containers = portainerManager.get_containers(endpointId)
             proxy_hosts_by_app = self._group_proxy_hosts_by_app(self._get_proxy_hosts_safe())
+            install_errors_by_app_id = {
+                app.get("app_id"): (app_uuid, app)
+                for app_uuid, app in appInstallingError.items()
+                if isinstance(app.get("app_id"), str) and app.get("app_id")
+            }
 
             stack_names = {
                 stack.get("Name")
@@ -682,7 +763,12 @@ class AppManger:
                     app_env_format: dict[str, str] = {}
                     stack_containers = containers_by_project.get(stack_name, [])
                     stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, stack_containers)
+                    display_error = self._resolve_display_error(stack_name, stack_error)
                     stack_volumes = portainerManager.get_volumes_by_stack_name(stack_name, endpointId, False)
+
+                    if stack_status == 1 and stack_containers and not stack_error and stack_name in install_errors_by_app_id:
+                        remove_app_from_errors_by_app_id(stack_name)
+                        install_errors_by_app_id.pop(stack_name, None)
 
                     if stack_status == 1 and stack_containers:
                         main_container_id = None
@@ -717,7 +803,7 @@ class AppManger:
                         containers=stack_containers,
                         volumes=stack_volumes,
                         env=app_env_format,
-                        error=stack_error,
+                        error=display_error,
                     )
                     apps_info.append(app_info)
 
@@ -772,11 +858,15 @@ class AppManger:
             # Auto-clean stale errors: if the app already appears in apps_info (recovered in Portainer
             # or still being installed), the previous error entry is no longer relevant and can be
             # discarded. This prevents a deleted-from-Portainer app from showing up as Error.
-            existing_app_ids = {info.app_id for info in apps_info}
+            existing_apps_by_id = {info.app_id: info for info in apps_info}
             for app_uuid, app in list(appInstallingError.items()):
                 err_app_id = app.get("app_id")
-                if err_app_id in existing_app_ids:
-                    # App recovered or re-deployed — remove the stale error entry
+                existing_app = existing_apps_by_id.get(err_app_id)
+                if existing_app is not None and (
+                    existing_app.status == 3 or
+                    (existing_app.status == 1 and not existing_app.error)
+                ):
+                    # App recovered or is being re-deployed — remove the stale error entry
                     appInstallingError.pop(app_uuid)
                     continue
                 app_response = AppResponse(
@@ -871,6 +961,10 @@ class AppManger:
             app_volumes = portainerManager.get_volumes_by_stack_name(app_id,endpointId,False)
             app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId) if stack_status == 1 else []
             stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, app_containers)
+            display_error = self._resolve_display_error(app_id, stack_error)
+
+            if stack_status == 1 and app_containers and not stack_error:
+                remove_app_from_errors_by_app_id(app_id)
 
             # if stack is empty(status=2-inactive),can not get it
             if stack_status == 1:
@@ -926,7 +1020,7 @@ class AppManger:
                     containers = app_containers,
                     volumes = app_volumes,
                     env = app_env_format,
-                    error = stack_error,
+                    error = display_error,
                 )
                 return appResponse
             else:
@@ -957,7 +1051,7 @@ class AppManger:
                     containers = app_containers,
                     volumes = app_volumes,
                     env = {},
-                    error = stack_error,
+                    error = display_error,
                 )
                 return appResponse
         except CustomException as e:
