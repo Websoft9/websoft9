@@ -277,6 +277,12 @@ install_docker_official() {
   local lsb_dist
   lsb_dist="$(detect_distro)"
 
+  # Patch get-docker.sh to show apt-get progress instead of swallowing it
+  # -qq → (remove)  and  >/dev/null → (remove)
+  if [ -f get-docker.sh ]; then
+    sed -i 's/-qq //g; s|>/dev/null||g; s|> /dev/null||g' get-docker.sh
+  fi
+
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
