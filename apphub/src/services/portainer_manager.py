@@ -512,7 +512,7 @@ class PortainerManager:
             logger.error(f"Get containers by stack name:{stack_name} error: {response.status_code}:{response.text}")
             raise CustomException()
 
-    def wait_for_stack_containers(self, stack_name: str, endpoint_id: int, timeout_seconds: int = 30, poll_interval: int = 2):
+    def wait_for_stack_containers(self, stack_name: str, endpoint_id: int, timeout_seconds: int = 120, poll_interval: int = 3):
         """
         Wait for containers to appear for a newly created stack.
 

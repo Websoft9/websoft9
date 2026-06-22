@@ -53,6 +53,10 @@ def _is_compose_app(portainer: PortainerManager, app_id: str, endpoint_id: int) 
         if not git_config:
             return False
         containers = portainer.get_containers_by_stack_name(app_id, endpoint_id) or []
+        # If no containers exist, this is not a compose app — it's either
+        # a failed marketplace install or an empty stack.
+        if not containers:
+            return False
         for c in containers:
             env = c.get("Config", {}).get("Env") or []
             for e in env:

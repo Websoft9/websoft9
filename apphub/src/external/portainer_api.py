@@ -246,12 +246,14 @@ class PortainerAPI:
                 "Name": stack_name,
                 "RepositoryURL": repositoryURL,
                 "ComposeFile": "docker-compose.yml",
+                "RepositoryReferenceName": "refs/heads/main",
+                "PullImage": True,
                 "repositoryAuthentication": True,
                 "RepositoryUsername": usr_name,
                 "RepositoryPassword": usr_password,
                 "env":[{
                     "name": "DEPLOY_TIME",
-                    "value": "-"+datetime.now().strftime("%Y%m%d%H%M%S")
+                    "value": datetime.now().strftime("%Y%m%d%H%M%S")
                 }]
             },
         )
