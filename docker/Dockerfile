@@ -254,8 +254,6 @@ RUN chmod +x /app/init_nginx.sh \
     /websoft9/library/apps \
     /websoft9/apphub/swagger-ui
 
-VOLUME ["/data/gitea", "/data/portainer", "/data/nginx-proxy-manager"]
-
 HEALTHCHECK --interval=15s --timeout=5s --retries=6 CMD ["/websoft9/script/platform-healthcheck.sh", "--readiness"]
 
 WORKDIR /websoft9
