@@ -293,7 +293,9 @@ install_docker_official() {
     (
       timeout "$install_timeout" sh -c "$cmd"
       echo $? > "$exit_file"
-    ) 2>&1
+    ) 2>&1 | while IFS= read -r line; do
+      log_info "$line"
+    done
 
     exit_code="$(cat "$exit_file" 2>/dev/null || echo unknown)"
     rm -f "$exit_file"
