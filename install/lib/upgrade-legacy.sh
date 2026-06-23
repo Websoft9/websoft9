@@ -75,13 +75,11 @@ _legacy_resolve_console_port() {
   legacy_config_port="$(_legacy_read_console_port_from_config)"
 
   if [ -n "$legacy_socket_port" ]; then
-    log_info "Detected legacy Cockpit listen port from cockpit.socket: ${legacy_socket_port}"
     echo "$legacy_socket_port"
     return 0
   fi
 
   if [ -n "$legacy_config_port" ]; then
-    log_info "Detected legacy console port from config.ini: ${legacy_config_port}"
     echo "$legacy_config_port"
     return 0
   fi
@@ -582,8 +580,17 @@ run_upgrade_legacy() {
   local image_repo="$3"
   local image_tag="$4"
   local network_name="$5"
+  local requested_console_port="$console_port"
 
   console_port="$(_legacy_resolve_console_port "$console_port")"
+
+  if [ "${W9_CONSOLE_PORT_EXPLICIT:-0}" != "1" ] && [ -n "$console_port" ] && [ "$console_port" != "${requested_console_port:-$DEFAULT_CONSOLE_PORT}" ]; then
+    if [ "$console_port" = "$(_legacy_read_console_port_from_socket)" ]; then
+      log_info "Detected legacy Cockpit listen port from cockpit.socket: ${console_port}"
+    elif [ "$console_port" = "$(_legacy_read_console_port_from_config)" ]; then
+      log_info "Detected legacy console port from config.ini: ${console_port}"
+    fi
+  fi
 
   log_info "==== Legacy-to-modern migration started ===="
   require_root
