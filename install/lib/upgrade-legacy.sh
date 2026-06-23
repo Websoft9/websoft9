@@ -116,6 +116,84 @@ ini_get_any() {
   awk -v k="$key" '$0 ~ "^[ \t]*"k"[ \t]*=" { sub("^[ \t]*"k"[ \t]*=[ \t]*","",$0); print $0; exit }' "$f"
 }
 
+is_primary_legacy_config() {
+  f="$1"
+  [ -f "$f" ] || return 1
+  grep -Eq '^\[(platform_gateway|docker_mirror|nginx_proxy_manager|portainer|favorite_apps|domain)\]' "$f"
+}
+
+pick_legacy_config() {
+  for root in "$@"; do
+    [ -d "$root" ] || continue
+    for candidate in \
+      "$root/apphub/src/config/config.ini" \
+      "$root/src/config/config.ini" \
+      "$root/config/config.ini"
+    do
+      if is_primary_legacy_config "$candidate"; then
+        echo "$candidate"
+        return 0
+      fi
+    done
+  done
+
+  for root in "$@"; do
+    [ -d "$root" ] || continue
+    for candidate in $(find "$root" -path '*/apphub/src/config/config.ini' -type f 2>/dev/null); do
+      if is_primary_legacy_config "$candidate"; then
+        echo "$candidate"
+        return 0
+      fi
+    done
+  done
+
+  for root in "$@"; do
+    [ -d "$root" ] || continue
+    for candidate in $(find "$root" -name config.ini -type f 2>/dev/null); do
+      if is_primary_legacy_config "$candidate"; then
+        echo "$candidate"
+        return 0
+      fi
+    done
+  done
+
+  for root in "$@"; do
+    [ -d "$root" ] || continue
+    candidate="$(find "$root" -name config.ini -type f 2>/dev/null | head -n1)"
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 0
+}
+
+pick_legacy_system_ini() {
+  for root in "$@"; do
+    [ -d "$root" ] || continue
+    for candidate in \
+      "$root/apphub/src/config/system.ini" \
+      "$root/src/config/system.ini" \
+      "$root/config/system.ini"
+    do
+      if [ -f "$candidate" ]; then
+        echo "$candidate"
+        return 0
+      fi
+    done
+  done
+
+  for root in "$@"; do
+    [ -d "$root" ] || continue
+    candidate="$(find "$root" -name system.ini -type f 2>/dev/null | head -n1)"
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 0
+}
+
 mkdir -p /data
 
 # ---------------- NPM (nginx_data) ----------------
@@ -236,16 +314,19 @@ fi
 cfg=""
 sysini=""
 product_auth_dir=""
-for root in /legacy/apphub_config /legacy/service-root /legacy/download-root; do
+legacy_roots="/legacy/apphub_config /legacy/service-root /legacy/download-root"
+cfg="$(pick_legacy_config $legacy_roots)"
+sysini="$(pick_legacy_system_ini $legacy_roots)"
+for root in $legacy_roots; do
   [ -d "$root" ] || continue
-  [ -z "$cfg" ] && cfg="$(find "$root" -name config.ini -type f 2>/dev/null | head -n1)"
-  [ -z "$sysini" ] && sysini="$(find "$root" -name system.ini -type f 2>/dev/null | head -n1)"
   if [ -z "$product_auth_dir" ]; then
     product_auth_dir="$(find "$root" -name product-auth.sqlite -type f 2>/dev/null | head -n1)"
     [ -n "$product_auth_dir" ] && product_auth_dir="$(dirname "$product_auth_dir")"
   fi
   [ -z "$product_auth_dir" ] && product_auth_dir="$(find "$root" -type d -name product-auth 2>/dev/null | head -n1)"
 done
+[ -n "$cfg" ] && log_info "Selected legacy config source: $cfg"
+[ -n "$sysini" ] && log_info "Selected legacy system.ini source: $sysini"
 [ -n "$cfg" ] && [ -f "$cfg" ] && { mkdir -p /data/.w9-migration; cp -a "$cfg" /data/.w9-migration/legacy-config.ini; } || true
 [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
 [ -f /legacy/docker-daemon.json ] && { mkdir -p /data/.w9-migration; cp -a /legacy/docker-daemon.json /data/.w9-migration/legacy-daemon.json; } || true

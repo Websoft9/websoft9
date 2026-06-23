@@ -45,17 +45,32 @@ _curl_local_probe() {
   curl --noproxy '*' -fs -o /dev/null --max-time 5 "$1"
 }
 
+_container_local_probe() {
+  local url="$1"
+  if ! container_running "$MODERN_CONTAINER_NAME"; then
+    return 1
+  fi
+
+  docker exec "$MODERN_CONTAINER_NAME" python3 - "$url" <<'PY' >/dev/null 2>&1
+import sys
+import urllib.request
+
+urllib.request.urlopen(sys.argv[1], timeout=5).read()
+PY
+}
+
 # Check that the console port is reachable
 validate_console_entry() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
-  log_step "Checking console entry: /w9gateway/healthz on 127.0.0.1:${console_port}"
+  log_step "Checking console entry readiness"
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) skipping console probe"
     return 0
   fi
   local i
   for i in $(seq 1 30); do
-    if _curl_local_probe "http://127.0.0.1:${console_port}/w9gateway/healthz" \
+    if _container_local_probe "http://127.0.0.1:9000/w9gateway/healthz" \
+       || _curl_local_probe "http://127.0.0.1:${console_port}/w9gateway/healthz" \
        || _curl_local_probe "http://127.0.0.1:${console_port}/"; then
       log_info "Console entry reachable"
       return 0
@@ -69,14 +84,15 @@ validate_console_entry() {
 # Check that the product API root path responds
 validate_api() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
-  log_step "Checking product API: /api/healthz"
+  log_step "Checking product API readiness"
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) skipping API probe"
     return 0
   fi
   local i
   for i in $(seq 1 30); do
-    if _curl_local_probe "http://127.0.0.1:${console_port}/api/healthz"; then
+    if _container_local_probe "http://127.0.0.1:8080/healthz" \
+       || _curl_local_probe "http://127.0.0.1:${console_port}/api/healthz"; then
       log_info "Product API root reachable"
       return 0
     fi
