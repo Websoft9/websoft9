@@ -48,15 +48,15 @@ _curl_local_probe() {
 # Check that the console port is reachable
 validate_console_entry() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
-  log_step "Checking console entry: 127.0.0.1:${console_port}"
+  log_step "Checking console entry: /w9gateway/healthz on 127.0.0.1:${console_port}"
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) skipping console probe"
     return 0
   fi
   local i
   for i in $(seq 1 30); do
-    if _curl_local_probe "http://127.0.0.1:${console_port}/" \
-       || _curl_local_probe "http://127.0.0.1:${console_port}/api"; then
+    if _curl_local_probe "http://127.0.0.1:${console_port}/w9gateway/healthz" \
+       || _curl_local_probe "http://127.0.0.1:${console_port}/"; then
       log_info "Console entry reachable"
       return 0
     fi
@@ -69,14 +69,14 @@ validate_console_entry() {
 # Check that the product API root path responds
 validate_api() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
-  log_step "Checking product API: /api"
+  log_step "Checking product API: /api/healthz"
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) skipping API probe"
     return 0
   fi
   local i
   for i in $(seq 1 30); do
-    if _curl_local_probe "http://127.0.0.1:${console_port}/api"; then
+    if _curl_local_probe "http://127.0.0.1:${console_port}/api/healthz"; then
       log_info "Product API root reachable"
       return 0
     fi

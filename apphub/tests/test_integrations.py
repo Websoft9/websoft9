@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -15,6 +16,19 @@ from src.api.v1.routers import integrations as integrations_router
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.services.integration_session_bridge import IntegrationSessionBridge
+
+
+class FakeResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
 
 
 def create_test_app() -> FastAPI:
@@ -97,3 +111,83 @@ def test_bulk_integration_bootstrap_isolates_partial_failure(monkeypatch):
     assert payload["integrations"]["gitea"]["status"] == "ok"
     assert payload["integrations"]["portainer"]["status"] == "error"
     assert payload["integrations"]["portainer"]["message"] == "Unable to establish Portainer session"
+
+
+def test_portainer_bootstrap_falls_back_to_config_credentials(monkeypatch):
+    bridge = IntegrationSessionBridge(gateway_origin="http://gateway.test")
+    writes = []
+
+    primary = SimpleNamespace(username="admin", password="stale-pass")
+    fallback = SimpleNamespace(username="admin", password="fresh-pass")
+
+    bridge.credential_provider = SimpleNamespace(
+        get_portainer_credentials=lambda: primary,
+        get_portainer_config_credentials=lambda: fallback,
+        write_portainer_credentials=lambda credentials: writes.append(credentials),
+    )
+
+    class FakeSession:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, json, timeout):
+            self.calls.append((url, json, timeout))
+            if json["password"] == "stale-pass":
+                return FakeResponse(401, {})
+            return FakeResponse(200, {"jwt": "portainer-token"})
+
+    fake_session = FakeSession()
+    monkeypatch.setattr(bridge, "_create_session", lambda: fake_session)
+
+    cookies = bridge.bootstrap_portainer()
+
+    assert cookies == [{"name": bridge._portainer_cookie_name(), "value": "portainer-token", "path": "/", "httponly": True}]
+    assert writes == [fallback]
+    assert len(fake_session.calls) == 2
+
+
+def test_npm_bootstrap_falls_back_to_config_credentials(monkeypatch):
+    bridge = IntegrationSessionBridge(gateway_origin="http://gateway.test")
+    writes = []
+
+    primary = SimpleNamespace(
+        username="admin@example.com",
+        password="stale-pass",
+        nickname="admin",
+        display_name="Admin",
+    )
+    fallback = SimpleNamespace(
+        username="admin@example.com",
+        password="fresh-pass",
+        nickname="operator",
+        display_name="Operator",
+    )
+
+    bridge.credential_provider = SimpleNamespace(
+        get_npm_credentials=lambda: primary,
+        get_npm_config_credentials=lambda: fallback,
+        write_npm_credentials=lambda credentials: writes.append(credentials),
+        sync_npm_credentials=lambda credentials: False,
+    )
+
+    class FakeSession:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, json, timeout):
+            self.calls.append((url, json, timeout))
+            if json["secret"] == "stale-pass":
+                return FakeResponse(401, {})
+            return FakeResponse(200, {"token": "npm-token"})
+
+    fake_session = FakeSession()
+    monkeypatch.setattr(bridge, "_create_session", lambda: fake_session)
+
+    cookies = bridge.bootstrap_npm()
+
+    assert cookies == [
+        {"name": bridge._npm_token_cookie_name(), "value": "npm-token", "path": "/", "httponly": False},
+        {"name": bridge._npm_nickname_cookie_name(), "value": "operator", "path": "/", "httponly": False},
+    ]
+    assert writes == [fallback]
+    assert len(fake_session.calls) == 2

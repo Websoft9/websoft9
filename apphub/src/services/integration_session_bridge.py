@@ -185,16 +185,25 @@ class IntegrationSessionBridge:
             )
 
     def bootstrap_portainer(self) -> list[dict[str, object]]:
-        username, password = self._get_portainer_credentials()
         session = self._create_session()
         cookie_name = self._portainer_cookie_name()
 
         try:
-            response = session.post(
-                f"{self.portainer_direct_origin}/api/auth",
-                json={"username": username, "password": password},
-                timeout=20,
-            )
+            primary_credentials = self.credential_provider.get_portainer_credentials()
+            response = self._request_portainer_token(session, primary_credentials.username, primary_credentials.password)
+
+            if response.status_code in {401, 403}:
+                fallback_credentials = self.credential_provider.get_portainer_config_credentials()
+                should_try_fallback = (
+                    bool(fallback_credentials.password)
+                    and (fallback_credentials.username != primary_credentials.username or fallback_credentials.password != primary_credentials.password)
+                )
+                if should_try_fallback:
+                    fallback_response = self._request_portainer_token(session, fallback_credentials.username, fallback_credentials.password)
+                    if fallback_response.status_code == 200:
+                        self.credential_provider.write_portainer_credentials(fallback_credentials)
+                        response = fallback_response
+
             response.raise_for_status()
 
             token = response.json().get("jwt")
@@ -224,20 +233,40 @@ class IntegrationSessionBridge:
             )
 
     def bootstrap_npm(self) -> list[dict[str, object]]:
-        username, password, nickname = self._get_npm_credentials()
         session = self._create_session()
         token_cookie_name = self._npm_token_cookie_name()
         nickname_cookie_name = self._npm_nickname_cookie_name()
 
         try:
-            if self.credential_provider.sync_npm_credentials(self.credential_provider.get_npm_credentials()):
+            active_credentials = self.credential_provider.get_npm_credentials()
+
+            fallback_credentials = self.credential_provider.get_npm_config_credentials()
+            response = self._request_npm_token(session, active_credentials.username, active_credentials.password)
+
+            should_try_fallback = (
+                response.status_code in {401, 403}
+                and bool(fallback_credentials.password)
+                and (
+                    fallback_credentials.username != active_credentials.username
+                    or fallback_credentials.password != active_credentials.password
+                    or fallback_credentials.nickname != active_credentials.nickname
+                    or fallback_credentials.display_name != active_credentials.display_name
+                )
+            )
+
+            if should_try_fallback:
+                fallback_response = self._request_npm_token(session, fallback_credentials.username, fallback_credentials.password)
+                if fallback_response.status_code == 200:
+                    self.credential_provider.write_npm_credentials(fallback_credentials)
+                    active_credentials = fallback_credentials
+                    response = fallback_response
+
+            if self.credential_provider.sync_npm_credentials(active_credentials):
                 logger.warning("Nginx Proxy Manager credential drift detected; runtime user profile was synchronized from stored credential source")
 
-            response = self._request_npm_token(session, username, password)
-
-            if response.status_code in {401, 403} and self.credential_provider.sync_npm_credentials(self.credential_provider.get_npm_credentials()):
+            if response.status_code in {401, 403} and self.credential_provider.sync_npm_credentials(active_credentials):
                 logger.warning("Nginx Proxy Manager authentication recovered after synchronizing stored credentials into the runtime database")
-                response = self._request_npm_token(session, username, password)
+                response = self._request_npm_token(session, active_credentials.username, active_credentials.password)
 
             if response.status_code in {401, 403}:
                 raise CustomException(
@@ -265,7 +294,7 @@ class IntegrationSessionBridge:
                 },
                 {
                     "name": nickname_cookie_name,
-                    "value": nickname,
+                    "value": active_credentials.nickname,
                     "path": "/",
                     "httponly": False,
                 },
@@ -284,6 +313,13 @@ class IntegrationSessionBridge:
         return session.post(
             f"{self.gateway_origin}/w9proxy/api/tokens",
             json={"identity": username, "scope": "user", "secret": password},
+            timeout=20,
+        )
+
+    def _request_portainer_token(self, session: requests.Session, username: str, password: str) -> requests.Response:
+        return session.post(
+            f"{self.portainer_direct_origin}/api/auth",
+            json={"username": username, "password": password},
             timeout=20,
         )
 

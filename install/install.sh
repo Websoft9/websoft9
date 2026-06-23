@@ -63,6 +63,7 @@ OPT_YES="0"
 OPT_IMAGE_REPO="$DEFAULT_IMAGE_REPO"
 OPT_NETWORK="$DEFAULT_NETWORK_NAME"
 _OPT_VERSION_EXPLICIT=""
+_OPT_CONSOLE_PORT_EXPLICIT=""
 
 # Hidden subcommands for diagnostics / operations.
 _SUBCMD=""
@@ -76,7 +77,7 @@ while [ $# -gt 0 ]; do
     --channel)      OPT_CHANNEL="$2"; shift 2 ;;
     --version)      OPT_VERSION="$2"; _OPT_VERSION_EXPLICIT="1"; shift 2 ;;
     --path)         OPT_PATH="$2"; shift 2 ;;
-    --console-port) OPT_CONSOLE_PORT="$2"; shift 2 ;;
+    --console-port) OPT_CONSOLE_PORT="$2"; _OPT_CONSOLE_PORT_EXPLICIT="1"; shift 2 ;;
     --force)        OPT_FORCE="1"; shift ;;
     --dry-run)      W9_DRY_RUN="1"; export W9_DRY_RUN; shift ;;
     --yes)          OPT_YES="1"; shift ;;
@@ -168,6 +169,11 @@ case "$env_kind" in
     if [ "$env_kind" = "modern" ]; then
       run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     else
+      if [ -n "$_OPT_CONSOLE_PORT_EXPLICIT" ]; then
+        export W9_CONSOLE_PORT_EXPLICIT="1"
+      else
+        unset W9_CONSOLE_PORT_EXPLICIT || true
+      fi
       run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     fi
     ;;

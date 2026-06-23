@@ -56,6 +56,12 @@ class IntegrationCredentialProvider:
             password=file_password or self._get_config_value("portainer", "user_pwd"),
         )
 
+    def get_portainer_config_credentials(self) -> PortainerCredentials:
+        return PortainerCredentials(
+            username=self._get_config_value("portainer", "user_name", fallback=os.getenv("WEBSOFT9_PORTAINER_ADMIN_USER", "admin")),
+            password=self._get_config_value("portainer", "user_pwd"),
+        )
+
     def get_npm_credentials(self) -> NpmCredentials:
         payload = self._read_json_file(self.npm_credential_path)
         username = str(payload.get("username") or self._get_config_value("nginx_proxy_manager", "user_name")).strip()
@@ -73,6 +79,36 @@ class IntegrationCredentialProvider:
             nickname=nickname,
             display_name=display_name,
         )
+
+    def get_npm_config_credentials(self) -> NpmCredentials:
+        username = str(self._get_config_value("nginx_proxy_manager", "user_name")).strip()
+        fallback_name = username.split("@")[0] if username else "admin"
+        nickname = str(self._get_config_value("nginx_proxy_manager", "nike_name", fallback=fallback_name)).strip() or fallback_name
+        display_name = str(self._get_config_value("nginx_proxy_manager", "name", fallback=nickname or fallback_name)).strip() or nickname or fallback_name
+        return NpmCredentials(
+            username=username,
+            password=str(self._get_config_value("nginx_proxy_manager", "user_pwd")),
+            nickname=nickname,
+            display_name=display_name,
+        )
+
+    def write_portainer_credentials(self, credentials: PortainerCredentials) -> None:
+        if not credentials.password:
+            return
+        self.portainer_credential_path.parent.mkdir(parents=True, exist_ok=True)
+        self.portainer_credential_path.write_text(credentials.password, encoding="utf-8")
+        os.chmod(self.portainer_credential_path, 0o600)
+
+    def write_npm_credentials(self, credentials: NpmCredentials) -> None:
+        payload = {
+            "username": credentials.username,
+            "password": credentials.password,
+            "nickname": credentials.nickname,
+            "display_name": credentials.display_name,
+        }
+        self.npm_credential_path.parent.mkdir(parents=True, exist_ok=True)
+        self.npm_credential_path.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+        os.chmod(self.npm_credential_path, 0o600)
 
     def sync_npm_credentials(self, credentials: NpmCredentials) -> bool:
         if not self.npm_database_path.is_file():

@@ -41,6 +41,7 @@ PRODUCT_AUTH_COOKIE_NAME = _resolve_product_auth_cookie_name()
 SESSION_TTL_DAYS = 30
 PASSWORD_HASH_ITERATIONS = 310_000
 DOCKER_BOOTSTRAP_ACTOR = "docker-bootstrap"
+PENDING_MIGRATED_FAVORITES_KEY = "migrated_favorite_apps_pending"
 
 
 class ProductAuthService:
@@ -103,10 +104,12 @@ class ProductAuthService:
             operators = self._load_operators()
             existing_operator = self._get_internal_auto_login_operator(operators=operators)
             if existing_operator is not None:
+                self._apply_pending_migrated_favorites(existing_operator["id"])
                 return self._public_operator(existing_operator), False
 
             if any(not item.get("deleted", False) for item in operators):
                 surviving_operator = next(item for item in operators if not item.get("deleted", False))
+                self._apply_pending_migrated_favorites(surviving_operator["id"])
                 return self._public_operator(surviving_operator), False
 
             operator = self._build_operator(
@@ -118,6 +121,7 @@ class ProductAuthService:
             )
             operators.append(operator)
             self._store_operators(operators)
+            self._apply_pending_migrated_favorites(operator["id"])
             self._append_audit(
                 event="docker_bootstrap",
                 operator_id=operator["id"],
@@ -153,6 +157,7 @@ class ProductAuthService:
             operator = self._build_operator(username=username, password=password, display_name=display_name, locale=locale, email=email)
             operators.append(operator)
             self._store_operators(operators)
+            self._apply_pending_migrated_favorites(operator["id"])
             session_token = self._create_session(operator_id=operator["id"])
             self._append_audit(
                 event="bootstrap",
@@ -577,6 +582,36 @@ class ProductAuthService:
             )
         return self._load_favorites(actor["id"])
 
+    def import_migrated_favorites(
+        self,
+        favorite_keys: list[str],
+        operator_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        normalized_favorites = []
+        seen: set[str] = set()
+        for favorite_key in favorite_keys:
+            normalized_key = favorite_key.strip().lower()
+            if not normalized_key or normalized_key in seen:
+                continue
+            seen.add(normalized_key)
+            normalized_favorites.append(normalized_key)
+
+        if not normalized_favorites:
+            return {"imported": 0, "pending": False, "operator_id": operator_id}
+
+        with self._lock:
+            self._ensure_storage()
+            target_operator_id = operator_id or self._resolve_favorite_import_operator_id()
+            if not target_operator_id:
+                self._store_pending_migrated_favorites(normalized_favorites)
+                return {"imported": 0, "pending": True, "operator_id": None}
+
+            imported = self._store_favorites_for_operator(target_operator_id, normalized_favorites)
+            pending = self._load_pending_migrated_favorites()
+            if pending:
+                self._clear_pending_migrated_favorites()
+            return {"imported": imported, "pending": False, "operator_id": target_operator_id}
+
     def is_enabled(self) -> bool:
         env_value = os.getenv("WEBSOFT9_PRODUCT_AUTH_ENABLED")
         if env_value is not None:
@@ -909,6 +944,86 @@ class ProductAuthService:
                 (event, timestamp, json.dumps(payload, ensure_ascii=True)),
             )
             connection.commit()
+
+    def _resolve_favorite_import_operator_id(self) -> Optional[str]:
+        active_operators = [
+            operator
+            for operator in self._load_operators()
+            if not operator.get("deleted", False) and not operator.get("disabled", False)
+        ]
+        if active_operators:
+            return str(active_operators[0]["id"])
+
+        fallback_operator = next(
+            (operator for operator in self._load_operators() if not operator.get("deleted", False)),
+            None,
+        )
+        return str(fallback_operator["id"]) if fallback_operator is not None else None
+
+    def _store_favorites_for_operator(self, operator_id: str, favorite_keys: list[str]) -> int:
+        imported = 0
+        timestamp = self._now_iso()
+        with self._db_connect() as connection:
+            for favorite_key in favorite_keys:
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO favorites (operator_id, app_key, created_at) VALUES (?, ?, ?)",
+                    (operator_id, favorite_key, timestamp),
+                )
+                if cursor.rowcount and cursor.rowcount > 0:
+                    imported += int(cursor.rowcount)
+            connection.commit()
+        return imported
+
+    def _load_pending_migrated_favorites(self) -> list[str]:
+        with self._db_connect() as connection:
+            row = connection.execute(
+                "SELECT value FROM metadata WHERE key = ?",
+                (PENDING_MIGRATED_FAVORITES_KEY,),
+            ).fetchone()
+
+        if row is None:
+            return []
+
+        payload = self._decode_metadata_json(row["value"], key=PENDING_MIGRATED_FAVORITES_KEY)
+        favorites = payload.get("favorites") if isinstance(payload, dict) else []
+        if not isinstance(favorites, list):
+            return []
+        return [str(item).strip().lower() for item in favorites if str(item).strip()]
+
+    def _store_pending_migrated_favorites(self, favorite_keys: list[str]) -> None:
+        existing = self._load_pending_migrated_favorites()
+        merged: list[str] = []
+        seen: set[str] = set()
+        for favorite_key in [*existing, *favorite_keys]:
+            normalized_key = favorite_key.strip().lower()
+            if not normalized_key or normalized_key in seen:
+                continue
+            seen.add(normalized_key)
+            merged.append(normalized_key)
+
+        with self._db_connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                (
+                    PENDING_MIGRATED_FAVORITES_KEY,
+                    json.dumps({"favorites": merged, "updated_at": self._now_iso()}, ensure_ascii=True),
+                ),
+            )
+            connection.commit()
+
+    def _clear_pending_migrated_favorites(self) -> None:
+        with self._db_connect() as connection:
+            connection.execute("DELETE FROM metadata WHERE key = ?", (PENDING_MIGRATED_FAVORITES_KEY,))
+            connection.commit()
+
+    def _apply_pending_migrated_favorites(self, operator_id: str) -> int:
+        pending = self._load_pending_migrated_favorites()
+        if not pending:
+            return 0
+
+        imported = self._store_favorites_for_operator(operator_id, pending)
+        self._clear_pending_migrated_favorites()
+        return imported
 
     def _ensure_storage(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)

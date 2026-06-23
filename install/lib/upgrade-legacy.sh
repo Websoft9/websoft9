@@ -27,6 +27,68 @@ _legacy_stop_runtime() {
   fi
 }
 
+_legacy_read_console_port_from_socket() {
+  local candidate
+  for candidate in \
+    /etc/systemd/system/cockpit.socket \
+    /usr/lib/systemd/system/cockpit.socket \
+    /lib/systemd/system/cockpit.socket
+  do
+    [ -f "$candidate" ] || continue
+    sed -nE 's|^[[:space:]]*ListenStream=([0-9]+)[[:space:]]*$|\1|p' "$candidate" | head -n 1
+    return 0
+  done
+  return 0
+}
+
+_legacy_read_console_port_from_config() {
+  local candidate
+  for candidate in \
+    /data/apps/websoft9/apphub/src/config/config.ini \
+    /data/websoft9/apphub/src/config/config.ini \
+    /opt/websoft9/apphub/src/config/config.ini \
+    /usr/share/websoft9/apphub/src/config/config.ini
+  do
+    [ -f "$candidate" ] || continue
+    sed -nE 's|^[[:space:]]*listen_port[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$|\1|p' "$candidate" | head -n 1
+    return 0
+  done
+  return 0
+}
+
+_legacy_resolve_console_port() {
+  local requested_port="$1"
+  local resolved_port="${requested_port:-$DEFAULT_CONSOLE_PORT}"
+
+  if [ "${W9_CONSOLE_PORT_EXPLICIT:-0}" = "1" ]; then
+    echo "$resolved_port"
+    return 0
+  fi
+
+  if [ -n "$requested_port" ] && [ "$requested_port" != "$DEFAULT_CONSOLE_PORT" ]; then
+    echo "$requested_port"
+    return 0
+  fi
+
+  local legacy_socket_port legacy_config_port
+  legacy_socket_port="$(_legacy_read_console_port_from_socket)"
+  legacy_config_port="$(_legacy_read_console_port_from_config)"
+
+  if [ -n "$legacy_socket_port" ]; then
+    log_info "Detected legacy Cockpit listen port from cockpit.socket: ${legacy_socket_port}"
+    echo "$legacy_socket_port"
+    return 0
+  fi
+
+  if [ -n "$legacy_config_port" ]; then
+    log_info "Detected legacy console port from config.ini: ${legacy_config_port}"
+    echo "$legacy_config_port"
+    return 0
+  fi
+
+  echo "$resolved_port"
+}
+
 # Render the transform script executed inside the one-shot Alpine worker.
 _legacy_write_transform_script() {
   local script_path="$1"
@@ -79,6 +141,13 @@ if [ -d /legacy/nginx_letsencrypt ]; then
   log_step "Copying letsencrypt certificate directory (best effort)"
   mkdir -p /data/letsencrypt
   cp -a /legacy/nginx_letsencrypt/. /data/letsencrypt/ 2>/dev/null || true
+fi
+
+# ---------------- Legacy /etc/custom ----------------
+if [ -d /legacy/nginx_var/product-auth ]; then
+  log_step "Copying legacy product auth data from /etc/custom"
+  mkdir -p /data/config/product-auth
+  cp -a /legacy/nginx_var/product-auth/. /data/config/product-auth/ 2>/dev/null || true
 fi
 
 # ---------------- Gitea ----------------
@@ -303,6 +372,7 @@ _legacy_finalize_runtime_config() {
 import configparser
 import json
 import shutil
+import sys
 from pathlib import Path
 
 legacy_config_path = Path("/data/.w9-migration/legacy-config.ini")
@@ -310,6 +380,7 @@ legacy_daemon_path = Path("/data/.w9-migration/legacy-daemon.json")
 runtime_config_path = Path("/websoft9/apphub/src/config/config.ini")
 default_cert_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
 default_key_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.key")
+legacy_product_auth_credential_path = Path("/data/product-auth/credential.json")
 
 if not runtime_config_path.is_file() or (not legacy_config_path.is_file() and not legacy_daemon_path.is_file()):
     raise SystemExit(0)
@@ -401,6 +472,7 @@ legacy_api_key = get_first(legacy, [("api_key", "key")])
 legacy_wildcard_domain = get_first(legacy, [("domain", "wildcard_domain"), ("domain", "default_domain"), ("domain", "domain")])
 legacy_bound_domain = get_first(legacy, [("platform_gateway", "bound_domain"), ("cockpit", "domain"), ("cockpit", "default_domain"), ("domain", "platform_domain")])
 legacy_docker_mirror = get_legacy_daemon_mirror(legacy_daemon_path) or get_first(legacy, [("docker_mirror", "url"), ("docker_mirror", "mirror_url"), ("docker_mirror", "registry_mirror")])
+legacy_favorite_apps = get_first(legacy, [("favorite_apps", "keys")])
 legacy_https_enabled = normalize_bool(get_first(legacy, [("platform_gateway", "https_enabled"), ("cockpit", "https_enabled")]))
 legacy_force_https = normalize_bool(get_first(legacy, [("platform_gateway", "force_https"), ("cockpit", "force_https")]))
 legacy_ssl_cert = get_first(legacy, [("platform_gateway", "ssl_cert"), ("cockpit", "ssl_cert"), ("cockpit", "cert_path")])
@@ -452,6 +524,29 @@ if legacy_force_https:
     if set_if_value(runtime, "platform_gateway", "force_https", legacy_force_https):
         changed = True
 
+favorite_keys = [item.strip().lower() for item in legacy_favorite_apps.replace("\n", ",").split(",") if item.strip()] if legacy_favorite_apps else []
+favorite_keys = list(dict.fromkeys(favorite_keys))
+if favorite_keys:
+  sys.path.insert(0, "/websoft9/apphub")
+  from src.services.product_auth import ProductAuthService
+
+  credential_payload = {}
+  if legacy_product_auth_credential_path.is_file():
+    try:
+      credential_payload = json.loads(legacy_product_auth_credential_path.read_text(encoding="utf-8"))
+    except Exception:
+      credential_payload = {}
+
+  product_auth_service = ProductAuthService()
+  if credential_payload.get("username") and credential_payload.get("password"):
+    product_auth_service.bootstrap_operator_if_missing(
+      username=str(credential_payload.get("username")),
+      password=str(credential_payload.get("password")),
+      display_name=str(credential_payload.get("display_name") or "Websoft9 User"),
+    )
+
+  product_auth_service.import_migrated_favorites(favorite_keys)
+
 if changed:
     with runtime_config_path.open("w", encoding="utf-8") as handle:
         runtime.write(handle)
@@ -487,6 +582,8 @@ run_upgrade_legacy() {
   local image_repo="$3"
   local image_tag="$4"
   local network_name="$5"
+
+  console_port="$(_legacy_resolve_console_port "$console_port")"
 
   log_info "==== Legacy-to-modern migration started ===="
   require_root

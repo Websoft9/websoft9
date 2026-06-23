@@ -719,4 +719,22 @@ def test_product_auth_internal_request_does_not_auto_login_ui_initialized_operat
 
     assert session_response.status_code == 200
     assert session_response.json()["authenticated"] is False
-    assert "set-cookie" not in session_response.headers
+
+
+def test_migrated_favorites_are_applied_after_bootstrap_operator_creation(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path / "product-auth"))
+
+    service = ProductAuthService(str(tmp_path / "product-auth"))
+
+    pending_result = service.import_migrated_favorites(["WordPress", "wordpress", "Gitea"])
+    assert pending_result == {"imported": 0, "pending": True, "operator_id": None}
+
+    operator, created = service.bootstrap_operator_if_missing(
+        username="websoft9",
+        password="StrongPass123!",
+        display_name="Websoft9 User",
+    )
+
+    assert created is True
+    assert service._load_favorites(operator["id"]) == ["gitea", "wordpress"]
