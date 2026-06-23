@@ -19,19 +19,21 @@ _detect_modern_strong() {
 # 强信号：旧版运行实体（容器或卷）是否存在
 _detect_legacy_strong() {
   local name
-  for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
+  for name in "${LEGACY_CONTAINER_CANDIDATES[@]}"; do
     container_exists "$name" && return 0
   done
-  for name in "${LEGACY_VOLUME_NAMES[@]}"; do
-    volume_exists "$name" && return 0
+  for name in "${LEGACY_VOLUME_ROLES[@]}"; do
+    legacy_resolve_volume_for_role "$name" >/dev/null 2>&1 && return 0
   done
   return 1
 }
 
 # 辅助信号：旧版宿主机路径 / systemd 遗留（仅作观察，不单独触发 legacy/mixed）
 _detect_legacy_auxiliary() {
-  [ -d "$LEGACY_HOST_COMPOSE_DIR" ] && return 0
+  legacy_host_compose_dir >/dev/null 2>&1 && return 0
+  legacy_service_root_dir >/dev/null 2>&1 && return 0
   [ -d "$LEGACY_INSTALL_DIR" ] && return 0
+  legacy_download_root_dir >/dev/null 2>&1 && return 0
   local unit
   for unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
     systemd_unit_present "$unit" && return 0
@@ -46,14 +48,19 @@ detect_print_signals() {
   log_info "Modern data root configured: $(resolve_runtime_data_root "$DEFAULT_INSTALL_PATH")"
   log_info "Modern data root markers exist: $(_detect_modern_data_root && echo yes || echo no)"
   local name found_c="" found_v=""
-  for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
+  for name in "${LEGACY_CONTAINER_CANDIDATES[@]}"; do
     container_exists "$name" && found_c="${found_c} ${name}"
   done
-  for name in "${LEGACY_VOLUME_NAMES[@]}"; do
-    volume_exists "$name" && found_v="${found_v} ${name}"
+  for name in "${LEGACY_VOLUME_ROLES[@]}"; do
+    local resolved
+    resolved="$(legacy_resolve_volume_for_role "$name" 2>/dev/null || true)"
+    [ -n "$resolved" ] && found_v="${found_v} ${name}=${resolved}"
   done
   log_info "Legacy containers:${found_c:- none}"
   log_info "Legacy volumes:${found_v:- none}"
+  log_info "Legacy host compose dir: $(legacy_host_compose_dir 2>/dev/null || echo none)"
+  log_info "Legacy service root dir: $(legacy_service_root_dir 2>/dev/null || echo none)"
+  log_info "Legacy download root dir: $(legacy_download_root_dir 2>/dev/null || echo none)"
   log_info "Legacy host/systemd signals: $(_detect_legacy_auxiliary && echo yes || echo no)"
 }
 

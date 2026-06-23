@@ -143,13 +143,25 @@ backup_modern_pre_upgrade() {
 backup_legacy_pre_migration() {
   local backup_dir="$1"
   run_cmd mkdir -p "$backup_dir"
-  local v
-  for v in "${LEGACY_VOLUME_NAMES[@]}"; do
+  local v host_compose service_root download_root
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
     backup_volume "$v" "$backup_dir"
-  done
-  if [ -d "$LEGACY_HOST_COMPOSE_DIR" ]; then
-    log_step "Backing up legacy host compose dir: $LEGACY_HOST_COMPOSE_DIR"
-    run_cmd tar czf "${backup_dir}/host-compose.tar.gz" -C "$(dirname "$LEGACY_HOST_COMPOSE_DIR")" "$(basename "$LEGACY_HOST_COMPOSE_DIR")"
+  done < <(legacy_list_resolved_volumes)
+  host_compose="$(legacy_host_compose_dir 2>/dev/null || true)"
+  if [ -n "$host_compose" ]; then
+    log_step "Backing up legacy host compose dir: $host_compose"
+    run_cmd tar czf "${backup_dir}/host-compose.tar.gz" -C "$(dirname "$host_compose")" "$(basename "$host_compose")"
+  fi
+  service_root="$(legacy_service_root_dir 2>/dev/null || true)"
+  if [ -n "$service_root" ]; then
+    log_step "Backing up legacy service root dir: $service_root"
+    run_cmd tar czf "${backup_dir}/legacy-service-root.tar.gz" -C "$(dirname "$service_root")" "$(basename "$service_root")"
+  fi
+  download_root="$(legacy_download_root_dir 2>/dev/null || true)"
+  if [ -n "$download_root" ]; then
+    log_step "Backing up legacy download root dir: $download_root"
+    run_cmd tar czf "${backup_dir}/legacy-download-root.tar.gz" -C "$(dirname "$download_root")" "$(basename "$download_root")"
   fi
   log_info "Pre-migration legacy backup created: $backup_dir"
 }

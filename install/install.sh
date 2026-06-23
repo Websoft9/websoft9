@@ -24,6 +24,7 @@ export W9_LIB_DIR
 # shellcheck source=lib/common.sh
 . "${W9_LIB_DIR}/common.sh"
 . "${W9_LIB_DIR}/detect.sh"
+. "${W9_LIB_DIR}/legacy-discovery.sh"
 . "${W9_LIB_DIR}/backup.sh"
 . "${W9_LIB_DIR}/validate.sh"
 . "${W9_LIB_DIR}/install-fresh.sh"

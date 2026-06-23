@@ -43,10 +43,14 @@ DEFAULT_ARTIFACT_BASE="https://artifact.websoft9.com/websoft9"
 # 旧版（Cockpit 多容器时代）运行时事实
 # ---------------------------------------------------------------------------
 LEGACY_CONTAINER_NAMES=(websoft9-apphub websoft9-deployment websoft9-git websoft9-proxy)
-LEGACY_VOLUME_NAMES=(apphub_logs apphub_config portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
+LEGACY_CONTAINER_CANDIDATES=(websoft9-apphub websoft9-deployment websoft9-git websoft9-proxy websoft9-appmanage websoft9-portainer websoft9-gitea websoft9-nginxproxymanager websoft9-redis)
+LEGACY_VOLUME_NAMES=(apphub_logs apphub_media apphub_config portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
+LEGACY_VOLUME_ROLES=(apphub_logs apphub_media apphub_config portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
 LEGACY_SYSTEMD_UNITS=(websoft9.service cockpit.socket cockpit.service)
 LEGACY_HOST_COMPOSE_DIR="/data/compose"
 LEGACY_INSTALL_DIR="/data/websoft9/source"
+LEGACY_SERVICE_ROOT_DIR="/data/apps/w9services"
+LEGACY_DOWNLOAD_ROOT_DIR="/data/apps/websoft9"
 LEGACY_COMPOSE_PROJECT="websoft9"
 
 # ---------------------------------------------------------------------------
@@ -119,6 +123,82 @@ container_running() {
 # 命名卷是否存在
 volume_exists() {
   docker volume inspect "$1" >/dev/null 2>&1
+}
+
+legacy_role_candidates() {
+  case "$1" in
+    apphub_logs) printf '%s\n' apphub_logs ;;
+    apphub_media) printf '%s\n' apphub_media ;;
+    apphub_config) printf '%s\n' apphub_config ;;
+    portainer) printf '%s\n' portainer portainer_data ;;
+    gitea) printf '%s\n' gitea gitea_data ;;
+    nginx_data) printf '%s\n' nginx_data ;;
+    nginx_letsencrypt) printf '%s\n' nginx_letsencrypt ;;
+    nginx_modsec) printf '%s\n' nginx_modsec ;;
+    nginx_var) printf '%s\n' nginx_var ;;
+    *) return 1 ;;
+  esac
+}
+
+legacy_resolve_volume_for_role() {
+  local role="$1"
+  local candidate volume matched=""
+  local candidates
+  candidates="$(legacy_role_candidates "$role" 2>/dev/null || true)"
+  [ -n "$candidates" ] || return 1
+
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    if volume_exists "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done <<EOF
+$candidates
+EOF
+
+  while IFS= read -r volume; do
+    [ -n "$volume" ] || continue
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
+      if [ "$volume" = "$candidate" ] || [[ "$volume" == *_"$candidate" ]]; then
+        if [ -n "$matched" ] && [ "$matched" != "$volume" ]; then
+          log_warn "Multiple legacy volume candidates for role ${role}: ${matched}, ${volume}; using ${matched}"
+          echo "$matched"
+          return 0
+        fi
+        matched="$volume"
+      fi
+    done <<EOF
+$candidates
+EOF
+  done < <(docker volume ls --format '{{.Name}}' 2>/dev/null)
+
+  [ -n "$matched" ] || return 1
+  echo "$matched"
+}
+
+legacy_list_resolved_volumes() {
+  local role resolved
+  for role in "${LEGACY_VOLUME_ROLES[@]}"; do
+    resolved="$(legacy_resolve_volume_for_role "$role" 2>/dev/null || true)"
+    [ -n "$resolved" ] && echo "$resolved"
+  done | awk '!seen[$0]++'
+}
+
+legacy_host_compose_dir() {
+  [ -d "$LEGACY_HOST_COMPOSE_DIR" ] && { echo "$LEGACY_HOST_COMPOSE_DIR"; return 0; }
+  return 1
+}
+
+legacy_service_root_dir() {
+  [ -d "$LEGACY_SERVICE_ROOT_DIR" ] && { echo "$LEGACY_SERVICE_ROOT_DIR"; return 0; }
+  return 1
+}
+
+legacy_download_root_dir() {
+  [ -d "$LEGACY_DOWNLOAD_ROOT_DIR" ] && { echo "$LEGACY_DOWNLOAD_ROOT_DIR"; return 0; }
+  return 1
 }
 
 # systemd 单元是否存在

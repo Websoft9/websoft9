@@ -166,11 +166,13 @@ fi
 
 # ---------------- 凭据合成（从旧 apphub config.ini）----------------
 cfg=""
-if [ -d /legacy/apphub_config ]; then
-  cfg="$(find /legacy/apphub_config -name config.ini -type f 2>/dev/null | head -n1)"
-  sysini="$(find /legacy/apphub_config -name system.ini -type f 2>/dev/null | head -n1)"
-  [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
-fi
+sysini=""
+for root in /legacy/apphub_config /legacy/service-root /legacy/download-root; do
+  [ -d "$root" ] || continue
+  [ -z "$cfg" ] && cfg="$(find "$root" -name config.ini -type f 2>/dev/null | head -n1)"
+  [ -z "$sysini" ] && sysini="$(find "$root" -name system.ini -type f 2>/dev/null | head -n1)"
+done
+[ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
 
 if [ -n "$cfg" ] && [ -f "$cfg" ]; then
   log "合成第三方凭据文件（用旧密码对账）"
@@ -234,15 +236,30 @@ _legacy_transform_volumes() {
 
   # 动态拼装存在的旧卷挂载
   local mounts=(-v "${data_root}:/data" -v "${tmpdir}:/w9script:ro")
-  _add_ro_volume() { volume_exists "$1" && mounts+=(-v "$1:/legacy/$2:ro"); }
+  _add_ro_volume() {
+    local resolved
+    resolved="$(legacy_resolve_volume_for_role "$1" 2>/dev/null || true)"
+    [ -n "$resolved" ] && mounts+=(-v "$resolved:/legacy/$2:ro")
+  }
   _add_ro_volume nginx_data        nginx_data
   _add_ro_volume nginx_letsencrypt nginx_letsencrypt
   _add_ro_volume gitea             gitea
   _add_ro_volume portainer         portainer
   _add_ro_volume apphub_config     apphub_config
   _add_ro_volume apphub_logs       apphub_logs
-  if [ -d "$LEGACY_HOST_COMPOSE_DIR" ]; then
-    mounts+=(-v "${LEGACY_HOST_COMPOSE_DIR}:/legacy/host-compose:ro")
+  _add_ro_volume apphub_media      apphub_media
+  local host_compose_dir service_root_dir download_root_dir
+  host_compose_dir="$(legacy_host_compose_dir 2>/dev/null || true)"
+  service_root_dir="$(legacy_service_root_dir 2>/dev/null || true)"
+  download_root_dir="$(legacy_download_root_dir 2>/dev/null || true)"
+  if [ -n "$host_compose_dir" ]; then
+    mounts+=(-v "${host_compose_dir}:/legacy/host-compose:ro")
+  fi
+  if [ -n "$service_root_dir" ]; then
+    mounts+=(-v "${service_root_dir}:/legacy/service-root:ro")
+  fi
+  if [ -n "$download_root_dir" ]; then
+    mounts+=(-v "${download_root_dir}:/legacy/download-root:ro")
   fi
 
   if ! docker run --rm "${mounts[@]}" alpine:3.20 sh /w9script/transform.sh; then
@@ -291,6 +308,7 @@ run_upgrade_legacy() {
   # 阶段 2：迁移前备份（强制，不受 --keep-data 影响）
   local backup_dir
   backup_dir="$(backup_new_dir legacy-migration)"
+  legacy_write_manifest "$backup_dir"
   backup_legacy_pre_migration "$backup_dir"
 
   # 阶段 3：停旧运行时释放端口
