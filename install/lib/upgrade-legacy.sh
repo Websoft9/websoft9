@@ -720,12 +720,6 @@ run_upgrade_legacy() {
   legacy_write_manifest "$backup_dir"
   backup_legacy_pre_migration "$backup_dir"
 
-  # Stage 3: stop legacy writers and free ports.
-  _legacy_stop_runtime
-
-  # Stage 4 + 5: data transform + credential synthesis.
-  _legacy_transform_volumes "$install_path"
-
   # Prepare modern deployment material without touching the transformed data root.
   install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
 
@@ -735,11 +729,19 @@ run_upgrade_legacy() {
     return 0
   fi
 
+  log_step "Pulling the modern image before stopping the legacy runtime"
+  if ! pull_image_with_mirrors "$install_path"; then
+    die "$EXIT_RUNTIME" "Migration failed while pulling the modern image. Legacy runtime remains active. Backup: $backup_dir"
+  fi
+
+  # Stage 3: stop legacy writers and free ports.
+  _legacy_stop_runtime
+
+  # Stage 4 + 5: data transform + credential synthesis.
+  _legacy_transform_volumes "$install_path"
+
   # Stage 6: start the modern runtime.
   log_step "Starting the modern runtime takeover"
-  if ! pull_image_with_mirrors "$install_path"; then
-    die "$EXIT_RUNTIME" "Migration failed while pulling the modern image. Legacy assets are still present for manual rollback. Backup: $backup_dir"
-  fi
   if ! modern_compose "$install_path" up -d; then
     die "$EXIT_RUNTIME" "Migration failed while starting the modern runtime. Legacy assets are still present for manual rollback. Backup: $backup_dir"
   fi

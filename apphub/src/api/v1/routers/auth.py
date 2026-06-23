@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Cookie, Header, Request, Response
 
+from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.productAuth import (
     ProductAuthCreateUserRequest,
@@ -54,6 +55,38 @@ def get_product_auth_session(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
     return ProductAuthService().get_status(session_token=session_token)
+
+
+@router.get(
+    "/auth/gateway-access",
+    summary="Check embedded gateway access",
+    description="Return an auth-request compatible status for embedded integration workspaces",
+    status_code=204,
+    responses={204: {"description": "Authenticated or auth disabled"}, 401: {"model": ErrorResponse}, 403: {"model": ErrorResponse}},
+)
+def check_embedded_gateway_access(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    status_payload = ProductAuthService().get_status(session_token=session_token)
+
+    if not status_payload["enabled"]:
+        return Response(status_code=204)
+
+    if status_payload["initialization_required"]:
+        raise CustomException(
+            status_code=403,
+            message="Product Authentication Setup Required",
+            details="Initialize the product operator account before opening embedded workspaces",
+        )
+
+    if not status_payload["authenticated"]:
+        raise CustomException(
+            status_code=401,
+            message="Authentication Required",
+            details="Sign in before opening embedded workspaces",
+        )
+
+    return Response(status_code=204)
 
 
 @router.get(

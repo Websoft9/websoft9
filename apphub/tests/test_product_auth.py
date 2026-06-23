@@ -145,6 +145,56 @@ def test_product_auth_status_hides_internal_paths(monkeypatch, tmp_path):
     }
 
 
+def test_embedded_gateway_access_allows_when_product_auth_disabled(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "false")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        response = client.get("/auth/gateway-access")
+
+    assert response.status_code == 204
+
+
+def test_embedded_gateway_access_requires_setup_before_login(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        response = client.get("/auth/gateway-access")
+
+    assert response.status_code == 403
+    assert response.json()["message"] == "Product Authentication Setup Required"
+
+
+def test_embedded_gateway_access_requires_authenticated_session(monkeypatch, tmp_path):
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
+    monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))
+
+    app = create_test_app()
+
+    with TestClient(app) as client:
+        initialize_response = client.post(
+            "/auth/initialize",
+            json={"username": "admin", "password": "StrongPass123!", "display_name": "Platform Admin"},
+        )
+        assert initialize_response.status_code == 200
+
+        authenticated_response = client.get("/auth/gateway-access")
+        assert authenticated_response.status_code == 204
+
+        logout_response = client.post("/auth/logout")
+        assert logout_response.status_code == 200
+
+        anonymous_response = client.get("/auth/gateway-access")
+
+    assert anonymous_response.status_code == 401
+    assert anonymous_response.json()["message"] == "Authentication Required"
+
+
 def test_product_auth_initialize_sets_secure_cookie_on_https(monkeypatch, tmp_path):
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_ENABLED", "true")
     monkeypatch.setenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR", str(tmp_path))

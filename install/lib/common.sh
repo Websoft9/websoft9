@@ -415,15 +415,167 @@ modern_compose() {
     "$@"
 }
 
-# 镜像拉取（带镜像加速回退）
-# 先尝试 docker compose pull 直拉；失败后从 artifact 服务器下载 mirrors.json，
-# 逐个重试镜像加速地址，任一成功则 docker tag 回原镜像名并返回 0；
-# 全部失败返回 1，调用方应终止安装流程。
-pull_image_with_mirrors() {
+restart_docker_service() {
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) would restart Docker service"
+    return 0
+  fi
+
+  if command_exists systemctl; then
+    run_cmd systemctl restart docker || return 1
+  elif command_exists service; then
+    run_cmd service docker restart || return 1
+  else
+    log_error "Unable to restart Docker: neither systemctl nor service is available"
+    return 1
+  fi
+
+  if ! docker_available; then
+    log_error "Docker did not become available after restart"
+    return 1
+  fi
+
+  return 0
+}
+
+load_mirror_entries() {
   local install_path="$1"
   local channel="${W9_CHANNEL:-release}"
   local mirrors_url="https://artifact.websoft9.com/${channel}/websoft9/mirrors.json"
-  local mirrors_file="/tmp/websoft9-mirrors-$$.json"
+  local mirrors_file="${install_path}/mirrors.json"
+  local cleanup_file=""
+
+  if [ ! -f "$mirrors_file" ]; then
+    cleanup_file="/tmp/websoft9-mirrors-$$.json"
+    mirrors_file="$cleanup_file"
+    if ! _w9_download "$mirrors_url" "$mirrors_file"; then
+      log_error "Failed to download mirror list from $mirrors_url"
+      rm -f "$cleanup_file"
+      return 1
+    fi
+  fi
+
+  local mirrors
+  mirrors="$(grep -o '"[^"]*"' "$mirrors_file" | tr -d '"' | grep -v '^mirrors$')"
+
+  if [ -n "$cleanup_file" ]; then
+    rm -f "$cleanup_file"
+  fi
+
+  if [ -z "$mirrors" ]; then
+    log_error "No mirrors found in mirror list"
+    return 1
+  fi
+
+  printf '%s\n' "$mirrors"
+}
+
+pull_image_via_prefixed_mirrors() {
+  local image_repo="$1"
+  local image_tag="$2"
+  local image_ref="$3"
+  local mirrors="$4"
+
+  local mirror success=1
+  while IFS= read -r mirror; do
+    [ -z "$mirror" ] && continue
+    local mirror_image="${mirror}/${image_repo}:${image_tag}"
+    log_info "Trying mirror: $mirror"
+
+    if docker pull "$mirror_image"; then
+      docker tag "$mirror_image" "$image_ref"
+      log_info "Pull succeeded via mirror: $mirror"
+      success=0
+      break
+    fi
+
+    log_warn "Mirror $mirror failed, trying next..."
+  done <<< "$mirrors"
+
+  return "$success"
+}
+
+write_temp_daemon_json_from_mirrors() {
+  local daemon_file="$1"
+  local mirrors="$2"
+
+  {
+    printf '{\n  "registry-mirrors": [\n'
+    local first=1
+    local mirror mirror_url
+    while IFS= read -r mirror; do
+      [ -z "$mirror" ] && continue
+      mirror_url="$mirror"
+      case "$mirror_url" in
+        http://*|https://*) ;;
+        *) mirror_url="https://${mirror_url}" ;;
+      esac
+      if [ "$first" -eq 1 ]; then
+        first=0
+      else
+        printf ',\n'
+      fi
+      printf '    "%s"' "$mirror_url"
+    done <<< "$mirrors"
+    printf '\n  ]\n}\n'
+  } > "$daemon_file"
+}
+
+pull_image_via_temporary_daemon_mirrors() {
+  local install_path="$1"
+  local mirrors="$2"
+  local daemon_file="/etc/docker/daemon.json"
+  local backup_file="/tmp/websoft9-daemon-backup-$$.json"
+  local had_original=0
+  local pull_status=1
+  local restore_status=0
+
+  if [ -f "$daemon_file" ]; then
+    cp -a "$daemon_file" "$backup_file"
+    had_original=1
+  else
+    rm -f "$backup_file"
+  fi
+
+  write_temp_daemon_json_from_mirrors "$daemon_file" "$mirrors"
+
+  log_warn "Direct and explicit mirror pulls failed, retrying with a temporary Docker daemon mirror configuration"
+  if ! restart_docker_service; then
+    log_error "Failed to restart Docker after writing temporary daemon.json"
+    pull_status=1
+  elif modern_compose "$install_path" pull; then
+    log_info "Pull succeeded via temporary Docker daemon mirror configuration"
+    pull_status=0
+  else
+    log_warn "Pull failed even after applying temporary Docker daemon mirror configuration"
+    pull_status=1
+  fi
+
+  if [ "$had_original" -eq 1 ]; then
+    cp -a "$backup_file" "$daemon_file"
+  else
+    rm -f "$daemon_file"
+  fi
+  rm -f "$backup_file"
+
+  if ! restart_docker_service; then
+    log_error "Failed to restore the original Docker daemon configuration"
+    restore_status=1
+  fi
+
+  if [ "$restore_status" -ne 0 ]; then
+    return 1
+  fi
+
+  return "$pull_status"
+}
+
+# 镜像拉取（带镜像加速回退）
+# 先尝试 docker compose pull 直拉；失败后使用 mirrors.json 中的地址显式拉取；
+# 若仍失败，则临时写入全新的 /etc/docker/daemon.json 并重启 Docker 后再试一次；
+# 结束后恢复原 daemon.json。全部失败返回 1。
+pull_image_with_mirrors() {
+  local install_path="$1"
 
   # 从 .env 读取镜像名（已由 install_prepare_material 写入）
   local env_file="${install_path}/.env"
@@ -443,47 +595,21 @@ pull_image_with_mirrors() {
   fi
   log_warn "Direct pull failed, trying mirror accelerators..."
 
-  # 2. 下载 mirrors.json
-  if ! _w9_download "$mirrors_url" "$mirrors_file"; then
-    log_error "Failed to download mirror list from $mirrors_url"
-    rm -f "$mirrors_file"
-    return 1
-  fi
-
-  # 3. 解析 mirror 列表（纯 bash，不依赖 jq/python）
   local mirrors
-  mirrors="$(grep -o '"[^"]*"' "$mirrors_file" | tr -d '"' | grep -v '^mirrors$')"
-  if [ -z "$mirrors" ]; then
-    log_error "No mirrors found in mirror list"
-    rm -f "$mirrors_file"
+  if ! mirrors="$(load_mirror_entries "$install_path")"; then
     return 1
   fi
 
   log_info "Loaded $(echo "$mirrors" | wc -l) mirror(s), trying in order..."
 
-  # 4. 逐个重试镜像加速地址
-  local mirror success=1
-  while IFS= read -r mirror; do
-    [ -z "$mirror" ] && continue
-    local mirror_image="${mirror}/${image_repo}:${image_tag}"
-    log_info "Trying mirror: $mirror"
-
-    if docker pull "$mirror_image"; then
-      docker tag "$mirror_image" "$image_ref"
-      log_info "Pull succeeded via mirror: $mirror"
-      success=0
-      break
-    else
-      log_warn "Mirror $mirror failed, trying next..."
-    fi
-  done <<< "$mirrors"
-
-  rm -f "$mirrors_file"
-
-  if [ "$success" -ne 0 ]; then
-    log_error "All mirrors exhausted — image pull failed"
-    return 1
+  if pull_image_via_prefixed_mirrors "$image_repo" "$image_tag" "$image_ref" "$mirrors"; then
+    return 0
   fi
 
-  return 0
+  if pull_image_via_temporary_daemon_mirrors "$install_path" "$mirrors"; then
+    return 0
+  fi
+
+  log_error "Direct pull, explicit mirrors, and temporary Docker daemon mirror configuration all failed"
+  return 1
 }
