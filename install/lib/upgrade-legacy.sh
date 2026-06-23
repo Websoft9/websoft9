@@ -41,7 +41,13 @@ _legacy_read_console_port_from_socket() {
   return 0
 }
 
-_legacy_read_console_port_from_config() {
+_legacy_is_proxy_fronted_platform() {
+  local cockpit_conf="/etc/cockpit/cockpit.conf"
+  [ -f "$cockpit_conf" ] || return 1
+  grep -q "Origins" "$cockpit_conf"
+}
+
+_legacy_read_platform_entry_port_from_config() {
   local candidate
   for candidate in \
     /data/apps/websoft9/apphub/src/config/config.ini \
@@ -50,7 +56,23 @@ _legacy_read_console_port_from_config() {
     /usr/share/websoft9/apphub/src/config/config.ini
   do
     [ -f "$candidate" ] || continue
-    sed -nE 's|^[[:space:]]*listen_port[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$|\1|p' "$candidate" | head -n 1
+    awk '
+      $0=="[nginx_proxy_manager]" {section="nginx_proxy_manager"; next}
+      $0=="[platform_gateway]" {section="platform_gateway"; next}
+      /^\[/ {section=""}
+      section=="nginx_proxy_manager" && $0 ~ /^[[:space:]]*listen_port[[:space:]]*=/ {
+        sub(/^[[:space:]]*listen_port[[:space:]]*=[[:space:]]*/, "", $0)
+        gsub(/[[:space:]]+$/, "", $0)
+        print $0
+        exit
+      }
+      section=="platform_gateway" && $0 ~ /^[[:space:]]*listen_port[[:space:]]*=/ {
+        sub(/^[[:space:]]*listen_port[[:space:]]*=[[:space:]]*/, "", $0)
+        gsub(/[[:space:]]+$/, "", $0)
+        print $0
+        exit
+      }
+    ' "$candidate" | head -n 1
     return 0
   done
   return 0
@@ -72,7 +94,16 @@ _legacy_resolve_console_port() {
 
   local legacy_socket_port legacy_config_port
   legacy_socket_port="$(_legacy_read_console_port_from_socket)"
-  legacy_config_port="$(_legacy_read_console_port_from_config)"
+  legacy_config_port="$(_legacy_read_platform_entry_port_from_config)"
+
+  if _legacy_is_proxy_fronted_platform; then
+    if [ -n "$legacy_config_port" ]; then
+      echo "$legacy_config_port"
+      return 0
+    fi
+    echo "$resolved_port"
+    return 0
+  fi
 
   if [ -n "$legacy_socket_port" ]; then
     echo "$legacy_socket_port"
@@ -666,10 +697,12 @@ run_upgrade_legacy() {
   console_port="$(_legacy_resolve_console_port "$console_port")"
 
   if [ "${W9_CONSOLE_PORT_EXPLICIT:-0}" != "1" ] && [ -n "$console_port" ] && [ "$console_port" != "${requested_console_port:-$DEFAULT_CONSOLE_PORT}" ]; then
-    if [ "$console_port" = "$(_legacy_read_console_port_from_socket)" ]; then
+    if _legacy_is_proxy_fronted_platform; then
+      log_info "Detected proxy-fronted legacy platform entry port: ${console_port}"
+    elif [ "$console_port" = "$(_legacy_read_console_port_from_socket)" ]; then
       log_info "Detected legacy Cockpit listen port from cockpit.socket: ${console_port}"
-    elif [ "$console_port" = "$(_legacy_read_console_port_from_config)" ]; then
-      log_info "Detected legacy console port from config.ini: ${console_port}"
+    elif [ "$console_port" = "$(_legacy_read_platform_entry_port_from_config)" ]; then
+      log_info "Detected legacy platform entry port from config.ini: ${console_port}"
     fi
   fi
 

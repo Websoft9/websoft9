@@ -59,6 +59,21 @@ urllib.request.urlopen(sys.argv[1], timeout=5).read()
 PY
 }
 
+_container_local_post_probe() {
+  local url="$1"
+  if ! container_running "$MODERN_CONTAINER_NAME"; then
+    return 1
+  fi
+
+  docker exec "$MODERN_CONTAINER_NAME" python3 - "$url" <<'PY' >/dev/null 2>&1
+import sys
+import urllib.request
+
+request = urllib.request.Request(sys.argv[1], method="POST", headers={"X-Websoft9-Locale": "en"})
+urllib.request.urlopen(request, timeout=10).read()
+PY
+}
+
 # Check that the console port is reachable
 validate_console_entry() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
@@ -147,6 +162,27 @@ validate_product_state() {
   return 1
 }
 
+validate_integration_session() {
+  local integration_key="$1"
+  log_step "Checking ${integration_key} integration session bootstrap"
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) skipping ${integration_key} integration session probe"
+    return 0
+  fi
+
+  local i
+  for i in $(seq 1 10); do
+    if _container_local_post_probe "http://127.0.0.1:9000/api/integrations/${integration_key}/session"; then
+      log_info "${integration_key} integration session bootstrap passed"
+      return 0
+    fi
+    sleep 3
+  done
+
+  log_error "${integration_key} integration session bootstrap failed"
+  return 1
+}
+
 # Minimum post-install acceptance checks
 validate_install() {
   local console_port="${1:-$DEFAULT_CONSOLE_PORT}"
@@ -166,6 +202,8 @@ validate_upgrade() {
   validate_console_entry "$console_port" || rc=1
   validate_api "$console_port" || rc=1
   validate_product_state || rc=1
+  validate_integration_session npm || rc=1
+  validate_integration_session portainer || rc=1
   return $rc
 }
 
