@@ -11,6 +11,8 @@
 set -o pipefail
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
+export DEBIAN_FRONTEND=noninteractive
+export APT_LISTCHANGES_FRONTEND=none
 
 # ---------------------------------------------------------------------------
 # Logging (matches Websoft9 format)
@@ -30,7 +32,10 @@ require_root() {
   fi
 }
 
-# Pipe stdout/stderr through log_info so every line gets the Websoft9 prefix
+# Pipe stdout/stderr through log_info so every line gets the Websoft9 prefix.
+# Carriage returns (\r) are converted to newlines so that progress bars
+# (which use \r without \n) become visible as individual log lines instead
+# of being swallowed by read's line buffering.
 _log_pipe() {
   while IFS= read -r line; do
     log_info "$line"
@@ -39,16 +44,27 @@ _log_pipe() {
 
 # Run a command and prefix its combined output with log format.
 # Exit code is preserved via temp file (pipelines lose it with pipefail).
+# Sets DEBIAN_FRONTEND and APT_LISTCHANGES_FRONTEND to disable interactive
+# prompts that would hang indefinitely in a non-TTY pipeline.
 _run_logged() {
   local exit_file exit_code
   exit_file="$(mktemp)"
   (
+    export DEBIAN_FRONTEND=noninteractive
+    export APT_LISTCHANGES_FRONTEND=none
     "$@"
     echo $? > "$exit_file"
-  ) 2>&1 | _log_pipe
+  ) 2>&1 | tr '\r' '\n' | _log_pipe
   exit_code="$(cat "$exit_file" 2>/dev/null || echo 1)"
   rm -f "$exit_file"
   return "$exit_code"
+}
+
+# Run a command with a timeout (for individual apt operations).
+# Usage: _apt_run <timeout_seconds> <command...>
+_apt_run() {
+  local t="$1"; shift
+  timeout "$t" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -154,6 +170,56 @@ _url_reachable() {
   else
     return 1
   fi
+}
+
+# ---------------------------------------------------------------------------
+# Probe system apt repo connectivity and switch to Aliyun mirror if the
+# official Ubuntu archive is unreachable (common on mainland China servers).
+# Only affects Debian/Ubuntu systems. Original sources.list is backed up.
+# ---------------------------------------------------------------------------
+_ensure_apt_sources() {
+  if ! command_exists apt-get; then
+    return 0
+  fi
+
+  local codename
+  codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}" 2>/dev/null)"
+  [ -z "$codename" ] && return 0
+
+  # Idempotent: already configured by us
+  if [ -f /etc/apt/sources.list.websoft9.bak ]; then
+    return 0
+  fi
+
+  # Quick probe of official Ubuntu archive (2s)
+  if _url_reachable "http://archive.ubuntu.com" 2; then
+    log_info "Ubuntu official archive is reachable, keeping original APT sources"
+    return 0
+  fi
+
+  # Check if Aliyun mirror is reachable
+  if ! _url_reachable "http://mirrors.aliyun.com" 2; then
+    log_warn "Neither Ubuntu official nor Aliyun APT mirror is reachable"
+    return 0
+  fi
+
+  log_step "Ubuntu official archive unreachable, switching APT sources to mirrors.aliyun.com"
+
+  # Backup original sources
+  if [ -f /etc/apt/sources.list ]; then
+    cp /etc/apt/sources.list /etc/apt/sources.list.websoft9.bak
+    log_info "Original sources.list backed up to sources.list.websoft9.bak"
+  fi
+
+  cat > /etc/apt/sources.list <<EOF
+deb http://mirrors.aliyun.com/ubuntu/ ${codename} main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ ${codename}-updates main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ ${codename}-backports main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ ${codename}-security main restricted universe multiverse
+EOF
+
+  log_info "APT sources switched to mirrors.aliyun.com for ${codename}"
+  return 0
 }
 
 # Decide repo ordering: China mirrors first if docker.com is slow/unreachable
@@ -266,12 +332,13 @@ install_docker_custom() {
 
   # Debian / Ubuntu (APT)
   if command_exists apt || command_exists apt-get; then
+    _ensure_apt_sources
     local repo base
     for base in "${repos_base[@]}"; do
       repo="${base}/ubuntu"
       log_info "Trying APT repo: $repo"
-      apt-get update -qq >/dev/null 2>&1 || true
-      apt-get install -y -q ca-certificates curl >/dev/null 2>&1
+      _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
+      _apt_run 300 apt-get install -y -q ca-certificates curl >/dev/null 2>&1
       install -m 0755 -d /etc/apt/keyrings
       if _download "${repo}/gpg" /etc/apt/keyrings/docker.asc 30; then
         chmod a+r /etc/apt/keyrings/docker.asc
@@ -279,7 +346,7 @@ install_docker_custom() {
           "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] $repo \
           $(. /etc/os-release && echo "${VERSION_CODENAME:-stable}") stable" | \
           tee /etc/apt/sources.list.d/docker.list >/dev/null
-        apt-get update -qq >/dev/null 2>&1 || true
+        _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
         if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
           _start_docker && return 0
@@ -301,14 +368,18 @@ install_docker_custom() {
 # ---------------------------------------------------------------------------
 install_docker_official() {
   local mirrors=("" "--mirror Aliyun" "--mirror AzureChinaCloud")
-  local install_timeout=3600
+  local install_timeout=1800
   local lsb_dist
   lsb_dist="$(detect_distro)"
 
-  # Patch get-docker.sh to show apt-get progress instead of swallowing it
-  # -qq → (remove)  and  >/dev/null → (remove)
+  # Ensure system APT sources are reachable before running the official script
+  _ensure_apt_sources
+
+  # Patch get-docker.sh to show apt-get progress instead of swallowing it.
+  # Only remove -qq (quiet) flags; leave /dev/null redirects intact to avoid
+  # breaking complex script logic.
   if [ -f get-docker.sh ]; then
-    sed -i 's/-qq //g; s|>/dev/null||g; s|> /dev/null||g' get-docker.sh
+    sed -i 's/ -qq / /g' get-docker.sh
   fi
 
   for mirror in "${mirrors[@]}"; do

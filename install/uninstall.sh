@@ -14,13 +14,14 @@
 
 set -o pipefail
 
-# 定位脚本目录与 lib
+# Resolve the script directory and bundled libs.
 W9_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 W9_ROOT_DIR="$(dirname "$W9_SCRIPT")"
 W9_LIB_DIR="${W9_ROOT_DIR}/lib"
 export W9_LIB_DIR
 
-# 加载库（发布构建时内联，生成自包含单文件）
+# Load libraries. This block is replaced during bundle generation
+# so the release artifact becomes a single self-contained script.
 # >>> WEBSOFT9_LIB_SOURCING >>>
 # shellcheck source=lib/common.sh
 . "${W9_LIB_DIR}/common.sh"
@@ -32,19 +33,19 @@ export W9_LIB_DIR
 
 usage() {
   cat <<EOF
-Websoft9 卸载工具
+Websoft9 Uninstall Tool
 
-用法:
+Usage:
   sudo bash uninstall.sh [options]
 
-选项:
-  --mode <stop|standard|purge>   卸载模式（默认 standard）
-  --path <dir>                   安装目录（默认 ${DEFAULT_INSTALL_PATH}）
-  --keep-data <true|false>       是否保留数据（默认 true）
-  --yes                          对破坏性操作进行确认
-  --dry-run                      仅计划，不做破坏性操作
-  --remove-legacy-controlplane   显式清理旧 Cockpit/systemd 遗留
-  -h, --help                     显示帮助
+Options:
+  --mode <stop|standard|purge>   Uninstall mode (default: standard)
+  --path <dir>                   Install directory (default: ${DEFAULT_INSTALL_PATH})
+  --keep-data <true|false>       Retain runtime data (default: true)
+  --yes                          Auto-confirm destructive actions
+  --dry-run                      Plan only; make no destructive changes
+  --remove-legacy-controlplane   Also remove legacy Cockpit/systemd remnants
+  -h, --help                     Show this help
 EOF
 }
 
@@ -62,7 +63,7 @@ while [ $# -gt 0 ]; do
       case "${2:-}" in
         true|TRUE|1)   OPT_KEEP_DATA="1"; shift 2 ;;
         false|FALSE|0) OPT_KEEP_DATA="0"; shift 2 ;;
-        *)             OPT_KEEP_DATA="1"; shift ;;   # 裸 --keep-data 视为保留数据
+        *)             OPT_KEEP_DATA="1"; shift ;;   # Bare --keep-data means retain data.
       esac
       ;;
     --purge)          OPT_MODE="purge"; shift ;;

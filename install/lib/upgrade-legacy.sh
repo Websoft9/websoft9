@@ -1,43 +1,43 @@
 #!/bin/bash
-# upgrade-legacy.sh — 旧版到新版迁移路径（§7）
-# 职责：legacy 环境的跨代迁移（控制面替换 + 卷确定性结构转换 + 凭据合成 + 内置对账）。
-# 不负责：modern 环境、未知历史变种的自动迁移。
-#
-# 8 阶段（§7.6）：识别 -> 备份 -> 停旧运行时释放端口 -> 卷结构转换 ->
-#                 凭据合成 -> 启动接管 -> 验证 -> 收口
+# upgrade-legacy.sh - legacy-to-modern migration flow (§7)
+# Scope: cross-generation migration for legacy environments (control-plane cutover,
+# deterministic data transform, credential synthesis, built-in reconciliation).
+# Out of scope: modern upgrades and unknown historical variants.
 
-# --- 阶段 3：停旧运行时，释放 80/443/9000 并停止旧卷写入者（stop-only，可回退）---
+# Stage 3: stop the legacy runtime, free 80/443/9000, and stop legacy writers.
 _legacy_stop_runtime() {
-  log_step "停止旧版运行时（释放 80/443/9000，不删除，便于回退）"
+  log_step "Stopping legacy runtime writers and freeing 80/443/9000"
 
-  # 停旧 compose 项目（容器名固定，逐个停）
+  # Stop legacy containers one by one.
   local name
   for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
     if container_running "$name"; then
-      run_cmd docker stop "$name" || log_warn "停止容器失败: $name"
+      run_cmd docker stop "$name" || log_warn "Failed to stop legacy container: $name"
     fi
   done
 
-  # 停旧 systemd 控制面（仅停止，不 disable / 不删除）
+  # Stop legacy systemd control-plane units without removing them yet.
   if command_exists systemctl; then
     local unit
     for unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
       if systemd_unit_present "$unit"; then
-        run_cmd systemctl stop "$unit" 2>/dev/null || log_warn "停止 systemd 单元失败: $unit"
+        run_cmd systemctl stop "$unit" 2>/dev/null || log_warn "Failed to stop legacy systemd unit: $unit"
       fi
     done
   fi
 }
 
-# 生成卷结构转换脚本到临时文件（在 alpine 内执行）
+# Render the transform script executed inside the one-shot Alpine worker.
 _legacy_write_transform_script() {
   local script_path="$1"
   cat >"$script_path" <<'TRANSFORM'
 #!/bin/sh
 set -e
-log() { echo "[transform] $*"; }
+ts() { date +"%Y-%m-%d %H:%M:%S"; }
+log_step() { echo "[transform][$(ts)][STEP ] $*"; }
+log_info() { echo "[transform][$(ts)][INFO ] $*"; }
 
-# 极简 ini 取值：ini_get <file> <section> <key>
+# Minimal INI reader: ini_get <file> <section> <key>
 ini_get() {
   f="$1"; sect="$2"; key="$3"
   [ -f "$f" ] || return 0
@@ -49,7 +49,7 @@ ini_get() {
     }' "$f"
 }
 
-# 取 app.ini 中某 key 的值（无 section 限定，用于 SECRET_KEY/INTERNAL_TOKEN）
+# Read an app.ini key without constraining the section.
 ini_get_any() {
   f="$1"; key="$2"
   [ -f "$f" ] || return 0
@@ -60,13 +60,13 @@ mkdir -p /data
 
 # ---------------- NPM (nginx_data) ----------------
 if [ -d /legacy/nginx_data ]; then
-  log "迁移 NPM 数据库与 nginx 配置（排除 logs/）"
+  log_step "Copying NPM database and nginx config (excluding logs/)"
   [ -f /legacy/nginx_data/database.sqlite ] && cp -a /legacy/nginx_data/database.sqlite /data/database.sqlite || true
   if [ -d /legacy/nginx_data/nginx ]; then
     mkdir -p /data/nginx
     cp -a /legacy/nginx_data/nginx/. /data/nginx/ 2>/dev/null || true
   fi
-  # 证书：保留原始绝对路径 /data/custom_ssl 以维持 DB 内引用有效（best-effort）
+  # Preserve /data/custom_ssl because the NPM DB may still reference it directly.
   if [ -d /legacy/nginx_data/custom_ssl ]; then
     mkdir -p /data/custom_ssl /data/nginx-proxy-manager/custom_ssl
     cp -a /legacy/nginx_data/custom_ssl/. /data/custom_ssl/ 2>/dev/null || true
@@ -74,38 +74,39 @@ if [ -d /legacy/nginx_data ]; then
   fi
   [ -d /legacy/nginx_data/letsencrypt ] && { mkdir -p /data/letsencrypt; cp -a /legacy/nginx_data/letsencrypt/. /data/letsencrypt/ 2>/dev/null || true; } || true
 fi
-# 独立 letsencrypt 卷（旧 /etc/letsencrypt）best-effort 搬入 /data/letsencrypt
+# Separate legacy letsencrypt volume (old /etc/letsencrypt) - best effort.
 if [ -d /legacy/nginx_letsencrypt ]; then
-  log "迁移 letsencrypt 证书目录（best-effort）"
+  log_step "Copying letsencrypt certificate directory (best effort)"
   mkdir -p /data/letsencrypt
   cp -a /legacy/nginx_letsencrypt/. /data/letsencrypt/ 2>/dev/null || true
 fi
 
 # ---------------- Gitea ----------------
-# 旧卷布局（挂载于旧 /data）：/legacy/gitea/gitea（app+conf+db），/legacy/gitea/git（repos/lfs）
+# Legacy layout (mounted at old /data): /legacy/gitea/gitea (app+conf+db),
+# /legacy/gitea/git (repositories/lfs).
 if [ -d /legacy/gitea ]; then
-  log "迁移 Gitea（路径重映射，保留 SECRET_KEY/INTERNAL_TOKEN）"
+  log_step "Migrating Gitea with path remap and preserved SECRET_KEY / INTERNAL_TOKEN"
   old_g="/legacy/gitea/gitea"
   old_git="/legacy/gitea/git"
   mkdir -p /data/gitea/conf /data/gitea/data /data/gitea/git /data/gitea/log
 
-  # 数据库
+  # Database
   [ -f "$old_g/gitea.db" ] && cp -a "$old_g/gitea.db" /data/gitea/gitea.db || true
 
-  # 仓库与 lfs
+  # Repositories and LFS objects
   [ -d "$old_git/repositories" ] && cp -a "$old_git/repositories" /data/gitea/git/ 2>/dev/null || true
   [ -d "$old_git/lfs" ] && cp -a "$old_git/lfs" /data/gitea/git/ 2>/dev/null || true
 
-  # 应用数据（avatars/attachments 等）搬入新 APP_DATA_PATH=/data/gitea/data
+  # App data (avatars, attachments, ...) lands in APP_DATA_PATH=/data/gitea/data.
   if [ -d "$old_g" ]; then
     for sub in avatars repo-avatars attachments packages actions_log actions_artifacts queues sessions indexers; do
       [ -e "$old_g/$sub" ] && cp -a "$old_g/$sub" /data/gitea/data/ 2>/dev/null || true
     done
-    # 已是 data/ 子目录布局的旧版直接合并
+    # Merge older layouts that already used a nested data/ subtree.
     [ -d "$old_g/data" ] && cp -a "$old_g/data/." /data/gitea/data/ 2>/dev/null || true
   fi
 
-  # 重建 app.ini：新路径 + 旧密钥
+  # Rebuild app.ini with modern paths while preserving legacy secrets.
   old_ini="$old_g/conf/app.ini"
   SECRET_KEY="$(ini_get_any "$old_ini" SECRET_KEY)"
   INTERNAL_TOKEN="$(ini_get_any "$old_ini" INTERNAL_TOKEN)"
@@ -146,25 +147,25 @@ fi
 
 # ---------------- Portainer ----------------
 if [ -d /legacy/portainer ]; then
-  log "迁移 Portainer 数据（启动自迁移 bolt db）"
+  log_step "Copying Portainer data for BoltDB self-migration on first start"
   mkdir -p /data/portainer
   cp -a /legacy/portainer/. /data/portainer/ 2>/dev/null || true
 fi
 
-# ---------------- /data/compose（宿主机 bind -> 命名卷）----------------
+# ---------------- /data/compose (host bind -> named volume) ----------------
 if [ -d /legacy/host-compose ]; then
-  log "迁移宿主机 /data/compose 到命名卷内 /data/compose"
+  log_step "Copying host /data/compose into managed /data/compose"
   mkdir -p /data/compose
   cp -a /legacy/host-compose/. /data/compose/ 2>/dev/null || true
 fi
 
-# ---------------- 旧 apphub 日志（归档，低优先）----------------
+# ---------------- Legacy AppHub logs (archive only) ----------------
 if [ -d /legacy/apphub_logs ]; then
   mkdir -p /data/logs/legacy-apphub
   cp -a /legacy/apphub_logs/. /data/logs/legacy-apphub/ 2>/dev/null || true
 fi
 
-# ---------------- 凭据合成（从旧 apphub config.ini）----------------
+# ---------------- Legacy config handoff ----------------
 cfg=""
 sysini=""
 for root in /legacy/apphub_config /legacy/service-root /legacy/download-root; do
@@ -172,10 +173,11 @@ for root in /legacy/apphub_config /legacy/service-root /legacy/download-root; do
   [ -z "$cfg" ] && cfg="$(find "$root" -name config.ini -type f 2>/dev/null | head -n1)"
   [ -z "$sysini" ] && sysini="$(find "$root" -name system.ini -type f 2>/dev/null | head -n1)"
 done
+[ -n "$cfg" ] && [ -f "$cfg" ] && { mkdir -p /data/.w9-migration; cp -a "$cfg" /data/.w9-migration/legacy-config.ini; } || true
 [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
 
 if [ -n "$cfg" ] && [ -f "$cfg" ]; then
-  log "合成第三方凭据文件（用旧密码对账）"
+  log_step "Synthesizing third-party credential files from legacy config"
 
   g_user="$(ini_get "$cfg" gitea user_name)"
   g_pwd="$(ini_get "$cfg" gitea user_pwd)"
@@ -204,7 +206,7 @@ if [ -n "$cfg" ] && [ -f "$cfg" ]; then
     chmod 600 /data/nginx-proxy-manager/credential.json || true
   fi
 
-  # api_key 抽取（归档到迁移暂存，供后续按需接续，不强行注入运行时）
+  # Stage the legacy API key for the post-start config import.
   api_key="$(ini_get "$cfg" api_key key)"
   if [ -n "$api_key" ]; then
     mkdir -p /data/.w9-migration
@@ -212,21 +214,21 @@ if [ -n "$cfg" ] && [ -f "$cfg" ]; then
   fi
 fi
 
-log "卷结构转换与凭据合成完成"
+log_info "Data transform and legacy credential synthesis completed"
 TRANSFORM
 }
 
-# --- 阶段 4 + 5：卷结构转换 + 凭据合成（单 alpine 容器内完成）---
+# Stage 4 + 5: deterministic data transform + credential synthesis.
 _legacy_transform_volumes() {
   local install_path="$1"
-  log_step "卷结构转换 + 凭据合成"
+  log_step "Running legacy data transform and credential synthesis"
 
   local data_root
   data_root="$(resolve_runtime_data_root "$install_path")"
   run_cmd mkdir -p "$data_root"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
-    log_info "(dry-run) 跳过实际卷转换"
+    log_info "(dry-run) skipping the actual data transform"
     return 0
   fi
 
@@ -264,32 +266,175 @@ _legacy_transform_volumes() {
 
   if ! docker run --rm "${mounts[@]}" alpine:3.20 sh /w9script/transform.sh; then
     rm -rf "$tmpdir"
-    die "$EXIT_RUNTIME" "卷结构转换失败"
+    die "$EXIT_RUNTIME" "Legacy data transform failed"
   fi
   rm -rf "$tmpdir"
 }
 
-# --- 阶段 8 收口：产品版本/edition 接续（从旧 system.ini 推断）---
-_legacy_finalize_product_state() {
-  log_step "产品状态接续（旧 system.ini -> edition/version）"
+ # Import staged legacy runtime settings into the modern config model.
+_legacy_finalize_runtime_config() {
+  log_step "Importing legacy runtime settings into the modern config model"
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
-    log_info "(dry-run) 跳过产品状态接续"
+    log_info "(dry-run) skipping runtime config import"
     return 0
   fi
   if ! container_running "$MODERN_CONTAINER_NAME"; then
-    log_warn "容器未运行，跳过产品状态接续"
+    log_warn "Container is not running, skipping runtime config import"
     return 0
   fi
-  # system.ini 已由转换阶段放入 /data/.w9-migration/system.ini
+
+  docker exec -i "$MODERN_CONTAINER_NAME" python3 - <<'PY' 2>/dev/null || log_warn "Legacy runtime config import is best-effort and did not complete"
+import configparser
+import shutil
+from pathlib import Path
+
+legacy_config_path = Path("/data/.w9-migration/legacy-config.ini")
+runtime_config_path = Path("/websoft9/apphub/src/config/config.ini")
+default_cert_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
+default_key_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.key")
+
+if not legacy_config_path.is_file() or not runtime_config_path.is_file():
+    raise SystemExit(0)
+
+
+def read_ini(path: Path) -> configparser.ConfigParser:
+    parser = configparser.ConfigParser()
+    parser.read(path, encoding="utf-8")
+    return parser
+
+
+def ensure_section(parser: configparser.ConfigParser, section: str) -> None:
+    if not parser.has_section(section):
+        parser.add_section(section)
+
+
+def get_first(parser: configparser.ConfigParser, candidates: list[tuple[str, str]]) -> str:
+    for section, key in candidates:
+        if parser.has_option(section, key):
+            value = parser.get(section, key).strip()
+            if value:
+                return value
+    return ""
+
+
+def normalize_bool(value: str) -> str:
+    lowered = (value or "").strip().lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return "true"
+    if lowered in {"0", "false", "no", "off"}:
+        return "false"
+    return ""
+
+
+def set_if_value(parser: configparser.ConfigParser, section: str, key: str, value: str) -> bool:
+    if not value:
+        return False
+    ensure_section(parser, section)
+    current = parser.get(section, key, fallback="")
+    if current == value:
+        return False
+    parser.set(section, key, value)
+    return True
+
+
+def copy_platform_cert(cert_source: Path, key_source: Path) -> bool:
+    if not cert_source.is_file() or not key_source.is_file():
+        return False
+    default_cert_path.parent.mkdir(parents=True, exist_ok=True)
+    default_key_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(cert_source, default_cert_path)
+    shutil.copy2(key_source, default_key_path)
+    return True
+
+
+legacy = read_ini(legacy_config_path)
+runtime = read_ini(runtime_config_path)
+changed = False
+
+legacy_api_key = get_first(legacy, [("api_key", "key")])
+legacy_wildcard_domain = get_first(legacy, [("domain", "wildcard_domain"), ("domain", "default_domain"), ("domain", "domain")])
+legacy_bound_domain = get_first(legacy, [("platform_gateway", "bound_domain"), ("cockpit", "domain"), ("cockpit", "default_domain"), ("domain", "platform_domain")])
+legacy_docker_mirror = get_first(legacy, [("docker_mirror", "url"), ("docker_mirror", "mirror_url"), ("docker_mirror", "registry_mirror")])
+legacy_https_enabled = normalize_bool(get_first(legacy, [("platform_gateway", "https_enabled"), ("cockpit", "https_enabled")]))
+legacy_force_https = normalize_bool(get_first(legacy, [("platform_gateway", "force_https"), ("cockpit", "force_https")]))
+legacy_ssl_cert = get_first(legacy, [("platform_gateway", "ssl_cert"), ("cockpit", "ssl_cert"), ("cockpit", "cert_path")])
+legacy_ssl_key = get_first(legacy, [("platform_gateway", "ssl_key"), ("cockpit", "ssl_key"), ("cockpit", "key_path")])
+
+if set_if_value(runtime, "api_key", "key", legacy_api_key):
+    changed = True
+if set_if_value(runtime, "domain", "wildcard_domain", legacy_wildcard_domain):
+    changed = True
+if set_if_value(runtime, "docker_mirror", "url", legacy_docker_mirror):
+    changed = True
+if set_if_value(runtime, "platform_gateway", "bound_domain", legacy_bound_domain):
+    changed = True
+
+cert_candidates: list[tuple[Path, Path]] = []
+if legacy_ssl_cert and legacy_ssl_key:
+    cert_candidates.append((Path(legacy_ssl_cert), Path(legacy_ssl_key)))
+if legacy_bound_domain:
+    cert_candidates.append((Path(f"/data/letsencrypt/live/{legacy_bound_domain}/fullchain.pem"), Path(f"/data/letsencrypt/live/{legacy_bound_domain}/privkey.pem")))
+if legacy_wildcard_domain:
+    wildcard_domain = legacy_wildcard_domain[2:] if legacy_wildcard_domain.startswith("*.") else legacy_wildcard_domain
+    cert_candidates.append((Path(f"/data/letsencrypt/live/{wildcard_domain}/fullchain.pem"), Path(f"/data/letsencrypt/live/{wildcard_domain}/privkey.pem")))
+cert_candidates.append((Path("/data/custom_ssl/websoft9-self-signed.cert"), Path("/data/custom_ssl/websoft9-self-signed.key")))
+cert_candidates.append((Path("/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert"), Path("/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key")))
+
+copied_legacy_cert = False
+for cert_candidate, key_candidate in cert_candidates:
+    if copy_platform_cert(cert_candidate, key_candidate):
+        copied_legacy_cert = True
+        break
+
+if copied_legacy_cert:
+    if set_if_value(runtime, "platform_gateway", "ssl_cert", str(default_cert_path)):
+        changed = True
+    if set_if_value(runtime, "platform_gateway", "ssl_key", str(default_key_path)):
+        changed = True
+    if set_if_value(runtime, "platform_gateway", "https_enabled", "true"):
+        changed = True
+elif legacy_https_enabled:
+    if set_if_value(runtime, "platform_gateway", "https_enabled", legacy_https_enabled):
+        changed = True
+    if legacy_https_enabled == "true":
+        if set_if_value(runtime, "platform_gateway", "ssl_cert", str(default_cert_path)):
+            changed = True
+        if set_if_value(runtime, "platform_gateway", "ssl_key", str(default_key_path)):
+            changed = True
+
+if legacy_force_https:
+    if set_if_value(runtime, "platform_gateway", "force_https", legacy_force_https):
+        changed = True
+
+if changed:
+    with runtime_config_path.open("w", encoding="utf-8") as handle:
+        runtime.write(handle)
+
+print("legacy-runtime-config-imported")
+PY
+}
+
+# Stage 8: import product version / edition from legacy system.ini.
+_legacy_finalize_product_state() {
+  log_step "Importing product runtime state from legacy system.ini"
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) skipping product runtime state import"
+    return 0
+  fi
+  if ! container_running "$MODERN_CONTAINER_NAME"; then
+    log_warn "Container is not running, skipping product runtime state import"
+    return 0
+  fi
+  # system.ini was staged earlier at /data/.w9-migration/system.ini.
   docker exec "$MODERN_CONTAINER_NAME" sh -c '
     set -e
     if [ -f /data/.w9-migration/system.ini ]; then
       python3 -c "import sys; sys.path.insert(0,\"/websoft9/apphub\"); from src.services.product_metadata import migrate_product_metadata; from src.services.product_runtime_state import read_release_version; migrate_product_metadata(version=read_release_version(), legacy_system_ini_file=\"/data/.w9-migration/system.ini\")" || echo "[w9] product state migration best-effort failed"
     fi
-  ' 2>/dev/null || log_warn "产品状态接续为 best-effort，未阻塞迁移"
+  ' 2>/dev/null || log_warn "Product runtime state import is best-effort and did not block the migration"
 }
 
-# 迁移主流程
+# Main legacy migration flow.
 run_upgrade_legacy() {
   local console_port="$1"
   local install_path="$2"
@@ -297,57 +442,60 @@ run_upgrade_legacy() {
   local image_tag="$4"
   local network_name="$5"
 
-  log_info "==== 旧版到新版迁移开始 (legacy) ===="
+  log_info "==== Legacy-to-modern migration started ===="
   require_root
 
-  # 阶段 1：识别已在入口完成；此处确认无现代强信号
+  # Stage 1: entry detection already happened; confirm there is no modern runtime.
   if _detect_modern_strong; then
-    die "$EXIT_ENV_GUARD" "检测到现代运行时，疑似 mixed，迁移路径拒绝执行"
+    die "$EXIT_ENV_GUARD" "Modern runtime detected; the legacy migration path refuses to run in a mixed environment"
   fi
 
-  # 阶段 2：迁移前备份（强制，不受 --keep-data 影响）
+  # Stage 2: mandatory pre-migration backup.
   local backup_dir
   backup_dir="$(backup_new_dir legacy-migration)"
   legacy_write_manifest "$backup_dir"
   backup_legacy_pre_migration "$backup_dir"
 
-  # 阶段 3：停旧运行时释放端口
+  # Stage 3: stop legacy writers and free ports.
   _legacy_stop_runtime
 
-  # 阶段 4 + 5：卷结构转换 + 凭据合成
+  # Stage 4 + 5: data transform + credential synthesis.
   _legacy_transform_volumes "$install_path"
 
-  # 准备现代部署物料（不覆盖已转换的宿主机数据根）
+  # Prepare modern deployment material without touching the transformed data root.
   install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
-    log_info "(dry-run) 迁移前置（识别/备份/停旧/转换/物料）完成，停止于启动接管前"
-    log_info "迁移前备份点: $backup_dir"
+    log_info "(dry-run) pre-cutover migration steps completed; stopping before the modern runtime takeover"
+    log_info "Pre-migration backup point: $backup_dir"
     return 0
   fi
 
-  # 阶段 6：启动接管
-  log_step "启动现代运行时接管"
+  # Stage 6: start the modern runtime.
+  log_step "Starting the modern runtime takeover"
   if ! pull_image_with_mirrors "$install_path"; then
-    die "$EXIT_RUNTIME" "迁移失败（镜像拉取）；旧运行时未删除，可人工回退。备份: $backup_dir"
+    die "$EXIT_RUNTIME" "Migration failed while pulling the modern image. Legacy assets are still present for manual rollback. Backup: $backup_dir"
   fi
   if ! modern_compose "$install_path" up -d; then
-    die "$EXIT_RUNTIME" "迁移失败（容器启动）；旧运行时未删除，可人工回退。备份: $backup_dir"
+    die "$EXIT_RUNTIME" "Migration failed while starting the modern runtime. Legacy assets are still present for manual rollback. Backup: $backup_dir"
   fi
 
-  # 阶段 8（部分）：产品状态接续（须在校验前，使版本/edition 就绪）
+  # Stage 8a: import staged runtime settings and product state before validation.
+  _legacy_finalize_runtime_config
   _legacy_finalize_product_state
 
-  # 阶段 7：验证
+  # Stage 7: validate the migrated runtime.
   if ! validate_upgrade "$console_port"; then
-    log_error "迁移后验证未通过"
-    log_warn "旧运行时与旧卷均未删除，迁移前备份点保留: $backup_dir"
-    log_warn "可停止现代容器并重启旧 systemd/容器进行人工回退"
-    die "$EXIT_VALIDATE" "迁移失败（迁移后校验）"
+    log_error "Post-migration validation failed"
+    log_warn "Legacy runtime assets are still present. Backup retained at: $backup_dir"
+    log_warn "You can stop the modern container and restart the legacy systemd units or containers for a manual rollback"
+    die "$EXIT_VALIDATE" "Migration failed during post-cutover validation"
   fi
 
-  # 阶段 8：收口
-  log_info "==== 旧版到新版迁移成功 ===="
-  log_info "迁移前备份点保留于: $backup_dir"
-  log_warn "旧 Cockpit / systemd / 旧容器与旧卷默认保留停用；回退窗口关闭后可用 uninstall 的独立清理开关处理。"
+  # Stage 8b: remove the legacy control plane and assets by default.
+  log_step "Removing legacy Cockpit / systemd / containers / volumes by default"
+  _uninstall_legacy "purge" "0" "1" "1"
+
+  log_info "==== Legacy-to-modern migration completed successfully ===="
+  log_info "Pre-migration backup retained at: $backup_dir"
 }

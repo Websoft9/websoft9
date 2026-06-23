@@ -1,25 +1,18 @@
 #!/bin/bash
-# install.sh — Websoft9 安装 / 升级入口
-# 用法: sudo bash install.sh [选项]
-#
-# 自动识别当前环境：
-#   未安装 → 全新安装
-#   已安装 → 升级（询问确认后执行）
-#   残留异常 → 警告后询问是否继续
-#
-# 卸载请使用: sudo bash uninstall.sh [--purge]
+# install.sh - Websoft9 install / upgrade entrypoint
+# Usage: sudo bash install.sh [options]
 
 set -o pipefail
 
-# 定位脚本目录与 lib
+# Resolve the script directory and bundled libs.
 W9_SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 W9_ROOT_DIR="$(dirname "$W9_SCRIPT")"
 W9_LIB_DIR="${W9_ROOT_DIR}/lib"
 export W9_LIB_DIR
 
-# 加载库
-# 说明：以下 source 块在发布构建时（install/build-bundle.sh）会被内联，
-#       生成自包含单文件 install.sh；两处标记之间的内容会被整体替换。
+# Load libraries.
+# The block below is replaced during bundle generation (install/build-bundle.sh)
+# so the release artifact becomes a single self-contained script.
 # >>> WEBSOFT9_LIB_SOURCING >>>
 # shellcheck source=lib/common.sh
 . "${W9_LIB_DIR}/common.sh"
@@ -60,7 +53,7 @@ Uninstall: sudo bash uninstall.sh [--purge]
 EOF
 }
 
-# ---- 参数默认值 ----
+# Default options.
 OPT_CHANNEL="release"
 OPT_VERSION="$DEFAULT_IMAGE_TAG"
 OPT_PATH="$DEFAULT_INSTALL_PATH"
@@ -71,13 +64,13 @@ OPT_IMAGE_REPO="$DEFAULT_IMAGE_REPO"
 OPT_NETWORK="$DEFAULT_NETWORK_NAME"
 _OPT_VERSION_EXPLICIT=""
 
-# 隐藏子命令（调试/运维用，不在 usage 中列出）
+# Hidden subcommands for diagnostics / operations.
 _SUBCMD=""
 case "${1:-}" in
   detect|backup) _SUBCMD="$1"; shift ;;
 esac
 
-# ---- 解析选项 ----
+# Parse CLI options.
 while [ $# -gt 0 ]; do
   case "$1" in
     --channel)      OPT_CHANNEL="$2"; shift 2 ;;
@@ -96,8 +89,8 @@ done
 
 [ -z "$OPT_VERSION" ] && OPT_VERSION="$DEFAULT_IMAGE_TAG"
 
-# For non-release channels, default image tag to the channel name
-# (e.g. --channel dev → IMAGE_TAG=dev) unless the user explicitly
+# For non-release channels, default the image tag to the channel name
+# (for example --channel dev => IMAGE_TAG=dev) unless the user explicitly
 # passed --version.
 if [ -z "$_OPT_VERSION_EXPLICIT" ] && [ "$OPT_CHANNEL" != "release" ]; then
     OPT_VERSION="$OPT_CHANNEL"
@@ -105,8 +98,8 @@ fi
 
 export W9_CHANNEL="$OPT_CHANNEL"
 
-# ---- 交互确认 ----
-# 返回 0=确认，1=拒绝；--yes 时自动确认
+# Interactive confirmation helper.
+# Returns 0 for confirm, 1 for reject. --yes auto-confirms.
 _confirm() {
   local prompt="$1" default="${2:-n}"
   [ "$OPT_YES" = "1" ] && return 0
@@ -119,7 +112,7 @@ _confirm() {
   esac
 }
 
-# ---- 隐藏子命令（调试/运维） ----
+# Hidden subcommands.
 if [ -n "$_SUBCMD" ]; then
   require_root
   case "$_SUBCMD" in
@@ -151,12 +144,12 @@ fi
 
 require_root
 
-# ---- 主流程：自动识别环境并操作 ----
+# Main flow: detect the environment and execute the right path.
 env_kind="$(detect_environment)"
 
 case "$env_kind" in
   empty)
-    log_step "No Websoft9 installation detected. Starting fresh install..."
+    log_step "No Websoft9 installation detected. Starting a fresh install"
     run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
     ;;
 
@@ -180,9 +173,9 @@ case "$env_kind" in
     ;;
 
   mixed)
-    log_warn "Residual components detected; environment is in an inconsistent state. It is recommended to clean up manually before re-running."
+    log_warn "Residual components detected; the environment is inconsistent. Clean it up manually before re-running if possible"
     if [ "$OPT_FORCE" != "1" ]; then
-      if ! _confirm "Force continue anyway? (risky)" "n"; then
+      if ! _confirm "Force continue anyway? This is risky" "n"; then
         log_info "Cancelled."
         exit "$EXIT_OK"
       fi

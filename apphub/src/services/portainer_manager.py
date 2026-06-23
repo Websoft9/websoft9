@@ -153,13 +153,23 @@ class PortainerManager:
                 return  
             # 根据状态码处理异常
             logger.error(f"Redeploy stack: {stack_id} error: {response.status_code}: {response.text}")
-            
-            # 抛出 CustomException，统一处理非 200 状态码
+
+            # 提取 Portainer 返回的真实错误详情
+            message = response.text
+            if message:
+                try:
+                    response_details = json.loads(message)
+                    message = response_details.get('details', response_details.get('message', message))
+                except json.JSONDecodeError:
+                    pass
+
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
-                details=f"Error"
+                details=message
             )
+        except CustomException:
+            raise
         except Exception as e:
             logger.error(f"Redeploy stack: {stack_id} error: {e}")
             raise CustomException(

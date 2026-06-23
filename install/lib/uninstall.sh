@@ -1,14 +1,6 @@
 #!/bin/bash
-# uninstall.sh — 卸载路径（§8）
-# 职责：现代卸载与旧系统卸载分流，3 种模式（停用 / 标准卸载 / 彻底清理）。
-# 不负责：隐式删除数据、隐式清理旧控制面遗留（必须显式开关）。
-#
-# 模式 (--mode)：
-#   stop     仅停止运行实体，保留物料与数据
-#   standard 停止并删除运行实体与部署物料，保留数据（除非 --keep-data=false 显式删数据）
-#   purge    彻底清理：删除运行实体、物料、数据卷（需 --yes 确认）
-# 独立开关：
-#   --remove-legacy-controlplane  清理旧 Cockpit/systemd/旧容器旧卷（仅显式时执行）
+# uninstall.sh - uninstall flows (§8)
+# Scope: modern uninstall, legacy uninstall, and explicit legacy control-plane cleanup.
 
 # 现代卸载
 _uninstall_modern() {
@@ -67,7 +59,50 @@ _uninstall_modern() {
   log_info "  Data root ${data_root}: $([ -d "$data_root" ] && echo retained || echo missing)"
 }
 
-# 旧系统卸载（仅在显式 --remove-legacy-controlplane 或目标环境为 legacy 时）
+_remove_legacy_cockpit_packages() {
+  if command_exists apt-get; then
+    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get purge -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws 2>/dev/null || true
+    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y 2>/dev/null || true
+    return 0
+  fi
+  if command_exists dnf; then
+    run_cmd dnf remove -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws 2>/dev/null || true
+    return 0
+  fi
+  if command_exists yum; then
+    run_cmd yum remove -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws 2>/dev/null || true
+    return 0
+  fi
+}
+
+_remove_legacy_controlplane_artifacts() {
+  log_step "Removing legacy Cockpit / systemd artifacts"
+
+  if command_exists systemctl; then
+    local unit
+    for unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
+      if systemd_unit_present "$unit"; then
+        run_cmd systemctl stop "$unit" 2>/dev/null || true
+        run_cmd systemctl disable "$unit" 2>/dev/null || true
+      fi
+    done
+    run_cmd systemctl daemon-reload 2>/dev/null || true
+  fi
+
+  run_cmd rm -rf /etc/cockpit /usr/share/cockpit /var/lib/cockpit 2>/dev/null || true
+  run_cmd rm -f /etc/systemd/system/websoft9.service /usr/lib/systemd/system/websoft9.service /lib/systemd/system/websoft9.service 2>/dev/null || true
+  _remove_legacy_cockpit_packages
+}
+
+_remove_legacy_host_artifacts() {
+  log_step "Removing legacy host directories"
+  local legacy_path
+  for legacy_path in "$LEGACY_HOST_COMPOSE_DIR" "$LEGACY_INSTALL_DIR" "$LEGACY_SERVICE_ROOT_DIR" "$LEGACY_DOWNLOAD_ROOT_DIR"; do
+    [ -e "$legacy_path" ] && run_cmd rm -rf "$legacy_path" 2>/dev/null || true
+  done
+}
+
+# Legacy uninstall (used directly for legacy hosts or after successful migration).
 _uninstall_legacy() {
   local mode="$1"
   local keep_data="$2"
@@ -107,22 +142,14 @@ _uninstall_legacy() {
     log_info "Legacy data volumes retained (available as rollback source)"
   fi
 
-  # Legacy control plane (Cockpit / systemd) — explicit opt-in only
+  # Legacy control plane (Cockpit / systemd) - explicit opt-in only.
   if [ "$remove_controlplane" = "1" ]; then
     if [ "$assume_yes" != "1" ]; then
       die "$EXIT_USAGE" "Removing legacy Cockpit/systemd requires explicit --yes"
     fi
-    log_step "Removing legacy Cockpit / systemd control plane"
-    if command_exists systemctl; then
-      local unit
-      for unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
-        if systemd_unit_present "$unit"; then
-          run_cmd systemctl stop "$unit" 2>/dev/null || true
-          run_cmd systemctl disable "$unit" 2>/dev/null || true
-        fi
-      done
-    fi
-    log_warn "Cockpit packages, /etc/cockpit, and legacy install directory are not force-deleted by this script. Clean up manually if needed: ${LEGACY_INSTALL_DIR}"
+    _remove_legacy_controlplane_artifacts
+    _remove_legacy_host_artifacts
+    log_info "Legacy control-plane artifacts removed (best effort)"
   else
     log_warn "--remove-legacy-controlplane not specified; legacy Cockpit/systemd left untouched"
   fi

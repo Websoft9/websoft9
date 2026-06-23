@@ -610,6 +610,7 @@ async function runRedeployRequest(
     const decoder = new TextDecoder()
     let buffer = ''
     let finalStatus: 'success' | 'failed' | null = null
+    let lastErrorDetail: string | null = null
 
     while (true) {
         const { done, value } = await reader.read()
@@ -622,7 +623,11 @@ async function runRedeployRequest(
             const entry = JSON.parse(line) as RedeployLogEntry
             onLog(entry)
             if (entry.status === 'success') finalStatus = 'success'
-            if (entry.status === 'failed' || entry.type === 'error') finalStatus = 'failed'
+            if (entry.status === 'failed' || entry.type === 'error') {
+                finalStatus = 'failed'
+                if (entry.details) lastErrorDetail = entry.details
+                else if (entry.message) lastErrorDetail = entry.message
+            }
         }
 
         if (done) break
@@ -632,10 +637,14 @@ async function runRedeployRequest(
         const entry = JSON.parse(buffer) as RedeployLogEntry
         onLog(entry)
         if (entry.status === 'success') finalStatus = 'success'
-        if (entry.status === 'failed' || entry.type === 'error') finalStatus = 'failed'
+        if (entry.status === 'failed' || entry.type === 'error') {
+            finalStatus = 'failed'
+            if (entry.details) lastErrorDetail = entry.details
+            else if (entry.message) lastErrorDetail = entry.message
+        }
     }
 
-    if (finalStatus !== 'success') throw new Error('Redeploy did not complete successfully.')
+    if (finalStatus !== 'success') throw new Error(lastErrorDetail ?? 'Redeploy did not complete successfully.')
 }
 
 // =====================
@@ -1030,10 +1039,12 @@ export function MyAppDetailPage() {
             }
             await refreshAfterAction()
             setFeedback({ severity: 'success', message: t('myAppsDetailPage.feedback.redeploySuccess', { appId: data.app_id }) })
+            navigate('/myapps')
         } catch (err) {
             setFeedback({ severity: 'error', message: err instanceof Error ? err.message : t('myAppsDetailPage.feedback.genericError') })
         } finally {
             setActionInProgress(null)
+            setRedeployDialogOpen(false)
         }
     }
 
@@ -2006,7 +2017,7 @@ export function MyAppDetailPage() {
                             {redeployLogs.map((entry, i) => (
                                 <div key={i} style={{ color: entry.type === 'error' ? dialogPalette.danger : dialogPalette.text, whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '0.9em' }}>
                                     {entry.timestamp ? `[${new Date(entry.timestamp).toLocaleTimeString()}] ` : ''}
-                                    {entry.message ?? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data ?? entry.status ?? ''))}
+                                    {entry.details ?? entry.message ?? (typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data ?? entry.status ?? ''))}
                                 </div>
                             ))}
                         </div>
