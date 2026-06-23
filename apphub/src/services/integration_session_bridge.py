@@ -32,6 +32,10 @@ class IntegrationSessionBridge:
             "WEBSOFT9_PORTAINER_DIRECT_ORIGIN",
             "http://127.0.0.1:9004",
         ).rstrip("/")
+        self.npm_direct_origin = os.getenv(
+            "WEBSOFT9_NPM_DIRECT_ORIGIN",
+            "http://127.0.0.1:81",
+        ).rstrip("/")
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
         self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", "/data/database.sqlite"))
 
@@ -311,7 +315,7 @@ class IntegrationSessionBridge:
 
     def _request_npm_token(self, session: requests.Session, username: str, password: str) -> requests.Response:
         return session.post(
-            f"{self.gateway_origin}/w9proxy/api/tokens",
+            f"{self.npm_direct_origin}/api/tokens",
             json={"identity": username, "scope": "user", "secret": password},
             timeout=20,
         )

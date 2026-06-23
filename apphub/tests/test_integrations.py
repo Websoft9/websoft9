@@ -191,3 +191,5 @@ def test_npm_bootstrap_falls_back_to_config_credentials(monkeypatch):
     ]
     assert writes == [fallback]
     assert len(fake_session.calls) == 2
+    assert fake_session.calls[0][0] == "http://127.0.0.1:81/api/tokens"
+    assert fake_session.calls[1][0] == "http://127.0.0.1:81/api/tokens"
