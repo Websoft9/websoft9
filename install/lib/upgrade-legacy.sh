@@ -175,6 +175,7 @@ for root in /legacy/apphub_config /legacy/service-root /legacy/download-root; do
 done
 [ -n "$cfg" ] && [ -f "$cfg" ] && { mkdir -p /data/.w9-migration; cp -a "$cfg" /data/.w9-migration/legacy-config.ini; } || true
 [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
+[ -f /legacy/docker-daemon.json ] && { mkdir -p /data/.w9-migration; cp -a /legacy/docker-daemon.json /data/.w9-migration/legacy-daemon.json; } || true
 
 if [ -n "$cfg" ] && [ -f "$cfg" ]; then
   log_step "Synthesizing third-party credential files from legacy config"
@@ -236,7 +237,7 @@ _legacy_transform_volumes() {
   tmpdir="$(mktemp -d)"
   _legacy_write_transform_script "${tmpdir}/transform.sh"
 
-  # 动态拼装存在的旧卷挂载
+  # Assemble mounts for the legacy data that actually exists on the host.
   local mounts=(-v "${data_root}:/data" -v "${tmpdir}:/w9script:ro")
   _add_ro_volume() {
     local resolved
@@ -263,6 +264,9 @@ _legacy_transform_volumes() {
   if [ -n "$download_root_dir" ]; then
     mounts+=(-v "${download_root_dir}:/legacy/download-root:ro")
   fi
+  if [ -f /etc/docker/daemon.json ]; then
+    mounts+=(-v "/etc/docker/daemon.json:/legacy/docker-daemon.json:ro")
+  fi
 
   if ! docker run --rm "${mounts[@]}" alpine:3.20 sh /w9script/transform.sh; then
     rm -rf "$tmpdir"
@@ -285,15 +289,17 @@ _legacy_finalize_runtime_config() {
 
   docker exec -i "$MODERN_CONTAINER_NAME" python3 - <<'PY' 2>/dev/null || log_warn "Legacy runtime config import is best-effort and did not complete"
 import configparser
+import json
 import shutil
 from pathlib import Path
 
 legacy_config_path = Path("/data/.w9-migration/legacy-config.ini")
+legacy_daemon_path = Path("/data/.w9-migration/legacy-daemon.json")
 runtime_config_path = Path("/websoft9/apphub/src/config/config.ini")
 default_cert_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
 default_key_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.key")
 
-if not legacy_config_path.is_file() or not runtime_config_path.is_file():
+if not runtime_config_path.is_file() or (not legacy_config_path.is_file() and not legacy_daemon_path.is_file()):
     raise SystemExit(0)
 
 
@@ -326,6 +332,34 @@ def normalize_bool(value: str) -> str:
     return ""
 
 
+  def normalize_registry_mirror(value: str) -> str:
+    normalized = (value or "").strip().rstrip("/")
+    if normalized.startswith("http://"):
+      normalized = normalized[7:]
+    elif normalized.startswith("https://"):
+      normalized = normalized[8:]
+    return normalized
+
+
+  def get_legacy_daemon_mirror(path: Path) -> str:
+    if not path.is_file():
+      return ""
+    try:
+      payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+      return ""
+
+    mirrors = payload.get("registry-mirrors")
+    if isinstance(mirrors, str):
+      mirrors = [mirrors]
+    if not isinstance(mirrors, list):
+      return ""
+
+    normalized = [normalize_registry_mirror(str(entry)) for entry in mirrors if str(entry).strip()]
+    normalized = [entry for entry in normalized if entry]
+    return ",".join(normalized)
+
+
 def set_if_value(parser: configparser.ConfigParser, section: str, key: str, value: str) -> bool:
     if not value:
         return False
@@ -347,14 +381,14 @@ def copy_platform_cert(cert_source: Path, key_source: Path) -> bool:
     return True
 
 
-legacy = read_ini(legacy_config_path)
+legacy = read_ini(legacy_config_path) if legacy_config_path.is_file() else configparser.ConfigParser()
 runtime = read_ini(runtime_config_path)
 changed = False
 
 legacy_api_key = get_first(legacy, [("api_key", "key")])
 legacy_wildcard_domain = get_first(legacy, [("domain", "wildcard_domain"), ("domain", "default_domain"), ("domain", "domain")])
 legacy_bound_domain = get_first(legacy, [("platform_gateway", "bound_domain"), ("cockpit", "domain"), ("cockpit", "default_domain"), ("domain", "platform_domain")])
-legacy_docker_mirror = get_first(legacy, [("docker_mirror", "url"), ("docker_mirror", "mirror_url"), ("docker_mirror", "registry_mirror")])
+legacy_docker_mirror = get_legacy_daemon_mirror(legacy_daemon_path) or get_first(legacy, [("docker_mirror", "url"), ("docker_mirror", "mirror_url"), ("docker_mirror", "registry_mirror")])
 legacy_https_enabled = normalize_bool(get_first(legacy, [("platform_gateway", "https_enabled"), ("cockpit", "https_enabled")]))
 legacy_force_https = normalize_bool(get_first(legacy, [("platform_gateway", "force_https"), ("cockpit", "force_https")]))
 legacy_ssl_cert = get_first(legacy, [("platform_gateway", "ssl_cert"), ("cockpit", "ssl_cert"), ("cockpit", "cert_path")])

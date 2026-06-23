@@ -13,6 +13,8 @@ services:
     image: websoft9dev/websoft9:dev
     container_name: ${CONTAINER_NAME:-websoft9-dev}
     restart: unless-stopped
+    environment:
+      WEBSOFT9_PLATFORM_HTTP_PORT: ${CONSOLE_PORT:-9000}
     ports:
       - "${CONSOLE_PORT:-9000}:9000"
       - "80:80"

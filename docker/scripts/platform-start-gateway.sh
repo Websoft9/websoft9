@@ -9,6 +9,20 @@ pid_path="/run/websoft9/platform-gateway.pid"
 apphub_config_path="${WEBSOFT9_APPHUB_CONFIG_PATH:-/websoft9/apphub/src/config/config.ini}"
 service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
 
+resolve_platform_cookie_scope() {
+  local public_origin platform_port seed
+  public_origin="$(printf '%s' "${WEBSOFT9_PLATFORM_PUBLIC_ORIGIN:-}" | tr '[:upper:]' '[:lower:]' | sed 's#/*$##')"
+  platform_port="${WEBSOFT9_PLATFORM_HTTP_PORT:-}"
+
+  if [[ -n "$public_origin" ]]; then
+    seed="$public_origin"
+  else
+    seed="http://127.0.0.1:${platform_port:-9000}"
+  fi
+
+  printf '%s' "$seed" | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//'
+}
+
 read_platform_gateway_settings() {
   python3 - "$apphub_config_path" <<'PY'
 import configparser
@@ -132,6 +146,7 @@ EOF
 
 render_gateway_config() {
   local raw_https_enabled raw_force_https bound_domain ssl_cert ssl_key https_enabled force_https
+  local cookie_scope portainer_cookie_ref npm_token_cookie_ref npm_nickname_cookie_ref
   mapfile -t gateway_settings < <(read_platform_gateway_settings)
   raw_https_enabled="${gateway_settings[0]:-false}"
   raw_force_https="${gateway_settings[1]:-false}"
@@ -156,7 +171,14 @@ render_gateway_config() {
   fi
   cp "$gateway_root/nginx.conf" "$runtime_config"
   render_default_server "$https_enabled" "$force_https" "$bound_domain"
+  cookie_scope="$(resolve_platform_cookie_scope)"
+  portainer_cookie_ref="\$cookie_portainer_jwt_${cookie_scope}"
+  npm_token_cookie_ref="\$cookie_nginx_tokens_${cookie_scope}"
+  npm_nickname_cookie_ref="\$cookie_nginx_nikeName_${cookie_scope}"
   sed -i "s#{{DOCKER0_IP}}#${DOCKER0_IP:-172.17.0.1}#g" "$gateway_root/platform-gateway-routes.conf"
+  sed -i "s#__W9_PORTAINER_COOKIE_REF__#${portainer_cookie_ref}#g" "$gateway_root/platform-gateway-routes.conf"
+  sed -i "s#__W9_NPM_TOKEN_COOKIE_REF__#${npm_token_cookie_ref}#g" "$gateway_root/platform-gateway-routes.conf"
+  sed -i "s#__W9_NPM_NICKNAME_COOKIE_REF__#${npm_nickname_cookie_ref}#g" "$gateway_root/platform-gateway-routes.conf"
 
   if [[ "${WEBSOFT9_RUNTIME_LAYOUT:-single-container-target}" == "single-container-target" ]]; then
     sed -i 's#http://websoft9-deployment:9000#http://127.0.0.1:9000#g' "$gateway_root/platform-gateway-routes.conf"

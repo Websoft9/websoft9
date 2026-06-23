@@ -3,6 +3,7 @@ import re
 import json
 from pathlib import Path
 from typing import Literal, Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -33,6 +34,33 @@ class IntegrationSessionBridge:
         ).rstrip("/")
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
         self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", "/data/database.sqlite"))
+
+    def _resolve_platform_origin(self) -> str:
+        public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip().rstrip("/")
+        if public_origin:
+            return public_origin
+
+        platform_port = (os.getenv("WEBSOFT9_PLATFORM_HTTP_PORT") or "").strip()
+        if not platform_port:
+            parsed_gateway_origin = urlparse(self.gateway_origin)
+            if parsed_gateway_origin.port:
+                platform_port = str(parsed_gateway_origin.port)
+
+        return f"http://127.0.0.1:{platform_port or '9000'}"
+
+    def _cookie_scope_suffix(self) -> str:
+        origin = self._resolve_platform_origin().lower()
+        suffix = re.sub(r"[^a-z0-9]+", "_", origin).strip("_")
+        return suffix or "http_127_0_0_1_9000"
+
+    def _portainer_cookie_name(self) -> str:
+        return f"portainer_jwt_{self._cookie_scope_suffix()}"
+
+    def _npm_token_cookie_name(self) -> str:
+        return f"nginx_tokens_{self._cookie_scope_suffix()}"
+
+    def _npm_nickname_cookie_name(self) -> str:
+        return f"nginx_nikeName_{self._cookie_scope_suffix()}"
 
     def bootstrap(self, integration_key: IntegrationKey, locale: Optional[str] = None) -> list[dict[str, object]]:
         if integration_key == "gitea":
@@ -159,6 +187,7 @@ class IntegrationSessionBridge:
     def bootstrap_portainer(self) -> list[dict[str, object]]:
         username, password = self._get_portainer_credentials()
         session = self._create_session()
+        cookie_name = self._portainer_cookie_name()
 
         try:
             response = session.post(
@@ -178,7 +207,7 @@ class IntegrationSessionBridge:
 
             return [
                 {
-                    "name": "portainer_jwt",
+                    "name": cookie_name,
                     "value": token,
                     "path": "/",
                     "httponly": True,
@@ -197,6 +226,8 @@ class IntegrationSessionBridge:
     def bootstrap_npm(self) -> list[dict[str, object]]:
         username, password, nickname = self._get_npm_credentials()
         session = self._create_session()
+        token_cookie_name = self._npm_token_cookie_name()
+        nickname_cookie_name = self._npm_nickname_cookie_name()
 
         try:
             if self.credential_provider.sync_npm_credentials(self.credential_provider.get_npm_credentials()):
@@ -227,13 +258,13 @@ class IntegrationSessionBridge:
 
             return [
                 {
-                    "name": "nginx_tokens",
+                    "name": token_cookie_name,
                     "value": token,
                     "path": "/",
                     "httponly": False,
                 },
                 {
-                    "name": "nginx_nikeName",
+                    "name": nickname_cookie_name,
                     "value": nickname,
                     "path": "/",
                     "httponly": False,
