@@ -1,3 +1,6 @@
 {
-  "mirrors": ["docker.1ms.run","docker.m.daocloud.io","docker.zhai.cm"]
+  "mirrors": [
+    "docker.1ms.run",
+    "docker.m.daocloud.io"
+  ]
 }
