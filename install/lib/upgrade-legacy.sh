@@ -168,14 +168,26 @@ fi
 # ---------------- Legacy config handoff ----------------
 cfg=""
 sysini=""
+product_auth_dir=""
 for root in /legacy/apphub_config /legacy/service-root /legacy/download-root; do
   [ -d "$root" ] || continue
   [ -z "$cfg" ] && cfg="$(find "$root" -name config.ini -type f 2>/dev/null | head -n1)"
   [ -z "$sysini" ] && sysini="$(find "$root" -name system.ini -type f 2>/dev/null | head -n1)"
+  if [ -z "$product_auth_dir" ]; then
+    product_auth_dir="$(find "$root" -name product-auth.sqlite -type f 2>/dev/null | head -n1)"
+    [ -n "$product_auth_dir" ] && product_auth_dir="$(dirname "$product_auth_dir")"
+  fi
+  [ -z "$product_auth_dir" ] && product_auth_dir="$(find "$root" -type d -name product-auth 2>/dev/null | head -n1)"
 done
 [ -n "$cfg" ] && [ -f "$cfg" ] && { mkdir -p /data/.w9-migration; cp -a "$cfg" /data/.w9-migration/legacy-config.ini; } || true
 [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
 [ -f /legacy/docker-daemon.json ] && { mkdir -p /data/.w9-migration; cp -a /legacy/docker-daemon.json /data/.w9-migration/legacy-daemon.json; } || true
+
+if [ -n "$product_auth_dir" ] && [ -d "$product_auth_dir" ]; then
+  log_step "Copying legacy product auth data"
+  mkdir -p /data/config/product-auth
+  cp -a "$product_auth_dir"/. /data/config/product-auth/ 2>/dev/null || true
+fi
 
 if [ -n "$cfg" ] && [ -f "$cfg" ]; then
   log_step "Synthesizing third-party credential files from legacy config"
@@ -332,28 +344,28 @@ def normalize_bool(value: str) -> str:
     return ""
 
 
-  def normalize_registry_mirror(value: str) -> str:
+def normalize_registry_mirror(value: str) -> str:
     normalized = (value or "").strip().rstrip("/")
     if normalized.startswith("http://"):
-      normalized = normalized[7:]
+        normalized = normalized[7:]
     elif normalized.startswith("https://"):
-      normalized = normalized[8:]
+        normalized = normalized[8:]
     return normalized
 
 
-  def get_legacy_daemon_mirror(path: Path) -> str:
+def get_legacy_daemon_mirror(path: Path) -> str:
     if not path.is_file():
-      return ""
+        return ""
     try:
-      payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-      return ""
+        return ""
 
     mirrors = payload.get("registry-mirrors")
     if isinstance(mirrors, str):
-      mirrors = [mirrors]
+        mirrors = [mirrors]
     if not isinstance(mirrors, list):
-      return ""
+        return ""
 
     normalized = [normalize_registry_mirror(str(entry)) for entry in mirrors if str(entry).strip()]
     normalized = [entry for entry in normalized if entry]
