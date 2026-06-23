@@ -761,5 +761,4 @@ run_upgrade_legacy() {
   _uninstall_legacy "purge" "0" "1" "1"
 
   log_info "==== Legacy-to-modern migration completed successfully ===="
-  log_info "Pre-migration backup retained at: $backup_dir"
 }
