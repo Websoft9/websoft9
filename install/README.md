@@ -2,6 +2,8 @@
 
 本目录包含 Websoft9 生命周期管理脚本，支持全新安装、升级、卸载和备份操作。
 
+旧 Cockpit 多容器架构升级到当前单容器架构时，请先阅读 [upgrade-guide.md](/workspace/websoft9/install/upgrade-guide.md)。该文档单独说明了跨代迁移、旧 Cockpit/systemd 的卸载时机，以及 main 之前更老版本的兼容边界。
+
 ---
 
 ## 快速开始
@@ -38,6 +40,7 @@ install/
 ├── uninstall.sh        # 卸载独立入口（历史契约，可单独下载）
 ├── install_docker.sh   # Docker 安装脚本（无 Docker 时自动下载并执行）
 ├── build-bundle.sh     # 发布构建器：将 lib/*.sh 内联生成 dist/ 单文件
+├── upgrade-guide.md    # 旧 Cockpit 架构升级与旧控制面卸载指南
 ├── lib/                # 实现层（仅开发/源码仓库，发布单文件已内联）
 │   ├── common.sh       # 常量、日志、退出码、通用工具
 │   ├── detect.sh       # 环境识别（empty / modern / legacy / mixed）
