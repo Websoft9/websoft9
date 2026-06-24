@@ -34,7 +34,7 @@ DEFAULT_IMAGE_TAG="latest"
 DEFAULT_NETWORK_NAME="websoft9"
 DEFAULT_CONSOLE_PORT="9000"
 DEFAULT_INSTALL_PATH="/opt/websoft9"
-DEFAULT_WEBSOFT9_DATA_ROOT="/data"
+DEFAULT_WEBSOFT9_DATA_ROOT="/opt/websoft9/data"
 
 # 制品分发根（单文件 install.sh 在无本地物料时从此处按通道下载部署物料）
 DEFAULT_ARTIFACT_BASE="https://artifact.websoft9.com/websoft9"

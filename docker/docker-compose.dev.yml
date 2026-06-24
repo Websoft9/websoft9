@@ -20,9 +20,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # Keep /data as a host bind mount so Portainer's Git stack workspace
-      # paths resolve identically inside the product container and on the host.
-      - ${WEBSOFT9_DATA_ROOT:-/data}:/data
+      - ${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}:/data
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
