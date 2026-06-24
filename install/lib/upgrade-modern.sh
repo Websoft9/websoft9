@@ -84,14 +84,24 @@ run_upgrade_modern() {
     die "$EXIT_RUNTIME" "Upgrade failed (image pull)"
   fi
 
-  # 4. Start new container
+  # 4. Stop the old runtime before starting the new one.
+  #    Explicit down ensures ports (80/443/console) are released, avoiding
+  #    "port is already allocated" when docker compose up -d races with the
+  #    old container shutdown.
+  log_step "Stopping current runtime before switching to the new image"
+  if ! modern_compose "$install_path" down; then
+    log_warn "Failed to gracefully stop current runtime; forcing removal"
+    docker rm -f "$MODERN_CONTAINER_NAME" 2>/dev/null || true
+  fi
+
+  # 5. Start new container
   if ! modern_compose "$install_path" up -d; then
     log_error "Failed to start new container, rolling back"
     _upgrade_modern_rollback "$install_path" "$backup_dir"
     die "$EXIT_RUNTIME" "Upgrade failed (container start)"
   fi
 
-  # 5. Post-upgrade validation
+  # 6. Post-upgrade validation
   if ! validate_upgrade "$console_port"; then
     log_error "Post-upgrade validation failed, rolling back"
     _upgrade_modern_rollback "$install_path" "$backup_dir"
