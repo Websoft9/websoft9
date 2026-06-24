@@ -3,7 +3,7 @@
 set -euo pipefail
 
 service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
-letsencrypt_dir="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/nginx-proxy-manager/letsencrypt}"
+letsencrypt_dir="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/letsencrypt}"
 
 quarantine_orphaned_ssl_configs() {
 	local nginx_root="/data/nginx"
@@ -56,7 +56,7 @@ mkdir -p \
 	/data/nginx/redirection_host \
 	/data/nginx/stream \
 	/data/nginx/temp \
-	"$service_log_root/nginx-proxy-manager"
+	"$service_log_root/npm"
 rm -f /run/nginx/nginx.pid
 quarantine_orphaned_ssl_configs
 

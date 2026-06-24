@@ -12,7 +12,6 @@ MODERN_DATA_MANAGED_DIRS=(
   gitea
   portainer
   nginx
-  nginx-proxy-manager
   letsencrypt
   custom_ssl
   .w9-migration

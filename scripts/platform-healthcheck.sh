@@ -14,8 +14,8 @@ case "$runtime_layout" in
     ;;
   single-container-target)
     portainer_default_marker="/data/portainer/credential"
-    npm_default_marker="/data/nginx-proxy-manager/credential.json"
-    npm_default_cert_marker="/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert"
+    npm_default_marker="/data/credential.json"
+    npm_default_cert_marker="/data/custom_ssl/websoft9-self-signed.cert"
     ;;
   *)
     echo "unsupported runtime layout: $runtime_layout" >&2

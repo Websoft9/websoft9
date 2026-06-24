@@ -36,7 +36,7 @@ class IntegrationSessionBridge:
             "WEBSOFT9_NPM_DIRECT_ORIGIN",
             "http://127.0.0.1:81",
         ).rstrip("/")
-        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json"))
+        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/credential.json"))
         self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", "/data/database.sqlite"))
 
     def _resolve_platform_origin(self) -> str:

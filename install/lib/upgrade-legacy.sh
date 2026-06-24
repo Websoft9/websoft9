@@ -235,11 +235,11 @@ if [ -d /legacy/nginx_data ]; then
     mkdir -p /data/nginx
     cp -a /legacy/nginx_data/nginx/. /data/nginx/ 2>/dev/null || true
   fi
-  # Preserve /data/custom_ssl because the NPM DB may still reference it directly.
+  # Custom SSL certificates are user-managed and the NPM DB references them
+  # at /data/custom_ssl. Keep the single canonical path matching the old layout.
   if [ -d /legacy/nginx_data/custom_ssl ]; then
-    mkdir -p /data/custom_ssl /data/nginx-proxy-manager/custom_ssl
+    mkdir -p /data/custom_ssl
     cp -a /legacy/nginx_data/custom_ssl/. /data/custom_ssl/ 2>/dev/null || true
-    cp -a /legacy/nginx_data/custom_ssl/. /data/nginx-proxy-manager/custom_ssl/ 2>/dev/null || true
   fi
   [ -d /legacy/nginx_data/letsencrypt ] && { mkdir -p /data/letsencrypt; cp -a /legacy/nginx_data/letsencrypt/. /data/letsencrypt/ 2>/dev/null || true; } || true
 fi
@@ -392,10 +392,10 @@ if [ -n "$cfg" ] && [ -f "$cfg" ]; then
   n_pwd="$(ini_get "$cfg" nginx_proxy_manager user_pwd)"
   n_nick="$(ini_get "$cfg" nginx_proxy_manager nike_name)"
   if [ -n "$n_pwd" ]; then
-    mkdir -p /data/nginx-proxy-manager
+    mkdir -p /data
     printf '{"username":"%s","password":"%s","nickname":"%s","display_name":"%s"}\n' \
-      "${n_user:-admin}" "$n_pwd" "${n_nick:-admin}" "${n_nick:-admin}" >/data/nginx-proxy-manager/credential.json
-    chmod 600 /data/nginx-proxy-manager/credential.json || true
+      "${n_user:-admin}" "$n_pwd" "${n_nick:-admin}" "${n_nick:-admin}" >/data/credential.json
+    chmod 600 /data/credential.json || true
   fi
 
   # Stage the legacy API key for the post-start config import.
@@ -606,7 +606,6 @@ if legacy_wildcard_domain:
     wildcard_domain = legacy_wildcard_domain[2:] if legacy_wildcard_domain.startswith("*.") else legacy_wildcard_domain
     cert_candidates.append((Path(f"/data/letsencrypt/live/{wildcard_domain}/fullchain.pem"), Path(f"/data/letsencrypt/live/{wildcard_domain}/privkey.pem")))
 cert_candidates.append((Path("/data/custom_ssl/websoft9-self-signed.cert"), Path("/data/custom_ssl/websoft9-self-signed.key")))
-cert_candidates.append((Path("/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert"), Path("/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key")))
 
 copied_legacy_cert = False
 for cert_candidate, key_candidate in cert_candidates:

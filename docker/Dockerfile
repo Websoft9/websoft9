@@ -65,10 +65,10 @@ ENV WEBSOFT9_RUNTIME_LAYOUT=single-container-target \
     WEBSOFT9_PORTAINER_CREDENTIAL_PATH=/data/portainer/credential \
     WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH=/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert \
     WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH=/data/config/platform-gateway/ssl/websoft9-platform-gateway.key \
-    WEBSOFT9_NPM_CREDENTIAL_PATH=/data/nginx-proxy-manager/credential.json \
-    WEBSOFT9_NPM_SSL_DIR=/data/nginx-proxy-manager/custom_ssl \
-    WEBSOFT9_NPM_CERT_MARKER=/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert \
-    WEBSOFT9_NPM_SSL_KEY_PATH=/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.key \
+    WEBSOFT9_NPM_CREDENTIAL_PATH=/data/credential.json \
+    WEBSOFT9_NPM_SSL_DIR=/data/custom_ssl \
+    WEBSOFT9_NPM_CERT_MARKER=/data/custom_ssl/websoft9-self-signed.cert \
+    WEBSOFT9_NPM_SSL_KEY_PATH=/data/custom_ssl/websoft9-self-signed.key \
     WEBSOFT9_SERVICE_LOG_ROOT=/data/logs \
     WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH=/data/logs/platform-runtime.log \
     WEBSOFT9_SUPERVISOR_CONFIG=/etc/supervisor/conf.d/websoft9-platform.conf \
@@ -248,7 +248,7 @@ RUN chmod +x /app/init_nginx.sh \
     /data/nginx/redirection_host \
     /data/nginx/stream \
     /data/nginx/temp \
-    /data/nginx-proxy-manager/custom_ssl \
+    /data/custom_ssl \
     /data/gitea/conf \
     /data/portainer \
     /websoft9/media \

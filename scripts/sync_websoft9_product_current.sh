@@ -132,7 +132,7 @@ sync_runtime_support_files() {
     docker cp "$npm_backend_start_src" "$container_name:/websoft9/script/platform-start-npm-backend.sh"
     docker cp "$npm_nginx_start_src" "$container_name:/websoft9/script/platform-start-npm-nginx.sh"
     docker exec "$container_name" rm -f /etc/websoft9/stream.conf
-    docker exec "$container_name" mkdir -p /var/log/websoft9/nginx-proxy-manager /run/nginx /tmp/nginx/body /tmp/npmuserhome /var/cache/nginx /var/lib/nginx/cache/private /var/lib/nginx/cache/public /var/log/nginx
+    docker exec "$container_name" mkdir -p /var/log/websoft9/npm /run/nginx /tmp/nginx/body /tmp/npmuserhome /var/cache/nginx /var/lib/nginx/cache/private /var/lib/nginx/cache/public /var/log/nginx
     docker exec "$container_name" chmod +x /websoft9/script/platform-entrypoint.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-container-entrypoint.sh
     docker exec "$container_name" chmod +x /websoft9/script/platform-healthcheck.sh
@@ -176,8 +176,8 @@ restore_npm_frontend_if_needed() {
 ensure_service_log_runtime_paths() {
     docker exec "$container_name" sh -lc '
         mkdir -p /var/log/websoft9/gitea /var/log/websoft9/portainer
-        if [ -d /data/logs ] && [ ! -e /var/log/websoft9/nginx-proxy-manager ]; then
-            ln -s /data/logs /var/log/websoft9/nginx-proxy-manager
+        if [ -d /data/logs ] && [ ! -e /var/log/websoft9/npm ]; then
+            ln -s /data/logs /var/log/websoft9/npm
         fi
     '
 }

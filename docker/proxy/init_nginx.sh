@@ -22,7 +22,7 @@ rm -f /data/nginx/proxy_host/initproxy.conf
 rm -f /data/nginx/stream/stream.conf
 
 SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
-LETSENCRYPT_DIR="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/nginx-proxy-manager/letsencrypt}"
+LETSENCRYPT_DIR="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/letsencrypt}"
 
 ensure_nginx_storage_dirs() {
     mkdir -p \

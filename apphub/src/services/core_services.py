@@ -153,10 +153,10 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_NPM_HEALTH_URL", "http://127.0.0.1:81/"),
         workspace_route="gateway",
         integration_key="npm",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "nginx-proxy-manager",
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "npm",
         markers=(
-            Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/nginx-proxy-manager/credential.json")),
-            Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", "/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert")),
+            Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/credential.json")),
+            Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", "/data/custom_ssl/websoft9-self-signed.cert")),
         ),
     ),
 )

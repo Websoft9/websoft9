@@ -123,7 +123,7 @@ for attempt in range(30):
 PY
 }
 
-mkdir -p "$NPMHOME" /data/logs "$service_log_root/nginx-proxy-manager"
+mkdir -p "$NPMHOME" /data/logs "$service_log_root/npm"
 
 reconcile_proxy_host_configs &
 

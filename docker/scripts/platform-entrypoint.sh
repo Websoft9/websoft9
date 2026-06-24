@@ -258,10 +258,10 @@ ensure_platform_network() {
 }
 
 ensure_service_log_roots() {
-  mkdir -p "$service_log_root/gitea" "$service_log_root/portainer" "$service_log_root/nginx-proxy-manager"
+  mkdir -p "$service_log_root/gitea" "$service_log_root/portainer" "$service_log_root/npm"
 
-  if [[ -d /data/logs && ! -e "$service_log_root/nginx-proxy-manager" ]]; then
-    ln -s /data/logs "$service_log_root/nginx-proxy-manager"
+  if [[ -d /data/logs && ! -e "$service_log_root/npm" ]]; then
+    ln -s /data/logs "$service_log_root/npm"
   fi
 }
 
@@ -360,8 +360,8 @@ bootstrap_nginx_proxy_manager() {
     return 0
   fi
 
-  wait_for_file "npm-credential" "${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/nginx-proxy-manager/credential.json}" 30 || true
-  wait_for_file "npm-certificate" "${WEBSOFT9_NPM_CERT_MARKER:-/data/nginx-proxy-manager/custom_ssl/websoft9-self-signed.cert}" 30 || true
+  wait_for_file "npm-credential" "${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential.json}" 30 || true
+  wait_for_file "npm-certificate" "${WEBSOFT9_NPM_CERT_MARKER:-/data/custom_ssl/websoft9-self-signed.cert}" 30 || true
 }
 
 monitor_runtime() {
