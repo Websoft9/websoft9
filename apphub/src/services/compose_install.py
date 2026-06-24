@@ -162,6 +162,35 @@ def prepare_compose_install_tracking(payload: ComposeInstallRequest) -> tuple[st
     return tracked_app_id, tracking_id
 
 
+def _collect_repository_required_files(workspace_path: str) -> list[str]:
+    required_files = ["docker-compose.yml", ".env"]
+    compose_path = os.path.join(workspace_path, "docker-compose.yml")
+
+    try:
+        with open(compose_path, "r", encoding="utf-8") as handle:
+            compose_document = yaml.safe_load(handle) or {}
+    except Exception:
+        return required_files
+
+    for service in (compose_document.get("services") or {}).values():
+        for volume in service.get("volumes") or []:
+            source = None
+            if isinstance(volume, str):
+                source = volume.split(":", 1)[0]
+            elif isinstance(volume, dict):
+                source = volume.get("source")
+
+            if not isinstance(source, str) or not source.startswith("./"):
+                continue
+
+            relative_path = os.path.normpath(source[2:]).replace("\\", "/")
+            absolute_path = os.path.join(workspace_path, relative_path)
+            if os.path.isfile(absolute_path):
+                required_files.append(relative_path)
+
+    return sorted(set(required_files))
+
+
 def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int | None = None, tracked_app_id: str | None = None, tracking_id: str | None = None) -> None:
     compose_document = _load_compose_document(payload.compose_content)
     _inject_platform_network(compose_document)
@@ -204,6 +233,13 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
 
         add_installing_logs(install_tracking_id, "Starting the services", "")
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
+        gitea_manager.wait_for_repo_files(
+            app_id,
+            repo_url,
+            credentials.username,
+            credentials.password,
+            _collect_repository_required_files(workspace_path),
+        )
         stack_info = portainer_manager.create_stack_from_repository(app_id, endpoint_id, repo_url, credentials.username, credentials.password)
         stack_containers = portainer_manager.wait_for_stack_containers(app_id, endpoint_id)
         if not stack_containers:

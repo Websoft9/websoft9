@@ -75,7 +75,7 @@ ENV WEBSOFT9_RUNTIME_LAYOUT=single-container-target \
     WEBSOFT9_SUPERVISOR_SOCKET=/run/supervisor.sock \
     WEBSOFT9_SUPERVISOR_PIDFILE=/run/supervisord.pid \
     NPMHOME=/tmp/npmuserhome \
-    PATH=/opt/certbot/bin:$PATH \
+    PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin \
     PYTHONPATH=/opt/websoft9-pydeps:/websoft9/apphub:/websoft9/apphub/src \
     PYTHONUNBUFFERED=1
 
@@ -89,6 +89,7 @@ RUN apt-get update && \
     bash \
     bzip2 \
     ca-certificates \
+    certbot \
     cron \
     curl \
     git \
@@ -120,9 +121,9 @@ RUN RESTIC_URL="https://github.com/restic/restic/releases/download/v0.17.3/resti
     && [ -x /usr/local/bin/restic ] || (echo "All Restic download sources failed" && false)
 
 COPY --from=npm-runtime /app /app
+COPY --from=npm-runtime /etc/letsencrypt.ini /etc/letsencrypt.ini
 COPY --from=npm-runtime /etc/nginx /etc/nginx
-COPY --from=npm-runtime /opt/certbot /opt/certbot
-COPY --from=npm-runtime /usr/bin/certbot /usr/bin/certbot
+COPY --from=npm-runtime /etc/logrotate.d/nginx-proxy-manager /etc/logrotate.d/nginx-proxy-manager
 COPY --from=npm-runtime /usr/bin/node /usr/bin/node
 COPY --from=npm-runtime /usr/sbin/nginx /usr/sbin/nginx
 COPY --from=npm-runtime /lib/x86_64-linux-gnu/libpcre.so.3 /lib/x86_64-linux-gnu/libpcre.so.3

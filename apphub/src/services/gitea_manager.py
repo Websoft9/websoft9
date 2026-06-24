@@ -1,5 +1,7 @@
 import base64
 import os
+import tempfile
+import time
 from git import Repo
 from src.core.logger import logger
 from src.core.config import ConfigManager
@@ -59,12 +61,19 @@ class GiteaManager:
         public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip()
         public_netloc = urlparse(public_origin).netloc if public_origin else ""
 
-        # In the single-container product runtime, git push/clone must use the
-        # internal platform-gateway listener instead of the external published port.
-        if runtime_layout == "single-container-target" and parsed.netloc in {public_netloc, "127.0.0.1", "localhost"}:
-            return urlunparse(parsed._replace(scheme="http", netloc="127.0.0.1:9000"))
+        # In the single-container product runtime, internal git push/clone must
+        # bypass the platform-gateway and talk directly to Gitea on port 3001,
+        # because the gateway enforces session-auth on /w9git/ while git HTTP
+        # operations rely on Basic auth carried in the URL.
+        # NOTE: use parsed.hostname (no port) for comparison because clone URLs
+        # from Gitea include the port in netloc (e.g. 127.0.0.1:9000).
+        if runtime_layout == "single-container-target" and parsed.hostname in {public_netloc, "127.0.0.1", "localhost"}:
+            internal_path = parsed.path
+            if internal_path.startswith("/w9git/"):
+                internal_path = internal_path[len("/w9git"):]  # strip prefix so Gitea serves /owner/repo.git
+            return urlunparse(parsed._replace(scheme="http", netloc="127.0.0.1:3001", path=internal_path))
 
-        if parsed.netloc == "localhost":
+        if parsed.hostname == "localhost":
             return urlunparse(parsed._replace(netloc="websoft9-git:3000"))
 
         return clone_url
@@ -196,4 +205,43 @@ class GiteaManager:
         else:
             logger.error(f"Get file:{file_path} content from repo:{repo_name} error:{response.status_code}:{response.text}")
             raise CustomException()
+
+    def wait_for_repo_files(self, repo_name: str, repo_url: str, user_name: str, user_pwd: str, file_paths: list[str], timeout_seconds: int = 20, poll_interval: int = 1):
+        pending_paths = [path for path in file_paths if path]
+        if not pending_paths:
+            return
+
+        deadline = time.time() + max(timeout_seconds, 1)
+        while True:
+            remaining = list(pending_paths)
+            try:
+                from src.services.git_manager import GitManager
+
+                with tempfile.TemporaryDirectory(prefix=f"repo-ready-{repo_name}-") as temp_root:
+                    clone_path = os.path.join(temp_root, "repo")
+                    GitManager(clone_path).clone_remote_repo_to_local(repo_url, user_name, user_pwd)
+                    remaining = [
+                        path for path in pending_paths
+                        if not os.path.isfile(os.path.join(clone_path, path))
+                    ]
+            except CustomException:
+                remaining = list(pending_paths)
+
+            if not remaining:
+                return
+
+            if time.time() >= deadline:
+                logger.error(
+                    f"Repository files not ready after push for repo:{repo_name}: {remaining}"
+                )
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=(
+                        "The application repository is not ready for deployment yet: "
+                        + ", ".join(remaining[:5])
+                    ),
+                )
+
+            time.sleep(max(poll_interval, 1))
 

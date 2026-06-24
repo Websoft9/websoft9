@@ -1,5 +1,9 @@
 import json
+import os
+import re
+import shutil
 import time
+from typing import Optional
 from src.core.exception import CustomException
 from src.external.portainer_api import PortainerAPI
 from src.core.logger import logger
@@ -31,6 +35,23 @@ class PortainerManager:
         except Exception as e:
             logger.error(f"Init Portainer API Error:{e}")
             raise CustomException()
+
+    _compose_workdir_pattern = re.compile(r"(/data/portainer/compose/\d+)")
+
+    def _extract_compose_workdir(self, message: Optional[str]) -> Optional[str]:
+        if not message:
+            return None
+        match = self._compose_workdir_pattern.search(message)
+        if match is None:
+            return None
+        return match.group(1)
+
+    def cleanup_compose_workdir(self, workdir: Optional[str]) -> bool:
+        if not workdir or not os.path.isdir(workdir):
+            return False
+        shutil.rmtree(workdir, ignore_errors=True)
+        logger.warning(f"Removed stale Portainer compose workspace: {workdir}")
+        return True
 
     def get_local_endpoint_id(self):
         """
@@ -111,20 +132,47 @@ class PortainerManager:
         response = self.portainer.create_stack_standlone_repository(stack_name, endpoint_id,repositoryURL,user_name,user_password)
         if response.status_code == 200:
             return response.json()
-        else:
-            message = response.text
-            if message:
-                try:
-                    response_details = json.loads(message)
-                    message = response_details.get('details', 'unknown error')
-                except json.JSONDecodeError:
-                    pass 
-            logger.error(f"Create stack:{stack_name} from repository:{repositoryURL} error: {response.status_code}:{response.text}")
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=message
-            )
+
+        raw_message = response.text
+        message = raw_message
+        if message:
+            try:
+                response_details = json.loads(message)
+                message = response_details.get('details', 'unknown error')
+            except json.JSONDecodeError:
+                pass
+
+        if message and " is a directory" in message:
+            workdir = self._extract_compose_workdir(message)
+            if self.cleanup_compose_workdir(workdir):
+                logger.warning(
+                    f"Retrying stack creation for {stack_name} after cleaning stale Portainer workspace {workdir}"
+                )
+                retry_response = self.portainer.create_stack_standlone_repository(
+                    stack_name,
+                    endpoint_id,
+                    repositoryURL,
+                    user_name,
+                    user_password,
+                )
+                if retry_response.status_code == 200:
+                    return retry_response.json()
+                raw_message = retry_response.text
+                message = raw_message
+                if message:
+                    try:
+                        response_details = json.loads(message)
+                        message = response_details.get('details', 'unknown error')
+                    except json.JSONDecodeError:
+                        pass
+                response = retry_response
+
+        logger.error(f"Create stack:{stack_name} from repository:{repositoryURL} error: {response.status_code}:{raw_message}")
+        raise CustomException(
+            status_code=400,
+            message="Invalid Request",
+            details=message
+        )
         
     # def redeploy_stack(self, stack_id: int, endpoint_id: int,pull_image:bool,user_name:str,user_password:str):
     #     response = self.portainer.redeploy_stack(stack_id, endpoint_id,pull_image,user_name,user_password)

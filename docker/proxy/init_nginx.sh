@@ -22,6 +22,50 @@ rm -f /data/nginx/proxy_host/initproxy.conf
 rm -f /data/nginx/stream/stream.conf
 
 SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
+LETSENCRYPT_DIR="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/nginx-proxy-manager/letsencrypt}"
+
+ensure_nginx_storage_dirs() {
+    mkdir -p \
+        /data/letsencrypt-acme-challenge/.well-known/acme-challenge \
+        /data/nginx/custom \
+        /data/nginx/default_host \
+        /data/nginx/default_www \
+        /data/nginx/dead_host \
+        /data/nginx/proxy_host \
+        /data/nginx/redirection_host \
+        /data/nginx/stream \
+        /data/nginx/temp
+}
+
+ensure_legacy_ssl_dir() {
+    if [[ "$SSL_DIR" != "/data/custom_ssl" ]]; then
+        mkdir -p "$SSL_DIR"
+        if [[ -e /data/custom_ssl && ! -L /data/custom_ssl ]]; then
+            mkdir -p /data/custom_ssl
+        else
+            ln -sfn "$SSL_DIR" /data/custom_ssl
+        fi
+    fi
+}
+
+ensure_letsencrypt_dir() {
+    mkdir -p "$LETSENCRYPT_DIR"
+
+    if [[ -L /etc/letsencrypt ]]; then
+        return 0
+    fi
+
+    if [[ -d /etc/letsencrypt ]]; then
+        if [[ -n "$(find /etc/letsencrypt -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+            cp -a /etc/letsencrypt/. "$LETSENCRYPT_DIR/"
+        fi
+        rm -rf /etc/letsencrypt
+    elif [[ -e /etc/letsencrypt ]]; then
+        rm -f /etc/letsencrypt
+    fi
+
+    ln -s "$LETSENCRYPT_DIR" /etc/letsencrypt
+}
 
 ensure_nginx_dynamic_files() {
     local resolver_line
@@ -34,6 +78,29 @@ ensure_nginx_dynamic_files() {
     else
         printf 'resolver 127.0.0.11 ipv6=off valid=10s;\n' > /etc/nginx/conf.d/include/resolvers.conf
     fi
+}
+
+quarantine_orphaned_ssl_configs() {
+    local nginx_root="/data/nginx"
+    local quarantine_root="$nginx_root/quarantine/orphaned-ssl"
+    local config_dir
+    local conf_file
+    local cert_path
+
+    for config_dir in proxy_host redirection_host dead_host default_host default_www stream; do
+        [[ -d "$nginx_root/$config_dir" ]] || continue
+
+        while IFS= read -r -d '' conf_file; do
+            cert_path="$(awk '$1 == "ssl_certificate" { gsub(/;$/, "", $2); print $2; exit }' "$conf_file")"
+            [[ -n "$cert_path" ]] || continue
+
+            if [[ ! -e "$cert_path" ]]; then
+                mkdir -p "$quarantine_root/$config_dir"
+                mv "$conf_file" "$quarantine_root/$config_dir/"
+                echo "Quarantined orphaned SSL config: $conf_file (missing $cert_path)"
+            fi
+        done < <(find "$nginx_root/$config_dir" -maxdepth 1 -type f -name '*.conf' -print0)
+    done
 }
 
 # If credential file then create it and init credential for NPM
@@ -61,6 +128,8 @@ KEY_FILE="$SSL_DIR/websoft9-self-signed.key"
 
 # 确保目录存在
 mkdir -p "$SSL_DIR"
+ensure_legacy_ssl_dir
+ensure_letsencrypt_dir
 
 # 如果证书和私钥都存在且非空，则跳过生成
 if [ -s "$CERT_FILE" ] && [ -s "$KEY_FILE" ]; then
@@ -89,6 +158,8 @@ else
 fi
 
 ensure_nginx_dynamic_files
+ensure_nginx_storage_dirs
+quarantine_orphaned_ssl_configs
 
 # 主执行函数
 main() {

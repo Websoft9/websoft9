@@ -163,7 +163,7 @@ class ProxyManager:
             "ssl_forced": bool(proxy_host.get("ssl_forced")),
         }
         
-    def check_proxy_host_exists(self,domain_names: list[str]):
+    def check_proxy_host_exists(self,domain_names: list[str], exclude_proxy_id: int | None = None):
         """
         Check proxy host is exist
 
@@ -177,15 +177,20 @@ class ProxyManager:
         try:
             if response.status_code == 200:
                 proxy_hosts = response.json()
+                requested_domains = {domain.strip().lower() for domain in domain_names if isinstance(domain, str) and domain.strip()}
                 matching_domains = []
                 for proxy_host in proxy_hosts:
-                    matching_domains += [domain for domain in domain_names if domain in proxy_host.get("domain_names", [])]
+                    if exclude_proxy_id is not None and proxy_host.get("id") == exclude_proxy_id:
+                        continue
+                    existing_domains = {domain.strip().lower() for domain in (proxy_host.get("domain_names", []) or []) if isinstance(domain, str) and domain.strip()}
+                    duplicated = sorted(requested_domains & existing_domains)
+                    matching_domains += duplicated
 
                 if matching_domains:
                     raise CustomException(
                         status_code=400,
                         message=f"Invalid Request",
-                        details=f"{matching_domains} already used"
+                        details=f"{sorted(set(matching_domains))} already used"
                     )
             else:
                 self._handler_nginx_error(response)

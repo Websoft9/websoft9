@@ -76,20 +76,27 @@ class AppAccessManager:
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
         current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None) if proxy_id is not None else None
 
+        if proxy_id is None and len(proxy_hosts) == 1:
+            current_host = proxy_hosts[0]
+
         if proxy_id is not None and current_host is None:
             raise CustomException(404, "Invalid Request", f"Proxy ID:{proxy_id} Not Found")
+
+        ProxyManager().check_proxy_host_exists(domains, exclude_proxy_id=current_host.get("id") if current_host else None)
 
         builtin_profile = self._resolve_builtin_profile(app_id, app)
         using_builtin = builtin_profile is not None and profile.locked
 
         if using_builtin:
             if current_host:
-                return ProxyManager.to_proxy_host_response(
+                response = ProxyManager.to_proxy_host_response(
                     app_manager.update_proxy_by_app(current_host.get("id"), domains, endpoint_id, certificate_id, ssl_forced)
                 )
-            return ProxyManager.to_proxy_host_response(
+                return response
+            response = ProxyManager.to_proxy_host_response(
                 app_manager.create_proxy_by_app(app_id, domains, endpoint_id, certificate_id, ssl_forced)
             )
+            return response
 
         proxy_manager = ProxyManager()
         if current_host:
@@ -148,7 +155,8 @@ class AppAccessManager:
         profile = self._resolve_profile(app_id, app)
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
         target_proxy_id = self._resolve_certificate_target_proxy_id(app_id, proxy_id, proxy_hosts)
-        return ProxyManager().request_letsencrypt_certificate(email, domain_names, target_proxy_id)
+        certificate = ProxyManager().request_letsencrypt_certificate(email, domain_names, target_proxy_id)
+        return certificate
 
     def upload_custom_certificate(
         self,

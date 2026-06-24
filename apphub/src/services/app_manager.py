@@ -13,12 +13,10 @@ import yaml
 import time
 import zipfile
 from datetime import datetime, timedelta, timezone
-import docker
 import requests
 import asyncio
 import aiodocker
 import asyncio
-from textwrap import dedent
 from typing import Tuple
 from datetime import datetime
 from pathlib import Path
@@ -671,6 +669,52 @@ class AppManger:
 
         return None
 
+    @staticmethod
+    def _is_truthy_flag(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        normalized = str(value).strip().lower()
+        return normalized in {"1", "true", "yes", "on"}
+
+    def _collect_repository_required_files(self, workspace_path: str) -> list[str]:
+        required_files = ["docker-compose.yml", ".env"]
+        compose_path = os.path.join(workspace_path, "docker-compose.yml")
+
+        try:
+            with open(compose_path, "r", encoding="utf-8") as handle:
+                compose_document = yaml.safe_load(handle) or {}
+        except Exception:
+            return required_files
+
+        for service in (compose_document.get("services") or {}).values():
+            for volume in service.get("volumes") or []:
+                source = None
+                if isinstance(volume, str):
+                    source = volume.split(":", 1)[0]
+                elif isinstance(volume, dict):
+                    source = volume.get("source")
+
+                if not isinstance(source, str) or not source.startswith("./"):
+                    continue
+
+                relative_path = os.path.normpath(source[2:]).replace("\\", "/")
+                absolute_path = os.path.join(workspace_path, relative_path)
+                if os.path.isfile(absolute_path):
+                    required_files.append(relative_path)
+
+        return sorted(set(required_files))
+
+    def _mark_stale_install_as_error(self, tracking_id: str, app: dict[str, Any]) -> None:
+        install_app_id = app.get("app_id") or tracking_id
+        message = (
+            f"Installation for '{install_app_id}' expired before the app stack or repository became available. "
+            "The previous install likely failed during repository cleanup or Portainer stack creation."
+        )
+        add_installing_logs(tracking_id, "Installation timed out", message)
+        modify_app_information(tracking_id, message)
+
     def create_installation_tracking(self, app_install: appInstall) -> Tuple[str, str]:
         tracked_app_id = app_install.app_id + "_" + PasswordGenerator.generate_random_string(5)
 
@@ -836,7 +880,7 @@ class AppManger:
                         repo_exists = False
 
                 if self._is_stale_install_task(app, now) and not stack_exists and not repo_exists:
-                    remove_app_installation(app_uuid)
+                    self._mark_stale_install_as_error(app_uuid, app)
                     continue
 
                 app_response = AppResponse(
@@ -1223,6 +1267,9 @@ class AppManger:
             credentials = IntegrationCredentialProvider().get_gitea_credentials()
             user_name = credentials.username
             user_pwd = credentials.password
+
+            required_repo_files = self._collect_repository_required_files(app_tmp_dir_path)
+            giteaManager.wait_for_repo_files(app_id, repo_url, user_name, user_pwd, required_repo_files)
 
             # Create stack in portainer
             stack_info = portainerManager.create_stack_from_repository(app_id,endpointId,repo_url,user_name,user_pwd)
@@ -1883,8 +1930,8 @@ class AppManger:
                 details=f"{app_id} is inactive, can not create proxy,you can redeploy it"
             )
         
-        # Check the domain_names is exists
-        # check_domain_names(domain_names)
+        # Reject domains already bound to other proxy hosts before creating one.
+        proxyManager.check_proxy_host_exists(domain_names)
 
         # Get the forward port
         stack_env = self.get_app_by_id(app_id,endpointId).env
@@ -1902,14 +1949,16 @@ class AppManger:
             if forward_port:
                 w9_url = stack_env.get("W9_URL",None)
                 w9_url_replace = stack_env.get("W9_URL_REPLACE",None)
+                should_replace_root_url = self._is_truthy_flag(w9_url_replace)
+                target_root_url = domain_names[0] if domain_names else None
 
-                if w9_url and w9_url_replace:
+                if w9_url and should_replace_root_url and target_root_url and w9_url != target_root_url:
                     # Get the all proxys by app_id
                     all_domain_names = proxyManager.get_proxy_host_by_app(app_id)
                     # if all_domain_names is empty,create proxy
                     if not all_domain_names:
                         # update the env file
-                            self._update_gitea_env_file(app_id,w9_url,domain_names[0])           
+                            self._update_gitea_env_file(app_id,w9_url,target_root_url)
                             # redeploy app
                             #self.redeploy_app(app_id,False)
                             asyncio.run(self.redeploy_app(app_id, False))
@@ -1921,7 +1970,7 @@ class AppManger:
 
                         if w9_url not in combined_domain_names:
                             # update the env file
-                            self._update_gitea_env_file(app_id,w9_url,domain_names[0])           
+                            self._update_gitea_env_file(app_id,w9_url,target_root_url)
                             # redeploy app
                             #self.redeploy_app(app_id,False)
                             asyncio.run(self.redeploy_app(app_id, False))
@@ -2074,6 +2123,8 @@ class AppManger:
                 message="Invalid Request",
                 details=f"Proxy ID:{proxy_id} Not Found"
             )
+
+        proxyManager.check_proxy_host_exists(domain_names, exclude_proxy_id=proxy_id)
         
         # Get the app_id by proxy_id
         app_id = host.get("forward_host",None)
@@ -2088,7 +2139,7 @@ class AppManger:
                 w9_url = next((element.get("w9_url") for element in app_info.domain_names if element.get("id") == proxy_id), None)
                 
                 # validate w9_url_replace is true
-                if w9_url_replace and w9_url:
+                if self._is_truthy_flag(w9_url_replace) and w9_url:
                     if w9_url in old_domain_names:
                         if w9_url not in domain_names:
                             # update the env file
