@@ -54,7 +54,7 @@ _run_logged() {
     export APT_LISTCHANGES_FRONTEND=none
     "$@"
     echo $? > "$exit_file"
-  ) 2>&1 | tr '\r' '\n' | _log_pipe
+  ) 2>&1 | _log_pipe
   exit_code="$(cat "$exit_file" 2>/dev/null || echo 1)"
   rm -f "$exit_file"
   return "$exit_code"
@@ -385,6 +385,8 @@ install_docker_official() {
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
 
+    # Pipe through _run_logged for TTY safety but keep \r intact so
+    # apt progress bars update in place instead of exploding into lines.
     if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
