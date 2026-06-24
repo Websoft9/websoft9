@@ -376,10 +376,9 @@ install_docker_official() {
   _ensure_apt_sources
 
   # Patch get-docker.sh to show apt-get progress instead of swallowing it.
-  # Only remove -qq (quiet) flags; leave /dev/null redirects intact to avoid
-  # breaking complex script logic.
+  # Remove -qq (quiet) flags and /dev/null redirects so users can see progress.
   if [ -f get-docker.sh ]; then
-    sed -i 's/ -qq / /g' get-docker.sh
+    sed -i 's/ -qq / /g; s| >/dev/null||g; s| &>/dev/null||g' get-docker.sh
   fi
 
   for mirror in "${mirrors[@]}"; do
