@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 import asyncio
 import aiodocker
+import docker
 import asyncio
 from typing import Tuple
 from datetime import datetime
@@ -867,8 +868,9 @@ class AppManger:
             now = datetime.now(timezone.utc)
 
             # Get the installing apps. Auto-clean stale tasks that no longer have
-            # a Portainer stack or a Gitea repo, otherwise they remain stuck in
-            # "Installing" forever after aborted manual/debug runs.
+            # a Portainer stack. A leftover repo can remain after failed or manually
+            # deleted installs, so treating repo existence as proof of progress keeps
+            # those tasks stuck in "Installing" forever.
             for app_uuid,app in appInstalling.items(): 
                 install_app_id = app.get("app_id", None)
                 stack_exists = bool(install_app_id) and install_app_id in stack_names
@@ -879,7 +881,7 @@ class AppManger:
                     except Exception:
                         repo_exists = False
 
-                if self._is_stale_install_task(app, now) and not stack_exists and not repo_exists:
+                if self._is_stale_install_task(app, now) and not stack_exists:
                     self._mark_stale_install_as_error(app_uuid, app)
                     continue
 
