@@ -3810,6 +3810,16 @@ export function TerminalPage() {
                 placeholder={copy.searchConnectionsPlaceholder}
                 size="small"
                 value={profileSearchValue}
+                sx={{
+                    '& .MuiOutlinedInput-root': {
+                        backgroundColor: palette.cardBg,
+                        '& fieldset': { borderColor: palette.border },
+                        '&:hover fieldset': { borderColor: palette.border },
+                        '&.Mui-focused fieldset': { borderColor: palette.accent },
+                    },
+                    '& .MuiInputBase-input': { color: palette.text },
+                    '& .MuiInputBase-input::placeholder': { color: palette.subtleText, opacity: 1 },
+                }}
             />
             <Button className="terminal-connections-toolbar-button" disabled={isDisconnecting || activatingProfileId !== null} onClick={() => openAddHostDialog('add-host')} variant="contained" sx={{ borderRadius: 0, boxShadow: 'none', textTransform: 'none', fontWeight: 600 }}>
                 {copy.addHostAction}
