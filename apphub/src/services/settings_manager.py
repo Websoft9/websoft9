@@ -11,7 +11,16 @@ from src.schemas.appSettings import AppSettings
 from src.services.product_metadata import read_product_edition, read_product_metadata
 
 
-DEFAULT_DOCKER_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+def _mirror_list_url() -> str:
+    """Return the channel-aware URL for the default Docker mirror list."""
+    from src.services.product_metadata import read_product_metadata
+    try:
+        channel = read_product_metadata().get("channel", "release")
+    except Exception:
+        channel = "release"
+    return f"https://artifact.websoft9.com/websoft9/{channel}/mirrors.json"
+
+
 DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS = 3650
 DEFAULT_PLATFORM_BRAND_TITLE = "Websoft9"
 DEFAULT_PLATFORM_BRAND_LOGO_URL = "/websoft9.png"
@@ -108,7 +117,7 @@ class SettingsManager:
                             self._docker_mirror_display_value(),
                             editable=True,
                             metadata={
-                                "default_value": "\n".join(self._load_docker_mirror_entries(DEFAULT_DOCKER_MIRROR_URL)),
+                                "default_value": "\n".join(self._load_docker_mirror_entries(_mirror_list_url())),
                             },
                         ),
                     ],
@@ -298,7 +307,7 @@ class SettingsManager:
 
     def _docker_mirror_url(self) -> str:
         configured = self.config.get("docker_mirror", "url", fallback="").strip()
-        return configured or DEFAULT_DOCKER_MIRROR_URL
+        return configured or _mirror_list_url()
 
     def _docker_mirror_display_value(self) -> str:
         mirrors = self._load_docker_mirror_entries(self._docker_mirror_url())
@@ -447,7 +456,7 @@ class SettingsManager:
         return current_cert == self._default_ssl_cert_path() and current_key == self._default_ssl_key_path()
 
     def _load_docker_mirror_entries(self, configured_value: str) -> list[str]:
-        candidate = (configured_value or "").strip() or DEFAULT_DOCKER_MIRROR_URL
+        candidate = (configured_value or "").strip() or _mirror_list_url()
         if candidate.startswith("http://") or candidate.startswith("https://"):
             try:
                 response = requests.get(candidate, timeout=10)
@@ -464,7 +473,7 @@ class SettingsManager:
             for item in candidate.replace("\n", ",").split(",")
             if item.strip()
         ]
-        return normalized or [self._normalize_mirror_entry(DEFAULT_DOCKER_MIRROR_URL)]
+        return normalized or [self._normalize_mirror_entry(_mirror_list_url())]
 
     def _normalize_mirror_entry(self, value: str) -> str:
         normalized = value.strip().rstrip("/")

@@ -11,7 +11,11 @@ from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
 from src.services.portainer_manager import PortainerManager
 
-DEFAULT_MIRROR_URL = "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+def _default_mirror_url() -> str:
+    from src.services.settings_manager import _mirror_list_url
+    return _mirror_list_url()
+
+
 RESTIC_CACHE_PATH = "/data/restic-cache"
 
 
@@ -27,7 +31,7 @@ def _normalize_mirror(value: str) -> str:
 def _fetch_mirrors() -> List[str]:
     try:
         config_manager = ConfigManager("config.ini")
-        configured = (config_manager.get_value("docker_mirror", "url") or "").strip() or DEFAULT_MIRROR_URL
+        configured = (config_manager.get_value("docker_mirror", "url") or "").strip() or _default_mirror_url()
         if configured.startswith("http://") or configured.startswith("https://"):
             resp = requests.get(configured)
             if resp.status_code != 200:

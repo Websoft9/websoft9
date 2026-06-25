@@ -506,7 +506,7 @@ restart_docker_service() {
 load_mirror_entries() {
   local install_path="$1"
   local channel="${W9_CHANNEL:-release}"
-  local mirrors_url="https://artifact.websoft9.com/${channel}/websoft9/mirrors.json"
+  local mirrors_url="https://artifact.websoft9.com/websoft9/${channel}/mirrors.json"
   local mirrors_file="${install_path}/mirrors.json"
   local cleanup_file=""
 

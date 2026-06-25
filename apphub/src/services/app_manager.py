@@ -2370,7 +2370,8 @@ class AppManger:
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
     def download_image_accelerators(self):
         try:
-            configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip() or "https://artifact.websoft9.com/release/websoft9/mirrors.json"
+            from src.services.settings_manager import _mirror_list_url
+            configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip() or _mirror_list_url()
             if configured.startswith("http://") or configured.startswith("https://"):
                 response = requests.get(configured)
                 if response.status_code != 200:
