@@ -171,7 +171,7 @@ render_gateway_config() {
     render_platform_gateway_ssl_config "$ssl_cert" "$ssl_key"
   fi
   cp "$gateway_root/nginx.conf" "$runtime_config"
-  sed -i "s#/data/logs/#$service_log_root/#g" "$runtime_config"
+  sed -i "s#\(access_log\|error_log\) /data/logs/#\1 $service_log_root/#g" "$runtime_config"
   render_default_server "$https_enabled" "$force_https" "$bound_domain"
   cookie_scope="$(resolve_platform_cookie_scope)"
   portainer_cookie_ref="\$cookie_portainer_jwt_${cookie_scope}"
