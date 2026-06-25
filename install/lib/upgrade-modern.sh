@@ -74,6 +74,26 @@ run_upgrade_modern() {
   backup_dir="$(backup_new_dir modern-upgrade)"
   backup_modern_pre_upgrade "$install_path" "$backup_dir"
 
+  # 3. Migrate legacy /data to the canonical /opt/websoft9/data.
+  #    Must happen AFTER the backup above so the backup captures the
+  #    original /data before it is moved.
+  if [ "$WEBSOFT9_DATA_ROOT" = "/data" ]; then
+    log_step "Migrating data root from /data to /opt/websoft9/data"
+    if [ -d /data ] && [ ! -d /opt/websoft9/data ]; then
+      run_cmd mkdir -p /opt/websoft9
+      run_cmd cp -a /data /opt/websoft9/data || die "$EXIT_RUNTIME" "Failed to copy data from /data to /opt/websoft9/data"
+      run_cmd rm -rf /data || log_warn "Could not remove old /data after migration; you may delete it manually"
+      log_info "Data root migrated to /opt/websoft9/data"
+    elif [ -d /opt/websoft9/data ]; then
+      log_warn "/opt/websoft9/data already exists; keeping existing data and switching to new root"
+    else
+      log_warn "/data does not exist; switching data root to /opt/websoft9/data"
+    fi
+    WEBSOFT9_DATA_ROOT="/opt/websoft9/data"
+    export WEBSOFT9_DATA_ROOT
+    log_info "Upgrade data root changed to: ${WEBSOFT9_DATA_ROOT}"
+  fi
+
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) pre-upgrade checks done, stopping before material switch"
     return 0
