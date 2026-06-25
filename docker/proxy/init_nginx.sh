@@ -13,7 +13,7 @@ fi
 data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
 nginx_root="${WEBSOFT9_NPM_NGINX_ROOT:-$data_root/nginx}"
 acme_root="${WEBSOFT9_NPM_ACME_ROOT:-$data_root/letsencrypt-acme-challenge}"
-credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-$data_root/credential}"
+credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-$data_root/credential.json}"
 
 DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
 
@@ -121,6 +121,16 @@ quarantine_orphaned_ssl_configs() {
 
 # If credential file then create it and init credential for NPM
 # Reload NPM docker image Environments
+
+# Backward-compat: if the old credential file (without .json extension)
+# exists but the canonical path does not, migrate it so the Python credential
+# provider and health-check markers can find the credentials.
+legacy_credential_path="$data_root/credential"
+if [ ! -f "$credential_path" ] && [ -f "$legacy_credential_path" ]; then
+  mkdir -p "$(dirname "$credential_path")"
+  cp "$legacy_credential_path" "$credential_path"
+  echo "Migrated legacy credential file to $credential_path"
+fi
 
 if [ ! -f "$credential_path" ]; then
   # Set init credential

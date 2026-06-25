@@ -36,8 +36,11 @@ require_root() {
 # Carriage returns (\r) are converted to newlines so that progress bars
 # (which use \r without \n) become visible as individual log lines instead
 # of being swallowed by read's line buffering.
+# Without this tr, read -r blocks indefinitely when it encounters \r
+# without a trailing \n (e.g. dpkg/apt progress bars on Ubuntu), causing
+# the entire installation pipeline to freeze.
 _log_pipe() {
-  while IFS= read -r line; do
+  tr '\r' '\n' | while IFS= read -r line; do
     log_info "$line"
   done
 }
@@ -146,15 +149,22 @@ download_docker_script() {
 # ---------------------------------------------------------------------------
 _start_docker() {
   log_step "Starting and enabling Docker daemon"
-  if systemctl start docker && systemctl enable docker >/dev/null 2>&1; then
-    if command_exists docker && docker compose version >/dev/null 2>&1; then
-      log_info "Docker and Docker Compose are ready"
-      return 0
-    fi
-    log_error "Docker or Docker Compose verification failed after start"
-    return 1
+  # systemctl start may block indefinitely if dockerd hangs during init
+  # (e.g. iptables/nftables conflict, cgroup v2 issues on Ubuntu).
+  # Wrap with a generous timeout and fall back to a non-blocking start.
+  if timeout 120 systemctl start docker 2>/dev/null; then
+    log_info "Docker daemon started"
+  else
+    log_warn "Docker daemon did not start within 120s, trying non-blocking start"
+    systemctl start --no-block docker 2>/dev/null || true
+    sleep 3
   fi
-  log_error "Failed to start Docker daemon"
+  systemctl enable docker >/dev/null 2>&1 || true
+  if command_exists docker && docker compose version >/dev/null 2>&1; then
+    log_info "Docker and Docker Compose are ready"
+    return 0
+  fi
+  log_error "Docker daemon failed to start"
   return 1
 }
 
@@ -375,18 +385,22 @@ install_docker_official() {
   # Ensure system APT sources are reachable before running the official script
   _ensure_apt_sources
 
-  # Patch get-docker.sh to show apt-get progress instead of swallowing it.
-  # Remove -qq (quiet) flags and /dev/null redirects so users can see progress.
+  # Patch get-docker.sh: remove /dev/null redirects so errors/warnings are
+  # captured through the logging pipeline. Keep -qq flags on apt-get so that
+  # progress bars (which may emit \r without \n) are suppressed — this avoids
+  # pipe buffering pressure on high-latency connections while still surfacing
+  # any real error output.
   if [ -f get-docker.sh ]; then
-    sed -i 's/ -qq / /g; s| >/dev/null||g; s| &>/dev/null||g' get-docker.sh
+    sed -i 's| >/dev/null||g; s| &>/dev/null||g; s| 2>/dev/null||g' get-docker.sh
   fi
 
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
 
-    # Pipe through _run_logged for TTY safety but keep \r intact so
-    # apt progress bars update in place instead of exploding into lines.
+    # Pipe through _run_logged for TTY-safe logging.  \r characters
+    # emitted by apt/dpkg progress bars are converted to \n by _log_pipe
+    # so the pipeline never blocks waiting for a newline that doesn't come.
     if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
