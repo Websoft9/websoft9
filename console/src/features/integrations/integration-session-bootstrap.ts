@@ -30,23 +30,6 @@ export function prewarmAuthenticatedIntegrationSessions(locale: string, authScop
 }
 
 async function requestBulkBootstrap(locale: string) {
-    // Clear stale Portainer tokens from localStorage / sessionStorage before
-    // bootstrapping a new session.  After a product upgrade Portainer restarts
-    // and invalidates all existing JWTs, but the browser may still cache the
-    // old tokens.  If the Portainer SPA reads the stale token before the nginx
-    // sub_filter injection script runs, the user sees the login form instead
-    // of being auto-authenticated.  This only manifests in browsers that have
-    // previously visited Portainer (not incognito / fresh profiles).
-    try {
-        const portainerTokenKeys = ['portainer.JWT', 'portainer.jwt', 'JWT']
-        portainerTokenKeys.forEach((key) => {
-            localStorage.removeItem(key)
-            sessionStorage.removeItem(key)
-        })
-    } catch (_) {
-        // cross-origin or storage-disabled — ignore
-    }
-
     const response = await fetch('/api/integrations/session', {
         method: 'POST',
         credentials: 'include',
@@ -82,6 +65,21 @@ export function getCachedBulkIntegrationSessionResult(requestKey: string, integr
 }
 
 export function ensureBulkIntegrationSessionBootstrap(requestKey: string, locale: string) {
+    // Clear stale Portainer tokens from localStorage / sessionStorage every
+    // time we enter the integration workspace — not just on the first cold
+    // bootstrap.  After a product upgrade Portainer invalidates all existing
+    // JWTs, and a cached bootstrap result would skip the clearing logic
+    // inside requestBulkBootstrap, leaving old tokens in place.
+    try {
+        const portainerTokenKeys = ['portainer.JWT', 'portainer.jwt', 'JWT']
+        portainerTokenKeys.forEach((key) => {
+            localStorage.removeItem(key)
+            sessionStorage.removeItem(key)
+        })
+    } catch (_) {
+        // cross-origin or storage-disabled — ignore
+    }
+
     const cached = bulkBootstrapCache.get(requestKey)
     if (cached) {
         return Promise.resolve(cached)
