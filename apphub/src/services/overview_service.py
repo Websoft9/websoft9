@@ -865,12 +865,13 @@ class OverviewService:
             running_states = {"running", "healthy"}
             if normalized_states and normalized_states.isdisjoint(running_states):
                 # All containers are non-running.  Distinguish between a
-                # deliberate stop (containers exited cleanly) and a genuine
-                # error (containers are dead / stuck in an abnormal state).
+                # deliberate stop (containers exited cleanly — still "Active")
+                # and a genuine error (containers are dead / stuck).
                 error_states = {"dead", "created"}
                 if normalized_states and normalized_states.isdisjoint(error_states):
                     # All containers are in a normal stopped state (e.g. "exited").
-                    return 2, None
+                    # The stack is still Active — just not running right now.
+                    return stack_status, None
                 return 4, "Containers were created for this stack but none of them are running."
 
         return stack_status, None

@@ -247,12 +247,13 @@ class AppManger:
             running_states = {"running", "healthy"}
             if normalized_states and normalized_states.isdisjoint(running_states):
                 # All containers are non-running.  Distinguish between a
-                # deliberate stop (containers exited cleanly) and a genuine
-                # error (containers are dead / stuck in an abnormal state).
+                # deliberate stop (containers exited cleanly — still "Active")
+                # and a genuine error (containers are dead / stuck).
                 error_states = {"dead", "created"}
                 if normalized_states and normalized_states.isdisjoint(error_states):
                     # All containers are in a normal stopped state (e.g. "exited").
-                    return 2, None
+                    # The stack is still Active — just not running right now.
+                    return stack_status, None
                 return 4, "Containers were created for this stack but none of them are running."
 
         return stack_status, None
@@ -1427,8 +1428,10 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        # Get stack_id
-        stack_id = portainerManager.get_stack_by_name(app_id,endpointId).get("Id",None)
+        # Get stack_id and current status
+        stack_info = portainerManager.get_stack_by_name(app_id,endpointId)
+        stack_id = stack_info.get("Id", None)
+        stack_status = stack_info.get("Status", 0)
        
         if stack_id is None:
             raise CustomException(
@@ -1436,6 +1439,27 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
+
+        # Inactive stacks (uninstalled but data retained) need up_stack rather
+        # than the full git-redeploy flow.  Portainer's git/redeploy endpoint
+        # is designed for updating already-active stacks and may silently
+        # no-op on inactive ones, leaving the status stuck at Inactive.
+        if stack_status == 2:
+            await send_log("Restoring inactive stack")
+            try:
+                await AsyncWrapper.run_sync(
+                    portainerManager.up_stack,
+                    stack_id,
+                    endpointId,
+                    timeout=300
+                )
+            except CustomException as e:
+                await send_log(f"Restore stack error: {e}")
+                raise e
+            await send_log("Redeployment complete")
+            logger.access(f"Restored inactive app: [{app_id}]")
+            return
+
         else:
             credentials = IntegrationCredentialProvider().get_gitea_credentials()
             user_name = credentials.username
@@ -1781,14 +1805,20 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        # validate the stack is active
+        # validate the stack is inactive — restore with up_stack instead of failing
         stack_status = stack_info.get("Status",None)
         if stack_status == 2:
-            raise CustomException(
-                status_code=400,
-                message="Invalid Request",
-                details=f"{app_id} is inactive, can not start it,you can redeploy it"
-            )
+            logger.access(f"Inactive app [{app_id}] will be restored via start")
+            stack_id = stack_info.get("Id")
+            if stack_id is None:
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details=f"{app_id} Not Found"
+                )
+            portainerManager.up_stack(stack_id, endpointId)
+            logger.access(f"Started (restored) app: [{app_id}]")
+            return
         # start stack
         portainerManager.start_stack(app_id,endpointId)
         logger.access(f"Started app: [{app_id}]")

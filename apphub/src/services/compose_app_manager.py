@@ -170,6 +170,16 @@ class ComposeAppManager:
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
         _require_compose_app(portainer, app_id, eid)
+        stack = _require_stack(portainer, app_id, eid)
+        stack_status = stack.get("Status", 0)
+        # Inactive stacks have no running containers — start_container would
+        # iterate over an empty list and silently no-op.  Restore via up_stack.
+        if stack_status == 2:
+            stack_id = stack.get("Id")
+            if stack_id is None:
+                raise CustomException(404, "Not Found", f"Portainer stack for '{app_id}' has no Id")
+            portainer.up_stack(stack_id, eid)
+            return
         portainer.start_stack(app_id, eid)
 
     def stop_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
@@ -203,6 +213,14 @@ class ComposeAppManager:
         stack_id = stack.get("Id")
         if stack_id is None:
             raise CustomException(404, "Not Found", f"Portainer stack for '{app_id}' has no Id")
+        stack_status = stack.get("Status", 0)
+        # Inactive stacks (uninstalled but data retained) need up_stack rather
+        # than the git-redeploy flow.  Portainer's git/redeploy endpoint is
+        # designed for updating already-active stacks and may silently no-op
+        # on inactive ones, leaving the status stuck at Inactive.
+        if stack_status == 2:
+            portainer.up_stack(stack_id, eid)
+            return
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
         portainer.redeploy_stack(stack_id, eid, pull_image, credentials.username, credentials.password)
 
