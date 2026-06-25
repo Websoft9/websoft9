@@ -97,7 +97,14 @@ _remove_legacy_controlplane_artifacts() {
 _remove_legacy_host_artifacts() {
   log_step "Removing legacy host directories"
   local legacy_path
-  for legacy_path in "$LEGACY_HOST_COMPOSE_DIR" "$LEGACY_INSTALL_DIR" "$LEGACY_SERVICE_ROOT_DIR" "$LEGACY_DOWNLOAD_ROOT_DIR"; do
+  for legacy_path in \
+    "$LEGACY_HOST_COMPOSE_DIR" \
+    "$LEGACY_INSTALL_DIR" \
+    "$LEGACY_SERVICE_ROOT_DIR" \
+    "$LEGACY_DOWNLOAD_ROOT_DIR" \
+    "/opt/websoft9/systemd" \
+    "/opt/websoft9/cockpit"
+  do
     [ -e "$legacy_path" ] && run_cmd rm -rf "$legacy_path" 2>/dev/null || true
   done
 }

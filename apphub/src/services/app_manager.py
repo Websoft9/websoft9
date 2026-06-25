@@ -1776,6 +1776,11 @@ class AppManger:
                     message="Invalid Request",
                     details=f"Error App:{app_id}  Not Found"
                 )
+            # Clean up any Portainer / Gitea / proxy resources that were
+            # created before the install failed (e.g. a compose stack that
+            # hit a port conflict).  Without this the first remove call only
+            # deletes the tracking entry, leaving the broken stack behind.
+            self._cleanup_error_app_resources(app_id)
             # remove app from appInstallingError
             remove_app_from_errors_by_app_id(app_id)
         except CustomException as e:
@@ -1785,6 +1790,39 @@ class AppManger:
             raise CustomException()    
 
         logger.access(f"Removed error app: [{app_id}]")
+
+    def _cleanup_error_app_resources(self, app_id: str) -> None:
+        """Best-effort cleanup of leftover resources from a failed install."""
+        portainer_manager = PortainerManager()
+        try:
+            endpoint_id = portainer_manager.get_local_endpoint_id()
+        except Exception:
+            return
+        # Remove Portainer stack + volumes if they exist
+        try:
+            stack = portainer_manager.get_stack_by_name(app_id, endpoint_id)
+            if stack and stack.get("Id"):
+                portainer_manager.remove_stack_and_volumes(stack["Id"], endpoint_id)
+                logger.access(f"Cleaned up Portainer stack for error app: [{app_id}]")
+        except Exception as exc:
+            logger.warn(f"Portainer cleanup for error app [{app_id}] skipped: {exc}")
+        # Remove Gitea repo if it exists
+        try:
+            gitea_manager = GiteaManager()
+            if gitea_manager.check_repo_exists(app_id):
+                gitea_manager.remove_repo(app_id)
+                logger.access(f"Cleaned up Gitea repo for error app: [{app_id}]")
+        except Exception as exc:
+            logger.warn(f"Gitea cleanup for error app [{app_id}] skipped: {exc}")
+        # Remove NPM proxy hosts if any
+        try:
+            proxy_manager = ProxyManager()
+            proxy_hosts = proxy_manager.get_proxy_host_by_app(app_id)
+            if proxy_hosts:
+                proxy_manager.remove_proxy_host_by_app(app_id)
+                logger.access(f"Cleaned up proxy hosts for error app: [{app_id}]")
+        except Exception as exc:
+            logger.warn(f"Proxy cleanup for error app [{app_id}] skipped: {exc}")
 
     def start_app(self,app_id:str,endpointId:int = None):
         """
