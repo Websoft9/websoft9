@@ -93,6 +93,7 @@ type HostAccessProfileResponse = {
     default_profile_id?: string | null
     auth_method?: AuthMethod
     has_password?: boolean
+    has_private_key?: boolean
     saved_profiles?: HostAccessSavedProfileSummary[]
     file_preferences?: HostAccessFilePreferences
     file_references?: string[]
@@ -111,6 +112,7 @@ type HostAccessSavedProfileSummary = {
     is_default: boolean
     is_local: boolean
     has_password: boolean
+    has_private_key: boolean
     created_at?: string | null
     text_editable: boolean
     working_directory?: string | null
@@ -983,7 +985,7 @@ function profileToAccessForm(profile: HostAccessProfileResponse): AccessForm {
         remember: profile.remembered,
         isLocal,
         hasExistingPassword: profile.has_password ?? false,
-        hasExistingKey: false,
+        hasExistingKey: profile.has_private_key ?? false,
     }
 }
 
@@ -1007,7 +1009,7 @@ function savedProfileToAccessForm(profile: HostAccessSavedProfileSummary): Acces
         remember: true,
         isLocal: profile.is_local,
         hasExistingPassword: profile.has_password,
-        hasExistingKey: false,
+        hasExistingKey: profile.has_private_key ?? false,
     }
 }
 
@@ -1136,7 +1138,7 @@ export function TerminalPage() {
                     privateKeyUploadAction: '上传私钥文件',
                     passphrase: '密钥口令',
                     privateKeyHint: '粘贴 OpenSSH 或 PEM 私钥内容。',
-                    remember: '保存密码',
+                    remember: '保存凭证',
                     keepExistingPassword: '（保留已保存的密码）',
                     keepExistingKey: '（保留已保存的密钥）',
                     accessSubmit: '确定',
@@ -1296,7 +1298,7 @@ export function TerminalPage() {
                     privateKeyUploadAction: 'Upload private key file',
                     passphrase: 'Passphrase',
                     privateKeyHint: 'Paste an OpenSSH or PEM private key.',
-                    remember: 'Save password',
+                    remember: 'Save credential',
                     keepExistingPassword: '(keep saved password)',
                     keepExistingKey: '(keep saved key)',
                     accessSubmit: 'Confirm',

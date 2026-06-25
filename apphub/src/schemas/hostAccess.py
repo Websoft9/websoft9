@@ -74,6 +74,11 @@ class HostAccessProfileUpsertRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_auth_secret(self):
+        # When editing an existing profile the saved credentials are merged
+        # from the database by _merge_saved_profile_auth, so empty
+        # password / private_key is legitimate (user didn't re-enter them).
+        if self.profile_id:
+            return self
         if self.auth_method == "password" and not self.password.strip():
             raise ValueError("Password cannot be empty when password authentication is selected")
         if self.auth_method == "key" and not self.private_key.strip():

@@ -30,6 +30,23 @@ export function prewarmAuthenticatedIntegrationSessions(locale: string, authScop
 }
 
 async function requestBulkBootstrap(locale: string) {
+    // Clear stale Portainer tokens from localStorage / sessionStorage before
+    // bootstrapping a new session.  After a product upgrade Portainer restarts
+    // and invalidates all existing JWTs, but the browser may still cache the
+    // old tokens.  If the Portainer SPA reads the stale token before the nginx
+    // sub_filter injection script runs, the user sees the login form instead
+    // of being auto-authenticated.  This only manifests in browsers that have
+    // previously visited Portainer (not incognito / fresh profiles).
+    try {
+        const portainerTokenKeys = ['portainer.JWT', 'portainer.jwt', 'JWT']
+        portainerTokenKeys.forEach((key) => {
+            localStorage.removeItem(key)
+            sessionStorage.removeItem(key)
+        })
+    } catch (_) {
+        // cross-origin or storage-disabled — ignore
+    }
+
     const response = await fetch('/api/integrations/session', {
         method: 'POST',
         credentials: 'include',
