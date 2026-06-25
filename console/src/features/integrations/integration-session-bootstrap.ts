@@ -67,12 +67,22 @@ export function getCachedBulkIntegrationSessionResult(requestKey: string, integr
 export function ensureBulkIntegrationSessionBootstrap(requestKey: string, locale: string) {
     // Clear stale Portainer tokens from localStorage / sessionStorage every
     // time we enter the integration workspace — not just on the first cold
-    // bootstrap.  After a product upgrade Portainer invalidates all existing
-    // JWTs, and a cached bootstrap result would skip the clearing logic
-    // inside requestBulkBootstrap, leaving old tokens in place.
+    // bootstrap. After a product upgrade Portainer invalidates all existing
+    // sessions, and the current runtime restores auth from USER_ID and other
+    // app state keys rather than the legacy JWT aliases alone.
     try {
-        const portainerTokenKeys = ['portainer.JWT', 'portainer.jwt', 'JWT']
-        portainerTokenKeys.forEach((key) => {
+        const portainerStorageKeys = [
+            'portainer.JWT',
+            'portainer.jwt',
+            'JWT',
+            'portainer.USER_ID',
+            'portainer.APPLICATION_STATE',
+            'portainer.LOGIN_STATE_UUID',
+            'portainer.ALLOWED_NAMESPACES',
+            'portainer.ENDPOINT_STATE',
+            'portainer.logout_reason',
+        ]
+        portainerStorageKeys.forEach((key) => {
             localStorage.removeItem(key)
             sessionStorage.removeItem(key)
         })
