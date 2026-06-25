@@ -18,7 +18,7 @@ handlers:
   platform_runtime:
     class: utils.runtime_logging.PlatformRuntimeFileHandler
     formatter: platform_runtime_json
-    filename: /data/logs/platform-runtime.log
+    filename: /opt/websoft9/data/logs/platform-runtime.log
     filters: [ignore_specific_requests]
 loggers:
   uvicorn:
