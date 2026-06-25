@@ -271,6 +271,15 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                     ? await initialize({ username, password, email: email.trim(), locale })
                     : await login({ username, password })
 
+            // After setup the initialize() call already created a session.
+            // Log out immediately so the user never briefly sees the
+            // authenticated console before being redirected to login.
+            if (mode === 'setup') {
+                await logout()
+                navigate('/auth/login', { replace: true })
+                return
+            }
+
             const prewarmPromise =
                 nextStatus.authenticated && nextStatus.current_user
                     ? prewarmAuthenticatedIntegrationSessions(locale, nextStatus.current_user.id)
@@ -286,12 +295,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                 })
             }
 
-            if (mode === 'setup') {
-                await logout()
-                navigate('/auth/login', { replace: true })
-            } else {
-                navigate(nextPath, { replace: true })
-            }
+            navigate(nextPath, { replace: true })
         } catch (error) {
             setLocalError(error instanceof Error ? error.message : t('auth.genericError'))
         }

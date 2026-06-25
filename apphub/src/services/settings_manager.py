@@ -13,9 +13,9 @@ from src.services.product_metadata import read_product_edition, read_product_met
 
 def _mirror_list_url() -> str:
     """Return the channel-aware URL for the default Docker mirror list."""
-    from src.services.product_metadata import read_product_metadata
     try:
-        channel = read_product_metadata().get("channel", "release")
+        from src.services.product_runtime_state import read_release_channel
+        channel = read_release_channel()
     except Exception:
         channel = "release"
     return f"https://artifact.websoft9.com/websoft9/{channel}/mirrors.json"
@@ -464,16 +464,32 @@ class SettingsManager:
                 payload = response.json()
                 mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
                 normalized = [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
-                return normalized or [self._normalize_mirror_entry(candidate)]
+                if normalized:
+                    return normalized
             except Exception:
-                return [self._normalize_mirror_entry(candidate)]
+                pass
+            # Fetch failed or returned no mirrors — fall through to the
+            # built-in default list instead of showing the URL itself.
 
-        normalized = [
-            self._normalize_mirror_entry(item)
-            for item in candidate.replace("\n", ",").split(",")
-            if item.strip()
-        ]
-        return normalized or [self._normalize_mirror_entry(_mirror_list_url())]
+        if candidate != _mirror_list_url():
+            # User-entered value (not the default URL) — treat as
+            # comma / newline separated list of mirrors.
+            normalized = [
+                self._normalize_mirror_entry(item)
+                for item in candidate.replace("\n", ",").split(",")
+                if item.strip()
+            ]
+            if normalized:
+                return normalized
+
+        # Ultimate fallback: hardcoded built-in mirrors so the UI never
+        # shows a raw JSON URL as a mirror entry.
+        return [self._normalize_mirror_entry(m) for m in [
+            "docker.1ms.run",
+            "docker.m.daocloud.io",
+            "docker.xuanyuan.me",
+            "docker.1panel.live",
+        ]]
 
     def _normalize_mirror_entry(self, value: str) -> str:
         normalized = value.strip().rstrip("/")
