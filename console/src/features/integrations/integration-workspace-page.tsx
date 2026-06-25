@@ -363,9 +363,17 @@ function DirectIntegrationWorkspaceFrame({
         rememberIntegrationTarget(definition, requestedTarget)
     }, [definition, requestedTarget])
 
+    const needsInitialReload = useRef(true)
+
     useEffect(() => {
-        if (active && sessionState === 'ready') {
+        if (active && sessionState === 'ready' && needsInitialReload.current) {
             setHasInitializedFrame(true)
+            needsInitialReload.current = false
+            // Force a single reload when the session first becomes ready
+            // so the iframe picks up the fresh JWT cookie.  Without this a
+            // persistent iframe that rendered before the session bootstrap
+            // completed would stay stuck on a stale page.
+            setFrameVersion((current) => current + 1)
         }
     }, [active, sessionState])
 
