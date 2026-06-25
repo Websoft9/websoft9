@@ -481,16 +481,19 @@ _legacy_finalize_runtime_config() {
   docker exec -i "$MODERN_CONTAINER_NAME" python3 - <<'PY' 2>/dev/null || log_warn "Legacy runtime config import is best-effort and did not complete"
 import configparser
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
-legacy_config_path = Path("/data/.w9-migration/legacy-config.ini")
-legacy_daemon_path = Path("/data/.w9-migration/legacy-daemon.json")
+data_root = Path(os.environ.get("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
+
+legacy_config_path = data_root / ".w9-migration/legacy-config.ini"
+legacy_daemon_path = data_root / ".w9-migration/legacy-daemon.json"
 runtime_config_path = Path("/websoft9/apphub/src/config/config.ini")
-default_cert_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
-default_key_path = Path("/data/config/platform-gateway/ssl/websoft9-platform-gateway.key")
-legacy_product_auth_credential_path = Path("/data/product-auth/credential.json")
+default_cert_path = data_root / "config/platform-gateway/ssl/websoft9-platform-gateway.cert"
+default_key_path = data_root / "config/platform-gateway/ssl/websoft9-platform-gateway.key"
+legacy_product_auth_credential_path = data_root / "product-auth/credential.json"
 
 if not runtime_config_path.is_file() or (not legacy_config_path.is_file() and not legacy_daemon_path.is_file()):
     raise SystemExit(0)

@@ -409,8 +409,12 @@ resolve_existing_runtime_data_root() {
     return 0
   fi
 
+  # Legacy data at /data should be migrated to the canonical data root
+  # (/opt/websoft9/data) so that all Websoft9 data lives under one clean
+  # directory.  The Alpine transform container receives ${data_root}:/data
+  # so writes to /data inside the container land on the new host path.
   if _runtime_data_root_has_modern_markers /data; then
-    echo "/data"
+    echo "$DEFAULT_WEBSOFT9_DATA_ROOT"
     return 0
   fi
 
@@ -419,8 +423,9 @@ resolve_existing_runtime_data_root() {
     return 0
   fi
 
+  # Legacy install with compose workspace only — migrate to new default.
   if [ "$include_legacy_fallback" = "1" ] && [ -d "$LEGACY_HOST_COMPOSE_DIR" ]; then
-    echo "/data"
+    echo "$DEFAULT_WEBSOFT9_DATA_ROOT"
     return 0
   fi
 
