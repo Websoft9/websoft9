@@ -27,6 +27,10 @@ on:
         type: string
         default: release
         description: App store channel stamped into image build metadata
+      no_cache:
+        type: boolean
+        default: false
+        description: Disable Docker layer cache (use for dev to ensure fresh console build)
     outputs:
       image_tag:
         description: Primary image tag
@@ -89,6 +93,7 @@ jobs:
           push: ${{ inputs.push }}
           platforms: ${{ inputs.platforms }}
           tags: ${{ inputs.tags }}
+          no-cache: ${{ inputs.no_cache }}
           build-args: |
             WEBSOFT9_PRODUCT_VERSION=${{ steps.version.outputs.semver }}
             WEBSOFT9_PRODUCT_EDITION_KEY=${{ steps.version.outputs.edition }}
