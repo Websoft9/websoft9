@@ -707,6 +707,9 @@ run_upgrade_legacy() {
 
   log_info "==== Legacy-to-modern migration started ===="
   require_root
+  WEBSOFT9_DATA_ROOT="$(resolve_existing_runtime_data_root "$install_path" 1)"
+  export WEBSOFT9_DATA_ROOT
+  log_info "Migration data root resolved to: ${WEBSOFT9_DATA_ROOT}"
 
   # Stage 1: entry detection already happened; confirm there is no modern runtime.
   if _detect_modern_strong; then

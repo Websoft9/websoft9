@@ -48,7 +48,8 @@ class ProductAuthService:
     _lock = threading.RLock()
 
     def __init__(self, data_dir: Optional[str] = None):
-        self.data_dir = Path(data_dir or os.getenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR") or "/data/config/product-auth")
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        self.data_dir = Path(data_dir or os.getenv("WEBSOFT9_PRODUCT_AUTH_DATA_DIR") or f"{data_root}/config/product-auth")
         self.database_file = self.data_dir / "product-auth.sqlite"
 
     def get_status(self, session_token: Optional[str] = None) -> dict[str, Any]:

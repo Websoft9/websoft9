@@ -18,16 +18,17 @@ IntegrationKey = Literal["gitea", "portainer", "npm"]
 class IntegrationSessionBridge:
     def __init__(self, gateway_origin: Optional[str] = None):
         self.credential_provider = IntegrationCredentialProvider()
+        data_root = Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
         self.gateway_origin = gateway_origin or os.getenv(
             "WEBSOFT9_PLATFORM_GATEWAY_INTERNAL_ORIGIN",
             "http://127.0.0.1:9000",
         ).rstrip("/")
-        self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", "/data/gitea/credential"))
+        self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", str(data_root / "gitea/credential")))
         self.gitea_direct_origin = os.getenv(
             "WEBSOFT9_GITEA_DIRECT_ORIGIN",
             "http://127.0.0.1:3001",
         ).rstrip("/")
-        self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "/data/portainer/credential"))
+        self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", str(data_root / "portainer/credential")))
         self.portainer_direct_origin = os.getenv(
             "WEBSOFT9_PORTAINER_DIRECT_ORIGIN",
             "http://127.0.0.1:9004",
@@ -36,8 +37,8 @@ class IntegrationSessionBridge:
             "WEBSOFT9_NPM_DIRECT_ORIGIN",
             "http://127.0.0.1:81",
         ).rstrip("/")
-        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/credential.json"))
-        self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", "/data/database.sqlite"))
+        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", str(data_root / "credential.json")))
+        self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", str(data_root / "database.sqlite")))
 
     def _resolve_platform_origin(self) -> str:
         public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip().rstrip("/")

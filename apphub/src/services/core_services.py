@@ -108,10 +108,10 @@ DEFAULT_SERVICE_DEFINITIONS = (
         supervisor_program="platform-gateway",
         health_url=os.getenv("WEBSOFT9_PLATFORM_GATEWAY_HEALTH_URL", "http://127.0.0.1:9000/w9gateway/healthz"),
         health_verify_tls=False,
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")),
         log_paths=(
-            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "platform-gateway-access.log",
-            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "platform-gateway-error.log",
+            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "platform-gateway-access.log",
+            Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "platform-gateway-error.log",
         ),
     ),
     ServiceDefinition(
@@ -130,8 +130,8 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_GITEA_HEALTH_URL", "http://127.0.0.1:3000/"),
         workspace_route="repository",
         integration_key="gitea",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "gitea",
-        markers=(Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", "/data/gitea/credential")),),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "gitea",
+        markers=(Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/gitea/credential")),),
     ),
     ServiceDefinition(
         key="portainer",
@@ -142,8 +142,8 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_verify_tls=True,
         workspace_route="containers",
         integration_key="portainer",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "portainer",
-        markers=(Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "/data/portainer/credential")),),
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "portainer",
+        markers=(Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/portainer/credential")),),
     ),
     ServiceDefinition(
         key="nginx-proxy-manager",
@@ -153,10 +153,10 @@ DEFAULT_SERVICE_DEFINITIONS = (
         health_url=os.getenv("WEBSOFT9_NPM_HEALTH_URL", "http://127.0.0.1:81/"),
         workspace_route="gateway",
         integration_key="npm",
-        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", "/data/logs")) / "npm",
+        log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "npm",
         markers=(
-            Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/credential.json")),
-            Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", "/data/custom_ssl/websoft9-self-signed.cert")),
+            Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/credential.json")),
+            Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/custom_ssl/websoft9-self-signed.cert")),
         ),
     ),
 )

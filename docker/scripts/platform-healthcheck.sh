@@ -5,17 +5,18 @@ set -euo pipefail
 mode="${1:---readiness}"
 timeout_seconds="${WEBSOFT9_HEALTHCHECK_TIMEOUT:-2}"
 runtime_layout="${WEBSOFT9_RUNTIME_LAYOUT:-single-container-target}"
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
 
 case "$runtime_layout" in
   legacy-multi-container)
-    portainer_default_marker="/data/credential"
-    npm_default_marker="/data/credential"
-    npm_default_cert_marker="/data/custom_ssl/websoft9-self-signed.cert"
+    portainer_default_marker="$data_root/credential"
+    npm_default_marker="$data_root/credential"
+    npm_default_cert_marker="$data_root/custom_ssl/websoft9-self-signed.cert"
     ;;
   single-container-target)
-    portainer_default_marker="/data/portainer/credential"
-    npm_default_marker="/data/credential.json"
-    npm_default_cert_marker="/data/custom_ssl/websoft9-self-signed.cert"
+    portainer_default_marker="$data_root/portainer/credential"
+    npm_default_marker="$data_root/credential.json"
+    npm_default_cert_marker="$data_root/custom_ssl/websoft9-self-signed.cert"
     ;;
   *)
     echo "unsupported runtime layout: $runtime_layout" >&2

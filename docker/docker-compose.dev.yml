@@ -14,13 +14,14 @@ services:
     container_name: ${CONTAINER_NAME:-websoft9-dev}
     restart: unless-stopped
     environment:
+      WEBSOFT9_DATA_ROOT: ${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}
       WEBSOFT9_PLATFORM_HTTP_PORT: ${CONSOLE_PORT:-9000}
     ports:
       - "${CONSOLE_PORT:-9000}:9000"
       - "80:80"
       - "443:443"
     volumes:
-      - ${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}:/data
+      - ${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}:${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro

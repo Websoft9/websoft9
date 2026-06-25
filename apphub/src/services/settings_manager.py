@@ -529,10 +529,12 @@ class SettingsManager:
         return "true" if value else "false"
 
     def _default_ssl_cert_path(self) -> str:
-        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", f"{data_root}/config/platform-gateway/ssl/websoft9-platform-gateway.cert")
 
     def _default_ssl_key_path(self) -> str:
-        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.key")
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        return os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", f"{data_root}/config/platform-gateway/ssl/websoft9-platform-gateway.key")
 
     def generate_self_signed_cert(self, domain: str = "", validity_days: int = 3650) -> Dict[str, str]:
         """Generate a self-signed certificate and return the cert/key paths."""
@@ -595,7 +597,8 @@ class SettingsManager:
 
         domain = domain.strip()
         email = email.strip()
-        webroot = "/data/letsencrypt-acme-challenge"
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        webroot = os.getenv("WEBSOFT9_NPM_ACME_ROOT", f"{data_root}/letsencrypt-acme-challenge")
         os.makedirs(webroot, exist_ok=True)
 
         cmd = [

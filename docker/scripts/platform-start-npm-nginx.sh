@@ -2,11 +2,13 @@
 
 set -euo pipefail
 
-service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
-letsencrypt_dir="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/letsencrypt}"
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
+service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-$data_root/logs}"
+letsencrypt_dir="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-$data_root/letsencrypt}"
+acme_root="${WEBSOFT9_NPM_ACME_ROOT:-$data_root/letsencrypt-acme-challenge}"
+nginx_root="${WEBSOFT9_NPM_NGINX_ROOT:-$data_root/nginx}"
 
 quarantine_orphaned_ssl_configs() {
-	local nginx_root="/data/nginx"
 	local quarantine_root="$nginx_root/quarantine/orphaned-ssl"
 	local config_dir
 	local conf_file
@@ -46,16 +48,16 @@ mkdir -p \
 	/var/lib/nginx/cache/private \
 	/var/lib/nginx/cache/public \
 	/var/log/nginx \
-	/data/letsencrypt-acme-challenge/.well-known/acme-challenge \
-	/data/logs \
-	/data/nginx/custom \
-	/data/nginx/default_host \
-	/data/nginx/default_www \
-	/data/nginx/dead_host \
-	/data/nginx/proxy_host \
-	/data/nginx/redirection_host \
-	/data/nginx/stream \
-	/data/nginx/temp \
+	"$acme_root/.well-known/acme-challenge" \
+	"$service_log_root" \
+	"$nginx_root/custom" \
+	"$nginx_root/default_host" \
+	"$nginx_root/default_www" \
+	"$nginx_root/dead_host" \
+	"$nginx_root/proxy_host" \
+	"$nginx_root/redirection_host" \
+	"$nginx_root/stream" \
+	"$nginx_root/temp" \
 	"$service_log_root/npm"
 rm -f /run/nginx/nginx.pid
 quarantine_orphaned_ssl_configs

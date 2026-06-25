@@ -367,6 +367,66 @@ WEBSOFT9_DATA_ROOT=${WEBSOFT9_DATA_ROOT:-$DEFAULT_WEBSOFT9_DATA_ROOT}
 EOF
 }
 
+_runtime_data_root_has_modern_markers() {
+  local data_root="$1"
+  [ -n "$data_root" ] || return 1
+  [ -f "${data_root}/config/apphub/install-tracking.sqlite" ] && return 0
+  [ -d "${data_root}/portainer/compose" ] && return 0
+  [ -f "${data_root}/portainer/credential" ] && return 0
+  [ -f "${data_root}/gitea/credential" ] && return 0
+  return 1
+}
+
+_resolve_existing_container_data_root() {
+  local install_path="${1:-$DEFAULT_INSTALL_PATH}"
+  local compose_file="${install_path}/docker-compose.yml"
+  local container_name
+  container_name="$(_resolve_container_name "$compose_file")"
+  container_exists "$container_name" || return 1
+
+  docker inspect --format '{{range .Mounts}}{{if eq .Type "bind"}}{{if or (eq .Destination "/data") (eq .Destination "/opt/websoft9/data")}}{{.Source}}{{println}}{{end}}{{end}}{{end}}' "$container_name" 2>/dev/null \
+    | sed '/^$/d' \
+    | head -n 1
+}
+
+resolve_existing_runtime_data_root() {
+  local install_path="${1:-$DEFAULT_INSTALL_PATH}"
+  local include_legacy_fallback="${2:-0}"
+  local env_file="${install_path}/.env"
+  local data_root="${WEBSOFT9_DATA_ROOT:-}"
+
+  if [ -z "$data_root" ] && [ -f "$env_file" ]; then
+    data_root="$(grep -m1 '^WEBSOFT9_DATA_ROOT=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+  fi
+  if [ -n "$data_root" ]; then
+    echo "$data_root"
+    return 0
+  fi
+
+  data_root="$(_resolve_existing_container_data_root "$install_path")"
+  if [ -n "$data_root" ]; then
+    echo "$data_root"
+    return 0
+  fi
+
+  if _runtime_data_root_has_modern_markers /data; then
+    echo "/data"
+    return 0
+  fi
+
+  if _runtime_data_root_has_modern_markers "$DEFAULT_WEBSOFT9_DATA_ROOT"; then
+    echo "$DEFAULT_WEBSOFT9_DATA_ROOT"
+    return 0
+  fi
+
+  if [ "$include_legacy_fallback" = "1" ] && [ -d "$LEGACY_HOST_COMPOSE_DIR" ]; then
+    echo "/data"
+    return 0
+  fi
+
+  echo "$DEFAULT_WEBSOFT9_DATA_ROOT"
+}
+
 resolve_runtime_data_root() {
   local install_path="${1:-$DEFAULT_INSTALL_PATH}"
   local env_file="${install_path}/.env"

@@ -92,7 +92,10 @@ func credentialFilePath() string {
 	if path := os.Getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH"); path != "" {
 		return path
 	}
-	return "/data/credential"
+	if dataRoot := os.Getenv("WEBSOFT9_DATA_ROOT"); dataRoot != "" {
+		return filepath.Join(dataRoot, "portainer", "credential")
+	}
+	return "/opt/websoft9/data/portainer/credential"
 }
 
 func startAndWaitForPortainer(args ...string) (*exec.Cmd, error) {

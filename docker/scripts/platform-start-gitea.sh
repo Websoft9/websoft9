@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-data_dir="${WEBSOFT9_GITEA_DATA_DIR:-/data/gitea}"
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
+data_dir="${WEBSOFT9_GITEA_DATA_DIR:-$data_root/gitea}"
 config_dir="$data_dir/conf"
 config_file="$config_dir/app.ini"
 credential_path="${WEBSOFT9_GITEA_CREDENTIAL_PATH:-$data_dir/credential}"

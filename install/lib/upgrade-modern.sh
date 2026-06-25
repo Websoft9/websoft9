@@ -58,6 +58,9 @@ run_upgrade_modern() {
   export CONTAINER_NAME
   MODERN_CONTAINER_NAME="$(_resolve_container_name "${install_path}/docker-compose.yml")"
   export MODERN_CONTAINER_NAME
+  WEBSOFT9_DATA_ROOT="$(resolve_existing_runtime_data_root "$install_path")"
+  export WEBSOFT9_DATA_ROOT
+  log_info "Upgrade data root resolved to: ${WEBSOFT9_DATA_ROOT}"
 
   # 1. Record current state
   local current_image=""

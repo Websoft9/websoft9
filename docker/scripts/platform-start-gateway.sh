@@ -2,12 +2,13 @@
 
 set -euo pipefail
 
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
 gateway_root="/etc/websoft9/platform-gateway"
 runtime_config_dir="/run/websoft9/platform-gateway"
 runtime_config="$runtime_config_dir/nginx.conf"
 pid_path="/run/websoft9/platform-gateway.pid"
 apphub_config_path="${WEBSOFT9_APPHUB_CONFIG_PATH:-/websoft9/apphub/src/config/config.ini}"
-service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
+service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-$data_root/logs}"
 
 resolve_platform_cookie_scope() {
   local public_origin platform_port seed
@@ -38,8 +39,8 @@ def get_value(section, key, default=""):
 https_enabled = get_value("platform_gateway", "https_enabled", "false")
 force_https = get_value("platform_gateway", "force_https", "false")
 bound_domain = get_value("platform_gateway", "bound_domain", "")
-ssl_cert = get_value("platform_gateway", "ssl_cert", os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert"))
-ssl_key = get_value("platform_gateway", "ssl_key", os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", "/data/config/platform-gateway/ssl/websoft9-platform-gateway.key"))
+ssl_cert = get_value("platform_gateway", "ssl_cert", os.getenv("WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH", os.path.join(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"), "config/platform-gateway/ssl/websoft9-platform-gateway.cert")))
+ssl_key = get_value("platform_gateway", "ssl_key", os.getenv("WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH", os.path.join(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"), "config/platform-gateway/ssl/websoft9-platform-gateway.key")))
 print(https_enabled.lower())
 print(force_https.lower())
 print(bound_domain)
@@ -151,8 +152,8 @@ render_gateway_config() {
   raw_https_enabled="${gateway_settings[0]:-false}"
   raw_force_https="${gateway_settings[1]:-false}"
   bound_domain="${gateway_settings[2]:-}"
-  ssl_cert="${gateway_settings[3]:-/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert}"
-  ssl_key="${gateway_settings[4]:-/data/config/platform-gateway/ssl/websoft9-platform-gateway.key}"
+  ssl_cert="${gateway_settings[3]:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.cert}"
+  ssl_key="${gateway_settings[4]:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.key}"
   https_enabled="$(is_platform_https_enabled "$raw_https_enabled")"
   force_https="$(is_platform_https_enabled "$raw_force_https")"
 

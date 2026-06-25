@@ -53,24 +53,9 @@ LABEL org.opencontainers.image.title="Websoft9 Product Container"
 LABEL org.opencontainers.image.description="Converged Websoft9 runtime with AppHub, Gitea, Portainer, and Nginx Proxy Manager"
 
 ENV WEBSOFT9_RUNTIME_LAYOUT=single-container-target \
+    WEBSOFT9_DATA_ROOT=/opt/websoft9/data \
     WEBSOFT9_APPHUB_HEALTH_URL=http://127.0.0.1:8080/api/healthz \
     WEBSOFT9_MEDIA_HEALTH_URL=http://127.0.0.1:8081/healthz \
-    WEBSOFT9_CUSTOM_ROOT=/data/config \
-    WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR=/data/config/internal-gateway-auth \
-    WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE=/data/config/internal-gateway-auth/trust_key \
-    WEBSOFT9_HOST_ACCESS_DATA_DIR=/data/config/host-access \
-    WEBSOFT9_INSTALL_TRACKING_DIR=/data/config/apphub \
-    WEBSOFT9_PRODUCT_AUTH_DATA_DIR=/data/config/product-auth \
-    WEBSOFT9_GITEA_CREDENTIAL_PATH=/data/gitea/credential \
-    WEBSOFT9_PORTAINER_CREDENTIAL_PATH=/data/portainer/credential \
-    WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH=/data/config/platform-gateway/ssl/websoft9-platform-gateway.cert \
-    WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH=/data/config/platform-gateway/ssl/websoft9-platform-gateway.key \
-    WEBSOFT9_NPM_CREDENTIAL_PATH=/data/credential.json \
-    WEBSOFT9_NPM_SSL_DIR=/data/custom_ssl \
-    WEBSOFT9_NPM_CERT_MARKER=/data/custom_ssl/websoft9-self-signed.cert \
-    WEBSOFT9_NPM_SSL_KEY_PATH=/data/custom_ssl/websoft9-self-signed.key \
-    WEBSOFT9_SERVICE_LOG_ROOT=/data/logs \
-    WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH=/data/logs/platform-runtime.log \
     WEBSOFT9_SUPERVISOR_CONFIG=/etc/supervisor/conf.d/websoft9-platform.conf \
     WEBSOFT9_SUPERVISOR_SOCKET=/run/supervisor.sock \
     WEBSOFT9_SUPERVISOR_PIDFILE=/run/supervisord.pid \
@@ -139,7 +124,7 @@ RUN getent group npm >/dev/null || groupadd --system npm && \
     id -u npm >/dev/null 2>&1 || useradd --system --gid npm --home-dir /tmp/npmuserhome --shell /usr/sbin/nologin npm
 
 RUN getent group git >/dev/null || groupadd --gid 1000 git && \
-    id -u git >/dev/null 2>&1 || useradd --uid 1000 --gid 1000 --home-dir /data/gitea --shell /bin/bash git
+    id -u git >/dev/null 2>&1 || useradd --uid 1000 --gid 1000 --home-dir /opt/websoft9/data/gitea --shell /bin/bash git
 
 COPY --from=python-deps-builder /opt/websoft9-pydeps /opt/websoft9-pydeps
 COPY --from=gitea-runtime /usr/local/bin/gitea /usr/local/bin/gitea
@@ -183,7 +168,7 @@ version_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 initialize_product_runtime_state()
 PY
 COPY --from=console-builder /build/console/dist /etc/websoft9/console
-COPY docker/proxy/config/http.conf /data/nginx/custom/http.conf
+COPY docker/proxy/config/http.conf /opt/websoft9/data/nginx/custom/http.conf
 COPY docker/proxy/init_nginx.sh /app/init_nginx.sh
 COPY docker/gateway/nginx.conf /etc/websoft9/platform-gateway/nginx.conf
 COPY docker/gateway/default.conf /etc/websoft9/platform-gateway/default.conf
@@ -242,19 +227,19 @@ RUN chmod +x /app/init_nginx.sh \
     /var/lib/nginx/cache/private \
     /var/lib/nginx/cache/public \
     /var/log/nginx \
-    /data/config \
-    /data/logs \
-    /data/nginx/custom \
-    /data/nginx/default_host \
-    /data/nginx/default_www \
-    /data/nginx/dead_host \
-    /data/nginx/proxy_host \
-    /data/nginx/redirection_host \
-    /data/nginx/stream \
-    /data/nginx/temp \
-    /data/custom_ssl \
-    /data/gitea/conf \
-    /data/portainer \
+    /opt/websoft9/data/config \
+    /opt/websoft9/data/logs \
+    /opt/websoft9/data/nginx/custom \
+    /opt/websoft9/data/nginx/default_host \
+    /opt/websoft9/data/nginx/default_www \
+    /opt/websoft9/data/nginx/dead_host \
+    /opt/websoft9/data/nginx/proxy_host \
+    /opt/websoft9/data/nginx/redirection_host \
+    /opt/websoft9/data/nginx/stream \
+    /opt/websoft9/data/nginx/temp \
+    /opt/websoft9/data/custom_ssl \
+    /opt/websoft9/data/gitea/conf \
+    /opt/websoft9/data/portainer \
     /websoft9/media \
     /websoft9/library/apps \
     /websoft9/apphub/swagger-ui

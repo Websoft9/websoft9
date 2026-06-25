@@ -36,7 +36,9 @@ class PortainerManager:
             logger.error(f"Init Portainer API Error:{e}")
             raise CustomException()
 
-    _compose_workdir_pattern = re.compile(r"(/data/portainer/compose/\d+)")
+    _compose_workdir_pattern = re.compile(
+        rf"({re.escape(os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data').rstrip('/'))}/portainer/compose/\d+|/data/portainer/compose/\d+)"
+    )
 
     def _extract_compose_workdir(self, message: Optional[str]) -> Optional[str]:
         if not message:

@@ -11,7 +11,8 @@ export HOME="$NPMHOME"
 # NPM's certificate flow shells out to the system certbot. Keep that child
 # process on Debian's default Python path instead of AppHub's extra packages.
 unset PYTHONPATH
-service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
+service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-$data_root/logs}"
 
 reconcile_proxy_host_configs() {
 	PYTHONPATH="/opt/websoft9-pydeps:/websoft9/apphub:/websoft9/apphub/src" \
@@ -56,7 +57,8 @@ for attempt in range(30):
             if not proxy_host.get("enabled") or not isinstance(proxy_id, int):
                 continue
 
-            conf_path = f"/data/nginx/proxy_host/{proxy_id}.conf"
+            conf_root = os.getenv("WEBSOFT9_NPM_NGINX_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/nginx")
+            conf_path = f"{conf_root}/proxy_host/{proxy_id}.conf"
             certificate_id = proxy_host.get("certificate_id") or 0
             ssl_forced = bool(proxy_host.get("ssl_forced"))
             desired_ssl_forced = ssl_forced
@@ -123,7 +125,7 @@ for attempt in range(30):
 PY
 }
 
-mkdir -p "$NPMHOME" /data/logs "$service_log_root/npm"
+mkdir -p "$NPMHOME" "$service_log_root" "$service_log_root/npm"
 
 reconcile_proxy_host_configs &
 

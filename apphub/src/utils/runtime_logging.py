@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-PLATFORM_RUNTIME_LOG_PATH = os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", "/data/logs/platform-runtime.log")
+PLATFORM_RUNTIME_LOG_PATH = os.getenv("WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs/platform-runtime.log")
 
 
 def normalize_runtime_level(value: Optional[str]) -> str:
@@ -29,6 +29,7 @@ def default_component_for_logger(logger_name: str) -> str:
 
 class PlatformRuntimeFileHandler(logging.FileHandler):
     def __init__(self, filename: str = PLATFORM_RUNTIME_LOG_PATH, mode: str = "a", encoding: Optional[str] = "utf-8", delay: bool = False):
+        filename = PLATFORM_RUNTIME_LOG_PATH
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         super().__init__(filename=filename, mode=mode, encoding=encoding, delay=delay)
 

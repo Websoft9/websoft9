@@ -10,40 +10,44 @@ if [[ "${1:-}" == "--prepare-only" ]]; then
 fi
 
 # Define variables
-credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential}"
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
+nginx_root="${WEBSOFT9_NPM_NGINX_ROOT:-$data_root/nginx}"
+acme_root="${WEBSOFT9_NPM_ACME_ROOT:-$data_root/letsencrypt-acme-challenge}"
+credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-$data_root/credential}"
 
 DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
 
 # Remove any legacy platform default-host config so NPM no longer owns product-origin routing.
-rm -f /data/nginx/default_host/initproxy.conf
-rm -f /data/nginx/proxy_host/initproxy.conf
+rm -f "$nginx_root/default_host/initproxy.conf"
+rm -f "$nginx_root/proxy_host/initproxy.conf"
 
 # The dedicated platform-gateway now binds 9000 directly.
-rm -f /data/nginx/stream/stream.conf
+rm -f "$nginx_root/stream/stream.conf"
 
-SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-/data/custom_ssl}"
-LETSENCRYPT_DIR="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-/data/letsencrypt}"
+SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-$data_root/custom_ssl}"
+LETSENCRYPT_DIR="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-$data_root/letsencrypt}"
+legacy_ssl_dir="$data_root/custom_ssl"
 
 ensure_nginx_storage_dirs() {
     mkdir -p \
-        /data/letsencrypt-acme-challenge/.well-known/acme-challenge \
-        /data/nginx/custom \
-        /data/nginx/default_host \
-        /data/nginx/default_www \
-        /data/nginx/dead_host \
-        /data/nginx/proxy_host \
-        /data/nginx/redirection_host \
-        /data/nginx/stream \
-        /data/nginx/temp
+        "$acme_root/.well-known/acme-challenge" \
+        "$nginx_root/custom" \
+        "$nginx_root/default_host" \
+        "$nginx_root/default_www" \
+        "$nginx_root/dead_host" \
+        "$nginx_root/proxy_host" \
+        "$nginx_root/redirection_host" \
+        "$nginx_root/stream" \
+        "$nginx_root/temp"
 }
 
 ensure_legacy_ssl_dir() {
-    if [[ "$SSL_DIR" != "/data/custom_ssl" ]]; then
+    if [[ "$SSL_DIR" != "$legacy_ssl_dir" ]]; then
         mkdir -p "$SSL_DIR"
-        if [[ -e /data/custom_ssl && ! -L /data/custom_ssl ]]; then
-            mkdir -p /data/custom_ssl
+        if [[ -e "$legacy_ssl_dir" && ! -L "$legacy_ssl_dir" ]]; then
+            mkdir -p "$legacy_ssl_dir"
         else
-            ln -sfn "$SSL_DIR" /data/custom_ssl
+            ln -sfn "$SSL_DIR" "$legacy_ssl_dir"
         fi
     fi
 }
@@ -81,7 +85,6 @@ ensure_nginx_dynamic_files() {
 }
 
 quarantine_orphaned_ssl_configs() {
-    local nginx_root="/data/nginx"
     local quarantine_root="$nginx_root/quarantine/orphaned-ssl"
     local config_dir
     local conf_file

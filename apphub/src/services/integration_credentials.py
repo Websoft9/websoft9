@@ -33,10 +33,11 @@ class NpmCredentials:
 class IntegrationCredentialProvider:
     def __init__(self, config: Optional[ConfigManager] = None):
         self.config = config or ConfigManager()
-        self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", "/data/gitea/credential"))
-        self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", "/data/portainer/credential"))
-        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", "/data/credential.json"))
-        self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", "/data/database.sqlite"))
+        data_root = Path(os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
+        self.gitea_credential_path = Path(os.getenv("WEBSOFT9_GITEA_CREDENTIAL_PATH", str(data_root / "gitea/credential")))
+        self.portainer_credential_path = Path(os.getenv("WEBSOFT9_PORTAINER_CREDENTIAL_PATH", str(data_root / "portainer/credential")))
+        self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", str(data_root / "credential.json")))
+        self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", str(data_root / "database.sqlite")))
 
     def get_gitea_credentials(self) -> GiteaCredentials:
         payload = self._read_json_file(self.gitea_credential_path)

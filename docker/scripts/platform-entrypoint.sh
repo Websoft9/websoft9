@@ -2,19 +2,44 @@
 
 set -euo pipefail
 
+data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
 runtime_state_dir="${WEBSOFT9_RUNTIME_STATE_DIR:-/run/websoft9}"
 runtime_status_file="${WEBSOFT9_RUNTIME_STATUS_FILE:-$runtime_state_dir/runtime-status.json}"
 supervisor_config="${WEBSOFT9_SUPERVISOR_CONFIG:-/etc/supervisor/conf.d/websoft9-platform.conf}"
 supervisor_socket="${WEBSOFT9_SUPERVISOR_SOCKET:-/run/supervisor.sock}"
 status_interval="${WEBSOFT9_STATUS_INTERVAL:-60}"
 strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-1800}"
-platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-/data/logs/platform-runtime.log}"
-product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-/data/product-auth/credential.json}"
-service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-/data/logs}"
-custom_root="${WEBSOFT9_CUSTOM_ROOT:-/data/config}"
+platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-$data_root/logs/platform-runtime.log}"
+product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-$data_root/product-auth/credential.json}"
+service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-$data_root/logs}"
+custom_root="${WEBSOFT9_CUSTOM_ROOT:-$data_root/config}"
 platform_network_name="${WEBSOFT9_PLATFORM_NETWORK_NAME:-websoft9}"
 platform_container_ref="${WEBSOFT9_PLATFORM_CONTAINER_REF:-${HOSTNAME:-}}"
 docker_socket_path="${WEBSOFT9_DOCKER_SOCKET_PATH:-/var/run/docker.sock}"
+
+export WEBSOFT9_DATA_ROOT="$data_root"
+export WEBSOFT9_SERVICE_LOG_ROOT="$service_log_root"
+export WEBSOFT9_CUSTOM_ROOT="$custom_root"
+export WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-$custom_root/internal-gateway-auth}"
+export WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE="${WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE:-$WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR/trust_key}"
+export WEBSOFT9_HOST_ACCESS_DATA_DIR="${WEBSOFT9_HOST_ACCESS_DATA_DIR:-$custom_root/host-access}"
+export WEBSOFT9_INSTALL_TRACKING_DIR="${WEBSOFT9_INSTALL_TRACKING_DIR:-$custom_root/apphub}"
+export WEBSOFT9_PRODUCT_AUTH_DATA_DIR="${WEBSOFT9_PRODUCT_AUTH_DATA_DIR:-$custom_root/product-auth}"
+export WEBSOFT9_GITEA_DATA_DIR="${WEBSOFT9_GITEA_DATA_DIR:-$data_root/gitea}"
+export WEBSOFT9_GITEA_CREDENTIAL_PATH="${WEBSOFT9_GITEA_CREDENTIAL_PATH:-$WEBSOFT9_GITEA_DATA_DIR/credential}"
+export WEBSOFT9_PORTAINER_DATA_DIR="${WEBSOFT9_PORTAINER_DATA_DIR:-$data_root/portainer}"
+export WEBSOFT9_PORTAINER_CREDENTIAL_PATH="${WEBSOFT9_PORTAINER_CREDENTIAL_PATH:-$WEBSOFT9_PORTAINER_DATA_DIR/credential}"
+export WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH="${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-$custom_root/platform-gateway/ssl/websoft9-platform-gateway.cert}"
+export WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH="${WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH:-$custom_root/platform-gateway/ssl/websoft9-platform-gateway.key}"
+export WEBSOFT9_NPM_CREDENTIAL_PATH="${WEBSOFT9_NPM_CREDENTIAL_PATH:-$data_root/credential.json}"
+export WEBSOFT9_NPM_DATABASE_PATH="${WEBSOFT9_NPM_DATABASE_PATH:-$data_root/database.sqlite}"
+export WEBSOFT9_NPM_SSL_DIR="${WEBSOFT9_NPM_SSL_DIR:-$data_root/custom_ssl}"
+export WEBSOFT9_NPM_CERT_MARKER="${WEBSOFT9_NPM_CERT_MARKER:-$WEBSOFT9_NPM_SSL_DIR/websoft9-self-signed.cert}"
+export WEBSOFT9_NPM_SSL_KEY_PATH="${WEBSOFT9_NPM_SSL_KEY_PATH:-$WEBSOFT9_NPM_SSL_DIR/websoft9-self-signed.key}"
+export WEBSOFT9_NPM_LETSENCRYPT_DIR="${WEBSOFT9_NPM_LETSENCRYPT_DIR:-$data_root/letsencrypt}"
+export WEBSOFT9_NPM_ACME_ROOT="${WEBSOFT9_NPM_ACME_ROOT:-$data_root/letsencrypt-acme-challenge}"
+export WEBSOFT9_NPM_NGINX_ROOT="${WEBSOFT9_NPM_NGINX_ROOT:-$data_root/nginx}"
+export WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-$service_log_root/platform-runtime.log}"
 
 ensure_legacy_compat_link() {
   local target_path="$1"
@@ -260,9 +285,6 @@ ensure_platform_network() {
 ensure_service_log_roots() {
   mkdir -p "$service_log_root/gitea" "$service_log_root/portainer" "$service_log_root/npm"
 
-  if [[ -d /data/logs && ! -e "$service_log_root/npm" ]]; then
-    ln -s /data/logs "$service_log_root/npm"
-  fi
 }
 
 shutdown_supervisor() {
@@ -338,7 +360,7 @@ bootstrap_gitea() {
     return 0
   fi
 
-  wait_for_file "gitea-credential" "${WEBSOFT9_GITEA_CREDENTIAL_PATH:-/data/gitea/credential}" 30 || true
+  wait_for_file "gitea-credential" "${WEBSOFT9_GITEA_CREDENTIAL_PATH:-$data_root/gitea/credential}" 30 || true
 }
 
 bootstrap_portainer() {
@@ -349,7 +371,7 @@ bootstrap_portainer() {
     return 0
   fi
 
-  wait_for_file "portainer-credential" "${WEBSOFT9_PORTAINER_CREDENTIAL_PATH:-/data/portainer/credential}" 30 || true
+  wait_for_file "portainer-credential" "${WEBSOFT9_PORTAINER_CREDENTIAL_PATH:-$data_root/portainer/credential}" 30 || true
 }
 
 bootstrap_nginx_proxy_manager() {
@@ -360,8 +382,8 @@ bootstrap_nginx_proxy_manager() {
     return 0
   fi
 
-  wait_for_file "npm-credential" "${WEBSOFT9_NPM_CREDENTIAL_PATH:-/data/credential.json}" 30 || true
-  wait_for_file "npm-certificate" "${WEBSOFT9_NPM_CERT_MARKER:-/data/custom_ssl/websoft9-self-signed.cert}" 30 || true
+  wait_for_file "npm-credential" "${WEBSOFT9_NPM_CREDENTIAL_PATH:-$data_root/credential.json}" 30 || true
+  wait_for_file "npm-certificate" "${WEBSOFT9_NPM_CERT_MARKER:-$data_root/custom_ssl/websoft9-self-signed.cert}" 30 || true
 }
 
 monitor_runtime() {
