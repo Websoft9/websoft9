@@ -62,4 +62,13 @@ mkdir -p \
 rm -f /run/nginx/nginx.pid
 quarantine_orphaned_ssl_configs
 
-exec /usr/sbin/nginx
+# Migrate upstream NPM nginx configs from legacy /data/ to current data root.
+# The npm-runtime image ships configs with hardcoded /data/logs/ paths;
+# we sed-replace them at runtime so they always match $service_log_root.
+npm_runtime_config_dir="/run/websoft9/npm-nginx"
+mkdir -p "$npm_runtime_config_dir"
+cp -a /etc/nginx/. "$npm_runtime_config_dir/"
+find "$npm_runtime_config_dir" -name '*.conf' -print0 \
+  | xargs -0 sed -i "s#/data/logs/#$service_log_root/#g"
+
+exec /usr/sbin/nginx -c "$npm_runtime_config_dir/nginx.conf"
