@@ -158,7 +158,10 @@ def validate_compose_installation(payload: ComposeValidationRequest) -> ComposeV
 
 def prepare_compose_install_tracking(payload: ComposeInstallRequest) -> tuple[str, str]:
     tracked_app_id = f"{payload.app_id}_{PasswordGenerator.generate_random_string(5)}"
-    tracking_id = start_app_installation(tracked_app_id, payload.app_id)
+    # Compose apps are not marketplace apps — do NOT pass the user-entered
+    # app_id as app_name so the install progress card shows the default
+    # logo instead of matching a store app icon by name.
+    tracking_id = start_app_installation(tracked_app_id, None)
     return tracked_app_id, tracking_id
 
 
@@ -197,7 +200,7 @@ def install_compose_application(payload: ComposeInstallRequest, endpoint_id: int
     _get_service_names(compose_document)
     forward_port = _extract_forward_port(compose_document)
     app_id = tracked_app_id or payload.app_id
-    install_tracking_id = tracking_id or start_app_installation(app_id, payload.app_id)
+    install_tracking_id = tracking_id or start_app_installation(app_id, None)
     compose_manager = AppManger()
     portainer_manager = PortainerManager()
     gitea_manager = GiteaManager()

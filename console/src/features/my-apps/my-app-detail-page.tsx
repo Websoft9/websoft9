@@ -159,7 +159,7 @@ const dbConfig: Record<string, { account: string; toolApps: Array<{ label: strin
 
 function hasAccessTab(data: MyAppDetail | undefined) {
     if (!data) return false
-    if (data.app_dist === 'compose') return true
+    if (data.app_dist === 'compose' || data.is_compose_app) return true
     const env = data.env
     if (!env) return false
     return Boolean(
@@ -1001,6 +1001,7 @@ export function MyAppDetailPage() {
     }
 
     const isComposeApp = data?.app_dist === 'compose'
+    const isComposeUI = isComposeApp || data?.is_compose_app === true
 
     async function handleSimpleAction(actionKey: 'start' | 'stop' | 'restart') {
         if (!data) return
@@ -1211,7 +1212,7 @@ export function MyAppDetailPage() {
 
     const overviewEntries = useMemo(
         () => data
-            ? isComposeApp
+            ? isComposeUI
                 ? [
                     { label: t('myAppsDetailPage.summary.appId'), value: data.app_id },
                     { label: t('myAppsDetailPage.summary.createdAt'), value: formatCreationDate(data.creationDate, locale) },
@@ -1227,7 +1228,7 @@ export function MyAppDetailPage() {
                     { label: t('myAppsDetailPage.summary.createdAt'), value: formatCreationDate(data.creationDate, locale) },
                 ]
             : [],
-        [data, isComposeApp, locale, portEntries, t],
+        [data, isComposeUI, locale, portEntries, t],
     )
     return (
         <>
@@ -1424,7 +1425,7 @@ export function MyAppDetailPage() {
                                         <MyAppAccessPanel
                                             appId={data.app_id}
                                             env={data.env}
-                                            isComposeApp={isComposeApp}
+                                            isComposeApp={isComposeUI}
                                             onUpdated={refreshAfterAction}
                                             scopeRect={contentScopeRect}
                                             isDarkMode={isDarkMode}

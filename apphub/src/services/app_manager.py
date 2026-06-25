@@ -838,6 +838,12 @@ class AppManger:
 
                     is_php_app, is_monitor_app = self._get_capability_flags(app_name)
 
+                    # Compose apps are deployed via the compose editor (have
+                    # GitConfig) but lack the W9_APP_NAME env var that store
+                    # apps set.  They should use the default logo and hide
+                    # app-name/version in the UI.
+                    is_compose = bool(gitConfig) and not bool(app_name)
+
                     app_info = AppResponse(
                         app_id=stack_name,
                         endpointId=endpointId,
@@ -846,6 +852,7 @@ class AppManger:
                         app_dist=app_dist,
                         app_version=app_version,
                         app_official=bool(app_name) or bool(gitConfig),
+                        is_compose_app=is_compose,
                         is_php_app=is_php_app,
                         is_monitor_app=is_monitor_app,
                         proxy_enabled=proxy_enabled,
@@ -900,6 +907,7 @@ class AppManger:
                         app_name = app.get("app_name", None),
                         logo_url = self._resolve_available_app_logo_url(logo_map, app.get("app_name"), install_app_id),
                         app_official = app.get("app_official", None),
+                        is_compose_app = not bool(app.get("app_name")),
                         error = app.get("error", None),
                         logs = app.get("logs", None)
                     )
@@ -1055,6 +1063,8 @@ class AppManger:
 
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
 
+                is_compose = bool(gitConfig) and not bool(app_name)
+
                 # Set the appResponse
                 appResponse = AppResponse(
                     app_id = app_id,
@@ -1064,6 +1074,7 @@ class AppManger:
                     app_dist = app_dist,
                     app_version = app_version,
                     app_official = True,
+                    is_compose_app = is_compose,
                     is_php_app = is_php_app,
                     is_monitor_app = is_monitor_app,
                     proxy_enabled = proxy_enabled,
@@ -1087,6 +1098,7 @@ class AppManger:
                 metadata_version = compose_metadata.get("version")
                 inactive_app_version = str(metadata_version or "").strip()
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
+                is_compose = bool(gitConfig) and not bool(app_name)
                 appResponse = AppResponse(
                     app_id = app_id,
                     endpointId = endpointId,
@@ -1095,6 +1107,7 @@ class AppManger:
                     app_dist = inactive_app_dist,
                     app_version = inactive_app_version,
                     app_official = True,
+                    is_compose_app = is_compose,
                     is_php_app = is_php_app,
                     is_monitor_app = is_monitor_app,
                     proxy_enabled = proxy_enabled,

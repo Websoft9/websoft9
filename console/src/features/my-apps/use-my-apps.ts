@@ -16,6 +16,7 @@ export type MyApp = {
     app_dist?: string | null
     app_version?: string | null
     app_official: boolean
+    is_compose_app?: boolean
     is_php_app?: boolean
     is_monitor_app?: boolean
     proxy_enabled: boolean
