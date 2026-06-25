@@ -17,6 +17,19 @@ credential_path="${WEBSOFT9_NPM_CREDENTIAL_PATH:-$data_root/credential}"
 
 DOCKER0_IP=${DOCKER0_IP:-172.17.0.1}
 
+# Backward-compat symlink: /data → /opt/websoft9/data
+# Covers legacy hardcoded /data/ paths in NPM nginx configs and other components
+# that were not updated during the data root migration.
+if [[ ! -e /data ]]; then
+  ln -s "$data_root" /data
+elif [[ -L /data ]]; then
+  :
+elif [[ -d /data ]]; then
+  if [[ -z "$(ls -A /data 2>/dev/null)" ]]; then
+    rmdir /data 2>/dev/null && ln -s "$data_root" /data || true
+  fi
+fi
+
 # Remove any legacy platform default-host config so NPM no longer owns product-origin routing.
 rm -f "$nginx_root/default_host/initproxy.conf"
 rm -f "$nginx_root/proxy_host/initproxy.conf"
