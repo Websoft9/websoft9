@@ -65,26 +65,18 @@ export function getCachedBulkIntegrationSessionResult(requestKey: string, integr
 }
 
 export function ensureBulkIntegrationSessionBootstrap(requestKey: string, locale: string) {
-    // Clear stale Portainer tokens from localStorage / sessionStorage every
+    // Clear stale Portainer state from localStorage / sessionStorage every
     // time we enter the integration workspace — not just on the first cold
     // bootstrap. After a product upgrade Portainer invalidates all existing
-    // sessions, and the current runtime restores auth from USER_ID and other
-    // app state keys rather than the legacy JWT aliases alone.
+    // sessions.  Remove ALL portainer.* keys (covering any future version)
+    // plus the bare JWT alias some older frontends may read.
     try {
-        const portainerStorageKeys = [
-            'portainer.JWT',
-            'portainer.jwt',
-            'JWT',
-            'portainer.USER_ID',
-            'portainer.APPLICATION_STATE',
-            'portainer.LOGIN_STATE_UUID',
-            'portainer.ALLOWED_NAMESPACES',
-            'portainer.ENDPOINT_STATE',
-            'portainer.logout_reason',
-        ]
-        portainerStorageKeys.forEach((key) => {
-            localStorage.removeItem(key)
-            sessionStorage.removeItem(key)
+        ;[localStorage, sessionStorage].forEach((storage) => {
+            Object.keys(storage).forEach((key) => {
+                if (key.startsWith('portainer.') || key === 'JWT') {
+                    storage.removeItem(key)
+                }
+            })
         })
     } catch (_) {
         // cross-origin or storage-disabled — ignore
