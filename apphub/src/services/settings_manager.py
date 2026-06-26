@@ -118,7 +118,7 @@ class SettingsManager:
                             self._docker_mirror_display_value(),
                             editable=True,
                             metadata={
-                                "default_value": "\n".join(self._load_docker_mirror_entries(_mirror_list_url())),
+                                "default_value": "\n".join(self._load_docker_mirror_entries("")),
                             },
                         ),
                     ],
@@ -308,7 +308,7 @@ class SettingsManager:
 
     def _docker_mirror_url(self) -> str:
         configured = self.config.get("docker_mirror", "url", fallback="").strip()
-        return configured or _mirror_list_url()
+        return configured  # empty => use local-first merge in _load_docker_mirror_entries
 
     def _docker_mirror_display_value(self) -> str:
         mirrors = self._load_docker_mirror_entries(self._docker_mirror_url())
