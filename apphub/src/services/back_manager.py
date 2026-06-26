@@ -11,11 +11,6 @@ from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
 from src.services.portainer_manager import PortainerManager
 
-def _default_mirror_url() -> str:
-    from src.services.settings_manager import _mirror_list_url
-    return _mirror_list_url()
-
-
 RESTIC_CACHE_PATH = "/data/restic-cache"
 
 
@@ -30,11 +25,13 @@ def _normalize_mirror(value: str) -> str:
 
 def _fetch_mirrors() -> List[str]:
     try:
+        from src.services.settings_manager import load_local_mirror_entries
         config_manager = ConfigManager("config.ini")
         configured = (config_manager.get_value("docker_mirror", "url") or "").strip()
-        if configured:
-            return [_normalize_mirror(m) for m in configured.replace("\n", ",").split(",") if m.strip()]
-        return []
+        # Legacy URL — hasn't been bootstrapped yet, fall back to local.
+        if not configured or configured.startswith("http://") or configured.startswith("https://"):
+            return load_local_mirror_entries()
+        return [_normalize_mirror(m) for m in configured.replace("\n", ",").split(",") if m.strip()]
     except Exception as e:
         logger.error(f"Failed to load mirrors: {e}")
         return []
