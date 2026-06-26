@@ -362,62 +362,16 @@ done
 [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
 [ -f /legacy/docker-daemon.json ] && { mkdir -p /data/.w9-migration; cp -a /legacy/docker-daemon.json /data/.w9-migration/legacy-daemon.json; } || true
 
-# ---------------- Legacy AppHub backup (restic-repo) ----------------
-# Must run AFTER config discovery so we can read the legacy repopath.
-# Strategy: read the legacy repopath from system.ini, derive volume-relative
-# subpaths, and scan ALL mounted /legacy/* directories — we don't guess
-# which volume held the backup data.
-_w9_backup_src=""
-_w9_subpaths="backup/restic-repo restic-repo"
-
-# Derive additional subpaths from the legacy system.ini repopath.
-if [ -n "$sysini" ] && [ -f "$sysini" ]; then
-  _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
-  if [ -n "$_w9_legacy_repopath" ]; then
-    log_info "Legacy system.ini repopath: ${_w9_legacy_repopath}"
-    # /data/backup/restic-repo → backup/restic-repo
-    _w9_rel="${_w9_legacy_repopath#/data/}"
-    if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ]; then
-      _w9_subpaths="${_w9_rel} ${_w9_subpaths}"
-    fi
-    # Also try the raw repopath without leading / (just in case).
-    _w9_rel="${_w9_legacy_repopath#/}"
-    if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ]; then
-      _w9_subpaths="${_w9_rel} ${_w9_subpaths}"
-    fi
-  else
-    log_info "Legacy system.ini has no [volume_backup] repopath — using default subpaths"
-  fi
-fi
-
-# Scan every mounted /legacy/* directory for a Restic repository.
-for _w9_base in /legacy/apphub_data /legacy/apphub_config /legacy/apphub_media \
-               /legacy/apphub_logs /legacy/host-compose /legacy/service-root \
-               /legacy/download-root /legacy/portainer /legacy/gitea \
-               /legacy/nginx_data /legacy/nginx_letsencrypt; do
-  [ -d "$_w9_base" ] || continue
-  for _w9_sub in $_w9_subpaths; do
-    [ -n "$_w9_sub" ] || continue
-    if [ -d "${_w9_base}/${_w9_sub}" ] && [ -f "${_w9_base}/${_w9_sub}/config" ]; then
-      _w9_backup_src="${_w9_base}/${_w9_sub}"
-      log_info "Found legacy Restic repository at: ${_w9_backup_src}"
-      break 2
-    fi
-  done
-done
-
-if [ -n "$_w9_backup_src" ]; then
-  log_step "Copying legacy app backup repository from ${_w9_backup_src}"
+# ---------------- Legacy /data/backup (host directory → data root) ----------------
+# The legacy backup repository lives at /data/backup/restic-repo on the host
+# (the legacy AppHub wrote directly to the host filesystem, not a Docker volume).
+# Follow the same pattern as /data/compose migration.
+if [ -d /legacy/host-backup/restic-repo ]; then
+  log_step "Copying legacy backup repository from /data/backup/restic-repo"
   mkdir -p /data/backup/restic-repo
-  if cp -a "${_w9_backup_src}/." /data/backup/restic-repo/; then
-    log_info "Legacy app backup repository copied successfully"
-  else
-    log_info "WARNING: Failed to copy legacy app backup repository (cp exited non-zero)"
-  fi
+  cp -a /legacy/host-backup/restic-repo/. /data/backup/restic-repo/ 2>/dev/null || true
 else
-  log_info "No legacy Restic repository found in any mounted /legacy/* path"
-  log_info "Searched paths: /legacy/apphub_data /legacy/apphub_config /legacy/apphub_media /legacy/apphub_logs /legacy/host-compose /legacy/service-root /legacy/download-root /legacy/portainer /legacy/gitea /legacy/nginx_data /legacy/nginx_letsencrypt"
-  log_info "Searched subpaths: ${_w9_subpaths}"
+  log_info "Legacy /data/backup/restic-repo not found — skipping app backup migration"
 fi
 
 if [ -n "$product_auth_dir" ] && [ -d "$product_auth_dir" ]; then
@@ -500,22 +454,20 @@ _legacy_transform_volumes() {
   _add_ro_volume apphub_config     apphub_config
   _add_ro_volume apphub_logs       apphub_logs
   _add_ro_volume apphub_media      apphub_media
-  _add_ro_volume apphub_data       apphub_data
 
-  # Diagnostic: log whether the apphub_data (backup) volume was resolved.
-  _w9_apphub_data_resolved="$(legacy_resolve_volume_for_role apphub_data 2>/dev/null || true)"
-  if [ -n "$_w9_apphub_data_resolved" ]; then
-    log_info "Legacy apphub_data volume resolved: ${_w9_apphub_data_resolved}"
-  else
-    log_info "Legacy apphub_data volume NOT found — app backups will not be migrated"
-  fi
-
-  local host_compose_dir service_root_dir download_root_dir
+  local host_compose_dir service_root_dir download_root_dir host_backup_dir
   host_compose_dir="$(legacy_host_compose_dir 2>/dev/null || true)"
   service_root_dir="$(legacy_service_root_dir 2>/dev/null || true)"
   download_root_dir="$(legacy_download_root_dir 2>/dev/null || true)"
+  host_backup_dir="$(legacy_host_backup_dir 2>/dev/null || true)"
   if [ -n "$host_compose_dir" ]; then
     mounts+=(-v "${host_compose_dir}:/legacy/host-compose:ro")
+  fi
+  if [ -n "$host_backup_dir" ]; then
+    mounts+=(-v "${host_backup_dir}:/legacy/host-backup:ro")
+    log_info "Legacy backup host directory mounted: ${host_backup_dir}"
+  else
+    log_info "Legacy backup host directory /data/backup not found"
   fi
   if [ -n "$service_root_dir" ]; then
     mounts+=(-v "${service_root_dir}:/legacy/service-root:ro")
