@@ -341,14 +341,7 @@ if [ -d /legacy/apphub_logs ]; then
   cp -a /legacy/apphub_logs/. /data/logs/legacy-apphub/ 2>/dev/null || true
 fi
 
-# ---------------- Legacy AppHub backup (restic-repo) ----------------
-if [ -d /legacy/apphub_data/backup/restic-repo ]; then
-  log_step "Copying legacy app backup repository (restic-repo)"
-  mkdir -p /data/backup/restic-repo
-  cp -a /legacy/apphub_data/backup/restic-repo/. /data/backup/restic-repo/ 2>/dev/null || true
-fi
-
-# ---------------- Legacy config handoff ----------------
+# ---------------- Legacy config handoff (must precede backup migration) ----------------
 cfg=""
 sysini=""
 product_auth_dir=""
@@ -368,6 +361,50 @@ done
 [ -n "$cfg" ] && [ -f "$cfg" ] && { mkdir -p /data/.w9-migration; cp -a "$cfg" /data/.w9-migration/legacy-config.ini; } || true
 [ -n "$sysini" ] && { mkdir -p /data/.w9-migration; cp -a "$sysini" /data/.w9-migration/system.ini; } || true
 [ -f /legacy/docker-daemon.json ] && { mkdir -p /data/.w9-migration; cp -a /legacy/docker-daemon.json /data/.w9-migration/legacy-daemon.json; } || true
+
+# ---------------- Legacy AppHub backup (restic-repo) ----------------
+# Must run AFTER config discovery so we can read the legacy repopath.
+if [ -d /legacy/apphub_data ]; then
+  _w9_backup_src=""
+  # 1) Respect the legacy system.ini repopath if available.
+  if [ -n "$sysini" ] && [ -f "$sysini" ]; then
+    _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
+    if [ -n "$_w9_legacy_repopath" ]; then
+      # Legacy repopath is typically /data/backup/restic-repo.
+      # /data was a symlink to /app/data inside the old AppHub container,
+      # so the volume-relative path is the repopath with /data/ stripped.
+      _w9_rel="${_w9_legacy_repopath#/data/}"
+      if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ] && [ -d "/legacy/apphub_data/${_w9_rel}" ]; then
+        _w9_backup_src="/legacy/apphub_data/${_w9_rel}"
+        log_info "Legacy repopath from system.ini: ${_w9_legacy_repopath} -> volume path: ${_w9_rel}"
+      fi
+    fi
+  fi
+  # 2) Fallback: default path inside the volume.
+  if [ -z "$_w9_backup_src" ] && [ -d /legacy/apphub_data/backup/restic-repo ]; then
+    _w9_backup_src="/legacy/apphub_data/backup/restic-repo"
+    log_info "Using default legacy backup path: backup/restic-repo"
+  fi
+  # 3) Fallback: restic-repo directly at volume root (older variants).
+  if [ -z "$_w9_backup_src" ] && [ -d /legacy/apphub_data/restic-repo ]; then
+    _w9_backup_src="/legacy/apphub_data/restic-repo"
+    log_info "Using volume-root legacy backup path: restic-repo"
+  fi
+
+  if [ -n "$_w9_backup_src" ]; then
+    log_step "Copying legacy app backup repository from ${_w9_backup_src}"
+    mkdir -p /data/backup/restic-repo
+    if cp -a "${_w9_backup_src}/." /data/backup/restic-repo/; then
+      log_info "Legacy app backup repository copied successfully"
+    else
+      log_info "WARNING: Failed to copy legacy app backup repository (cp exited non-zero)"
+    fi
+  else
+    log_info "Legacy apphub_data volume is mounted but no backup repository found inside it"
+  fi
+else
+  log_info "Legacy apphub_data volume not found — skipping app backup migration"
+fi
 
 if [ -n "$product_auth_dir" ] && [ -d "$product_auth_dir" ]; then
   log_step "Copying legacy product auth data"
@@ -450,6 +487,15 @@ _legacy_transform_volumes() {
   _add_ro_volume apphub_logs       apphub_logs
   _add_ro_volume apphub_media      apphub_media
   _add_ro_volume apphub_data       apphub_data
+
+  # Diagnostic: log whether the apphub_data (backup) volume was resolved.
+  _w9_apphub_data_resolved="$(legacy_resolve_volume_for_role apphub_data 2>/dev/null || true)"
+  if [ -n "$_w9_apphub_data_resolved" ]; then
+    log_info "Legacy apphub_data volume resolved: ${_w9_apphub_data_resolved}"
+  else
+    log_info "Legacy apphub_data volume NOT found — app backups will not be migrated"
+  fi
+
   local host_compose_dir service_root_dir download_root_dir
   host_compose_dir="$(legacy_host_compose_dir 2>/dev/null || true)"
   service_root_dir="$(legacy_service_root_dir 2>/dev/null || true)"
