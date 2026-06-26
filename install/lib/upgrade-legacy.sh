@@ -364,78 +364,60 @@ done
 
 # ---------------- Legacy AppHub backup (restic-repo) ----------------
 # Must run AFTER config discovery so we can read the legacy repopath.
-if [ -d /legacy/apphub_data ]; then
-  _w9_backup_src=""
-  # 1) Respect the legacy system.ini repopath if available.
-  if [ -n "$sysini" ] && [ -f "$sysini" ]; then
-    _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
-    if [ -n "$_w9_legacy_repopath" ]; then
-      # Legacy repopath is typically /data/backup/restic-repo.
-      # /data was a symlink to the apphub data volume mount point,
-      # so the volume-relative path is the repopath with /data/ stripped.
-      _w9_rel="${_w9_legacy_repopath#/data/}"
-      if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ] && [ -d "/legacy/apphub_data/${_w9_rel}" ]; then
-        _w9_backup_src="/legacy/apphub_data/${_w9_rel}"
-        log_info "Legacy repopath from system.ini: ${_w9_legacy_repopath} -> volume path: ${_w9_rel}"
-      fi
-    fi
-  fi
-  # 2) Fallback: default path inside the volume.
-  if [ -z "$_w9_backup_src" ] && [ -d /legacy/apphub_data/backup/restic-repo ]; then
-    _w9_backup_src="/legacy/apphub_data/backup/restic-repo"
-    log_info "Using default legacy backup path: backup/restic-repo"
-  fi
-  # 3) Fallback: restic-repo directly at volume root (older variants).
-  if [ -z "$_w9_backup_src" ] && [ -d /legacy/apphub_data/restic-repo ]; then
-    _w9_backup_src="/legacy/apphub_data/restic-repo"
-    log_info "Using volume-root legacy backup path: restic-repo"
-  fi
+# Strategy: read the legacy repopath from system.ini, derive volume-relative
+# subpaths, and scan ALL mounted /legacy/* directories — we don't guess
+# which volume held the backup data.
+_w9_backup_src=""
+_w9_subpaths="backup/restic-repo restic-repo"
 
-  if [ -n "$_w9_backup_src" ]; then
-    log_step "Copying legacy app backup repository from ${_w9_backup_src}"
-    mkdir -p /data/backup/restic-repo
-    if cp -a "${_w9_backup_src}/." /data/backup/restic-repo/; then
-      log_info "Legacy app backup repository copied successfully"
-    else
-      log_info "WARNING: Failed to copy legacy app backup repository (cp exited non-zero)"
+# Derive additional subpaths from the legacy system.ini repopath.
+if [ -n "$sysini" ] && [ -f "$sysini" ]; then
+  _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
+  if [ -n "$_w9_legacy_repopath" ]; then
+    log_info "Legacy system.ini repopath: ${_w9_legacy_repopath}"
+    # /data/backup/restic-repo → backup/restic-repo
+    _w9_rel="${_w9_legacy_repopath#/data/}"
+    if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ]; then
+      _w9_subpaths="${_w9_rel} ${_w9_subpaths}"
+    fi
+    # Also try the raw repopath without leading / (just in case).
+    _w9_rel="${_w9_legacy_repopath#/}"
+    if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ]; then
+      _w9_subpaths="${_w9_rel} ${_w9_subpaths}"
     fi
   else
-    log_info "Legacy apphub_data volume is mounted but no backup repository found inside it"
+    log_info "Legacy system.ini has no [volume_backup] repopath — using default subpaths"
+  fi
+fi
+
+# Scan every mounted /legacy/* directory for a Restic repository.
+for _w9_base in /legacy/apphub_data /legacy/apphub_config /legacy/apphub_media \
+               /legacy/apphub_logs /legacy/host-compose /legacy/service-root \
+               /legacy/download-root /legacy/portainer /legacy/gitea \
+               /legacy/nginx_data /legacy/nginx_letsencrypt; do
+  [ -d "$_w9_base" ] || continue
+  for _w9_sub in $_w9_subpaths; do
+    [ -n "$_w9_sub" ] || continue
+    if [ -d "${_w9_base}/${_w9_sub}" ] && [ -f "${_w9_base}/${_w9_sub}/config" ]; then
+      _w9_backup_src="${_w9_base}/${_w9_sub}"
+      log_info "Found legacy Restic repository at: ${_w9_backup_src}"
+      break 2
+    fi
+  done
+done
+
+if [ -n "$_w9_backup_src" ]; then
+  log_step "Copying legacy app backup repository from ${_w9_backup_src}"
+  mkdir -p /data/backup/restic-repo
+  if cp -a "${_w9_backup_src}/." /data/backup/restic-repo/; then
+    log_info "Legacy app backup repository copied successfully"
+  else
+    log_info "WARNING: Failed to copy legacy app backup repository (cp exited non-zero)"
   fi
 else
-  log_info "Legacy apphub_data volume not mounted — trying host-path fallbacks"
-  # 4) Some old deployments stored backups on a host bind mount (e.g. /data/backup/restic-repo).
-  #    The host-compose dir may contain a backup/ subtree.
-  _w9_backup_src=""
-  if [ -n "$sysini" ] && [ -f "$sysini" ]; then
-    _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
-    if [ -n "$_w9_legacy_repopath" ]; then
-      _w9_rel="${_w9_legacy_repopath#/data/}"
-      for _w9_base in /legacy/host-compose /legacy/service-root /legacy/download-root; do
-        if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ] && [ -d "${_w9_base}/${_w9_rel}" ]; then
-          _w9_backup_src="${_w9_base}/${_w9_rel}"
-          log_info "Legacy backup found at host path: ${_w9_backup_src}"
-          break
-        fi
-      done
-    fi
-  fi
-  if [ -z "$_w9_backup_src" ] && [ -d /legacy/host-compose/backup/restic-repo ]; then
-    _w9_backup_src="/legacy/host-compose/backup/restic-repo"
-    log_info "Legacy backup found at /data/compose/backup/restic-repo"
-  fi
-
-  if [ -n "$_w9_backup_src" ]; then
-    log_step "Copying legacy app backup repository from ${_w9_backup_src}"
-    mkdir -p /data/backup/restic-repo
-    if cp -a "${_w9_backup_src}/." /data/backup/restic-repo/; then
-      log_info "Legacy app backup repository copied successfully"
-    else
-      log_info "WARNING: Failed to copy legacy app backup repository (cp exited non-zero)"
-    fi
-  else
-    log_info "No legacy backup repository found in any known location — skipping app backup migration"
-  fi
+  log_info "No legacy Restic repository found in any mounted /legacy/* path"
+  log_info "Searched paths: /legacy/apphub_data /legacy/apphub_config /legacy/apphub_media /legacy/apphub_logs /legacy/host-compose /legacy/service-root /legacy/download-root /legacy/portainer /legacy/gitea /legacy/nginx_data /legacy/nginx_letsencrypt"
+  log_info "Searched subpaths: ${_w9_subpaths}"
 fi
 
 if [ -n "$product_auth_dir" ] && [ -d "$product_auth_dir" ]; then

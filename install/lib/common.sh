@@ -130,7 +130,7 @@ legacy_role_candidates() {
     apphub_logs) printf '%s\n' apphub_logs ;;
     apphub_media) printf '%s\n' apphub_media ;;
     apphub_config) printf '%s\n' apphub_config ;;
-    apphub_data) printf '%s\n' apphub_data w9appmanage_data websoft9_apphub_data websoft9_data ;; 
+    apphub_data) printf '%s\n' apphub_data ;; 
     portainer) printf '%s\n' portainer portainer_data ;;
     gitea) printf '%s\n' gitea gitea_data ;;
     nginx_data) printf '%s\n' nginx_data ;;
