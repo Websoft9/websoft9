@@ -1125,6 +1125,8 @@ const rawShellResources = {
                     rootUrlBadge: 'ROOT URL',
                     setAsRootUrl: 'Set as Root URL',
                     rootUrlUpdated: 'Root URL updated',
+                    rootUrlSetting: 'Setting {{domain}} as Root URL…',
+                    setting: 'Setting…',
                 },
                 common: {
                     enabled: 'Enabled',
@@ -3354,6 +3356,8 @@ const rawShellResources = {
                     rootUrlBadge: 'ROOT URL',
                     setAsRootUrl: '设为 Root URL',
                     rootUrlUpdated: 'Root URL 已更新',
+                    rootUrlSetting: '正在将 {{domain}} 设为 Root URL…',
+                    setting: '设置中…',
                 },
                 common: {
                     enabled: '已启用',

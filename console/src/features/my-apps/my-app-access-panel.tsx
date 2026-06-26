@@ -216,6 +216,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     const [isBindDialogSubmitting, setIsBindDialogSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isRootUrlSubmitting, setIsRootUrlSubmitting] = useState(false)
+    const [submittingRootDomain, setSubmittingRootDomain] = useState<string | null>(null)
     const [feedback, setFeedback] = useState<AccessFeedback | null>(null)
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
     const [visibleCredKeys, setVisibleCredKeys] = useState<Set<string>>(new Set())
@@ -589,6 +590,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
     async function handleRootUrlSelect(domainName: string) {
         if (!supportsRootUrlSelection || !domainName || isRootUrlSubmitting || activeRootDomain === domainName) return
 
+        setSubmittingRootDomain(domainName)
         setIsRootUrlSubmitting(true)
         setFeedback(null)
         try {
@@ -616,6 +618,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
             })
         } finally {
             setIsRootUrlSubmitting(false)
+            setSubmittingRootDomain(null)
         }
     }
 
@@ -990,28 +993,46 @@ ${customCertIntermediate.trim()}`
                             <p className="myapps-section-label-desc">{t('myAppsDetailPage.accessPanel.rootUrlCardDescription')}</p>
                         </div>
                     </div>
-                    <div className="myapps-root-url-list">
-                        {rootUrlDomainOptions.map((option) => (
-                            <button
-                                className={`myapps-root-url-option ${option.isRoot ? 'is-active' : ''}`}
-                                disabled={isRootUrlSubmitting || option.isRoot}
-                                key={option.key}
-                                onClick={() => void handleRootUrlSelect(option.domain)}
-                                title={option.isRoot ? t('myAppsDetailPage.accessPanel.rootUrlBadge') : t('myAppsDetailPage.accessPanel.setAsRootUrl')}
-                                type="button"
-                            >
-                                <span className={`myapps-root-url-indicator ${option.isRoot ? 'is-active' : ''}`} aria-hidden="true">
-                                    <span className="myapps-route-root-dot" />
-                                </span>
-                                <span className="myapps-root-url-copy">
-                                    <span className="myapps-root-url-domain">{option.domain}</span>
-                                    <span className="myapps-root-url-link">{option.url}</span>
-                                </span>
-                                <span className={`myapps-root-url-status ${option.isRoot ? 'is-active' : ''}`}>
-                                    {option.isRoot ? t('myAppsDetailPage.accessPanel.rootUrlBadge') : t('myAppsDetailPage.accessPanel.setAsRootUrl')}
-                                </span>
-                            </button>
-                        ))}
+                    <div className={`myapps-root-url-list ${rootUrlDomainOptions.length === 1 ? 'is-single' : ''}`}>
+                        {rootUrlDomainOptions.map((option) => {
+                            const isThisSubmitting = isRootUrlSubmitting && option.domain === submittingRootDomain
+                            return (
+                                <div
+                                    className={`myapps-root-url-option ${option.isRoot ? 'is-active' : ''} ${isThisSubmitting ? 'is-submitting' : ''}`}
+                                    key={option.key}
+                                >
+                                    <span className={`myapps-root-url-indicator ${option.isRoot ? 'is-active' : ''}`} aria-hidden="true">
+                                        <span className="myapps-route-root-dot" />
+                                    </span>
+                                    <span className="myapps-root-url-copy">
+                                        <span className="myapps-root-url-domain">{option.domain}</span>
+                                        <span className="myapps-root-url-link">{option.url}</span>
+                                    </span>
+                                    {option.isRoot ? (
+                                        <span className="myapps-root-url-status is-active">
+                                            {t('myAppsDetailPage.accessPanel.rootUrlBadge')}
+                                        </span>
+                                    ) : (
+                                        <button
+                                            className="myapps-root-url-action-btn"
+                                            disabled={isRootUrlSubmitting}
+                                            onClick={() => void handleRootUrlSelect(option.domain)}
+                                            title={t('myAppsDetailPage.accessPanel.setAsRootUrl')}
+                                            type="button"
+                                        >
+                                            {isThisSubmitting ? (
+                                                <>
+                                                    <CircularProgress size={12} sx={{ color: 'inherit' }} />
+                                                    <span>{t('myAppsDetailPage.accessPanel.setting')}</span>
+                                                </>
+                                            ) : (
+                                                t('myAppsDetailPage.accessPanel.setAsRootUrl')
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
             ) : null}

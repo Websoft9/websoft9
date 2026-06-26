@@ -45,6 +45,7 @@ export type AppStoreApp = {
     }
     settings?: Record<string, string>
     is_web_app?: boolean
+    production?: boolean
 }
 
 export type AppStoreCategory = {

@@ -5,6 +5,7 @@ import {
     Button,
     Card,
     CardContent,
+    Chip,
     CircularProgress,
     DialogActions,
     DialogContent,
@@ -2545,6 +2546,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         }}
                                     >
                                         {filteredApps.map((app) => {
+                                            const isDevApp = app.production === false
                                             return (
                                                 <UnifiedAppCard
                                                     key={app.key ?? app.trademark}
@@ -2555,6 +2557,23 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     title={app.trademark ?? app.key ?? t('appStorePage.card.summaryFallback')}
                                                     description={app.summary || app.overview || t('appStorePage.card.summaryFallback')}
                                                     media={<AppLogo app={app} locale={resolvedLocale} />}
+                                                    actions={
+                                                        isDevApp ? (
+                                                            <Chip
+                                                                label="TODO"
+                                                                size="small"
+                                                                sx={{
+                                                                    height: 22,
+                                                                    fontSize: 11,
+                                                                    fontWeight: 600,
+                                                                    borderRadius: '2px',
+                                                                    backgroundColor: '#f59e0b',
+                                                                    color: '#fff',
+                                                                    '& .MuiChip-label': { px: 0.75 },
+                                                                }}
+                                                            />
+                                                        ) : undefined
+                                                    }
                                                 />
                                             )
                                         })}

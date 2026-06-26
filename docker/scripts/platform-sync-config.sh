@@ -76,6 +76,7 @@ sync_base() {
   set_config platform_gateway ssl_key "${WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.key}"
   set_system_config docker_library path "${WEBSOFT9_LIBRARY_PATH:-/websoft9/library/apps}"
   set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
+  set_system_config volume_backup repopath "$data_root/backup/restic-repo"
   write_apphub_gateway_auth
 }
 

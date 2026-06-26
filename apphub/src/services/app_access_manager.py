@@ -76,9 +76,6 @@ class AppAccessManager:
         proxy_hosts = self._get_proxy_hosts(app_id, profile)
         current_host = next((host for host in proxy_hosts if host.get("id") == proxy_id), None) if proxy_id is not None else None
 
-        if proxy_id is None and len(proxy_hosts) == 1:
-            current_host = proxy_hosts[0]
-
         if proxy_id is not None and current_host is None:
             raise CustomException(404, "Invalid Request", f"Proxy ID:{proxy_id} Not Found")
 
