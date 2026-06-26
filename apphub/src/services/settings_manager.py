@@ -118,7 +118,7 @@ class SettingsManager:
                             self._docker_mirror_display_value(),
                             editable=True,
                             metadata={
-                                "default_value": "\n".join(self._load_docker_mirror_entries("")),
+                                "default_value": "\n".join(self._load_docker_mirror_entries(_mirror_list_url())),
                             },
                         ),
                     ],
@@ -311,9 +311,12 @@ class SettingsManager:
         return configured  # empty => use local-first merge in _load_docker_mirror_entries
 
     def _docker_mirror_display_value(self) -> str:
-        # Always compute the fresh merged list — never use a stale persisted
-        # value that was frozen from a previous settings save.
-        return "\n".join(self._load_docker_mirror_entries(""))
+        # If the user has saved custom mirrors, use those.
+        # Otherwise load from the local mirrors.json shipped with the image.
+        configured = self._docker_mirror_url()
+        if configured:
+            return "\n".join(self._load_docker_mirror_entries(configured))
+        return "\n".join(self._load_local_mirror_entries())
 
     def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
         display_value = value
