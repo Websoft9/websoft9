@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import configparser
@@ -482,14 +483,21 @@ class SettingsManager:
             if normalized:
                 return normalized
 
-        # Ultimate fallback: hardcoded built-in mirrors so the UI never
-        # shows a raw JSON URL as a mirror entry.
-        return [self._normalize_mirror_entry(m) for m in [
-            "docker.1ms.run",
-            "docker.m.daocloud.io",
-            "docker.xuanyuan.me",
-            "docker.1panel.live",
-        ]]
+        # Fallback: read the local mirrors.json shipped with the image.
+        # This file is the single source of truth — keep it in sync with
+        # the CDN at https://artifact.websoft9.com/websoft9/{channel}/mirrors.json.
+        local_path = "/websoft9/mirrors.json"
+        try:
+            if os.path.exists(local_path):
+                with open(local_path, "r", encoding="utf-8") as fh:
+                    payload = json.load(fh)
+                mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
+                normalized = [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
+                if normalized:
+                    return normalized
+        except Exception:
+            pass
+        return []
 
     def _normalize_mirror_entry(self, value: str) -> str:
         normalized = value.strip().rstrip("/")

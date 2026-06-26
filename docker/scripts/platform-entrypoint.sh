@@ -71,36 +71,11 @@ ensure_data_managed_paths() {
   ensure_legacy_compat_link "$custom_root" /etc/custom
   ensure_legacy_compat_link "$service_log_root" /var/log/websoft9
 
-  # Migrate legacy restic backup repository from /data/backup/restic-repo
-  # to the current data root so backups survive container rebuilds.
-  local backup_target="$data_root/backup/restic-repo"
-  local backup_legacy="/data/backup/restic-repo"
-
-  mkdir -p "$(dirname "$backup_target")"
-
-  # Resolve both paths to their canonical form for comparison.
-  local legacy_real
-  local target_real
-  legacy_real="$(readlink -f "$backup_legacy" 2>/dev/null || realpath "$backup_legacy" 2>/dev/null || echo "$backup_legacy")"
-  target_real="$(readlink -f "$backup_target" 2>/dev/null || realpath "$backup_target" 2>/dev/null || echo "$backup_target")"
-
-  if [[ -d "$backup_legacy" && ! -L "$backup_legacy" ]]; then
-    if [[ "$legacy_real" != "$target_real" ]]; then
-      if [[ -n "$(find "$backup_legacy" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
-        cp -a "$backup_legacy/." "$backup_target/" || true
-      fi
-      rm -rf "$backup_legacy"
-      log_event "info" "runtime.migrate-backup" "phase=runtime action=migrate-backup from=$legacy_real to=$target_real"
-    fi
-  fi
-
-  if [[ ! -e "$backup_legacy" || "$legacy_real" = "$target_real" ]]; then
-    mkdir -p "$backup_target"
-    if [[ ! -L "$backup_legacy" ]]; then
-      rm -rf "$backup_legacy" 2>/dev/null || true
-      ln -s "$backup_target" "$backup_legacy"
-    fi
-  fi
+  # Ensure the backup directory exists under the data root.
+  # The init_nginx.sh script already creates /data → $data_root, so the
+  # legacy path /data/backup/restic-repo automatically resolves to the
+  # correct location.  No extra symlink needed here.
+  mkdir -p "$data_root/backup/restic-repo"
 }
 
 write_runtime_event() {
