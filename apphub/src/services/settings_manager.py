@@ -457,7 +457,20 @@ class SettingsManager:
         return current_cert == self._default_ssl_cert_path() and current_key == self._default_ssl_key_path()
 
     def _load_docker_mirror_entries(self, configured_value: str) -> list[str]:
-        candidate = (configured_value or "").strip() or _mirror_list_url()
+        candidate = (configured_value or "").strip()
+        if not candidate:
+            # No user override — use local mirrors.json shipped with the
+            # image as the primary source, then supplement with CDN entries.
+            local_mirrors = self._load_local_mirror_entries()
+            cdn_mirrors = self._load_cdn_mirror_entries()
+            merged: list[str] = []
+            seen: set[str] = set()
+            for entry in local_mirrors + cdn_mirrors:
+                if entry not in seen:
+                    seen.add(entry)
+                    merged.append(entry)
+            return merged
+
         if candidate.startswith("http://") or candidate.startswith("https://"):
             try:
                 response = requests.get(candidate, timeout=10)
@@ -469,11 +482,8 @@ class SettingsManager:
                     return normalized
             except Exception:
                 pass
-            # Fetch failed — fall straight to the local file.
-            # Never parse a URL as comma-separated mirror entries.
 
         else:
-            # User-supplied comma / newline separated list of mirrors.
             normalized = [
                 self._normalize_mirror_entry(item)
                 for item in candidate.replace("\n", ",").split(",")
@@ -483,18 +493,29 @@ class SettingsManager:
                 return normalized
 
         # Ultimate fallback: read the local mirrors.json shipped with the image.
+        return self._load_local_mirror_entries()
+
+    def _load_local_mirror_entries(self) -> list[str]:
         local_path = "/websoft9/mirrors.json"
         try:
             if os.path.exists(local_path):
                 with open(local_path, "r", encoding="utf-8") as fh:
                     payload = json.load(fh)
                 mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-                normalized = [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
-                if normalized:
-                    return normalized
+                return [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
         except Exception:
             pass
         return []
+
+    def _load_cdn_mirror_entries(self) -> list[str]:
+        try:
+            response = requests.get(_mirror_list_url(), timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+            mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
+            return [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
+        except Exception:
+            return []
 
     def _normalize_mirror_entry(self, value: str) -> str:
         normalized = value.strip().rstrip("/")
