@@ -22,6 +22,24 @@ def _mirror_list_url() -> str:
     return f"https://artifact.websoft9.com/websoft9/{channel}/mirrors.json"
 
 
+def load_local_mirror_entries() -> list[str]:
+    """Load Docker mirror entries from the local mirrors.json shipped with the image."""
+    local_path = "/websoft9/mirrors.json"
+    try:
+        if os.path.exists(local_path):
+            with open(local_path, "r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
+            return [
+                str(item).strip().rstrip("/").removeprefix("http://").removeprefix("https://")
+                for item in mirrors
+                if str(item).strip()
+            ]
+    except Exception:
+        pass
+    return []
+
+
 DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS = 3650
 DEFAULT_PLATFORM_BRAND_TITLE = "Websoft9"
 DEFAULT_PLATFORM_BRAND_LOGO_URL = "/websoft9.png"
@@ -501,16 +519,7 @@ class SettingsManager:
         return self._load_local_mirror_entries()
 
     def _load_local_mirror_entries(self) -> list[str]:
-        local_path = "/websoft9/mirrors.json"
-        try:
-            if os.path.exists(local_path):
-                with open(local_path, "r", encoding="utf-8") as fh:
-                    payload = json.load(fh)
-                mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-                return [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
-        except Exception:
-            pass
-        return []
+        return load_local_mirror_entries()
 
     def _load_cdn_mirror_entries(self) -> list[str]:
         try:

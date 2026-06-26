@@ -30,15 +30,14 @@ def _normalize_mirror(value: str) -> str:
 
 def _fetch_mirrors() -> List[str]:
     try:
+        from src.services.settings_manager import load_local_mirror_entries
         config_manager = ConfigManager("config.ini")
-        configured = (config_manager.get_value("docker_mirror", "url") or "").strip() or _default_mirror_url()
-        if configured.startswith("http://") or configured.startswith("https://"):
-            resp = requests.get(configured)
-            if resp.status_code != 200:
-                logger.error(f"Failed to download mirrors: {resp.text}")
-                return []
-            return [_normalize_mirror(str(m)) for m in resp.json().get("mirrors", []) if str(m).strip()]
-        return [_normalize_mirror(m) for m in configured.replace("\n", ",").split(",") if m.strip()]
+        configured = (config_manager.get_value("docker_mirror", "url") or "").strip()
+        # If the user has saved custom mirrors (not a URL), use those.
+        if configured and not configured.startswith("http://") and not configured.startswith("https://"):
+            return [_normalize_mirror(m) for m in configured.replace("\n", ",").split(",") if m.strip()]
+        # Otherwise load from the local mirrors.json shipped with the image.
+        return load_local_mirror_entries()
     except Exception as e:
         logger.error(f"Failed to load mirrors: {e}")
         return []
