@@ -44,8 +44,8 @@ DEFAULT_ARTIFACT_BASE="https://artifact.websoft9.com/websoft9"
 # ---------------------------------------------------------------------------
 LEGACY_CONTAINER_NAMES=(websoft9-apphub websoft9-deployment websoft9-git websoft9-proxy)
 LEGACY_CONTAINER_CANDIDATES=(websoft9-apphub websoft9-deployment websoft9-git websoft9-proxy websoft9-appmanage websoft9-portainer websoft9-gitea websoft9-nginxproxymanager websoft9-redis)
-LEGACY_VOLUME_NAMES=(apphub_logs apphub_media apphub_config portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
-LEGACY_VOLUME_ROLES=(apphub_logs apphub_media apphub_config portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
+LEGACY_VOLUME_NAMES=(apphub_logs apphub_media apphub_config apphub_data portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
+LEGACY_VOLUME_ROLES=(apphub_logs apphub_media apphub_config apphub_data portainer gitea nginx_data nginx_letsencrypt nginx_modsec nginx_var)
 LEGACY_SYSTEMD_UNITS=(websoft9.service cockpit.socket cockpit.service)
 LEGACY_HOST_COMPOSE_DIR="/data/compose"
 LEGACY_INSTALL_DIR="/data/websoft9/source"
@@ -130,6 +130,7 @@ legacy_role_candidates() {
     apphub_logs) printf '%s\n' apphub_logs ;;
     apphub_media) printf '%s\n' apphub_media ;;
     apphub_config) printf '%s\n' apphub_config ;;
+    apphub_data) printf '%s\n' apphub_data ;;
     portainer) printf '%s\n' portainer portainer_data ;;
     gitea) printf '%s\n' gitea gitea_data ;;
     nginx_data) printf '%s\n' nginx_data ;;

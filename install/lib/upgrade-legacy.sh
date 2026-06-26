@@ -341,6 +341,13 @@ if [ -d /legacy/apphub_logs ]; then
   cp -a /legacy/apphub_logs/. /data/logs/legacy-apphub/ 2>/dev/null || true
 fi
 
+# ---------------- Legacy AppHub backup (restic-repo) ----------------
+if [ -d /legacy/apphub_data/backup/restic-repo ]; then
+  log_step "Copying legacy app backup repository (restic-repo)"
+  mkdir -p /data/backup/restic-repo
+  cp -a /legacy/apphub_data/backup/restic-repo/. /data/backup/restic-repo/ 2>/dev/null || true
+fi
+
 # ---------------- Legacy config handoff ----------------
 cfg=""
 sysini=""
@@ -442,6 +449,7 @@ _legacy_transform_volumes() {
   _add_ro_volume apphub_config     apphub_config
   _add_ro_volume apphub_logs       apphub_logs
   _add_ro_volume apphub_media      apphub_media
+  _add_ro_volume apphub_data       apphub_data
   local host_compose_dir service_root_dir download_root_dir
   host_compose_dir="$(legacy_host_compose_dir 2>/dev/null || true)"
   service_root_dir="$(legacy_service_root_dir 2>/dev/null || true)"
