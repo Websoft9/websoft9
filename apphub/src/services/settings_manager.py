@@ -469,12 +469,11 @@ class SettingsManager:
                     return normalized
             except Exception:
                 pass
-            # Fetch failed or returned no mirrors — fall through to the
-            # built-in default list instead of showing the URL itself.
+            # Fetch failed — fall straight to the local file.
+            # Never parse a URL as comma-separated mirror entries.
 
-        if candidate != _mirror_list_url():
-            # User-entered value (not the default URL) — treat as
-            # comma / newline separated list of mirrors.
+        else:
+            # User-supplied comma / newline separated list of mirrors.
             normalized = [
                 self._normalize_mirror_entry(item)
                 for item in candidate.replace("\n", ",").split(",")
@@ -483,9 +482,7 @@ class SettingsManager:
             if normalized:
                 return normalized
 
-        # Fallback: read the local mirrors.json shipped with the image.
-        # This file is the single source of truth — keep it in sync with
-        # the CDN at https://artifact.websoft9.com/websoft9/{channel}/mirrors.json.
+        # Ultimate fallback: read the local mirrors.json shipped with the image.
         local_path = "/websoft9/mirrors.json"
         try:
             if os.path.exists(local_path):
