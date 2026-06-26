@@ -2370,17 +2370,14 @@ class AppManger:
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
     def download_image_accelerators(self):
         try:
-            from src.services.settings_manager import load_local_mirror_entries
             configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip()
-            # If the user has saved custom mirrors (not a URL), use those.
-            if configured and not configured.startswith("http://") and not configured.startswith("https://"):
+            if configured:
                 return [
                     self._normalize_image_accelerator(item)
                     for item in configured.replace("\n", ",").split(",")
                     if item.strip()
                 ]
-            # Otherwise load from the local mirrors.json shipped with the image.
-            return load_local_mirror_entries()
+            return []
         except Exception as e:
             logger.error(f"Failed to download image accelerators: {e}")
             return []

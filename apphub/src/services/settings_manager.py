@@ -326,16 +326,20 @@ class SettingsManager:
 
     def _docker_mirror_url(self) -> str:
         configured = self.config.get("docker_mirror", "url", fallback="").strip()
-        return configured  # empty => use local-first merge in _load_docker_mirror_entries
+        if not configured or configured.startswith("http://") or configured.startswith("https://"):
+            # Empty or legacy URL — bootstrap from local mirrors.json.
+            configured = "\n".join(load_local_mirror_entries())
+            if configured:
+                self.config.set("docker_mirror", "url", configured)
+                try:
+                    with open(self.config_file_path, "w") as configfile:
+                        self.config.write(configfile)
+                except Exception:
+                    pass
+        return configured
 
     def _docker_mirror_display_value(self) -> str:
-        configured = self._docker_mirror_url()
-        # If the persisted value is a URL (legacy default from an older
-        # version), ignore it — treat as "no user customization".
-        if configured and not configured.startswith("http://") and not configured.startswith("https://"):
-            return "\n".join(self._load_docker_mirror_entries(configured))
-        # No real user customization: load from the local mirrors.json.
-        return "\n".join(self._load_local_mirror_entries())
+        return self._docker_mirror_url()
 
     def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
         display_value = value
