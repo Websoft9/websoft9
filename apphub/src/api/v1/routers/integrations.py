@@ -15,6 +15,7 @@ def _set_session_cookies(response: Response, cookies: list[dict[str, object]]) -
             path=str(cookie.get("path") or "/"),
             httponly=bool(cookie.get("httponly", False)),
             samesite="lax",
+            max_age=int(cookie["max_age"]) if cookie.get("max_age") is not None else None,
         )
 
 

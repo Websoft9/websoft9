@@ -225,7 +225,25 @@ class IntegrationSessionBridge:
                     "value": token,
                     "path": "/",
                     "httponly": True,
-                }
+                },
+                # Clear legacy cookie variants that may conflict with the
+                # scoped cookie above.  Without this, browsers that still
+                # carry an old unscoped portainer_jwt cookie may send it
+                # alongside the new one, causing the gateway to pick up
+                # a stale JWT.
+                {
+                    "name": "portainer_jwt",
+                    "value": "",
+                    "path": "/",
+                    "httponly": True,
+                    "max_age": 0,
+                },
+                {
+                    "name": "portainer.JWT",
+                    "value": "",
+                    "path": "/",
+                    "max_age": 0,
+                },
             ]
         except CustomException:
             raise
