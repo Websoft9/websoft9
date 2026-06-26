@@ -371,7 +371,7 @@ if [ -d /legacy/apphub_data ]; then
     _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
     if [ -n "$_w9_legacy_repopath" ]; then
       # Legacy repopath is typically /data/backup/restic-repo.
-      # /data was a symlink to /app/data inside the old AppHub container,
+      # /data was a symlink to the apphub data volume mount point,
       # so the volume-relative path is the repopath with /data/ stripped.
       _w9_rel="${_w9_legacy_repopath#/data/}"
       if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ] && [ -d "/legacy/apphub_data/${_w9_rel}" ]; then
@@ -403,7 +403,39 @@ if [ -d /legacy/apphub_data ]; then
     log_info "Legacy apphub_data volume is mounted but no backup repository found inside it"
   fi
 else
-  log_info "Legacy apphub_data volume not found — skipping app backup migration"
+  log_info "Legacy apphub_data volume not mounted — trying host-path fallbacks"
+  # 4) Some old deployments stored backups on a host bind mount (e.g. /data/backup/restic-repo).
+  #    The host-compose dir may contain a backup/ subtree.
+  _w9_backup_src=""
+  if [ -n "$sysini" ] && [ -f "$sysini" ]; then
+    _w9_legacy_repopath="$(ini_get "$sysini" volume_backup repopath)"
+    if [ -n "$_w9_legacy_repopath" ]; then
+      _w9_rel="${_w9_legacy_repopath#/data/}"
+      for _w9_base in /legacy/host-compose /legacy/service-root /legacy/download-root; do
+        if [ -n "$_w9_rel" ] && [ "$_w9_rel" != "$_w9_legacy_repopath" ] && [ -d "${_w9_base}/${_w9_rel}" ]; then
+          _w9_backup_src="${_w9_base}/${_w9_rel}"
+          log_info "Legacy backup found at host path: ${_w9_backup_src}"
+          break
+        fi
+      done
+    fi
+  fi
+  if [ -z "$_w9_backup_src" ] && [ -d /legacy/host-compose/backup/restic-repo ]; then
+    _w9_backup_src="/legacy/host-compose/backup/restic-repo"
+    log_info "Legacy backup found at /data/compose/backup/restic-repo"
+  fi
+
+  if [ -n "$_w9_backup_src" ]; then
+    log_step "Copying legacy app backup repository from ${_w9_backup_src}"
+    mkdir -p /data/backup/restic-repo
+    if cp -a "${_w9_backup_src}/." /data/backup/restic-repo/; then
+      log_info "Legacy app backup repository copied successfully"
+    else
+      log_info "WARNING: Failed to copy legacy app backup repository (cp exited non-zero)"
+    fi
+  else
+    log_info "No legacy backup repository found in any known location — skipping app backup migration"
+  fi
 fi
 
 if [ -n "$product_auth_dir" ] && [ -d "$product_auth_dir" ]; then
