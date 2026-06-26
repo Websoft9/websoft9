@@ -311,11 +311,12 @@ class SettingsManager:
         return configured  # empty => use local-first merge in _load_docker_mirror_entries
 
     def _docker_mirror_display_value(self) -> str:
-        # If the user has saved custom mirrors, use those.
-        # Otherwise load from the local mirrors.json shipped with the image.
         configured = self._docker_mirror_url()
-        if configured:
+        # If the persisted value is a URL (legacy default from an older
+        # version), ignore it — treat as "no user customization".
+        if configured and not configured.startswith("http://") and not configured.startswith("https://"):
             return "\n".join(self._load_docker_mirror_entries(configured))
+        # No real user customization: load from the local mirrors.json.
         return "\n".join(self._load_local_mirror_entries())
 
     def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
