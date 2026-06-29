@@ -484,16 +484,6 @@ _legacy_transform_volumes() {
     die "$EXIT_RUNTIME" "Legacy data transform failed"
   fi
   rm -rf "$tmpdir"
-
-  # After transform, create a compat symlink so legacy compose stacks
-  # that still reference /data/compose/* can find their bind-mount sources.
-  # The real data now lives under ${data_root}/compose.
-  if [ -d /data/compose ] && [ ! -L /data/compose ] && [ -d "${data_root}/compose" ]; then
-    log_step "Creating /data/compose → ${data_root}/compose compat symlink for legacy stacks"
-    mv /data/compose /data/compose.legacy-bak
-    ln -s "${data_root}/compose" /data/compose
-    log_info "Legacy /data/compose preserved at /data/compose.legacy-bak"
-  fi
 }
 
  # Import staged legacy runtime settings into the modern config model.
