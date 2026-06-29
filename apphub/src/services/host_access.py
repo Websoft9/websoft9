@@ -1036,7 +1036,12 @@ class HostAccessService:
         except CustomException:
             raise
         except Exception as exc:
-            raise CustomException(500, "SFTP Error", f"Failed to open SFTP session: {exc}")
+            logger.warning(
+                f"SFTP verification failed for {verified.get('username')}@{verified.get('host')}: "
+                f"{type(exc).__name__}: {exc}. Falling back to root directory."
+            )
+            if not str(verified.get("working_directory") or "").strip():
+                verified["working_directory"] = "/"
         finally:
             if sftp is not None:
                 sftp.close()
@@ -1208,10 +1213,32 @@ class HostAccessService:
         self._resolve_directory_path(sftp, parent_path)
 
     def _parse_private_key(self, private_key: str, passphrase: Optional[str]) -> paramiko.PKey:
-        errors = []
-        for key_class in (paramiko.RSAKey, paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.DSSKey):
+        stripped = (private_key or "").strip()
+        if stripped.startswith("PuTTY-User-Key-File"):
+            raise CustomException(
+                400,
+                "Unsupported Key Format",
+                "PuTTY PPK keys are not supported. Use PuTTYgen to convert the key to OpenSSH format "
+                "(Conversions → Export OpenSSH key), then paste the exported content.",
+            )
+        # Use paramiko's built-in key_classes list when available (paramiko ≥5.x),
+        # otherwise fall back to a hard-coded tuple compatible with older versions.
+        try:
+            candidates = list(paramiko.key_classes) if hasattr(paramiko, "key_classes") else [
+                paramiko.RSAKey,
+                paramiko.Ed25519Key,
+                paramiko.ECDSAKey,
+            ]
+        except AttributeError:
+            candidates = [
+                paramiko.RSAKey,
+                paramiko.Ed25519Key,
+                paramiko.ECDSAKey,
+            ]
+        errors: list[str] = []
+        for key_class in candidates:
             try:
-                return key_class.from_private_key(StringIO(private_key), password=passphrase)
+                return key_class.from_private_key(StringIO(stripped), password=passphrase)
             except Exception as exc:
                 errors.append(str(exc))
         raise CustomException(400, "Invalid Private Key", "; ".join(errors[:1]) or "Unable to parse private key")

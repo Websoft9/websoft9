@@ -772,9 +772,8 @@ export function MyAppDetailPage() {
     }) as CSSProperties, [])
     const disabledPrimaryToolbarButtonStyle = useMemo(() => ({
         ...primaryToolbarButtonStyle,
-        backgroundColor: isDarkMode ? 'rgba(23,103,209,0.2)' : '#dce9f8',
-        color: 'rgba(255,255,255,0.72)',
-    }) as CSSProperties, [primaryToolbarButtonStyle, isDarkMode])
+        opacity: 0.35,
+    }) as CSSProperties, [primaryToolbarButtonStyle])
     const closeToolbarButtonStyle = useMemo(() => ({
         width: 40,
         height: 40,

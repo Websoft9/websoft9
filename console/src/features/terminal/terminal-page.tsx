@@ -1088,8 +1088,8 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     if (!response.ok) {
         let detail = `Request failed: ${response.status}`
         try {
-            const body = (await response.json()) as { details?: string; message?: string }
-            detail = body.details || body.message || detail
+            const body = (await response.json()) as { detail?: string; details?: string; message?: string }
+            detail = body.details || body.detail || body.message || detail
         } catch {
         }
         throw new Error(detail)

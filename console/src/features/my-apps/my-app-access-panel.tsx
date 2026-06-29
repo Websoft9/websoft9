@@ -130,12 +130,53 @@ function IconEntryEmpty() {
     return <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M10 3h4v4h5a2 2 0 0 1 2 2v7h-2V9h-4v4H9V9H5v10h7v2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h5V3zm1 1v3h2V4h-2zm7 14 3 3-1.4 1.4L17 19.8l-2.6 2.6L13 21l3-3-3-3 1.4-1.4L17 16.2l2.6-2.6L21 15l-3 3z" /></svg>
 }
 
-function formatCertificateLabel(certificate: { nice_name?: string | null; domain_names?: string[]; provider?: string | null } | null | undefined) {
+function getOrdinal(day: number): string {
+    if (day >= 11 && day <= 13) return 'th'
+    const last = day % 10
+    if (last === 1) return 'st'
+    if (last === 2) return 'nd'
+    if (last === 3) return 'rd'
+    return 'th'
+}
+
+function formatExpiryDate(isoString: string, locale: string): string {
+    const date = new Date(isoString)
+    if (isNaN(date.getTime())) return ''
+    const isZh = String(locale || '').toLowerCase().startsWith('zh')
+    if (isZh) {
+        const y = date.getFullYear()
+        const m = date.getMonth() + 1
+        const d = date.getDate()
+        const hh = String(date.getHours()).padStart(2, '0')
+        const mm = String(date.getMinutes()).padStart(2, '0')
+        return `${y}年${m}月${d}日 ${hh}:${mm}`
+    }
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    const day = date.getDate()
+    const month = months[date.getMonth()] ?? ''
+    const year = date.getFullYear()
+    let hours = date.getHours()
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    hours = hours % 12 || 12
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${day}${getOrdinal(day)} ${month} ${year}, ${hours}:${minutes} ${ampm}`
+}
+
+function formatCertificateLabel(
+    certificate: { nice_name?: string | null; domain_names?: string[]; provider?: string | null; expires_on?: string | null } | null | undefined,
+    locale?: string,
+) {
     if (!certificate) return ''
-    if (certificate.nice_name?.trim()) return certificate.nice_name.trim()
-    if (certificate.domain_names?.length) return certificate.domain_names.join(', ')
-    if (certificate.provider?.trim()) return certificate.provider.trim()
-    return ''
+    const name = certificate.nice_name?.trim() || certificate.domain_names?.join(', ') || certificate.provider?.trim() || ''
+    if (!name) return ''
+    if (certificate.expires_on) {
+        const expiryLabel = formatExpiryDate(certificate.expires_on, locale || '')
+        if (expiryLabel) {
+            const isZh = String(locale || '').toLowerCase().startsWith('zh')
+            return isZh ? `${name}（过期：${expiryLabel}）` : `${name} (Expires: ${expiryLabel})`
+        }
+    }
+    return name
 }
 
 function formatAccountLabel(key: string, t: (key: string) => string) {
@@ -189,7 +230,7 @@ function getConnectionTitle(t: (key: string, options?: Record<string, unknown>) 
 }
 
 export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRect, isDarkMode = false }: MyAppAccessPanelProps) {
-    const { t } = useTranslation('shell')
+    const { t, i18n } = useTranslation('shell')
     const palette = getSurfacePalette(isDarkMode)
     const [selectedProxyId, setSelectedProxyId] = useState<number | null>(null)
     const [selectedDomainName, setSelectedDomainName] = useState<string | null>(null)
@@ -269,7 +310,7 @@ export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRec
         () => data?.certificates.find((certificate) => certificate.id === currentProxyHost?.certificate_id) ?? null,
         [currentProxyHost?.certificate_id, data?.certificates],
     )
-    const currentCertificateLabel = currentProxyHost?.certificate_name || formatCertificateLabel(currentCertificate)
+    const currentCertificateLabel = currentProxyHost?.certificate_name || formatCertificateLabel(currentCertificate, i18n.resolvedLanguage)
     const containerOptions = useMemo(() => {
         const seen = new Set<string>()
         return (data?.candidates ?? []).filter((candidate) => {
@@ -1465,7 +1506,7 @@ ${customCertIntermediate.trim()}`
                                                 <option value="none">{t('myAppsDetailPage.accessPanel.selectCertPlaceholder')}</option>
                                                 {availableCertificates.map((cert) => (
                                                     <option key={cert.id} value={cert.id}>
-                                                        {formatCertificateLabel(cert) || `#${cert.id}`}
+                                                        {formatCertificateLabel(cert, i18n.resolvedLanguage) || `#${cert.id}`}
                                                     </option>
                                                 ))}
                                             </select>
@@ -1676,7 +1717,15 @@ ${customCertIntermediate.trim()}`
                 scopeRect={scopeRect ?? null}
                 contentStrategy="viewport-fixed"
                 darkMode={isDarkMode}
-                sx={{ zIndex: 1510 }}
+                sx={{
+                    zIndex: 1510,
+                    '& .MuiDialog-container': {
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        pt: { xs: 3, md: 3 },
+                        pb: { xs: 1.5, md: 2.5 },
+                    },
+                }}
                 paperSx={{
                     maxWidth: '480px',
                     borderRadius: 0,

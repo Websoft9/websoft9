@@ -3,6 +3,8 @@ import os
 import socket
 from urllib.parse import urlparse
 
+import requests
+
 from src.core.apiHelper import APIHelper
 from src.core.config import ConfigManager
 from src.core.logger import logger
@@ -216,22 +218,69 @@ class NginxProxyManagerAPI:
         """
         Upload a custom (non-Let's Encrypt) SSL certificate.
 
+        NPM requires a two-step flow for custom certificates:
+        1. Create a certificate shell (provider + nice_name only)
+        2. Upload the PEM files so NPM can parse and store the real expires_on
+
         Args:
             nice_name (str): Display name for the certificate
             certificate_pem (str): PEM-encoded certificate content
             key_pem (str): PEM-encoded private key content
 
         Returns:
-            Response: Response from Nginx Proxy Manager API
+            Response: Response from Nginx Proxy Manager API (the final certificate with correct expires_on)
         """
-        return self.api.post(
+        # Step 1: Create certificate shell
+        create_resp = self.api.post(
             path="nginx/certificates",
             json={
                 "provider": "other",
                 "nice_name": nice_name,
-                "meta": {
-                    "certificate": certificate_pem,
-                    "certificate_key": key_pem,
-                },
             },
         )
+        if create_resp.status_code not in [200, 201]:
+            return create_resp
+
+        certificate = create_resp.json()
+        cert_id = certificate.get("id")
+        if not cert_id:
+            return create_resp
+
+        # Step 2: Upload certificate files so NPM parses them and updates expires_on
+        base_url = self.api.base_url
+        url = f"{base_url}/nginx/certificates/{cert_id}/upload"
+        merged_headers = dict(self.api.headers)
+        merged_headers.pop("Content-Type", None)  # Let requests set the multipart boundary
+
+        try:
+            upload_resp = requests.post(
+                url,
+                files={
+                    "certificate": ("certificate.pem", certificate_pem, "application/x-pem-file"),
+                    "certificate_key": ("certificate_key.pem", key_pem, "application/x-pem-file"),
+                },
+                headers=merged_headers,
+                verify=self.api.verify,
+            )
+        except requests.RequestException as exc:
+            logger.error(f"Certificate file upload failed: {exc}")
+            # Return the create response as fallback; the caller can still use the cert shell
+            return create_resp
+
+        if upload_resp.status_code not in [200, 201]:
+            logger.error(
+                f"NPM upload returned {upload_resp.status_code}: {upload_resp.text[:500]}"
+            )
+            return create_resp
+
+        # Step 3: Fetch the updated certificate to get the real expires_on
+        get_resp = self.api.get(
+            path=f"nginx/certificates/{cert_id}",
+            params={"expand": "owner,proxy_hosts,dead_hosts,redirection_hosts"},
+        )
+        if get_resp.status_code == 200:
+            # Patch the response so downstream code sees a proper status code
+            get_resp.status_code = create_resp.status_code
+            return get_resp
+
+        return create_resp
