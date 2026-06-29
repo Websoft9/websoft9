@@ -231,6 +231,9 @@ class IntegrationSessionBridge:
                 # carry an old unscoped portainer_jwt cookie may send it
                 # alongside the new one, causing the gateway to pick up
                 # a stale JWT.
+                # portainer-api-key is set by Portainer itself when a user
+                # creates an API key — an expired or invalid key in this
+                # cookie takes precedence over our JWT and breaks auto-login.
                 {
                     "name": "portainer_jwt",
                     "value": "",
@@ -240,6 +243,12 @@ class IntegrationSessionBridge:
                 },
                 {
                     "name": "portainer.JWT",
+                    "value": "",
+                    "path": "/",
+                    "max_age": 0,
+                },
+                {
+                    "name": "portainer-api-key",
                     "value": "",
                     "path": "/",
                     "max_age": 0,
