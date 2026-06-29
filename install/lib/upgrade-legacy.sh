@@ -783,9 +783,13 @@ run_upgrade_legacy() {
     die "$EXIT_VALIDATE" "Migration failed during post-cutover validation"
   fi
 
-  # Stage 8b: remove the legacy control plane and assets by default.
-  log_step "Removing legacy Cockpit / systemd / containers / volumes by default"
-  _uninstall_legacy "purge" "0" "1" "1"
+  # Stage 8b: remove legacy containers and volumes.
+  # Host-level artifacts (/data/compose, /data/apps, Cockpit, systemd) are
+  # deliberately retained — legacy stacks still reference /data/compose for
+  # bind mounts, and control-plane cleanup should happen after the rollback
+  # window closes.
+  log_step "Removing legacy containers and volumes"
+  _uninstall_legacy "purge" "0" "1" "0"
 
   log_info "==== Legacy-to-modern migration completed successfully ===="
 }
