@@ -947,9 +947,6 @@ ${customCertIntermediate.trim()}`
                                                         {domain}
                                                     </a>
                                                 ))}
-                                                {binding.rootDomain ? (
-                                                    <span className="myapps-route-root-badge">{t('myAppsDetailPage.accessPanel.rootUrlBadge')}</span>
-                                                ) : null}
                                             </div>
                                         </div>
                                     </div>
