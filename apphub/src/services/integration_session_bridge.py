@@ -248,7 +248,7 @@ class IntegrationSessionBridge:
                     "max_age": 0,
                 },
                 {
-                    "name": "portainer-api-key",
+                    "name": "portainer_api_key",
                     "value": "",
                     "path": "/",
                     "max_age": 0,
