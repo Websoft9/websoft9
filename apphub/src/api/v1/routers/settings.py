@@ -3,12 +3,12 @@ from typing import Optional
 from fastapi import APIRouter, Query, Path, Cookie
 from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest
 from src.schemas.errorResponse import ErrorResponse
-from src.schemas.productRuntimeState import ProductEditionStateResponse, ProductEditionUpdateRequest
+from src.schemas.productRuntimeState import ProductEditionStateResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
 
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
-from src.services.product_runtime_state import read_product_runtime_state, set_product_runtime_edition
+from src.services.product_runtime_state import read_product_runtime_state
 
 router = APIRouter()
 
@@ -151,40 +151,6 @@ def get_internal_product_edition_state(
     auth_service._require_authenticated_operator(session_token)
 
     state = read_product_runtime_state()
-    return ProductEditionStateResponse(
-        version=state.version,
-        edition_key=state.edition_key,
-        edition_name=state.edition_name,
-        max_apps=state.max_apps,
-        state_source=state.state_source,
-        updated_by=state.updated_by,
-        updated_at=state.updated_at,
-        note=state.note,
-    )
-
-
-@router.put(
-    "/settings/internal/product-edition",
-    summary="Update runtime product edition state",
-    description="Apply a runtime product edition change for authenticated operator workflows",
-    responses={
-        200: {"model": ProductEditionStateResponse},
-        401: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
-)
-def update_internal_product_edition_state(
-    payload: ProductEditionUpdateRequest,
-    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
-):
-    auth_service = ProductAuthService()
-    actor = auth_service._require_authenticated_operator(session_token)
-
-    state = set_product_runtime_edition(
-        payload.edition_key,
-        updated_by=str(actor.get("username") or actor.get("id") or "support"),
-        note=payload.note,
-    )
     return ProductEditionStateResponse(
         version=state.version,
         edition_key=state.edition_key,

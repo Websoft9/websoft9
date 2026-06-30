@@ -3,11 +3,6 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class ProductEditionUpdateRequest(BaseModel):
-    edition_key: str = Field(..., description="Target edition key")
-    note: Optional[str] = Field(default=None, description="Optional support note")
-
-
 class ProductEditionStateResponse(BaseModel):
     version: Optional[str] = Field(default=None, description="Current program version")
     edition_key: str = Field(..., description="Current effective edition key")

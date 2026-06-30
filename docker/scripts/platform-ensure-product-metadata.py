@@ -25,7 +25,6 @@ from src.services.product_runtime_state import migrate_product_runtime_state  # 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ensure runtime product edition state is consistent after install or upgrade.")
     parser.add_argument("--version", help="Target runtime product version to persist")
-    parser.add_argument("--edition-key", default="free", help="Fallback edition key when no source metadata or legacy mapping is available")
     parser.add_argument("--source-metadata", help="Previous runtime state snapshot to replay during modern upgrade")
     parser.add_argument("--legacy-system-ini", help="Legacy system.ini to migrate during legacy upgrade")
     args = parser.parse_args()
@@ -40,7 +39,7 @@ def main() -> int:
         version=args.version,
         source_state=source_state,
         legacy_system_ini_file=args.legacy_system_ini,
-        fallback_edition_key=args.edition_key,
+        fallback_edition_key="free",
     )
     print(
         json.dumps(

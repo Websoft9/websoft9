@@ -350,6 +350,39 @@ grep -A 30 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_setup_policy
   || fail "install_docker.sh: custom Debian/Ubuntu path missing _setup_policy_rc_d!"
 
 # ===========================================================================
+banner "TEST F: systemctl mask / unmask functions"
+# ===========================================================================
+
+# Verify mask/unmask functions exist in source
+grep -q "^_mask_docker_services()" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: _mask_docker_services function exists" \
+  || fail "install_docker.sh: _mask_docker_services missing!"
+
+grep -q "^_unmask_docker_services()" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: _unmask_docker_services function exists" \
+  || fail "install_docker.sh: _unmask_docker_services missing!"
+
+# Verify mask is used in install_docker_official
+grep -A 70 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_mask_docker_services" \
+  && pass "install_docker.sh: install_docker_official calls _mask_docker_services" \
+  || fail "install_docker.sh: install_docker_official missing _mask_docker_services!"
+
+# Verify unmask before _start_docker in official path
+grep -A 80 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_unmask_docker_services" \
+  && pass "install_docker.sh: install_docker_official calls _unmask_docker_services before _start_docker" \
+  || fail "install_docker.sh: install_docker_official missing _unmask_docker_services!"
+
+# Verify mask in custom Debian/Ubuntu path
+grep -A 35 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_mask_docker_services" \
+  && pass "install_docker.sh: custom Debian/Ubuntu path calls _mask_docker_services" \
+  || fail "install_docker.sh: custom Debian/Ubuntu path missing _mask_docker_services!"
+
+# Verify unmask is called in custom Debian/Ubuntu path before _start_docker
+grep -A 40 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_unmask_docker_services" \
+  && pass "install_docker.sh: custom Debian/Ubuntu path calls _unmask_docker_services before _start_docker" \
+  || fail "install_docker.sh: custom Debian/Ubuntu path missing _unmask_docker_services!"
+
+# ===========================================================================
 banner "SUMMARY"
 # ===========================================================================
 echo ""

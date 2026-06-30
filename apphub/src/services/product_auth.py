@@ -876,6 +876,50 @@ class ProductAuthService:
             "created_at": operator["created_at"],
         }
 
+    def find_system_user(self) -> Optional[dict[str, Any]]:
+        """Find the bootstrap/system operator without requiring authentication"""
+        operators = self._load_operators()
+        for operator in operators:
+            if operator.get("deleted", False):
+                continue
+            if self._is_protected_bootstrap_operator(operator):
+                return operator
+        for operator in operators:
+            if operator.get("deleted", False):
+                continue
+            if operator.get("delete_eligible") is False:
+                return operator
+        for operator in operators:
+            if operator.get("deleted", False):
+                continue
+            if operator.get("disabled", False):
+                continue
+            return operator
+        return None
+
+    def reset_system_user_password(self, operator_id: str, password: str) -> None:
+        """Reset an operator password directly without requiring a session"""
+        with self._lock:
+            operators = self._load_operators()
+            for operator in operators:
+                if operator.get("id") == operator_id and not operator.get("deleted", False):
+                    operator["password_hash"] = self._hash_password(password)
+                    operator["updated_at"] = self._now_iso()
+                    self._store_operators(operators)
+                    self.invalidate_sessions_for_operator(operator_id, "emergency-password-reset")
+                    self._append_audit(
+                        event="emergency_password_reset",
+                        operator_id=operator_id,
+                        username=operator.get("username", "unknown"),
+                        reason="manual-cli-reset",
+                    )
+                    return
+            raise CustomException(
+                status_code=404,
+                message="Operator Not Found",
+                details="The target operator does not exist or has been deleted",
+            )
+
     def _hash_password(self, password: str) -> str:
         salt = secrets.token_bytes(16)
         digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PASSWORD_HASH_ITERATIONS)

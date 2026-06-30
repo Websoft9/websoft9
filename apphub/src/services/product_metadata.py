@@ -48,7 +48,6 @@ def write_product_metadata(*, edition_key: str, version=None, max_apps=None) -> 
             except Exception:
                 payload = {}
         payload['version'] = str(version).strip()
-        payload['edition_key'] = edition_key
         payload.setdefault('channel', 'release')
         version_file.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding='utf-8')
 

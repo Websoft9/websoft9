@@ -1,49 +1,22 @@
 import configparser
 import sys
 import os
-import uuid
 import json
-import shutil
-import requests
-import subprocess
+import re
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import click
-from dotenv import dotenv_values, set_key,unset_key
-from src.services.apikey_manager import APIKeyManager
 from src.services.product_metadata import write_product_edition
 from src.services.settings_manager import SettingsManager
+from src.services.product_auth import ProductAuthService
 from src.core.exception import CustomException
-from src.core.config import ConfigManager
 from src.services.appstore_sync_manager import AppStoreSyncManager
-from src.services.integration_credentials import IntegrationCredentialProvider
 
 @click.group()
 def cli():
     pass
 
-@cli.command()
-def genkey():
-    """Generate a new API key"""
-    try:
-        key = APIKeyManager().generate_key()
-        click.echo(f"{key}")
-    except CustomException as e:
-        raise click.ClickException(e.details)
-    except Exception as e:
-        raise click.ClickException(str(e))
-
-@cli.command()
-def getkey():
-    """Get the API key"""
-    try:
-        key = APIKeyManager().get_key()
-        click.echo(f"{key}")
-    except CustomException as e:
-        raise click.ClickException(e.details)
-    except Exception as e:
-        raise click.ClickException(str(e))
 
 @cli.command()
 @click.option('--section',required=True, help='The section name')
@@ -88,41 +61,12 @@ def getconfig(section, key):
         config = configparser.ConfigParser()
         config.read(config_path, encoding="utf-8")
         if section is None:
-            # 返回整个配置文件内容
             all_config = {s: dict(config.items(s)) for s in config.sections()}
             click.echo(json.dumps(all_config))
         elif key is None:
-            # 返回指定 section 的内容
             value = dict(config.items(section)) if section in config.sections() else {}
             click.echo(json.dumps(value))
         else:
-            # 返回指定 section 和 key 的内容
-            value = config.get(section, key) if config.has_option(section, key) else ""
-            click.echo(f"{value}")
-    except CustomException as e:
-        raise click.ClickException(e.details)
-    except Exception as e:
-        raise click.ClickException(str(e))
-    
-@cli.command()
-@click.option('--section', help='The section name')
-@click.option('--key', help='The key name')
-def getsysconfig(section, key):
-    """Get a system config value or all system config as JSON"""
-    try:
-        system_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/system.ini'))
-        config = configparser.ConfigParser()
-        config.read(system_config_path, encoding="utf-8")
-        if section is None:
-            # 返回整个 system.ini 文件内容
-            all_config = {s: dict(config.items(s)) for s in config.sections()}
-            click.echo(json.dumps(all_config))
-        elif key is None:
-            # 返回指定 section 的内容
-            value = dict(config.items(section)) if section in config.sections() else {}
-            click.echo(json.dumps(value))
-        else:
-            # 返回指定 section 和 key 的内容
             value = config.get(section, key) if config.has_option(section, key) else ""
             click.echo(f"{value}")
     except CustomException as e:
@@ -131,124 +75,15 @@ def getsysconfig(section, key):
         raise click.ClickException(str(e))
 
 
-@cli.command()
-@click.option('--edition', 'edition_key', required=True, help='Edition key: free | starter | standard | enterprise')
-def setproductedition(edition_key):
+@cli.command(hidden=True)
+@click.argument('edition_key')
+def setedition(edition_key):
     """Set runtime product edition state"""
     try:
         edition = write_product_edition(edition_key)
         click.echo(f"Set product edition to {edition.key} (max_apps={edition.max_apps})")
     except Exception as e:
         raise click.ClickException(str(e))
-    
-@cli.command()
-@click.option('--appid',required=True, help='The App Id')
-@click.option('--github_token', required=True, help='The Github Token')
-def commit(appid, github_token):
-    """Commit the app to the Github"""
-    try:
-        # 从配置文件读取gitea的用户名和密码
-        credentials = IntegrationCredentialProvider().get_gitea_credentials()
-        gitea_user = credentials.username
-        gitea_pwd = credentials.password
-    
-        # 将/tmp目录作为工作目录，如果不存在则创建，如果存在则清空
-        work_dir = "/tmp/git"
-        if os.path.exists(work_dir):
-            shutil.rmtree(work_dir)
-        os.makedirs(work_dir)
-        os.chdir(work_dir)
-
-        # 执行git clone命令：将gitea仓库克隆到本地
-        gitea_repo_url = f"http://{gitea_user}:{gitea_pwd}@websoft9-git:3000/websoft9/{appid}.git"
-        subprocess.run(["git", "clone", gitea_repo_url], check=True)
-
-        # 执行git clone命令：将github仓库克隆到本地(dev分支)
-        github_repo_url = f"https://github.com/Websoft9/docker-library.git"
-        subprocess.run(["git", "clone", "--branch", "dev", github_repo_url], check=True)
-
-        # 解析gitea_repo_url下载的目录下的.env文件
-        gitea_env_path = os.path.join(work_dir, appid, '.env')
-        gitea_env_vars = dotenv_values(gitea_env_path)
-        w9_app_name = gitea_env_vars.get('W9_APP_NAME')
-
-        if not w9_app_name:
-            raise click.ClickException("W9_APP_NAME not found in Gitea .env file")
-        
-        # 解析github_repo_url下载的目录下的/apps/W9_APP_NAME目录下的.env文件
-        github_env_path = os.path.join(work_dir, 'docker-library', 'apps', w9_app_name, '.env')
-        github_env_vars = dotenv_values(github_env_path)
-
-        # 需要复制的变量
-        env_vars_to_copy = ['W9_URL', 'W9_ID']
-        port_set_vars = {key: value for key, value in github_env_vars.items() if key.endswith('PORT_SET')}
-
-        # 将这些值去替换gitea_repo_url目录下.env中对应项的值
-        for key in env_vars_to_copy:
-            if key in github_env_vars:
-                set_key(gitea_env_path, key, github_env_vars[key])
-
-        for key, value in port_set_vars.items():
-            set_key(gitea_env_path, key, value)
-
-        # 删除W9_APP_NAME
-        unset_key(gitea_env_path, 'W9_APP_NAME')
-
-        # 将整个gitea目录覆盖到docker-library/apps/w9_app_name目录
-        gitea_repo_dir = os.path.join(work_dir, appid)
-        github_app_dir = os.path.join(work_dir, 'docker-library', 'apps', w9_app_name)
-        if os.path.exists(github_app_dir):
-            shutil.rmtree(github_app_dir)
-        shutil.copytree(gitea_repo_dir, github_app_dir)
-
-        # 切换到docker-library目录
-        os.chdir(os.path.join(work_dir, 'docker-library'))
-
-        # 创建一个新的分支
-        new_branch_name = f"update-{w9_app_name}-{uuid.uuid4().hex[:8]}"
-        subprocess.run(["git", "checkout", "-b", new_branch_name], check=True)
-
-        # 将修改提交到新的分支
-        subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", f"Update {w9_app_name}"], check=True)
-
-        # 推送新的分支到 GitHub
-        # subprocess.run(["git", "push", "origin", new_branch_name], check=True)
-
-        # 推送新的分支到 GitHub
-        github_push_url = f"https://{github_token}:x-oauth-basic@github.com/websoft9/docker-library.git"
-        subprocess.run(["git", "push", github_push_url, new_branch_name], check=True)
-
-        # 创建 Pull Request 使用 GitHub API
-        pr_data = {
-            "title": f"Update {w9_app_name}",
-            "head": new_branch_name,
-            "base": "dev",
-            "body": "Automated update"
-        }
-
-        response = requests.post(
-            f"https://api.github.com/repos/websoft9/docker-library/pulls",
-            headers={
-                "Authorization": f"token {github_token}",
-                "Accept": "application/vnd.github.v3+json"
-            },
-            data=json.dumps(pr_data)
-        )
-
-        if response.status_code != 201:
-            raise click.ClickException(f"Failed to create Pull Request: {response.json()}")
-
-        click.echo(f"Pull Request created: {response.json().get('html_url')}")
-
-    except subprocess.CalledProcessError as e:
-        raise click.ClickException(f"Command failed: {e}")
-    except Exception as e:
-        raise click.ClickException(str(e))
-    finally:
-        # 删除工作目录
-        if os.path.exists(work_dir):
-            shutil.rmtree(work_dir)
 
 @cli.command()
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
@@ -278,47 +113,36 @@ def upgrade(target, channel, dev, force_refresh):
                 click.echo(f"App Store resources ({active_channel}) synchronized successfully.")
         else:
             click.echo(f"Unknown upgrade target: {target}")
-    except subprocess.CalledProcessError as e:
-        raise click.ClickException(f"Upgrade command failed: {e}")
     except Exception as e:
         raise click.ClickException(str(e))
 
 
-@cli.command(name='appstore-versions')
-def appstore_versions():
-    """List locally available App Store dataset versions"""
+@cli.command(hidden=True)
+@click.option('--password', prompt=True, hide_input=True, confirmation_prompt=True, help='New password for the system user')
+def resetpwd(password):
+    """Reset the Websoft9 system user password"""
     try:
-        result = AppStoreSyncManager().list_versions()
-        click.echo(json.dumps(result))
-    except Exception as e:
-        raise click.ClickException(str(e))
+        if len(password) < 8:
+            raise click.ClickException("Password must be at least 8 characters")
+        if not re.search(r"[A-Z]", password) or not re.search(r"[a-z]", password) or not re.search(r"\d", password) or not re.search(r"[^A-Za-z0-9]", password):
+            raise click.ClickException("Password must include uppercase, lowercase, number, and special character")
 
+        auth = ProductAuthService()
+        system_user = auth.find_system_user()
+        if system_user is None:
+            raise click.ClickException("System user not found")
 
-@cli.command(name='activate-appstore')
-@click.option('--dataset-version', required=True, help='Activate the specified local App Store dataset version')
-def activate_appstore(dataset_version):
-    """Activate a locally available App Store dataset version"""
-    try:
-        result = AppStoreSyncManager().activate(dataset_version=dataset_version, trigger='cli')
-        click.echo(f"Activated App Store dataset version: {result.get('datasetVersion')}")
-    except Exception as e:
-        raise click.ClickException(str(e))
+        username = system_user['username']
+        display_name = system_user.get('display_name', username)
+        click.echo(f"\nSystem user: {username} ({display_name})")
+        if not click.confirm("Reset password for this user?"):
+            click.echo("Cancelled.")
+            return
 
-@cli.command()
-def getallconfig():
-    """Get all config.ini and system.ini data as JSON"""
-    try:
-        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/config.ini'))
-        system_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/system.ini'))
-        config = configparser.ConfigParser()
-        system_config = configparser.ConfigParser()
-        config.read(config_path, encoding="utf-8")
-        system_config.read(system_config_path, encoding="utf-8")
-        result = {
-            "config": {s: dict(config.items(s)) for s in config.sections()},
-            "system": {s: dict(system_config.items(s)) for s in system_config.sections()}
-        }
-        click.echo(json.dumps(result))
+        auth.reset_system_user_password(system_user['id'], password)
+        click.echo(f"Password reset for system user '{username}'")
+    except click.ClickException:
+        raise
     except Exception as e:
         raise click.ClickException(str(e))
 

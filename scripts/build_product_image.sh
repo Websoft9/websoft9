@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE_TAG=""
 PRODUCT_VERSION=""
-PRODUCT_EDITION_KEY=""
 APPSTORE_CHANNEL="release"
 
 while [[ $# -gt 0 ]]; do
@@ -15,10 +14,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --version)
             PRODUCT_VERSION="$2"
-            shift 2
-            ;;
-        --edition-key)
-            PRODUCT_EDITION_KEY="$2"
             shift 2
             ;;
         --appstore-channel)
@@ -32,8 +27,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$IMAGE_TAG" || -z "$PRODUCT_VERSION" || -z "$PRODUCT_EDITION_KEY" ]]; then
-    echo "Usage: scripts/build_product_image.sh --tag <image:tag> --version <semver> --edition-key <free|starter|standard|enterprise> [--appstore-channel <release|rc|dev>]" >&2
+if [[ -z "$IMAGE_TAG" || -z "$PRODUCT_VERSION" ]]; then
+    echo "Usage: scripts/build_product_image.sh --tag <image:tag> --version <semver> [--appstore-channel <release|rc|dev>]" >&2
     exit 1
 fi
 
@@ -50,6 +45,5 @@ docker build \
     -f "$ROOT_DIR/docker/Dockerfile" \
     -t "$IMAGE_TAG" \
     --build-arg WEBSOFT9_PRODUCT_VERSION="$PRODUCT_VERSION" \
-    --build-arg WEBSOFT9_PRODUCT_EDITION_KEY="$PRODUCT_EDITION_KEY" \
     --build-arg WEBSOFT9_APPSTORE_CHANNEL="$APPSTORE_CHANNEL" \
     "$ROOT_DIR"

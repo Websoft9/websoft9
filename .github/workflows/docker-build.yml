@@ -96,7 +96,6 @@ jobs:
           no-cache: ${{ inputs.no_cache }}
           build-args: |
             WEBSOFT9_PRODUCT_VERSION=${{ steps.version.outputs.semver }}
-            WEBSOFT9_PRODUCT_EDITION_KEY=${{ steps.version.outputs.edition }}
             WEBSOFT9_APPSTORE_CHANNEL=${{ inputs.appstore_channel }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

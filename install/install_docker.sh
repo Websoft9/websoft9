@@ -204,6 +204,31 @@ _cleanup_policy_rc_d() {
 }
 
 # ---------------------------------------------------------------------------
+# Mask / unmask Docker systemd services.
+# systemctl mask creates a symlink to /dev/null, causing ALL start attempts
+# (both dpkg postinst via deb-systemd-invoke AND direct systemctl start
+# calls from get-docker.sh) to fail immediately instead of blocking.
+# This is the critical fix: policy-rc.d only blocks deb-systemd-invoke,
+# but get-docker.sh calls systemctl start docker directly after apt-get,
+# bypassing policy-rc.d entirely.
+# ---------------------------------------------------------------------------
+_mask_docker_services() {
+  if ! command_exists systemctl; then
+    return 0
+  fi
+  log_info "Masking docker.service, containerd.service, docker.socket to prevent blocking starts"
+  systemctl mask docker.service docker.socket containerd.service 2>/dev/null || true
+}
+
+_unmask_docker_services() {
+  if ! command_exists systemctl; then
+    return 0
+  fi
+  log_info "Unmasking docker.service, containerd.service, docker.socket"
+  systemctl unmask docker.service docker.socket containerd.service 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
 # Quick connectivity check — returns 0 if the URL is reachable within N seconds
 # ---------------------------------------------------------------------------
 _url_reachable() {
@@ -379,10 +404,11 @@ install_docker_custom() {
   if command_exists apt || command_exists apt-get; then
     _ensure_apt_sources
 
-    # Prevent dpkg from starting Docker during package installation
-    # (same rationale as install_docker_official — see comments there)
+    # Prevent Docker from being started during installation — by ANY mechanism.
+    # See install_docker_official for detailed rationale.
     _setup_policy_rc_d
-    trap '_cleanup_policy_rc_d' RETURN
+    _mask_docker_services
+    trap '_cleanup_policy_rc_d; _unmask_docker_services' RETURN
 
     local repo base
     for base in "${repos_base[@]}"; do
@@ -400,8 +426,9 @@ install_docker_custom() {
         _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
         if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
-          # Remove policy-rc.d before starting Docker ourselves
+          # Unmask services and remove policy-rc.d before starting Docker ourselves
           _cleanup_policy_rc_d
+          _unmask_docker_services
           _start_docker && return 0
           return 1
         fi
@@ -437,13 +464,16 @@ install_docker_official() {
     sed -i 's| >/dev/null||g; s| &>/dev/null||g; s| 2>/dev/null||g' get-docker.sh
   fi
 
-  # Prevent dpkg from starting Docker during package installation.
-  # Docker's systemd service has TimeoutStartSec=0 (infinite), and on Ubuntu
-  # systemctl start docker can block indefinitely when cgroup/AppArmor/iptables
-  # issues prevent dockerd from initializing — this would cause the entire
-  # installation pipeline to freeze inside apt-get/dpkg.
+  # Prevent Docker from being started during installation — by ANY mechanism.
+  # policy-rc.d blocks deb-systemd-invoke (dpkg postinst), but get-docker.sh
+  # calls systemctl start docker DIRECTLY after apt-get completes, which
+  # bypasses policy-rc.d entirely.  systemctl mask is the only way to block
+  # ALL start attempts: it symlinks the service file to /dev/null, causing
+  # systemctl start to fail immediately instead of blocking indefinitely
+  # (Docker's TimeoutStartSec=0 means infinite wait on Ubuntu).
   _setup_policy_rc_d
-  trap '_cleanup_policy_rc_d' RETURN
+  _mask_docker_services
+  trap '_cleanup_policy_rc_d; _unmask_docker_services' RETURN
 
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
@@ -455,8 +485,9 @@ install_docker_official() {
     if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
-        # Remove policy-rc.d before starting Docker ourselves
+        # Unmask services and remove policy-rc.d before starting Docker ourselves
         _cleanup_policy_rc_d
+        _unmask_docker_services
         _start_docker
         return $?
       fi

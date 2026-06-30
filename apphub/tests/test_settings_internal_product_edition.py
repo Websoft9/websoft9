@@ -142,37 +142,3 @@ def test_internal_product_edition_allows_authenticated_operator_read(monkeypatch
     assert response.status_code == 200
     assert response.json()["edition_key"] == "free"
     assert response.json()["updated_by"] == "system"
-
-
-def test_internal_product_edition_allows_authenticated_operator_write(monkeypatch):
-    app = create_test_app()
-    client = TestClient(app)
-    captured = {}
-
-    class AuthenticatedAuthService:
-        def _require_authenticated_operator(self, _session_token):
-            return {"id": "user-2", "username": "bob", "delete_eligible": True}
-
-    def fake_set_product_runtime_edition(edition_key, *, updated_by, note=None):
-        captured["edition_key"] = edition_key
-        captured["updated_by"] = updated_by
-        captured["note"] = note
-        return _runtime_state(edition_key=edition_key, updated_by=updated_by, note=note)
-
-    monkeypatch.setattr(settings_router, "ProductAuthService", AuthenticatedAuthService)
-    monkeypatch.setattr(settings_router, "set_product_runtime_edition", fake_set_product_runtime_edition)
-
-    response = client.put(
-        "/settings/internal/product-edition",
-        cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
-        json={"edition_key": "standard", "note": "manual upgrade"},
-    )
-
-    assert response.status_code == 200
-    assert captured == {
-        "edition_key": "standard",
-        "updated_by": "bob",
-        "note": "manual upgrade",
-    }
-    assert response.json()["edition_key"] == "standard"
-    assert response.json()["updated_by"] == "bob"

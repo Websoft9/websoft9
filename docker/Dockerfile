@@ -67,7 +67,7 @@ ENV WEBSOFT9_RUNTIME_LAYOUT=single-container-target \
 WORKDIR /websoft9
 
 # Keep system package installation BEFORE ARG declarations so that
-# changing WEBSOFT9_PRODUCT_VERSION/EDITION_KEY does not invalidate
+# changing WEBSOFT9_PRODUCT_VERSION does not invalidate
 # this expensive apt cache layer on every build.
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list 2>/dev/null || true; \
     apt-get update && \
@@ -87,7 +87,6 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s
     rm -rf /var/lib/apt/lists/*
 
 ARG WEBSOFT9_PRODUCT_VERSION=
-ARG WEBSOFT9_PRODUCT_EDITION_KEY=
 ARG WEBSOFT9_APPSTORE_CHANNEL=release
 
 # Restic backup binary — single static build, no runtime deps
@@ -137,7 +136,7 @@ COPY --from=portainer-init-builder /build/init_portainer /usr/local/bin/init_por
 
 COPY version.json /websoft9/version.json
 COPY apphub /websoft9/apphub
-RUN WEBSOFT9_PRODUCT_VERSION="${WEBSOFT9_PRODUCT_VERSION}" WEBSOFT9_PRODUCT_EDITION_KEY="${WEBSOFT9_PRODUCT_EDITION_KEY}" WEBSOFT9_APPSTORE_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" python3 - <<'PY'
+RUN WEBSOFT9_PRODUCT_VERSION="${WEBSOFT9_PRODUCT_VERSION}" WEBSOFT9_APPSTORE_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" python3 - <<'PY'
 import os
 import sys
 import json
@@ -151,7 +150,6 @@ version_path = Path("/websoft9/version.json")
 payload = read_release_version_file(version_path)
 
 version = (os.environ.get("WEBSOFT9_PRODUCT_VERSION") or str(payload.get("version") or "")).strip()
-edition_key = (os.environ.get("WEBSOFT9_PRODUCT_EDITION_KEY") or str(payload.get("edition_key") or "")).strip()
 channel = (os.environ.get("WEBSOFT9_APPSTORE_CHANNEL") or str(payload.get("channel") or "release")).strip().lower()
 
 if not version:
@@ -161,7 +159,6 @@ if channel not in {"release", "rc", "dev"}:
     raise SystemExit(f"Unsupported WEBSOFT9_APPSTORE_CHANNEL: {channel}")
 
 payload["version"] = version
-payload["edition_key"] = edition_key
 payload["channel"] = channel
 version_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
