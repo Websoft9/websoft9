@@ -90,23 +90,15 @@ ARG WEBSOFT9_PRODUCT_VERSION=
 ARG WEBSOFT9_APPSTORE_CHANNEL=release
 
 # Restic backup binary — single static build, no runtime deps
-# Try Chinese mirror proxies first, GitHub direct last (slow/unreachable in China)
 RUN RESTIC_URL="https://github.com/restic/restic/releases/download/v0.17.3/restic_0.17.3_linux_amd64.bz2" \
-    && for url in \
-         "https://mirror.ghproxy.com/${RESTIC_URL}" \
-         "https://ghproxy.com/${RESTIC_URL}" \
-         "https://ghproxy.net/${RESTIC_URL}" \
-         "$RESTIC_URL"; do \
-         echo "Trying: $url" \
-         && if curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 300 "$url" | bzip2 -d > /usr/local/bin/restic; then \
-              chmod +x /usr/local/bin/restic \
-              && restic version \
-              && echo "Restic installed from: $url" \
-              && break; \
-         fi; \
-         echo "Failed: $url, trying next..."; \
-       done \
-    && [ -x /usr/local/bin/restic ] || (echo "All Restic download sources failed" && false)
+    && echo "Downloading restic from: $RESTIC_URL" \
+    && curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 300 -o /tmp/restic.bz2 "$RESTIC_URL" \
+    && bzip2 -t /tmp/restic.bz2 \
+    && bzip2 -d -c /tmp/restic.bz2 > /usr/local/bin/restic \
+    && chmod +x /usr/local/bin/restic \
+    && restic version \
+    && rm -f /tmp/restic.bz2 \
+    && echo "Restic installed successfully"
 
 COPY --from=npm-runtime /app /app
 COPY --from=npm-runtime /etc/letsencrypt.ini /etc/letsencrypt.ini

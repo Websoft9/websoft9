@@ -206,28 +206,40 @@ _cleanup_policy_rc_d() {
 }
 
 # ---------------------------------------------------------------------------
-# Mask / unmask Docker systemd services.
-# systemctl mask creates a symlink to /dev/null, causing ALL start attempts
-# (both dpkg postinst via deb-systemd-invoke AND direct systemctl start
-# calls from get-docker.sh) to fail immediately instead of blocking.
-# This is the critical fix: policy-rc.d only blocks deb-systemd-invoke,
-# but get-docker.sh calls systemctl start docker directly after apt-get,
-# bypassing policy-rc.d entirely.
+# Limit Docker start timeout via systemd drop-in.
+# Docker's service file sets TimeoutStartSec=0 (infinite), so systemctl start
+# blocks forever if dockerd cannot initialize (common on Ubuntu with
+# cgroup v2 / AppArmor / iptables issues).
+#
+# We create a drop-in that sets TimeoutStartSec=30 — systemd will give up
+# after 30s instead of hanging.  This is cleaner than systemctl mask
+# (which breaks systemctl preset and causes "No such file or directory"
+# errors) and more comprehensive than policy-rc.d (which only blocks
+# deb-systemd-invoke, not direct systemctl start calls from get-docker.sh).
 # ---------------------------------------------------------------------------
-_mask_docker_services() {
+_limit_docker_start_timeout() {
   if ! command_exists systemctl; then
     return 0
   fi
-  log_info "Masking docker.service, containerd.service, docker.socket to prevent blocking starts"
-  systemctl mask docker.service docker.socket containerd.service 2>/dev/null || true
+  log_info "Limiting Docker start timeout to 30s via systemd drop-in"
+  mkdir -p /etc/systemd/system/docker.service.d
+  cat > /etc/systemd/system/docker.service.d/99-websoft9-timeout.conf <<'DROPOEOF'
+[Service]
+TimeoutStartSec=30
+DROPOEOF
+  systemctl daemon-reload 2>/dev/null || true
 }
 
-_unmask_docker_services() {
+_remove_docker_start_timeout() {
   if ! command_exists systemctl; then
     return 0
   fi
-  log_info "Unmasking docker.service, containerd.service, docker.socket"
-  systemctl unmask docker.service docker.socket containerd.service 2>/dev/null || true
+  if [ -f /etc/systemd/system/docker.service.d/99-websoft9-timeout.conf ]; then
+    rm -f /etc/systemd/system/docker.service.d/99-websoft9-timeout.conf
+    rmdir --ignore-fail-on-non-empty /etc/systemd/system/docker.service.d 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+    log_info "Removed Docker start timeout limit"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -409,8 +421,8 @@ install_docker_custom() {
     # Prevent Docker from being started during installation — by ANY mechanism.
     # See install_docker_official for detailed rationale.
     _setup_policy_rc_d
-    _mask_docker_services
-    trap '_cleanup_policy_rc_d; _unmask_docker_services' RETURN
+    _limit_docker_start_timeout
+    trap '_cleanup_policy_rc_d; _remove_docker_start_timeout' RETURN
 
     local repo base
     for base in "${repos_base[@]}"; do
@@ -430,7 +442,7 @@ install_docker_custom() {
              docker-buildx-plugin docker-compose-plugin; then
           # Unmask services and remove policy-rc.d before starting Docker ourselves
           _cleanup_policy_rc_d
-          _unmask_docker_services
+          _remove_docker_start_timeout
           _start_docker && return 0
           return 1
         fi
@@ -474,8 +486,8 @@ install_docker_official() {
   # systemctl start to fail immediately instead of blocking indefinitely
   # (Docker's TimeoutStartSec=0 means infinite wait on Ubuntu).
   _setup_policy_rc_d
-  _mask_docker_services
-  trap '_cleanup_policy_rc_d; _unmask_docker_services' RETURN
+  _limit_docker_start_timeout
+  trap '_cleanup_policy_rc_d; _remove_docker_start_timeout' RETURN
 
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
@@ -489,7 +501,7 @@ install_docker_official() {
         log_info "Docker installation succeeded via official script"
         # Unmask services and remove policy-rc.d before starting Docker ourselves
         _cleanup_policy_rc_d
-        _unmask_docker_services
+        _remove_docker_start_timeout
         _start_docker
         return $?
       fi

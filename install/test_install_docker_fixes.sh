@@ -350,37 +350,37 @@ grep -A 30 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_setup_policy
   || fail "install_docker.sh: custom Debian/Ubuntu path missing _setup_policy_rc_d!"
 
 # ===========================================================================
-banner "TEST F: systemctl mask / unmask functions"
+banner "TEST F: limit Docker start timeout / unmask functions"
 # ===========================================================================
 
-# Verify mask/unmask functions exist in source
-grep -q "^_mask_docker_services()" "$INSTALL_DOCKER_SH" \
-  && pass "install_docker.sh: _mask_docker_services function exists" \
-  || fail "install_docker.sh: _mask_docker_services missing!"
+# Verify timeout drop-in functions exist in source
+grep -q "^_limit_docker_start_timeout()" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: _limit_docker_start_timeout function exists" \
+  || fail "install_docker.sh: _limit_docker_start_timeout missing!"
 
-grep -q "^_unmask_docker_services()" "$INSTALL_DOCKER_SH" \
-  && pass "install_docker.sh: _unmask_docker_services function exists" \
-  || fail "install_docker.sh: _unmask_docker_services missing!"
+grep -q "^_remove_docker_start_timeout()" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: _remove_docker_start_timeout function exists" \
+  || fail "install_docker.sh: _remove_docker_start_timeout missing!"
 
 # Verify mask is used in install_docker_official
-grep -A 70 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_mask_docker_services" \
-  && pass "install_docker.sh: install_docker_official calls _mask_docker_services" \
-  || fail "install_docker.sh: install_docker_official missing _mask_docker_services!"
+grep -A 70 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_limit_docker_start_timeout" \
+  && pass "install_docker.sh: install_docker_official calls _limit_docker_start_timeout" \
+  || fail "install_docker.sh: install_docker_official missing _limit_docker_start_timeout!"
 
 # Verify unmask before _start_docker in official path
-grep -A 80 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_unmask_docker_services" \
-  && pass "install_docker.sh: install_docker_official calls _unmask_docker_services before _start_docker" \
-  || fail "install_docker.sh: install_docker_official missing _unmask_docker_services!"
+grep -A 80 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_remove_docker_start_timeout" \
+  && pass "install_docker.sh: install_docker_official calls _remove_docker_start_timeout before _start_docker" \
+  || fail "install_docker.sh: install_docker_official missing _remove_docker_start_timeout!"
 
 # Verify mask in custom Debian/Ubuntu path
-grep -A 35 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_mask_docker_services" \
-  && pass "install_docker.sh: custom Debian/Ubuntu path calls _mask_docker_services" \
-  || fail "install_docker.sh: custom Debian/Ubuntu path missing _mask_docker_services!"
+grep -A 35 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_limit_docker_start_timeout" \
+  && pass "install_docker.sh: custom Debian/Ubuntu path calls _limit_docker_start_timeout" \
+  || fail "install_docker.sh: custom Debian/Ubuntu path missing _limit_docker_start_timeout!"
 
 # Verify unmask is called in custom Debian/Ubuntu path before _start_docker
-grep -A 40 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_unmask_docker_services" \
-  && pass "install_docker.sh: custom Debian/Ubuntu path calls _unmask_docker_services before _start_docker" \
-  || fail "install_docker.sh: custom Debian/Ubuntu path missing _unmask_docker_services!"
+grep -A 40 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_remove_docker_start_timeout" \
+  && pass "install_docker.sh: custom Debian/Ubuntu path calls _remove_docker_start_timeout before _start_docker" \
+  || fail "install_docker.sh: custom Debian/Ubuntu path missing _remove_docker_start_timeout!"
 
 # ===========================================================================
 banner "SUMMARY"
