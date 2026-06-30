@@ -36,11 +36,18 @@ require_root() {
 # Carriage returns (\r) are converted to newlines so that progress bars
 # (which use \r without \n) become visible as individual log lines instead
 # of being swallowed by read's line buffering.
-# Without this tr, read -r blocks indefinitely when it encounters \r
+# Without this, read -r blocks indefinitely when it encounters \r
 # without a trailing \n (e.g. dpkg/apt progress bars on Ubuntu), causing
 # the entire installation pipeline to freeze.
+# stdbuf -o0 forces unbuffered output from tr: by default tr uses block
+# buffering when stdout is a pipe, which can cause translated \n characters
+# to stay in the buffer without reaching read in a timely manner.
 _log_pipe() {
-  tr '\r' '\n' | while IFS= read -r line; do
+  if command -v stdbuf >/dev/null 2>&1; then
+    stdbuf -o0 tr '\r' '\n'
+  else
+    tr '\r' '\n'
+  fi | while IFS= read -r line; do
     log_info "$line"
   done
 }
@@ -166,6 +173,34 @@ _start_docker() {
   fi
   log_error "Docker daemon failed to start"
   return 1
+}
+
+# ---------------------------------------------------------------------------
+# policy-rc.d helpers — prevent dpkg from starting services during package
+# installation (Debian/Ubuntu).  Docker's systemd service has
+# TimeoutStartSec=0 (infinite), and systemctl start docker can block
+# indefinitely on Ubuntu when cgroup/AppArmor/iptables issues prevent
+# dockerd from initializing.
+# ---------------------------------------------------------------------------
+_setup_policy_rc_d() {
+  if [ ! -d /usr/sbin ] || [ -f /usr/sbin/policy-rc.d ]; then
+    return 0
+  fi
+  cat > /usr/sbin/policy-rc.d <<'POLICYEOF'
+#!/bin/sh
+# Websoft9: prevent dpkg from starting services during Docker installation.
+# This file is managed by install_docker.sh and removed after installation.
+exit 101
+POLICYEOF
+  chmod +x /usr/sbin/policy-rc.d
+  log_info "Set policy-rc.d to prevent automatic service starts during package installation"
+}
+
+_cleanup_policy_rc_d() {
+  if [ -f /usr/sbin/policy-rc.d ] && grep -q "Websoft9" /usr/sbin/policy-rc.d 2>/dev/null; then
+    rm -f /usr/sbin/policy-rc.d
+    log_info "Removed policy-rc.d, services can now start normally"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -343,6 +378,12 @@ install_docker_custom() {
   # Debian / Ubuntu (APT)
   if command_exists apt || command_exists apt-get; then
     _ensure_apt_sources
+
+    # Prevent dpkg from starting Docker during package installation
+    # (same rationale as install_docker_official — see comments there)
+    _setup_policy_rc_d
+    trap '_cleanup_policy_rc_d' RETURN
+
     local repo base
     for base in "${repos_base[@]}"; do
       repo="${base}/ubuntu"
@@ -359,6 +400,8 @@ install_docker_custom() {
         _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
         if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
+          # Remove policy-rc.d before starting Docker ourselves
+          _cleanup_policy_rc_d
           _start_docker && return 0
           return 1
         fi
@@ -394,6 +437,14 @@ install_docker_official() {
     sed -i 's| >/dev/null||g; s| &>/dev/null||g; s| 2>/dev/null||g' get-docker.sh
   fi
 
+  # Prevent dpkg from starting Docker during package installation.
+  # Docker's systemd service has TimeoutStartSec=0 (infinite), and on Ubuntu
+  # systemctl start docker can block indefinitely when cgroup/AppArmor/iptables
+  # issues prevent dockerd from initializing — this would cause the entire
+  # installation pipeline to freeze inside apt-get/dpkg.
+  _setup_policy_rc_d
+  trap '_cleanup_policy_rc_d' RETURN
+
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
@@ -404,6 +455,8 @@ install_docker_official() {
     if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
+        # Remove policy-rc.d before starting Docker ourselves
+        _cleanup_policy_rc_d
         _start_docker
         return $?
       fi
@@ -418,6 +471,8 @@ install_docker_official() {
     fi
   done
 
+  # Cleanup happens via RETURN trap; also call explicitly for clarity
+  _cleanup_policy_rc_d
   log_warn "Official script exhausted all mirrors, falling back to custom installation"
   install_docker_custom "$lsb_dist"
   return $?

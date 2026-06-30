@@ -851,7 +851,7 @@ class AppManger:
                         logo_url=self._resolve_available_app_logo_url(logo_map, app_name, stack_name) if app_name else None,
                         app_dist=app_dist,
                         app_version=app_version,
-                        app_official=bool(app_name) or bool(gitConfig),
+                        app_official=bool(app_name),
                         is_compose_app=is_compose,
                         is_php_app=is_php_app,
                         is_monitor_app=is_monitor_app,
@@ -1073,7 +1073,7 @@ class AppManger:
                     logo_url = self._resolve_available_app_logo_url(logo_map, app_name, app_id),
                     app_dist = app_dist,
                     app_version = app_version,
-                    app_official = True,
+                    app_official = bool(app_name),
                     is_compose_app = is_compose,
                     is_php_app = is_php_app,
                     is_monitor_app = is_monitor_app,
@@ -1106,7 +1106,7 @@ class AppManger:
                     logo_url = self._resolve_available_app_logo_url(logo_map, app_name, app_id),
                     app_dist = inactive_app_dist,
                     app_version = inactive_app_version,
-                    app_official = True,
+                    app_official = bool(app_name),
                     is_compose_app = is_compose,
                     is_php_app = is_php_app,
                     is_monitor_app = is_monitor_app,
@@ -1413,15 +1413,14 @@ class AppManger:
         # Get the appInstallApps
         appInstallApps = AppManger().get_apps(endpointId)
 
-        # Get all apps that are official and active
-        app_official = [app for app in appInstallApps if app.app_official == True and app.status == 1 ]
+        # Get all apps that are official and active (or inactive)
+        app_official_active = [app for app in appInstallApps if app.app_official == True and app.status == 1]
 
-        # if app_id is active,can not check the apps number
-        if not any(app.app_id == app_id for app in app_official):
-            # Chenck the apps number
+        # Only check limit for official (app store) apps. Compose/external apps are not subject to the limit.
+        is_official = any(app.app_id == app_id and app.app_official == True for app in appInstallApps)
+        if is_official and not any(app.app_id == app_id for app in app_official_active):
             check_apps_number(endpointId)
 
-        #fix bug(上面排除了状态为Inactive的，导致状态为Inactive的不能重建，这里重新加入)
         app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 2)]
 
         portainerManager = PortainerManager()

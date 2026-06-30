@@ -164,10 +164,51 @@ async function runRedeployRequest(appId: string, pullImage: boolean) {
         credentials: 'include',
         headers: { Accept: 'text/plain' },
     })
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
         throw new Error(await parseJsonError(response, `Redeploy failed: ${response.status}`))
     }
-    await response.text()
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finalStatus: 'success' | 'failed' | null = null
+    let lastErrorDetail: string | null = null
+
+    while (true) {
+        const { done, value } = await reader.read()
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+                const entry = JSON.parse(line) as { status?: string; type?: string; details?: string; message?: string }
+                if (entry.status === 'failed' || entry.type === 'error') {
+                    finalStatus = 'failed'
+                    if (entry.details) lastErrorDetail = entry.details
+                    else if (entry.message) lastErrorDetail = entry.message
+                }
+                if (entry.status === 'success') finalStatus = 'success'
+            } catch { /* skip unparseable lines */ }
+        }
+
+        if (done) break
+    }
+
+    if (buffer.trim()) {
+        try {
+            const entry = JSON.parse(buffer) as { status?: string; type?: string; details?: string; message?: string }
+            if (entry.status === 'failed' || entry.type === 'error') {
+                finalStatus = 'failed'
+                if (entry.details) lastErrorDetail = entry.details
+                else if (entry.message) lastErrorDetail = entry.message
+            }
+            if (entry.status === 'success') finalStatus = 'success'
+        } catch { /* skip */ }
+    }
+
+    if (finalStatus !== 'success') throw new Error(lastErrorDetail ?? 'Redeploy did not complete successfully.')
 }
 
 // =====================
@@ -549,15 +590,16 @@ export function MyAppsPage() {
         [apps, searchValue, selectedStatus],
     )
 
-    const platformApps = useMemo(() => filteredApps.filter((app) => app.app_official), [filteredApps])
-    const otherApps = useMemo(() => filteredApps.filter((app) => !app.app_official), [filteredApps])
+    const isWebsoft9App = (app: MyApp) => app.app_official || Boolean(app.gitConfig && Object.keys(app.gitConfig).length > 0)
+    const platformApps = useMemo(() => filteredApps.filter(isWebsoft9App), [filteredApps])
+    const otherApps = useMemo(() => filteredApps.filter((app) => !isWebsoft9App(app)), [filteredApps])
 
     const hasVisiblePlatformApps = platformApps.length > 0
     const hasVisibleOtherApps = otherApps.length > 0
     const showLoadingState = isLoading || manualRefreshing
 
     function handleCardClick(app: MyApp) {
-        if (!app.app_official) return
+        if (!isWebsoft9App(app)) return
         if (app.status === 1) {
             const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
             const backgroundScrollTop = contentScopeContainer instanceof HTMLElement ? contentScopeContainer.scrollTop : 0
@@ -613,7 +655,7 @@ export function MyAppsPage() {
 
     function renderCards(appList: MyApp[], variant: 'managed' | 'other') {
         return appList.map((app) => {
-            const canOpenDetail = app.app_official
+            const canOpenDetail = app.app_official || Boolean(app.gitConfig && Object.keys(app.gitConfig).length > 0)
             const showStatus = variant === 'managed' && canOpenDetail
             const logoSize = 80
 
@@ -697,6 +739,11 @@ export function MyAppsPage() {
                     tabIndex={canOpenDetail ? 0 : undefined}
                     onKeyDown={canOpenDetail ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(app) } : undefined}
                 >
+                    {!app.app_official && isWebsoft9App(app) ? (
+                        <div className="myapps-vcard-ribbon">
+                            <span>{t('myAppsPage.card.customDeploy')}</span>
+                        </div>
+                    ) : null}
                     <div className="myapps-vcard-top">
                         {actionsNode ? <div className="myapps-vcard-actions">{actionsNode}</div> : <div className="myapps-vcard-actions myapps-vcard-actions--placeholder" />}
                     </div>
