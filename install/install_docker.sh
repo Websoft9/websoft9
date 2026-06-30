@@ -178,71 +178,6 @@ _start_docker() {
 }
 
 # ---------------------------------------------------------------------------
-# policy-rc.d helpers — prevent dpkg from starting services during package
-# installation (Debian/Ubuntu).  Docker's systemd service has
-# TimeoutStartSec=0 (infinite), and systemctl start docker can block
-# indefinitely on Ubuntu when cgroup/AppArmor/iptables issues prevent
-# dockerd from initializing.
-# ---------------------------------------------------------------------------
-_setup_policy_rc_d() {
-  if [ ! -d /usr/sbin ] || [ -f /usr/sbin/policy-rc.d ]; then
-    return 0
-  fi
-  cat > /usr/sbin/policy-rc.d <<'POLICYEOF'
-#!/bin/sh
-# Websoft9: prevent dpkg from starting services during Docker installation.
-# This file is managed by install_docker.sh and removed after installation.
-exit 101
-POLICYEOF
-  chmod +x /usr/sbin/policy-rc.d
-  log_info "Set policy-rc.d to prevent automatic service starts during package installation"
-}
-
-_cleanup_policy_rc_d() {
-  if [ -f /usr/sbin/policy-rc.d ] && grep -q "Websoft9" /usr/sbin/policy-rc.d 2>/dev/null; then
-    rm -f /usr/sbin/policy-rc.d
-    log_info "Removed policy-rc.d, services can now start normally"
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# Limit Docker start timeout via systemd drop-in.
-# Docker's service file sets TimeoutStartSec=0 (infinite), so systemctl start
-# blocks forever if dockerd cannot initialize (common on Ubuntu with
-# cgroup v2 / AppArmor / iptables issues).
-#
-# We create a drop-in that sets TimeoutStartSec=30 — systemd will give up
-# after 30s instead of hanging.  This is cleaner than systemctl mask
-# (which breaks systemctl preset and causes "No such file or directory"
-# errors) and more comprehensive than policy-rc.d (which only blocks
-# deb-systemd-invoke, not direct systemctl start calls from get-docker.sh).
-# ---------------------------------------------------------------------------
-_limit_docker_start_timeout() {
-  if ! command_exists systemctl; then
-    return 0
-  fi
-  log_info "Limiting Docker start timeout to 30s via systemd drop-in"
-  mkdir -p /etc/systemd/system/docker.service.d
-  cat > /etc/systemd/system/docker.service.d/99-websoft9-timeout.conf <<'DROPOEOF'
-[Service]
-TimeoutStartSec=30
-DROPOEOF
-  systemctl daemon-reload 2>/dev/null || true
-}
-
-_remove_docker_start_timeout() {
-  if ! command_exists systemctl; then
-    return 0
-  fi
-  if [ -f /etc/systemd/system/docker.service.d/99-websoft9-timeout.conf ]; then
-    rm -f /etc/systemd/system/docker.service.d/99-websoft9-timeout.conf
-    rmdir --ignore-fail-on-non-empty /etc/systemd/system/docker.service.d 2>/dev/null || true
-    systemctl daemon-reload 2>/dev/null || true
-    log_info "Removed Docker start timeout limit"
-  fi
-}
-
-# ---------------------------------------------------------------------------
 # Quick connectivity check — returns 0 if the URL is reachable within N seconds
 # ---------------------------------------------------------------------------
 _url_reachable() {
@@ -418,12 +353,6 @@ install_docker_custom() {
   if command_exists apt || command_exists apt-get; then
     _ensure_apt_sources
 
-    # Prevent Docker from being started during installation — by ANY mechanism.
-    # See install_docker_official for detailed rationale.
-    _setup_policy_rc_d
-    _limit_docker_start_timeout
-    trap '_cleanup_policy_rc_d; _remove_docker_start_timeout' RETURN
-
     local repo base
     for base in "${repos_base[@]}"; do
       repo="${base}/ubuntu"
@@ -440,9 +369,6 @@ install_docker_custom() {
         _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
         if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
-          # Unmask services and remove policy-rc.d before starting Docker ourselves
-          _cleanup_policy_rc_d
-          _remove_docker_start_timeout
           _start_docker && return 0
           return 1
         fi
@@ -478,17 +404,6 @@ install_docker_official() {
     sed -i 's| >/dev/null||g; s| &>/dev/null||g; s| 2>/dev/null||g' get-docker.sh
   fi
 
-  # Prevent Docker from being started during installation — by ANY mechanism.
-  # policy-rc.d blocks deb-systemd-invoke (dpkg postinst), but get-docker.sh
-  # calls systemctl start docker DIRECTLY after apt-get completes, which
-  # bypasses policy-rc.d entirely.  systemctl mask is the only way to block
-  # ALL start attempts: it symlinks the service file to /dev/null, causing
-  # systemctl start to fail immediately instead of blocking indefinitely
-  # (Docker's TimeoutStartSec=0 means infinite wait on Ubuntu).
-  _setup_policy_rc_d
-  _limit_docker_start_timeout
-  trap '_cleanup_policy_rc_d; _remove_docker_start_timeout' RETURN
-
   for mirror in "${mirrors[@]}"; do
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
@@ -499,9 +414,6 @@ install_docker_official() {
     if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
-        # Unmask services and remove policy-rc.d before starting Docker ourselves
-        _cleanup_policy_rc_d
-        _remove_docker_start_timeout
         _start_docker
         return $?
       fi
@@ -516,8 +428,6 @@ install_docker_official() {
     fi
   done
 
-  # Cleanup happens via RETURN trap; also call explicitly for clarity
-  _cleanup_policy_rc_d
   log_warn "Official script exhausted all mirrors, falling back to custom installation"
   install_docker_custom "$lsb_dist"
   return $?
