@@ -448,7 +448,7 @@ install_docker_custom() {
 # ---------------------------------------------------------------------------
 install_docker_official() {
   local mirrors=("" "--mirror Aliyun" "--mirror AzureChinaCloud")
-  local install_timeout=1800
+  local install_timeout=600
   local lsb_dist
   lsb_dist="$(detect_distro)"
 
