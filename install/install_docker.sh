@@ -33,17 +33,19 @@ require_root() {
 }
 
 # Pipe stdout/stderr through log_info so every line gets the Websoft9 prefix.
-# Carriage returns (\r) are converted to newlines so that progress bars
-# (which use \r without \n) become visible as individual log lines instead
-# of being swallowed by read's line buffering.
 # Without this, read -r blocks indefinitely when it encounters \r
 # without a trailing \n (e.g. dpkg/apt progress bars on Ubuntu), causing
 # the entire installation pipeline to freeze.
-# stdbuf -o0 forces unbuffered output from tr: by default tr uses block
-# buffering when stdout is a pipe, which can cause translated \n characters
-# to stay in the buffer without reaching read in a timely manner.
+#
+# We use perl (preferred) or tr (fallback) to convert \r to \n.
+# perl is preferred because it normalizes \r\n→\n first, avoiding
+# double-spaced output from tr's blind \r→\n conversion of every
+# carriage return including those in CRLF line endings.
+# $|=1 ensures unbuffered output so read never starves.
 _log_pipe() {
-  if command -v stdbuf >/dev/null 2>&1; then
+  if command -v perl >/dev/null 2>&1; then
+    perl -pe 'BEGIN{$|=1} s/\r\n/\n/g; s/\r/\n/g'
+  elif command -v stdbuf >/dev/null 2>&1; then
     stdbuf -o0 tr '\r' '\n'
   else
     tr '\r' '\n'
