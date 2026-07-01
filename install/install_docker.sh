@@ -76,6 +76,36 @@ _run_logged() {
   return "$exit_code"
 }
 
+_run_logged_with_heartbeat() {
+  local label="$1" interval="${2:-30}"
+  shift 2
+
+  log_info "$label"
+  log_info "Package manager progress is hidden to keep logs readable; this can take several minutes on slow mirrors."
+
+  _run_logged "$@" &
+  local command_pid=$!
+  (
+    local start now elapsed
+    start="$(date +%s)"
+    while kill -0 "$command_pid" 2>/dev/null; do
+      sleep "$interval"
+      if kill -0 "$command_pid" 2>/dev/null; then
+        now="$(date +%s)"
+        elapsed=$((now - start))
+        log_info "Still working: ${label} (elapsed ${elapsed}s)"
+      fi
+    done
+  ) &
+  local heartbeat_pid=$!
+  local exit_code
+  wait "$command_pid"
+  exit_code=$?
+  kill "$heartbeat_pid" 2>/dev/null || true
+  wait "$heartbeat_pid" 2>/dev/null || true
+  return "$exit_code"
+}
+
 _setup_apt_noninteractive_config() {
   if [ ! -d /etc/apt/apt.conf.d ]; then
     return 0
@@ -453,7 +483,8 @@ install_docker_custom() {
           $(. /etc/os-release && echo "${VERSION_CODENAME:-stable}") stable" | \
           tee /etc/apt/sources.list.d/docker.list >/dev/null
         _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
-        if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
+        if _run_logged_with_heartbeat "Installing Docker Engine packages from APT repo: $repo" 30 \
+             timeout --kill-after=30 900 apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
           _cleanup_policy_rc_d
           _cleanup_apt_noninteractive_config
@@ -503,7 +534,8 @@ install_docker_official() {
     # Pipe through _run_logged for TTY-safe logging.  \r characters
     # emitted by apt/dpkg progress bars are converted to \n by _log_pipe
     # so the pipeline never blocks waiting for a newline that doesn't come.
-    if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
+    if _run_logged_with_heartbeat "Installing Docker Engine packages via official script" 30 \
+          timeout --kill-after=30 "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
         _cleanup_policy_rc_d

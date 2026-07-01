@@ -365,6 +365,22 @@ grep -A 35 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_setup_apt_no
   && pass "install_docker.sh: custom Debian/Ubuntu path disables apt pseudo-terminal progress" \
   || fail "install_docker.sh: custom Debian/Ubuntu path missing apt progress suppression!"
 
+grep -q "^_run_logged_with_heartbeat()" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: _run_logged_with_heartbeat function exists" \
+  || fail "install_docker.sh: _run_logged_with_heartbeat missing!"
+
+grep -A 80 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_run_logged_with_heartbeat" \
+  && pass "install_docker.sh: official path emits heartbeat during long install" \
+  || fail "install_docker.sh: official path missing heartbeat wrapper!"
+
+grep -A 45 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_run_logged_with_heartbeat" \
+  && pass "install_docker.sh: custom Debian/Ubuntu path emits heartbeat during long install" \
+  || fail "install_docker.sh: custom Debian/Ubuntu path missing heartbeat wrapper!"
+
+grep -q "timeout --kill-after=30" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: long Docker package installs use kill-after timeout" \
+  || fail "install_docker.sh: missing kill-after timeout for long installs!"
+
 # ===========================================================================
 banner "TEST F: limit Docker start timeout / unmask functions"
 # ===========================================================================
