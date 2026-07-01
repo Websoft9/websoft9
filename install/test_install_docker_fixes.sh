@@ -349,6 +349,22 @@ grep -A 30 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_setup_policy
   && pass "install_docker.sh: custom Debian/Ubuntu path calls _setup_policy_rc_d" \
   || fail "install_docker.sh: custom Debian/Ubuntu path missing _setup_policy_rc_d!"
 
+grep -q "^_setup_apt_noninteractive_config()" "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: _setup_apt_noninteractive_config function exists" \
+  || fail "install_docker.sh: _setup_apt_noninteractive_config missing!"
+
+grep -q 'Dpkg::Use-Pty "0"' "$INSTALL_DOCKER_SH" \
+  && pass "install_docker.sh: disables dpkg pseudo-terminal progress" \
+  || fail "install_docker.sh: missing Dpkg::Use-Pty progress suppression!"
+
+grep -A 65 "^install_docker_official()" "$INSTALL_DOCKER_SH" | grep -q "_setup_apt_noninteractive_config" \
+  && pass "install_docker.sh: official path disables apt pseudo-terminal progress" \
+  || fail "install_docker.sh: official path missing apt progress suppression!"
+
+grep -A 35 "Debian / Ubuntu (APT)" "$INSTALL_DOCKER_SH" | grep -q "_setup_apt_noninteractive_config" \
+  && pass "install_docker.sh: custom Debian/Ubuntu path disables apt pseudo-terminal progress" \
+  || fail "install_docker.sh: custom Debian/Ubuntu path missing apt progress suppression!"
+
 # ===========================================================================
 banner "TEST F: limit Docker start timeout / unmask functions"
 # ===========================================================================

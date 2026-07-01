@@ -25,6 +25,10 @@ log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
 
 command_exists() { command -v "$@" >/dev/null 2>&1; }
 
+W9_POLICY_RC_D_CREATED="0"
+W9_APT_CONF_CREATED="0"
+W9_SYSTEMD_TIMEOUT_CREATED="0"
+
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
     log_error "Root privileges are required. Please re-run this command with sudo or as root."
@@ -70,6 +74,85 @@ _run_logged() {
   exit_code="$(cat "$exit_file" 2>/dev/null || echo 1)"
   rm -f "$exit_file"
   return "$exit_code"
+}
+
+_setup_apt_noninteractive_config() {
+  if [ ! -d /etc/apt/apt.conf.d ]; then
+    return 0
+  fi
+  if [ -f /etc/apt/apt.conf.d/99websoft9-noninteractive ]; then
+    return 0
+  fi
+  cat > /etc/apt/apt.conf.d/99websoft9-noninteractive <<'APTCONF'
+// Websoft9: keep Docker package installation non-interactive and log-friendly.
+Dpkg::Use-Pty "0";
+Dpkg::Progress-Fancy "0";
+APT::Color "0";
+APTCONF
+  W9_APT_CONF_CREATED="1"
+  log_info "Disabled APT/dpkg pseudo-terminal progress during Docker installation"
+}
+
+_cleanup_apt_noninteractive_config() {
+  if [ "$W9_APT_CONF_CREATED" = "1" ] && [ -f /etc/apt/apt.conf.d/99websoft9-noninteractive ]; then
+    rm -f /etc/apt/apt.conf.d/99websoft9-noninteractive
+    log_info "Restored default APT/dpkg progress behavior"
+  fi
+}
+
+_setup_policy_rc_d() {
+  if [ ! -d /usr/sbin ]; then
+    return 0
+  fi
+  if [ -f /usr/sbin/policy-rc.d ]; then
+    return 0
+  fi
+  cat > /usr/sbin/policy-rc.d <<'POLICYEOF'
+#!/bin/sh
+# Websoft9: prevent dpkg from starting services during Docker installation.
+# This file is managed by install_docker.sh and removed after installation.
+exit 101
+POLICYEOF
+  chmod +x /usr/sbin/policy-rc.d
+  W9_POLICY_RC_D_CREATED="1"
+  log_info "Set policy-rc.d to prevent automatic service starts during package installation"
+}
+
+_cleanup_policy_rc_d() {
+  if [ "$W9_POLICY_RC_D_CREATED" = "1" ] && [ -f /usr/sbin/policy-rc.d ] && grep -q "Websoft9" /usr/sbin/policy-rc.d 2>/dev/null; then
+    rm -f /usr/sbin/policy-rc.d
+    log_info "Removed policy-rc.d, services can now start normally"
+  fi
+}
+
+_limit_docker_start_timeout() {
+  if ! command_exists systemctl; then
+    return 0
+  fi
+  mkdir -p /etc/systemd/system/docker.service.d /etc/systemd/system/containerd.service.d
+  cat > /etc/systemd/system/docker.service.d/99-websoft9-start-timeout.conf <<'EOF'
+[Service]
+TimeoutStartSec=120
+EOF
+  cat > /etc/systemd/system/containerd.service.d/99-websoft9-start-timeout.conf <<'EOF'
+[Service]
+TimeoutStartSec=120
+EOF
+  W9_SYSTEMD_TIMEOUT_CREATED="1"
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  log_info "Limited Docker service start wait time during installation"
+}
+
+_remove_docker_start_timeout() {
+  if [ "$W9_SYSTEMD_TIMEOUT_CREATED" != "1" ]; then
+    return 0
+  fi
+  rm -f /etc/systemd/system/docker.service.d/99-websoft9-start-timeout.conf \
+        /etc/systemd/system/containerd.service.d/99-websoft9-start-timeout.conf
+  rmdir /etc/systemd/system/docker.service.d /etc/systemd/system/containerd.service.d 2>/dev/null || true
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  W9_SYSTEMD_TIMEOUT_CREATED="0"
+  log_info "Removed temporary Docker service start timeout override"
 }
 
 # Run a command with a timeout (for individual apt operations).
@@ -351,6 +434,9 @@ install_docker_custom() {
 
   # Debian / Ubuntu (APT)
   if command_exists apt || command_exists apt-get; then
+    _setup_apt_noninteractive_config
+    _setup_policy_rc_d
+    _limit_docker_start_timeout
     _ensure_apt_sources
 
     local repo base
@@ -369,6 +455,9 @@ install_docker_custom() {
         _apt_run 120 apt-get update -qq >/dev/null 2>&1 || true
         if _run_logged apt-get install -y docker-ce docker-ce-cli containerd.io \
              docker-buildx-plugin docker-compose-plugin; then
+          _cleanup_policy_rc_d
+          _cleanup_apt_noninteractive_config
+          _remove_docker_start_timeout
           _start_docker && return 0
           return 1
         fi
@@ -393,6 +482,9 @@ install_docker_official() {
   lsb_dist="$(detect_distro)"
 
   # Ensure system APT sources are reachable before running the official script
+  _setup_apt_noninteractive_config
+  _setup_policy_rc_d
+  _limit_docker_start_timeout
   _ensure_apt_sources
 
   # Patch get-docker.sh: remove /dev/null redirects so errors/warnings are
@@ -414,6 +506,9 @@ install_docker_official() {
     if _run_logged timeout "$install_timeout" sh -c "$cmd"; then
       if command_exists docker && docker compose version >/dev/null 2>&1; then
         log_info "Docker installation succeeded via official script"
+        _cleanup_policy_rc_d
+        _cleanup_apt_noninteractive_config
+        _remove_docker_start_timeout
         _start_docker
         return $?
       fi
@@ -439,6 +534,7 @@ install_docker_official() {
 log_step "Installing Docker Engine"
 
 require_root
+trap '_cleanup_policy_rc_d; _cleanup_apt_noninteractive_config; _remove_docker_start_timeout' EXIT
 
 if command_exists docker && docker compose version >/dev/null 2>&1; then
   log_info "Docker is already installed: $(docker --version)"
