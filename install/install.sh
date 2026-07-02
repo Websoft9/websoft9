@@ -117,6 +117,91 @@ _confirm() {
   esac
 }
 
+_read_json_version() {
+  local file_path="$1"
+  [ -f "$file_path" ] || return 1
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$file_path" | head -n1
+}
+
+_resolve_latest_version() {
+  local install_path="$1"
+  local channel="${W9_CHANNEL:-release}"
+  local candidates=(
+    "${install_path}/version.json"
+    "${W9_ROOT_DIR}/../version.json"
+    "${W9_ROOT_DIR}/../../version.json"
+    "${W9_LIB_DIR}/../../version.json"
+  )
+  local candidate version remote_version
+
+  remote_version="$(_w9_fetch "${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}/version.json" 2>/dev/null | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+  if [ -n "$remote_version" ]; then
+    echo "$remote_version"
+    return 0
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    version="$(_read_json_version "$candidate" 2>/dev/null || true)"
+    if [ -n "$version" ]; then
+      echo "$version"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+_resolve_current_modern_version() {
+  local install_path="$1"
+  local compose_file="${install_path}/docker-compose.yml"
+  local container_name current_version current_image
+
+  container_name="$(_resolve_container_name "$compose_file")"
+  current_version="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$container_name" 2>/dev/null || true)"
+  if [ -n "$current_version" ]; then
+    echo "$current_version"
+    return 0
+  fi
+
+  current_image="$(docker inspect --format '{{.Config.Image}}' "$container_name" 2>/dev/null || true)"
+  if [ -n "$current_image" ] && [[ "$current_image" == *:* ]]; then
+    echo "${current_image##*:}"
+    return 0
+  fi
+
+  return 1
+}
+
+_confirm_modern_upgrade() {
+  local install_path="$1"
+  local target_version="$2"
+  local current_version
+
+  current_version="$(_resolve_current_modern_version "$install_path" 2>/dev/null || true)"
+
+  log_info "Detected an existing modern Websoft9 runtime"
+  log_info "  Current version: ${current_version:-unknown}"
+  log_info "  Latest version: ${target_version:-unknown}"
+  log_info "  Impact: containers will be recreated and the console will be briefly unavailable during the upgrade"
+
+  _confirm "Proceed with the in-place upgrade?" "y"
+}
+
+_confirm_legacy_upgrade() {
+  local target_version="$1"
+
+  log_warn "Legacy Cockpit-based Websoft9 architecture detected"
+  log_warn "This is a cross-generation migration to the modern single-container runtime, not a routine in-place upgrade"
+  log_warn "Potential risks: longer downtime, custom legacy assets may need manual verification, and rollback depends on the retained legacy backup and control plane"
+  log_info "  Target modern version: ${target_version:-unknown}"
+
+  if ! _confirm "I understand the risks above and want to continue to the migration confirmation step" "n"; then
+    return 1
+  fi
+
+  _confirm "Proceed with the legacy-to-modern migration now?" "n"
+}
+
 # Hidden subcommands.
 if [ -n "$_SUBCMD" ]; then
   case "$_SUBCMD" in
@@ -167,20 +252,22 @@ case "$env_kind" in
     ;;
 
   modern|legacy)
-    _cur_ver="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' \
-      "$MODERN_CONTAINER_NAME" 2>/dev/null || true)"
-    if [ -n "$_cur_ver" ]; then
-      log_info "Websoft9 is already installed (current version: ${_cur_ver})"
-    else
-      log_info "Websoft9 is already installed"
+    _target_ver="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
+    if [ -z "$_target_ver" ]; then
+      _target_ver="$OPT_VERSION"
     fi
-    if ! _confirm "Upgrade to the latest version?" "y"; then
-      log_info "Cancelled."
-      exit "$EXIT_OK"
-    fi
+
     if [ "$env_kind" = "modern" ]; then
+      if ! _confirm_modern_upgrade "$OPT_PATH" "$_target_ver"; then
+        log_info "Cancelled."
+        exit "$EXIT_OK"
+      fi
       run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     else
+      if ! _confirm_legacy_upgrade "$_target_ver"; then
+        log_info "Cancelled."
+        exit "$EXIT_OK"
+      fi
       if [ -n "$_OPT_CONSOLE_PORT_EXPLICIT" ]; then
         export W9_CONSOLE_PORT_EXPLICIT="1"
       else
