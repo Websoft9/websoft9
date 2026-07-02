@@ -1348,7 +1348,7 @@
 .myapps-table-actions-text {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 0;
 }
 
 .myapps-table-actions-inline {
@@ -3249,7 +3249,7 @@
 }
 
 .myapps-bind-target-group {
-    margin-bottom: 16px;
+    margin-bottom: 8px;
 }
 
 .myapps-bind-target-field-block {

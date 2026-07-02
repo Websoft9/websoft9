@@ -79,14 +79,12 @@
 }
 
 .terminal-connections-toolbar-field .MuiOutlinedInput-root {
-    background: #fff;
     border-radius: 4px;
     min-height: 42px;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .app-shell-root--dark .terminal-connections-toolbar-field .MuiOutlinedInput-root {
-    background: #111827;
     border: 1px solid rgba(71, 85, 105, 0.82);
     box-shadow: none;
 }

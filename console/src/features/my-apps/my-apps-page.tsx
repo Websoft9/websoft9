@@ -810,7 +810,22 @@ export function MyAppsPage() {
                 description={t('myAppsPage.hero.description')}
                 descriptionColor={palette.subtleText}
                 actions={(
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375, flexShrink: 0 }}>
+                    <Box
+                        sx={{
+                            display: { xs: 'flex', md: 'grid' },
+                            gridTemplateColumns: { md: '26px 26px' },
+                            gridTemplateRows: { md: '20px' },
+                            columnGap: { md: 0 },
+                            gap: { xs: 0.75, md: 0 },
+                            justifyContent: 'flex-end',
+                            justifyItems: { md: 'center' },
+                            alignItems: 'center',
+                            flexShrink: 0,
+                            alignSelf: 'start',
+                            pt: 0,
+                            mt: 0.05,
+                        }}
+                    >
                         <Tooltip title={t('applicationsHubPage.menu.action')}>
                             <IconButton
                                 color="inherit"
@@ -820,24 +835,67 @@ export function MyAppsPage() {
                                 size="small"
                                 className="app-shell-page-action"
                                 title={t('applicationsHubPage.menu.action')}
-                                sx={{ width: { xs: 34, md: 30 }, height: { xs: 34, md: 30 }, padding: 0.35 }}
+                                sx={{
+                                    width: { xs: 34, md: 26 },
+                                    minWidth: { xs: 34, md: 26 },
+                                    maxWidth: { xs: 34, md: 26 },
+                                    height: { xs: 34, md: 26 },
+                                    minHeight: { xs: 34, md: 26 },
+                                    maxHeight: { xs: 34, md: 26 },
+                                    padding: 0.25,
+                                    borderRadius: { xs: '10px', md: '2px' },
+                                    color: palette.subtleText,
+                                    gridColumn: { md: '1' },
+                                    gridRow: { md: '1' },
+                                    '&:hover': {
+                                        background: palette.panelSoft,
+                                        color: palette.text,
+                                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+                                    },
+                                    '& .MuiSvgIcon-root': {
+                                        fontSize: 16.5,
+                                    },
+                                }}
                             >
                                 <IconCompose />
                             </IconButton>
                         </Tooltip>
-                        <IconButton
-                            color="inherit"
-                            onClick={() => {
-                                void handleManualRefresh()
-                            }}
-                            size="small"
-                            disabled={manualRefreshing}
-                            className="app-shell-page-action"
-                            title={manualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
-                            sx={{ width: { xs: 34, md: 30 }, height: { xs: 34, md: 30 }, padding: 0.35 }}
-                        >
-                            {manualRefreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh />}
-                        </IconButton>
+                        <Tooltip title={manualRefreshing ? t('myAppsPage.hero.refreshing') : t('myAppsPage.hero.refresh')}>
+                            <IconButton
+                                color="inherit"
+                                onClick={() => {
+                                    void handleManualRefresh()
+                                }}
+                                size="small"
+                                disabled={manualRefreshing}
+                                className="app-shell-page-action"
+                                title={manualRefreshing ? t('myAppsPage.hero.refreshing') : t('myAppsPage.hero.refresh')}
+                                sx={{
+                                    width: { xs: 34, md: 26 },
+                                    minWidth: { xs: 34, md: 26 },
+                                    maxWidth: { xs: 34, md: 26 },
+                                    height: { xs: 34, md: 26 },
+                                    minHeight: { xs: 34, md: 26 },
+                                    maxHeight: { xs: 34, md: 26 },
+                                    padding: 0.25,
+                                    borderRadius: { xs: '10px', md: '2px' },
+                                    color: palette.subtleText,
+                                    gridColumn: { md: '2' },
+                                    gridRow: { md: '1' },
+                                    ml: { xs: 0, md: -0.2 },
+                                    '&:hover': {
+                                        background: palette.panelSoft,
+                                        color: palette.text,
+                                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+                                    },
+                                    '& .MuiSvgIcon-root': {
+                                        fontSize: 16.5,
+                                    },
+                                }}
+                            >
+                                {manualRefreshing ? <CircularProgress size={14} color="inherit" /> : <IconRefresh />}
+                            </IconButton>
+                        </Tooltip>
                     </Box>
                 )}
                 sx={{ mb: 1.5 }}

@@ -117,6 +117,7 @@ class SettingsManager:
                                 "default_certificate": self._bool_to_string(self._is_default_platform_certificate()),
                                 "certificate_validity_days": str(DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS),
                                 "cert_expiry": self._read_cert_expiry(),
+                                "cert_subject_cn": self._read_cert_subject_cn(),
                             },
                         ),
                         self._build_item(
@@ -479,9 +480,26 @@ class SettingsManager:
         return self.read_section("platform_gateway")
 
     def _is_default_platform_certificate(self) -> bool:
-        current_cert = self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
-        current_key = self.config.get("platform_gateway", "ssl_key", fallback=self._default_ssl_key_path()).strip()
-        return current_cert == self._default_ssl_cert_path() and current_key == self._default_ssl_key_path()
+        """Return True when the current platform certificate is a self-signed
+        (auto-generated) cert rather than one the user explicitly configured
+        via Let's Encrypt or upload.  We detect this by comparing issuer and
+        subject — a self-signed cert has identical values."""
+        cert_path = self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path()).strip()
+        if not cert_path or not os.path.isfile(cert_path):
+            return True
+        try:
+            result = subprocess.run(
+                ["openssl", "x509", "-noout", "-subject", "-issuer", "-in", cert_path],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode != 0:
+                return True
+            lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+            if len(lines) >= 2:
+                return lines[0] == lines[1]
+        except Exception:
+            pass
+        return True
 
     def _load_docker_mirror_entries(self, configured_value: str) -> list[str]:
         candidate = (configured_value or "").strip()
@@ -594,6 +612,35 @@ class SettingsManager:
             pass
         return ""
 
+    def _read_cert_subject_cn(self) -> str:
+        """Extract the CN from the current SSL certificate subject."""
+        cert_path = self.config.get("platform_gateway", "ssl_cert", fallback=self._default_ssl_cert_path())
+        if not os.path.isfile(cert_path):
+            return ""
+        try:
+            result = subprocess.run(
+                ["openssl", "x509", "-noout", "-subject", "-in", cert_path],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                # Output formats vary:
+                #   "subject=CN=example.com"          (single CN)
+                #   "subject=CN=example.com, O=Org, C=US"  (multi-field)
+                subject = result.stdout.strip()
+                # Strip leading "subject=" if present
+                if subject.lower().startswith("subject="):
+                    subject = subject.split("=", 1)[-1]
+                for part in subject.split(","):
+                    part = part.strip()
+                    if part.lower().startswith("cn="):
+                        return part.split("=", 1)[-1].strip()
+                # Fallback: the entire remaining string might be "CN=value"
+                if subject.lower().startswith("cn="):
+                    return subject.split("=", 1)[-1].strip()
+        except Exception:
+            pass
+        return ""
+
     def _bool_to_string(self, value: bool) -> str:
         return "true" if value else "false"
 
@@ -678,7 +725,15 @@ class SettingsManager:
             "--email", email,
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        # certbot is a system Python script that must run on the Debian system
+        # Python path.  The AppHub service inherits PYTHONPATH pointing at
+        # /opt/websoft9-pydeps (which bundles a newer cryptography that is
+        # incompatible with the system pyOpenSSL).  Clear PYTHONPATH so that
+        # certbot only sees system packages.
+        certbot_env = os.environ.copy()
+        certbot_env.pop('PYTHONPATH', None)
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=certbot_env)
 
         if result.returncode != 0:
             raise CustomException(

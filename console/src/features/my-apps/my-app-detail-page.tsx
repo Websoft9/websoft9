@@ -1484,7 +1484,7 @@ export function MyAppDetailPage() {
                                                                                             if (!containerId) return
                                                                                             event.preventDefault()
                                                                                             window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/logs`)}`, '_blank')
-                                                                                        }}>
+                                                                                        }} title={t('myAppsDetailPage.tabs.container.actions.viewLogs')}>
                                                                                             <i className="dripicons-document-remove noti-icon" />
                                                                                         </a>
                                                                                         {state === 'running' ? (
@@ -1492,7 +1492,7 @@ export function MyAppDetailPage() {
                                                                                                 if (!containerId) return
                                                                                                 event.preventDefault()
                                                                                                 window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/stats`)}`, '_blank')
-                                                                                            }}>
+                                                                                            }} title={t('myAppsDetailPage.tabs.container.actions.viewStats')}>
                                                                                                 <i className="dripicons-graph-bar noti-icon" />
                                                                                             </a>
                                                                                         ) : null}
@@ -1501,7 +1501,7 @@ export function MyAppDetailPage() {
                                                                                                 if (!containerId) return
                                                                                                 event.preventDefault()
                                                                                                 window.open(`/containers?target=${encodeURIComponent(`/w9deployment/#!/${endpointId}/docker/containers/${containerId}/exec`)}`, '_blank')
-                                                                                            }}>
+                                                                                            }} title={t('myAppsDetailPage.tabs.container.actions.viewTerminal')}>
                                                                                                 <i className="dripicons-code noti-icon" />
                                                                                             </a>
                                                                                         ) : null}

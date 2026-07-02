@@ -41,6 +41,7 @@ type SettingsSummaryItem = {
         default_certificate?: string
         certificate_validity_days?: string
         cert_expiry?: string
+        cert_subject_cn?: string
     } | null
 }
 
@@ -153,6 +154,10 @@ const PLATFORM_GATEWAY_CERT_DRAFT_KEY = 'platform_gateway.ssl_cert'
 const PLATFORM_GATEWAY_KEY_DRAFT_KEY = 'platform_gateway.ssl_key'
 const PLATFORM_GATEWAY_HTTPS_DRAFT_KEY = 'platform_gateway.https_enabled'
 const PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY = 'platform_gateway.force_https'
+const PLATFORM_GATEWAY_LETSENCRYPT_EMAIL_DRAFT_KEY = 'platform_gateway.letsencrypt_email'
+const PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY = 'platform_gateway.upload_cert_pem'
+const PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY = 'platform_gateway.upload_key_pem'
+const PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY = 'platform_gateway.upload_intermediate_pem'
 
 const SETTINGS_MODULES: SettingsModule[] = [
     {
@@ -209,6 +214,7 @@ export function SettingsPage() {
     const [keyPem, setKeyPem] = useState('')
     const [intermediatePem, setIntermediatePem] = useState('')
     const [certName, setCertName] = useState('')
+    const [showCertConfig, setShowCertConfig] = useState(false)
     const certPemFileRef = useRef<HTMLInputElement | null>(null)
     const keyPemFileRef = useRef<HTMLInputElement | null>(null)
     const intermediatePemFileRef = useRef<HTMLInputElement | null>(null)
@@ -234,9 +240,32 @@ export function SettingsPage() {
     const currentSslCert = httpsItem?.metadata?.cert_path?.trim() || ''
     const currentSslKey = httpsItem?.metadata?.key_path?.trim() || ''
     const certExpiry = httpsItem?.metadata?.cert_expiry || ''
+    const certSubjectCn = httpsItem?.metadata?.cert_subject_cn || ''
     const httpsEnabled = (drafts[PLATFORM_GATEWAY_HTTPS_DRAFT_KEY] ?? httpsItem?.value ?? 'false') === 'true'
     const forceHttpsEnabled = httpsEnabled && (drafts[PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY] ?? forceHttpsItem?.value ?? 'false') === 'true'
     const boundDomainValue = drafts[PLATFORM_GATEWAY_BOUND_DOMAIN_DRAFT_KEY] ?? boundDomainItem?.value ?? ''
+    // Derived cert state — used by both the save logic and the card render
+    const hasCert = !!(currentSslCert && currentSslKey)
+    const isDefaultCert = httpsItem?.metadata?.default_certificate === 'true'
+    const certMatchesDomain = certSubjectCn
+        ? (() => {
+            const domain = (boundDomainValue || boundDomainItem?.value || '').toLowerCase()
+            const cn = certSubjectCn.toLowerCase()
+            if (!domain || !cn) return false
+            if (domain === cn) return true
+            // Handle wildcard certs: *.example.com matches sub.example.com
+            if (cn.startsWith('*.')) {
+                const suffix = cn.slice(1) // ".example.com"
+                return domain.endsWith(suffix) && domain.indexOf('.') !== domain.lastIndexOf('.')
+            }
+            return false
+        })()
+        : false
+    const existingValidCert = useDomain && hasCert && !isDefaultCert && certMatchesDomain
+    const certMismatch = useDomain && hasCert && !isDefaultCert && !!certSubjectCn && !certMatchesDomain
+    // Auto-expand the config section when there's no usable cert yet
+    // (no files at all, or only the auto-generated self-signed cert).
+    const shouldAutoExpand = !hasCert || isDefaultCert
     // Current cert/key — use draft if set, otherwise current config
     const sslCert = (drafts[PLATFORM_GATEWAY_CERT_DRAFT_KEY] ?? currentSslCert).trim()
     const sslKey = (drafts[PLATFORM_GATEWAY_KEY_DRAFT_KEY] ?? currentSslKey).trim()
@@ -263,10 +292,6 @@ export function SettingsPage() {
             setReuseLogo(true)
         }
     }, [brandLogoItem?.value, brandFaviconItem?.value])
-
-    useEffect(() => {
-        if (currentSslCert && currentSslKey) setCertAction('existing')
-    }, [currentSslCert, currentSslKey])
 
     useEffect(() => {
         const currentDomain = boundDomainItem?.value ?? ''
@@ -388,6 +413,10 @@ export function SettingsPage() {
                 PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY,
                 PLATFORM_GATEWAY_CERT_DRAFT_KEY,
                 PLATFORM_GATEWAY_KEY_DRAFT_KEY,
+                PLATFORM_GATEWAY_LETSENCRYPT_EMAIL_DRAFT_KEY,
+                PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY,
+                PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY,
+                PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY,
             ]
         }
 
@@ -474,8 +503,19 @@ export function SettingsPage() {
         let nextSslKey = sslKey
 
         // Domain validation
-        if (useDomain && !boundDomainValue.trim()) {
-            throw new Error(t('settingsPage.platformSsl.domainRequired'))
+        if (useDomain) {
+            const domain = boundDomainValue.trim()
+            if (!domain) {
+                throw new Error(t('settingsPage.platformSsl.domainRequired'))
+            }
+            // Reject protocol prefixes and invalid characters
+            if (domain.includes('://') || domain.includes('/') || domain.includes(' ')) {
+                throw new Error(t('settingsPage.platformSsl.domainInvalid'))
+            }
+            // Must contain at least one dot for a valid domain
+            if (!domain.includes('.')) {
+                throw new Error(t('settingsPage.platformSsl.domainInvalid'))
+            }
         }
 
         if (httpsEnabled) {
@@ -497,23 +537,42 @@ export function SettingsPage() {
                     if (data.ssl_key) nextSslKey = data.ssl_key
                 }
             } else if (certAction === 'letsencrypt') {
-                // Domain mode + Let's Encrypt: apply on save
-                const resp = await fetch('/api/settings/platform_gateway/apply-letsencrypt-cert', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ domain: boundDomainValue.trim(), email: letsEncryptEmail.trim() }),
-                })
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({})) as { details?: string }
-                    throw new Error(err.details || 'Let\'s Encrypt application failed')
+                // Skip only when the user hasn't explicitly opened the config
+                // to replace the cert (valid or mismatched).
+                if ((existingValidCert || certMismatch) && !showCertConfig) {
+                    // A valid CA cert already exists for this domain.
+                    // Keep it — no need to re-apply.
+                } else {
+                    // Domain mode + Let's Encrypt: apply on save
+                    if (!letsEncryptEmail.trim()) {
+                        throw new Error(t('settingsPage.platformSsl.emailRequired'))
+                    }
+                    const resp = await fetch('/api/settings/platform_gateway/apply-letsencrypt-cert', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain: boundDomainValue.trim(), email: letsEncryptEmail.trim() }),
+                    })
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({})) as { details?: string }
+                        throw new Error(err.details || 'Let\'s Encrypt application failed')
+                    }
+                    const data = await resp.json() as { ssl_cert?: string; ssl_key?: string }
+                    if (data.ssl_cert) nextSslCert = data.ssl_cert
+                    if (data.ssl_key) nextSslKey = data.ssl_key
                 }
-                const data = await resp.json() as { ssl_cert?: string; ssl_key?: string }
-                if (data.ssl_cert) nextSslCert = data.ssl_cert
-                if (data.ssl_key) nextSslKey = data.ssl_key
+            } else if (certAction === 'existing') {
+                // Domain mode + existing cert: keep current certificate paths unchanged.
+                // The server already has valid cert and key files on disk.
+                if (!nextSslCert || !nextSslKey) {
+                    throw new Error(t('settingsPage.platformSsl.noExistingCert'))
+                }
             } else {
                 // Domain mode + upload: save PEM content first
-                if (!certPem.trim() || !keyPem.trim()) {
+                const uploadCertPem = (drafts[PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY] ?? certPem).trim()
+                const uploadKeyPem = (drafts[PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY] ?? keyPem).trim()
+                const uploadIntermediatePem = (drafts[PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY] ?? intermediatePem).trim()
+                if (!uploadCertPem || !uploadKeyPem) {
                     throw new Error(t('settingsPage.platformSsl.pemRequired'))
                 }
                 const resp = await fetch('/api/settings/platform_gateway/upload-cert', {
@@ -521,9 +580,9 @@ export function SettingsPage() {
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        cert_pem: certPem,
-                        key_pem: keyPem,
-                        intermediate_pem: intermediatePem,
+                        cert_pem: uploadCertPem,
+                        key_pem: uploadKeyPem,
+                        intermediate_pem: uploadIntermediatePem,
                     }),
                 })
                 if (!resp.ok) {
@@ -560,14 +619,19 @@ export function SettingsPage() {
 
         if (!saveSucceeded) return
 
-        clearDraftKeys(getModuleDraftKeys('platform-domain'))
         setFeedback({ severity: 'success', message: t('settingsPage.feedback.platformGatewaySuccess') })
 
-        // Reload after a short delay so the new config takes effect.
-        // (Avoid protocol/domain switching here — it breaks session cookies.)
+        // After saving domain / SSL settings the gateway restarts, so the
+        // current origin may no longer be reachable.  Build the target URL
+        // from the newly saved configuration and redirect there.
         window.setTimeout(() => {
-            window.location.reload()
-        }, 1500)
+            const targetHost = useDomain && boundDomainValue.trim()
+                ? boundDomainValue.trim()
+                : window.location.hostname
+            const targetProtocol = nextHttpsEnabled === 'true' ? 'https:' : 'http:'
+            const targetPort = window.location.port
+            window.location.href = `${targetProtocol}//${targetHost}:${targetPort}/settings`
+        }, 2000)
     }
 
     async function handleSaveActiveModule() {
@@ -926,15 +990,16 @@ export function SettingsPage() {
     function renderPlatformDomainRows() {
         const boundDraftKey = boundDomainItem ? getDraftKey(boundDomainItem) : ''
         const boundValue = boundDomainItem ? (drafts[boundDraftKey] ?? boundDomainItem.value) : ''
-        const hasCert = !!(currentSslCert && currentSslKey)
+        const certLabel = isDefaultCert
+            ? t('settingsPage.platformSsl.certTypeSelfSigned')
+            : t('settingsPage.platformSsl.certTypeCaIssued')
 
         function handleModeSelect(domain: boolean) {
             setUseDomain(domain)
             if (domain) {
                 setDraftValue(PLATFORM_GATEWAY_HTTPS_DRAFT_KEY, 'false')
                 setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, 'false')
-                // Default to existing cert if available, otherwise letsencrypt
-                setCertAction(currentSslCert && currentSslKey ? 'existing' : 'letsencrypt')
+                setCertAction('letsencrypt')
             } else {
                 if (boundDraftKey) setDraftValue(boundDraftKey, '')
                 setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, 'false')
@@ -1001,101 +1066,137 @@ export function SettingsPage() {
 
                 {httpsEnabled ? (
                     <>
-                        <div className="settings-ssl-card settings-ssl-card--content">
-                            <div className="settings-ssl-card-header">
-                                <span className="settings-ssl-card-title">{!useDomain ? t('settingsPage.platformSsl.selfSignedTitle') : t('settingsPage.platformSsl.certConfigTitle')}</span>
+                        {existingValidCert ? (
+                            <div className="settings-ssl-card">
+                                <div className="settings-ssl-card-header">
+                                    <span className="settings-ssl-card-title">{t('settingsPage.platformSsl.currentCertTitle')}</span>
+                                    <span className="settings-ssl-cert-current-info">
+                                        <span className={`settings-ssl-cert-status-badge ${isDefaultCert ? 'settings-ssl-cert-status-badge--selfsigned' : 'settings-ssl-cert-status-badge--issued'}`}>
+                                            {certLabel}
+                                        </span>
+                                        {certExpiry ? (
+                                            <span className="settings-ssl-cert-expiry">{t('settingsPage.platformSsl.expiry')}{certExpiry}</span>
+                                        ) : null}
+                                        <button
+                                            className="settings-ssl-cert-toggle-btn"
+                                            type="button"
+                                            onClick={() => setShowCertConfig(!showCertConfig)}
+                                        >
+                                            {showCertConfig ? t('settingsPage.platformSsl.collapseCert') : t('settingsPage.platformSsl.replaceCert')}
+                                        </button>
+                                    </span>
+                                </div>
                             </div>
-                            <div className="settings-ssl-card-body">
-                                {!useDomain ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                        <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0 }}>{t('settingsPage.platformSsl.validityLabel')}</Typography>
-                                        <select className="settings-validity-select" value={certValidityDays} onChange={(e) => setCertValidityDays(Number(e.target.value))}>
-                                            <option value={365}>{t('settingsPage.platformSsl.validity1y')}</option>
-                                            <option value={1095}>{t('settingsPage.platformSsl.validity3y')}</option>
-                                            <option value={1825}>{t('settingsPage.platformSsl.validity5y')}</option>
-                                            <option value={3650}>{t('settingsPage.platformSsl.validity10y')}</option>
-                                        </select>
-                                    </Box>
-                                ) : (
-                                    <>
-                                        <div className="settings-ssl-cert-options settings-ssl-cert-options--three">
-                                            <button className={`settings-choice-button ${certAction === 'letsencrypt' ? 'active' : ''}`} onClick={() => setCertAction('letsencrypt')} type="button">
-                                                <span className="settings-choice-badge">{t('settingsPage.platformSsl.recommendedBadge')}</span>
-                                                <span className="settings-choice-title">{t('settingsPage.platformSsl.letsencryptTitle')}</span>
-                                                <span className="settings-choice-description">{t('settingsPage.platformSsl.letsencryptDescription')}</span>
-                                            </button>
-                                            <button className={`settings-choice-button ${certAction === 'existing' ? 'active' : ''}`} onClick={() => setCertAction('existing')} type="button">
-                                                <span className="settings-choice-title">{t('settingsPage.platformSsl.existingCertTitle')}</span>
-                                                <span className="settings-choice-description">{t('settingsPage.platformSsl.existingCertDescription')}</span>
-                                            </button>
-                                            <button className={`settings-choice-button ${certAction === 'upload' ? 'active' : ''}`} onClick={() => setCertAction('upload')} type="button">
-                                                <span className="settings-choice-title">{t('settingsPage.platformSsl.uploadTitle')}</span>
-                                                <span className="settings-choice-description">{t('settingsPage.platformSsl.uploadDescription')}</span>
-                                            </button>
-                                        </div>
-                                        {certAction === 'letsencrypt' ? (
-                                            <div className="settings-ssl-cert-actions">
-                                                <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.emailLabel')}<span className="settings-field-required">*</span></span>
-                                                <TextField fullWidth size="small" value={letsEncryptEmail} onChange={(e) => setLetsEncryptEmail(e.target.value)} placeholder={t('settingsPage.platformSsl.emailPlaceholder')} sx={settingsFieldSx} required />
+                        ) : certMismatch ? (
+                            <div className="settings-ssl-card settings-ssl-card--warn">
+                                <div className="settings-ssl-card-header">
+                                    <svg className="settings-ssl-warn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
+                                        <path d="M12 2L2 22h20L12 2z" fill="#f59e0b" stroke="#d97706" strokeWidth="1.5" strokeLinejoin="round" />
+                                        <path d="M12 10v4" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                                        <circle cx="12" cy="17" r="1" fill="#fff" />
+                                    </svg>
+                                    <span className="settings-ssl-card-title">{t('settingsPage.platformSsl.certMismatchTitle')}</span>
+                                    <div className="settings-ssl-mismatch-grid">
+                                        <span className="settings-ssl-mismatch-cell">
+                                            <span className="settings-ssl-mismatch-tag settings-ssl-mismatch-tag--domain">{t('settingsPage.platformSsl.certMismatchDomain')}</span>
+                                            <span className="settings-ssl-mismatch-value">{boundDomainValue || boundDomainItem?.value || ''}</span>
+                                        </span>
+                                        <span className="settings-ssl-mismatch-cell">
+                                            <span className="settings-ssl-mismatch-tag settings-ssl-mismatch-tag--cert">{t('settingsPage.platformSsl.certMismatchIssued')}</span>
+                                            <span className="settings-ssl-mismatch-value settings-ssl-mismatch-value--dim">{certSubjectCn}</span>
+                                        </span>
+                                    </div>
+                                    <button
+                                        className="settings-ssl-cert-toggle-btn"
+                                        type="button"
+                                        onClick={() => setShowCertConfig(!showCertConfig)}
+                                    >
+                                        {showCertConfig ? t('settingsPage.platformSsl.collapseCert') : t('settingsPage.platformSsl.replaceCert')}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
+                        {showCertConfig || shouldAutoExpand ? (
+                            <div className="settings-ssl-card settings-ssl-card--content">
+                                <div className="settings-ssl-card-header">
+                                    <span className="settings-ssl-card-title">{!useDomain ? t('settingsPage.platformSsl.selfSignedTitle') : t('settingsPage.platformSsl.certConfigTitle')}</span>
+                                </div>
+                                <div className="settings-ssl-card-body">
+                                    {existingValidCert || certMismatch ? (
+                                        <Typography className="settings-field-helper" sx={{ mb: 1.5 }}>{t('settingsPage.platformSsl.replaceCertWarning')}</Typography>
+                                    ) : null}
+                                    {!useDomain ? (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                            <Typography variant="body2" sx={{ fontSize: 12, color: 'text.secondary', flexShrink: 0 }}>{t('settingsPage.platformSsl.validityLabel')}</Typography>
+                                            <select className="settings-validity-select" value={certValidityDays} onChange={(e) => setCertValidityDays(Number(e.target.value))}>
+                                                <option value={365}>{t('settingsPage.platformSsl.validity1y')}</option>
+                                                <option value={1095}>{t('settingsPage.platformSsl.validity3y')}</option>
+                                                <option value={1825}>{t('settingsPage.platformSsl.validity5y')}</option>
+                                                <option value={3650}>{t('settingsPage.platformSsl.validity10y')}</option>
+                                            </select>
+                                        </Box>
+                                    ) : (
+                                        <>
+                                            <div className="settings-ssl-cert-options settings-ssl-cert-options--two">
+                                                <button className={`settings-choice-button ${certAction === 'letsencrypt' ? 'active' : ''}`} onClick={() => setCertAction('letsencrypt')} type="button">
+                                                    <span className="settings-choice-badge">{t('settingsPage.platformSsl.recommendedBadge')}</span>
+                                                    <span className="settings-choice-title">{t('settingsPage.platformSsl.letsencryptTitle')}</span>
+                                                    <span className="settings-choice-description">{t('settingsPage.platformSsl.letsencryptDescription')}</span>
+                                                </button>
+                                                <button className={`settings-choice-button ${certAction === 'upload' ? 'active' : ''}`} onClick={() => { setCertAction('upload'); if (!certName) setCertName(boundDomainValue || boundDomainItem?.value || '') }} type="button">
+                                                    <span className="settings-choice-title">{t('settingsPage.platformSsl.uploadTitle')}</span>
+                                                    <span className="settings-choice-description">{t('settingsPage.platformSsl.uploadDescription')}</span>
+                                                </button>
                                             </div>
-                                        ) : certAction === 'existing' ? (
-                                            <div className="settings-ssl-cert-actions">
-                                                <div className="settings-ssl-cert-field">
-                                                    <span className="settings-ssl-cert-field-label">
-                                                        {t('settingsPage.platformSsl.existingCertLabel')}
-                                                        <span className="settings-field-required">*</span>
-                                                    </span>
-                                                    <select className="settings-ssl-cert-select" value={currentSslCert} disabled={!hasCert}>
-                                                        {hasCert ? (
-                                                            <option value={currentSslCert}>
-                                                                {(boundDomainValue || boundDomainItem?.value || t('settingsPage.platformSsl.defaultCertName'))}
-                                                                {certExpiry ? `  —  ${t('settingsPage.platformSsl.expiry')}${certExpiry}` : ''}
-                                                            </option>
-                                                        ) : (
-                                                            <option value="">{t('settingsPage.platformSsl.selectCertPlaceholder')}</option>
-                                                        )}
-                                                    </select>
+                                            {certAction === 'letsencrypt' ? (
+                                                <div className="settings-ssl-cert-actions">
+                                                    <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.emailLabel')}<span className="settings-field-required">*</span></span>
+                                                    <TextField fullWidth size="small" value={letsEncryptEmail} onChange={(e) => { setLetsEncryptEmail(e.target.value); setDraftValue(PLATFORM_GATEWAY_LETSENCRYPT_EMAIL_DRAFT_KEY, e.target.value) }} placeholder={t('settingsPage.platformSsl.emailPlaceholder')} sx={settingsFieldSx} required />
                                                 </div>
-                                            </div>
-                                        ) : (
-                                            <div className="settings-ssl-cert-fields">
-                                                <div className="settings-ssl-cert-field">
-                                                    <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.certNameLabel')}</span>
-                                                    <input className="settings-ssl-cert-name-input" value={certName} onChange={(e) => setCertName(e.target.value)} placeholder="my-site.com" />
-                                                </div>
-                                                <div className="settings-ssl-cert-grid">
+                                            ) : (
+                                                <div className="settings-ssl-cert-fields">
+                                                    <div className="settings-ssl-cert-field">
+                                                        <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.certNameLabel')}</span>
+                                                        <input className="settings-ssl-cert-name-input" value={certName} onChange={(e) => { setCertName(e.target.value); setDraftValue(PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY, `${e.target.value}\n${keyPem}`) }} placeholder="my-site.com" />
+                                                    </div>
+                                                    <div className="settings-ssl-cert-grid">
+                                                        <div className="settings-ssl-cert-field">
+                                                            <div className="settings-ssl-cert-field-head">
+                                                                <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.keyPemLabel')}</span>
+                                                                <button className="settings-ssl-upload-btn" onClick={() => keyPemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
+                                                                <input ref={keyPemFileRef} accept=".pem,.key,.crt,.cer,.txt" hidden onChange={(e) => { handlePemFilePick(e, (val) => { setKeyPem(val); setDraftValue(PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY, val) }) }} type="file" />
+                                                            </div>
+                                                            <textarea className="settings-ssl-cert-textarea" rows={5} value={keyPem} onChange={(e) => { setKeyPem(e.target.value); setDraftValue(PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY, e.target.value) }} placeholder="-----BEGIN PRIVATE KEY-----" />
+                                                        </div>
+                                                        <div className="settings-ssl-cert-field">
+                                                            <div className="settings-ssl-cert-field-head">
+                                                                <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.certPemLabel')}</span>
+                                                                <button className="settings-ssl-upload-btn" onClick={() => certPemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
+                                                                <input ref={certPemFileRef} accept=".pem,.crt,.cer,.txt" hidden onChange={(e) => { handlePemFilePick(e, (val) => { setCertPem(val); setDraftValue(PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY, val) }) }} type="file" />
+                                                            </div>
+                                                            <textarea className="settings-ssl-cert-textarea" rows={5} value={certPem} onChange={(e) => { setCertPem(e.target.value); setDraftValue(PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY, e.target.value) }} placeholder="-----BEGIN CERTIFICATE-----" />
+                                                        </div>
+                                                    </div>
                                                     <div className="settings-ssl-cert-field">
                                                         <div className="settings-ssl-cert-field-head">
-                                                            <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.keyPemLabel')}</span>
-                                                            <button className="settings-ssl-upload-btn" onClick={() => keyPemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
-                                                            <input ref={keyPemFileRef} accept=".pem,.key,.crt,.cer,.txt" hidden onChange={(e) => handlePemFilePick(e, setKeyPem)} type="file" />
+                                                            <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.intermediatePemLabel')}</span>
+                                                            <button className="settings-ssl-upload-btn" onClick={() => intermediatePemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
+                                                            <input ref={intermediatePemFileRef} accept=".pem,.crt,.cer,.txt" hidden onChange={(e) => { handlePemFilePick(e, (val) => { setIntermediatePem(val); setDraftValue(PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY, val) }) }} type="file" />
                                                         </div>
-                                                        <textarea className="settings-ssl-cert-textarea" rows={5} value={keyPem} onChange={(e) => setKeyPem(e.target.value)} placeholder="-----BEGIN PRIVATE KEY-----" />
+                                                        <textarea className="settings-ssl-cert-textarea" rows={3} value={intermediatePem} onChange={(e) => { setIntermediatePem(e.target.value); setDraftValue(PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY, e.target.value) }} placeholder={t('settingsPage.platformSsl.intermediatePemOptional')} />
                                                     </div>
-                                                    <div className="settings-ssl-cert-field">
-                                                        <div className="settings-ssl-cert-field-head">
-                                                            <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.certPemLabel')}</span>
-                                                            <button className="settings-ssl-upload-btn" onClick={() => certPemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
-                                                            <input ref={certPemFileRef} accept=".pem,.crt,.cer,.txt" hidden onChange={(e) => handlePemFilePick(e, setCertPem)} type="file" />
-                                                        </div>
-                                                        <textarea className="settings-ssl-cert-textarea" rows={5} value={certPem} onChange={(e) => setCertPem(e.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
-                                                    </div>
+                                                    <Typography className="settings-field-helper">{t('settingsPage.platformSsl.uploadFormatHint')}</Typography>
                                                 </div>
-                                                <div className="settings-ssl-cert-field">
-                                                    <div className="settings-ssl-cert-field-head">
-                                                        <span className="settings-ssl-cert-field-label">{t('settingsPage.platformSsl.intermediatePemLabel')}</span>
-                                                        <button className="settings-ssl-upload-btn" onClick={() => intermediatePemFileRef.current?.click()} title={t('settingsPage.actions.upload')} type="button"><svg fill="currentColor" height="14" viewBox="0 0 24 24" width="14"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></svg></button>
-                                                        <input ref={intermediatePemFileRef} accept=".pem,.crt,.cer,.txt" hidden onChange={(e) => handlePemFilePick(e, setIntermediatePem)} type="file" />
-                                                    </div>
-                                                    <textarea className="settings-ssl-cert-textarea" rows={3} value={intermediatePem} onChange={(e) => setIntermediatePem(e.target.value)} placeholder={t('settingsPage.platformSsl.intermediatePemOptional')} />
-                                                </div>
-                                                <Typography className="settings-field-helper">{t('settingsPage.platformSsl.uploadFormatHint')}</Typography>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        ) : null}
+                        {/* FIXME: force_https toggle currently has no backend consumer.
+                           The 497 redirect (HTTP→HTTPS) is now always active when
+                           HTTPS is enabled.  Keep the code commented for future use. */}
+                        {/*
                         <div className="settings-ssl-card">
                             <div className="settings-ssl-card-header">
                                 <div className="settings-ssl-card-headline">
@@ -1106,6 +1207,7 @@ export function SettingsPage() {
                                     onChange={(_, n) => setDraftValue(PLATFORM_GATEWAY_FORCE_HTTPS_DRAFT_KEY, n ? 'true' : 'false')} />
                             </div>
                         </div>
+                        */}
                     </>
                 ) : null}
             </>

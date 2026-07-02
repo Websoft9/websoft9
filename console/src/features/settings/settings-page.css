@@ -694,6 +694,184 @@
     grid-template-columns: 1fr 1fr 1fr;
 }
 
+.settings-ssl-cert-options--two {
+    grid-template-columns: 1fr 1fr;
+}
+
+/* ── Current certificate info card ───────── */
+
+.settings-ssl-cert-current-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.settings-ssl-cert-expiry {
+    font-size: 12.5px;
+    color: var(--shell-subtle-text);
+    white-space: nowrap;
+}
+
+.settings-ssl-cert-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border: 1px solid var(--shell-surface-border, #e5e7eb);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--shell-subtle-text);
+    cursor: pointer;
+    line-height: 1.4;
+    white-space: nowrap;
+    margin-left: 4px;
+}
+
+.settings-ssl-cert-status-badge--mismatch {
+    background: rgba(251, 191, 36, 0.14);
+    color: #b45309;
+}
+
+.app-shell-root--dark .settings-ssl-cert-status-badge--mismatch {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+}
+
+.settings-ssl-card--warn .settings-ssl-card-header {
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.settings-ssl-warn-icon {
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+.settings-ssl-mismatch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    flex: 1 1 auto;
+    margin-left: 12px;
+    min-width: 0;
+}
+
+.settings-ssl-mismatch-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.settings-ssl-mismatch-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    line-height: 1.4;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.settings-ssl-mismatch-tag--domain {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+}
+
+.app-shell-root--dark .settings-ssl-mismatch-tag--domain {
+    background: rgba(59, 130, 246, 0.18);
+    color: #60a5fa;
+}
+
+.settings-ssl-mismatch-tag--cert {
+    background: rgba(251, 191, 36, 0.14);
+    color: #b45309;
+}
+
+.app-shell-root--dark .settings-ssl-mismatch-tag--cert {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+}
+
+.settings-ssl-mismatch-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--shell-text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-ssl-mismatch-value--dim {
+    color: var(--shell-subtle-text);
+}
+
+.settings-ssl-cert-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 24px;
+}
+
+@media (max-width: 600px) {
+    .settings-ssl-cert-info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.settings-ssl-cert-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-ssl-cert-info-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--shell-subtle-text);
+}
+
+.settings-ssl-cert-info-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--shell-text);
+    word-break: break-all;
+}
+
+.settings-ssl-cert-status-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    line-height: 1.4;
+}
+
+.settings-ssl-cert-status-badge--issued {
+    background: rgba(10, 207, 151, 0.12);
+    color: #0a9a6e;
+}
+
+.app-shell-root--dark .settings-ssl-cert-status-badge--issued {
+    background: rgba(10, 207, 151, 0.16);
+    color: #34d399;
+}
+
+.settings-ssl-cert-status-badge--selfsigned {
+    background: rgba(251, 191, 36, 0.14);
+    color: #b45309;
+}
+
+.app-shell-root--dark .settings-ssl-cert-status-badge--selfsigned {
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+}
+
 /* SSL panel – hide old surface */
 .settings-platform-ssl-panel,
 .settings-platform-ssl-detail,

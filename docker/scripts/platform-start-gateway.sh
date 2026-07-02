@@ -131,12 +131,10 @@ EOF
     cat >> "$gateway_root/default.conf" <<'EOF'
 
   include /etc/websoft9/platform-gateway/platform-gateway-ssl.conf;
-EOF
-    if [[ "$force_https" == "true" ]]; then
-      cat >> "$gateway_root/default.conf" <<'EOF'
+  # Always redirect plain-HTTP requests arriving on the SSL port so users
+  # get a clean redirect instead of a cryptic "400 Bad Request".
   error_page 497 =308 https://$host:9000$request_uri;
 EOF
-    fi
   fi
 
   cat >> "$gateway_root/default.conf" <<'EOF'
