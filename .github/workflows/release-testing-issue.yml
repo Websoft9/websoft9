@@ -1,0 +1,94 @@
+name: 🧪 创建发布测试 Issue
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 2.5.0）'
+        required: true
+        type: string
+      environment:
+        description: '测试环境备注'
+        required: false
+        type: string
+        default: '正式发布环境'
+
+jobs:
+  create-testing-issue:
+    name: 创建测试 Issue
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 确定版本号
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(jq -r '.version' version.json)
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 生成测试清单内容
+        id: template
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_URL="${{ github.event.release.html_url }}"
+
+          # 读取模板并替换版本号
+          TEMPLATE=$(cat .github/ISSUE_TEMPLATE/release-testing-checklist.md)
+
+          # 移除 YAML frontmatter
+          BODY=$(echo "$TEMPLATE" | sed -n '/^---$/,/^---$/!p' | sed '/^---$/d')
+
+          # 替换版本号占位符
+          BODY=$(echo "$BODY" | sed "s/v{{ 请填写版本号 }}/v$VERSION/g")
+
+          # 添加发布链接
+          if [[ -n "$RELEASE_URL" ]]; then
+            BODY=$(echo "$BODY" | sed "s/**发布版本** | v/**发布版本** | v$VERSION ([发布详情]($RELEASE_URL))/")
+          fi
+
+          # 使用 GitHub Actions 的输出（支持多行）
+          {
+            echo 'body<<TESTEOF'
+            echo "$BODY"
+            echo TESTEOF
+          } >> $GITHUB_OUTPUT
+
+      - name: 创建测试 Issue
+        id: create-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const body = `${{ steps.template.outputs.body }}`;
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🧪 发布测试 - v${version}`,
+              body: body,
+              labels: ['testing', 'release', 'priority: high']
+            });
+
+            console.log(`✅ 测试 Issue 已创建: ${issue.data.html_url}`);
+
+            // 输出 Issue URL 供后续步骤使用
+            core.setOutput('issue_url', issue.data.html_url);
+            core.setOutput('issue_number', issue.data.number.toString());
+
+      - name: 输出结果
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ 发布测试 Issue 已自动创建！"
+          echo "📋 Issue 链接: ${{ steps.create-issue.outputs.issue_url }}"
+          echo "📦 版本号: ${{ steps.version.outputs.version }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
