@@ -7,6 +7,7 @@ import re
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 import click
+from src.core.runtime_paths import resolve_apphub_config_path
 from src.services.product_metadata import write_product_edition
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import ProductAuthService
@@ -39,7 +40,7 @@ def setconfig(section, key, value):
 def setsysconfig(section, key, value):
     """Set a system config value"""
     try:
-        system_config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/system.ini'))
+        system_config_path = resolve_apphub_config_path('system.ini')
         config = configparser.ConfigParser()
         config.read(system_config_path, encoding="utf-8")
         if not config.has_section(section):
@@ -57,7 +58,7 @@ def setsysconfig(section, key, value):
 def getconfig(section, key):
     """Get a config value or all config as JSON"""
     try:
-        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../config/config.ini'))
+        config_path = resolve_apphub_config_path('config.ini')
         config = configparser.ConfigParser()
         config.read(config_path, encoding="utf-8")
         if section is None:

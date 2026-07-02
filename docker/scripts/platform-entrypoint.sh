@@ -20,6 +20,10 @@ docker_socket_path="${WEBSOFT9_DOCKER_SOCKET_PATH:-/var/run/docker.sock}"
 export WEBSOFT9_DATA_ROOT="$data_root"
 export WEBSOFT9_SERVICE_LOG_ROOT="$service_log_root"
 export WEBSOFT9_CUSTOM_ROOT="$custom_root"
+export WEBSOFT9_APPHUB_CONFIG_DIR="${WEBSOFT9_APPHUB_CONFIG_DIR:-$custom_root/apphub}"
+export WEBSOFT9_APPHUB_CONFIG_PATH="${WEBSOFT9_APPHUB_CONFIG_PATH:-$WEBSOFT9_APPHUB_CONFIG_DIR/config.ini}"
+export WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH="${WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH:-$WEBSOFT9_APPHUB_CONFIG_DIR/system.ini}"
+export WEBSOFT9_APPHUB_CONFIG="${WEBSOFT9_APPHUB_CONFIG:-$WEBSOFT9_APPHUB_CONFIG_PATH}"
 export WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-$custom_root/internal-gateway-auth}"
 export WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE="${WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE:-$WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR/trust_key}"
 export WEBSOFT9_HOST_ACCESS_DATA_DIR="${WEBSOFT9_HOST_ACCESS_DATA_DIR:-$custom_root/host-access}"
@@ -67,7 +71,7 @@ ensure_legacy_compat_link() {
 }
 
 ensure_data_managed_paths() {
-  mkdir -p "$custom_root" "$service_log_root"
+  mkdir -p "$custom_root" "$service_log_root" "$WEBSOFT9_APPHUB_CONFIG_DIR"
   ensure_legacy_compat_link "$custom_root" /etc/custom
   ensure_legacy_compat_link "$service_log_root" /var/log/websoft9
 

@@ -1,6 +1,7 @@
 import os
 import configparser
 from src.core.logger import logger
+from src.core.runtime_paths import resolve_apphub_config_path
 
 
 class ConfigManager:
@@ -25,11 +26,7 @@ class ConfigManager:
         Args:
             config_file_name (str): The name of the configuration file in the config directory, default is "config.ini".
         """
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        config_dir = os.path.join(script_dir, "../config")
-
-        self.config_file_path = os.path.join(config_dir, config_file_name)
-        self.config_file_path = os.path.abspath(self.config_file_path)
+        self.config_file_path = resolve_apphub_config_path(config_file_name)
 
         self.config = configparser.ConfigParser()
         self.config.read(self.config_file_path)

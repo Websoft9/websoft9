@@ -992,7 +992,10 @@ def main() -> int:
     channel = detect_channel()
     artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com")
     sync_mode = (os.getenv("WEBSOFT9_RUNTIME_ASSET_SYNC_MODE") or "runtime").strip().lower()
-    config_path = Path(os.getenv("WEBSOFT9_APPHUB_CONFIG", "/websoft9/apphub/src/config/config.ini"))
+    config_path = Path(
+        os.getenv("WEBSOFT9_APPHUB_CONFIG_PATH")
+        or os.getenv("WEBSOFT9_APPHUB_CONFIG", "/websoft9/apphub/src/config/config.ini")
+    )
     library_apps_root = Path(os.getenv("WEBSOFT9_LIBRARY_APPS_ROOT", "/websoft9/library/apps"))
     install_metadata_path = Path(os.getenv("WEBSOFT9_APP_STORE_INSTALL_METADATA", "/websoft9/media/json/app-store-install-metadata.json"))
     sync_state_path = Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", "/websoft9/apphub/src/config/appstore_sync_state.json"))

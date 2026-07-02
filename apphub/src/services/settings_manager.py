@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict
 from src.core.exception import CustomException
 from src.core.logger import logger
+from src.core.runtime_paths import resolve_apphub_config_path
 from src.schemas.appSettings import AppSettings
 from src.services.product_metadata import read_product_edition, read_product_metadata
 
@@ -65,14 +66,7 @@ class SettingsManager:
         write_section: Write a key value pair to a section in the config file
     """
     def __init__(self):
-        # Get the absolute path of the current file
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        # Get the absolute path of the config directory
-        config_dir = os.path.join(script_dir, "../config")
-
-        # Set the absolute path of the config file
-        self.config_file_path = os.path.join(config_dir, "config.ini")
-        self.config_file_path = os.path.abspath(self.config_file_path)
+        self.config_file_path = resolve_apphub_config_path("config.ini")
 
         self.config = configparser.ConfigParser()
 
