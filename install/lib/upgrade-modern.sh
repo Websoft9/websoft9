@@ -3,6 +3,34 @@
 # 职责：modern 环境的同模型升级。
 # 不负责：旧卷映射、Cockpit 退场。
 
+_export_modern_runtime_config_to_data_root() {
+  local data_root="$1"
+  local runtime_config_dir="${data_root%/}/config/apphub"
+  local runtime_config_path="${runtime_config_dir}/config.ini"
+  local runtime_system_config_path="${runtime_config_dir}/system.ini"
+
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) would export runtime config into: $runtime_config_dir"
+    return 0
+  fi
+
+  container_running "$MODERN_CONTAINER_NAME" || return 0
+
+  run_cmd mkdir -p "$runtime_config_dir"
+
+  if docker exec "$MODERN_CONTAINER_NAME" sh -lc 'cat "${WEBSOFT9_APPHUB_CONFIG_PATH:-/websoft9/apphub/src/config/config.ini}"' >"$runtime_config_path" 2>/dev/null; then
+    log_info "Exported runtime config to: $runtime_config_path"
+  else
+    log_warn "Failed to export runtime config from the current container"
+  fi
+
+  if docker exec "$MODERN_CONTAINER_NAME" sh -lc 'cat "${WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH:-/websoft9/apphub/src/config/system.ini}"' >"$runtime_system_config_path" 2>/dev/null; then
+    log_info "Exported runtime system config to: $runtime_system_config_path"
+  else
+    log_warn "Failed to export runtime system config from the current container"
+  fi
+}
+
 # 回退到升级前备份点：物料 + 主数据卷
 _upgrade_modern_rollback() {
   local install_path="$1"
@@ -66,6 +94,10 @@ run_upgrade_modern() {
     current_image="$(docker inspect --format '{{.Config.Image}}' "$MODERN_CONTAINER_NAME" 2>/dev/null)"
   fi
   log_info "Current image: ${current_image:-unknown}"
+
+  # Preserve the live runtime settings before the first upgrade switches the
+  # config model from container-local files to data-root-backed files.
+  _export_modern_runtime_config_to_data_root "$WEBSOFT9_DATA_ROOT"
 
   # 2. 升级前强制备份（不受 --keep-data 影响）
   local backup_dir
