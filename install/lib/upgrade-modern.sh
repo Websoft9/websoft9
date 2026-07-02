@@ -32,9 +32,7 @@ _upgrade_modern_rollback() {
 run_upgrade_modern() {
   local console_port="$1"
   local install_path="$2"
-  local image_repo="$3"
-  local image_tag="$4"
-  local network_name="$5"
+  local image_tag="$3"
 
   log_info "==== Upgrade started ===="
 
@@ -100,7 +98,7 @@ run_upgrade_modern() {
   fi
 
   # 3. Switch material: update compose + .env, pull new image
-  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
+  install_prepare_material "$install_path" "$image_tag" "$console_port"
   if ! pull_image_with_mirrors "$install_path"; then
     log_error "Failed to pull new image, rolling back"
     _upgrade_modern_rollback "$install_path" "$backup_dir"
@@ -132,5 +130,5 @@ run_upgrade_modern() {
   fi
 
   log_info "==== Upgrade successful ===="
-  log_info "Pre-upgrade backup retained at: $backup_dir"
+  print_runtime_summary upgrade "$install_path" "$console_port" "$backup_dir"
 }

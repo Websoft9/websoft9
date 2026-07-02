@@ -43,15 +43,13 @@ install_precheck() {
 # 物料准备：compose 文件 + .env + 安装目录
 install_prepare_material() {
   local install_path="$1"
-  local image_repo="$2"
-  local image_tag="$3"
-  local network_name="$4"
-  local console_port="$5"
+  local image_tag="$2"
+  local console_port="$3"
 
   log_step "Preparing deployment material"
   ensure_deployment_material "$install_path" "${W9_CHANNEL:-release}"
-  ensure_shared_network "$network_name" || die "$EXIT_RUNTIME" "Failed to prepare shared Docker network: $network_name"
-  write_env_file "${install_path}/.env" "$image_repo" "$image_tag" "$network_name" "$console_port"
+  ensure_shared_network || die "$EXIT_RUNTIME" "Failed to prepare shared Docker network: ${DEFAULT_NETWORK_NAME}"
+  write_env_file "${install_path}/.env" "$image_tag" "$console_port" "$install_path"
   log_info "Deployment material and .env ready"
 }
 
@@ -75,9 +73,7 @@ install_cleanup_on_failure() {
 run_install() {
   local console_port="$1"
   local install_path="$2"
-  local image_repo="$3"
-  local image_tag="$4"
-  local network_name="$5"
+  local image_tag="$3"
 
   log_info "==== Installation started ===="
 
@@ -90,7 +86,7 @@ run_install() {
   export CONTAINER_NAME
 
   install_precheck "$console_port" "$install_path"
-  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
+  install_prepare_material "$install_path" "$image_tag" "$console_port"
 
   # Sync the global constant for downstream health checks etc.
   MODERN_CONTAINER_NAME="$CONTAINER_NAME"
@@ -104,5 +100,5 @@ run_install() {
   fi
 
   log_info "==== Installation successful ===="
-  log_info "Console: http://<host>:${console_port}"
+  print_runtime_summary install "$install_path" "$console_port"
 }

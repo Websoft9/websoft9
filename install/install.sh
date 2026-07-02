@@ -32,21 +32,22 @@ Websoft9 Install / Upgrade Tool
 
 Usage:
   sudo bash install.sh [options]
+  sudo bash install.sh doctor [options]
+  sudo bash install.sh detect [options]
+  sudo bash install.sh backup [options]
 
   Auto-detect: fresh install if nothing is running, upgrade if already installed.
 
 Options:
-  --channel <release|rc|dev>  Release channel (default: release)
   --console-port <port>       Console port (default: ${DEFAULT_CONSOLE_PORT})
   --dry-run                   Dry run: pre-flight checks only, no changes
+  --execute_mode <mode>       Legacy compatibility option; accepted values: install, upgrade
   --yes                       Skip all confirmation prompts (CI / automation)
   -h, --help                  Show this help
 
 Advanced options (usually not needed):
   --version <tag>             Image tag (default: latest)
   --path <dir>                Install directory (default: ${DEFAULT_INSTALL_PATH})
-  --image-repo <repo>         Image repository (default: ${DEFAULT_IMAGE_REPO})
-  --network <name>            Docker network name (default: ${DEFAULT_NETWORK_NAME})
   --force                     Skip non-destructive pre-flight checks
 
 Uninstall: sudo bash uninstall.sh [--purge]
@@ -60,38 +61,41 @@ OPT_PATH="$DEFAULT_INSTALL_PATH"
 OPT_CONSOLE_PORT="$DEFAULT_CONSOLE_PORT"
 OPT_FORCE="0"
 OPT_YES="0"
-OPT_IMAGE_REPO="$DEFAULT_IMAGE_REPO"
-OPT_NETWORK="$DEFAULT_NETWORK_NAME"
+OPT_EXECUTE_MODE=""
 _OPT_VERSION_EXPLICIT=""
 _OPT_CONSOLE_PORT_EXPLICIT=""
 
 # Hidden subcommands for diagnostics / operations.
 _SUBCMD=""
 case "${1:-}" in
-  detect|backup) _SUBCMD="$1"; shift ;;
+  detect|backup|doctor|inspect) _SUBCMD="$1"; shift ;;
 esac
 
 # Parse CLI options.
 while [ $# -gt 0 ]; do
   case "$1" in
-    --channel)      OPT_CHANNEL="$2"; shift 2 ;;
     --version)      OPT_VERSION="$2"; _OPT_VERSION_EXPLICIT="1"; shift 2 ;;
     --path)         OPT_PATH="$2"; shift 2 ;;
     --console-port) OPT_CONSOLE_PORT="$2"; _OPT_CONSOLE_PORT_EXPLICIT="1"; shift 2 ;;
+    --execute_mode) OPT_EXECUTE_MODE="$2"; shift 2 ;;
+    --execute_mode=*) OPT_EXECUTE_MODE="${1#*=}"; shift ;;
     --force)        OPT_FORCE="1"; shift ;;
     --dry-run)      W9_DRY_RUN="1"; export W9_DRY_RUN; shift ;;
     --yes)          OPT_YES="1"; shift ;;
-    --image-repo)   OPT_IMAGE_REPO="$2"; shift 2 ;;
-    --network)      OPT_NETWORK="$2"; shift 2 ;;
     -h|--help)      usage; exit "$EXIT_OK" ;;
     *) die "$EXIT_USAGE" "Unknown option: $1 (use -h for help)" ;;
   esac
 done
 
+case "${OPT_EXECUTE_MODE:-}" in
+  ""|install|upgrade) ;;
+  *) die "$EXIT_USAGE" "Unsupported --execute_mode: ${OPT_EXECUTE_MODE} (expected install or upgrade)" ;;
+esac
+
 [ -z "$OPT_VERSION" ] && OPT_VERSION="$DEFAULT_IMAGE_TAG"
 
-# For non-release channels, default the image tag to the channel name
-# (for example --channel dev => IMAGE_TAG=dev) unless the user explicitly
+# For non-release artifacts, default the image tag to the baked channel name
+# (for example dev install.sh => IMAGE_TAG=dev) unless the user explicitly
 # passed --version.
 if [ -z "$_OPT_VERSION_EXPLICIT" ] && [ "$OPT_CHANNEL" != "release" ]; then
     OPT_VERSION="$OPT_CHANNEL"
@@ -115,14 +119,15 @@ _confirm() {
 
 # Hidden subcommands.
 if [ -n "$_SUBCMD" ]; then
-  require_root
   case "$_SUBCMD" in
     detect)
+      require_root
       detect_print_signals
       env_kind="$(detect_environment)"
       echo "$env_kind"
       ;;
     backup)
+      require_root
       env_kind="$(detect_environment)"
       case "$env_kind" in
         modern)
@@ -139,6 +144,9 @@ if [ -n "$_SUBCMD" ]; then
           die "$EXIT_ENV_GUARD" "No installed Websoft9 found, nothing to back up" ;;
       esac
       ;;
+    doctor|inspect)
+      doctor_report "$OPT_PATH" "$OPT_CONSOLE_PORT"
+      ;;
   esac
   exit "$EXIT_OK"
 fi
@@ -148,10 +156,14 @@ require_root
 # Main flow: detect the environment and execute the right path.
 env_kind="$(detect_environment)"
 
+if [ -n "$OPT_EXECUTE_MODE" ]; then
+  log_info "Legacy compatibility: --execute_mode=${OPT_EXECUTE_MODE} accepted; environment auto-detection remains authoritative"
+fi
+
 case "$env_kind" in
   empty)
     log_step "No Websoft9 installation detected. Starting a fresh install"
-    run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
+    run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     ;;
 
   modern|legacy)
@@ -167,14 +179,14 @@ case "$env_kind" in
       exit "$EXIT_OK"
     fi
     if [ "$env_kind" = "modern" ]; then
-      run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
+      run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     else
       if [ -n "$_OPT_CONSOLE_PORT_EXPLICIT" ]; then
         export W9_CONSOLE_PORT_EXPLICIT="1"
       else
         unset W9_CONSOLE_PORT_EXPLICIT || true
       fi
-      run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
+      run_upgrade_legacy "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     fi
     ;;
 
@@ -186,7 +198,7 @@ case "$env_kind" in
         exit "$EXIT_OK"
       fi
     fi
-    run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_IMAGE_REPO" "$OPT_VERSION" "$OPT_NETWORK"
+    run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     ;;
 
   *)

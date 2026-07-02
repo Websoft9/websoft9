@@ -711,9 +711,7 @@ _legacy_finalize_product_state() {
 run_upgrade_legacy() {
   local console_port="$1"
   local install_path="$2"
-  local image_repo="$3"
-  local image_tag="$4"
-  local network_name="$5"
+  local image_tag="$3"
   local requested_console_port="$console_port"
 
   console_port="$(_legacy_resolve_console_port "$console_port")"
@@ -746,7 +744,7 @@ run_upgrade_legacy() {
   backup_legacy_pre_migration "$backup_dir"
 
   # Prepare modern deployment material without touching the transformed data root.
-  install_prepare_material "$install_path" "$image_repo" "$image_tag" "$network_name" "$console_port"
+  install_prepare_material "$install_path" "$image_tag" "$console_port"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) pre-cutover migration steps completed; stopping before the modern runtime takeover"
@@ -792,4 +790,5 @@ run_upgrade_legacy() {
   _uninstall_legacy "purge" "0" "1" "0"
 
   log_info "==== Legacy-to-modern migration completed successfully ===="
+  print_runtime_summary migration "$install_path" "$console_port" "$backup_dir"
 }

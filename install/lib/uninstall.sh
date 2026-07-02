@@ -39,17 +39,17 @@ _uninstall_modern() {
     if [ "$assume_yes" != "1" ]; then
       die "$EXIT_USAGE" "purge mode touches bind-mounted data root ${data_root}, requires explicit --yes"
     fi
+    remove_modern_deployment_material "$install_path"
     die "$EXIT_USAGE" "Automatic deletion of bind-mounted data root is not supported. Remove ${data_root} manually if you really intend to purge all data."
-    if [ -d "$install_path" ]; then
-      run_cmd rm -f "${install_path}/docker-compose.yml" "${install_path}/.env" 2>/dev/null || true
-    fi
   elif [ "$mode" = "standard" ]; then
     if [ "$keep_data" = "0" ]; then
       if [ "$assume_yes" != "1" ]; then
         die "$EXIT_USAGE" "--keep-data=false targets bind-mounted data root ${data_root}, requires explicit --yes"
       fi
+      remove_modern_deployment_material "$install_path"
       die "$EXIT_USAGE" "Automatic deletion of bind-mounted data root is not supported. Remove ${data_root} manually if you really intend to delete runtime data."
     else
+      remove_modern_deployment_material "$install_path"
       log_info "Data root retained: ${data_root}"
     fi
   fi

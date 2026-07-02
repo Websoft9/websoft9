@@ -118,7 +118,13 @@ ls -ld /data/compose /data/websoft9/source /data/apps/w9services 2>/dev/null || 
 示例：
 
 ```bash
-sudo bash install.sh --channel release
+sudo bash install.sh
+```
+
+历史自动化入口如果仍传递 `--execute_mode upgrade`，当前版本也会兼容接受：
+
+```bash
+sudo bash install.sh --execute_mode upgrade
 ```
 
 如果只是预演，不实际切换：

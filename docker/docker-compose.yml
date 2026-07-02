@@ -31,4 +31,4 @@ services:
 networks:
   websoft9:
     external: true
-    name: ${NETWORK_NAME:-websoft9}
+    name: websoft9

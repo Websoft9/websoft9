@@ -136,11 +136,10 @@
 
 因此，第一版建议先保留这些高价值参数：
 
-1. `--channel`
-2. `--version`
-3. `--console-port`
-4. `--path`
-5. `--proxy`
+1. `--version`
+2. `--console-port`
+3. `--path`
+4. `--proxy`
 
 `--http-port` 与 `--https-port` 可以保留为后续目标能力候选项，但在当前新版本运行时事实下，不应先写成第一版默认参数承诺。
 
@@ -505,7 +504,7 @@
 
 为了保持用户入口简单，参数面建议分成三层：
 
-1. 通用参数：`--channel`、`--version`、`--path`、`--proxy`
+1. 通用参数：`--version`、`--path`、`--proxy`
 2. 当前事实对齐的入口参数：`--console-port`
 3. 安全参数：`--mode`、`--force`、`--dry-run`、`--yes`、`--keep-data`
 

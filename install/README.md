@@ -21,6 +21,20 @@ sudo bash install.sh
 curl -fsSL https://artifact.websoft9.com/websoft9/release/install.sh | sudo bash
 ```
 
+开发通道使用对应制品 URL，安装脚本会随制品固化通道，不再通过命令行切换：
+
+```bash
+wget -O install.sh https://artifact.websoft9.com/websoft9/dev/install.sh
+sudo bash install.sh
+```
+
+历史兼容：旧版升级命令里的 `--execute_mode upgrade` 仍可继续使用，但当前脚本会自动识别环境并决定是安装还是升级：
+
+```bash
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh
+sudo bash install.sh --execute_mode upgrade
+```
+
 ### 卸载
 
 ```bash
@@ -74,9 +88,9 @@ sudo bash install.sh [选项]
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--channel <release\|rc\|dev>` | `release` | 发布通道 |
 | `--console-port <port>` | `9000` | 控制台对外端口 |
 | `--dry-run` | _(关闭)_ | 演练模式：仅前置检查，不实际操作 |
+| `--execute_mode <install\|upgrade>` | _(兼容参数)_ | 历史兼容参数；当前不主导控制流 |
 | `--yes` | _(关闭)_ | 跳过所有交互确认（CI / 自动化使用） |
 | `-h, --help` | — | 显示帮助 |
 
@@ -86,8 +100,6 @@ sudo bash install.sh [选项]
 |------|--------|------|
 | `--version <tag>` | `latest` | 镜像标签 |
 | `--path <dir>` | `/opt/websoft9` | 安装目录 |
-| `--image-repo <repo>` | `websoft9dev/websoft9` | 镜像仓库地址 |
-| `--network <name>` | `websoft9` | Docker 网络名 |
 | `--force` | _(关闭)_ | 跳过非破坏性前置检查，在环境有残留时强制继续 |
 
 ### 行为说明
@@ -104,8 +116,8 @@ sudo bash install.sh [选项]
 # 标准安装（自动判断安装或升级）
 sudo bash install.sh
 
-# 指定发布通道
-sudo bash install.sh --channel rc
+# 只读诊断：打印当前识别到的环境、数据根、端口、Docker/Compose 状态
+sudo bash install.sh doctor
 
 # CI/自动化，跳过所有确认
 sudo bash install.sh --yes
@@ -148,8 +160,11 @@ sudo bash uninstall.sh [options]
 # 标准卸载（交互确认）
 sudo bash uninstall.sh
 
-# 完全清除，跳过确认
-sudo bash uninstall.sh --purge --keep-data false --yes
+# 清理运行时和部署物料，保留数据根
+sudo bash uninstall.sh --yes
+
+# purge 会停止运行时并移除部署物料，但绑定数据根仍需手工删除
+sudo bash uninstall.sh --purge --yes
 
 # 仅停服，不删容器
 sudo bash uninstall.sh --mode stop
@@ -168,7 +183,6 @@ sudo bash uninstall.sh --keep-data --remove-legacy-controlplane
 |------|--------|------|
 | `W9_ARTIFACT_BASE` | `https://artifact.websoft9.com/websoft9` | 制品分发根（无本地物料时按通道拼接 URL 下载） |
 | `W9_DRY_RUN` | _(空)_ | 设为 `1` 等同于 `--dry-run` |
-| `W9_CHANNEL` | _(由 `--channel` 设置)_ | 发布通道，通常通过参数指定 |
 
 ### 自定义制品源示例
 
@@ -187,14 +201,16 @@ W9_ARTIFACT_BASE=https://my-mirror.example.com/websoft9 sudo bash install.sh
 | `rc` | Release Candidate | `https://artifact.websoft9.com/websoft9/rc/` |
 | `dev` | 开发/测试版 | `https://artifact.websoft9.com/websoft9/dev/` |
 
+安装脚本所属的制品目录就是其固定通道来源；不要用同一个 `install.sh` 再去命令行切换到其他通道。
+
 各通道目录下包含以下制品文件：
 
 ```
-install.sh            # 自包含安装脚本
-uninstall.sh          # 自包含卸载脚本
-install_docker.sh     # Docker 安装脚本
-docker-compose.yml    # 部署 compose 文件（release/rc）
-docker-compose.dev.yml# 部署 compose 文件（dev 通道）
+install.sh             # 自包含安装脚本
+uninstall.sh           # 自包含卸载脚本
+install_docker.sh      # Docker 安装脚本
+docker-compose.yml     # 部署 compose 文件（release/rc）
+docker-compose.dev.yml # 部署 compose 文件（dev 通道）
 version.json          # 版本元数据
 mirrors.json          # 镜像加速配置
 manifest.json         # 发布清单（含所有文件名引用）

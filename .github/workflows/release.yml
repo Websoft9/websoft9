@@ -186,12 +186,17 @@ PY
           cp mirrors.json websoft9/
 
           # Create versioned zip
+          # Create versioned zip
           zip -r "websoft9-${VERSION_CORE}.zip" websoft9
           cp "websoft9-${VERSION_CORE}.zip" release-assets/
+          mkdir -p legacy-r2-artifacts
           bash install/build-bundle.sh install/dist
           cp install/dist/install.sh r2-artifacts/install.sh
           cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
           cp install/install_docker.sh r2-artifacts/install_docker.sh
+          cp install/dist/install.sh legacy-r2-artifacts/install.sh
+          cp install/dist/uninstall.sh legacy-r2-artifacts/uninstall.sh
+          cp install/install_docker.sh legacy-r2-artifacts/install_docker.sh
           cp docker/docker-compose.yml r2-artifacts/docker-compose.yml
           cp version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
@@ -252,6 +257,9 @@ PY
           cp manifest.json r2-artifacts/manifest.json
           cp manifest.json release-assets/manifest.json
 
+          grep '^OPT_CHANNEL="release"' install/dist/install.sh
+          jq -e '.channel == "release" and .install.compose_file == "docker-compose.yml"' manifest.json >/dev/null
+
           (
             cd r2-artifacts
             sha256sum \
@@ -288,6 +296,16 @@ PY
           source-dir: r2-artifacts
           destination-dir: ./websoft9/${{ needs.determine-channel.outputs.channel }}
 
+      - name: Upload legacy compatibility alias to Cloudflare R2
+        uses: ryand56/r2-upload-action@latest
+        with:
+          r2-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.CLOUDFLARE_R2_SECRET_ID }}
+          r2-secret-access-key: ${{ secrets.CLOUDFLARE_R2_SECRET_KEY }}
+          r2-bucket: artifact
+          source-dir: legacy-r2-artifacts
+          destination-dir: ./release/websoft9
+
       - name: Purge Cloudflare Cache
         uses: jakejarvis/cloudflare-purge-action@master
         env:
@@ -299,7 +317,10 @@ PY
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install_docker.sh",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/docker-compose.yml",
             "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/manifest.json",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/SHA256SUMS"]'
+            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/SHA256SUMS",
+            "https://artifact.websoft9.com/release/websoft9/install.sh",
+            "https://artifact.websoft9.com/release/websoft9/uninstall.sh",
+            "https://artifact.websoft9.com/release/websoft9/install_docker.sh"]'
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

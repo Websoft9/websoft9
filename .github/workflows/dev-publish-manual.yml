@@ -114,7 +114,7 @@ jobs:
           CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
           ALIAS_TAGS="${{ needs.meta.outputs.alias_tags }}"
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          COMPOSE_FILE="docker-compose.yml"
+          COMPOSE_FILE="docker-compose.dev.yml"
 
           mkdir -p release-assets r2-artifacts websoft9
 
@@ -135,11 +135,11 @@ jobs:
           zip -r "websoft9-${VERSION}-${SHA_TAG}.zip" websoft9
           cp "websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/
           cp "release-assets/websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/websoft9-dev.zip
-          bash install/build-bundle.sh install/dist
+          bash install/build-bundle.sh --channel "$CHANNEL" install/dist
           cp install/dist/install.sh r2-artifacts/install.sh
           cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
           cp install/install_docker.sh r2-artifacts/install_docker.sh
-          cp docker/docker-compose.yml "r2-artifacts/${COMPOSE_FILE}"
+          cp "docker/${COMPOSE_FILE}" "r2-artifacts/${COMPOSE_FILE}"
           cp staged-version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
           cp mirrors.json r2-artifacts/mirrors.json
@@ -170,7 +170,7 @@ jobs:
               git_sha: $git_sha,
               generated_at: $generated_at,
               install: {
-                compose_file: "docker-compose.yml",
+                compose_file: $compose_file,
                 install_script: "install.sh",
                 uninstall_script: "uninstall.sh",
                 docker_install_script: "install_docker.sh",
@@ -190,10 +190,14 @@ jobs:
                 bundle_file: ("websoft9-" + $version + "-" + $sha_tag + ".zip"),
                 alias_bundle_file: "websoft9-dev.zip"
               }
-            }' > manifest.json
+            }' \
+            --arg compose_file "$COMPOSE_FILE" > manifest.json
 
           cp manifest.json r2-artifacts/manifest.json
           cp manifest.json release-assets/manifest.json
+
+          grep '^OPT_CHANNEL="dev"' install/dist/install.sh
+          jq -e '.channel == "dev" and .install.compose_file == "docker-compose.dev.yml"' manifest.json >/dev/null
 
           (
             cd r2-artifacts
