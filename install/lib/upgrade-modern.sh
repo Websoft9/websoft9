@@ -24,6 +24,16 @@ _export_modern_runtime_config_to_data_root() {
   local runtime_config_path="${runtime_config_dir}/config.ini"
   local runtime_system_config_path="${runtime_config_dir}/system.ini"
 
+  # The persistent config lives on the host (bind mount) and survives
+  # container recreations by design.  If it already exists, the settings
+  # are already preserved; we must NOT overwrite it with a fresh export.
+  # The export is only needed once — the very first upgrade that migrates
+  # from the old container-local config to the persistent model.
+  if [ -f "$runtime_config_path" ] && [ -f "$runtime_system_config_path" ]; then
+    log_info "Persistent runtime config already present under $runtime_config_dir; settings are preserved on host, skipping export"
+    return 0
+  fi
+
   log_info "Exporting runtime config to: $runtime_config_dir (host data root: ${data_root})"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
@@ -35,31 +45,19 @@ _export_modern_runtime_config_to_data_root() {
 
   run_cmd mkdir -p "$runtime_config_dir"
 
-  # Read from the persistent config path first (where the running AppHub
-  # actually writes settings after the persistence model change), then fall
-  # back to the bundled image-default path (pre-persistence behaviour).
-  # We cannot rely on WEBSOFT9_APPHUB_CONFIG_PATH / WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH
-  # inside docker exec — those env vars are only set for the container's
-  # PID-1 entrypoint, not for exec shells.
-  if docker exec "$MODERN_CONTAINER_NAME" sh -lc '
+  docker exec "$MODERN_CONTAINER_NAME" sh -lc '
     for p in /opt/websoft9/data/config/apphub/config.ini /websoft9/apphub/src/config/config.ini; do
       if [ -s "$p" ]; then cat "$p"; break; fi
     done
-  ' >"$runtime_config_path" 2>/dev/null; then
-    log_info "Exported runtime config to: $runtime_config_path"
-  else
-    log_warn "Failed to export runtime config from the current container"
-  fi
+  ' >"$runtime_config_path" 2>/dev/null || log_warn "Failed to export runtime config from the current container"
 
-  if docker exec "$MODERN_CONTAINER_NAME" sh -lc '
+  docker exec "$MODERN_CONTAINER_NAME" sh -lc '
     for p in /opt/websoft9/data/config/apphub/system.ini /websoft9/apphub/src/config/system.ini; do
       if [ -s "$p" ]; then cat "$p"; break; fi
     done
-  ' >"$runtime_system_config_path" 2>/dev/null; then
-    log_info "Exported runtime system config to: $runtime_system_config_path"
-  else
-    log_warn "Failed to export runtime system config from the current container"
-  fi
+  ' >"$runtime_system_config_path" 2>/dev/null || log_warn "Failed to export runtime system config from the current container"
+
+  log_info "Exported runtime config to: $runtime_config_path"
 }
 
 # 回退到升级前备份点：物料 + 主数据卷
