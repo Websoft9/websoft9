@@ -4,10 +4,27 @@
 # 不负责：旧卷映射、Cockpit 退场。
 
 _export_modern_runtime_config_to_data_root() {
-  local data_root="$1"
+  local install_path="$1"
+  local fallback_root="$2"
+  local data_root
+
+  # Resolve the host-side data root from the running container's actual
+  # bind mount rather than trusting the env file — this guarantees the
+  # exported files land under the same host directory the next container
+  # startup will mount, even when the env file is stale or mismatched.
+  for dest in /opt/websoft9/data /data; do
+    data_root="$(docker inspect --format '{{range .Mounts}}{{if and (eq .Type "bind") (eq .Destination "'"$dest"'")}}{{.Source}}{{end}}{{end}}' "$MODERN_CONTAINER_NAME" 2>/dev/null | head -n1)"
+    if [ -n "$data_root" ]; then
+      break
+    fi
+  done
+  data_root="${data_root:-$fallback_root}"
+
   local runtime_config_dir="${data_root%/}/config/apphub"
   local runtime_config_path="${runtime_config_dir}/config.ini"
   local runtime_system_config_path="${runtime_config_dir}/system.ini"
+
+  log_info "Exporting runtime config to: $runtime_config_dir (host data root: ${data_root})"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) would export runtime config into: $runtime_config_dir"
@@ -97,7 +114,7 @@ run_upgrade_modern() {
 
   # Preserve the live runtime settings before the first upgrade switches the
   # config model from container-local files to data-root-backed files.
-  _export_modern_runtime_config_to_data_root "$WEBSOFT9_DATA_ROOT"
+  _export_modern_runtime_config_to_data_root "$install_path" "$WEBSOFT9_DATA_ROOT"
 
   # 2. 升级前强制备份（不受 --keep-data 影响）
   local backup_dir
