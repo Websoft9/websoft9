@@ -6,47 +6,44 @@
 _export_modern_runtime_config_to_data_root() {
   local install_path="$1"
   local fallback_root="$2"
-  local data_root
 
-  # Try the canonical data root /opt/websoft9/data first, then fall back
-  # to /data for legacy installs.  We intentionally avoid docker inspect
-  # here: the container name may not match the install script's channel
-  # (e.g. websoft9-dev vs websoft9), and a failed inspect would silently
-  # fall back to the env-file value which is often stale.
-  local host_data_root=""
+  # Select the host-side data root: prefer the canonical path when the
+  # directory tree already exists, otherwise fall back to the resolved
+  # value from the .env file.
+  local data_root="${fallback_root}"
   for candidate in /opt/websoft9/data /data; do
     if [ -d "$candidate" ] && [ -d "${candidate}/config" ]; then
-      host_data_root="$candidate"
+      data_root="$candidate"
       break
     fi
   done
-  data_root="${host_data_root:-$fallback_root}"
 
-  local runtime_config_dir="${data_root%/}/config/apphub"
-  local runtime_config_path="${runtime_config_dir}/config.ini"
-  local runtime_system_config_path="${runtime_config_dir}/system.ini"
+  local runtime_config_path="${data_root%/}/config/apphub/config.ini"
+  local runtime_system_config_path="${data_root%/}/config/apphub/system.ini"
 
-  # The persistent config lives on the host (bind mount) and survives
-  # container recreations by design.  If it already exists, the settings
-  # are already preserved; we must NOT overwrite it with a fresh export.
-  # The export is only needed once — the very first upgrade that migrates
-  # from the old container-local config to the persistent model.
+  # Once the persistent config exists on the host it naturally survives
+  # container recreations through the bind mount — no export is needed.
+  # This path only runs once, during the very first upgrade from the old
+  # container-local config model to the data-root-backed persistent model.
   if [ -f "$runtime_config_path" ] && [ -f "$runtime_system_config_path" ]; then
-    log_info "Persistent runtime config already present under $runtime_config_dir; settings are preserved on host, skipping export"
+    log_info "Persistent runtime config already present, skipping export"
     return 0
   fi
 
-  log_info "Exporting runtime config to: $runtime_config_dir (host data root: ${data_root})"
-
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
-    log_info "(dry-run) would export runtime config into: $runtime_config_dir"
+    log_info "(dry-run) would export runtime config from container into ${runtime_config_path}"
     return 0
   fi
 
   container_running "$MODERN_CONTAINER_NAME" || return 0
 
-  run_cmd mkdir -p "$runtime_config_dir"
+  log_step "Migrating runtime config from container to persistent host storage"
+  run_cmd mkdir -p "$(dirname "$runtime_config_path")"
 
+  # Read from the container: try the persistent path first (post-migration
+  # AppHub writes), then the bundled image-default path (old code without
+  # persistence).  We use fixed absolute paths inside docker exec because
+  # WEBSOFT9_APPHUB_CONFIG_PATH is only set for PID 1, not exec shells.
   docker exec "$MODERN_CONTAINER_NAME" sh -lc '
     for p in /opt/websoft9/data/config/apphub/config.ini /websoft9/apphub/src/config/config.ini; do
       if [ -s "$p" ]; then cat "$p"; break; fi
@@ -58,8 +55,6 @@ _export_modern_runtime_config_to_data_root() {
       if [ -s "$p" ]; then cat "$p"; break; fi
     done
   ' >"$runtime_system_config_path" 2>/dev/null || log_warn "Failed to export runtime system config from the current container"
-
-  log_info "Exported runtime config to: $runtime_config_path"
 }
 
 # 回退到升级前备份点：物料 + 主数据卷
