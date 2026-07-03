@@ -1350,27 +1350,6 @@ export function SettingsPage() {
         )
     }
 
-    function renderVersionRow() {
-        const locale = i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en'
-        const localizedEditionName = versionItem?.metadata?.edition_names?.[locale] || versionItem?.metadata?.edition_names?.en || versionItem?.metadata?.edition_names?.['zh-CN'] || ''
-        const semanticVersion = versionItem?.metadata?.version || ''
-        const displayVersion = `${localizedEditionName} ${semanticVersion}`.trim() || versionItem?.value || t('settingsPage.values.notConfigured')
-
-        return (
-            <div className="settings-form-row">
-                <Typography className="settings-form-label">{t('settingsPage.version.label')}：</Typography>
-
-                <div className="settings-form-control">
-                    <Typography className="settings-form-value" variant="body2">
-                        {displayVersion}
-                    </Typography>
-                </div>
-
-                <div className="settings-form-actions" />
-            </div>
-        )
-    }
-
     function renderActiveModuleRows() {
         if (activeModule === 'app-domain') {
             return renderDomainRow(globalDomainItem)
