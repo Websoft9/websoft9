@@ -1251,11 +1251,34 @@ export function SettingsPage() {
         const currentVersion = status?.current_version || t('settingsPage.values.notConfigured')
 
         function handleCopy() {
-            if (!status?.install_command) return
-            navigator.clipboard.writeText(status.install_command).then(
-                () => { setCopied(true); setTimeout(() => setCopied(false), 2000) },
-                () => { /* ignore */ },
-            )
+            const text = status?.install_command
+            if (!text) return
+
+            // Try modern clipboard API first, fall back to execCommand
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(
+                    () => { setCopied(true); setTimeout(() => setCopied(false), 2000) },
+                    () => { /* ignore */ },
+                )
+            } else {
+                // Fallback for non-HTTPS environments
+                const textarea = document.createElement('textarea')
+                textarea.value = text
+                textarea.style.position = 'fixed'
+                textarea.style.left = '-9999px'
+                textarea.style.top = '-9999px'
+                document.body.appendChild(textarea)
+                textarea.focus()
+                textarea.select()
+                try {
+                    document.execCommand('copy')
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                } catch {
+                    // ignore
+                }
+                document.body.removeChild(textarea)
+            }
         }
 
         if (isUpgradeStatusLoading) {
@@ -1301,27 +1324,34 @@ export function SettingsPage() {
                 <div className="settings-form-row">
                     <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}：</Typography>
                     <div className="settings-form-control">
-                        <Typography className="settings-form-value" variant="body2">
+                        <Typography className="settings-form-value" variant="body2" component="span">
                             {currentVersion}
                         </Typography>
-                    </div>
-                    <div className="settings-form-actions" />
-                </div>
-
-                <div className="settings-form-row">
-                    <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}：</Typography>
-                    <div className="settings-form-control">
-                        <Typography className="settings-form-value" variant="body2">
-                            {status.upgrade_available
-                                ? t('settingsPage.upgrade.canUpgradeTo', { version: status.latest_version })
-                                : t('settingsPage.upgrade.upToDate')}
-                        </Typography>
+                        {!status.upgrade_available && (
+                            <Typography
+                                variant="caption"
+                                component="span"
+                                sx={{ ml: 1, color: 'success.main', fontWeight: 500 }}
+                            >
+                                — {t('settingsPage.upgrade.upToDate')}
+                            </Typography>
+                        )}
                     </div>
                     <div className="settings-form-actions" />
                 </div>
 
                 {status.upgrade_available && (
                     <>
+                        <div className="settings-form-row">
+                            <Typography className="settings-form-label">{t('settingsPage.upgrade.latestVersion')}：</Typography>
+                            <div className="settings-form-control">
+                                <Typography className="settings-form-value" variant="body2">
+                                    {status.latest_version}
+                                </Typography>
+                            </div>
+                            <div className="settings-form-actions" />
+                        </div>
+
                         <div className="settings-form-row">
                             <Typography className="settings-form-label">{t('settingsPage.upgrade.command')}：</Typography>
                             <div className="settings-form-control">
@@ -1341,6 +1371,12 @@ export function SettingsPage() {
                                 >
                                     {status.install_command}
                                 </Box>
+                                <Typography
+                                    variant="caption"
+                                    sx={{ mt: 1, display: 'block', color: 'text.secondary' }}
+                                >
+                                    {t('settingsPage.upgrade.upgradeHint')}
+                                </Typography>
                             </div>
                             <div className="settings-form-actions" />
                         </div>
@@ -1348,21 +1384,9 @@ export function SettingsPage() {
                         <div className="settings-form-row">
                             <Typography className="settings-form-label" />
                             <div className="settings-form-control">
-                                <Stack direction="row" spacing={1}>
-                                    <Button size="small" variant="contained" onClick={handleCopy}>
-                                        {copied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.actions.copy')}
-                                    </Button>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        component="a"
-                                        href={status.doc_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        {t('settingsPage.upgrade.actions.viewDocs')}
-                                    </Button>
-                                </Stack>
+                                <Button size="small" variant="contained" onClick={handleCopy}>
+                                    {copied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.actions.copy')}
+                                </Button>
                             </div>
                             <div className="settings-form-actions" />
                         </div>
