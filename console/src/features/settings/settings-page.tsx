@@ -1255,25 +1255,54 @@ export function SettingsPage() {
             )
         }
 
-        return (
-            <div className="settings-form-row settings-form-row--domain-stacked">
-                <div className="settings-domain-label-row">
+        if (!status) {
+            return (
+                <div className="settings-form-row">
                     <Typography className="settings-form-label">{t('settingsPage.upgrade.label')}：</Typography>
+                    <div className="settings-form-control">
+                        <Typography variant="body2" color="text.secondary">{t('settingsPage.upgrade.checking')}</Typography>
+                    </div>
+                    <div className="settings-form-actions" />
+                </div>
+            )
+        }
+
+        return (
+            <>
+                <div className="settings-form-row">
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}：</Typography>
+                    <div className="settings-form-control">
+                        <Typography className="settings-form-value" variant="body2">
+                            {status.current_version || t('settingsPage.values.notConfigured')}
+                        </Typography>
+                    </div>
+                    <div className="settings-form-actions" />
                 </div>
 
-                <Stack className="settings-form-control" spacing={1.5}>
-                    {status ? (
-                        <>
-                            <Chip
-                                size="small"
-                                color={isLatest ? 'success' : 'warning'}
-                                variant="outlined"
-                                label={isLatest
-                                    ? t('settingsPage.upgrade.upToDate', { version: status.current_version })
-                                    : t('settingsPage.upgrade.available', { current: status.current_version, latest: status.latest_version })}
-                            />
+                <div className="settings-form-row">
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.latestVersion')}：</Typography>
+                    <div className="settings-form-control">
+                        <Typography className="settings-form-value" variant="body2">
+                            {status.latest_version}
+                            {status.upgrade_available && (
+                                <Chip
+                                    size="small"
+                                    color="warning"
+                                    variant="outlined"
+                                    label={t('settingsPage.upgrade.newAvailable')}
+                                    sx={{ ml: 1, verticalAlign: 'middle' }}
+                                />
+                            )}
+                        </Typography>
+                    </div>
+                    <div className="settings-form-actions" />
+                </div>
 
-                            {!isLatest && (
+                {!isLatest && (
+                    <>
+                        <div className="settings-form-row">
+                            <Typography className="settings-form-label">{t('settingsPage.upgrade.command')}：</Typography>
+                            <div className="settings-form-control">
                                 <Box
                                     component="pre"
                                     sx={{
@@ -1290,15 +1319,17 @@ export function SettingsPage() {
                                 >
                                     {status.install_command}
                                 </Box>
-                            )}
+                            </div>
+                            <div className="settings-form-actions" />
+                        </div>
 
-                            <Stack direction="row" spacing={1}>
-                                {!isLatest && (
+                        <div className="settings-form-row">
+                            <Typography className="settings-form-label" />
+                            <div className="settings-form-control">
+                                <Stack direction="row" spacing={1}>
                                     <Button size="small" variant="contained" onClick={handleCopy}>
                                         {copied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.actions.copy')}
                                     </Button>
-                                )}
-                                {status.doc_url && (
                                     <Button
                                         size="small"
                                         variant="outlined"
@@ -1309,18 +1340,13 @@ export function SettingsPage() {
                                     >
                                         {t('settingsPage.upgrade.actions.viewDocs')}
                                     </Button>
-                                )}
-                            </Stack>
-                        </>
-                    ) : (
-                        <Typography variant="body2" color="text.secondary">
-                            {t('settingsPage.upgrade.checking')}
-                        </Typography>
-                    )}
-                </Stack>
-
-                <div className="settings-form-actions" />
-            </div>
+                                </Stack>
+                            </div>
+                            <div className="settings-form-actions" />
+                        </div>
+                    </>
+                )}
+            </>
         )
     }
 
@@ -1362,12 +1388,7 @@ export function SettingsPage() {
             return renderPlatformDomainRows()
         }
 
-        return (
-            <>
-                {renderVersionRow()}
-                {renderUpgradeRow()}
-            </>
-        )
+        return renderUpgradeRow()
     }
 
     function moduleHasChanges(moduleId: SettingsModuleId) {
