@@ -1688,10 +1688,13 @@ const rawShellResources = {
             },
             upgrade: {
                 label: 'System upgrade',
-                comingSoon: 'Upgrade precheck and execution are being connected in the next stories.',
+                checking: 'Checking for updates...',
+                upToDate: 'Up to date (v{{version}})',
+                available: 'v{{current}} → v{{latest}} available',
                 actions: {
-                    precheck: 'Run precheck',
-                    start: 'Start upgrade',
+                    copy: 'Copy command',
+                    copied: 'Copied!',
+                    viewDocs: 'View upgrade guide',
                 },
             },
         },
@@ -3909,10 +3912,13 @@ const rawShellResources = {
                 },
                 upgrade: {
                     label: '系统升级',
-                    comingSoon: '升级预检和升级执行正在后续故事中接入。',
+                    checking: '正在检查更新...',
+                    upToDate: '已是最新版本 (v{{version}})',
+                    available: 'v{{current}} → v{{latest}} 可升级',
                     actions: {
-                        precheck: '运行预检',
-                        start: '开始升级',
+                        copy: '复制命令',
+                        copied: '已复制！',
+                        viewDocs: '查看升级文档',
                     },
                 },
             },

@@ -1,5 +1,7 @@
+import json
 from typing import Optional
 
+import requests
 from fastapi import APIRouter, Query, Path, Cookie
 from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest
 from src.schemas.errorResponse import ErrorResponse
@@ -8,9 +10,24 @@ from src.schemas.settingsSummary import SettingsSummaryResponse
 
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
-from src.services.product_runtime_state import read_product_runtime_state
+from src.services.product_runtime_state import read_product_runtime_state, read_release_version, read_release_channel
 
 router = APIRouter()
+
+_ARTIFACT_BASE_URL = "https://artifact.websoft9.com/websoft9"
+
+
+def _latest_remote_version(channel: str) -> Optional[str]:
+    try:
+        resp = requests.get(
+            f"{_ARTIFACT_BASE_URL}/{channel}/version.json",
+            timeout=10,
+            headers={"Cache-Control": "no-cache"},
+        )
+        resp.raise_for_status()
+        return str(json.loads(resp.text).get("version", "")).strip() or None
+    except Exception:
+        return None
 
 @router.get("/settings",
             summary="Get settings",
@@ -132,6 +149,38 @@ def upload_cert(payload: UploadCertRequest):
         key_pem=payload.key_pem,
         intermediate_pem=payload.intermediate_pem,
     )
+
+
+@router.get(
+    "/settings/upgrade/status",
+    summary="Get upgrade status",
+    description="Return current version, latest available version, and the recommended host upgrade command",
+    responses={
+        200: {"model": dict},
+        500: {"model": ErrorResponse},
+    },
+)
+def get_upgrade_status():
+    current_version = read_release_version() or ""
+    channel = read_release_channel()
+    latest_version = _latest_remote_version(channel)
+    upgrade_available = bool(
+        latest_version
+        and current_version
+        and latest_version != current_version
+    )
+    artifact_url = f"{_ARTIFACT_BASE_URL}/{channel}/install.sh"
+    install_command = f"wget -O install.sh {artifact_url} && sudo bash install.sh"
+
+    return {
+        "current_version": current_version,
+        "latest_version": latest_version or current_version,
+        "channel": channel,
+        "upgrade_available": upgrade_available,
+        "install_command": install_command,
+        "artifact_url": artifact_url,
+        "doc_url": "https://github.com/Websoft9/websoft9/blob/main/install/upgrade-guide.md",
+    }
 
 
 @router.get(

@@ -116,6 +116,27 @@ async function updateSetting(section: string, key: string, value: string) {
     }
 }
 
+type UpgradeStatus = {
+    current_version: string
+    latest_version: string
+    channel: string
+    upgrade_available: boolean
+    install_command: string
+    artifact_url: string
+    doc_url: string
+}
+
+async function fetchUpgradeStatus(): Promise<UpgradeStatus> {
+    const response = await fetch('/api/settings/upgrade/status', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        throw new Error(`Failed to load upgrade status: ${response.status}`)
+    }
+    return (await response.json()) as UpgradeStatus
+}
+
 async function updatePlatformGatewaySettings(payload: PlatformGatewayUpdateRequest) {
     const response = await fetch('/api/settings/platform_gateway/apply', {
         method: 'PUT',
@@ -225,6 +246,14 @@ export function SettingsPage() {
         queryFn: fetchSettingsSummary,
         staleTime: 5_000,
     })
+
+    const { data: upgradeStatus } = useQuery<UpgradeStatus>({
+        queryKey: ['upgrade-status'],
+        queryFn: fetchUpgradeStatus,
+        staleTime: 60_000,
+    })
+
+    const [copied, setCopied] = useState(false)
 
     const items = data?.groups.flatMap((group) => group.items) ?? []
     const boundDomainItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'bound_domain') ?? null
@@ -1215,17 +1244,79 @@ export function SettingsPage() {
     }
 
     function renderUpgradeRow() {
-        return (
-            <div className="settings-form-row">
-                <Typography className="settings-form-label">{t('settingsPage.upgrade.label')}：</Typography>
+        const status = upgradeStatus
+        const isLatest = status && !status.upgrade_available
 
-                <Stack className="settings-form-control" direction={{ xs: 'column', md: 'row' }} spacing={1}>
-                    <Button disabled size="small" variant="contained">
-                        {t('settingsPage.upgrade.actions.precheck')}
-                    </Button>
-                    <Button disabled size="small" variant="outlined">
-                        {t('settingsPage.upgrade.actions.start')}
-                    </Button>
+        function handleCopy() {
+            if (!status?.install_command) return
+            navigator.clipboard.writeText(status.install_command).then(
+                () => { setCopied(true); setTimeout(() => setCopied(false), 2000) },
+                () => { /* ignore */ },
+            )
+        }
+
+        return (
+            <div className="settings-form-row settings-form-row--domain-stacked">
+                <div className="settings-domain-label-row">
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.label')}：</Typography>
+                </div>
+
+                <Stack className="settings-form-control" spacing={1.5}>
+                    {status ? (
+                        <>
+                            <Chip
+                                size="small"
+                                color={isLatest ? 'success' : 'warning'}
+                                variant="outlined"
+                                label={isLatest
+                                    ? t('settingsPage.upgrade.upToDate', { version: status.current_version })
+                                    : t('settingsPage.upgrade.available', { current: status.current_version, latest: status.latest_version })}
+                            />
+
+                            {!isLatest && (
+                                <Box
+                                    component="pre"
+                                    sx={{
+                                        m: 0,
+                                        p: 1.5,
+                                        fontSize: '0.8rem',
+                                        borderRadius: 1,
+                                        bgcolor: surfacePalette.inputBackground,
+                                        color: surfacePalette.inputText,
+                                        overflowX: 'auto',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-all',
+                                    }}
+                                >
+                                    {status.install_command}
+                                </Box>
+                            )}
+
+                            <Stack direction="row" spacing={1}>
+                                {!isLatest && (
+                                    <Button size="small" variant="contained" onClick={handleCopy}>
+                                        {copied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.actions.copy')}
+                                    </Button>
+                                )}
+                                {status.doc_url && (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        component="a"
+                                        href={status.doc_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        {t('settingsPage.upgrade.actions.viewDocs')}
+                                    </Button>
+                                )}
+                            </Stack>
+                        </>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary">
+                            {t('settingsPage.upgrade.checking')}
+                        </Typography>
+                    )}
                 </Stack>
 
                 <div className="settings-form-actions" />
