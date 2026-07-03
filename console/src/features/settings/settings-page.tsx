@@ -264,7 +264,6 @@ export function SettingsPage() {
     const brandTitleItem = items.find((item) => item.group === 'platform_brand' && item.key === 'title') ?? null
     const brandLogoItem = items.find((item) => item.group === 'platform_brand' && item.key === 'logo_url') ?? null
     const brandFaviconItem = items.find((item) => item.group === 'platform_brand' && item.key === 'favicon_url') ?? null
-    const versionItem = items.find((item) => item.group === 'version' && item.key === 'product') ?? null
     const activeModuleConfig = SETTINGS_MODULES.find((module) => module.id === activeModule) ?? SETTINGS_MODULES[0]
     const currentSslCert = httpsItem?.metadata?.cert_path?.trim() || ''
     const currentSslKey = httpsItem?.metadata?.key_path?.trim() || ''
