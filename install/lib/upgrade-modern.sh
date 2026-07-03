@@ -8,17 +8,19 @@ _export_modern_runtime_config_to_data_root() {
   local fallback_root="$2"
   local data_root
 
-  # Resolve the host-side data root from the running container's actual
-  # bind mount rather than trusting the env file — this guarantees the
-  # exported files land under the same host directory the next container
-  # startup will mount, even when the env file is stale or mismatched.
-  for dest in /opt/websoft9/data /data; do
-    data_root="$(docker inspect --format '{{range .Mounts}}{{if and (eq .Type "bind") (eq .Destination "'"$dest"'")}}{{.Source}}{{end}}{{end}}' "$MODERN_CONTAINER_NAME" 2>/dev/null | head -n1)"
-    if [ -n "$data_root" ]; then
+  # Try the canonical data root /opt/websoft9/data first, then fall back
+  # to /data for legacy installs.  We intentionally avoid docker inspect
+  # here: the container name may not match the install script's channel
+  # (e.g. websoft9-dev vs websoft9), and a failed inspect would silently
+  # fall back to the env-file value which is often stale.
+  local host_data_root=""
+  for candidate in /opt/websoft9/data /data; do
+    if [ -d "$candidate" ] && [ -d "${candidate}/config" ]; then
+      host_data_root="$candidate"
       break
     fi
   done
-  data_root="${data_root:-$fallback_root}"
+  data_root="${host_data_root:-$fallback_root}"
 
   local runtime_config_dir="${data_root%/}/config/apphub"
   local runtime_config_path="${runtime_config_dir}/config.ini"
