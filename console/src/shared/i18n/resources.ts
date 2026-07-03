@@ -1689,11 +1689,12 @@ const rawShellResources = {
             upgrade: {
                 label: 'System upgrade',
                 currentVersion: 'Current version',
-                latestVersion: 'Latest version',
-                newAvailable: 'New version available',
+                status: 'Status',
+                canUpgradeTo: 'Upgrade available to {{version}}',
                 command: 'Upgrade command',
                 checking: 'Checking for updates...',
                 upToDate: 'Up to date',
+                unavailable: 'Unable to check for updates right now',
                 actions: {
                     copy: 'Copy command',
                     copied: 'Copied!',
@@ -3916,11 +3917,12 @@ const rawShellResources = {
                 upgrade: {
                     label: '系统升级',
                     currentVersion: '当前版本',
-                    latestVersion: '最新版本',
-                    newAvailable: '有新版本可用',
+                    status: '状态',
+                    canUpgradeTo: '可升级到 {{version}}',
                     command: '升级命令',
                     checking: '正在检查更新...',
                     upToDate: '已是最新版本',
+                    unavailable: '暂时无法检查更新',
                     actions: {
                         copy: '复制命令',
                         copied: '已复制！',

@@ -247,7 +247,11 @@ export function SettingsPage() {
         staleTime: 5_000,
     })
 
-    const { data: upgradeStatus } = useQuery<UpgradeStatus>({
+    const {
+        data: upgradeStatus,
+        error: upgradeStatusError,
+        isLoading: isUpgradeStatusLoading,
+    } = useQuery<UpgradeStatus, Error>({
         queryKey: ['upgrade-status'],
         queryFn: fetchUpgradeStatus,
         staleTime: 60_000,
@@ -1244,7 +1248,7 @@ export function SettingsPage() {
 
     function renderUpgradeRow() {
         const status = upgradeStatus
-        const isLatest = status && !status.upgrade_available
+        const currentVersion = status?.current_version || t('settingsPage.values.notConfigured')
 
         function handleCopy() {
             if (!status?.install_command) return
@@ -1254,15 +1258,41 @@ export function SettingsPage() {
             )
         }
 
-        if (!status) {
+        if (isUpgradeStatusLoading) {
             return (
                 <div className="settings-form-row">
-                    <Typography className="settings-form-label">{t('settingsPage.upgrade.label')}：</Typography>
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}：</Typography>
                     <div className="settings-form-control">
                         <Typography variant="body2" color="text.secondary">{t('settingsPage.upgrade.checking')}</Typography>
                     </div>
                     <div className="settings-form-actions" />
                 </div>
+            )
+        }
+
+        if (upgradeStatusError || !status) {
+            return (
+                <>
+                    <div className="settings-form-row">
+                        <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}：</Typography>
+                        <div className="settings-form-control">
+                            <Typography className="settings-form-value" variant="body2">
+                                {currentVersion}
+                            </Typography>
+                        </div>
+                        <div className="settings-form-actions" />
+                    </div>
+
+                    <div className="settings-form-row">
+                        <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}：</Typography>
+                        <div className="settings-form-control">
+                            <Typography variant="body2" color="error.main">
+                                {t('settingsPage.upgrade.unavailable')}
+                            </Typography>
+                        </div>
+                        <div className="settings-form-actions" />
+                    </div>
+                </>
             )
         }
 
@@ -1272,32 +1302,25 @@ export function SettingsPage() {
                     <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}：</Typography>
                     <div className="settings-form-control">
                         <Typography className="settings-form-value" variant="body2">
-                            {status.current_version || t('settingsPage.values.notConfigured')}
+                            {currentVersion}
                         </Typography>
                     </div>
                     <div className="settings-form-actions" />
                 </div>
 
                 <div className="settings-form-row">
-                    <Typography className="settings-form-label">{t('settingsPage.upgrade.latestVersion')}：</Typography>
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}：</Typography>
                     <div className="settings-form-control">
                         <Typography className="settings-form-value" variant="body2">
-                            {status.latest_version}
-                            {status.upgrade_available && (
-                                <Chip
-                                    size="small"
-                                    color="warning"
-                                    variant="outlined"
-                                    label={t('settingsPage.upgrade.newAvailable')}
-                                    sx={{ ml: 1, verticalAlign: 'middle' }}
-                                />
-                            )}
+                            {status.upgrade_available
+                                ? t('settingsPage.upgrade.canUpgradeTo', { version: status.latest_version })
+                                : t('settingsPage.upgrade.upToDate')}
                         </Typography>
                     </div>
                     <div className="settings-form-actions" />
                 </div>
 
-                {!isLatest && (
+                {status.upgrade_available && (
                     <>
                         <div className="settings-form-row">
                             <Typography className="settings-form-label">{t('settingsPage.upgrade.command')}：</Typography>
