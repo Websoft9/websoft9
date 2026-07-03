@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { i18n, normalizeSupportedLocale } from '../../shared/i18n/i18n'
 
 const PRODUCT_AUTH_STATUS_STORAGE_KEY = 'websoft9:product-auth-status'
+const PRODUCT_AUTH_UNAUTHORIZED_EVENT = 'websoft9:product-auth-unauthorized'
 
 type ProductAuthUser = {
     id: string
@@ -102,6 +103,10 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
         ...init,
     })
 
+    if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent(PRODUCT_AUTH_UNAUTHORIZED_EVENT))
+    }
+
     const payload = (await response.json().catch(() => null)) as { details?: string; message?: string } | T | null
     if (!response.ok) {
         const errorMessage =
@@ -174,6 +179,34 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
 
         void i18n.changeLanguage(normalizedLocale)
     }, [status?.current_user?.locale])
+
+    // Global 401 interception: auto-logout and redirect to login
+    useEffect(() => {
+        function handleUnauthorized() {
+            // Avoid redirect loops — don't redirect if already on an auth page
+            if (isAuthRoute(window.location.pathname)) {
+                return
+            }
+
+            // Clear local auth state
+            setStatus(null)
+            if (typeof window !== 'undefined') {
+                try {
+                    window.sessionStorage.removeItem(PRODUCT_AUTH_STATUS_STORAGE_KEY)
+                } catch {
+                    // ignore
+                }
+            }
+
+            // Redirect to login
+            window.location.href = '/auth/login'
+        }
+
+        window.addEventListener(PRODUCT_AUTH_UNAUTHORIZED_EVENT, handleUnauthorized)
+        return () => {
+            window.removeEventListener(PRODUCT_AUTH_UNAUTHORIZED_EVENT, handleUnauthorized)
+        }
+    }, [])
 
     const initialize = useCallback(async (payload: { username: string; password: string; email: string; locale: string }) => {
         setIsSubmitting(true)

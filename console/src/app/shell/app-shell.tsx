@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppColorMode } from '../providers/color-mode'
 import { useProductAuth } from '../../features/product-auth/product-auth-provider'
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
+import { useIdleTimeout } from '../../shared/hooks/useIdleTimeout'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { useIntegrationSessionPrewarm } from '../../features/integrations/integration-session-bootstrap'
 import { getRememberedMyAppsDetailRoute, rememberMyAppsDetailRoute } from '../../features/my-apps/my-app-detail-overlay-intent'
@@ -523,6 +524,21 @@ export function AppShell() {
         void i18n.changeLanguage(nextNormalizedLocale)
         void persistCurrentUserLocale(nextNormalizedLocale)
     }
+
+    // Idle timeout: auto-logout after 30 minutes of inactivity
+    const isAuthenticated = status?.enabled && status?.authenticated
+    useIdleTimeout(
+        () => {
+            if (!isAuthenticated || isSubmitting) {
+                return
+            }
+
+            void logout().then(() => {
+                navigate('/auth/login', { replace: true })
+            })
+        },
+        { enabled: isAuthenticated },
+    )
 
     return (
         <Box className={`app-shell-root app-shell-root--${colorMode} ${isNavCollapsed ? 'app-shell-root--collapsed' : ''} ${mobileNavOpen ? 'app-shell-root--mobile-nav-open' : ''}`}>

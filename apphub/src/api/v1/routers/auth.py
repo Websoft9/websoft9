@@ -16,7 +16,7 @@ from src.schemas.productAuth import (
     ProductAuthUpdateUserRequest,
     ProductAuthUsersResponse,
 )
-from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
+from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, SESSION_TTL_HOURS, ProductAuthService
 
 router = APIRouter()
 
@@ -28,7 +28,7 @@ def _set_session_cookie(request: Request, response: Response, session_token: str
         httponly=True,
         samesite="lax",
         path="/",
-        max_age=60 * 60 * 24 * 30,
+        max_age=60 * 60 * SESSION_TTL_HOURS,
         secure=(request.headers.get("x-forwarded-proto") or request.url.scheme) == "https",
     )
 

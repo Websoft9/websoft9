@@ -38,7 +38,7 @@ def _resolve_product_auth_cookie_name() -> str:
 
 
 PRODUCT_AUTH_COOKIE_NAME = _resolve_product_auth_cookie_name()
-SESSION_TTL_DAYS = 30
+SESSION_TTL_HOURS = int(os.getenv("WEBSOFT9_SESSION_TTL_HOURS", "24"))
 PASSWORD_HASH_ITERATIONS = 310_000
 DOCKER_BOOTSTRAP_ACTOR = "docker-bootstrap"
 PENDING_MIGRATED_FAVORITES_KEY = "migrated_favorite_apps_pending"
@@ -832,7 +832,7 @@ class ProductAuthService:
                 "token_hash": self._hash_session_token(session_token),
                 "created_at": self._iso(now),
                 "last_seen_at": self._iso(now),
-                "expires_at": self._iso(now + timedelta(days=SESSION_TTL_DAYS)),
+                "expires_at": self._iso(now + timedelta(hours=SESSION_TTL_HOURS)),
                 "invalidated_at": None,
             }
         )
