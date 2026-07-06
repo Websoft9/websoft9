@@ -37,6 +37,7 @@ const TerminalPage = lazyPage(() => import('../../features/terminal/terminal-pag
 const UsersPage = lazyPage(() => import('../../features/users/users-page'), 'UsersPage')
 const ApplicationsDeployPage = lazyPage(() => import('../../features/applications/applications-deploy-page'), 'ApplicationsDeployPage')
 const ApplicationsCustomInstallPage = lazyPage(() => import('../../features/applications/applications-custom-install-page'), 'ApplicationsCustomInstallPage')
+const SetupWizardPage = lazyPage(() => import('../../features/setup-wizard/setup-wizard-page'), 'SetupWizardPage')
 
 async function prefetchOverviewSummary() {
     await queryClient.prefetchQuery({
@@ -90,6 +91,8 @@ function preloadInitialRoute(pathname: string) {
         preloaders.push(ApplicationsCustomInstallPage.preload)
     } else if (pathname === '/integrations') {
         preloaders.push(IntegrationsPage.preload)
+    } else if (pathname === '/setup') {
+        preloaders.push(SetupWizardPage.preload)
     }
 
     for (const preload of preloaders) {
@@ -215,6 +218,10 @@ export function createAppRouter() {
                 {
                     path: 'auth/login',
                     element: <ProductAuthPage mode="login" />,
+                },
+                {
+                    path: 'setup',
+                    element: <SetupWizardPage />,
                 },
                 {
                     element: (

@@ -1219,7 +1219,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         }
 
         const distribution = getPreferredAppStoreInstallDistribution(selectedApp)
-        setInstallName('')
+        setInstallName(normalizeInstallName(selectedApp.trademark ?? selectedApp.key ?? ''))
         setSelectedVersion(distribution.versions[0] ?? 'latest')
         setInstallSettings({ ...(selectedApp.settings ?? {}) })
         setInstallError(null)

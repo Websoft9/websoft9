@@ -235,13 +235,18 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
             return
         }
 
-        if (mode === 'setup' && !status.initialization_required) {
+        if (mode === 'setup' && !status.initialization_required && !status.cloud_marketplace_setup_pending) {
             navigate(`/auth/login?next=${encodeURIComponent(nextPath)}`, { replace: true })
             return
         }
 
+        if (mode === 'setup' && (status.initialization_required || status.cloud_marketplace_setup_pending) && status.cloud_marketplace_setup) {
+            navigate('/setup', { replace: true })
+            return
+        }
+
         if (mode === 'login' && status.initialization_required) {
-            navigate(`/auth/setup?next=${encodeURIComponent(nextPath)}`, { replace: true })
+            navigate(status.cloud_marketplace_setup ? '/setup' : `/auth/setup?next=${encodeURIComponent(nextPath)}`, { replace: true })
         }
     }, [isLoading, mode, navigate, nextPath, status])
 
@@ -275,6 +280,10 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
             // Log out immediately so the user never briefly sees the
             // authenticated console before being redirected to login.
             if (mode === 'setup') {
+                if (nextStatus.cloud_marketplace_setup) {
+                    navigate('/setup', { replace: true })
+                    return
+                }
                 await logout()
                 navigate('/auth/login', { replace: true })
                 return

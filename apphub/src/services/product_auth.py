@@ -61,6 +61,10 @@ class ProductAuthService:
         session_token: Optional[str] = None,
         trusted_internal_request: bool = False,
     ) -> Tuple[dict[str, Any], Optional[str]]:
+        from src.services.setup_wizard import SetupWizardService
+
+        setup_wizard = SetupWizardService()
+
         enabled = self.is_enabled()
         current_user = None
         issued_session_token = None
@@ -84,6 +88,8 @@ class ProductAuthService:
             "enabled": enabled,
             "initialization_required": enabled and not self._has_active_operator(),
             "authenticated": current_user is not None,
+            "cloud_marketplace_setup": setup_wizard.should_use_wizard(),
+            "cloud_marketplace_setup_pending": setup_wizard.is_pending_setup(),
             "protected_modules": self.get_protected_modules(),
             "current_user": current_user,
             "storage_boundary": self._build_storage_boundary(),

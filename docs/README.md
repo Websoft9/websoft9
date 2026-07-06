@@ -108,6 +108,31 @@ Deployment & Operations
 ### Technical Documents
 
 #### [Technical Architecture](architecture/tech-architecture.md)
+**Purpose**: Describe the runtime architecture, service topology, and integration boundaries of the current platform.
+
+#### [Cloud Marketplace Initialization Wizard Design](architecture/cloud-marketplace-initialization-wizard_cn.md)
+**Purpose**: Define the product-side guided initialization flow for cloud marketplace images, including runtime boundaries between mcloud image build and Websoft9 first-boot onboarding.
+
+**Key Sections:**
+- Problem statement for marketplace single-app images
+- Initialization journey and step model
+- Runtime ownership split between mcloud and Websoft9
+- Frontend, backend, and bootstrap integration points
+- Rollout guardrails and acceptance criteria
+
+**Audience**: Product, architecture, development, QA, release, marketplace operations
+
+#### [Cloud Marketplace Setup Wizard UI Design](architecture/cloud-marketplace-setup-wizard-ui_cn.md)
+**Purpose**: Wireframe-level UI design for the cloud marketplace initialization wizard, covering layout, step flow, copy guidelines, and exception states.
+
+**Key Sections:**
+- 3-step wizard layout and step indicator
+- Per-step wireframes (welcome, admin creation, start using)
+- Loading, completion, and port-conflict fallback states
+- Copy guidelines (user-facing vocabulary vs. internal terminology)
+
+**Audience**: UX, frontend development, product, marketplace operations
+
 **Purpose**: System design and implementation approach
 
 **Key Sections:**

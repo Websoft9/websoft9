@@ -77,6 +77,8 @@ class ProductAuthStatusResponse(BaseModel):
     enabled: bool
     initialization_required: bool
     authenticated: bool
+    cloud_marketplace_setup: bool = False
+    cloud_marketplace_setup_pending: bool = False
     protected_modules: list[str]
     current_user: Optional[ProductAuthOperator] = None
     storage_boundary: ProductAuthStorageBoundary

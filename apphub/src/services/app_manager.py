@@ -1316,7 +1316,17 @@ class AppManger:
                 except Exception:
                     portainerManager.remove_vloumes(app_id,endpointId)
             else:
-                portainerManager.remove_vloumes(app_id,endpointId)
+                # create_stack_from_repository raised before returning stack_info,
+                # but Portainer may have created a stack record before the compose
+                # up failure.  Look it up by name so we can clean it up completely.
+                try:
+                    stack = portainerManager.get_stack_by_name(app_id, endpointId)
+                    if stack and stack.get("Id"):
+                        portainerManager.remove_stack_and_volumes(stack["Id"], endpointId)
+                    else:
+                        portainerManager.remove_vloumes(app_id, endpointId)
+                except Exception:
+                    portainerManager.remove_vloumes(app_id, endpointId)
             # modify app status: error
             modify_app_information(app_uuid,e.details)
             remove_installation_logs(app_uuid)
@@ -1331,7 +1341,14 @@ class AppManger:
                 except Exception:
                     portainerManager.remove_vloumes(app_id,endpointId)
             else:
-                portainerManager.remove_vloumes(app_id,endpointId)
+                try:
+                    stack = portainerManager.get_stack_by_name(app_id, endpointId)
+                    if stack and stack.get("Id"):
+                        portainerManager.remove_stack_and_volumes(stack["Id"], endpointId)
+                    else:
+                        portainerManager.remove_vloumes(app_id, endpointId)
+                except Exception:
+                    portainerManager.remove_vloumes(app_id, endpointId)
             # modify app status: error
             modify_app_information(app_uuid,"Create stack error")
             remove_installation_logs(app_uuid)

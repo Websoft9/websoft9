@@ -323,7 +323,7 @@ function LogDialog({
             ) : null}
 
             <Box sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: dialogPalette.dialogBg }}>
-                {stages.length > 0 ? (
+                {stages.length > 0 && !isError ? (
                     <div style={{
                         flexShrink: 0,
                         display: 'flex',

@@ -72,11 +72,21 @@ def check_embedded_gateway_access(
     if not status_payload["enabled"]:
         return Response(status_code=204)
 
-    if status_payload["initialization_required"]:
-        raise CustomException(
+    if status_payload.get("cloud_marketplace_setup_pending") and status_payload.get("initialization_required"):
+        return Response(
             status_code=403,
-            message="Product Authentication Setup Required",
-            details="Initialize the product operator account before opening embedded workspaces",
+            headers={"X-Websoft9-Setup-Route": "/setup"},
+        )
+
+    if status_payload["initialization_required"]:
+        if status_payload.get("cloud_marketplace_setup"):
+            return Response(
+                status_code=403,
+                headers={"X-Websoft9-Setup-Route": "/setup"},
+            )
+        return Response(
+            status_code=403,
+            headers={"X-Websoft9-Setup-Route": "/auth/setup"},
         )
 
     if not status_payload["authenticated"]:

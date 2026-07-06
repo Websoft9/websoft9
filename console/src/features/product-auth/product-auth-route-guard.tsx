@@ -48,7 +48,11 @@ export function ProductAuthRouteGuard({ children, routeSegment, requireAuthentic
     }
 
     if (status.initialization_required) {
-        return <Navigate replace to={`/auth/setup?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />
+        return <Navigate replace to={status.cloud_marketplace_setup ? '/setup' : `/auth/setup?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />
+    }
+
+    if (status.cloud_marketplace_setup_pending && status.authenticated) {
+        return <Navigate replace to="/setup" />
     }
 
     if (!status.authenticated) {

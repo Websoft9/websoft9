@@ -106,6 +106,20 @@ def extract_sync_root(extract_dir: Path, package_type: str) -> Path:
     return extract_dir
 
 
+def extract_zip_with_permissions(zip_path: Path, destination: Path) -> None:
+    with zipfile.ZipFile(zip_path) as archive:
+        for member in archive.infolist():
+            extracted_path = Path(archive.extract(member, destination))
+            mode = (member.external_attr >> 16) & 0o7777
+            if not mode:
+                continue
+
+            try:
+                os.chmod(extracted_path, mode)
+            except OSError:
+                continue
+
+
 def download_file(url: str, destination: Path) -> None:
     request = urllib.request.Request(
         url,
@@ -658,8 +672,7 @@ def sync_library_package_delta(
 
         download_file(package_url, zip_path)
 
-        with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(extract_dir)
+        extract_zip_with_permissions(zip_path, extract_dir)
 
         source_root = extract_sync_root(extract_dir, "library")
         staged_root = temp_dir / "staged-library"
@@ -702,8 +715,7 @@ def extract_app_bundle(bundle_path: Path, apps_root: Path, app_key: str) -> None
     extract_dir = bundle_path.parent / f"extract-{app_key}"
     extract_dir.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(bundle_path) as archive:
-        archive.extractall(extract_dir)
+    extract_zip_with_permissions(bundle_path, extract_dir)
 
     extracted_root = extract_dir / app_key
     if not extracted_root.exists():
@@ -857,8 +869,7 @@ def sync_package(
 
         download_file(package_url, zip_path)
 
-        with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(extract_dir)
+        extract_zip_with_permissions(zip_path, extract_dir)
 
         source_root = extract_sync_root(extract_dir, package_type)
 

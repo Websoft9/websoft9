@@ -20,6 +20,8 @@ type ProductAuthStatus = {
     enabled: boolean
     initialization_required: boolean
     authenticated: boolean
+    cloud_marketplace_setup?: boolean
+    cloud_marketplace_setup_pending?: boolean
     protected_modules: string[]
     current_user: ProductAuthUser | null
     storage_boundary?: {
