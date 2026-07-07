@@ -32,6 +32,21 @@
 - 向导必须复用现有 Product Auth、AppHub 和 My Apps，不新增平行体系。
 - 非云市场安装路径必须完全不受影响。
 
+### 2.1 行业经验摘要
+
+参考 Portainer、WordPress、Nextcloud 等首启体验后，可以提炼出四条稳定规律:
+
+- 平台初始化与应用初始化必须分层表达，不能让用户误以为一次表单就完成了全部业务初始化。
+- 首启向导只收最小必要信息，默认值优先，缺什么补什么。
+- 平台负责把运行环境准备好，应用自身的业务初始化应在应用内继续完成。
+- 完成态必须提供明确交接，而不是只显示“成功”提示。
+
+对 Websoft9 的直接含义是:
+
+- Websoft9 只负责完成“平台接管 + 应用启动”。
+- 像 WordPress 这类应用的站点标题、应用后台管理员等，仍属于应用自身的二次初始化。
+- 页面文案必须反复强调“这是 Websoft9 的首次准备，不是 WordPress 的全部初始化”。
+
 ## 3. 方案概览
 
 ### 3.1 总体职责边界
@@ -79,15 +94,15 @@ flowchart TD
     D --> E[平台管理员初始化]
     E --> E1[填写用户名 邮箱 密码 语言]
     E1 --> E2[创建平台账号并保留登录态]
-    E2 --> F[应用初始化页]
-    F --> F1[提示 WordPress 即将完成初始化]
+    E2 --> F[应用启动页]
+    F --> F1[提示 WordPress 即将启动]
     F1 --> F2[用户点击 开始使用 WordPress]
-    F2 --> G[系统自动完成后台准备]
-    G --> G1[等待初始化完成]
-    G1 --> H[WordPress 已准备完成]
-    H --> I[自动跳转到 /myapps/:appId]
-    I --> J[打开 我的应用 详情弹窗]
-    J --> K[用户看到应用状态 访问方式和后续管理入口]
+    F2 --> G[系统自动完成后台准备并启动应用]
+    G --> G1[等待启动完成]
+    G1 --> H[进入完成态交接页]
+    H --> I[主按钮 打开 WordPress]
+    H --> J[次按钮 进入 Websoft9 控制台]
+    I --> K[用户在 WordPress 中继续完成站点初始化]
 ```
 
 ### 4.2 大步骤说明
@@ -97,9 +112,14 @@ flowchart TD
 建议展示内容:
 
 - 镜像名称，例如 “Websoft9 for WordPress”
-- 一句简短说明，例如 “先完成管理员设置，再启动 WordPress”
+- 一句简短说明，例如 “先完成 Websoft9 管理员设置，再启动 WordPress”
 - 初始化步骤预览
 - 服务准备状态摘要，例如 “环境已准备完成” 或 “正在准备中”
+
+必须明确说明:
+
+- 当前步骤是 Websoft9 的首次准备。
+- WordPress 启动后，用户还会在 WordPress 页面中完成站点名称、WordPress 管理员等设置。
 
 #### Step 1: 平台管理员初始化
 
@@ -110,23 +130,33 @@ flowchart TD
 - 密码
 - 语言
 
-#### Step 2: 应用初始化
+说明原则:
+
+- 这里创建的是 Websoft9 平台管理员，不是 WordPress 站点管理员。
+- 该账号用于登录 Websoft9 控制台，管理应用、查看状态、使用终端、文件和日志等平台能力。
+
+#### Step 2: 应用启动
 
 交互要求:
 
 - 默认应尽量少填少写，优先使用模板默认值。
-- 页面上应使用“初始化 / 启用 / 开始使用”这类表述，而不是强调“安装”。
-- 用户看到的是“开始使用 WordPress”或“完成 WordPress 初始化”，而不是“开始安装”。
+- 页面上应使用“启动 / 开始使用 / 完成准备”这类表述，而不是强调“安装”。
+- 用户看到的是“开始使用 WordPress”或“启动 WordPress”，而不是“开始安装”。
 - 用户点击后，前端调用现有 AppHub 链路完成后台准备动作。
 - 若默认值可用，则直接继续；若默认值缺失或冲突，则只要求用户补充必要字段。
 
-#### Step 3: 初始化完成后的收束跳转
+说明原则:
+
+- 这一步的目标是把 WordPress 运行起来，而不是替用户完成 WordPress 站点内的全部初始化。
+- 正常情况下应保持为单按钮启动页，不退化为通用安装表单。
+
+#### Step 3: 完成态交接
 
 行为要求:
 
-- 初始化链路返回成功后，前端必须导航到 `/myapps/:appId`。
-- 该路由在现有控制台中会以 “我的应用” 列表为背景，并自动打开目标应用的详情弹窗。
-- 详情弹窗中应直接呈现访问入口、容器状态、卷、Compose、卸载等标准能力。
+- Websoft9 完成准备后，不应只显示“成功”提示，而应给出明确交接。
+- 完成态至少提供两个出口：`打开 WordPress` 和 `进入 Websoft9 控制台`。
+- 页面必须明确提示：WordPress 启动后，用户还需要在 WordPress 页面中完成站点初始化。
 - 如初始化失败，停留在当前步骤页，展示错误并允许用户重试。
 
 ### 4.3 用户说明原则
@@ -136,7 +166,7 @@ flowchart TD
 - 首屏只回答三件事: 这是什么、现在做什么、做完去哪里。
 - 不要求用户理解端口、代理、容器、域名绑定等概念。
 - 技术映射可以保留在产品内部实现和运维文档中，但不应成为首次引导的主文案。
-- 对用户展示的内容应尽量简化为 “先创建管理员，再启动应用，完成后进入应用管理页面”。
+- 对用户展示的内容应尽量简化为 “先创建管理员，再启动 WordPress，完成后选择进入 WordPress 或控制台”。
 
 ## 5. 运行时契约
 
@@ -144,9 +174,9 @@ flowchart TD
 
 | 字段 | 含义 |
 |---|---|
-| `current_step` | 当前步骤，`welcome/platform_init/app_init/complete` |
+| `current_step` | 当前步骤，`welcome/platform_init/app_init_ready/app_init_running/app_init_failed/complete` |
 | `app_slug` | 当前单品镜像对应的模板应用标识，例如 `wordpress` |
-| `installed_app_id` | 初始化成功后用于跳转到 `/myapps/:appId` 的应用标识 |
+| `installed_app_id` | 应用启动完成后对应的应用标识 |
 | `completed_at` | 引导完成时间 |
 | `updated_at` | 最近更新时间 |
 
@@ -154,22 +184,23 @@ flowchart TD
 
 ### 5.0 mcloud 到 Websoft9 的最小交接契约
 
-为避免运行时猜测，建议把单品镜像应用标识固定写入一个只读文件，由 Websoft9 启动后读取。
+为避免运行时猜测，建议把单品镜像标识固定写入一个内部 bootstrap 文件，由 Websoft9 启动后读取。
 
 建议约定如下:
 
 | 项目 | 建议值 |
 |---|---|
-| 文件路径 | `/data/apps/cloud-marketplace/app.json` |
+| 文件路径 | `/websoft9/marketplace/bootstrap.json` |
 | 文件所有者 | mcloud 构建流程写入 |
 | 文件格式 | JSON |
-| 最小字段 | `app_slug` |
+| 最小字段 | `app_slug`, `default_locale` |
 
 建议内容示例:
 
 ```json
 {
-    "app_slug": "wordpress"
+    "app_slug": "wordpress",
+    "default_locale": "zh-CN"
 }
 ```
 
@@ -178,15 +209,13 @@ flowchart TD
 1. AppHub 在启动后或首次调用 `GET /api/setup-wizard/app` 时读取该文件。
 2. 读取成功且 `app_slug` 非空，则视为存在有效单品标识。
 3. 文件不存在、内容非法或字段为空时，视为无效标识，系统直接回落到标准路径。
-4. Websoft9 不负责推断 `app_slug`，也不从镜像名、市场 SKU 或其他运行时信息反推。
+4. `default_locale` 只接受 `en` 和 `zh-CN` 两种规范值。
+5. Websoft9 不负责推断 `app_slug`，也不从镜像名、市场 SKU 或其他运行时信息反推。
 
-运行时建议只保留一个开关:
+设计约束:
 
-| 变量 | 示例 | 作用 |
-|---|---|---|
-| `WEBSOFT9_CLOUD_MARKETPLACE_MODE` | `true` | 是否启用云市场初始化向导 |
-
-除此之外，mcloud 只需要在镜像内写入一个最小应用标识，例如 `app_slug=wordpress`，用于告诉平台当前单品镜像对应哪个应用商店模板。
+- 不再通过公开 docker compose 环境变量识别云市场模式。
+- 是否启用向导，只由 bootstrap 文件是否有效来决定。
 
 ### 5.1 安装参数来源
 
@@ -195,20 +224,25 @@ flowchart TD
 - 应用标识来自 mcloud 写入的最小应用标识。
 - 默认版本来自应用商店 `distribution` 元数据。
 - 默认 `settings` 和端口默认值来自现有安装元数据与模板 `.env`。
-- `app_id`、域名相关输入和最终跳转由向导页面补齐。
+- `app_id` 和最终交接入口由向导页面补齐。
+
+额外说明:
+
+- `edition` 可以由同一条 CLI 一并写入，但它不属于 bootstrap 文件本体。
+- `edition` 属于产品运行时状态，应继续独立持久化。
 
 实现约束:
 
 - 云市场镜像场景默认不向用户暴露完整安装表单。
 - 向导只允许补齐“缺省值确实不存在时的最小必要字段”。
-- 如果现有应用商店元数据足够，Step 3 必须保持单按钮启动，不得退化成通用安装页。
+- 如果现有应用商店元数据足够，Step 2 必须保持单按钮启动，不得退化成通用安装页。
 
 ### 5.2 判定规则
 
 仅当以下条件成立时，控制台进入云市场向导路径:
 
-1. `WEBSOFT9_CLOUD_MARKETPLACE_MODE=true`
-2. 当前存在有效的单品应用标识
+1. 当前存在有效的 bootstrap 文件
+2. bootstrap 文件中的 `app_slug` 有效
 3. 当前还没有向导完成标记
 
 否则系统回落到现有标准路径。
@@ -221,33 +255,36 @@ flowchart TD
 |---|---|---|
 | `welcome` | 欢迎页未开始 | 留在欢迎页 |
 | `platform_init` | 等待创建管理员 | 回到创建管理员页 |
-| `app_init_ready` | 管理员已创建，等待点击开始使用 | 回到开始使用页 |
-| `app_init_running` | 后台正在准备应用 | 回到进度页并继续轮询 |
-| `app_init_failed` | 应用初始化失败 | 回到开始使用页并展示最近错误 |
-| `complete` | 向导已完成 | 不再展示向导，直接跳最终落点 |
+| `app_init_ready` | 管理员已创建，等待点击开始使用 | 回到应用启动页 |
+| `app_init_running` | 后台正在准备并启动应用 | 回到进度页并继续轮询 |
+| `app_init_failed` | 应用启动失败 | 回到应用启动页并展示最近错误 |
+| `complete` | Websoft9 已完成准备，可交接给用户 | 不再展示向导，重访 `/setup` 直接跳控制台首页 |
 
 补充规则:
 
 1. Step 2 成功后必须立即持久化到 `app_init_ready`，避免刷新后重复创建管理员。
-2. Step 3 触发后必须先写入 `app_init_running`，再调用后台初始化。
+2. Step 2 触发后必须先写入 `app_init_running`，再调用后台启动链路。
 3. 如果用户在 `app_init_running` 期间刷新页面，前端应恢复到“正在准备”页面，而不是再次触发安装。
-4. 如果初始化失败，应保存可展示错误摘要，允许用户在当前页重试。
-5. 如果状态为 `complete`，访问 `/setup` 时应直接跳转到 `/myapps/:appId`；若目标应用已不存在，再回退到 `/myapps`。
+4. 如果启动失败，应保存可展示错误摘要，允许用户在当前页重试。
+5. `complete` 的语义是“Websoft9 完成准备，可交接给用户”，不是“应用业务初始化全部完成”。
+6. 如果状态为 `complete`，重访 `/setup` 时应直接跳转到 `/dashboard`。
 
 ### 5.4 完成态收束契约
 
-向导最终目标不是“安装成功提示页”，而是稳定进入已有应用详情。
+向导最终目标不是“安装成功提示页”，而是明确交接到下一步。
 
 因此建议把 Step 3 的后端返回契约明确为两段式:
 
 1. `POST /api/setup-wizard/install` 返回一个可轮询的执行标识，例如 `tracking_id`。
-2. 当前端轮询到安装完成后，后端必须返回最终 `installed_app_id`，供前端导航到 `/myapps/:appId`。
+2. 当前端轮询到安装完成后，后端必须返回最终 `installed_app_id`，供前端生成“打开 WordPress”与“进入控制台”两个稳定出口。
 
 收束规则:
 
-- 只有拿到最终 `installed_app_id` 后，前端才能标记完成并跳转。
+- 只有拿到最终 `installed_app_id` 后，前端才能标记完成并进入交接页。
+- 交接页主动作是“打开 WordPress”，次动作是“进入 Websoft9 控制台”。
+- 若应用访问地址暂不可达，用户仍可通过次动作进入控制台查看状态。
 - 若后台任务成功但应用列表尚未刷新，后端应负责等待或重试查询，避免前端自行猜测。
-- 向导页不应继续沿用现有 App Store 页面的查询参数跳转方式，而应以最终 `appId` 为单一成功出口。
+- 重访 `/setup` 不再回到交接页，而是统一跳转到 `/dashboard`。
 
 ### 5.5 安全组提示策略
 
@@ -283,13 +320,12 @@ console/src/features/setup-wizard/
 - 常规产品模式维持现有 `/auth/setup` 不变
 - 向导不应重新发明安装协议，而应复用现有 App Store 安装链路。
 - 向导读取当前模板应用的默认安装元数据，再补齐用户输入后调用 `/api/apps/install`。
-- 初始化完成后，沿用现有 My Apps 作为正式产品落点。
+- 初始化完成后，先进入交接页，再由用户进入 WordPress 或控制台。
 - 继续调用现有 `/api/auth/initialize`
 - 取消当前 setup 成功后“立即 logout 再跳 login”的行为，仅在云市场向导模式下改为连续下一步
 - 账号初始化页面仍使用现有校验规则
-- 初始化完成后的目标落点不是一个新的完成页，而是现有 `/myapps/:appId` 路由。
-- 现有控制台已支持通过 `/myapps/:appId` 直接打开指定应用的详情弹层，因此向导应复用这一路径。
-- 向导页只负责拿到初始化完成后的 `appId` 并执行跳转，不应复制详情页能力。
+- 完成态必须明确说明“WordPress 站点初始化仍需在 WordPress 内完成”。
+- 如用户重访 `/setup` 且向导已完成，应直接跳转 `/dashboard`。
 
 后端要求:
 
@@ -301,7 +337,7 @@ apphub/src/api/v1/routers/setup_wizard.py
 apphub/src/schemas/setupWizard.py
 ```
 
-- 解析云市场环境变量
+- 读取并校验内部 bootstrap 文件
 - 读取镜像内最小应用标识
 - 生成和持久化向导状态
 - 对外暴露当前步骤、目标应用和完成状态
@@ -330,6 +366,7 @@ API 建议:
     "enabled": true,
     "current_step": "app_init_ready",
     "app_slug": "wordpress",
+    "default_locale": "zh-CN",
     "installed_app_id": null,
     "completed": false,
     "last_error": null,
@@ -342,6 +379,7 @@ API 建议:
 ```json
 {
     "app_slug": "wordpress",
+    "default_locale": "zh-CN",
     "display_name": "WordPress",
     "edition": "latest",
     "default_app_id": "wordpress",

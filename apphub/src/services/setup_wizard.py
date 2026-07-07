@@ -43,6 +43,10 @@ class SetupWizardService:
         metadata = self._read_marketplace_app_metadata()
         return bool(metadata.get("app_slug"))
 
+    def require_enabled(self) -> None:
+        if not self.should_use_wizard():
+            raise CustomException(404, "Not Found", "The setup wizard is not available for this runtime")
+
     def is_pending_setup(self) -> bool:
         if not self.should_use_wizard():
             return False
@@ -95,6 +99,7 @@ class SetupWizardService:
         }
 
     def get_app(self, locale: str) -> dict[str, Any]:
+        self.require_enabled()
         app_slug = self.get_app_slug()
         if not app_slug:
             raise CustomException(404, "Marketplace App Not Found", "The marketplace app metadata is unavailable")
@@ -140,6 +145,7 @@ class SetupWizardService:
         }
 
     def mark_platform_init_complete(self, session_token: str | None = None) -> dict[str, Any]:
+        self.require_enabled()
         self._require_authenticated(session_token)
         state = self._update_state(current_step="app_init_ready", last_error=None)
         return {
@@ -148,6 +154,7 @@ class SetupWizardService:
         }
 
     def install_app(self, payload: dict[str, Any], session_token: str | None = None, endpoint_id: int | None = None) -> dict[str, Any]:
+        self.require_enabled()
         self._require_authenticated(session_token)
         app_info = self.get_app(self._resolve_catalog_locale(self.get_default_locale()))
         settings = dict(app_info.get("settings") or {})
@@ -182,6 +189,7 @@ class SetupWizardService:
         }
 
     def get_install_status(self, tracking_id: str) -> dict[str, Any]:
+        self.require_enabled()
         state = self._load_state()
         pending_app_id = state.get("pending_app_id")
         if state.get("tracking_id") != tracking_id:
@@ -233,6 +241,7 @@ class SetupWizardService:
         }
 
     def complete(self, session_token: str | None = None) -> dict[str, Any]:
+        self.require_enabled()
         self._require_authenticated(session_token)
         state = self._load_state()
         installed_app_id = str(state.get("installed_app_id") or state.get("pending_app_id") or "").strip()

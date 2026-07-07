@@ -190,8 +190,8 @@ RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \
     printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisorctl "$@"' > /usr/local/bin/supervisorctl && \
-    printf '%s\n' '#!/bin/sh' 'export PYTHONPATH="/opt/websoft9-pydeps:/websoft9/apphub:/websoft9/apphub/src"' 'exec python3 /websoft9/apphub/src/cli/apphub_cli.py "$@"' > /usr/local/bin/apphub && \
-    chmod +x /usr/local/bin/supervisord /usr/local/bin/supervisorctl /usr/local/bin/apphub
+    printf '%s\n' '#!/bin/sh' 'export PYTHONPATH="/opt/websoft9-pydeps:/websoft9/apphub:/websoft9/apphub/src"' 'export WEBSOFT9_CLI_NAME="websoft9"' 'exec python3 /websoft9/apphub/src/cli/apphub_cli.py "$@"' > /usr/local/bin/websoft9 && \
+    chmod +x /usr/local/bin/supervisord /usr/local/bin/supervisorctl /usr/local/bin/websoft9
 
 RUN chmod +x /app/init_nginx.sh \
     /websoft9/script/platform-container-entrypoint.sh \

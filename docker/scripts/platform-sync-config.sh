@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 set_config() {
-  apphub setconfig --section "$1" --key "$2" --value "$3" >/dev/null
+  websoft9 setconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
 bootstrap_runtime_config() {
@@ -59,7 +59,7 @@ PY
 }
 
 set_system_config() {
-  apphub setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
+  websoft9 setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
 write_apphub_gateway_auth() {

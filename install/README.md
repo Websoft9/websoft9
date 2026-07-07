@@ -210,8 +210,7 @@ W9_ARTIFACT_BASE=https://my-mirror.example.com/websoft9 sudo bash install.sh
 install.sh             # 自包含安装脚本
 uninstall.sh           # 自包含卸载脚本
 install_docker.sh      # Docker 安装脚本
-docker-compose.yml     # 部署 compose 文件（release/rc）
-docker-compose.dev.yml # 部署 compose 文件（dev 通道）
+docker-compose.yml     # 部署 compose 文件（所有通道统一文件名；dev 通道内容默认指向 websoft9-dev）
 version.json          # 版本元数据
 mirrors.json          # 镜像加速配置
 manifest.json         # 发布清单（含所有文件名引用）

@@ -114,7 +114,6 @@ jobs:
           CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
           ALIAS_TAGS="${{ needs.meta.outputs.alias_tags }}"
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          COMPOSE_FILE="docker-compose.dev.yml"
 
           mkdir -p release-assets r2-artifacts websoft9
 
@@ -131,6 +130,10 @@ jobs:
           cp staged-version.json websoft9/version.json
           cp CHANGELOG.md websoft9/
           cp mirrors.json websoft9/
+          bash scripts/prepare_platform_artifact.sh \
+            --channel "$CHANNEL" \
+            --bundle-docker-dir websoft9/docker \
+            --artifact-dir r2-artifacts
 
           zip -r "websoft9-${VERSION}-${SHA_TAG}.zip" websoft9
           cp "websoft9-${VERSION}-${SHA_TAG}.zip" release-assets/
@@ -139,7 +142,6 @@ jobs:
           cp install/dist/install.sh r2-artifacts/install.sh
           cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
           cp install/install_docker.sh r2-artifacts/install_docker.sh
-          cp "docker/${COMPOSE_FILE}" "r2-artifacts/${COMPOSE_FILE}"
           cp staged-version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
           cp mirrors.json r2-artifacts/mirrors.json
@@ -191,13 +193,13 @@ jobs:
                 alias_bundle_file: "websoft9-dev.zip"
               }
             }' \
-            --arg compose_file "$COMPOSE_FILE" > manifest.json
+            --arg compose_file "docker-compose.yml" > manifest.json
 
           cp manifest.json r2-artifacts/manifest.json
           cp manifest.json release-assets/manifest.json
 
           grep '^OPT_CHANNEL="dev"' install/dist/install.sh
-          jq -e '.channel == "dev" and .install.compose_file == "docker-compose.dev.yml"' manifest.json >/dev/null
+          jq -e '.channel == "dev" and .install.compose_file == "docker-compose.yml"' manifest.json >/dev/null
 
           (
             cd r2-artifacts
@@ -205,7 +207,7 @@ jobs:
               install.sh \
               uninstall.sh \
               install_docker.sh \
-              "$COMPOSE_FILE" \
+              docker-compose.yml \
               version.json \
               CHANGELOG.md \
               mirrors.json \

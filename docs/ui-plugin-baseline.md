@@ -21,7 +21,7 @@
 - 技术栈: React 18、CRA、react-app-rewired、MUI、Bootstrap、Redux Saga。
 - 关键耦合:
   - 通过 cockpit.js 获取语言和跳转能力。
-  - 通过 cockpit.spawn 直接执行 docker exec、curl 和 apphub CLI。
+   - 通过 cockpit.spawn 直接执行 docker exec、curl 和 websoft9 CLI。
   - 通过封装的 apiCore 先在宿主机执行命令拿配置，再访问 AppHub API。
 
 ### plugin-settings

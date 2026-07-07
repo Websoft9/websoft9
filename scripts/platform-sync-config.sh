@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 set_config() {
-  apphub setconfig --section "$1" --key "$2" --value "$3" >/dev/null
+  websoft9 setconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
 set_config_if_missing() {
@@ -39,7 +39,7 @@ PY
 }
 
 set_system_config() {
-  apphub setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
+  websoft9 setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
 sync_base() {

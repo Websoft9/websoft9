@@ -68,17 +68,31 @@ The project uses GitHub Actions for continuous integration. On every push or pul
 
 View the CI configuration: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
-## apphub cli
+## websoft9 cli
 ```
-Usage: apphub [OPTIONS] COMMAND [ARGS]...
+Usage: websoft9 [OPTIONS] COMMAND [ARGS]...
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  genkey     Generate a new API key
   getconfig  Get a config value
+  resetpwd   Reset the Websoft9 system user password
   setconfig  Set a config value
+  setsysconfig  Set a system config value
+  upgrade    Upgrade apps
+```
+
+以下为内部/隐式命令，不显示在 `--help` 中，但仍可调用：
+
+云市场初始化推荐调用方式：
+```bash
+websoft9 setmarketplace --app-slug wordpress --default-locale zh-CN --edition free
+```
+
+如只需要调整发行版本，仍可继续单独调用：
+```bash
+websoft9 setedition free
 ```
 
 # 项目结构

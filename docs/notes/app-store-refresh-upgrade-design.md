@@ -187,8 +187,8 @@ async function handleRefreshStore() {
 
 - **cron 守护进程**：容器中运行 `cron -f`（supervisord 管理）
 - **容器启动时**：Dockerfile 中 `RUN python3 /websoft9/script/platform-sync-runtime-assets.py` 进行首次同步（`WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build`）
-- **CLI 升级**：`apphub upgrade apps` → `AppStoreSyncManager().sync(trigger='cli')`
-- **每日定时**：需要确认 cron 配置，当前代码中未见显式的 crontab 文件，可能是通过外部 crontab 调用 `apphub upgrade apps` 命令
+- **CLI 升级**：`websoft9 upgrade apps` → `AppStoreSyncManager().sync(trigger='cli')`
+- **每日定时**：通过容器内 crontab 调用 `websoft9 upgrade apps` 命令
 
 ---
 
@@ -276,7 +276,7 @@ flowchart TB
 
     subgraph CRON["每日自动更新"]
         TIMER["cron 定时器\n(每天凌晨)"]
-        CLI["apphub upgrade apps\n--channel auto"]
+        CLI["websoft9 upgrade apps\n--channel auto"]
     end
 
     subgraph MANUAL["用户手动刷新"]
@@ -400,7 +400,7 @@ sequenceDiagram
 
 ```cron
 # 每天凌晨 3:00 自动同步应用商店
-0 3 * * * /usr/local/bin/apphub upgrade apps --channel release >> /var/log/websoft9/appstore-sync.log 2>&1
+0 3 * * * /usr/local/bin/websoft9 upgrade apps --channel release >> /var/log/websoft9/appstore-sync.log 2>&1
 ```
 
 **或**更轻量的方式：在 `platform-sync-runtime-assets.py` 中增加 `--mode cron` 模式，每天定时执行轻量 manifest 比较。

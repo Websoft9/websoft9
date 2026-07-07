@@ -155,6 +155,7 @@ export function SetupWizardPage() {
     const [selectedLocale, setSelectedLocale] = useState<'en' | 'zh-CN'>(() => (i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en'))
     const [wizardLocale, setWizardLocale] = useState<'en' | 'zh-CN'>(() => normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en'))
     const [inputValues, setInputValues] = useState<Record<string, string>>({})
+    const [completedAppId, setCompletedAppId] = useState<string | null>(null)
     const pollTimerRef = useRef<number | null>(null)
     const apiLocale = resolveApiLocale(wizardLocale)
     const platformInitializationRequired = Boolean(status?.initialization_required)
@@ -184,6 +185,15 @@ export function SetupWizardPage() {
         ? ['创建管理员账号', `自动启动 ${displayName}`, `进入 ${displayName}`]
         : ['Create admin account', `Start ${displayName} automatically`, `Enter ${displayName}`]
     const primaryActionLabel = apiLocale === 'zh' ? '开始' : 'Get Started'
+    const completionTitle = apiLocale === 'zh' ? 'Websoft9 已完成准备' : 'Websoft9 Is Ready'
+    const completionBody = apiLocale === 'zh'
+        ? `${displayName} 已启动。接下来，您可以先进入应用管理，或直接回到 Websoft9 控制台继续操作。`
+        : `${displayName} has started. You can open the app workspace first or return to the Websoft9 console.`
+    const completionNote = apiLocale === 'zh'
+        ? `${displayName} 内的站点名称、后台账号和业务配置，仍将在应用中继续完成。`
+        : `Site details, admin credentials, and business configuration will continue inside ${displayName}.`
+    const appWorkspaceLabel = apiLocale === 'zh' ? `进入 ${displayName} 管理` : `Open ${displayName}`
+    const dashboardLabel = apiLocale === 'zh' ? '进入控制台' : 'Open Dashboard'
 
     useEffect(() => () => {
         if (pollTimerRef.current !== null) {
@@ -261,9 +271,9 @@ export function SetupWizardPage() {
             return
         }
 
-        if (wizardState.completed && wizardState.installed_app_id) {
-            navigate(`/myapps/${encodeURIComponent(wizardState.installed_app_id)}`, { replace: true })
-            return
+        if (wizardState.completed) {
+            setCompletedAppId(wizardState.installed_app_id)
+            setCurrentStep('complete')
         }
     }, [isLoading, navigate, pageLoading, platformInitializationRequired, status, wizardState])
 
@@ -304,7 +314,15 @@ export function SetupWizardPage() {
                         body: JSON.stringify({}),
                     })
                     if (!cancelled) {
-                        navigate(`/myapps/${encodeURIComponent(completion.installed_app_id)}`, { replace: true })
+                        setCompletedAppId(completion.installed_app_id)
+                        setCurrentStep('complete')
+                        setWizardState((currentValue) => currentValue ? {
+                            ...currentValue,
+                            current_step: 'complete',
+                            completed: true,
+                            installed_app_id: completion.installed_app_id,
+                            last_error: null,
+                        } : currentValue)
                     }
                 }
             } catch (pollError) {
@@ -401,6 +419,15 @@ export function SetupWizardPage() {
         }
     }
 
+    function handleOpenAppWorkspace() {
+        if (!completedAppId) {
+            navigate('/dashboard', { replace: true })
+            return
+        }
+
+        navigate(`/myapps/${encodeURIComponent(completedAppId)}`, { replace: true })
+    }
+
     return (
         <Box
             sx={{
@@ -468,8 +495,8 @@ export function SetupWizardPage() {
                                         </Typography>
                                         <Typography color="text.secondary">
                                             {apiLocale === 'zh'
-                                                ? `此账号用于登录管理后台，管理 ${displayName} 及服务器。`
-                                                : `This account logs into the admin panel to manage ${displayName} and your server.`}
+                                                ? `通过 Websoft9，您可以集中管理 ${displayName} 的运行、访问与后续维护。`
+                                                : `Use Websoft9 to manage how ${displayName} runs, how it is accessed, and how it is maintained.`}
                                         </Typography>
                                         <TextField label={apiLocale === 'zh' ? '用户名' : 'Username'} value={username} onChange={(event) => setUsername(event.target.value)} required />
                                         <TextField label={apiLocale === 'zh' ? '邮箱' : 'Email'} value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -498,8 +525,13 @@ export function SetupWizardPage() {
                                     </Typography>
                                     <Typography color="text.secondary">
                                         {apiLocale === 'zh'
-                                            ? `Websoft9 将自动为您启动 ${displayName}。`
-                                            : `Websoft9 will start ${displayName} for you.`}
+                                            ? `Websoft9 将自动完成最后的准备工作并启动 ${displayName}。`
+                                            : `Websoft9 will finish the final setup steps and start ${displayName} for you.`}
+                                    </Typography>
+                                    <Typography color="text.secondary" sx={{ fontSize: '0.925rem' }}>
+                                        {apiLocale === 'zh'
+                                            ? `${displayName} 启动后，站点名称、后台账号和内容配置仍会在应用内继续完成。`
+                                            : `After ${displayName} starts, site details, admin credentials, and content setup continue inside the app.`}
                                     </Typography>
                                     {(appInfo?.required_inputs ?? []).map((field) => (
                                         <TextField
@@ -532,6 +564,30 @@ export function SetupWizardPage() {
                                     <Typography color="text.secondary" sx={{ textAlign: 'center', maxWidth: 420 }}>
                                         {apiLocale === 'zh' ? '预计 1～2 分钟，请稍候。' : 'This usually takes 1-2 minutes.'}
                                     </Typography>
+                                </Stack>
+                            ) : null}
+
+                            {!pageLoading && currentStep === 'complete' ? (
+                                <Stack spacing={3} sx={{ py: 2 }}>
+                                    <Box sx={{ borderRadius: 3, border: '1px solid #dbe4f0', backgroundColor: '#f8fbff', px: 3, py: 4 }}>
+                                        <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#0f172a' }}>
+                                            {completionTitle}
+                                        </Typography>
+                                        <Typography sx={{ mt: 1.5, color: '#475569' }}>
+                                            {completionBody}
+                                        </Typography>
+                                        <Typography sx={{ mt: 1.5, color: '#64748b', fontSize: '0.875rem' }}>
+                                            {completionNote}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
+                                        <Button color="inherit" onClick={() => navigate('/dashboard', { replace: true })}>
+                                            {dashboardLabel}
+                                        </Button>
+                                        <Button variant="contained" onClick={handleOpenAppWorkspace}>
+                                            {appWorkspaceLabel}
+                                        </Button>
+                                    </Box>
                                 </Stack>
                             ) : null}
                         </>

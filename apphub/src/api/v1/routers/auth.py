@@ -17,6 +17,7 @@ from src.schemas.productAuth import (
     ProductAuthUsersResponse,
 )
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, SESSION_TTL_HOURS, ProductAuthService
+from src.services.setup_wizard import SetupWizardService
 
 router = APIRouter()
 
@@ -94,6 +95,33 @@ def check_embedded_gateway_access(
             status_code=401,
             message="Authentication Required",
             details="Sign in before opening embedded workspaces",
+        )
+
+    return Response(status_code=204)
+
+
+@router.get(
+    "/auth/setup-access",
+    summary="Check setup wizard page access",
+    description="Return an auth-request compatible status for the marketplace-only setup route",
+    status_code=204,
+    responses={204: {"description": "Setup route available"}, 403: {"model": ErrorResponse}},
+)
+def check_setup_wizard_access(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    setup_wizard = SetupWizardService()
+    if not setup_wizard.should_use_wizard():
+        return Response(
+            status_code=403,
+            headers={"X-Websoft9-Setup-Route": "/__not_found__"},
+        )
+
+    state = setup_wizard.get_state(session_token=session_token)
+    if state.get("completed"):
+        return Response(
+            status_code=403,
+            headers={"X-Websoft9-Setup-Route": "/dashboard"},
         )
 
     return Response(status_code=204)

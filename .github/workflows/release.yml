@@ -184,6 +184,10 @@ PY
           cp version.json websoft9/
           cp CHANGELOG.md websoft9/
           cp mirrors.json websoft9/
+          bash scripts/prepare_platform_artifact.sh \
+            --channel release \
+            --bundle-docker-dir websoft9/docker \
+            --artifact-dir r2-artifacts
 
           # Create versioned zip
           # Create versioned zip
@@ -197,7 +201,6 @@ PY
           cp install/dist/install.sh legacy-r2-artifacts/install.sh
           cp install/dist/uninstall.sh legacy-r2-artifacts/uninstall.sh
           cp install/install_docker.sh legacy-r2-artifacts/install_docker.sh
-          cp docker/docker-compose.yml r2-artifacts/docker-compose.yml
           cp version.json r2-artifacts/version.json
           cp CHANGELOG.md r2-artifacts/CHANGELOG.md
           cp mirrors.json r2-artifacts/mirrors.json

@@ -27,7 +27,9 @@ router = APIRouter()
 def get_setup_wizard_state(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return SetupWizardService().get_state(session_token=session_token)
+    service = SetupWizardService()
+    service.require_enabled()
+    return service.get_state(session_token=session_token)
 
 
 @router.get(
@@ -38,7 +40,9 @@ def get_setup_wizard_state(
 def get_setup_wizard_app(
     locale: str = Query("en", regex="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
-    return SetupWizardService().get_app(locale)
+    service = SetupWizardService()
+    service.require_enabled()
+    return service.get_app(locale)
 
 
 @router.post(
@@ -49,7 +53,9 @@ def get_setup_wizard_app(
 def complete_platform_initialization(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return SetupWizardService().mark_platform_init_complete(session_token=session_token)
+    service = SetupWizardService()
+    service.require_enabled()
+    return service.mark_platform_init_complete(session_token=session_token)
 
 
 @router.post(
@@ -62,7 +68,9 @@ def install_marketplace_app(
     endpointId: int = Query(None, description="Endpoint ID to install app on, if not set install on the local endpoint"),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return SetupWizardService().install_app(payload.model_dump(), session_token=session_token, endpoint_id=endpointId)
+    service = SetupWizardService()
+    service.require_enabled()
+    return service.install_app(payload.model_dump(), session_token=session_token, endpoint_id=endpointId)
 
 
 @router.get(
@@ -71,7 +79,9 @@ def install_marketplace_app(
     responses={200: {"model": SetupWizardInstallStatusResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def get_marketplace_app_install_status(tracking_id: str):
-    return SetupWizardService().get_install_status(tracking_id)
+    service = SetupWizardService()
+    service.require_enabled()
+    return service.get_install_status(tracking_id)
 
 
 @router.post(
@@ -82,4 +92,6 @@ def get_marketplace_app_install_status(tracking_id: str):
 def complete_setup_wizard(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return SetupWizardService().complete(session_token=session_token)
+    service = SetupWizardService()
+    service.require_enabled()
+    return service.complete(session_token=session_token)

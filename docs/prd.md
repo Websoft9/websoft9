@@ -471,7 +471,7 @@ All functional requirements listed in Section 2 are **currently implemented and 
 - ✅ File management (Cockpit built-in)
 - ✅ Basic monitoring (Cockpit metrics)
 - ✅ Multi-user support (Linux PAM authentication)
-- ✅ CLI tool (`apphub` command)
+- ✅ CLI tool (`websoft9` command)
 - ✅ API key authentication
 
 **Current Development (v2.1 - In Progress):**
@@ -677,16 +677,13 @@ Based on [Product Brief - Roadmap](product/product-brief.md#roadmap-highlights) 
 
 ### 6.2 CLI Commands
 
-**AppHub CLI (apphub command):**
+**Websoft9 CLI (`websoft9` command):**
 ```bash
-# Generate API key for authentication
-apphub genkey
-
 # Get configuration value
-apphub getconfig <key>
+websoft9 getconfig <key>
 
 # Set configuration value
-apphub setconfig <key> <value>
+websoft9 setconfig <key> <value>
 ```
 
 ---

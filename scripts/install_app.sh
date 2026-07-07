@@ -148,7 +148,7 @@ install_app(){
   filename="/tmp/library/apps/${appname}/.env"
   settings=$(get_settings "${filename}")
   api_url="localhost:8080/api/apps/install"
-  api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
+    api_key=$(sudo docker exec -i websoft9-apphub websoft9 getconfig --section api_key --key key)
   request_param=$(jq -n \
                     --arg app_name "$appname" \
                     --arg dist "$dist" \
@@ -179,7 +179,7 @@ install_app(){
 
 app_list(){
   api_url="localhost:8080/api/apps"
-  api_key=$(sudo docker exec -i websoft9-apphub apphub getconfig --section api_key --key key)
+    api_key=$(sudo docker exec -i websoft9-apphub websoft9 getconfig --section api_key --key key)
   response=$(sudo docker exec websoft9-apphub sh -c "curl -s -w '\n%{http_code}' -X GET '$api_url' \
         -H 'Content-Type: application/json' \
         -H 'x-api-key: $api_key'")

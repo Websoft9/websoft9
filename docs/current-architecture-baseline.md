@@ -59,7 +59,7 @@
    多个插件通过 cockpit.language、cockpit.gettext 和 po.js 获取当前语言及翻译能力。
 
 3. 宿主机命令执行代理
-   多个插件直接通过 cockpit.spawn 执行 shell、docker exec、curl、apphub CLI 等命令。
+   多个插件直接通过 cockpit.spawn 执行 shell、docker exec、curl、websoft9 CLI 等命令。
 
 4. 文件读写与跳转桥接
    多处逻辑通过 cockpit.file 读取或修改宿主机文件，也通过 cockpit.jump 做应用内跳转。

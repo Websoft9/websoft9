@@ -88,13 +88,21 @@ def setedition(edition_key):
         raise click.ClickException(str(e))
 
 
-@cli.command()
+@cli.command(hidden=True)
 @click.option('--app-slug', required=True, help='Marketplace app slug')
 @click.option('--default-locale', required=True, type=click.Choice(['en', 'zh-CN'], case_sensitive=True), help='Default setup locale')
-def setmarketplace(app_slug, default_locale):
+@click.option('--edition', type=str, help='Optional product edition key to apply together with marketplace bootstrap metadata')
+def setmarketplace(app_slug, default_locale, edition):
     """Set marketplace bootstrap metadata"""
     try:
         payload = MarketplaceBootstrapService().write(app_slug=app_slug, default_locale=default_locale)
+        if edition:
+            edition_state = write_product_edition(edition)
+            payload['edition'] = {
+                'key': edition_state.edition_key,
+                'name': edition_state.edition_name,
+                'max_apps': edition_state.max_apps,
+            }
         click.echo(json.dumps(payload, ensure_ascii=False))
     except Exception as e:
         raise click.ClickException(str(e))
@@ -161,4 +169,4 @@ def resetpwd(password):
         raise click.ClickException(str(e))
 
 if __name__ == "__main__":
-    cli()
+    cli(prog_name=os.environ.get('WEBSOFT9_CLI_NAME') or None)

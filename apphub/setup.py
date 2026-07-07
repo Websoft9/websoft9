@@ -12,7 +12,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'apphub=cli.apphub_cli:cli',
+            'websoft9=cli.apphub_cli:cli',
         ],
     },
 )
