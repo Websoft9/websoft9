@@ -87,7 +87,7 @@ Commands:
 
 云市场初始化推荐调用方式：
 ```bash
-websoft9 setmarketplace --app-slug wordpress --default-locale zh-CN --edition free
+websoft9 setmarketplace --app-slug wordpress --edition free
 ```
 
 如只需要调整发行版本，仍可继续单独调用：

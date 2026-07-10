@@ -31,7 +31,6 @@ class SetupWizardStateResponse(BaseModel):
     enabled: bool
     current_step: SetupWizardStep
     app_slug: Optional[str] = None
-    default_locale: str = "en"
     installed_app_id: Optional[str] = None
     completed: bool
     tracking_id: Optional[str] = None
@@ -53,8 +52,8 @@ class SetupWizardInputField(BaseModel):
 
 class SetupWizardAppResponse(BaseModel):
     app_slug: str
-    default_locale: str = "en"
     display_name: str
+    logo_url: Optional[str] = None
     edition: str
     default_app_id: str
     is_web_app: bool

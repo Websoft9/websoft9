@@ -16,11 +16,6 @@ def get_marketplace_bootstrap_path() -> Path:
     return REPO_BOOTSTRAP_PATH
 
 
-def normalize_marketplace_locale(value: str | None) -> str:
-    locale = str(value or "").strip().lower()
-    return "zh-CN" if locale.startswith("zh") else "en"
-
-
 class MarketplaceBootstrapService:
     def __init__(self, file_path: Path | None = None):
         self.file_path = file_path or get_marketplace_bootstrap_path()
@@ -47,13 +42,11 @@ class MarketplaceBootstrapService:
 
         return {
             "app_slug": app_slug,
-            "default_locale": normalize_marketplace_locale(str(payload.get("default_locale") or "en")),
         }
 
-    def write(self, app_slug: str, default_locale: str) -> dict[str, str]:
+    def write(self, app_slug: str) -> dict[str, str]:
         payload = {
             "app_slug": str(app_slug or "").strip().lower(),
-            "default_locale": normalize_marketplace_locale(default_locale),
         }
         if not payload["app_slug"]:
             raise ValueError("app_slug cannot be empty")

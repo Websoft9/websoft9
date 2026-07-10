@@ -15,6 +15,9 @@ def should_skip_api_key_auth(path: str) -> bool:
     if normalized_path.startswith("/auth/"):
         return True
 
+    if normalized_path == "/setup-wizard" or normalized_path.startswith("/setup-wizard/"):
+        return True
+
     if normalized_path == "/host-access/terminal/ws":
         return True
 

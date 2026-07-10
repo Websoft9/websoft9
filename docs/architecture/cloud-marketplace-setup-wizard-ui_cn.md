@@ -293,7 +293,8 @@ flowchart TD
 
 - 前端模块位置: `console/src/features/setup-wizard/`
 - 路由: `/setup`
-- 仅当 `WEBSOFT9_CLOUD_MARKETPLACE_MODE=true` 时启用
+- 仅当运行时存在有效云市场 bootstrap 时启用
 - 复用现有 `/api/auth/initialize`
 - 复用现有 `/api/apps/install`
-- 安装完成后跳转 `/myapps/:appId`
+- setup 页面默认跟随浏览器识别到的平台语言，不再由后端 `default_locale` 强制切换
+- 安装完成后先停留在交接页，再由用户进入应用管理或控制台

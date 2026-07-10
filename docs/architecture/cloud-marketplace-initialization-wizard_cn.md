@@ -193,14 +193,13 @@ flowchart TD
 | 文件路径 | `/websoft9/marketplace/bootstrap.json` |
 | 文件所有者 | mcloud 构建流程写入 |
 | 文件格式 | JSON |
-| 最小字段 | `app_slug`, `default_locale` |
+| 最小字段 | `app_slug` |
 
 建议内容示例:
 
 ```json
 {
-    "app_slug": "wordpress",
-    "default_locale": "zh-CN"
+    "app_slug": "wordpress"
 }
 ```
 
@@ -209,8 +208,7 @@ flowchart TD
 1. AppHub 在启动后或首次调用 `GET /api/setup-wizard/app` 时读取该文件。
 2. 读取成功且 `app_slug` 非空，则视为存在有效单品标识。
 3. 文件不存在、内容非法或字段为空时，视为无效标识，系统直接回落到标准路径。
-4. `default_locale` 只接受 `en` 和 `zh-CN` 两种规范值。
-5. Websoft9 不负责推断 `app_slug`，也不从镜像名、市场 SKU 或其他运行时信息反推。
+4. Websoft9 不负责推断 `app_slug`，也不从镜像名、市场 SKU 或其他运行时信息反推。
 
 设计约束:
 
@@ -366,7 +364,6 @@ API 建议:
     "enabled": true,
     "current_step": "app_init_ready",
     "app_slug": "wordpress",
-    "default_locale": "zh-CN",
     "installed_app_id": null,
     "completed": false,
     "last_error": null,
@@ -379,7 +376,6 @@ API 建议:
 ```json
 {
     "app_slug": "wordpress",
-    "default_locale": "zh-CN",
     "display_name": "WordPress",
     "edition": "latest",
     "default_app_id": "wordpress",

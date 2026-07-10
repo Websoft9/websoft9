@@ -13,7 +13,8 @@ from src.schemas.appInstall import Edition, appInstall
 from src.schemas.setupWizard import SetupWizardError
 from src.services.app_manager import AppManger
 from src.services.app_status import appInstalling, appInstallingError
-from src.services.marketplace_bootstrap import MarketplaceBootstrapService, normalize_marketplace_locale
+from src.services.common_check import install_validate
+from src.services.marketplace_bootstrap import MarketplaceBootstrapService
 from src.services.product_auth import ProductAuthService
 
 
@@ -61,7 +62,6 @@ class SetupWizardService:
                 "enabled": False,
                 "current_step": "welcome",
                 "app_slug": app_slug,
-                "default_locale": self.get_default_locale(),
                 "installed_app_id": None,
                 "completed": False,
                 "tracking_id": None,
@@ -88,7 +88,6 @@ class SetupWizardService:
             "enabled": True,
             "current_step": current_step,
             "app_slug": app_slug,
-            "default_locale": self.get_default_locale(),
             "installed_app_id": base_state.get("installed_app_id"),
             "completed": completed,
             "tracking_id": base_state.get("tracking_id"),
@@ -98,14 +97,18 @@ class SetupWizardService:
             "completed_at": base_state.get("completed_at"),
         }
 
-    def get_app(self, locale: str) -> dict[str, Any]:
+    def get_app(self, locale: str | None = None) -> dict[str, Any]:
         self.require_enabled()
         app_slug = self.get_app_slug()
         if not app_slug:
             raise CustomException(404, "Marketplace App Not Found", "The marketplace app metadata is unavailable")
 
-        apps = AppManger().get_available_apps(locale)
-        app = next((item for item in apps if str(item.get("key") or "").strip().lower() == app_slug), None)
+        app = None
+        for catalog_locale in self._resolve_catalog_locales(locale):
+            apps = AppManger().get_available_apps(catalog_locale)
+            app = next((item for item in apps if str(item.get("key") or "").strip().lower() == app_slug), None)
+            if app is not None:
+                break
         if app is None:
             raise CustomException(404, "Marketplace App Not Found", f"The app '{app_slug}' was not found in the app catalog")
 
@@ -134,8 +137,8 @@ class SetupWizardService:
 
         return {
             "app_slug": app_slug,
-            "default_locale": self.get_default_locale(),
             "display_name": str(app.get("trademark") or app_slug),
+            "logo_url": str(((app.get("logo") or {}).get("imageurl") or "")).strip() or None,
             "edition": edition,
             "default_app_id": _normalize_app_id(app_slug),
             "is_web_app": bool(app.get("is_web_app")),
@@ -156,7 +159,7 @@ class SetupWizardService:
     def install_app(self, payload: dict[str, Any], session_token: str | None = None, endpoint_id: int | None = None) -> dict[str, Any]:
         self.require_enabled()
         self._require_authenticated(session_token)
-        app_info = self.get_app(self._resolve_catalog_locale(self.get_default_locale()))
+        app_info = self.get_app()
         settings = dict(app_info.get("settings") or {})
         for key, value in (payload.get("user_inputs") or {}).items():
             settings[str(key)] = str(value)
@@ -169,6 +172,10 @@ class SetupWizardService:
             domain_names=[str(payload.get("domain_name"))],
             settings=settings,
         )
+
+        # Reuse the same precheck pipeline as /apps/install to fail fast
+        # before long-running image pull and stack creation steps.
+        install_validate(install_payload, endpoint_id)
 
         app_manager = AppManger()
         tracked_app_id, tracking_id = app_manager.create_installation_tracking(install_payload)
@@ -270,10 +277,6 @@ class SetupWizardService:
         app_slug = str(metadata.get("app_slug") or "").strip().lower()
         return app_slug or None
 
-    def get_default_locale(self) -> str:
-        metadata = self._read_marketplace_app_metadata()
-        return normalize_marketplace_locale(str(metadata.get("default_locale") or "en"))
-
     def _require_authenticated(self, session_token: str | None) -> dict[str, Any]:
         status = ProductAuthService().get_status(session_token=session_token)
         if not status.get("authenticated"):
@@ -283,8 +286,13 @@ class SetupWizardService:
     def _read_marketplace_app_metadata(self) -> dict[str, Any]:
         return self.bootstrap.read()
 
-    def _resolve_catalog_locale(self, locale: str) -> str:
-        return "zh" if normalize_marketplace_locale(locale) == "zh-CN" else "en"
+    def _resolve_catalog_locales(self, locale: str | None) -> list[str]:
+        preferred_locale = "zh" if str(locale or "").strip().lower().startswith("zh") else "en"
+        locales = [preferred_locale]
+        for fallback_locale in ("en", "zh"):
+            if fallback_locale not in locales:
+                locales.append(fallback_locale)
+        return locales
 
     def _default_state(self) -> dict[str, Any]:
         return {

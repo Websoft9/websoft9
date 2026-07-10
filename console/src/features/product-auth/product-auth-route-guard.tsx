@@ -16,6 +16,7 @@ export function ProductAuthRouteGuard({ children, routeSegment, requireAuthentic
     const location = useLocation()
     const { errorMessage, isLoading, status } = useProductAuth()
     const isProtectedRoute = Boolean(status?.enabled && (requireAuthentication || status.protected_modules.includes(routeSegment)))
+    const setupFailureBypass = typeof window !== 'undefined' && window.sessionStorage.getItem('websoft9_setup_failure_access') === '1'
 
     if (errorMessage && !isLoading) {
         return (
@@ -47,11 +48,11 @@ export function ProductAuthRouteGuard({ children, routeSegment, requireAuthentic
         return children
     }
 
-    if (status.initialization_required) {
+    if (status.initialization_required && !setupFailureBypass) {
         return <Navigate replace to={status.cloud_marketplace_setup ? '/setup' : `/auth/setup?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />
     }
 
-    if (status.cloud_marketplace_setup_pending && status.authenticated) {
+    if (status.cloud_marketplace_setup_pending && status.authenticated && !setupFailureBypass) {
         return <Navigate replace to="/setup" />
     }
 

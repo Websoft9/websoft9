@@ -635,6 +635,9 @@ pull_image_via_prefixed_mirrors() {
 
     if docker pull "$mirror_image"; then
       docker tag "$mirror_image" "$image_ref"
+      if [ "$mirror_image" != "$image_ref" ]; then
+        docker rmi "$mirror_image" >/dev/null 2>&1 || true
+      fi
       log_info "Pull succeeded via mirror: $mirror"
       success=0
       break
