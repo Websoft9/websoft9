@@ -139,7 +139,7 @@ class BackupManager:
             self.docker_client.images.pull(self.restic_image)
             return
         except Exception as e:
-            logger.warn(f"Direct pull of {self.restic_image} failed, trying mirrors: {e}")
+            logger.warning(f"Direct pull of {self.restic_image} failed, trying mirrors: {e}")
 
         for mirror in _fetch_mirrors():
             mirrored = f"{mirror}/{self.restic_image}"
@@ -151,7 +151,7 @@ class BackupManager:
                 logger.access(f"Pulled {self.restic_image} via mirror: {mirror}")
                 return
             except Exception as ex:
-                logger.warn(f"Mirror {mirror} failed: {ex}")
+                logger.warning(f"Mirror {mirror} failed: {ex}")
 
         raise CustomException(500, f"Failed to pull {self.restic_image}", "Image Pull Error")
 
@@ -309,7 +309,7 @@ class BackupManager:
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError:
-                    logger.warn(f"Non-JSON line in Restic backup output: {line[:200]}")
+                    logger.warning(f"Non-JSON line in Restic backup output: {line[:200]}")
                     continue
                 msg_type = data.get("message_type") or ""
                 if msg_type == "summary" and "snapshot_id" in data:
@@ -371,7 +371,7 @@ class BackupManager:
                         stack_id = stack_info.get("Id")
                         was_active = stack_info.get("Status") == 1
                 except Exception as exc:
-                    logger.warn(f"Could not determine stack state for {app_id}: {exc}")
+                    logger.warning(f"Could not determine stack state for {app_id}: {exc}")
 
             # Stop containers before restore to release file locks and caches
             if endpoint_id and was_active:
@@ -379,7 +379,7 @@ class BackupManager:
                     portainer.stop_stack(app_id, endpoint_id)
                     logger.access(f"Stopped containers for app {app_id} before restore")
                 except Exception as exc:
-                    logger.warn(f"Failed to stop containers for app {app_id}: {exc}")
+                    logger.warning(f"Failed to stop containers for app {app_id}: {exc}")
 
             output = self._run_restic_container(["restore", snapshot_id, "--target", "/"], extra_volumes)
 
@@ -392,7 +392,7 @@ class BackupManager:
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError:
-                    logger.warn(f"Non-JSON line in Restic restore output: {line[:200]}")
+                    logger.warning(f"Non-JSON line in Restic restore output: {line[:200]}")
                     continue
                 msg_type = data.get("message_type") or ""
                 if msg_type == "summary":
@@ -413,13 +413,13 @@ class BackupManager:
                         portainer.start_stack(app_id, endpoint_id)
                         logger.access(f"Started containers for app {app_id} after restore")
                     except Exception as exc:
-                        logger.warn(f"Failed to start containers for app {app_id}: {exc}")
+                        logger.warning(f"Failed to start containers for app {app_id}: {exc}")
                 elif stack_id:
                     try:
                         portainer.up_stack(stack_id, endpoint_id)
                         logger.access(f"Brought up inactive stack {app_id} after restore")
                     except Exception as exc:
-                        logger.warn(f"Failed to bring up stack {app_id} after restore: {exc}")
+                        logger.warning(f"Failed to bring up stack {app_id} after restore: {exc}")
 
             logger.access(f"Snapshot {snapshot_id} restored successfully")
         except CustomException:
