@@ -154,17 +154,34 @@ class BackupManager:
                 remove=True,
                 detach=False,
                 stdout=True,
-                stderr=True,
+                stderr=False,
             )
             output = result.decode("utf-8") if isinstance(result, bytes) else str(result)
             return output
         except docker.errors.ContainerError as e:
             stderr_output = e.stderr.decode("utf-8") if e.stderr else str(e)
             msg = "Unknown error"
-            try:
-                msg = json.loads(stderr_output).get("message", msg)
-            except (json.JSONDecodeError, KeyError):
-                pass
+            # Try to extract a meaningful message from the Restic JSON error
+            for line in stderr_output.strip().split("\n"):
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    if data.get("message_type") == "error":
+                        err_info = data.get("error", {})
+                        if isinstance(err_info, dict):
+                            msg = err_info.get("message") or str(err_info)
+                        else:
+                            msg = str(err_info) if err_info else msg
+                        break
+                except json.JSONDecodeError:
+                    pass
+            if msg == "Unknown error":
+                # Fallback: try top-level message
+                try:
+                    msg = json.loads(stderr_output.split("\n")[-1]).get("message", msg)
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    pass
             raise CustomException(500, msg, "Restic Container Error")
         except Exception as e:
             raise CustomException(500, f"Restic container failed: {e}", "Container Error")
@@ -254,15 +271,33 @@ class BackupManager:
             command = ["backup"] + container_paths + ["--tag", app_id]
             output = self._run_restic_container(command, extra_volumes)
 
+            backup_error = None
+            summary_found = False
             for line in output.strip().split("\n"):
                 if not line.strip():
                     continue
-                data = json.loads(line)
-                if data.get("message_type") == "summary" and "snapshot_id" in data:
-                    logger.access(f"Backup successful for app: {app_id}")
-                    return
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warn(f"Non-JSON line in Restic backup output: {line[:200]}")
+                    continue
+                msg_type = data.get("message_type") or ""
+                if msg_type == "summary" and "snapshot_id" in data:
+                    summary_found = True
+                elif msg_type == "error":
+                    err_info = data.get("error", {})
+                    if isinstance(err_info, dict):
+                        backup_error = err_info.get("message") or str(err_info)
+                    else:
+                        backup_error = str(err_info) if err_info else "Unknown Restic error"
+                    logger.error(f"Restic backup error: {backup_error}")
 
-            raise CustomException(500, f"Backup failed for app: {app_id}", "Backup Failed")
+            if backup_error:
+                raise CustomException(500, backup_error, f"Restic backup failed for app: {app_id}")
+            if not summary_found:
+                raise CustomException(500, f"Backup incomplete — no summary returned for app: {app_id}", "Backup Failed")
+
+            logger.access(f"Backup successful for app: {app_id}")
         except CustomException:
             raise
         except Exception as e:
@@ -276,9 +311,19 @@ class BackupManager:
             if not self._check_repository():
                 raise CustomException(400, "Repository not initialized", "Repository Error")
 
+            # Verify the snapshot exists before attempting restore
+            snapshots = self.list_snapshots(app_id)
+            snapshot_ids = {s.get("short_id") or s.get("id") or "" for s in snapshots}
+            full_snapshot_ids = {s.get("id") or "" for s in snapshots}
+            if snapshot_id not in snapshot_ids and snapshot_id not in full_snapshot_ids:
+                raise CustomException(400, f"Snapshot {snapshot_id} not found", "Snapshot Not Found")
+
             app_info = AppManger().get_app_by_id(app_id)
             volumes_info = getattr(app_info, "volumes", [])
             endpoint_id = app_info.get("endpointId") if isinstance(app_info, dict) else getattr(app_info, "endpointId", None)
+
+            if not volumes_info:
+                raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
 
             extra_volumes: Dict[str, Dict[str, str]] = {}
             for v in volumes_info:
@@ -287,9 +332,24 @@ class BackupManager:
                 if mountpoint and name:
                     extra_volumes[mountpoint] = {"bind": f"/{name}", "mode": "rw"}
 
-            # Stop containers before restore to release file locks and caches
+            if not extra_volumes:
+                raise CustomException(400, f"No valid volume mounts found for app: {app_id}", "No Volume Mounts")
+
+            # Determine stack state before restore
             portainer = PortainerManager()
+            was_active = False
+            stack_id = None
             if endpoint_id:
+                try:
+                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
+                    if stack_info:
+                        stack_id = stack_info.get("Id")
+                        was_active = stack_info.get("Status") == 1
+                except Exception as exc:
+                    logger.warn(f"Could not determine stack state for {app_id}: {exc}")
+
+            # Stop containers before restore to release file locks and caches
+            if endpoint_id and was_active:
                 try:
                     portainer.stop_stack(app_id, endpoint_id)
                     logger.access(f"Stopped containers for app {app_id} before restore")
@@ -298,23 +358,50 @@ class BackupManager:
 
             output = self._run_restic_container(["restore", snapshot_id, "--target", "/"], extra_volumes)
 
-            # Start containers after restore
-            if endpoint_id:
-                try:
-                    portainer.start_stack(app_id, endpoint_id)
-                    logger.access(f"Started containers for app {app_id} after restore")
-                except Exception as exc:
-                    logger.warn(f"Failed to start containers for app {app_id}: {exc}")
-
+            # Parse Restic output to verify success and capture any errors
+            restore_error = None
+            summary_found = False
             for line in output.strip().split("\n"):
                 if not line.strip():
                     continue
-                data = json.loads(line)
-                if data.get("message_type") == "summary":
-                    logger.access(f"Snapshot {snapshot_id} restored successfully")
-                    return
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warn(f"Non-JSON line in Restic restore output: {line[:200]}")
+                    continue
+                msg_type = data.get("message_type") or ""
+                if msg_type == "summary":
+                    summary_found = True
+                elif msg_type == "error":
+                    err_info = data.get("error", {})
+                    if isinstance(err_info, dict):
+                        restore_error = err_info.get("message") or str(err_info)
+                    else:
+                        restore_error = str(err_info) if err_info else "Unknown Restic error"
+                    logger.error(f"Restic restore error: {restore_error}")
 
-            raise CustomException(500, f"Restore failed for snapshot: {snapshot_id}", "Restore Failed")
+            if restore_error:
+                raise CustomException(500, restore_error, f"Restic restore failed for snapshot: {snapshot_id}")
+
+            if not summary_found:
+                raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
+
+            # Restart containers after restore
+            if endpoint_id:
+                if was_active:
+                    try:
+                        portainer.start_stack(app_id, endpoint_id)
+                        logger.access(f"Started containers for app {app_id} after restore")
+                    except Exception as exc:
+                        logger.warn(f"Failed to start containers for app {app_id}: {exc}")
+                elif stack_id:
+                    try:
+                        portainer.up_stack(stack_id, endpoint_id)
+                        logger.access(f"Brought up inactive stack {app_id} after restore")
+                    except Exception as exc:
+                        logger.warn(f"Failed to bring up stack {app_id} after restore: {exc}")
+
+            logger.access(f"Snapshot {snapshot_id} restored successfully")
         except CustomException:
             raise
         except Exception as e:

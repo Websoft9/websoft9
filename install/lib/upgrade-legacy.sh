@@ -498,7 +498,7 @@ _legacy_finalize_runtime_config() {
     return 0
   fi
 
-  docker exec -i "$MODERN_CONTAINER_NAME" python3 - <<'PY' 2>/dev/null || log_warn "Legacy runtime config import is best-effort and did not complete"
+  docker exec -i "$MODERN_CONTAINER_NAME" python3 - <<'PY' 2>&1 || log_warn "Legacy runtime config import is best-effort and did not complete"
 import configparser
 import json
 import os
@@ -510,7 +510,9 @@ data_root = Path(os.environ.get("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
 
 legacy_config_path = data_root / ".w9-migration/legacy-config.ini"
 legacy_daemon_path = data_root / ".w9-migration/legacy-daemon.json"
-runtime_config_path = Path("/websoft9/apphub/src/config/config.ini")
+# Respect the WEBSOFT9_APPHUB_CONFIG_PATH env var so migrated settings land in the
+# same persistent config file the rest of the system reads, not the bundled copy.
+runtime_config_path = Path(os.environ.get("WEBSOFT9_APPHUB_CONFIG_PATH", "/websoft9/apphub/src/config/config.ini"))
 default_cert_path = data_root / "config/platform-gateway/ssl/websoft9-platform-gateway.cert"
 default_key_path = data_root / "config/platform-gateway/ssl/websoft9-platform-gateway.key"
 legacy_product_auth_credential_path = data_root / "product-auth/credential.json"
@@ -704,7 +706,7 @@ _legacy_finalize_product_state() {
     if [ -f /data/.w9-migration/system.ini ]; then
       python3 -c "import sys; sys.path.insert(0,\"/websoft9/apphub\"); from src.services.product_metadata import migrate_product_metadata; from src.services.product_runtime_state import read_release_version; migrate_product_metadata(version=read_release_version(), legacy_system_ini_file=\"/data/.w9-migration/system.ini\")" || echo "[w9] product state migration best-effort failed"
     fi
-  ' 2>/dev/null || log_warn "Product runtime state import is best-effort and did not block the migration"
+  ' 2>&1 || log_warn "Product runtime state import is best-effort and did not block the migration"
 }
 
 # Main legacy migration flow.
