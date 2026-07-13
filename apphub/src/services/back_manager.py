@@ -360,21 +360,9 @@ class BackupManager:
             if not extra_volumes:
                 raise CustomException(400, f"No valid volume mounts found for app: {app_id}", "No Volume Mounts")
 
-            # Determine stack state before restore
-            portainer = PortainerManager()
-            was_active = False
-            stack_id = None
-            if endpoint_id:
-                try:
-                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
-                    if stack_info:
-                        stack_id = stack_info.get("Id")
-                        was_active = stack_info.get("Status") == 1
-                except Exception as exc:
-                    logger.warning(f"Could not determine stack state for {app_id}: {exc}")
-
             # Stop containers before restore to release file locks and caches
-            if endpoint_id and was_active:
+            portainer = PortainerManager()
+            if endpoint_id:
                 try:
                     portainer.stop_stack(app_id, endpoint_id)
                     logger.access(f"Stopped containers for app {app_id} before restore")
@@ -406,20 +394,13 @@ class BackupManager:
             if not summary_found:
                 raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
 
-            # Restart containers after restore
+            # Start containers after restore
             if endpoint_id:
-                if was_active:
-                    try:
-                        portainer.start_stack(app_id, endpoint_id)
-                        logger.access(f"Started containers for app {app_id} after restore")
-                    except Exception as exc:
-                        logger.warning(f"Failed to start containers for app {app_id}: {exc}")
-                elif stack_id:
-                    try:
-                        portainer.up_stack(stack_id, endpoint_id)
-                        logger.access(f"Brought up inactive stack {app_id} after restore")
-                    except Exception as exc:
-                        logger.warning(f"Failed to bring up stack {app_id} after restore: {exc}")
+                try:
+                    portainer.start_stack(app_id, endpoint_id)
+                    logger.access(f"Started containers for app {app_id} after restore")
+                except Exception as exc:
+                    logger.warning(f"Failed to start containers for app {app_id}: {exc}")
 
             logger.access(f"Snapshot {snapshot_id} restored successfully")
         except CustomException:
