@@ -14,6 +14,24 @@ from src.services.portainer_manager import PortainerManager
 RESTIC_CACHE_PATH = "/data/restic-cache"
 
 
+def _extract_restic_error(data: Dict[str, Any]) -> str:
+    """Extract a human-readable error message from a Restic JSON error line.
+    
+    Restic v0.17+ uses ``message_type: "error"`` with a nested ``error.message``.
+    Restic v0.19+ uses ``message_type: "exit_error"`` with a top-level ``message``.
+    """
+    msg_type = data.get("message_type") or ""
+    if msg_type in ("exit_error", "fatal_error"):
+        return data.get("message") or "Fatal Restic error"
+    if msg_type == "error":
+        err_info = data.get("error", {})
+        if isinstance(err_info, dict):
+            return err_info.get("message") or str(err_info)
+        return str(err_info) if err_info else "Unknown Restic error"
+    # Fallback: any top-level message
+    return data.get("message") or "Unknown Restic error"
+
+
 def _normalize_mirror(value: str) -> str:
     normalized = value.strip().rstrip("/")
     if normalized.startswith("http://"):
@@ -161,29 +179,39 @@ class BackupManager:
         except docker.errors.ContainerError as e:
             stderr_output = e.stderr.decode("utf-8") if e.stderr else str(e)
             msg = "Unknown error"
-            # Try to extract a meaningful message from the Restic JSON error.
-            # Restic may output JSON errors to stderr; parse line by line in
-            # case stdout and stderr are interleaved.
+            # Restic v0.19+ outputs fatal errors to stderr as JSON with
+            # message_type "exit_error" (top-level "message" key).  Older
+            # versions may use "error" with a nested error.message.
             for line in stderr_output.strip().split("\n"):
                 if not line.strip():
                     continue
                 try:
                     data = json.loads(line)
-                    if data.get("message_type") == "error":
-                        err_info = data.get("error", {})
-                        if isinstance(err_info, dict):
-                            msg = err_info.get("message") or str(err_info)
-                        else:
-                            msg = str(err_info) if err_info else msg
-                        break
                 except json.JSONDecodeError:
-                    pass
+                    continue
+                msg_type = data.get("message_type") or ""
+                if msg_type in ("exit_error", "fatal_error"):
+                    msg = data.get("message") or "Fatal Restic error"
+                    break
+                if msg_type == "error":
+                    err_info = data.get("error", {})
+                    if isinstance(err_info, dict):
+                        msg = err_info.get("message") or str(err_info)
+                    else:
+                        msg = str(err_info) if err_info else msg
+                    break
             if msg == "Unknown error":
-                # Fallback: try top-level message
-                try:
-                    msg = json.loads(stderr_output.split("\n")[-1]).get("message", msg)
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    pass
+                # Fallback: try top-level message from the last JSON line
+                for line in reversed(stderr_output.strip().split("\n")):
+                    if not line.strip():
+                        continue
+                    try:
+                        fallback = json.loads(line).get("message")
+                        if fallback:
+                            msg = fallback
+                            break
+                    except json.JSONDecodeError:
+                        continue
             raise CustomException(500, msg, "Restic Container Error")
         except Exception as e:
             raise CustomException(500, f"Restic container failed: {e}", "Container Error")
@@ -286,13 +314,8 @@ class BackupManager:
                 msg_type = data.get("message_type") or ""
                 if msg_type == "summary" and "snapshot_id" in data:
                     summary_found = True
-                elif msg_type == "error":
-                    err_info = data.get("error", {})
-                    if isinstance(err_info, dict):
-                        backup_error = err_info.get("message") or str(err_info)
-                    else:
-                        backup_error = str(err_info) if err_info else "Unknown Restic error"
-                    logger.error(f"Restic backup error: {backup_error}")
+                elif msg_type in ("exit_error", "fatal_error", "error"):
+                    backup_error = _extract_restic_error(data)
 
             if backup_error:
                 raise CustomException(500, backup_error, f"Restic backup failed for app: {app_id}")
@@ -374,13 +397,8 @@ class BackupManager:
                 msg_type = data.get("message_type") or ""
                 if msg_type == "summary":
                     summary_found = True
-                elif msg_type == "error":
-                    err_info = data.get("error", {})
-                    if isinstance(err_info, dict):
-                        restore_error = err_info.get("message") or str(err_info)
-                    else:
-                        restore_error = str(err_info) if err_info else "Unknown Restic error"
-                    logger.error(f"Restic restore error: {restore_error}")
+                elif msg_type in ("exit_error", "fatal_error", "error"):
+                    restore_error = _extract_restic_error(data)
 
             if restore_error:
                 raise CustomException(500, restore_error, f"Restic restore failed for snapshot: {snapshot_id}")
