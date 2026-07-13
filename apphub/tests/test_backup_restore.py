@@ -1,6 +1,7 @@
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -196,3 +197,28 @@ def test_repo_operations_use_restic_container_runner(monkeypatch):
         (['cat', 'config'], {}),
         (['forget', 'snap-1'], {}),
     ]
+
+
+def test_backup_manager_defaults_restic_image_when_missing_from_system_config(monkeypatch):
+    class FakeConfigManager:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def get_value(self, section, key):
+            if (section, key) == ('volume_backup', 'repopath'):
+                return '/opt/websoft9/data/backup/restic-repo'
+            if (section, key) == ('volume_backup', 'image'):
+                raise Exception('missing image key')
+            raise AssertionError(f'unexpected config lookup: {(section, key)}')
+
+    fake_docker_client = types.SimpleNamespace()
+    manager = object.__new__(BackupManager)
+
+    monkeypatch.setattr(back_manager_module, 'ConfigManager', FakeConfigManager)
+    monkeypatch.setattr(back_manager_module.docker, 'from_env', lambda: fake_docker_client)
+    monkeypatch.setattr(back_manager_module.os, 'makedirs', lambda *args, **kwargs: None)
+    monkeypatch.setattr(BackupManager, '_init_repository', lambda self: None)
+
+    BackupManager.__init__(manager)
+
+    assert manager.restic_image == 'restic/restic:latest'

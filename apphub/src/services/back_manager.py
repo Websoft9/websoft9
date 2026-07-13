@@ -78,7 +78,10 @@ class BackupManager:
 
             config_manager = ConfigManager("system.ini")
             self.repository_path = config_manager.get_value("volume_backup", "repopath")
-            self.restic_image = config_manager.get_value("volume_backup", "image") or "restic/restic"
+            try:
+                self.restic_image = config_manager.get_value("volume_backup", "image") or "restic/restic:latest"
+            except Exception:
+                self.restic_image = "restic/restic:latest"
 
             # Ensure cache dir exists
             os.makedirs(RESTIC_CACHE_PATH, exist_ok=True)

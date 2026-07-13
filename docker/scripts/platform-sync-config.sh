@@ -97,6 +97,7 @@ sync_base() {
   set_system_config docker_library path "${WEBSOFT9_LIBRARY_PATH:-/websoft9/library/apps}"
   set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
   set_system_config volume_backup repopath "$data_root/backup/restic-repo"
+  set_system_config volume_backup image "${WEBSOFT9_RESTIC_IMAGE:-restic/restic:latest}"
   write_apphub_gateway_auth
 }
 
