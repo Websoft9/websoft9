@@ -141,7 +141,8 @@ def test_portainer_bootstrap_falls_back_to_config_credentials(monkeypatch):
 
     cookies = bridge.bootstrap_portainer()
 
-    assert cookies == [{"name": bridge._portainer_cookie_name(), "value": "portainer-token", "path": "/", "httponly": True}]
+    assert cookies[0] == {"name": bridge._portainer_cookie_name(), "value": "portainer-token", "path": "/", "httponly": True}
+    assert {cookie["name"] for cookie in cookies[1:]} == {"portainer_jwt", "portainer.JWT", "portainer_api_key"}
     assert writes == [fallback]
     assert len(fake_session.calls) == 2
 
@@ -193,3 +194,44 @@ def test_npm_bootstrap_falls_back_to_config_credentials(monkeypatch):
     assert len(fake_session.calls) == 2
     assert fake_session.calls[0][0] == "http://127.0.0.1:81/api/tokens"
     assert fake_session.calls[1][0] == "http://127.0.0.1:81/api/tokens"
+
+
+def test_npm_bootstrap_retries_transient_gateway_errors(monkeypatch):
+    bridge = IntegrationSessionBridge(gateway_origin="http://gateway.test")
+    bridge.npm_bootstrap_retry_attempts = 3
+    bridge.npm_bootstrap_retry_interval_seconds = 1
+
+    credentials = SimpleNamespace(
+        username="admin@example.com",
+        password="active-pass",
+        nickname="operator",
+        display_name="Operator",
+    )
+
+    bridge.credential_provider = SimpleNamespace(
+        get_npm_credentials=lambda: credentials,
+        get_npm_config_credentials=lambda: credentials,
+        write_npm_credentials=lambda _credentials: None,
+        sync_npm_credentials=lambda _credentials: False,
+    )
+
+    call_count = {"value": 0}
+
+    def fake_request_npm_token(_session, username, password):
+        call_count["value"] += 1
+        assert username == "admin@example.com"
+        assert password == "active-pass"
+        if call_count["value"] == 1:
+            return FakeResponse(502, {"message": "Bad Gateway"})
+        return FakeResponse(200, {"token": "npm-token"})
+
+    monkeypatch.setattr(bridge, "_request_npm_token", fake_request_npm_token)
+    monkeypatch.setattr("src.services.integration_session_bridge.time.sleep", lambda _seconds: None)
+
+    cookies = bridge.bootstrap_npm()
+
+    assert call_count["value"] == 2
+    assert cookies == [
+        {"name": bridge._npm_token_cookie_name(), "value": "npm-token", "path": "/", "httponly": False},
+        {"name": bridge._npm_nickname_cookie_name(), "value": "operator", "path": "/", "httponly": False},
+    ]

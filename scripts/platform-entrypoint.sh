@@ -238,7 +238,7 @@ bootstrap_portainer() {
 bootstrap_nginx_proxy_manager() {
   log "phase=workspace-bootstrap action=bootstrap-nginx-proxy-manager"
 
-  if ! wait_for_url "nginx-proxy-manager" "${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/}" 45; then
+  if ! wait_for_url "nginx-proxy-manager" "${WEBSOFT9_NPM_HEALTH_URL:-http://127.0.0.1:81/api/}" 45; then
     write_status "degraded" "nginx-proxy-manager failed to become healthy during bootstrap"
     return 0
   fi

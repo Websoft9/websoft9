@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 from pathlib import Path
 from typing import Literal, Optional
 from urllib.parse import urlparse
@@ -39,6 +40,8 @@ class IntegrationSessionBridge:
         ).rstrip("/")
         self.npm_credential_path = Path(os.getenv("WEBSOFT9_NPM_CREDENTIAL_PATH", str(data_root / "credential.json")))
         self.npm_database_path = Path(os.getenv("WEBSOFT9_NPM_DATABASE_PATH", str(data_root / "database.sqlite")))
+        self.npm_bootstrap_retry_attempts = max(1, int(os.getenv("WEBSOFT9_NPM_BOOTSTRAP_RETRY_ATTEMPTS", "6")))
+        self.npm_bootstrap_retry_interval_seconds = max(1, int(os.getenv("WEBSOFT9_NPM_BOOTSTRAP_RETRY_INTERVAL_SECONDS", "2")))
 
     def _resolve_platform_origin(self) -> str:
         public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip().rstrip("/")
@@ -273,7 +276,7 @@ class IntegrationSessionBridge:
             active_credentials = self.credential_provider.get_npm_credentials()
 
             fallback_credentials = self.credential_provider.get_npm_config_credentials()
-            response = self._request_npm_token(session, active_credentials.username, active_credentials.password)
+            response = self._request_npm_token_with_retry(session, active_credentials.username, active_credentials.password)
 
             should_try_fallback = (
                 response.status_code in {401, 403}
@@ -287,7 +290,7 @@ class IntegrationSessionBridge:
             )
 
             if should_try_fallback:
-                fallback_response = self._request_npm_token(session, fallback_credentials.username, fallback_credentials.password)
+                fallback_response = self._request_npm_token_with_retry(session, fallback_credentials.username, fallback_credentials.password)
                 if fallback_response.status_code == 200:
                     self.credential_provider.write_npm_credentials(fallback_credentials)
                     active_credentials = fallback_credentials
@@ -298,7 +301,7 @@ class IntegrationSessionBridge:
 
             if response.status_code in {401, 403} and self.credential_provider.sync_npm_credentials(active_credentials):
                 logger.warning("Nginx Proxy Manager authentication recovered after synchronizing stored credentials into the runtime database")
-                response = self._request_npm_token(session, active_credentials.username, active_credentials.password)
+                response = self._request_npm_token_with_retry(session, active_credentials.username, active_credentials.password)
 
             if response.status_code in {401, 403}:
                 raise CustomException(
@@ -346,6 +349,45 @@ class IntegrationSessionBridge:
             f"{self.npm_direct_origin}/api/tokens",
             json={"identity": username, "scope": "user", "secret": password},
             timeout=20,
+        )
+
+    def _request_npm_token_with_retry(self, session: requests.Session, username: str, password: str) -> requests.Response:
+        last_exception: Exception | None = None
+        response: requests.Response | None = None
+
+        for attempt in range(1, self.npm_bootstrap_retry_attempts + 1):
+            try:
+                response = self._request_npm_token(session, username, password)
+                if response.status_code not in {502, 503, 504}:
+                    return response
+
+                if attempt < self.npm_bootstrap_retry_attempts:
+                    logger.warning(
+                        "Nginx Proxy Manager token endpoint not ready "
+                        f"(status={response.status_code}, attempt={attempt}/{self.npm_bootstrap_retry_attempts}); retrying"
+                    )
+                    time.sleep(self.npm_bootstrap_retry_interval_seconds)
+            except requests.RequestException as exc:
+                last_exception = exc
+                if attempt < self.npm_bootstrap_retry_attempts:
+                    logger.warning(
+                        "Nginx Proxy Manager token request failed "
+                        f"(attempt={attempt}/{self.npm_bootstrap_retry_attempts}): {exc}; retrying"
+                    )
+                    time.sleep(self.npm_bootstrap_retry_interval_seconds)
+                else:
+                    break
+
+        if response is not None:
+            return response
+
+        if last_exception is not None:
+            raise last_exception
+
+        raise CustomException(
+            status_code=502,
+            message="Integration Session Bootstrap Failed",
+            details="Unable to restore the embedded gateway session automatically",
         )
 
     def _request_portainer_token(self, session: requests.Session, username: str, password: str) -> requests.Response:

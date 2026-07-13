@@ -746,6 +746,19 @@ run_upgrade_legacy() {
   # Prepare modern deployment material without touching the transformed data root.
   install_prepare_material "$install_path" "$image_tag" "$console_port"
 
+  # Resolve the modern container name from generated deployment material.
+  # Legacy migration can run on dev/rc channels where container name is not "websoft9".
+  local env_file compose_file
+  env_file="${install_path}/.env"
+  compose_file="${install_path}/docker-compose.yml"
+  if [ -f "$env_file" ]; then
+    CONTAINER_NAME="$(grep -m1 '^CONTAINER_NAME=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+    [ -n "$CONTAINER_NAME" ] && export CONTAINER_NAME
+  fi
+  MODERN_CONTAINER_NAME="$(_resolve_container_name "$compose_file")"
+  export MODERN_CONTAINER_NAME
+  log_info "Resolved modern container name for migration: ${MODERN_CONTAINER_NAME}"
+
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) pre-cutover migration steps completed; stopping before the modern runtime takeover"
     log_info "Pre-migration backup point: $backup_dir"
@@ -781,13 +794,10 @@ run_upgrade_legacy() {
     die "$EXIT_VALIDATE" "Migration failed during post-cutover validation"
   fi
 
-  # Stage 8b: remove legacy containers and volumes.
-  # Host-level artifacts (/data/compose, /data/apps, Cockpit, systemd) are
-  # deliberately retained — legacy stacks still reference /data/compose for
-  # bind mounts, and control-plane cleanup should happen after the rollback
-  # window closes.
-  log_step "Removing legacy containers and volumes"
-  _uninstall_legacy "purge" "0" "1" "0"
+  # Stage 8b: remove legacy containers, volumes, and control-plane artifacts.
+  # On successful migration, fully retire Cockpit/systemd-based legacy runtime.
+  log_step "Removing legacy containers, volumes, and legacy control plane"
+  _uninstall_legacy "purge" "0" "1" "1"
 
   log_info "==== Legacy-to-modern migration completed successfully ===="
   print_runtime_summary migration "$install_path" "$console_port" "$backup_dir"
