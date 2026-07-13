@@ -744,6 +744,14 @@ run_upgrade_legacy() {
   export WEBSOFT9_DATA_ROOT
   log_info "Migration data root resolved to: ${WEBSOFT9_DATA_ROOT}"
 
+  # Derive container name from channel (keep instances isolated)
+  case "${W9_CHANNEL:-release}" in
+    dev)  CONTAINER_NAME="websoft9-dev" ;;
+    rc)   CONTAINER_NAME="websoft9-rc" ;;
+    *)    CONTAINER_NAME="websoft9" ;;
+  esac
+  export CONTAINER_NAME
+
   # Stage 1: entry detection already happened; confirm there is no modern runtime.
   if _detect_modern_strong; then
     die "$EXIT_ENV_GUARD" "Modern runtime detected; the legacy migration path refuses to run in a mixed environment"
