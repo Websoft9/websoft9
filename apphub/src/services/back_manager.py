@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import docker
 import requests
 from typing import Any, Dict, List, Optional
@@ -53,6 +54,18 @@ def _fetch_mirrors() -> List[str]:
     except Exception as e:
         logger.error(f"Failed to load mirrors: {e}")
         return []
+
+
+def _is_effective_runtime_container(container: Dict[str, Any], app_id: str) -> bool:
+    names = container.get("Names") or []
+    normalized_names = [str(name or "").strip("/") for name in names]
+    if f"{app_id}-init" in normalized_names:
+        return False
+    return True
+
+
+def _container_state(container: Dict[str, Any]) -> str:
+    return str(container.get("State") or container.get("Status") or "").strip().lower()
 
 
 class BackupManager:
@@ -216,6 +229,22 @@ class BackupManager:
         except Exception as e:
             raise CustomException(500, f"Restic container failed: {e}", "Container Error")
 
+    def _build_restic_volume_mounts(self, volumes_info: List[Dict[str, Any]]) -> tuple[Dict[str, Dict[str, str]], List[str]]:
+        extra_volumes: Dict[str, Dict[str, str]] = {}
+        container_paths: List[str] = []
+
+        for volume in volumes_info:
+            mountpoint = volume.get("Mountpoint")
+            name = volume.get("Name")
+            if not mountpoint or not name:
+                continue
+
+            resolved_mountpoint = self._resolve_host_path(mountpoint)
+            extra_volumes[resolved_mountpoint] = {"bind": f"/{name}", "mode": "rw"}
+            container_paths.append(f"/{name}")
+
+        return extra_volumes, container_paths
+
     # ------------------------------------------------------------------
     #  Repository management (local — only touches repo path)
     # ------------------------------------------------------------------
@@ -281,15 +310,7 @@ class BackupManager:
         try:
             app_info = AppManger().get_app_by_id(app_id)
             volumes_info = getattr(app_info, "volumes", [])
-
-            extra_volumes: Dict[str, Dict[str, str]] = {}
-            container_paths: List[str] = []
-            for v in volumes_info:
-                mountpoint = v.get("Mountpoint")
-                name = v.get("Name")
-                if mountpoint and name:
-                    extra_volumes[mountpoint] = {"bind": f"/{name}", "mode": "rw"}
-                    container_paths.append(f"/{name}")
+            extra_volumes, container_paths = self._build_restic_volume_mounts(volumes_info)
 
             if not container_paths:
                 raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
@@ -350,12 +371,7 @@ class BackupManager:
             if not volumes_info:
                 raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
 
-            extra_volumes: Dict[str, Dict[str, str]] = {}
-            for v in volumes_info:
-                mountpoint = v.get("Mountpoint")
-                name = v.get("Name")
-                if mountpoint and name:
-                    extra_volumes[mountpoint] = {"bind": f"/{name}", "mode": "rw"}
+            extra_volumes, _ = self._build_restic_volume_mounts(volumes_info)
 
             if not extra_volumes:
                 raise CustomException(400, f"No valid volume mounts found for app: {app_id}", "No Volume Mounts")
@@ -394,13 +410,33 @@ class BackupManager:
             if not summary_found:
                 raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
 
-            # Start containers after restore
+            # Start containers after restore via stack lifecycle APIs instead of
+            # starting every container individually. Some apps include one-shot
+            # init containers that should remain exited after a successful run.
             if endpoint_id:
                 try:
-                    portainer.start_stack(app_id, endpoint_id)
+                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
+                    if stack_info is None:
+                        raise CustomException(404, "Not Found", f"Stack {app_id} not found")
+
+                    stack_status = stack_info.get("Status", 0)
+                    if stack_status == 2:
+                        stack_id = stack_info.get("Id")
+                        if stack_id is None:
+                            raise CustomException(404, "Not Found", f"Stack {app_id} has no Id")
+                        portainer.up_stack(stack_id, endpoint_id)
+                    else:
+                        stack_id = stack_info.get("Id")
+                        if stack_id is None:
+                            raise CustomException(404, "Not Found", f"Stack {app_id} has no Id")
+                        portainer.up_stack(stack_id, endpoint_id)
+
+                    self._ensure_restored_app_running(portainer, app_id, endpoint_id)
                     logger.access(f"Started containers for app {app_id} after restore")
+                except CustomException:
+                    raise
                 except Exception as exc:
-                    logger.warning(f"Failed to start containers for app {app_id}: {exc}")
+                    raise CustomException(500, str(exc), "Restore Start Validation Failed")
 
             logger.access(f"Snapshot {snapshot_id} restored successfully")
         except CustomException:
@@ -408,3 +444,23 @@ class BackupManager:
         except Exception as e:
             logger.error(f"Restore error: {e}")
             raise CustomException(500, str(e), "Restore Error")
+
+    def _ensure_restored_app_running(self, portainer: PortainerManager, app_id: str, endpoint_id: int, timeout_seconds: int = 60, poll_interval: int = 3) -> None:
+        deadline = time.monotonic() + max(timeout_seconds, 0)
+        last_states: List[str] = []
+
+        while True:
+            containers = portainer.get_containers_by_stack_name(app_id, endpoint_id)
+            runtime_containers = [c for c in containers if _is_effective_runtime_container(c, app_id)]
+
+            if runtime_containers:
+                states = [_container_state(container) for container in runtime_containers]
+                last_states = states
+                if any(state in {"running", "healthy"} for state in states):
+                    return
+
+            if time.monotonic() >= deadline:
+                detail = ", ".join(last_states) if last_states else "no runtime containers found"
+                raise CustomException(500, f"Restored app did not reach a running state: {detail}", "Restore Validation Failed")
+
+            time.sleep(max(poll_interval, 1))
