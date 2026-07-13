@@ -195,11 +195,11 @@ _confirm_legacy_upgrade() {
   log_warn "Potential risks: longer downtime, custom legacy assets may need manual verification, and rollback depends on the retained legacy backup and control plane"
   log_info "  Target modern version: ${target_version:-unknown}"
 
-  if ! _confirm "I understand the risks above and want to continue to the migration confirmation step" "n"; then
+  if ! _confirm "I understand the risks above and want to continue to the migration confirmation step" "y"; then
     return 1
   fi
 
-  _confirm "Proceed with the legacy-to-modern migration now?" "n"
+  _confirm "Proceed with the legacy-to-modern migration now?" "y"
 }
 
 # Hidden subcommands.
