@@ -6,6 +6,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Cookie, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
+from uvicorn.protocols.utils import ClientDisconnected
+from websockets.exceptions import InvalidState
 
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
@@ -354,7 +356,7 @@ async def host_access_terminal_ws(websocket: WebSocket):
                     for payload in updates:
                         try:
                             await websocket.send_text(json.dumps({"type": "output", "session_id": session_id, "data": payload}))
-                        except RuntimeError:
+                        except (RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError):
                             return
                     cursor = next_cursor
                     continue
@@ -364,7 +366,7 @@ async def host_access_terminal_ws(websocket: WebSocket):
         finally:
             try:
                 await websocket.send_text(json.dumps({"type": "closed", "session_id": session_id}))
-            except RuntimeError:
+            except (RuntimeError, WebSocketDisconnect, ClientDisconnected, InvalidState, asyncio.CancelledError):
                 pass
 
     output_task = asyncio.create_task(pump_output())

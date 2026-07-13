@@ -117,15 +117,20 @@ ensure_admin_user() {
 
 wait_for_gitea() {
   local attempts=30
+  local last_error=""
 
   while (( attempts > 0 )); do
-    if curl --silent --show-error --max-time 2 --output /dev/null "http://127.0.0.1:${gitea_port}/"; then
+    if last_error="$(curl --silent --show-error --max-time 2 --output /dev/null "http://127.0.0.1:${gitea_port}/" 2>&1)"; then
       return 0
     fi
 
     sleep 2
     attempts=$((attempts - 1))
   done
+
+  if [[ -n "$last_error" ]]; then
+    log "gitea health probe failed after retries: $last_error"
+  fi
 
   return 1
 }
