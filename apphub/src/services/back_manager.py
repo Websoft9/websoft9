@@ -357,9 +357,20 @@ class BackupManager:
             if not extra_volumes:
                 raise CustomException(400, f"No valid volume mounts found for app: {app_id}", "No Volume Mounts")
 
-            # Stop containers before restore to release file locks and caches
             portainer = PortainerManager()
+            was_active = False
+            stack_id = None
             if endpoint_id:
+                try:
+                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
+                    if stack_info:
+                        stack_id = stack_info.get("Id")
+                        was_active = stack_info.get("Status") == 1
+                except Exception as exc:
+                    logger.warning(f"Could not determine stack state for {app_id}: {exc}")
+
+            # Stop containers before restore to release file locks and caches
+            if endpoint_id and was_active:
                 try:
                     portainer.stop_stack(app_id, endpoint_id)
                     logger.access(f"Stopped containers for app {app_id} before restore")
@@ -391,23 +402,17 @@ class BackupManager:
             if not summary_found:
                 raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
 
-            # Start containers after restore via stack lifecycle APIs instead of
-            # starting every container individually. Some apps include one-shot
-            # init containers that should remain exited after a successful run.
+            # Use the stack state observed before restore. Once an active stack
+            # is stopped, Portainer reports it as inactive, which would wrongly
+            # push restores down the up_stack path and recreate containers.
             if endpoint_id:
                 try:
-                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
-                    if stack_info is None:
-                        raise CustomException(404, "Not Found", f"Stack {app_id} not found")
-
-                    stack_status = stack_info.get("Status", 0)
-                    if stack_status == 2:
-                        stack_id = stack_info.get("Id")
-                        if stack_id is None:
-                            raise CustomException(404, "Not Found", f"Stack {app_id} has no Id")
+                    if was_active:
+                        portainer.start_stack(app_id, endpoint_id)
+                    elif stack_id is not None:
                         portainer.up_stack(stack_id, endpoint_id)
                     else:
-                        portainer.start_stack(app_id, endpoint_id)
+                        raise CustomException(404, "Not Found", f"Stack {app_id} not found")
 
                     self._ensure_restored_app_running(portainer, app_id, endpoint_id)
                     logger.access(f"Started containers for app {app_id} after restore")

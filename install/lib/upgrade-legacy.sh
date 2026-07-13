@@ -510,9 +510,12 @@ data_root = Path(os.environ.get("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data"))
 
 legacy_config_path = data_root / ".w9-migration/legacy-config.ini"
 legacy_daemon_path = data_root / ".w9-migration/legacy-daemon.json"
-# Respect the WEBSOFT9_APPHUB_CONFIG_PATH env var so migrated settings land in the
-# same persistent config file the rest of the system reads, not the bundled copy.
-runtime_config_path = Path(os.environ.get("WEBSOFT9_APPHUB_CONFIG_PATH", "/websoft9/apphub/src/config/config.ini"))
+# docker exec shells do not inherit the PID 1 AppHub config env vars reliably.
+# Write directly to the persistent host-backed runtime config path used by the platform.
+runtime_config_path = Path("/opt/websoft9/data/config/apphub/config.ini")
+legacy_runtime_config_path = Path("/data/config/apphub/config.ini")
+if not runtime_config_path.parent.exists() and legacy_runtime_config_path.parent.exists():
+  runtime_config_path = legacy_runtime_config_path
 # Bundled defaults shipped inside the image — used as a fallback when the
 # persistent config hasn't been bootstrapped yet (first migration).
 bundled_config_path = Path("/websoft9/apphub/src/config/config.ini")

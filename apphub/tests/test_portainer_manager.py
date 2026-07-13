@@ -1,12 +1,18 @@
 import sys
 import types
+import importlib.util
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.services.portainer_manager import PortainerManager
+module_path = PROJECT_ROOT / 'src' / 'services' / 'portainer_manager.py'
+module_spec = importlib.util.spec_from_file_location('real_portainer_manager', module_path)
+portainer_manager_module = importlib.util.module_from_spec(module_spec)
+assert module_spec and module_spec.loader
+module_spec.loader.exec_module(portainer_manager_module)
+PortainerManager = portainer_manager_module.PortainerManager
 
 
 class FakeResponse:
@@ -29,6 +35,12 @@ class FakePortainerApi:
         return self.responses.pop(0)
 
 
+def _build_manager(fake_api):
+    manager = PortainerManager.__new__(PortainerManager)
+    manager.portainer = fake_api
+    return manager
+
+
 def test_create_stack_retries_after_cleaning_stale_compose_workspace(monkeypatch, tmp_path):
     workdir = tmp_path / 'compose' / '2'
     workdir.mkdir(parents=True)
@@ -39,8 +51,7 @@ def test_create_stack_retries_after_cleaning_stale_compose_workspace(monkeypatch
         FakeResponse(200, payload={'Id': 2}),
     ])
 
-    manager = object.__new__(PortainerManager)
-    manager.portainer = fake_api
+    manager = _build_manager(fake_api)
     monkeypatch.setattr(manager, '_extract_compose_workdir', lambda message: str(workdir))
 
     result = manager.create_stack_from_repository('moodle_qy7wv', 1, 'http://repo', 'user', 'pwd')

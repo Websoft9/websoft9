@@ -39,14 +39,23 @@ from src.services.back_manager import BackupManager
 
 
 class FakePortainer:
-    def __init__(self, stack_status, container_sequences):
+    def __init__(self, stack_status, container_sequences, stack_status_sequence=None):
         self.stack_status = stack_status
+        self.stack_status_sequence = list(stack_status_sequence or [])
         self.container_sequences = list(container_sequences)
         self.up_calls = []
         self.start_calls = []
+        self.stop_calls = []
 
     def get_stack_by_name(self, app_id, endpoint_id):
-        return {"Id": 9, "Name": app_id, "Status": self.stack_status}
+        if self.stack_status_sequence:
+            status = self.stack_status_sequence.pop(0)
+        else:
+            status = self.stack_status
+        return {"Id": 9, "Name": app_id, "Status": status}
+
+    def stop_stack(self, app_id, endpoint_id):
+        self.stop_calls.append((app_id, endpoint_id))
 
     def up_stack(self, stack_id, endpoint_id):
         self.up_calls.append((stack_id, endpoint_id))
@@ -111,6 +120,34 @@ def test_restore_start_uses_start_stack_for_active_stack(monkeypatch):
 
     manager.restore_backup('wordpress_demo', 'snap-1')
 
+    assert portainer.start_calls == [('wordpress_demo', 1)]
+    assert portainer.up_calls == []
+
+
+def test_restore_uses_pre_stop_stack_state_for_active_stack(monkeypatch):
+    manager = _build_manager()
+    portainer = FakePortainer(
+        stack_status=1,
+        stack_status_sequence=[1],
+        container_sequences=[[{"Names": ["/wordpress_demo"], "State": "running"}]],
+    )
+
+    monkeypatch.setattr(manager, '_check_repository', lambda: True)
+    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id: [{"id": "snap-1", "short_id": "snap-1"}])
+    monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
+    monkeypatch.setattr(manager, '_ensure_restored_app_running', lambda *args, **kwargs: None)
+    monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
+        get_app_by_id=lambda app_id: types.SimpleNamespace(
+            endpointId=1,
+            volumes=[{"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"}],
+        )
+    ))
+    monkeypatch.setattr(back_manager_module, 'PortainerManager', lambda: portainer)
+    monkeypatch.setattr(manager, '_resolve_host_path', lambda path: path)
+
+    manager.restore_backup('wordpress_demo', 'snap-1')
+
+    assert portainer.stop_calls == [('wordpress_demo', 1)]
     assert portainer.start_calls == [('wordpress_demo', 1)]
     assert portainer.up_calls == []
 
