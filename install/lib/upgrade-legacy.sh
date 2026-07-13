@@ -513,12 +513,22 @@ legacy_daemon_path = data_root / ".w9-migration/legacy-daemon.json"
 # Respect the WEBSOFT9_APPHUB_CONFIG_PATH env var so migrated settings land in the
 # same persistent config file the rest of the system reads, not the bundled copy.
 runtime_config_path = Path(os.environ.get("WEBSOFT9_APPHUB_CONFIG_PATH", "/websoft9/apphub/src/config/config.ini"))
+# Bundled defaults shipped inside the image — used as a fallback when the
+# persistent config hasn't been bootstrapped yet (first migration).
+bundled_config_path = Path("/websoft9/apphub/src/config/config.ini")
 default_cert_path = data_root / "config/platform-gateway/ssl/websoft9-platform-gateway.cert"
 default_key_path = data_root / "config/platform-gateway/ssl/websoft9-platform-gateway.key"
 legacy_product_auth_credential_path = data_root / "product-auth/credential.json"
 
-if not runtime_config_path.is_file() or (not legacy_config_path.is_file() and not legacy_daemon_path.is_file()):
+if not legacy_config_path.is_file() and not legacy_daemon_path.is_file():
     raise SystemExit(0)
+
+# Bootstrap the persistent config from the bundled defaults when the
+# persistent path doesn't exist yet (first migration after upgrade).
+if not runtime_config_path.is_file():
+    runtime_config_path.parent.mkdir(parents=True, exist_ok=True)
+    if bundled_config_path.is_file():
+        shutil.copy2(bundled_config_path, runtime_config_path)
 
 
 def read_ini(path: Path) -> configparser.ConfigParser:
