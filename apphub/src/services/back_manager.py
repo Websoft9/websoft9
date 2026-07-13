@@ -426,10 +426,7 @@ class BackupManager:
                             raise CustomException(404, "Not Found", f"Stack {app_id} has no Id")
                         portainer.up_stack(stack_id, endpoint_id)
                     else:
-                        stack_id = stack_info.get("Id")
-                        if stack_id is None:
-                            raise CustomException(404, "Not Found", f"Stack {app_id} has no Id")
-                        portainer.up_stack(stack_id, endpoint_id)
+                        portainer.start_stack(app_id, endpoint_id)
 
                     self._ensure_restored_app_running(portainer, app_id, endpoint_id)
                     logger.access(f"Started containers for app {app_id} after restore")
