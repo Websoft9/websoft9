@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import subprocess
 import time
 import docker
 import requests
@@ -69,7 +68,7 @@ def _container_state(container: Dict[str, Any]) -> str:
 
 
 class BackupManager:
-    """Volume Backup Manager using Restic — hybrid local binary + Docker runner"""
+    """Volume Backup Manager using Restic container runner"""
 
     RESTIC_LOCAL_ARGS = ["--insecure-no-password", "--json"]
 
@@ -80,10 +79,6 @@ class BackupManager:
             config_manager = ConfigManager("system.ini")
             self.repository_path = config_manager.get_value("volume_backup", "repopath")
             self.restic_image = config_manager.get_value("volume_backup", "image") or "restic/restic"
-
-            # Verify local restic binary for read-only operations
-            if not os.path.isfile("/usr/local/bin/restic") or not os.access("/usr/local/bin/restic", os.X_OK):
-                raise CustomException(500, "Restic binary not found at /usr/local/bin/restic", "Restic Unavailable")
 
             # Ensure cache dir exists
             os.makedirs(RESTIC_CACHE_PATH, exist_ok=True)
@@ -96,27 +91,7 @@ class BackupManager:
             raise CustomException()
 
     # ------------------------------------------------------------------
-    #  Local Restic execution — for list / delete / repo ops (fast, no Docker)
-    # ------------------------------------------------------------------
-    def _run_restic_local(self, command: List[str]) -> str:
-        full_cmd = ["/usr/local/bin/restic", "-r", self.repository_path] + command + self.RESTIC_LOCAL_ARGS
-        try:
-            result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=3600)
-            if result.returncode != 0:
-                err = result.stderr.strip() or f"exit code {result.returncode}"
-                raise CustomException(500, err, "Restic Error")
-            return result.stdout
-        except CustomException:
-            raise
-        except subprocess.TimeoutExpired:
-            raise CustomException(500, "Restic operation timed out after 3600s", "Restic Timeout")
-        except FileNotFoundError:
-            raise CustomException(500, "Restic binary not found", "Restic Unavailable")
-        except Exception as e:
-            raise CustomException(500, f"Restic command failed: {e}", "Restic Error")
-
-    # ------------------------------------------------------------------
-    #  Docker Restic execution — for backup / restore (needs volume mounts)
+    #  Docker Restic execution — all Restic operations use the same runtime
     # ------------------------------------------------------------------
     def _resolve_host_path(self, container_path: str) -> str:
         """Resolve a container-internal path to its host-level equivalent
@@ -245,12 +220,15 @@ class BackupManager:
 
         return extra_volumes, container_paths
 
+    def _run_restic_repo_command(self, command: List[str]) -> str:
+        return self._run_restic_container(command, {})
+
     # ------------------------------------------------------------------
-    #  Repository management (local — only touches repo path)
+    #  Repository management
     # ------------------------------------------------------------------
     def _check_repository(self) -> bool:
         try:
-            cfg = json.loads(self._run_restic_local(["cat", "config"]))
+            cfg = json.loads(self._run_restic_repo_command(["cat", "config"]))
             return bool(cfg.get("id") and cfg.get("version"))
         except CustomException:
             return False
@@ -261,7 +239,7 @@ class BackupManager:
         if self._check_repository():
             return
         try:
-            output = self._run_restic_local(["init"])
+            output = self._run_restic_repo_command(["init"])
             result = json.loads(output)
             if result.get("message_type") != "initialized":
                 logger.error(f"Unexpected init response: {result}")
@@ -270,7 +248,7 @@ class BackupManager:
             raise
 
     # ------------------------------------------------------------------
-    #  Read-only operations — local binary (fast, no Docker)
+    #  Repository operations — container Restic
     # ------------------------------------------------------------------
     def list_snapshots(self, app_id: Optional[str] = None) -> List[Dict[str, Any]]:
         try:
@@ -281,7 +259,7 @@ class BackupManager:
             if app_id:
                 command.extend(["--tag", app_id])
 
-            output = self._run_restic_local(command)
+            output = self._run_restic_repo_command(command)
             return json.loads(output) if output.strip() else []
         except (json.JSONDecodeError, KeyError):
             raise CustomException(500, "Failed to parse snapshot list", "Parse Error")
@@ -295,7 +273,7 @@ class BackupManager:
             if not self._check_repository():
                 raise CustomException(400, "Repository not initialized", "Repository Error")
 
-            output = self._run_restic_local(["forget", snapshot_id])
+            output = self._run_restic_repo_command(["forget", snapshot_id])
             if output.strip():
                 raise CustomException(400, f"Delete failed: {output}", f"Snapshot: {snapshot_id}")
         except CustomException:

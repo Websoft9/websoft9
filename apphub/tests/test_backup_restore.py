@@ -166,3 +166,33 @@ def test_build_restic_volume_mounts_resolves_host_mountpoints(monkeypatch):
         '/host-volumes/wordpress_demo/_data': {'bind': '/wordpress_demo', 'mode': 'rw'},
         '/host-volumes/wordpress_demo_db/_data': {'bind': '/wordpress_demo_db', 'mode': 'rw'},
     }
+
+
+def test_repo_operations_use_restic_container_runner(monkeypatch):
+    manager = _build_manager()
+    commands = []
+
+    def fake_run_restic_container(command, extra_volumes):
+        commands.append((command, extra_volumes))
+        if command == ['cat', 'config']:
+            return '{"id":"repo-id","version":2}'
+        if command == ['snapshots', '--tag', 'wordpress_demo']:
+            return '[{"id":"snap-1","short_id":"snap-1"}]'
+        if command == ['forget', 'snap-1']:
+            return ''
+        raise AssertionError(f'unexpected command: {command}')
+
+    monkeypatch.setattr(manager, '_run_restic_container', fake_run_restic_container)
+
+    assert manager._check_repository() is True
+    snapshots = manager.list_snapshots('wordpress_demo')
+    manager.delete_snapshot('snap-1')
+
+    assert snapshots == [{"id": "snap-1", "short_id": "snap-1"}]
+    assert commands == [
+        (['cat', 'config'], {}),
+        (['cat', 'config'], {}),
+        (['snapshots', '--tag', 'wordpress_demo'], {}),
+        (['cat', 'config'], {}),
+        (['forget', 'snap-1'], {}),
+    ]
