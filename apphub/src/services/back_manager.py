@@ -154,14 +154,16 @@ class BackupManager:
                 remove=True,
                 detach=False,
                 stdout=True,
-                stderr=False,
+                stderr=True,
             )
             output = result.decode("utf-8") if isinstance(result, bytes) else str(result)
             return output
         except docker.errors.ContainerError as e:
             stderr_output = e.stderr.decode("utf-8") if e.stderr else str(e)
             msg = "Unknown error"
-            # Try to extract a meaningful message from the Restic JSON error
+            # Try to extract a meaningful message from the Restic JSON error.
+            # Restic may output JSON errors to stderr; parse line by line in
+            # case stdout and stderr are interleaved.
             for line in stderr_output.strip().split("\n"):
                 if not line.strip():
                     continue
