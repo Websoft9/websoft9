@@ -171,16 +171,10 @@ class ComposeAppManager:
         eid = _get_endpoint_id(portainer, endpoint_id)
         _require_compose_app(portainer, app_id, eid)
         stack = _require_stack(portainer, app_id, eid)
-        stack_status = stack.get("Status", 0)
-        # Inactive stacks have no running containers — start_container would
-        # iterate over an empty list and silently no-op.  Restore via up_stack.
-        if stack_status == 2:
-            stack_id = stack.get("Id")
-            if stack_id is None:
-                raise CustomException(404, "Not Found", f"Portainer stack for '{app_id}' has no Id")
-            portainer.up_stack(stack_id, eid)
-            return
-        portainer.start_stack(app_id, eid)
+        stack_id = stack.get("Id")
+        if stack_id is None:
+            raise CustomException(404, "Not Found", f"Portainer stack for '{app_id}' has no Id")
+        portainer.up_stack(stack_id, eid)
 
     def stop_compose_app(self, app_id: str, endpoint_id: int | None = None) -> None:
         portainer = PortainerManager()
@@ -194,7 +188,12 @@ class ComposeAppManager:
         gitea = GiteaManager()
         eid = _get_endpoint_id(portainer, endpoint_id)
         _require_compose_app(portainer, app_id, eid)
-        portainer.restart_stack(app_id, eid)
+        stack = _require_stack(portainer, app_id, eid)
+        stack_id = stack.get("Id")
+        if stack_id is None:
+            raise CustomException(404, "Not Found", f"Portainer stack for '{app_id}' has no Id")
+        portainer.stop_stack(app_id, eid)
+        portainer.up_stack(stack_id, eid)
 
     # ── Redeploy (same content, from Gitea) ────────────────────────────────────
 

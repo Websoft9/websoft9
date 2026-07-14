@@ -1966,8 +1966,9 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not restart it,you can redeploy it"
             )
-        # restart stack
-        portainerManager.restart_stack(app_id,endpointId)
+        # restart uses stop + up_stack so workspace files are regenerated
+        portainerManager.stop_stack(app_id,endpointId)
+        portainerManager.up_stack(stack_info.get("Id"), endpointId)
         logger.access(f"Restarted app: [{app_id}]")
         
     def get_proxys_by_app(self,app_id:str,endpointId:int = None):
