@@ -723,6 +723,69 @@ _legacy_finalize_product_state() {
 }
 
 # Main legacy migration flow.
+_legacy_restart_stacks() {
+  local console_port="$1"
+  local max_wait=120
+  local waited=0
+  local apphub_url="http://127.0.0.1:5000"
+
+  log_info "Waiting for AppHub API to become available (up to ${max_wait}s)..."
+  while [ "$waited" -lt "$max_wait" ]; do
+    if curl -s --max-time 3 "${apphub_url}/api/apps" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+
+  if [ "$waited" -ge "$max_wait" ]; then
+    log_warn "AppHub API did not become available within ${max_wait}s — skipping stack restart."
+    return 0
+  fi
+
+  log_info "Fetching list of migrated application stacks..."
+  local apps_json
+  apps_json="$(curl -s --max-time 10 "${apphub_url}/api/apps")" || {
+    log_warn "Failed to fetch app list — skipping stack restart"
+    return 0
+  }
+
+  local app_ids
+  app_ids="$(echo "$apps_json" | python3 -c "
+import sys,json
+apps=json.load(sys.stdin)
+for a in apps:
+    sid = a.get('app_id','')
+    if sid:
+        print(sid)
+" 2>/dev/null)" || true
+
+  if [ -z "$app_ids" ]; then
+    log_info "No application stacks found — nothing to restart"
+    return 0
+  fi
+
+  local restarted=0
+  for app_id in $app_ids; do
+    log_info "Restarting migrated stack: ${app_id}"
+    # Step 1: uninstall with purge_data=false → down_stack (sets Inactive)
+    if curl -s --max-time 30 -X DELETE "${apphub_url}/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
+      sleep 3
+      # Step 2: redeploy with pullImage=false → detects Inactive → up_stack (restores Active)
+      if curl -s --max-time 120 -X POST "${apphub_url}/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
+        log_info "  ${app_id} restarted successfully"
+        restarted=$((restarted + 1))
+      else
+        log_warn "  ${app_id} redeploy failed — you may need to restart it manually from the console"
+      fi
+    else
+      log_warn "  ${app_id} uninstall (keep data) failed — skipping"
+    fi
+  done
+
+  log_info "Stack restart phase completed (${restarted} stacks restarted)"
+}
+
 run_upgrade_legacy() {
   local console_port="$1"
   local install_path="$2"
@@ -816,6 +879,13 @@ run_upgrade_legacy() {
     log_warn "You can stop the modern container and restart the legacy systemd units or containers for a manual rollback"
     die "$EXIT_VALIDATE" "Migration failed during post-cutover validation"
   fi
+
+  # Stage 7b: restart all migrated application stacks so that container
+  # resources are re-initialised from the compose definition.  This fixes
+  # OCI mount errors that occur when containers created on the legacy host
+  # are started in the new runtime without a full stack-level restart.
+  log_step "Restarting migrated application stacks to re-initialise container resources"
+  _legacy_restart_stacks "$console_port"
 
   # Stage 8b: remove legacy containers, volumes, and control-plane artifacts.
   # On successful migration, fully retire Cockpit/systemd-based legacy runtime.
