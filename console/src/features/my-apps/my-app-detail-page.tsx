@@ -1615,6 +1615,14 @@ export function MyAppDetailPage() {
                                                         <div className="myapps-php-runtime-card myapps-volume-runtime-card">
                                                             <div className="myapps-backup-table-shell">
                                                                 <div className="myapps-table-wrap myapps-table-wrap-overlay">
+                                                                    {volumeBackupLoading && volumeBackups.length > 0 ? (
+                                                                        <div className="myapps-table-overlay-loading" aria-live="polite">
+                                                                            <div className="myapps-table-overlay-loading-card">
+                                                                                <CircularProgress size={18} />
+                                                                                <span>{t('myAppsDetailPage.tabs.volumes.backups.refreshing')}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : null}
                                                                     <table className="myapps-detail-table myapps-backup-detail-table" role="table">
                                                                         <thead>
                                                                             <tr>
@@ -2107,8 +2115,8 @@ export function MyAppDetailPage() {
                 darkMode={isDarkMode}
                 sx={[contentScopedDialogPlacementSx, { zIndex: 1505, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
                 paperSx={{
-                    width: { xs: 'min(100%, 780px)', md: 'min(780px, calc(100% - 20px))' },
-                    maxWidth: '780px',
+                    width: { xs: 'min(100%, 900px)', md: 'min(900px, calc(100% - 20px))' },
+                    maxWidth: '900px',
                     borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
@@ -2118,18 +2126,36 @@ export function MyAppDetailPage() {
                 <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>{t('myAppsDetailPage.tabs.volumes.backups.create')}</Typography>
                 </Box>
-                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}`, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
                     <Typography sx={{ m: 0, mb: 1.5, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.createBody')}</Typography>
-                    <Box sx={{ mb: 1.5, px: 1.5, py: 1.25, border: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: dialogPalette.text, mb: 0.75 }}>{t('myAppsDetailPage.tabs.volumes.backups.tipsTitle')}</Typography>
-                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: dialogPalette.subtleText, fontSize: 13, lineHeight: 1.7 }}>
-                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.allVolumes')}</li>
-                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.duration')}</li>
-                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.accessible')}</li>
-                        </Box>
-                    </Box>
-                    <div className="myapps-table-wrap">
-                        <table className="myapps-detail-table" role="table">
+                    <style>{`
+                        .myapps-create-backup-table-wrap {
+                            margin-bottom: 16px;
+                            border: 1px solid ${dialogPalette.divider};
+                        }
+                        .myapps-create-backup-table-wrap table {
+                            width: 100%;
+                            border-collapse: collapse;
+                        }
+                        .myapps-create-backup-table-wrap th,
+                        .myapps-create-backup-table-wrap td {
+                            padding: 10px 14px;
+                            border: 1px solid ${dialogPalette.divider};
+                            text-align: left;
+                            vertical-align: middle;
+                            font-size: 14px;
+                        }
+                        .myapps-create-backup-table-wrap th {
+                            font-weight: 700;
+                            color: ${dialogPalette.text};
+                            background: ${dialogPalette.panelSoft};
+                        }
+                        .myapps-create-backup-table-wrap td {
+                            color: ${dialogPalette.subtleText};
+                        }
+                    `}</style>
+                    <div className="myapps-create-backup-table-wrap">
+                        <table role="table">
                             <thead>
                                 <tr>
                                     <th>{t('myAppsDetailPage.tabs.volumes.columns.name')}</th>
@@ -2148,6 +2174,14 @@ export function MyAppDetailPage() {
                             </tbody>
                         </table>
                     </div>
+                    <Box sx={{ px: 1.5, py: 1.25, border: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: dialogPalette.text, mb: 0.75 }}>{t('myAppsDetailPage.tabs.volumes.backups.tipsTitle')}</Typography>
+                        <Box component="ul" sx={{ m: 0, pl: 2.25, color: dialogPalette.subtleText, fontSize: 13, lineHeight: 1.7 }}>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.allVolumes')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.duration')}</li>
+                            <li>{t('myAppsDetailPage.tabs.volumes.backups.createTips.accessible')}</li>
+                        </Box>
+                    </Box>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25 }}>
                     <Button onClick={() => setCreateBackupDialogOpen(false)} sx={dialogCancelButtonSx}>{t('myAppsDetailPage.dialogs.close')}</Button>
@@ -2167,8 +2201,8 @@ export function MyAppDetailPage() {
                 darkMode={isDarkMode}
                 sx={[contentScopedDialogPlacementSx, { zIndex: 1506, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
                 paperSx={{
-                    width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
-                    maxWidth: '560px',
+                    width: { xs: 'min(100%, 900px)', md: 'min(900px, calc(100% - 20px))' },
+                    maxWidth: '900px',
                     borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,
@@ -2178,16 +2212,16 @@ export function MyAppDetailPage() {
                 <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${dialogPalette.divider}`, backgroundColor: dialogPalette.panelSoft }}>
                     <Typography sx={{ fontSize: 16, fontWeight: 700, color: dialogPalette.text }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteTitle')}</Typography>
                 </Box>
-                <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${dialogPalette.divider}` }}>
-                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteBody')}</Typography>
+                <Box sx={{ px: 2.25, py: 2.5, borderBottom: `1px solid ${dialogPalette.divider}` }}>
+                    <Typography sx={{ m: 0, mb: 2, fontSize: 14, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteBody')}</Typography>
                     {deleteBackupTarget ? (
-                        <Box sx={{ mt: 1.5, display: 'grid', gap: 0.75, fontSize: 13, color: dialogPalette.subtleText }}>
+                        <Box sx={{ mt: 2, display: 'grid', gap: 1.5, fontSize: 13, color: dialogPalette.subtleText }}>
                             <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.id')}: {deleteBackupTarget.id}</Typography>
                             <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.created')}: {deleteBackupTarget.time}</Typography>
                             <Typography sx={{ fontSize: 13, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.columns.size')}: {deleteBackupTarget.size}</Typography>
                         </Box>
                     ) : null}
-                    <Box sx={{ mt: 1.75, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                    <Box sx={{ mt: 2.5, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                         <Checkbox checked={deleteBackupConfirmed} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDeleteBackupConfirmed(event.target.checked)} sx={{ p: 0.25, color: dialogPalette.subtleText }} />
                         <Typography sx={{ fontSize: 13, lineHeight: 1.7, color: dialogPalette.subtleText }}>{t('myAppsDetailPage.tabs.volumes.backups.deleteConfirm')}</Typography>
                     </Box>
@@ -2210,8 +2244,8 @@ export function MyAppDetailPage() {
                 darkMode={isDarkMode}
                 sx={[contentScopedDialogPlacementSx, { zIndex: 1506, '& .MuiBackdrop-root': { backgroundColor: dialogPalette.overlay } }]}
                 paperSx={{
-                    width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
-                    maxWidth: '560px',
+                    width: { xs: 'min(100%, 900px)', md: 'min(900px, calc(100% - 20px))' },
+                    maxWidth: '900px',
                     borderRadius: 0,
                     backgroundColor: dialogPalette.panel,
                     color: dialogPalette.text,

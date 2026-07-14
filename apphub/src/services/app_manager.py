@@ -119,6 +119,27 @@ class AppManger:
         except Exception:
             return {}
 
+    def _read_app_name_from_gitea_env(self, app_id: str) -> str | None:
+        """Fallback: read W9_APP_NAME from the .env file in the Gitea repo.
+        
+        When an app-store app becomes Inactive, container ENV is unavailable
+        and the compose-metadata.json may not exist.  The .env file stored in
+        the Gitea repo contains the original W9_APP_NAME and can be used to
+        determine app_official.
+        """
+        try:
+            gitea = GiteaManager()
+            env_content = gitea.get_file_raw_from_repo(app_id, ".env")
+            if not env_content:
+                return None
+            for line in env_content.split("\n"):
+                line = line.strip()
+                if line.startswith("W9_APP_NAME="):
+                    return line.split("=", 1)[1].strip()
+        except Exception:
+            return None
+        return None
+
     def _enrich_proxy_hosts(self, proxy_hosts: list[dict] | None, w9_url_replace: str | bool = False, w9_url: str | None = None) -> list[dict]:
         enriched_hosts: list[dict] = []
         for proxy_host in proxy_hosts or []:
@@ -836,6 +857,11 @@ class AppManger:
                             app_env_format, app_name, app_dist, app_version, w9_url, w9_url_replace = self._parse_app_env(app_env)
                             domain_names = self._enrich_proxy_hosts(domain_names, w9_url_replace, w9_url)
 
+                    # Fallback for Inactive apps: read W9_APP_NAME from Gitea .env
+                    # (container ENV is unavailable when containers are stopped)
+                    if not app_name and gitConfig:
+                        app_name = self._read_app_name_from_gitea_env(stack_name)
+
                     is_php_app, is_monitor_app = self._get_capability_flags(app_name)
 
                     # Compose apps are deployed via the compose editor (have
@@ -1095,6 +1121,10 @@ class AppManger:
                 metadata_name = compose_metadata.get("app_name")
                 if isinstance(metadata_name, str) and metadata_name.strip():
                     app_name = metadata_name.strip()
+                # Fallback: read W9_APP_NAME from Gitea .env when metadata is missing
+                # (app-store apps may not have compose-metadata.json)
+                if not app_name:
+                    app_name = self._read_app_name_from_gitea_env(app_id)
                 metadata_version = compose_metadata.get("version")
                 inactive_app_version = str(metadata_version or "").strip()
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
@@ -1879,7 +1909,8 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        portainerManager.up_stack(stack_id, endpointId)
+        # start containers one by one (keep Portainer stack Active)
+        portainerManager.start_stack(app_id, endpointId)
         logger.access(f"Started app: [{app_id}]")
 
     def stop_app(self,app_id:str,endpointId:int = None):
@@ -1922,7 +1953,7 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not stop it,you can redeploy it"
             )
-        # stop stack
+        # stop containers one by one (keep Portainer stack Active)
         portainerManager.stop_stack(app_id,endpointId)
         logger.access(f"Stopped app: [{app_id}]")
 
@@ -1966,9 +1997,8 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} is inactive, can not restart it,you can redeploy it"
             )
-        # restart uses stop + up_stack so workspace files are regenerated
-        portainerManager.stop_stack(app_id,endpointId)
-        portainerManager.up_stack(stack_info.get("Id"), endpointId)
+        # restart containers one by one (keep Portainer stack Active)
+        portainerManager.restart_stack(app_id, endpointId)
         logger.access(f"Restarted app: [{app_id}]")
         
     def get_proxys_by_app(self,app_id:str,endpointId:int = None):

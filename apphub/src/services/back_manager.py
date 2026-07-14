@@ -387,16 +387,12 @@ class BackupManager:
                     pass
 
             # Start containers after restore.
-            # Use Portainer stack-level start (up_stack) so that workspace
-            # files (e.g. src/php_extra.ini) are regenerated before the
-            # containers start.  Per-container start_stack skips this step
-            # and fails when those files are missing.
+            # Use container-level start so we don't change the Portainer
+            # stack status (stop_stack also operates at container level).
             if endpoint_id:
                 try:
-                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
-                    if stack_info and stack_info.get("Id"):
-                        portainer.up_stack(stack_info["Id"], endpoint_id)
-                        logger.access(f"Started containers for app {app_id} after restore")
+                    portainer.start_stack(app_id, endpoint_id)
+                    logger.access(f"Started containers for app {app_id} after restore")
                 except Exception as exc:
                     logger.warning(f"Failed to start containers for app {app_id}: {exc}")
 

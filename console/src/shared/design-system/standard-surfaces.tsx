@@ -1,6 +1,6 @@
 import { Alert, Box, Card, CardContent, CircularProgress, Dialog, Snackbar, Typography } from '@mui/material'
 import type { AlertColor, DialogProps, SnackbarCloseReason, SxProps, Theme } from '@mui/material'
-import type { ReactNode, SyntheticEvent } from 'react'
+import { type ReactNode, type SyntheticEvent, useEffect, useState } from 'react'
 
 import { getSurfacePalette } from './surface-theme'
 
@@ -226,6 +226,22 @@ export function SurfaceNoticeAlert({ severity, title, detail, action, darkMode =
 
 export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect, darkMode = false }: SurfaceFeedbackToastProps) {
     const palette = getSurfacePalette(darkMode)
+    const [visibleMessage, setVisibleMessage] = useState(message)
+    const [visibleSeverity, setVisibleSeverity] = useState(severity)
+
+    // Keep the last non-empty message and its severity visible during the exit
+    // animation to prevent a blank/miscolored flash when feedback is cleared
+    useEffect(() => {
+        if (message) {
+            setVisibleMessage(message)
+            setVisibleSeverity(severity)
+        }
+    }, [message, severity])
+
+    // When the snackbar closes and the exit animation finishes, clear preserved state
+    const handleExited = () => {
+        setVisibleMessage('')
+    }
 
     return (
         <Snackbar
@@ -234,6 +250,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
             onClose={onClose}
             open={open}
             resumeHideDuration={2500}
+            slotProps={{ transition: { onExited: handleExited } }}
             anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             sx={
                 scope === 'content' && scopeRect
@@ -265,7 +282,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
         >
             <Alert
                 onClose={onClose}
-                severity={severity}
+                severity={visibleSeverity}
                 variant="filled"
                 sx={{
                     width: 'auto',
@@ -288,7 +305,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
                     },
                 }}
             >
-                {message}
+                {visibleMessage}
             </Alert>
         </Snackbar>
     )
