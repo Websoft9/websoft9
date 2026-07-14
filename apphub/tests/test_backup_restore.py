@@ -75,28 +75,7 @@ def _build_manager():
     return manager
 
 
-def test_restore_validation_uses_up_stack_for_inactive_stack(monkeypatch):
-    manager = _build_manager()
-    portainer = FakePortainer(
-        stack_status=2,
-        container_sequences=[[
-            {"Names": ["/wordpress_demo-init"], "State": "exited"},
-            {"Names": ["/wordpress_demo"], "State": "running"},
-        ]],
-    )
-
-    monkeypatch.setattr(back_manager_module.time, 'sleep', lambda _: None)
-
-    manager._ensure_restored_app_running(portainer, 'wordpress_demo', 1, timeout_seconds=0, poll_interval=0)
-    stack_info = portainer.get_stack_by_name('wordpress_demo', 1)
-    if stack_info.get('Status') == 2:
-        portainer.up_stack(stack_info['Id'], 1)
-
-    assert portainer.up_calls == [(9, 1)]
-    assert portainer.start_calls == []
-
-
-def test_restore_start_uses_start_stack_for_active_stack(monkeypatch):
+def test_restore_always_uses_stop_then_start_stack(monkeypatch):
     manager = _build_manager()
     portainer = FakePortainer(
         stack_status=1,
@@ -108,34 +87,6 @@ def test_restore_start_uses_start_stack_for_active_stack(monkeypatch):
     monkeypatch.setattr(manager, '_check_repository', lambda: True)
     monkeypatch.setattr(manager, 'list_snapshots', lambda app_id: [{"id": "snap-1", "short_id": "snap-1"}])
     monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
-    monkeypatch.setattr(manager, '_ensure_restored_app_running', lambda *args, **kwargs: None)
-    monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
-        get_app_by_id=lambda app_id: types.SimpleNamespace(
-            endpointId=1,
-            volumes=[{"Mountpoint": "/var/lib/docker/volumes/wordpress_demo/_data", "Name": "wordpress_demo"}],
-        )
-    ))
-    monkeypatch.setattr(back_manager_module, 'PortainerManager', lambda: portainer)
-    monkeypatch.setattr(manager, '_resolve_host_path', lambda path: path)
-
-    manager.restore_backup('wordpress_demo', 'snap-1')
-
-    assert portainer.start_calls == [('wordpress_demo', 1)]
-    assert portainer.up_calls == []
-
-
-def test_restore_uses_pre_stop_stack_state_for_active_stack(monkeypatch):
-    manager = _build_manager()
-    portainer = FakePortainer(
-        stack_status=1,
-        stack_status_sequence=[1],
-        container_sequences=[[{"Names": ["/wordpress_demo"], "State": "running"}]],
-    )
-
-    monkeypatch.setattr(manager, '_check_repository', lambda: True)
-    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id: [{"id": "snap-1", "short_id": "snap-1"}])
-    monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
-    monkeypatch.setattr(manager, '_ensure_restored_app_running', lambda *args, **kwargs: None)
     monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
         get_app_by_id=lambda app_id: types.SimpleNamespace(
             endpointId=1,
