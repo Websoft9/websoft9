@@ -13,6 +13,7 @@ portainer_manager_module = importlib.util.module_from_spec(module_spec)
 assert module_spec and module_spec.loader
 module_spec.loader.exec_module(portainer_manager_module)
 PortainerManager = portainer_manager_module.PortainerManager
+extract_portainer_error_message = portainer_manager_module._extract_portainer_error_message
 
 
 class FakeResponse:
@@ -33,6 +34,18 @@ class FakePortainerApi:
     def create_stack_standlone_repository(self, stack_name, endpoint_id, repository_url, user_name, user_password):
         self.calls.append((stack_name, endpoint_id, repository_url, user_name, user_password))
         return self.responses.pop(0)
+
+
+def test_extract_portainer_error_message_prefers_message_when_details_missing():
+    payload = '{"message":"container cannot be started twice"}'
+
+    assert extract_portainer_error_message(payload) == 'container cannot be started twice'
+
+
+def test_extract_portainer_error_message_keeps_plain_text_when_not_json():
+    payload = 'driver failed programming external connectivity'
+
+    assert extract_portainer_error_message(payload) == payload
 
 
 def _build_manager(fake_api):

@@ -9,6 +9,24 @@ from src.external.portainer_api import PortainerAPI
 from src.core.logger import logger
 
 
+def _extract_portainer_error_message(response_text: str) -> str:
+    message = response_text or ""
+    if not message:
+        return "Portainer returned an empty error response"
+    try:
+        response_details = json.loads(message)
+    except json.JSONDecodeError:
+        return message
+    if isinstance(response_details, dict):
+        return (
+            response_details.get('details')
+            or response_details.get('message')
+            or response_details.get('err')
+            or message
+        )
+    return message
+
+
 class PortainerManager:
     """
     Portainer Manager
@@ -136,13 +154,7 @@ class PortainerManager:
             return response.json()
 
         raw_message = response.text
-        message = raw_message
-        if message:
-            try:
-                response_details = json.loads(message)
-                message = response_details.get('details', 'unknown error')
-            except json.JSONDecodeError:
-                pass
+        message = _extract_portainer_error_message(raw_message)
 
         if message and " is a directory" in message:
             workdir = self._extract_compose_workdir(message)
@@ -160,13 +172,7 @@ class PortainerManager:
                 if retry_response.status_code == 200:
                     return retry_response.json()
                 raw_message = retry_response.text
-                message = raw_message
-                if message:
-                    try:
-                        response_details = json.loads(message)
-                        message = response_details.get('details', 'unknown error')
-                    except json.JSONDecodeError:
-                        pass
+                message = _extract_portainer_error_message(raw_message)
                 response = retry_response
 
         logger.error(f"Create stack:{stack_name} from repository:{repositoryURL} error: {response.status_code}:{raw_message}")
@@ -454,13 +460,7 @@ class PortainerManager:
                 if stop_response.status_code in {304, 404}:
                     continue
                 elif stop_response.status_code != 204:
-                    message = stop_response.text
-                    if message:
-                        try:
-                            response_details = json.loads(stop_response.text)
-                            message = response_details.get('details', 'unknown error')
-                        except json.JSONDecodeError:
-                            pass 
+                    message = _extract_portainer_error_message(stop_response.text)
                     logger.error(f"Stop container:{container_id} error: {stop_response.status_code}:{message}")
                     raise CustomException(
                         status_code=400,
@@ -488,13 +488,7 @@ class PortainerManager:
                 if start_response.status_code in {304, 404}:
                     continue
                 elif start_response.status_code != 204:
-                    message = start_response.text
-                    if message:
-                        try:
-                            response_details = json.loads(start_response.text)
-                            message = response_details.get('details', 'unknown error')
-                        except json.JSONDecodeError:
-                            pass 
+                    message = _extract_portainer_error_message(start_response.text)
                     logger.error(f"Start container:{container_id} error: {start_response.status_code}:{message}")
                     raise CustomException(
                         status_code=400,
@@ -520,13 +514,7 @@ class PortainerManager:
                 container_id = container.get("Id")
                 restart_response=self.portainer.restart_container(endpoint_id,container_id)
                 if restart_response.status_code != 204:
-                    message = restart_response.text
-                    if message:
-                        try:
-                            response_details = json.loads(restart_response.text)
-                            message = response_details.get('details', 'unknown error')
-                        except json.JSONDecodeError:
-                            pass 
+                    message = _extract_portainer_error_message(restart_response.text)
                     logger.error(f"Restart container:{container_id} error: {restart_response.status_code}:{message}")
                     raise CustomException(
                         status_code=400,
