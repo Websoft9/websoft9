@@ -1872,22 +1872,14 @@ class AppManger:
                 message="Invalid Request",
                 details=f"{app_id} Not Found"
             )
-        # validate the stack is inactive — restore with up_stack instead of failing
-        stack_status = stack_info.get("Status",None)
-        if stack_status == 2:
-            logger.access(f"Inactive app [{app_id}] will be restored via start")
-            stack_id = stack_info.get("Id")
-            if stack_id is None:
-                raise CustomException(
-                    status_code=400,
-                    message="Invalid Request",
-                    details=f"{app_id} Not Found"
-                )
-            portainerManager.up_stack(stack_id, endpointId)
-            logger.access(f"Started (restored) app: [{app_id}]")
-            return
-        # start stack
-        portainerManager.start_stack(app_id,endpointId)
+        stack_id = stack_info.get("Id")
+        if stack_id is None:
+            raise CustomException(
+                status_code=400,
+                message="Invalid Request",
+                details=f"{app_id} Not Found"
+            )
+        portainerManager.up_stack(stack_id, endpointId)
         logger.access(f"Started app: [{app_id}]")
 
     def stop_app(self,app_id:str,endpointId:int = None):

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import subprocess
 import time
 import docker
 import requests
@@ -368,11 +369,34 @@ class BackupManager:
 
             output = self._run_restic_container(["restore", snapshot_id, "--target", "/"], extra_volumes)
 
-            # Start containers after restore
+            # Fix volume permissions after Restic restore.
+            # Restic runs as root inside its container, so restored files
+            # may end up root-owned on the host.  Applications running as
+            # non-root (e.g. www-data, mysql) then cannot read their own
+            # files, leading to 403 / permission-denied errors.
+            for host_path in extra_volumes:
+                try:
+                    subprocess.run(
+                        ["chown", "-R", "33:33", host_path],
+                        check=False,
+                        timeout=30,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+
+            # Start containers after restore.
+            # Use Portainer stack-level start (up_stack) so that workspace
+            # files (e.g. src/php_extra.ini) are regenerated before the
+            # containers start.  Per-container start_stack skips this step
+            # and fails when those files are missing.
             if endpoint_id:
                 try:
-                    portainer.start_stack(app_id, endpoint_id)
-                    logger.access(f"Started containers for app {app_id} after restore")
+                    stack_info = portainer.get_stack_by_name(app_id, endpoint_id)
+                    if stack_info and stack_info.get("Id"):
+                        portainer.up_stack(stack_info["Id"], endpoint_id)
+                        logger.access(f"Started containers for app {app_id} after restore")
                 except Exception as exc:
                     logger.warning(f"Failed to start containers for app {app_id}: {exc}")
 

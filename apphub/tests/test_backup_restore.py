@@ -75,7 +75,7 @@ def _build_manager():
     return manager
 
 
-def test_restore_always_uses_stop_then_start_stack(monkeypatch):
+def test_restore_uses_up_stack_after_restore(monkeypatch):
     manager = _build_manager()
     portainer = FakePortainer(
         stack_status=1,
@@ -99,8 +99,8 @@ def test_restore_always_uses_stop_then_start_stack(monkeypatch):
     manager.restore_backup('wordpress_demo', 'snap-1')
 
     assert portainer.stop_calls == [('wordpress_demo', 1)]
-    assert portainer.start_calls == [('wordpress_demo', 1)]
-    assert portainer.up_calls == []
+    assert portainer.up_calls == [(9, 1)]
+    assert portainer.start_calls == []
 
 
 def test_restore_validation_rejects_only_exited_runtime_containers(monkeypatch):
