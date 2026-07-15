@@ -728,11 +728,11 @@ _legacy_restart_stacks() {
   local waited=0
 
   # Use docker exec + curl inside the container to call AppHub directly
-  # at 127.0.0.1:5000, bypassing the nginx gateway which may start later.
+  # at 127.0.0.1:8080 (uvicorn main API), bypassing the nginx gateway.
   log_info "Waiting for AppHub API to become available (up to ${max_wait}s)..."
   while [ "$waited" -lt "$max_wait" ]; do
     if container_running "$MODERN_CONTAINER_NAME" \
-       && docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 5 "http://127.0.0.1:5000/api/apps" >/dev/null 2>&1; then
+       && docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 5 "http://127.0.0.1:8080/api/apps" >/dev/null 2>&1; then
       break
     fi
     sleep 5
@@ -747,7 +747,7 @@ _legacy_restart_stacks() {
   log_info "Fetching list of migrated application stacks..."
   local app_ids
   app_ids="$(docker exec "$MODERN_CONTAINER_NAME" sh -c "
-curl -s --max-time 10 'http://127.0.0.1:5000/api/apps' | python3 -c \"
+curl -s --max-time 10 'http://127.0.0.1:8080/api/apps' | python3 -c \"
 import sys,json
 apps=json.load(sys.stdin)
 for a in apps:
@@ -767,11 +767,11 @@ for a in apps:
     log_info "Restarting migrated stack: ${app_id}"
     # Step 1: uninstall with purge_data=false → down_stack (sets Inactive)
     if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 30 -X DELETE \
-         "http://127.0.0.1:5000/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
+         "http://127.0.0.1:8080/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
       sleep 5
       # Step 2: redeploy with pullImage=false → detects Inactive → up_stack (restores Active)
       if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 120 -X POST \
-           "http://127.0.0.1:5000/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
+           "http://127.0.0.1:8080/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
         log_info "  ${app_id} restarted successfully"
         restarted=$((restarted + 1))
       else
