@@ -770,6 +770,73 @@ eid = portainer.get_local_endpoint_id()
 print(f"STACK RESTART CONTEXT: endpoint={eid}")
 sys.stdout.flush()
 
+
+def get_stack_snapshot(stack_id: int):
+  stacks_now = portainer.get_stacks(eid)
+  for candidate in stacks_now:
+    if candidate.get("Id") == stack_id:
+      return candidate
+  return None
+
+
+def get_stack_containers(stack_name: str):
+  response = portainer.portainer.get_containers_by_stackName(eid, stack_name)
+  if response.status_code != 200:
+    raise RuntimeError(
+      f"get_containers_by_stackName failed for {stack_name}: {response.status_code} {response.text}"
+    )
+  return response.json()
+
+
+def wait_for_inactive(stack_id: int, stack_name: str):
+  for attempt in range(1, 31):
+    stack_now = get_stack_snapshot(stack_id)
+    if stack_now is None:
+      raise RuntimeError(f"stack {stack_name} disappeared while waiting for inactive state")
+    stack_status = stack_now.get("Status")
+    containers = get_stack_containers(stack_name)
+    running = [
+      container.get("Names", [container.get("Id", "unknown")])[0]
+      for container in containers
+      if container.get("State") == "running"
+    ]
+    if stack_status == 2 and not running:
+      print(f"[{stack_name}] reached Inactive after {attempt}s")
+      sys.stdout.flush()
+      return
+    if attempt in {1, 5, 10, 20, 30}:
+      print(
+        f"[{stack_name}] waiting for Inactive: status={stack_status}, running={len(running)}"
+      )
+      sys.stdout.flush()
+    time.sleep(1)
+  raise RuntimeError(f"stack {stack_name} did not reach Inactive state in time")
+
+
+def wait_for_active(stack_id: int, stack_name: str):
+  for attempt in range(1, 61):
+    stack_now = get_stack_snapshot(stack_id)
+    if stack_now is None:
+      raise RuntimeError(f"stack {stack_name} disappeared while waiting for active state")
+    stack_status = stack_now.get("Status")
+    containers = get_stack_containers(stack_name)
+    running = [
+      container.get("Names", [container.get("Id", "unknown")])[0]
+      for container in containers
+      if container.get("State") == "running"
+    ]
+    if stack_status == 1 and running:
+      print(f"[{stack_name}] reached Active after {attempt}s with {len(running)} running containers")
+      sys.stdout.flush()
+      return
+    if attempt in {1, 5, 10, 20, 40, 60}:
+      print(
+        f"[{stack_name}] waiting for Active: status={stack_status}, running={len(running)}"
+      )
+      sys.stdout.flush()
+    time.sleep(1)
+  raise RuntimeError(f"stack {stack_name} did not reach Active state in time")
+
 stacks = []
 for attempt in range(1, 31):
     try:
@@ -802,11 +869,12 @@ for stack in stacks:
 
     matched += 1
 
-    print(f"[{name}] down_stack (stop + remove containers)...")
+    print(f"[{name}] down_stack (transition to Inactive)...")
     sys.stdout.flush()
     try:
         portainer.down_stack(sid, eid)
         print(f"[{name}] down_stack OK")
+        wait_for_inactive(sid, name)
     except Exception as exc:
         print(f"[{name}] down_stack FAILED: {exc}")
         traceback.print_exc()
@@ -814,11 +882,12 @@ for stack in stacks:
         failed += 1
         continue
 
-    print(f"[{name}] up_stack (recreate containers from compose)...")
+    print(f"[{name}] up_stack (restore from Inactive)...")
     sys.stdout.flush()
     try:
         portainer.up_stack(sid, eid)
         print(f"[{name}] up_stack OK")
+        wait_for_active(sid, name)
         restarted += 1
     except Exception as exc:
         print(f"[{name}] up_stack FAILED: {exc}")
