@@ -724,13 +724,29 @@ _legacy_finalize_product_state() {
 
 # Main legacy migration flow.
 _legacy_restart_stacks() {
-  local max_wait=120
+  local max_wait=300
   local waited=0
 
-  log_info "Waiting for Portainer to become ready (up to ${max_wait}s)..."
+  log_info "Waiting for Portainer to load stacks (up to ${max_wait}s)..."
   while [ "$waited" -lt "$max_wait" ]; do
-    if container_running "$MODERN_CONTAINER_NAME" \
-       && docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 5 "http://127.0.0.1:9000/api/stacks" >/dev/null 2>&1; then
+    if ! container_running "$MODERN_CONTAINER_NAME"; then
+      sleep 5
+      waited=$((waited + 5))
+      continue
+    fi
+    # Portainer API may return 200 before its database is fully loaded,
+    # so we must check that at least one non-platform stack appears.
+    local count
+    count="$(docker exec "$MODERN_CONTAINER_NAME" sh -c "
+curl -s --max-time 10 'http://127.0.0.1:9000/api/stacks' | python3 -c \"
+import sys,json
+stacks=json.load(sys.stdin)
+non_platform = [s for s in stacks if s.get('Name','') != 'websoft9']
+print(len(non_platform))
+\"
+" 2>/dev/null)" || count=0
+    if [ "${count:-0}" -gt 0 ]; then
+      log_info "Portainer ready — ${count} application stack(s) found"
       break
     fi
     sleep 5
@@ -738,7 +754,7 @@ _legacy_restart_stacks() {
   done
 
   if [ "$waited" -ge "$max_wait" ]; then
-    log_warn "Portainer API did not become available within ${max_wait}s — skipping stack restart."
+    log_warn "Portainer did not load stacks within ${max_wait}s — skipping stack restart."
     return 0
   fi
 
