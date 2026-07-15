@@ -751,11 +751,12 @@ _legacy_restart_stacks() {
   fi
 
   while IFS= read -r line; do
+    line="${line//$'\r'/}"
     [ -n "$line" ] && log_info "  $line"
   done < "$restart_pipe" &
   reader_pid=$!
 
-  docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" > "$restart_pipe" 2>&1 <<'PY'
+  docker exec -i "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" > "$restart_pipe" 2>&1 <<'PY'
 import sys, time, traceback
 sys.path.insert(0, "/websoft9/apphub")
 
@@ -844,9 +845,7 @@ PY
     return $restart_rc
   fi
 
-  if [ $restart_rc -eq 0 ]; then
-    log_step "Stack restart scan completed"
-  fi
+  log_done "Stack restart scan completed"
 
   return 0
 }
@@ -959,6 +958,6 @@ run_upgrade_legacy() {
   log_step "Removing legacy containers, volumes, and legacy control plane"
   _uninstall_legacy "purge" "0" "1" "1"
 
-  log_info "==== Legacy-to-modern migration completed successfully ===="
+  log_done "==== Legacy-to-modern migration completed successfully ===="
   print_runtime_summary migration "$install_path" "$console_port" "$backup_dir"
 }

@@ -73,6 +73,7 @@ log_info()  { echo "[Websoft9][$(_w9_ts)][INFO ] $*"; }
 log_warn()  { echo "[Websoft9][$(_w9_ts)][WARN ] $*" >&2; }
 log_error() { echo "[Websoft9][$(_w9_ts)][ERROR] $*" >&2; }
 log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
+log_done()  { echo "[Websoft9][$(_w9_ts)][DONE ] $*"; }
 
 _log_with_level() {
   local level="$1"
@@ -108,6 +109,7 @@ run_cmd_logged() {
   mkfifo "$stream_pipe" || return 1
 
   while IFS= read -r line; do
+    line="${line//$'\r'/}"
     [ -n "$line" ] && _log_with_level "$level" "  $line"
   done < "$stream_pipe" &
   reader_pid=$!
@@ -547,17 +549,18 @@ print_runtime_summary() {
   image_ref="$(docker inspect --format '{{.Config.Image}}' "$container_name" 2>/dev/null || true)"
   version_label="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$container_name" 2>/dev/null || true)"
 
-  log_info "Runtime summary:"
-  log_info "  Action: ${action}"
-  log_info "  Channel: ${W9_CHANNEL:-release}"
-  log_info "  Container: ${container_name}"
-  log_info "  Image: ${image_ref:-unknown}"
-  log_info "  Version: ${version_label:-unknown}"
-  log_info "  Console: http://<host>:${console_port}"
-  log_info "  Install path: ${install_path}"
-  log_info "  Data root: ${data_root}"
-  log_info "  Compose file: ${compose_file}"
-  [ -n "$backup_dir" ] && log_info "  Backup point: ${backup_dir}"
+  log_done "============================================================"
+  log_done "Websoft9 ${action} completed successfully"
+  log_done "Console: http://<host>:${console_port}"
+  log_done "Container: ${container_name}"
+  log_done "Image: ${image_ref:-unknown}"
+  log_done "Version: ${version_label:-unknown}"
+  log_done "Install path: ${install_path}"
+  log_done "Data root: ${data_root}"
+  log_done "Compose file: ${compose_file}"
+  [ -n "$backup_dir" ] && log_done "Backup point: ${backup_dir}"
+  log_done "Channel: ${W9_CHANNEL:-release}"
+  log_done "============================================================"
 }
 
 doctor_report() {

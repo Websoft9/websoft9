@@ -61,8 +61,8 @@ _uninstall_modern() {
 
 _remove_legacy_cockpit_packages() {
   if command_exists apt-get; then
-    run_cmd_logged INFO env DEBIAN_FRONTEND=noninteractive apt-get purge -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws || true
-    run_cmd_logged INFO env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
+    run_cmd_logged INFO env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Use-Pty=0 -o APT::Color=0 purge -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws || true
+    run_cmd_logged INFO env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Use-Pty=0 -o APT::Color=0 autoremove -y || true
     return 0
   fi
   if command_exists dnf; then
