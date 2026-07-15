@@ -742,56 +742,76 @@ _legacy_restart_stacks() {
     return 0
   fi
 
-  log_info "Restarting migrated stacks via AppHub Portainer integration..."
-  docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY'
-import sys, time
+  log_step "==== STACK RESTART: Scanning for stacks to re-initialise ===="
+  local restart_output
+  restart_output="$(docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY'
+import sys, time, traceback
 sys.path.insert(0, "/websoft9/apphub")
+
 from src.services.portainer_manager import PortainerManager
 
 portainer = PortainerManager()
 eid = portainer.get_local_endpoint_id()
 
-# Portainer may still be initialising its database after AppHub reports
-# healthy.  Retry with backoff until stacks appear.
 stacks = []
 for attempt in range(1, 31):
     try:
         stacks = portainer.get_stacks(eid)
         if stacks:
+            print(f"STEP [attempt={attempt}] Portainer ready: {len(stacks)} total stacks", flush=True)
             break
     except Exception:
         pass
+    if attempt % 6 == 1:
+        print(f"STEP [attempt={attempt}] Waiting for Portainer stacks to load...", flush=True)
     time.sleep(10)
 
 if not stacks:
-    print("[w9] Portainer stacks still empty after 5 min — skipping stack restart")
+    print("SKIP Portainer stacks still empty after 5 min", flush=True)
     sys.exit(0)
 
+print(f"STEP Found {len(stacks)} stack(s), excluding platform stack 'websoft9'", flush=True)
 restarted = 0
+failed = 0
+
 for stack in stacks:
     name = (stack.get("Name") or "").strip()
     sid = stack.get("Id")
     if not name or sid is None:
         continue
     if name == "websoft9":
+        print(f"STEP Skipping platform stack: websoft9", flush=True)
         continue
 
-    print(f"[w9] Restarting migrated stack: {name} (stack {sid})")
+    print(f"STEP [{name}] down_stack (stop + remove containers)...", flush=True)
     try:
         portainer.down_stack(sid, eid)
+        print(f"STEP [{name}] down_stack OK - stack now Inactive", flush=True)
+    except Exception as exc:
+        print(f"FAIL [{name}] down_stack error: {exc}", flush=True)
+        traceback.print_exc()
+        failed += 1
+        continue
+
+    print(f"STEP [{name}] up_stack (recreate containers from compose)...", flush=True)
+    try:
         portainer.up_stack(sid, eid)
-        print(f"[w9]   {name} restarted successfully")
+        print(f"STEP [{name}] up_stack OK - containers recreated, stack Active", flush=True)
         restarted += 1
     except Exception as exc:
-        print(f"[w9]   {name} failed: {exc}")
+        print(f"FAIL [{name}] up_stack error: {exc}", flush=True)
+        traceback.print_exc()
+        failed += 1
 
-print(f"[w9] Stack restart phase completed ({restarted} stacks restarted)")
+print(f"DONE Stack restart completed: {restarted} restarted, {failed} failed, {len(stacks)} total", flush=True)
 PY
-
+)"
   local rc=$?
+
+  echo "$restart_output"
+
   if [ $rc -ne 0 ]; then
-    log_warn "Stack restart script exited with code ${rc} — check container logs for details"
-    return 0
+    log_warn "Stack restart script exited with code ${rc}"
   fi
 }
 
