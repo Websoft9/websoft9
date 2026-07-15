@@ -727,12 +727,10 @@ _legacy_restart_stacks() {
   local max_wait=120
   local waited=0
 
-  # Use docker exec + curl inside the container to call AppHub directly
-  # at 127.0.0.1:8080 (uvicorn main API), bypassing the nginx gateway.
-  log_info "Waiting for AppHub API to become available (up to ${max_wait}s)..."
+  log_info "Waiting for Portainer to become ready (up to ${max_wait}s)..."
   while [ "$waited" -lt "$max_wait" ]; do
     if container_running "$MODERN_CONTAINER_NAME" \
-       && docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 5 "http://127.0.0.1:8080/api/apps" >/dev/null 2>&1; then
+       && docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 5 "http://127.0.0.1:9000/api/stacks" >/dev/null 2>&1; then
       break
     fi
     sleep 5
@@ -740,47 +738,54 @@ _legacy_restart_stacks() {
   done
 
   if [ "$waited" -ge "$max_wait" ]; then
-    log_warn "AppHub API did not become available within ${max_wait}s — skipping stack restart."
+    log_warn "Portainer API did not become available within ${max_wait}s — skipping stack restart."
     return 0
   fi
 
-  log_info "Fetching list of migrated application stacks..."
-  local app_ids
-  app_ids="$(docker exec "$MODERN_CONTAINER_NAME" sh -c "
-curl -s --max-time 10 'http://127.0.0.1:8080/api/apps' | python3 -c \"
+  log_info "Fetching Portainer stacks..."
+  local pairs
+  pairs="$(docker exec "$MODERN_CONTAINER_NAME" sh -c "
+curl -s --max-time 10 'http://127.0.0.1:9000/api/stacks' | python3 -c \"
 import sys,json
-apps=json.load(sys.stdin)
-for a in apps:
-    sid = a.get('app_id','')
-    if sid:
-        print(sid)
+stacks=json.load(sys.stdin)
+for s in stacks:
+    name = s.get('Name','')
+    sid = s.get('Id')
+    if name and sid is not None:
+        print(f'{name} {sid}')
 \"
 " 2>/dev/null)" || true
 
-  if [ -z "$app_ids" ]; then
-    log_info "No application stacks found — nothing to restart"
+  if [ -z "$pairs" ]; then
+    log_info "No Portainer stacks found — nothing to restart"
     return 0
   fi
 
   local restarted=0
-  for app_id in $app_ids; do
-    log_info "Restarting migrated stack: ${app_id}"
-    # Step 1: uninstall with purge_data=false → down_stack (sets Inactive)
-    if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 30 -X DELETE \
-         "http://127.0.0.1:8080/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
-      sleep 5
-      # Step 2: redeploy with pullImage=false → detects Inactive → up_stack (restores Active)
+  while IFS=' ' read -r app_id stack_id; do
+    [ -z "$app_id" ] && continue
+    [ -z "$stack_id" ] && continue
+    # Skip the platform stack itself (websoft9)
+    [ "$app_id" = "websoft9" ] && continue
+
+    log_info "Restarting migrated stack: ${app_id} (stack ${stack_id})"
+    # Stop → start via Portainer API (stack-level down+up re-initialises containers)
+    if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 30 -X POST \
+         "http://127.0.0.1:9000/api/stacks/${stack_id}/stop" >/dev/null 2>&1; then
+      sleep 3
       if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 120 -X POST \
-           "http://127.0.0.1:8080/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
+           "http://127.0.0.1:9000/api/stacks/${stack_id}/start" >/dev/null 2>&1; then
         log_info "  ${app_id} restarted successfully"
         restarted=$((restarted + 1))
       else
-        log_warn "  ${app_id} redeploy failed — you may need to restart it manually from the console"
+        log_warn "  ${app_id} start failed — you may need to restart it manually from the console"
       fi
     else
-      log_warn "  ${app_id} uninstall (keep data) failed — skipping"
+      log_warn "  ${app_id} stop failed — skipping"
     fi
-  done
+  done <<EOF
+$pairs
+EOF
 
   log_info "Stack restart phase completed (${restarted} stacks restarted)"
 }
