@@ -69,7 +69,7 @@ WORKDIR /websoft9
 # Keep system package installation BEFORE ARG declarations so that
 # changing WEBSOFT9_PRODUCT_VERSION does not invalidate
 # this expensive apt cache layer on every build.
-RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list 2>/dev/null || true; \
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list 2>/dev/null; \
     apt-get update && \
     apt-get install --no-install-recommends -y \
     bash \
@@ -175,7 +175,7 @@ RUN chmod 0644 /etc/cron.d/websoft9-appstore
 # Non-fatal: build continues even if remote assets are unavailable (runtime cron retries).
 RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
     WEBSOFT9_RUNTIME_ASSET_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" \
-    python3 /websoft9/script/platform-sync-runtime-assets.py || true
+    python3 /websoft9/script/platform-sync-runtime-assets.py
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \
     printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisorctl "$@"' > /usr/local/bin/supervisorctl && \
