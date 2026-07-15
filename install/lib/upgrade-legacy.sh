@@ -744,16 +744,28 @@ _legacy_restart_stacks() {
 
   log_info "Restarting migrated stacks via AppHub Portainer integration..."
   docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY'
-import sys
+import sys, time
 sys.path.insert(0, "/websoft9/apphub")
-
-# Use the same Portainer integration that AppHub uses so authentication
-# is handled automatically (API key / JWT token obtained from credentials).
 from src.services.portainer_manager import PortainerManager
 
 portainer = PortainerManager()
 eid = portainer.get_local_endpoint_id()
-stacks = portainer.get_stacks(eid)
+
+# Portainer may still be initialising its database after AppHub reports
+# healthy.  Retry with backoff until stacks appear.
+stacks = []
+for attempt in range(1, 31):
+    try:
+        stacks = portainer.get_stacks(eid)
+        if stacks:
+            break
+    except Exception:
+        pass
+    time.sleep(10)
+
+if not stacks:
+    print("[w9] Portainer stacks still empty after 5 min — skipping stack restart")
+    sys.exit(0)
 
 restarted = 0
 for stack in stacks:
