@@ -727,11 +727,17 @@ _legacy_restart_stacks() {
   local console_port="$1"
   local max_wait=120
   local waited=0
-  local base_url="http://127.0.0.1:${console_port}"
 
+  # Probe through the container-internal AppHub port (5000) so we don't
+  # depend on the nginx gateway being ready.  The host-side curl through
+  # port ${console_port} requires the gateway which starts later.
   log_info "Waiting for AppHub API to become available (up to ${max_wait}s)..."
   while [ "$waited" -lt "$max_wait" ]; do
-    if curl -s --max-time 3 "${base_url}/api/apps" >/dev/null 2>&1; then
+    if container_running "$MODERN_CONTAINER_NAME" \
+       && docker exec "$MODERN_CONTAINER_NAME" python3 -c "
+import urllib.request
+urllib.request.urlopen('http://127.0.0.1:5000/api/apps', timeout=5).read()
+" >/dev/null 2>&1; then
       break
     fi
     sleep 5
@@ -744,16 +750,11 @@ _legacy_restart_stacks() {
   fi
 
   log_info "Fetching list of migrated application stacks..."
-  local apps_json
-  apps_json="$(curl -s --max-time 10 "${base_url}/api/apps")" || {
-    log_warn "Failed to fetch app list — skipping stack restart"
-    return 0
-  }
-
   local app_ids
-  app_ids="$(echo "$apps_json" | python3 -c "
-import sys,json
-apps=json.load(sys.stdin)
+  app_ids="$(docker exec "$MODERN_CONTAINER_NAME" python3 -c "
+import urllib.request, json
+resp = urllib.request.urlopen('http://127.0.0.1:5000/api/apps', timeout=10)
+apps = json.loads(resp.read())
 for a in apps:
     sid = a.get('app_id','')
     if sid:
@@ -769,10 +770,18 @@ for a in apps:
   for app_id in $app_ids; do
     log_info "Restarting migrated stack: ${app_id}"
     # Step 1: uninstall with purge_data=false → down_stack (sets Inactive)
-    if curl -s --max-time 30 -X DELETE "${base_url}/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
+    if docker exec "$MODERN_CONTAINER_NAME" python3 -c "
+import urllib.request
+req = urllib.request.Request('http://127.0.0.1:5000/api/apps/${app_id}/uninstall?purge_data=false', method='DELETE')
+urllib.request.urlopen(req, timeout=30).read()
+" >/dev/null 2>&1; then
       sleep 5
       # Step 2: redeploy with pullImage=false → detects Inactive → up_stack (restores Active)
-      if curl -s --max-time 120 -X POST "${base_url}/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
+      if docker exec "$MODERN_CONTAINER_NAME" python3 -c "
+import urllib.request
+req = urllib.request.Request('http://127.0.0.1:5000/api/apps/${app_id}/redeploy?pullImage=false', method='POST')
+urllib.request.urlopen(req, timeout=120).read()
+" >/dev/null 2>&1; then
         log_info "  ${app_id} restarted successfully"
         restarted=$((restarted + 1))
       else
