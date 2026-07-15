@@ -35,6 +35,7 @@ type SetupWizardState = {
     enabled: boolean
     current_step: WizardStep
     app_slug: string | null
+    default_locale?: string | null
     installed_app_id: string | null
     completed: boolean
     tracking_id: string | null
@@ -304,7 +305,15 @@ export function SetupWizardPage() {
         setPageLoading(true)
         requestJson<SetupWizardState>('/api/setup-wizard/state', { method: 'GET' })
             .then(async (statePayload) => {
-                const appPayload = await requestJson<SetupWizardApp>(`/api/setup-wizard/app?locale=${encodeURIComponent(apiLocale)}`, { method: 'GET' })
+                // If the marketplace bootstrap specifies a default locale and the
+                // user hasn't explicitly switched languages, apply it immediately.
+                const bootstrapLocale = statePayload.default_locale
+                if (bootstrapLocale && normalizeSupportedLocale(bootstrapLocale) !== resolvedWizardLocale) {
+                    await i18n.changeLanguage(normalizeSupportedLocale(bootstrapLocale))
+                }
+                const effectiveLocale = normalizeSupportedLocale(i18n.language ?? 'en')
+                const effectiveApiLocale = resolveApiLocale(effectiveLocale)
+                const appPayload = await requestJson<SetupWizardApp>(`/api/setup-wizard/app?locale=${encodeURIComponent(effectiveApiLocale)}`, { method: 'GET' })
                 if (!active) {
                     return
                 }

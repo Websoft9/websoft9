@@ -57,11 +57,13 @@ class SetupWizardService:
     def get_state(self, session_token: str | None = None) -> dict[str, Any]:
         base_state = self._load_state()
         app_slug = self.get_app_slug()
+        bootstrap_meta = self._read_marketplace_app_metadata()
         if not self.should_use_wizard():
             return {
                 "enabled": False,
                 "current_step": "welcome",
                 "app_slug": app_slug,
+                "default_locale": None,
                 "installed_app_id": None,
                 "completed": False,
                 "tracking_id": None,
@@ -88,6 +90,7 @@ class SetupWizardService:
             "enabled": True,
             "current_step": current_step,
             "app_slug": app_slug,
+            "default_locale": bootstrap_meta.get("default_locale"),
             "installed_app_id": base_state.get("installed_app_id"),
             "completed": completed,
             "tracking_id": base_state.get("tracking_id"),
@@ -287,7 +290,10 @@ class SetupWizardService:
         return self.bootstrap.read()
 
     def _resolve_catalog_locales(self, locale: str | None) -> list[str]:
-        preferred_locale = "zh" if str(locale or "").strip().lower().startswith("zh") else "en"
+        # Use explicit locale if provided, otherwise fall back to the
+        # default_locale from marketplace bootstrap metadata.
+        locale_to_use = locale or self._read_marketplace_app_metadata().get("default_locale")
+        preferred_locale = "zh" if str(locale_to_use or "").strip().lower().startswith("zh") else "en"
         locales = [preferred_locale]
         for fallback_locale in ("en", "zh"):
             if fallback_locale not in locales:

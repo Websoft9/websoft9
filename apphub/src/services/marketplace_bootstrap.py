@@ -40,15 +40,20 @@ class MarketplaceBootstrapService:
         if not app_slug:
             return {}
 
-        return {
-            "app_slug": app_slug,
-        }
+        result: dict[str, Any] = {"app_slug": app_slug}
+        locale = str(payload.get("default_locale") or "").strip()
+        if locale:
+            result["default_locale"] = locale
+        return result
 
-    def write(self, app_slug: str) -> dict[str, str]:
-        payload = {
+    def write(self, app_slug: str, locale: str | None = None) -> dict[str, str]:
+        payload: dict[str, str] = {
             "app_slug": str(app_slug or "").strip().lower(),
         }
+        if locale and str(locale).strip():
+            payload["default_locale"] = str(locale).strip()
         if not payload["app_slug"]:
+            raise ValueError("app_slug cannot be empty")
             raise ValueError("app_slug cannot be empty")
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
         self.file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")

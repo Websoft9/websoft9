@@ -91,10 +91,11 @@ def setedition(edition_key):
 @cli.command(hidden=True)
 @click.option('--app-slug', required=True, help='Marketplace app slug')
 @click.option('--edition', type=str, help='Optional product edition key to apply together with marketplace bootstrap metadata')
-def setmarketplace(app_slug, edition):
+@click.option('--locale', type=str, help='Default locale for the setup wizard (e.g. zh-CN, en)')
+def setmarketplace(app_slug, edition, locale):
     """Set marketplace bootstrap metadata"""
     try:
-        payload = MarketplaceBootstrapService().write(app_slug=app_slug)
+        payload = MarketplaceBootstrapService().write(app_slug=app_slug, locale=locale)
         if edition:
             edition_state = write_product_edition(edition)
             payload['edition'] = {
