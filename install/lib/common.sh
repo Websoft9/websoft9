@@ -74,6 +74,17 @@ log_warn()  { echo "[Websoft9][$(_w9_ts)][WARN ] $*" >&2; }
 log_error() { echo "[Websoft9][$(_w9_ts)][ERROR] $*" >&2; }
 log_step()  { echo "[Websoft9][$(_w9_ts)][STEP ] $*"; }
 
+_log_with_level() {
+  local level="$1"
+  shift
+  case "$level" in
+    STEP) log_step "$*" ;;
+    WARN) log_warn "$*" ;;
+    ERROR) log_error "$*" ;;
+    *) log_info "$*" ;;
+  esac
+}
+
 # dry-run 感知执行：W9_DRY_RUN=1 时只打印不执行
 run_cmd() {
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
@@ -81,6 +92,32 @@ run_cmd() {
     return 0
   fi
   "$@"
+}
+
+run_cmd_logged() {
+  local level="$1"
+  shift
+
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) $*"
+    return 0
+  fi
+
+  local stream_pipe reader_pid rc
+  stream_pipe="$(mktemp -u)"
+  mkfifo "$stream_pipe" || return 1
+
+  while IFS= read -r line; do
+    [ -n "$line" ] && _log_with_level "$level" "  $line"
+  done < "$stream_pipe" &
+  reader_pid=$!
+
+  "$@" > "$stream_pipe" 2>&1
+  rc=$?
+
+  wait "$reader_pid"
+  rm -f "$stream_pipe"
+  return $rc
 }
 
 die() {

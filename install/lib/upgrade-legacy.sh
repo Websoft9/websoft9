@@ -743,15 +743,31 @@ _legacy_restart_stacks() {
   fi
 
   log_step "==== STACK RESTART: Scanning for stacks to re-initialise ===="
-  local restart_output
-  restart_output="$(docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY' 2>&1
+  local restart_pipe reader_pid restart_rc
+  restart_pipe="$(mktemp -u)"
+  if ! mkfifo "$restart_pipe"; then
+    log_warn "Unable to create stack restart log pipe — skipping stack restart."
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    [ -n "$line" ] && log_info "  $line"
+  done < "$restart_pipe" &
+  reader_pid=$!
+
+  docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" > "$restart_pipe" 2>&1 <<'PY'
 import sys, time, traceback
 sys.path.insert(0, "/websoft9/apphub")
 
 from src.services.portainer_manager import PortainerManager
 
+print(f"STACK RESTART CONTEXT: container={sys.argv[1]}")
+sys.stdout.flush()
+
 portainer = PortainerManager()
 eid = portainer.get_local_endpoint_id()
+print(f"STACK RESTART CONTEXT: endpoint={eid}")
+sys.stdout.flush()
 
 stacks = []
 for attempt in range(1, 31):
@@ -773,6 +789,7 @@ if not stacks:
 
 restarted = 0
 failed = 0
+matched = 0
 
 for stack in stacks:
     name = (stack.get("Name") or "").strip()
@@ -781,6 +798,8 @@ for stack in stacks:
         continue
     if name == "websoft9":
         continue
+
+    matched += 1
 
     print(f"[{name}] down_stack (stop + remove containers)...")
     sys.stdout.flush()
@@ -806,21 +825,30 @@ for stack in stacks:
         failed += 1
     sys.stdout.flush()
 
-print(f"DONE: {restarted} restarted, {failed} failed, {len(stacks)} total")
+if matched == 0:
+    print("SKIP: no migrated application stacks matched restart criteria")
+
+print(f"DONE: {restarted} restarted, {failed} failed, {matched} matched, {len(stacks)} total")
+if failed > 0:
+    sys.exit(2)
+if matched > 0 and restarted == 0:
+    sys.exit(3)
 PY
-)"
-  local rc=$?
+  restart_rc=$?
 
-  # Pipe each line through log_info for consistent formatting
-  if [ -n "$restart_output" ]; then
-    while IFS= read -r line; do
-      [ -n "$line" ] && log_info "  $line"
-    done <<< "$restart_output"
+  wait "$reader_pid"
+  rm -f "$restart_pipe"
+
+  if [ $restart_rc -ne 0 ]; then
+    log_warn "Stack restart script exited with code ${restart_rc}"
+    return $restart_rc
   fi
 
-  if [ $rc -ne 0 ]; then
-    log_warn "Stack restart script exited with code ${rc}"
+  if [ $restart_rc -eq 0 ]; then
+    log_step "Stack restart scan completed"
   fi
+
+  return 0
 }
 
 run_upgrade_legacy() {
@@ -922,7 +950,9 @@ run_upgrade_legacy() {
   # OCI mount errors that occur when containers created on the legacy host
   # are started in the new runtime without a full stack-level restart.
   log_step "Restarting migrated application stacks to re-initialise container resources"
-  _legacy_restart_stacks
+  if ! _legacy_restart_stacks; then
+    die "$EXIT_RUNTIME" "Migration failed during migrated application stack restart. Review the stack restart logs above."
+  fi
 
   # Stage 8b: remove legacy containers, volumes, and control-plane artifacts.
   # On successful migration, fully retire Cockpit/systemd-based legacy runtime.

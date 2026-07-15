@@ -61,16 +61,16 @@ _uninstall_modern() {
 
 _remove_legacy_cockpit_packages() {
   if command_exists apt-get; then
-    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get purge -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws 2>/dev/null || true
-    run_cmd env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y 2>/dev/null || true
+    run_cmd_logged INFO env DEBIAN_FRONTEND=noninteractive apt-get purge -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws || true
+    run_cmd_logged INFO env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
     return 0
   fi
   if command_exists dnf; then
-    run_cmd dnf remove -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws 2>/dev/null || true
+    run_cmd_logged INFO dnf remove -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws || true
     return 0
   fi
   if command_exists yum; then
-    run_cmd yum remove -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws 2>/dev/null || true
+    run_cmd_logged INFO yum remove -y cockpit cockpit-bridge cockpit-packagekit cockpit-storaged cockpit-system cockpit-ws || true
     return 0
   fi
 }
@@ -82,11 +82,11 @@ _remove_legacy_controlplane_artifacts() {
     local unit
     for unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
       if systemd_unit_present "$unit"; then
-        run_cmd systemctl stop "$unit" 2>/dev/null || true
-        run_cmd systemctl disable "$unit" 2>/dev/null || true
+        run_cmd_logged INFO systemctl stop "$unit" || true
+        run_cmd_logged INFO systemctl disable "$unit" || true
       fi
     done
-    run_cmd systemctl daemon-reload 2>/dev/null || true
+    run_cmd_logged INFO systemctl daemon-reload || true
   fi
 
   run_cmd rm -rf /etc/cockpit /usr/share/cockpit /var/lib/cockpit 2>/dev/null || true
@@ -122,7 +122,10 @@ _uninstall_legacy() {
   log_step "Stopping legacy containers"
   local name
   for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
-    container_running "$name" && run_cmd docker stop "$name" 2>/dev/null || true
+    if container_running "$name"; then
+      log_step "Stopping legacy container: ${name}"
+      run_cmd_logged INFO docker stop "$name" || true
+    fi
   done
 
   if [ "$mode" = "stop" ]; then
@@ -132,7 +135,10 @@ _uninstall_legacy() {
 
   # 删除旧容器
   for name in "${LEGACY_CONTAINER_NAMES[@]}"; do
-    container_exists "$name" && run_cmd docker rm -f "$name" 2>/dev/null || true
+    if container_exists "$name"; then
+      log_step "Removing legacy container: ${name}"
+      run_cmd_logged INFO docker rm -f "$name" || true
+    fi
   done
 
   # 数据卷处理
@@ -143,7 +149,10 @@ _uninstall_legacy() {
     log_step "Deleting legacy data volumes"
     local v
     for v in "${LEGACY_VOLUME_NAMES[@]}"; do
-      volume_exists "$v" && run_cmd docker volume rm "$v" 2>/dev/null || true
+      if volume_exists "$v"; then
+        log_step "Removing legacy volume: ${v}"
+        run_cmd_logged INFO docker volume rm "$v" || true
+      fi
     done
   else
     log_info "Legacy data volumes retained (available as rollback source)"
