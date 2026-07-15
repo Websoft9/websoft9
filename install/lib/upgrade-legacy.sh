@@ -742,7 +742,7 @@ _legacy_restart_stacks() {
     return 0
   fi
 
-  log_step "==== STACK RESTART: Scanning for stacks to re-initialise ===="
+  log_step "Re-initialising migrated application stacks"
   local restart_pipe reader_pid restart_rc
   restart_pipe="$(mktemp -u)"
   if ! mkfifo "$restart_pipe"; then
@@ -756,19 +756,14 @@ _legacy_restart_stacks() {
   done < "$restart_pipe" &
   reader_pid=$!
 
-  docker exec -i "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" > "$restart_pipe" 2>&1 <<'PY'
+  docker exec -i "$MODERN_CONTAINER_NAME" python3 - > "$restart_pipe" 2>&1 <<'PY'
 import sys, time, traceback
 sys.path.insert(0, "/websoft9/apphub")
 
 from src.services.portainer_manager import PortainerManager
 
-print(f"STACK RESTART CONTEXT: container={sys.argv[1]}")
-sys.stdout.flush()
-
 portainer = PortainerManager()
 eid = portainer.get_local_endpoint_id()
-print(f"STACK RESTART CONTEXT: endpoint={eid}")
-sys.stdout.flush()
 
 
 def get_stack_snapshot(stack_id: int):
@@ -801,14 +796,7 @@ def wait_for_inactive(stack_id: int, stack_name: str):
       if container.get("State") == "running"
     ]
     if stack_status == 2 and not running:
-      print(f"[{stack_name}] reached Inactive after {attempt}s")
-      sys.stdout.flush()
-      return
-    if attempt in {1, 5, 10, 20, 30}:
-      print(
-        f"[{stack_name}] waiting for Inactive: status={stack_status}, running={len(running)}"
-      )
-      sys.stdout.flush()
+      return attempt
     time.sleep(1)
   raise RuntimeError(f"stack {stack_name} did not reach Inactive state in time")
 
@@ -826,30 +814,20 @@ def wait_for_active(stack_id: int, stack_name: str):
       if container.get("State") == "running"
     ]
     if stack_status == 1 and running:
-      print(f"[{stack_name}] reached Active after {attempt}s with {len(running)} running containers")
-      sys.stdout.flush()
-      return
-    if attempt in {1, 5, 10, 20, 40, 60}:
-      print(
-        f"[{stack_name}] waiting for Active: status={stack_status}, running={len(running)}"
-      )
-      sys.stdout.flush()
+      return attempt, len(running)
     time.sleep(1)
   raise RuntimeError(f"stack {stack_name} did not reach Active state in time")
 
 stacks = []
 for attempt in range(1, 31):
-    try:
-        stacks = portainer.get_stacks(eid)
-        if stacks:
-            print(f"Portainer ready after {attempt * 10}s: {len(stacks)} total stacks")
-            break
-    except Exception:
-        pass
-    if attempt % 6 == 1:
-        print(f"Waiting for Portainer stacks to load... (attempt {attempt}/30)")
-    sys.stdout.flush()
-    time.sleep(10)
+  try:
+    stacks = portainer.get_stacks(eid)
+    if stacks:
+      print(f"Portainer ready after {attempt * 10}s: {len(stacks)} total stacks")
+      break
+  except Exception:
+    pass
+  time.sleep(10)
 
 if not stacks:
     print("SKIP: Portainer stacks still empty after 5 min")
@@ -869,28 +847,26 @@ for stack in stacks:
 
     matched += 1
 
-    print(f"[{name}] down_stack (transition to Inactive)...")
-    sys.stdout.flush()
     try:
         portainer.down_stack(sid, eid)
-        print(f"[{name}] down_stack OK")
-        wait_for_inactive(sid, name)
+        inactive_wait = wait_for_inactive(sid, name)
     except Exception as exc:
-        print(f"[{name}] down_stack FAILED: {exc}")
+        print(f"[{name}] FAILED during down_stack: {exc}")
         traceback.print_exc()
         sys.stdout.flush()
         failed += 1
         continue
 
-    print(f"[{name}] up_stack (restore from Inactive)...")
-    sys.stdout.flush()
     try:
         portainer.up_stack(sid, eid)
-        print(f"[{name}] up_stack OK")
-        wait_for_active(sid, name)
+        active_wait, running_count = wait_for_active(sid, name)
+        print(
+          f"[{name}] restarted successfully "
+          f"(inactive={inactive_wait}s, active={active_wait}s, running={running_count})"
+        )
         restarted += 1
     except Exception as exc:
-        print(f"[{name}] up_stack FAILED: {exc}")
+        print(f"[{name}] FAILED during up_stack: {exc}")
         traceback.print_exc()
         failed += 1
     sys.stdout.flush()
@@ -1013,19 +989,17 @@ run_upgrade_legacy() {
     die "$EXIT_VALIDATE" "Migration failed during post-cutover validation"
   fi
 
-  # Stage 7b: restart all migrated application stacks so that container
-  # resources are re-initialised from the compose definition.  This fixes
-  # OCI mount errors that occur when containers created on the legacy host
-  # are started in the new runtime without a full stack-level restart.
-  log_step "Restarting migrated application stacks to re-initialise container resources"
-  if ! _legacy_restart_stacks; then
-    die "$EXIT_RUNTIME" "Migration failed during migrated application stack restart. Review the stack restart logs above."
-  fi
-
-  # Stage 8b: remove legacy containers, volumes, and control-plane artifacts.
+  # Stage 8: remove legacy containers, volumes, and control-plane artifacts.
   # On successful migration, fully retire Cockpit/systemd-based legacy runtime.
   log_step "Removing legacy containers, volumes, and legacy control plane"
   _uninstall_legacy "purge" "0" "1" "1"
+
+  # Stage 9: restart migrated application stacks after legacy cleanup so the
+  # new Portainer instance reconciles them against the post-cutover host state
+  # rather than against legacy directories that are about to be removed.
+  if ! _legacy_restart_stacks; then
+    die "$EXIT_RUNTIME" "Migration failed during migrated application stack restart. Review the stack restart logs above."
+  fi
 
   log_done "==== Legacy-to-modern migration completed successfully ===="
   print_runtime_summary migration "$install_path" "$console_port" "$backup_dir"
