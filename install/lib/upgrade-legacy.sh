@@ -727,11 +727,11 @@ _legacy_restart_stacks() {
   local console_port="$1"
   local max_wait=120
   local waited=0
-  local apphub_url="http://127.0.0.1:5000"
+  local base_url="http://127.0.0.1:${console_port}"
 
   log_info "Waiting for AppHub API to become available (up to ${max_wait}s)..."
   while [ "$waited" -lt "$max_wait" ]; do
-    if curl -s --max-time 3 "${apphub_url}/api/apps" >/dev/null 2>&1; then
+    if curl -s --max-time 3 "${base_url}/api/apps" >/dev/null 2>&1; then
       break
     fi
     sleep 5
@@ -745,7 +745,7 @@ _legacy_restart_stacks() {
 
   log_info "Fetching list of migrated application stacks..."
   local apps_json
-  apps_json="$(curl -s --max-time 10 "${apphub_url}/api/apps")" || {
+  apps_json="$(curl -s --max-time 10 "${base_url}/api/apps")" || {
     log_warn "Failed to fetch app list — skipping stack restart"
     return 0
   }
@@ -769,10 +769,10 @@ for a in apps:
   for app_id in $app_ids; do
     log_info "Restarting migrated stack: ${app_id}"
     # Step 1: uninstall with purge_data=false → down_stack (sets Inactive)
-    if curl -s --max-time 30 -X DELETE "${apphub_url}/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
-      sleep 3
+    if curl -s --max-time 30 -X DELETE "${base_url}/api/apps/${app_id}/uninstall?purge_data=false" >/dev/null 2>&1; then
+      sleep 5
       # Step 2: redeploy with pullImage=false → detects Inactive → up_stack (restores Active)
-      if curl -s --max-time 120 -X POST "${apphub_url}/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
+      if curl -s --max-time 120 -X POST "${base_url}/api/apps/${app_id}/redeploy?pullImage=false" >/dev/null 2>&1; then
         log_info "  ${app_id} restarted successfully"
         restarted=$((restarted + 1))
       else
