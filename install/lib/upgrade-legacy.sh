@@ -727,26 +727,10 @@ _legacy_restart_stacks() {
   local max_wait=300
   local waited=0
 
-  log_info "Waiting for Portainer to load stacks (up to ${max_wait}s)..."
+  log_info "Waiting for AppHub API to become ready (up to ${max_wait}s)..."
   while [ "$waited" -lt "$max_wait" ]; do
-    if ! container_running "$MODERN_CONTAINER_NAME"; then
-      sleep 5
-      waited=$((waited + 5))
-      continue
-    fi
-    # Portainer API may return 200 before its database is fully loaded,
-    # so we must check that at least one non-platform stack appears.
-    local count
-    count="$(docker exec "$MODERN_CONTAINER_NAME" sh -c "
-curl -s --max-time 10 'http://127.0.0.1:9000/api/stacks' | python3 -c \"
-import sys,json
-stacks=json.load(sys.stdin)
-non_platform = [s for s in stacks if s.get('Name','') != 'websoft9']
-print(len(non_platform))
-\"
-" 2>/dev/null)" || count=0
-    if [ "${count:-0}" -gt 0 ]; then
-      log_info "Portainer ready — ${count} application stack(s) found"
+    if container_running "$MODERN_CONTAINER_NAME" \
+       && docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 5 "http://127.0.0.1:8080/healthz" >/dev/null 2>&1; then
       break
     fi
     sleep 5
@@ -754,56 +738,49 @@ print(len(non_platform))
   done
 
   if [ "$waited" -ge "$max_wait" ]; then
-    log_warn "Portainer did not load stacks within ${max_wait}s — skipping stack restart."
+    log_warn "AppHub API did not become available within ${max_wait}s — skipping stack restart."
     return 0
   fi
 
-  log_info "Fetching Portainer stacks..."
-  local pairs
-  pairs="$(docker exec "$MODERN_CONTAINER_NAME" sh -c "
-curl -s --max-time 10 'http://127.0.0.1:9000/api/stacks' | python3 -c \"
-import sys,json
-stacks=json.load(sys.stdin)
-for s in stacks:
-    name = s.get('Name','')
-    sid = s.get('Id')
-    if name and sid is not None:
-        print(f'{name} {sid}')
-\"
-" 2>/dev/null)" || true
+  log_info "Restarting migrated stacks via AppHub Portainer integration..."
+  docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY'
+import sys
+sys.path.insert(0, "/websoft9/apphub")
 
-  if [ -z "$pairs" ]; then
-    log_info "No Portainer stacks found — nothing to restart"
+# Use the same Portainer integration that AppHub uses so authentication
+# is handled automatically (API key / JWT token obtained from credentials).
+from src.services.portainer_manager import PortainerManager
+
+portainer = PortainerManager()
+eid = portainer.get_local_endpoint_id()
+stacks = portainer.get_stacks(eid)
+
+restarted = 0
+for stack in stacks:
+    name = (stack.get("Name") or "").strip()
+    sid = stack.get("Id")
+    if not name or sid is None:
+        continue
+    if name == "websoft9":
+        continue
+
+    print(f"[w9] Restarting migrated stack: {name} (stack {sid})")
+    try:
+        portainer.down_stack(sid, eid)
+        portainer.up_stack(sid, eid)
+        print(f"[w9]   {name} restarted successfully")
+        restarted += 1
+    except Exception as exc:
+        print(f"[w9]   {name} failed: {exc}")
+
+print(f"[w9] Stack restart phase completed ({restarted} stacks restarted)")
+PY
+
+  local rc=$?
+  if [ $rc -ne 0 ]; then
+    log_warn "Stack restart script exited with code ${rc} — check container logs for details"
     return 0
   fi
-
-  local restarted=0
-  while IFS=' ' read -r app_id stack_id; do
-    [ -z "$app_id" ] && continue
-    [ -z "$stack_id" ] && continue
-    # Skip the platform stack itself (websoft9)
-    [ "$app_id" = "websoft9" ] && continue
-
-    log_info "Restarting migrated stack: ${app_id} (stack ${stack_id})"
-    # Stop → start via Portainer API (stack-level down+up re-initialises containers)
-    if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 30 -X POST \
-         "http://127.0.0.1:9000/api/stacks/${stack_id}/stop" >/dev/null 2>&1; then
-      sleep 3
-      if docker exec "$MODERN_CONTAINER_NAME" curl -s --max-time 120 -X POST \
-           "http://127.0.0.1:9000/api/stacks/${stack_id}/start" >/dev/null 2>&1; then
-        log_info "  ${app_id} restarted successfully"
-        restarted=$((restarted + 1))
-      else
-        log_warn "  ${app_id} start failed — you may need to restart it manually from the console"
-      fi
-    else
-      log_warn "  ${app_id} stop failed — skipping"
-    fi
-  done <<EOF
-$pairs
-EOF
-
-  log_info "Stack restart phase completed (${restarted} stacks restarted)"
 }
 
 run_upgrade_legacy() {
