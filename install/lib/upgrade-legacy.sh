@@ -744,7 +744,7 @@ _legacy_restart_stacks() {
 
   log_step "==== STACK RESTART: Scanning for stacks to re-initialise ===="
   local restart_output
-  restart_output="$(docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY'
+  restart_output="$(docker exec "$MODERN_CONTAINER_NAME" python3 - "$MODERN_CONTAINER_NAME" <<'PY' 2>&1
 import sys, time, traceback
 sys.path.insert(0, "/websoft9/apphub")
 
@@ -758,19 +758,19 @@ for attempt in range(1, 31):
     try:
         stacks = portainer.get_stacks(eid)
         if stacks:
-            print(f"STEP [attempt={attempt}] Portainer ready: {len(stacks)} total stacks", flush=True)
+            print(f"Portainer ready after {attempt * 10}s: {len(stacks)} total stacks")
             break
     except Exception:
         pass
     if attempt % 6 == 1:
-        print(f"STEP [attempt={attempt}] Waiting for Portainer stacks to load...", flush=True)
+        print(f"Waiting for Portainer stacks to load... (attempt {attempt}/30)")
+    sys.stdout.flush()
     time.sleep(10)
 
 if not stacks:
-    print("SKIP Portainer stacks still empty after 5 min", flush=True)
+    print("SKIP: Portainer stacks still empty after 5 min")
     sys.exit(0)
 
-print(f"STEP Found {len(stacks)} stack(s), excluding platform stack 'websoft9'", flush=True)
 restarted = 0
 failed = 0
 
@@ -780,35 +780,43 @@ for stack in stacks:
     if not name or sid is None:
         continue
     if name == "websoft9":
-        print(f"STEP Skipping platform stack: websoft9", flush=True)
         continue
 
-    print(f"STEP [{name}] down_stack (stop + remove containers)...", flush=True)
+    print(f"[{name}] down_stack (stop + remove containers)...")
+    sys.stdout.flush()
     try:
         portainer.down_stack(sid, eid)
-        print(f"STEP [{name}] down_stack OK - stack now Inactive", flush=True)
+        print(f"[{name}] down_stack OK")
     except Exception as exc:
-        print(f"FAIL [{name}] down_stack error: {exc}", flush=True)
+        print(f"[{name}] down_stack FAILED: {exc}")
         traceback.print_exc()
+        sys.stdout.flush()
         failed += 1
         continue
 
-    print(f"STEP [{name}] up_stack (recreate containers from compose)...", flush=True)
+    print(f"[{name}] up_stack (recreate containers from compose)...")
+    sys.stdout.flush()
     try:
         portainer.up_stack(sid, eid)
-        print(f"STEP [{name}] up_stack OK - containers recreated, stack Active", flush=True)
+        print(f"[{name}] up_stack OK")
         restarted += 1
     except Exception as exc:
-        print(f"FAIL [{name}] up_stack error: {exc}", flush=True)
+        print(f"[{name}] up_stack FAILED: {exc}")
         traceback.print_exc()
         failed += 1
+    sys.stdout.flush()
 
-print(f"DONE Stack restart completed: {restarted} restarted, {failed} failed, {len(stacks)} total", flush=True)
+print(f"DONE: {restarted} restarted, {failed} failed, {len(stacks)} total")
 PY
 )"
   local rc=$?
 
-  echo "$restart_output"
+  # Pipe each line through log_info for consistent formatting
+  if [ -n "$restart_output" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] && log_info "  $line"
+    done <<< "$restart_output"
+  fi
 
   if [ $rc -ne 0 ]; then
     log_warn "Stack restart script exited with code ${rc}"
