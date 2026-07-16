@@ -264,6 +264,7 @@ if [ -d /legacy/gitea ]; then
   log_step "Migrating Gitea with path remap and preserved SECRET_KEY / INTERNAL_TOKEN"
   old_g="/legacy/gitea/gitea"
   old_git="/legacy/gitea/git"
+  old_git_root="/legacy/gitea"
   mkdir -p /data/gitea/conf /data/gitea/data /data/gitea/git /data/gitea/log
 
   # Database
@@ -271,7 +272,9 @@ if [ -d /legacy/gitea ]; then
 
   # Repositories and LFS objects
   [ -d "$old_git/repositories" ] && cp -a "$old_git/repositories" /data/gitea/git/ 2>/dev/null || true
+  [ -d "$old_git_root/repositories" ] && cp -a "$old_git_root/repositories" /data/gitea/git/ 2>/dev/null || true
   [ -d "$old_git/lfs" ] && cp -a "$old_git/lfs" /data/gitea/git/ 2>/dev/null || true
+  [ -d "$old_git_root/lfs" ] && cp -a "$old_git_root/lfs" /data/gitea/git/ 2>/dev/null || true
 
   # App data (avatars, attachments, ...) lands in APP_DATA_PATH=/data/gitea/data.
   if [ -d "$old_g" ]; then

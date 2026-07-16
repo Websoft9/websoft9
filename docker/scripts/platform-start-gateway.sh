@@ -143,6 +143,36 @@ EOF
 EOF
 }
 
+render_legacy_git_server() {
+  cat > "$gateway_root/legacy-git.conf" <<'EOF'
+server {
+  listen 3000;
+  listen [::]:3000;
+  server_name websoft9-git;
+
+  set $websoft9_route_owner "platform-gateway-legacy-git";
+  set $websoft9_app_access_owner "gitea";
+
+  access_log /opt/websoft9/data/logs/platform-gateway-access.log;
+  error_log /opt/websoft9/data/logs/platform-gateway-error.log warn;
+
+  location / {
+    client_max_body_size 0;
+    proxy_pass http://127.0.0.1:3001;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto http;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port 3000;
+    proxy_set_header Authorization $http_authorization;
+    proxy_buffering off;
+    proxy_request_buffering off;
+  }
+}
+EOF
+}
+
 render_gateway_config() {
   local raw_https_enabled raw_force_https bound_domain ssl_cert ssl_key https_enabled force_https
   local cookie_scope portainer_cookie_ref npm_token_cookie_ref npm_nickname_cookie_ref
@@ -171,6 +201,7 @@ render_gateway_config() {
   cp "$gateway_root/nginx.conf" "$runtime_config"
   sed -i "s#\(access_log\|error_log\) /data/logs/#\1 $service_log_root/#g" "$runtime_config"
   render_default_server "$https_enabled" "$force_https" "$bound_domain"
+  render_legacy_git_server
   cookie_scope="$(resolve_platform_cookie_scope)"
   portainer_cookie_ref="\$cookie_portainer_jwt_${cookie_scope}"
   npm_token_cookie_ref="\$cookie_nginx_tokens_${cookie_scope}"
@@ -187,6 +218,24 @@ render_gateway_config() {
     sed -i 's#http://websoft9-apphub:8080#http://127.0.0.1:8080#g' "$gateway_root/platform-gateway-routes.conf"
     sed -i 's#http://websoft9-apphub:8081#http://127.0.0.1:8081#g' "$gateway_root/platform-gateway-routes.conf"
   fi
+
+  python3 - "$runtime_config" "$gateway_root/legacy-git.conf" <<'PY'
+from pathlib import Path
+import sys
+
+runtime_config = Path(sys.argv[1])
+legacy_git_conf = Path(sys.argv[2])
+
+content = runtime_config.read_text(encoding="utf-8")
+include_line = f"  include {legacy_git_conf};\n"
+if include_line not in content:
+    needle = "  include /etc/websoft9/platform-gateway/default.conf;\n"
+    if needle in content:
+        content = content.replace(needle, needle + include_line, 1)
+    else:
+        content = content.rstrip() + "\n\nhttp {\n" + include_line + "}\n"
+runtime_config.write_text(content, encoding="utf-8")
+PY
 }
 
 main() {
