@@ -898,6 +898,65 @@ PY
   return 0
 }
 
+_legacy_rewrite_stack_git_settings() {
+  log_step "Rewriting migrated stack Git settings to the modern Gitea endpoint"
+  local rewrite_pipe reader_pid rewrite_rc
+  rewrite_pipe="$(mktemp -u)"
+  if ! mkfifo "$rewrite_pipe"; then
+    log_warn "Unable to create stack git rewrite log pipe — skipping stack Git rewrite."
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    line="${line//$'\r'/}"
+    [ -n "$line" ] && log_info "  $line"
+  done < "$rewrite_pipe" &
+  reader_pid=$!
+
+  docker exec -i "$MODERN_CONTAINER_NAME" python3 - > "$rewrite_pipe" 2>&1 <<'PY'
+import sys
+import traceback
+
+sys.path.insert(0, "/websoft9/apphub")
+
+from src.services.portainer_manager import PortainerManager
+
+portainer = PortainerManager()
+
+try:
+    endpoint_id = portainer.get_local_endpoint_id()
+    result = portainer.rewrite_legacy_stack_git_settings(endpoint_id)
+except Exception as exc:
+    print(f"FAILED: {exc}")
+    traceback.print_exc()
+    sys.exit(2)
+
+if result.get("matched", 0) == 0:
+    print("SKIP: no migrated stacks required Git settings rewrite")
+    sys.exit(0)
+
+print(
+    "DONE: "
+    f"{result.get('updated', 0)} updated, "
+    f"{result.get('matched', 0)} matched, "
+    f"{result.get('skipped', 0)} skipped, "
+    f"{result.get('total', 0)} total"
+)
+PY
+  rewrite_rc=$?
+
+  wait "$reader_pid"
+  rm -f "$rewrite_pipe"
+
+  if [ $rewrite_rc -ne 0 ]; then
+    log_warn "Stack git rewrite script exited with code ${rewrite_rc}"
+    return $rewrite_rc
+  fi
+
+  log_done "Migrated stack Git settings rewrite completed"
+  return 0
+}
+
 run_upgrade_legacy() {
   local console_port="$1"
   local install_path="$2"
@@ -990,6 +1049,10 @@ run_upgrade_legacy() {
     log_warn "Legacy runtime assets are still present. Backup retained at: $backup_dir"
     log_warn "You can stop the modern container and restart the legacy systemd units or containers for a manual rollback"
     die "$EXIT_VALIDATE" "Migration failed during post-cutover validation"
+  fi
+
+  if ! _legacy_rewrite_stack_git_settings; then
+    die "$EXIT_RUNTIME" "Migration failed during migrated stack Git settings rewrite. Review the rewrite logs above."
   fi
 
   # Stage 8: remove legacy containers, volumes, and control-plane artifacts.

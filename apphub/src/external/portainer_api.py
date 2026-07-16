@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import threading
+from typing import Optional
 from urllib.parse import urlparse
 
 from src.core.apiHelper import APIHelper
@@ -286,6 +287,41 @@ class PortainerAPI:
         """
         return self.api.post(
             path=f"stacks/{stackID}/stop", params={"endpointId": endpointId}
+        )
+
+    @auto_refresh_token
+    def update_stack_git(
+        self,
+        stackID: int,
+        endpointId: int,
+        repositoryURL: str,
+        repositoryReferenceName: str,
+        configFilePath: str,
+        repositoryAuthentication: bool,
+        repositoryUsername: str,
+        repositoryPassword: str,
+        tlsSkipVerify: bool,
+        env: Optional[list] = None,
+        additionalFiles: Optional[list] = None,
+        prune: bool = False,
+        autoUpdate: Optional[dict] = None,
+    ):
+        return self.api.post(
+            path=f"stacks/{stackID}/git",
+            params={"endpointId": endpointId},
+            json={
+                "AutoUpdate": autoUpdate,
+                "Env": env or [],
+                "Prune": prune,
+                "ConfigFilePath": configFilePath,
+                "AdditionalFiles": additionalFiles or [],
+                "RepositoryReferenceName": repositoryReferenceName,
+                "RepositoryURL": repositoryURL,
+                "RepositoryAuthentication": repositoryAuthentication,
+                "RepositoryUsername": repositoryUsername,
+                "RepositoryPassword": repositoryPassword,
+                "TLSSkipVerify": tlsSkipVerify,
+            },
         )
 
     @auto_refresh_token

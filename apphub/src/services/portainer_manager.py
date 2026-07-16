@@ -7,6 +7,7 @@ from typing import Optional
 from src.core.exception import CustomException
 from src.external.portainer_api import PortainerAPI
 from src.core.logger import logger
+from src.services.git_url_resolver import normalize_runtime_git_url
 
 
 def _extract_portainer_error_message(response_text: str) -> str:
@@ -290,6 +291,93 @@ class PortainerManager:
         else:
             logger.error(f"Get stack by name:{stack_name} error: {response.status_code}:{response.text}")
             raise CustomException()
+
+    def update_stack_git_config(
+        self,
+        stack_id: int,
+        endpoint_id: int,
+        repository_url: str,
+        repository_reference_name: str,
+        config_file_path: str,
+        repository_authentication: bool,
+        repository_username: str,
+        repository_password: str,
+        tls_skip_verify: bool,
+        env: Optional[list] = None,
+        additional_files: Optional[list] = None,
+        prune: bool = False,
+    ):
+        response = self.portainer.update_stack_git(
+            stack_id,
+            endpoint_id,
+            repository_url,
+            repository_reference_name,
+            config_file_path,
+            repository_authentication,
+            repository_username,
+            repository_password,
+            tls_skip_verify,
+            env=env,
+            additionalFiles=additional_files,
+            prune=prune,
+        )
+        if response.status_code == 200:
+            return response.json()
+
+        message = _extract_portainer_error_message(response.text)
+        logger.error(f"Update stack git config:{stack_id} error: {response.status_code}:{response.text}")
+        raise CustomException(
+            status_code=400,
+            message="Invalid Request",
+            details=message,
+        )
+
+    def rewrite_legacy_stack_git_settings(self, endpoint_id: int):
+        stacks = self.get_stacks(endpoint_id)
+        matched = 0
+        updated = 0
+        skipped = 0
+
+        for stack in stacks:
+            git_config = stack.get("GitConfig") or {}
+            repository_url = (git_config.get("URL") or "").strip()
+            if not repository_url:
+                skipped += 1
+                continue
+
+            normalized_url = normalize_runtime_git_url(repository_url)
+            if normalized_url == repository_url:
+                skipped += 1
+                continue
+
+            matched += 1
+            auth = git_config.get("Authentication") or {}
+
+            self.update_stack_git_config(
+                stack_id=stack["Id"],
+                endpoint_id=endpoint_id,
+                repository_url=normalized_url,
+                repository_reference_name=git_config.get("ReferenceName") or "",
+                config_file_path=git_config.get("ConfigFilePath") or stack.get("EntryPoint") or "docker-compose.yml",
+                repository_authentication=bool(auth),
+                repository_username=auth.get("Username") or "",
+                repository_password=auth.get("Password") or "",
+                tls_skip_verify=bool(git_config.get("TLSSkipVerify")),
+                env=stack.get("Env") or [],
+                additional_files=stack.get("AdditionalFiles") or [],
+                prune=bool((stack.get("Option") or {}).get("Prune")),
+            )
+            logger.info(
+                f"Rewrote migrated stack Git settings for {stack.get('Name')} from {repository_url} to {normalized_url}"
+            )
+            updated += 1
+
+        return {
+            "matched": matched,
+            "updated": updated,
+            "skipped": skipped,
+            "total": len(stacks),
+        }
     
     def remove_stack(self, stack_id: int, endpoint_id: int):
         """

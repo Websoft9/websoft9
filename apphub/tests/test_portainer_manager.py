@@ -35,6 +35,10 @@ class FakePortainerApi:
         self.calls.append((stack_name, endpoint_id, repository_url, user_name, user_password))
         return self.responses.pop(0)
 
+    def update_stack_git(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return self.responses.pop(0)
+
 
 def test_extract_portainer_error_message_prefers_message_when_details_missing():
     payload = '{"message":"container cannot be started twice"}'
@@ -72,3 +76,52 @@ def test_create_stack_retries_after_cleaning_stale_compose_workspace(monkeypatch
     assert result == {'Id': 2}
     assert len(fake_api.calls) == 2
     assert not workdir.exists()
+
+
+def test_rewrite_legacy_stack_git_settings_updates_only_legacy_urls(monkeypatch):
+    fake_api = FakePortainerApi([
+        FakeResponse(200, payload={'Id': 7}),
+    ])
+    manager = _build_manager(fake_api)
+    monkeypatch.setenv('WEBSOFT9_RUNTIME_LAYOUT', 'single-container-target')
+    monkeypatch.setenv('WEBSOFT9_PLATFORM_PUBLIC_ORIGIN', 'http://47.239.243.133:9000')
+    manager.get_stacks = lambda endpoint_id: [
+        {
+            'Id': 7,
+            'Name': 'moodle_ntg2o',
+            'EntryPoint': 'docker-compose.yml',
+            'Env': [],
+            'AdditionalFiles': [],
+            'Option': {'Prune': False},
+            'GitConfig': {
+                'URL': 'http://websoft9-git:3000/websoft9/moodle_ntg2o.git',
+                'ReferenceName': '',
+                'ConfigFilePath': 'docker-compose.yml',
+                'Authentication': {'Username': 'websoft9', 'Password': ''},
+                'TLSSkipVerify': False,
+            },
+        },
+        {
+            'Id': 8,
+            'Name': 'nextcloud_abcd1',
+            'EntryPoint': 'docker-compose.yml',
+            'Env': [],
+            'AdditionalFiles': [],
+            'Option': {'Prune': False},
+            'GitConfig': {
+                'URL': 'http://127.0.0.1:3001/websoft9/nextcloud_abcd1.git',
+                'ReferenceName': '',
+                'ConfigFilePath': 'docker-compose.yml',
+                'Authentication': {'Username': 'websoft9', 'Password': ''},
+                'TLSSkipVerify': False,
+            },
+        },
+    ]
+
+    result = manager.rewrite_legacy_stack_git_settings(1)
+
+    assert result == {'matched': 1, 'updated': 1, 'skipped': 1, 'total': 2}
+    args, kwargs = fake_api.calls[0]
+    assert args[0] == 7
+    assert args[2] == 'http://127.0.0.1:3001/websoft9/moodle_ntg2o.git'
+    assert kwargs['prune'] is False

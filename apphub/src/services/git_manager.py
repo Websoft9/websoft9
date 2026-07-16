@@ -6,6 +6,7 @@ from git import Repo, GitCommandError
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
+from src.services.git_url_resolver import normalize_runtime_git_url
 
 class GitManager:
     """
@@ -26,25 +27,7 @@ class GitManager:
         self.local_path = local_path
 
     def _normalize_clone_url(self, remote_url: str) -> str:
-        try:
-            parsed = urlparse(remote_url)
-        except Exception:
-            return remote_url
-
-        if not parsed.scheme or not parsed.netloc:
-            return remote_url
-
-        runtime_layout = (os.getenv("WEBSOFT9_RUNTIME_LAYOUT") or "").strip().lower()
-        public_origin = (os.getenv("WEBSOFT9_PLATFORM_PUBLIC_ORIGIN") or "").strip()
-        public_host = urlparse(public_origin).hostname if public_origin else ""
-
-        if runtime_layout == "single-container-target" and parsed.hostname in {"websoft9-git", "localhost", "127.0.0.1", public_host}:
-            normalized_path = parsed.path
-            if normalized_path.startswith("/w9git/"):
-                normalized_path = normalized_path[len("/w9git"):]
-            return urlunparse(parsed._replace(scheme="http", netloc="127.0.0.1:3001", path=normalized_path))
-
-        return remote_url
+        return normalize_runtime_git_url(remote_url)
 
     def init_local_repo_from_dir(self):
         """

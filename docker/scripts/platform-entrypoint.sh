@@ -82,17 +82,6 @@ ensure_data_managed_paths() {
   mkdir -p "$data_root/backup/restic-repo"
 }
 
-ensure_legacy_runtime_host_aliases() {
-  local hosts_file="/etc/hosts"
-  local legacy_alias="websoft9-git"
-
-  [ -w "$hosts_file" ] || return 0
-
-  if ! grep -Eq '(^|[[:space:]])websoft9-git($|[[:space:]])' "$hosts_file"; then
-    printf '%s\n' "127.0.0.1 ${legacy_alias}" >> "$hosts_file"
-  fi
-}
-
 write_runtime_event() {
   local level="$1"
   local event="$2"
@@ -425,7 +414,6 @@ main() {
   trap shutdown_supervisor EXIT INT TERM
 
   ensure_data_managed_paths
-  ensure_legacy_runtime_host_aliases
   log_event "info" "runtime.start" "Starting Websoft9 converged product runtime"
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
