@@ -146,6 +146,7 @@ class ProductAuthService:
         display_name: str,
         locale: str = "en",
         email: Optional[str] = None,
+        create_session: bool = True,
         client_host: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> Tuple[dict[str, Any], str]:
@@ -165,7 +166,7 @@ class ProductAuthService:
             operators.append(operator)
             self._store_operators(operators)
             self._apply_pending_migrated_favorites(operator["id"])
-            session_token = self._create_session(operator_id=operator["id"])
+            session_token = self._create_session(operator_id=operator["id"]) if create_session else None
             self._append_audit(
                 event="bootstrap",
                 operator_id=operator["id"],

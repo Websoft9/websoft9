@@ -152,7 +152,7 @@ export function SetupWizardPage() {
     const { i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const { initialize, isLoading, isSubmitting, status } = useProductAuth() as {
-        initialize: (payload: { username: string; password: string; email: string; locale: string }) => Promise<ProductAuthStatus>
+        initialize: (payload: { username: string; password: string; email: string; locale: string; createSession?: boolean }) => Promise<ProductAuthStatus>
         isLoading: boolean
         isSubmitting: boolean
         status: (ProductAuthStatus & { enabled?: boolean }) | null

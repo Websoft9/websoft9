@@ -159,6 +159,7 @@ class ProductAuthInitializeRequest(BaseModel):
     display_name: Optional[str] = None
     email: Optional[str] = None
     locale: str = Field(default="en", max_length=16)
+    create_session: bool = True
 
     @field_validator("username", mode="before")
     @classmethod

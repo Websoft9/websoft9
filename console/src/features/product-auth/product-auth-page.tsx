@@ -82,7 +82,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
-    const { errorMessage, initialize, isLoading, isSubmitting, login, logout, status } = useProductAuth()
+    const { errorMessage, initialize, isLoading, isSubmitting, login, status } = useProductAuth()
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -273,18 +273,20 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
             const locale = selectedLocale
             const nextStatus =
                 mode === 'setup'
-                    ? await initialize({ username, password, email: email.trim(), locale })
+                    ? await initialize({
+                        username,
+                        password,
+                        email: email.trim(),
+                        locale,
+                        createSession: Boolean(status?.cloud_marketplace_setup),
+                    })
                     : await login({ username, password })
 
-            // After setup the initialize() call already created a session.
-            // Log out immediately so the user never briefly sees the
-            // authenticated console before being redirected to login.
             if (mode === 'setup') {
                 if (nextStatus.cloud_marketplace_setup) {
                     navigate('/setup', { replace: true })
                     return
                 }
-                await logout()
                 navigate('/auth/login', { replace: true })
                 return
             }

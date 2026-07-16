@@ -147,6 +147,7 @@ initialize_product_runtime_state()
 PY
 COPY --from=console-builder /build/console/dist /etc/websoft9/console
 COPY docker/proxy/config/http.conf /opt/websoft9/data/nginx/custom/http.conf
+COPY docker/proxy/default_www/ /var/www/html/
 COPY docker/proxy/init_nginx.sh /app/init_nginx.sh
 COPY mirrors.json /websoft9/mirrors.json
 COPY docker/gateway/nginx.conf /etc/websoft9/platform-gateway/nginx.conf

@@ -155,10 +155,12 @@ def initialize_first_operator(
         display_name=payload.display_name,
         locale=payload.locale,
         email=payload.email,
+        create_session=payload.create_session,
         client_host=request.client.host if request.client else None,
         user_agent=user_agent,
     )
-    _set_session_cookie(request, response, session_token)
+    if session_token:
+        _set_session_cookie(request, response, session_token)
     return status_payload
 
 

@@ -36,7 +36,7 @@ type ProductAuthContextValue = {
     isLoading: boolean
     isSubmitting: boolean
     status: ProductAuthStatus | null
-    initialize: (payload: { username: string; password: string; email: string; locale: string }) => Promise<ProductAuthStatus>
+    initialize: (payload: { username: string; password: string; email: string; locale: string; createSession?: boolean }) => Promise<ProductAuthStatus>
     login: (payload: { username: string; password: string }) => Promise<ProductAuthStatus>
     logout: () => Promise<void>
     refresh: () => Promise<ProductAuthStatus>
@@ -210,7 +210,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
         }
     }, [])
 
-    const initialize = useCallback(async (payload: { username: string; password: string; email: string; locale: string }) => {
+    const initialize = useCallback(async (payload: { username: string; password: string; email: string; locale: string; createSession?: boolean }) => {
         setIsSubmitting(true)
         try {
             const nextStatus = await requestJson<ProductAuthStatus>('/api/auth/initialize', {
@@ -221,6 +221,7 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                     email: payload.email,
                     display_name: payload.username,
                     locale: normalizeSupportedLocale(payload.locale),
+                    create_session: payload.createSession ?? true,
                 }),
             })
             applyStatus(nextStatus)
