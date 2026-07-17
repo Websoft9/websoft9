@@ -416,15 +416,10 @@
                         <path d="M5 12h14" />
                         <path d="m13 6 6 6-6 6" />
                     </svg></a>
-                <a class="button secondary" id="support-link"
-                    href="https://support.websoft9.com/docs/helpdesk#contact" target="_blank" rel="noopener"><svg
-                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M9.5 9a2.6 2.6 0 1 1 4.7 1.55c-.93 1.25-2.2 1.55-2.2 3.15" />
-                        <path d="M12 17h.01" />
-                    </svg><span id="support-label">获取支持</span></a>
             </div>
+            <p style="font-size:13px;color:var(--muted);margin:0 0 28px">
+                <span id="support-prefix">遇到问题？</span><a id="support-link" href="https://support.websoft9.com/docs/helpdesk#contact" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none"><span id="support-label">获取技术支持</span></a>
+            </p>
             <div class="hint-box" id="hint-box">
                 <div class="hint-item"><span class="hint-num">1</span><span id="hint1">管理控制台运行在 9000 端口，请确保云服务器安全组或防火墙已放行该端口</span></div>
                 <div class="hint-item"><span class="hint-num">2</span><span id="hint2">如果使用云厂商服务，请在控制台安全组规则中添加入站 TCP 9000</span></div>
@@ -433,9 +428,7 @@
 
         </main>
         <a class="brand-footer" href="https://www.websoft9.com" target="_blank" rel="noopener noreferrer" aria-label="Websoft9">
-            <svg viewBox="0 0 120 30" style="height:28px;display:block" aria-hidden="true">
-                <text x="0" y="24" font-family="Arial,'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="900" fill="#94a3b8" letter-spacing="-0.5">Websoft9</text>
-            </svg>
+            <img id="brand-logo" src="" alt="Websoft9" style="height:36px;object-fit:contain" onerror="this.style.display='none'" />
         </a>
     </div>
     <script>
@@ -481,6 +474,7 @@
             var LK = {
                 support: { en: 'https://support.websoft9.com/en/docs/helpdesk#contact', zh: 'https://support.websoft9.com/docs/helpdesk#contact' }
             };
+            var LOGOS = { zh: 'websoft-zh.svg', en: 'websoft9-en.svg' };
             var ICON_OK = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
             var ICON_ERR = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
             var port = (function(){ var p = '__W9_CONSOLE_PORT__'; return /^\\d+$/.test(p) ? p : '9000' })() || '9000',
@@ -501,6 +495,7 @@
                 $('desc').textContent = t('desc');
                 $('support-label').textContent = t('support');
                 $('support-link').href = LK.support[l];
+                $('brand-logo').src = location.protocol + '//' + location.hostname + ':' + port + '/' + LOGOS[l];
                 $('hint1').textContent = t('hint1');
                 $('hint2').textContent = t('hint2');
                 $('hint3').textContent = t('hint3');
