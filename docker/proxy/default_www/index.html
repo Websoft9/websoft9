@@ -439,7 +439,8 @@
                     desc: 'Your management console environment is ready — start initialization or open the console to deploy and configure applications',
                     mainReady: 'Open Console',
                     mainInit: 'Start Setup',
-                    support: 'Support',
+                    support: 'Get Support',
+                    supportPrefix: 'Having issues? ',
                     hint1: 'The management console runs on port 9000 — ensure your cloud security group or firewall allows this port',
                     hint2: 'If using a cloud provider, add an inbound TCP 9000 rule in the security group settings',
                     hint3: 'For connection issues, use the support link below to get help',
@@ -457,7 +458,8 @@
                     desc: '您的管理控制台运行环境已准备就绪，立即开始初始化或进入控制台，开始启动和配置应用服务',
                     mainReady: '进入管理控制台',
                     mainInit: '点击开始初始化',
-                    support: '获取支持',
+                    support: '获取技术支持',
+                    supportPrefix: '遇到问题？',
                     hint1: '管理控制台运行在 9000 端口，请确保云服务器安全组或防火墙已放行该端口',
                     hint2: '如果使用云厂商服务，请在控制台安全组规则中添加入站 TCP 9000',
                     hint3: '遇到连接问题可通过下方技术支持链接获取帮助',
@@ -494,6 +496,7 @@
                 $('title').textContent = t('title');
                 $('desc').textContent = t('desc');
                 $('support-label').textContent = t('support');
+                $('support-prefix').textContent = t('supportPrefix');
                 $('support-link').href = LK.support[l];
                 $('brand-logo').src = location.protocol + '//' + location.hostname + ':' + port + '/' + LOGOS[l];
                 $('hint1').textContent = t('hint1');
