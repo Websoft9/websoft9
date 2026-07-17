@@ -520,17 +520,17 @@
                 hintBox.classList.toggle('visible', state === 'error');
                 if (state === 'ready') {
                     dot.style.background = 'var(--green)';
-                    text.textContent = t('hintOk');
-                    portEl.textContent = t('hintOkPort');
+                    text.textContent = t('statusTitle');
+                    portEl.textContent = t('statusOk');
                     portEl.style.display = '';
                 } else if (state === 'error') {
                     dot.style.background = 'var(--red)';
-                    text.textContent = t('hintFailDetail');
+                    text.textContent = t('statusFailDetail');
                     portEl.style.display = 'none';
                 } else {
                     dot.style.background = 'var(--green)';
-                    text.textContent = t('hintChecking');
-                    portEl.textContent = t('hintOkPort');
+                    text.textContent = t('statusChecking');
+                    portEl.textContent = t('statusOk');
                     portEl.style.display = '';
                 }
             }
