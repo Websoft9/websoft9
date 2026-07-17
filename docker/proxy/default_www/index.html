@@ -215,16 +215,14 @@
         }
 
         .status-bar {
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 10px 0;
-            border-radius: 0;
-            border: none;
-            border-top: 1px solid var(--line);
-            border-bottom: 1px solid var(--line);
-            background: transparent;
+            justify-content: center;
+            gap: 12px;
+            padding: 8px 20px;
+            border-radius: 4px;
+            border: 1px solid var(--line);
+            background: var(--surface);
             margin-bottom: 24px
         }
 
@@ -405,17 +403,11 @@
             <h1 id="title">欢迎使用 Websoft9</h1>
             <p class="desc" id="desc">您的管理控制台运行环境已准备就绪，立即开始初始化或进入控制台，开始启动和配置应用服务</p>
             <div class="status-bar" id="status-bar" aria-live="polite">
-                <div class="status-left">
-                    <div class="status-icon ok" id="status-icon"></div>
-                    <div class="status-info">
-                        <span class="status-title" id="status-title">管理控制台运行中</span>
-                        <span class="status-detail" id="status-detail">端口 9000 · 连接正常</span>
-                    </div>
-                </div>
-                <div class="status-right" style="display:flex;align-items:center;gap:12px;flex-shrink:0">
-                    <span class="status-badge ok" id="status-badge"><span class="badge-dot"></span><span id="badge-text">可用</span></span>
-                    <button class="retry-link" id="retry-button" hidden>重新检测</button>
-                </div>
+                <span class="status-dot" id="status-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
+                <span id="status-text" style="font-size:13px;color:var(--muted)">检测中…</span>
+                <span style="color:var(--line)">·</span>
+                <span id="status-port" style="font-size:13px;color:var(--muted)">端口 9000</span>
+                <button class="retry-link" id="retry-button" hidden>重新检测</button>
             </div>
             <div class="actions">
                 <a class="button primary" id="main-button" href="#"><span id="main-label">进入管理控制台</span><svg
@@ -442,7 +434,7 @@
         </main>
         <a class="brand-footer" href="https://www.websoft9.com" target="_blank" rel="noopener noreferrer" aria-label="Websoft9">
             <svg viewBox="0 0 120 30" style="height:28px;display:block" aria-hidden="true">
-                <text x="0" y="24" font-family="-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="800" fill="#64748b" letter-spacing="-0.5">Websoft9</text>
+                <text x="0" y="24" font-family="Arial,'PingFang SC','Microsoft YaHei',sans-serif" font-size="24" font-weight="900" fill="#94a3b8" letter-spacing="-0.5">Websoft9</text>
             </svg>
         </a>
     </div>
@@ -519,36 +511,27 @@
             }
 
             function renderStatus() {
-                var icon = $('status-icon'),
-                    title = $('status-title'),
-                    detail = $('status-detail'),
-                    badge = $('status-badge'),
-                    badgeText = $('badge-text'),
+                var dot = $('status-dot'),
+                    text = $('status-text'),
+                    portEl = $('status-port'),
                     retry = $('retry-button'),
                     hintBox = $('hint-box');
                 retry.hidden = state !== 'error';
                 hintBox.classList.toggle('visible', state === 'error');
                 if (state === 'ready') {
-                    icon.className = 'status-icon ok';
-                    icon.innerHTML = ICON_OK;
-                    badge.className = 'status-badge ok';
-                    badgeText.textContent = t('badgeOk');
-                    title.textContent = t('statusTitle');
-                    detail.textContent = t('statusOk');
+                    dot.style.background = 'var(--green)';
+                    text.textContent = t('hintOk');
+                    portEl.textContent = t('hintOkPort');
+                    portEl.style.display = '';
                 } else if (state === 'error') {
-                    icon.className = 'status-icon err';
-                    icon.innerHTML = ICON_ERR;
-                    badge.className = 'status-badge err';
-                    badgeText.textContent = t('badgeErr');
-                    title.textContent = t('statusFail');
-                    detail.textContent = t('statusFailDetail');
+                    dot.style.background = 'var(--red)';
+                    text.textContent = t('hintFailDetail');
+                    portEl.style.display = 'none';
                 } else {
-                    icon.className = 'status-icon ok';
-                    icon.innerHTML = ICON_OK;
-                    badge.className = 'status-badge ok';
-                    badgeText.textContent = t('badgeOk');
-                    title.textContent = t('statusChecking');
-                    detail.textContent = t('statusOk');
+                    dot.style.background = 'var(--green)';
+                    text.textContent = t('hintChecking');
+                    portEl.textContent = t('hintOkPort');
+                    portEl.style.display = '';
                 }
             }
 
