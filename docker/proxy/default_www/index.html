@@ -13,18 +13,20 @@
         }
 
         :root {
-            --blue: #1767d1;
-            --blue-dark: #1254b0;
-            --ink: #0f172a;
-            --muted: #64748b;
-            --subtle: #94a3b8;
-            --line: rgba(148, 163, 184, .16);
+            --accent: #1767d1;
+            --accent-strong: #1254b0;
+            --ink: #212b36;
+            --muted: #637381;
+            --subtle: #919eab;
+            --border: rgba(145, 158, 171, .16);
             --surface: #fff;
-            --ground: #f8fafc;
-            --green: #138a58;
-            --green-soft: rgba(19, 138, 88, .1);
-            --red: #c33e36;
-            --red-soft: rgba(195, 62, 54, .1)
+            --success: #16a34a;
+            --success-soft: rgba(22, 163, 74, .1);
+            --danger: #dc2626;
+            --danger-soft: rgba(220, 38, 38, .1);
+            --radius-panel: 4px;
+            --radius-field: 4px;
+            --shadow-md: 0 20px 60px rgba(15, 23, 42, .08)
         }
 
         html,
@@ -36,93 +38,225 @@
         body {
             display: grid;
             place-items: center;
-            padding: 40px 24px;
-            background: var(--ground);
+            padding: 24px;
+            background:
+                radial-gradient(circle at top left, rgba(59, 130, 246, .14), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(14, 165, 233, .1), transparent 24%),
+                linear-gradient(180deg, #edf3fb 0%, #f8fafc 100%);
             color: var(--ink);
             font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
             -webkit-font-smoothing: antialiased
         }
 
+        .lang-pill {
+            position: fixed;
+            top: 18px;
+            right: 20px;
+            z-index: 100;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 36px;
+            padding: 0 10px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: color .15s, background .15s
+        }
+
+        .lang-pill:hover {
+            color: var(--ink);
+            background: rgba(145, 158, 171, .08)
+        }
+
+        .lang-pill svg {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0
+        }
+
+        .lang-pill .chevron {
+            width: 14px;
+            height: 14px;
+            transition: transform .15s
+        }
+
+        .lang-pill.open .chevron {
+            transform: rotate(180deg)
+        }
+
+        .lang-menu {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            z-index: 99;
+            display: none;
+            min-width: 140px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-field);
+            box-shadow: 0 12px 32px rgba(15, 23, 42, .12);
+            padding: 4px 0;
+            list-style: none;
+            margin: 0
+        }
+
+        .lang-menu.open {
+            display: block
+        }
+
+        .lang-menu li button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 8px 14px;
+            border: 0;
+            background: transparent;
+            color: var(--ink);
+            font: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            text-align: left;
+            transition: background .12s
+        }
+
+        .lang-menu li button:hover {
+            background: rgba(23, 103, 209, .08)
+        }
+
+        .lang-menu li button .lang-flag {
+            font-size: 14px;
+            line-height: 1
+        }
+
+        .lang-menu li button.active {
+            font-weight: 700;
+            color: var(--accent)
+        }
+
         .wrapper {
-            width: min(100%, 1120px);
+            width: min(100%, 680px);
             display: flex;
             flex-direction: column;
             align-items: center
         }
 
-        .top-bar {
-            width: 100%;
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 16px
-        }
-
-        .language-switch {
-            display: inline-flex;
-            align-items: center;
-            gap: 0;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 4px;
-            overflow: hidden
-        }
-
-        .language-switch button {
-            appearance: none;
-            border: 0;
-            background: transparent;
-            padding: 4px 14px;
-            color: var(--subtle);
-            font: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            line-height: 1.6;
-            transition: background .15s, color .15s
-        }
-
-        .language-switch button.active {
-            background: var(--blue);
-            color: #fff
-        }
-
-        .language-switch button:not(.active):hover {
-            color: var(--blue)
-        }
-
         .card {
             width: 100%;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 4px;
-            border-top: 3px solid var(--blue);
-            box-shadow: 0 1px 3px rgba(15, 23, 42, .06), 0 20px 60px rgba(15, 23, 42, .07);
-            padding: 48px 56px;
-            text-align: center
+            background: rgba(255, 255, 255, .97);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, .18);
+            border-radius: var(--radius-panel);
+            box-shadow: var(--shadow-md);
+            padding: 80px 72px 64px
         }
 
         .card h1 {
-            font-size: 34px;
-            line-height: 1.12;
+            font-size: 30px;
+            line-height: 1.15;
             font-weight: 700;
-            margin: 0 0 16px;
-            letter-spacing: -.03em
+            margin: 0 0 14px;
+            letter-spacing: -.02em
         }
 
         .card .desc {
-            font-size: 15px;
-            line-height: 1.8;
+            font-size: 16px;
+            line-height: 1.7;
             color: var(--muted);
-            margin: 0 0 24px
+            margin: 0 0 32px
+        }
+
+        .status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: var(--radius-field);
+            background: var(--success-soft);
+            margin-bottom: 28px;
+            font-size: 13px;
+            color: var(--success)
+        }
+
+        .status-bar.hidden {
+            display: none
+        }
+
+        .status-bar.error {
+            background: var(--danger-soft);
+            color: var(--danger)
+        }
+
+        .status-bar .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid currentColor;
+            background: transparent
+        }
+
+        .status-bar .status-dot.spin {
+            border-color: rgba(145, 158, 171, .25);
+            border-top-color: var(--muted);
+            animation: spin .7s linear infinite
+        }
+
+        .status-bar .status-dot.solid {
+            border: 0;
+            background: currentColor
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .status-bar .status-text-wrap {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px
+        }
+
+        .status-bar .status-label {
+            font-weight: 600;
+            color: var(--ink);
+            line-height: 1.4
+        }
+
+        .status-bar .status-detail {
+            color: var(--muted);
+            flex-shrink: 0
+        }
+
+        .status-bar .status-hint {
+            flex-basis: 100%;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--danger);
+            line-height: 1.4
+        }
+
+        .status-bar .status-hint[hidden] {
+            display: none
         }
 
         .actions {
             display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            justify-content: center;
-            margin-top: 24px;
-            margin-bottom: 0
+            flex-direction: column;
+            align-items: center;
+            gap: 10px
         }
 
         .button {
@@ -130,30 +264,31 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            min-height: 44px;
-            padding: 0 24px;
+            height: 44px;
+            padding: 0 28px;
             border: 1px solid transparent;
-            border-radius: 4px;
+            border-radius: var(--radius-field);
             text-decoration: none;
             font-size: 14px;
             font-weight: 700;
             line-height: 1;
+            cursor: pointer;
             transition: background-color .16s, border-color .16s, color .16s
         }
 
         .button svg {
-            width: 18px;
-            height: 18px;
+            width: 17px;
+            height: 17px;
             flex-shrink: 0
         }
 
         .primary {
-            background: var(--blue);
+            background: var(--accent);
             color: #fff
         }
 
         .primary:hover {
-            background: var(--blue-dark)
+            background: var(--accent-strong)
         }
 
         .primary.disabled {
@@ -161,173 +296,78 @@
             opacity: .42
         }
 
-        .secondary {
-            border-color: var(--line);
-            background: var(--surface);
-            color: var(--ink)
+        .button[hidden] {
+            display: none
         }
 
-        .secondary:hover {
-            border-color: #b9c6d7;
-            background: #f8fafc
-        }
-
-        .status-bar {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 8px 20px;
-            border-radius: 4px;
-            border: 1px solid var(--line);
-            background: var(--surface);
-            margin-bottom: 24px
-        }
-
-        .status-bar .status-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-width: 0
-        }
-
-        .status-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0
-        }
-
-        .status-icon.ok {
-            background: var(--green-soft);
-            color: var(--green)
-        }
-
-        .status-icon.err {
-            background: var(--red-soft);
-            color: var(--red)
-        }
-
-        .status-icon svg {
-            width: 16px;
-            height: 16px
-        }
-
-        .status-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            min-width: 0
-        }
-
-        .status-info .status-title {
-            font-size: 14px;
+        .status-bar .retry-inline {
+            font-size: 13px;
             font-weight: 700;
-            color: var(--ink);
-            line-height: 1.3
-        }
-
-        .status-info .status-detail {
-            font-size: 12px;
-            color: var(--muted);
-            line-height: 1.4
-        }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 14px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            flex-shrink: 0
-        }
-
-        .status-badge.ok {
-            background: var(--green-soft);
-            color: var(--green)
-        }
-
-        .status-badge.err {
-            background: var(--red-soft);
-            color: var(--red)
-        }
-
-        .status-badge .badge-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%
-        }
-
-        .status-badge.ok .badge-dot {
-            background: var(--green)
-        }
-
-        .status-badge.err .badge-dot {
-            background: var(--red)
-        }
-
-        .retry-link {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--blue);
+            color: var(--danger);
             cursor: pointer;
             background: none;
             border: 0;
             padding: 0;
-            text-decoration: none;
+            margin-left: auto;
+            text-decoration: underline;
             flex-shrink: 0
         }
 
-        .retry-link:hover {
+        .status-bar .retry-inline:hover {
+            color: #b91c1c
+        }
+
+
+
+        .support-line {
+            margin: 20px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center
+        }
+
+        .support-line a {
+            color: var(--accent);
+            font-weight: 600;
+            text-decoration: none
+        }
+
+        .support-line a:hover {
             text-decoration: underline
         }
 
-        .brand-footer {
+        .footer-logo {
             display: flex;
-            align-items: center;
             justify-content: center;
-            margin-top: 64px;
-            text-decoration: none;
-            opacity: .5;
+            margin-top: 40px
+        }
+
+        .footer-logo img {
+            height: 44px;
+            object-fit: contain;
+            opacity: .8;
             transition: opacity .2s
         }
 
-        .brand-footer:hover {
-            opacity: .9
+        .footer-logo:hover img {
+            opacity: 1
         }
 
-        .brand-footer img {
-            height: 36px;
-            object-fit: contain
+        .footer-logo .logo-fallback {
+            display: none;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--subtle);
+            letter-spacing: .02em
         }
 
-        @media(max-width:700px) {
-            body {
-                padding: 24px 16px
-            }
+        .footer-logo .logo-fallback.show {
+            display: inline
+        }
 
+        @media(max-width:560px) {
             .card {
                 padding: 32px 24px
-            }
-
-            .card h1 {
-                font-size: 26px
-            }
-
-            .button {
-                min-height: 42px;
-                padding: 0 16px;
-                font-size: 13px
-            }
-
-            .actions {
-                flex-direction: column;
-                gap: 8px
             }
 
             .actions .button {
@@ -335,52 +375,61 @@
             }
 
             .status-bar {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px
-            }
-
-            .status-bar .status-right {
-                width: 100%;
-                display: flex;
-                justify-content: space-between;
-                align-items: center
+                flex-wrap: wrap
             }
         }
     </style>
 </head>
 
 <body>
+    <button class="lang-pill" id="lang-trigger" aria-label="Language">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M2 12h20" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10A15.3 15.3 0 0 1 8 12a15.3 15.3 0 0 1 4-10z" />
+        </svg>
+        <span id="lang-label">中文</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+        </svg>
+    </button>
+    <ul class="lang-menu" id="lang-menu">
+        <li><button data-lang="zh"><span class="lang-flag">🇨🇳</span>中文</button></li>
+        <li><button data-lang="en"><span class="lang-flag">🇬🇧</span>English</button></li>
+    </ul>
     <div class="wrapper">
-        <div class="top-bar">
-            <span class="language-switch" aria-label="Language">
-                <button data-lang="zh" class="active">中文</button><button data-lang="en">EN</button>
-            </span>
-        </div>
         <main class="card">
             <h1 id="title">欢迎使用 Websoft9</h1>
-            <p class="desc" id="desc">您的管理控制台运行环境已准备就绪，立即开始初始化或进入控制台，开始启动和配置应用服务</p>
+            <p class="desc" id="desc">您的环境已经准备就绪，请完成初始化或者进入控制台启动和管理应用</p>
             <div class="status-bar" id="status-bar" aria-live="polite">
-                <span class="status-dot" id="status-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
-                <span id="status-text" style="font-size:13px;color:var(--muted)">检测中…</span>
-                <span style="color:var(--line)">·</span>
-                <span id="status-port" style="font-size:13px;color:var(--muted)">端口 9000</span>
-                <button class="retry-link" id="retry-button" hidden>重新检测</button>
+                <span class="status-dot spin" id="status-dot"></span>
+                <div class="status-text-wrap">
+                    <span class="status-label" id="status-label">控制台状态检测中…</span>
+                </div>
+                <span class="status-detail" id="status-detail"></span>
+                <button class="retry-inline" id="retry-button" hidden>重新检测</button>
+                <span class="status-hint" id="status-hint" hidden></span>
             </div>
             <div class="actions">
-                <a class="button primary" id="main-button" href="#"><span id="main-label">进入管理控制台</span><svg
+                <a class="button primary disabled" id="main-button" href="#"><span id="main-label">进入管理控制台</span><svg
                         viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
                         stroke-linejoin="round" aria-hidden="true">
                         <path d="M5 12h14" />
                         <path d="m13 6 6 6-6 6" />
                     </svg></a>
             </div>
-            <p style="font-size:13px;color:var(--muted);margin:12px 0 0">
-                <span id="support-prefix">遇到问题？</span><a id="support-link" href="https://support.websoft9.com/docs/helpdesk#contact" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none"><span id="support-label">获取技术支持</span></a>
+            <p class="support-line">
+                <span id="support-prefix">遇到问题？</span><a id="support-link"
+                    href="https://support.websoft9.com/docs/helpdesk#contact" target="_blank" rel="noopener"><span
+                        id="support-label">获取技术支持</span></a>
             </p>
         </main>
-        <a class="brand-footer" href="https://www.websoft9.com" target="_blank" rel="noopener noreferrer" aria-label="Websoft9">
-            <img id="brand-logo" src="" alt="Websoft9" style="height:40px;object-fit:contain" onerror="this.style.display='none'" />
+        <a class="footer-logo" href="https://www.websoft9.com" target="_blank" rel="noopener noreferrer"
+            aria-label="Websoft9">
+            <img id="brand-logo" alt="Websoft9" />
+            <span class="logo-fallback" id="logo-fallback">Websoft9</span>
         </a>
     </div>
     <script>
@@ -388,47 +437,44 @@
             var T = {
                 en: {
                     title: 'Welcome to Websoft9',
-                    desc: 'Your management console environment is ready — start initialization or open the console to launch and manage applications',
+                    descChecking: 'Checking management console status…',
+                    descReadyInit: 'Your environment is ready. Please complete setup or enter the console to manage applications',
+                    descReadyOk: 'Your environment is ready. Enter the console to manage applications',
+                    descError: 'Unable to connect to the management console. Please allow TCP port {port} in your security group or firewall, then retry.',
                     mainReady: 'Open Console',
                     mainInit: 'Start Setup',
                     support: 'Get Support',
                     supportPrefix: 'Having issues? ',
-                    statusTitle: 'Management Console Running',
-                    statusOk: 'Port {port} · Connected',
-                    statusFail: 'Cannot reach console',
-                    statusFailDetail: 'Please open TCP port {port} in your security group or firewall, then ',
-                    statusChecking: 'Checking…',
-                    badgeOk: 'Available',
-                    badgeErr: 'Unreachable',
+                    statusReady: 'Management Console Running',
+                    statusChecking: 'Checking console status…',
+                    statusOk: 'Status normal',
+                    statusError: 'Cannot reach console, allow TCP {port} in security group or firewall',
                     retry: 'Retry'
                 },
                 zh: {
                     title: '欢迎使用 Websoft9',
-                    desc: '您的管理控制台运行环境已准备就绪，立即开始初始化或进入控制台，开始启动和管理应用服务',
+                    descChecking: '正在检测管理控制台运行状态…',
+                    descReadyInit: '您的环境已经准备就绪，请完成初始化或者进入控制台启动和管理应用',
+                    descReadyOk: '您的环境已经准备就绪，进入控制台启动和管理应用',
+                    descError: '暂时无法连接管理控制台，请在云服务器安全组或防火墙中放行 TCP {port} 端口后重试',
                     mainReady: '进入管理控制台',
-                    mainInit: '点击开始初始化',
+                    mainInit: '开始初始化',
                     support: '获取技术支持',
                     supportPrefix: '遇到问题？',
-                    statusTitle: '管理控制台运行中',
-                    statusOk: '端口 {port} · 连接正常',
-                    statusFail: '无法连接控制台',
-                    statusFailDetail: '请在云服务器安全组或防火墙中放行 TCP {port} 端口后',
-                    statusChecking: '检测中…',
-                    badgeOk: '可用',
-                    badgeErr: '不可达',
+                    statusReady: '管理控制台运行中',
+                    statusChecking: '控制台状态检测中…',
+                    statusOk: '状态正常',
+                    statusError: '无法连接控制台，请尝试放行安全组或防火墙中 TCP {port} 端口',
                     retry: '重新检测'
                 }
             };
             var LK = {
                 support: { en: 'https://support.websoft9.com/en/docs/helpdesk#contact', zh: 'https://support.websoft9.com/docs/helpdesk#contact' }
             };
-            var LOGOS = { zh: 'websoft-zh.svg', en: 'websoft9-en.svg' };
-            var ICON_OK = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
-            var ICON_ERR = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
-            var port = (function(){ var p = '__W9_CONSOLE_PORT__'; return /^\\d+$/.test(p) ? p : '9000' })() || '9000',
+            var LOGOS = { zh: 'websoft9-zh.svg', en: 'websoft9-en.svg' };
+            var port = (function () { var p = '__W9_CONSOLE_PORT__'; return /^\\d+$/.test(p) ? p : '9000' })() || '9000',
                 base = location.protocol + '//' + location.hostname + ':' + port,
                 state = 'checking',
-                started = false,
                 lang = (navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
             try { var saved = localStorage.getItem('websoft9-welcome-lang'); if (saved === 'zh' || saved === 'en') lang = saved } catch (e) { }
 
@@ -439,67 +485,74 @@
             function setLang(l) {
                 lang = l;
                 document.documentElement.lang = l;
-                $('title').textContent = t('title');
-                $('desc').textContent = t('desc');
+                var label = l === 'zh' ? '中文' : 'English';
+                $('lang-label').textContent = label;
                 $('support-label').textContent = t('support');
                 $('support-prefix').textContent = t('supportPrefix');
                 $('support-link').href = LK.support[l];
-                $('brand-logo').src = location.protocol + '//' + location.hostname + ':' + port + '/' + LOGOS[l];
-                if (state === 'ready') { $('main-label').textContent = started ? t('mainReady') : t('mainInit') } else { $('main-label').textContent = t('mainReady') }
+                $('brand-logo').src = LOGOS[l];
                 $('retry-button').textContent = t('retry');
-                document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('active', b.dataset.lang === l) });
-                renderStatus();
+                document.querySelectorAll('#lang-menu button').forEach(function (b) { b.classList.toggle('active', b.dataset.lang === l) });
+                render();
             }
 
-            function renderStatus() {
-                var dot = $('status-dot'),
-                    text = $('status-text'),
-                    portEl = $('status-port'),
-                    retry = $('retry-button');
-                retry.hidden = state !== 'error';
-                if (state === 'ready') {
-                    dot.style.background = 'var(--green)';
-                    text.textContent = t('statusTitle');
-                    portEl.textContent = t('statusOk');
-                    portEl.style.display = '';
+            function render() {
+                var title = $('title'),
+                    desc = $('desc'),
+                    bar = $('status-bar'),
+                    dot = $('status-dot'),
+                    label = $('status-label'),
+                    detail = $('status-detail'),
+                    retry = $('retry-button'),
+                    button = $('main-button');
+
+                bar.classList.remove('error');
+                bar.hidden = false;
+                dot.className = 'status-dot';
+
+                if (state === 'ready-ok' || state === 'ready-init') {
+                    dot.classList.add('solid');
+                    desc.textContent = state === 'ready-ok' ? t('descReadyOk') : t('descReadyInit');
+                    label.textContent = t('statusReady');
+                    detail.textContent = t('statusOk');
+                    detail.style.display = '';
+                    retry.hidden = true;
+                    button.href = base;
+                    button.classList.remove('disabled');
                 } else if (state === 'error') {
-                    dot.style.background = 'var(--red)';
-                    text.textContent = t('statusFailDetail');
-                    portEl.style.display = 'none';
+                    desc.textContent = t('descReadyInit');
+                    bar.classList.add('error');
+                    label.textContent = t('statusError');
+                    detail.style.display = 'none';
+                    retry.hidden = false;
+                    button.href = '#';
+                    button.classList.add('disabled');
                 } else {
-                    dot.style.background = 'var(--green)';
-                    text.textContent = t('statusChecking');
-                    portEl.textContent = t('statusOk');
-                    portEl.style.display = '';
+                    desc.textContent = t('descReadyInit');
+                    dot.classList.add('spin');
+                    label.textContent = t('statusChecking');
+                    detail.style.display = 'none';
+                    retry.hidden = true;
+                    button.href = '#';
+                    button.classList.add('disabled');
                 }
+                title.textContent = t('title');
+                $('main-label').textContent = state === 'ready-init' ? t('mainInit') : t('mainReady');
             }
 
             function setError() {
                 state = 'error';
-                var b = $('main-button');
-                b.href = '#';
-                b.classList.add('disabled');
-                renderStatus();
-                setLang(lang);
+                render();
             }
 
             function setReady(isInit) {
-                state = 'ready';
-                started = isInit;
-                var b = $('main-button');
-                b.href = base;
-                b.classList.remove('disabled');
-                renderStatus();
-                setLang(lang);
+                state = isInit ? 'ready-ok' : 'ready-init';
+                render();
             }
 
             function check() {
                 state = 'checking';
-                renderStatus();
-                setLang(lang);
-                var b = $('main-button');
-                b.href = '#';
-                b.classList.add('disabled');
+                render();
                 var ctrl = new AbortController(),
                     timer = setTimeout(function () { ctrl.abort() }, 4000);
                 fetch(base + '/w9gateway/healthz', { mode: 'cors', cache: 'no-store', signal: ctrl.signal }).then(function (r) {
@@ -508,8 +561,35 @@
                     fetch(base + '/api/auth/gateway-access', { mode: 'cors', cache: 'no-store', redirect: 'manual' }).then(function (a) { setReady(a.status !== 403) }).catch(function () { setReady(true) });
                 }).catch(function () { clearTimeout(timer); setError() });
             }
-            document.querySelectorAll('[data-lang]').forEach(function (b) { b.addEventListener('click', function () { setLang(b.dataset.lang); try { localStorage.setItem('websoft9-welcome-lang', b.dataset.lang) } catch (e) { } }) });
+            var langTrigger = $('lang-trigger'),
+                langMenu = $('lang-menu');
+            langTrigger.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var open = langMenu.classList.toggle('open');
+                langTrigger.classList.toggle('open', open);
+            });
+            document.querySelectorAll('#lang-menu button').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    setLang(b.dataset.lang);
+                    try { localStorage.setItem('websoft9-welcome-lang', b.dataset.lang) } catch (e) { }
+                    langMenu.classList.remove('open');
+                    langTrigger.classList.remove('open');
+                })
+            });
+            document.addEventListener('click', function () {
+                langMenu.classList.remove('open');
+                langTrigger.classList.remove('open');
+            });
             $('retry-button').addEventListener('click', check);
+            var logo = $('brand-logo'),
+                logoFallback = $('logo-fallback');
+            logo.addEventListener('error', function () {
+                this.style.display = 'none';
+                logoFallback.classList.add('show');
+            });
+            logo.addEventListener('load', function () {
+                logoFallback.classList.remove('show');
+            });
 
             setLang(lang);
             setTimeout(check, 300);

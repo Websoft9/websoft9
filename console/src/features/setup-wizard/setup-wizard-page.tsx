@@ -151,11 +151,12 @@ function normalizeVisibleStep(step: WizardStep): WizardStep {
 export function SetupWizardPage() {
     const { i18n } = useTranslation('shell')
     const navigate = useNavigate()
-    const { initialize, isLoading, isSubmitting, status } = useProductAuth() as {
+    const { initialize, isLoading, isSubmitting, status, refresh } = useProductAuth() as {
         initialize: (payload: { username: string; password: string; email: string; locale: string; createSession?: boolean }) => Promise<ProductAuthStatus>
         isLoading: boolean
         isSubmitting: boolean
         status: (ProductAuthStatus & { enabled?: boolean }) | null
+        refresh: () => Promise<ProductAuthStatus>
     }
     const [wizardState, setWizardState] = useState<SetupWizardState | null>(null)
     const [appInfo, setAppInfo] = useState<SetupWizardApp | null>(null)
@@ -170,6 +171,20 @@ export function SetupWizardPage() {
     const [completedAppId, setCompletedAppId] = useState<string | null>(null)
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+    const [langMenuOpen, setLangMenuOpen] = useState(false)
+
+    const langRef = useRef<HTMLDivElement | null>(null)
+    const bootstrapLocaleAppliedRef = useRef(false)
+    useEffect(() => {
+        if (!langMenuOpen) return
+        const handler = (e: MouseEvent) => {
+            if (langRef.current && !langRef.current.contains(e.target as Node)) {
+                setLangMenuOpen(false)
+            }
+        }
+        document.addEventListener('click', handler)
+        return () => document.removeEventListener('click', handler)
+    }, [langMenuOpen])
 
     const pollTimerRef = useRef<number | null>(null)
     const appStatusTimerRef = useRef<number | null>(null)
@@ -263,6 +278,19 @@ export function SetupWizardPage() {
         () => confirmPassword.length === 0 || password === confirmPassword,
         [confirmPassword, password],
     )
+    const generateStrongPassword = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
+        const pick = (set: string) => set[Math.floor(Math.random() * set.length)]
+        const pwd = [
+            pick('ABCDEFGHJKLMNPQRSTUVWXYZ'),
+            pick('abcdefghjkmnpqrstuvwxyz'),
+            pick('23456789'),
+            pick('!@#$%^&*'),
+            ...Array.from({ length: 12 }, () => pick(chars)),
+        ].sort(() => Math.random() - 0.5).join('')
+        setPassword(pwd)
+        setShowPassword(true)
+    }
     const summaryCardSx = {
         borderRadius: '4px',
         border: '1px solid #dbe4f0',
@@ -305,10 +333,13 @@ export function SetupWizardPage() {
         requestJson<SetupWizardState>('/api/setup-wizard/state', { method: 'GET' })
             .then(async (statePayload) => {
                 // If the marketplace bootstrap specifies a default locale and the
-                // user hasn't explicitly switched languages, apply it immediately.
-                const bootstrapLocale = statePayload.default_locale
-                if (bootstrapLocale && normalizeSupportedLocale(bootstrapLocale) !== resolvedWizardLocale) {
-                    await i18n.changeLanguage(normalizeSupportedLocale(bootstrapLocale))
+                // user hasn't explicitly switched languages, apply it immediately (only once).
+                if (!bootstrapLocaleAppliedRef.current) {
+                    const bootstrapLocale = statePayload.default_locale
+                    if (bootstrapLocale && normalizeSupportedLocale(bootstrapLocale) !== resolvedWizardLocale) {
+                        await i18n.changeLanguage(normalizeSupportedLocale(bootstrapLocale))
+                    }
+                    bootstrapLocaleAppliedRef.current = true
                 }
                 const effectiveLocale = normalizeSupportedLocale(i18n.language ?? 'en')
                 const effectiveApiLocale = resolveApiLocale(effectiveLocale)
@@ -367,7 +398,9 @@ export function SetupWizardPage() {
         }
 
         if (setupClosed && status.authenticated && wizardState.completed) {
-            openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+            void refresh().finally(() => {
+                openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+            })
             return
         }
 
@@ -393,6 +426,14 @@ export function SetupWizardPage() {
         if (wizardState.completed) {
             setCompletedAppId(wizardState.installed_app_id)
             setError(null)
+            if (wizardState.installed_app_id) {
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.setItem('websoft9_setup_closed', '1')
+                }
+                void refresh().finally(() => {
+                    openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+                })
+            }
             return
         }
     }, [isLoading, navigate, pageLoading, platformInitializationRequired, setupClosed, status, wizardState])
@@ -421,7 +462,9 @@ export function SetupWizardPage() {
             if (typeof window !== 'undefined') {
                 window.sessionStorage.setItem('websoft9_setup_closed', '1')
             }
-            openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+            void refresh().finally(() => {
+                openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+            })
         }
 
         const pollInstalledAppStatus = async () => {
@@ -432,7 +475,9 @@ export function SetupWizardPage() {
                     if (typeof window !== 'undefined') {
                         window.sessionStorage.setItem('websoft9_setup_closed', '1')
                     }
-                    openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+                    void refresh().finally(() => {
+                        openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+                    })
                     return
                 }
 
@@ -658,6 +703,95 @@ export function SetupWizardPage() {
                 background: '#f8fafc',
             }}
         >
+            {/* Language switcher */}
+            <Box
+                ref={langRef}
+                sx={{
+                    position: 'fixed',
+                    top: 18,
+                    right: 20,
+                    zIndex: 100,
+                }}
+            >
+                <button
+                    onClick={() => setLangMenuOpen((v) => !v)}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        height: 36,
+                        padding: '0 10px',
+                        border: 0,
+                        borderRadius: 6,
+                        background: 'transparent',
+                        color: '#637381',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'color .15s, background .15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#212b36'; e.currentTarget.style.background = 'rgba(145,158,171,0.08)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = '#637381'; e.currentTarget.style.background = 'transparent' }}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10A15.3 15.3 0 0 1 8 12a15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <span>{resolvedWizardLocale === 'zh-CN' ? '中文' : 'English'}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ transition: 'transform .15s', transform: langMenuOpen ? 'rotate(180deg)' : 'none' }}
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                {langMenuOpen ? (
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: 60,
+                            right: 20,
+                            zIndex: 99,
+                            minWidth: 140,
+                            background: '#fff',
+                            border: '1px solid rgba(145,158,171,0.16)',
+                            borderRadius: 4,
+                            boxShadow: '0 12px 32px rgba(15,23,42,0.12)',
+                            padding: '4px 0',
+                        }}
+                    >
+                        {([
+                            { locale: 'zh-CN' as const, flag: '🇨🇳', label: '中文' },
+                            { locale: 'en' as const, flag: '🇬🇧', label: 'English' },
+                        ]).map(({ locale, flag, label }) => (
+                            <button
+                                key={locale}
+                                onClick={() => { void i18n.changeLanguage(locale); setLangMenuOpen(false) }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 10,
+                                    width: '100%',
+                                    padding: '8px 14px',
+                                    border: 0,
+                                    background: 'transparent',
+                                    color: resolvedWizardLocale === locale ? '#1767d1' : '#212b36',
+                                    fontWeight: resolvedWizardLocale === locale ? 700 : 400,
+                                    fontSize: 13,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'background .12s',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(23,103,209,0.08)' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                            >
+                                <span style={{ fontSize: 14, lineHeight: 1 }}>{flag}</span>
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                ) : null}
+            </Box>
+
             <Paper
                 elevation={0}
                 sx={{
@@ -665,7 +799,6 @@ export function SetupWizardPage() {
                     maxWidth: 1120,
                     borderRadius: '4px',
                     border: '1px solid rgba(148, 163, 184, 0.16)',
-                    borderTop: '3px solid #1767d1',
                     background: '#ffffff',
                     p: { xs: 3, md: 5 },
                     boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06), 0 20px 60px rgba(15, 23, 42, 0.07)',
@@ -878,25 +1011,10 @@ export function SetupWizardPage() {
                                                                 <Tooltip title={apiLocale === 'zh' ? '生成强密码' : 'Generate'}>
                                                                     <IconButton
                                                                         size="small"
-                                                                        onClick={() => {
-                                                                            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
-                                                                            const pick = (set: string) => set[Math.floor(Math.random() * set.length)]
-                                                                            const pwd = [
-                                                                                pick('ABCDEFGHJKLMNPQRSTUVWXYZ'),
-                                                                                pick('abcdefghjkmnpqrstuvwxyz'),
-                                                                                pick('23456789'),
-                                                                                pick('!@#$%^&*'),
-                                                                                ...Array.from({ length: 12 }, () => pick(chars)),
-                                                                            ].sort(() => Math.random() - 0.5).join('')
-                                                                            setPassword(pwd)
-                                                                            setConfirmPassword(pwd)
-                                                                            setShowPassword(true)
-                                                                            setShowConfirmPassword(true)
-                                                                        }}
-                                                                        edge={false}
+                                                                        onClick={generateStrongPassword}
                                                                         sx={{ color: '#1767d1', mr: 0.25 }}
                                                                     >
-                                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" /></svg>
+                                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65z" /></svg>
                                                                     </IconButton>
                                                                 </Tooltip>
                                                                 <IconButton size="small" onClick={() => setShowPassword((v) => !v)} edge="end">
