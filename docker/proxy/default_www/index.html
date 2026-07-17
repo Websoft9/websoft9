@@ -550,16 +550,36 @@
                 render();
             }
 
+            var healthCheckAttempts = 0;
+            var healthCheckMaxAttempts = 2;
+
             function check() {
                 state = 'checking';
+                healthCheckAttempts = 0;
                 render();
+                doCheck();
+            }
+
+            function doCheck() {
+                healthCheckAttempts++;
                 var ctrl = new AbortController(),
-                    timer = setTimeout(function () { ctrl.abort() }, 4000);
+                    timer = setTimeout(function () { ctrl.abort() }, 8000);
                 fetch(base + '/w9gateway/healthz', { mode: 'cors', cache: 'no-store', signal: ctrl.signal }).then(function (r) {
                     clearTimeout(timer);
-                    if (!r.ok) { setError(); return }
+                    if (!r.ok) { handleCheckFailure(); return }
                     fetch(base + '/api/auth/gateway-access', { mode: 'cors', cache: 'no-store', redirect: 'manual' }).then(function (a) { setReady(a.status !== 403) }).catch(function () { setReady(true) });
-                }).catch(function () { clearTimeout(timer); setError() });
+                }).catch(function () {
+                    clearTimeout(timer);
+                    handleCheckFailure();
+                });
+            }
+
+            function handleCheckFailure() {
+                if (healthCheckAttempts < healthCheckMaxAttempts) {
+                    setTimeout(doCheck, 2000);
+                    return;
+                }
+                setError();
             }
             var langTrigger = $('lang-trigger'),
                 langMenu = $('lang-menu');
