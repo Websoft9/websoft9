@@ -18,6 +18,7 @@ jobs:
       version: ${{ steps.channel.outputs.version }}
       version_core: ${{ steps.channel.outputs.version_core }}
       sha_tag: ${{ steps.channel.outputs.sha_tag }}
+      is_prerelease: ${{ steps.channel.outputs.is_prerelease }}
     steps:
       - uses: actions/checkout@v4
       - id: channel
@@ -26,13 +27,18 @@ jobs:
           VERSION_CORE="${VERSION%%-*}"
           SHA_TAG="sha-${GITHUB_SHA:0:8}"
           CHANNEL=release
+          IS_PRERELEASE=false
+          if [[ "$VERSION" == *-rc* ]]; then
+            IS_PRERELEASE=true
+          fi
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "version_core=$VERSION_CORE" >> $GITHUB_OUTPUT
           echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
 
-          echo "✅ Release | Version: $VERSION | SHA: $SHA_TAG"
+          echo "✅ Release | Version: $VERSION | SHA: $SHA_TAG | Pre-release: $IS_PRERELEASE"
 
   image-meta:
     name: Determine Image Tags
@@ -40,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
+      version_tag: ${{ steps.meta.outputs.version_tag }}
       alias_tags: ${{ steps.meta.outputs.alias_tags }}
       tags: ${{ steps.meta.outputs.tags }}
       smoke_image: ${{ steps.meta.outputs.smoke_image }}
@@ -49,24 +56,30 @@ jobs:
           VERSION="${{ needs.determine-channel.outputs.version }}"
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
           SHA_TAG="${{ needs.determine-channel.outputs.sha_tag }}"
+          IS_PRERELEASE="${{ needs.determine-channel.outputs.is_prerelease }}"
 
           # Release publication uses a two-stage model.
-          # Stage 1 publishes only the immutable sha-<commit> candidate.
-          # Stage 2 promotes stable and compatibility aliases after validation passes.
+          # Stage 1 publishes the immutable sha-<commit> candidate plus the explicit version tag.
+          # Stage 2 promotes stable and compatibility aliases only for final releases.
           CANDIDATE_TAG="websoft9dev/websoft9:${SHA_TAG}"
-          ALIAS_TAGS="websoft9dev/websoft9:latest,websoft9dev/websoft9:${VERSION}"
-          IFS='.' read -ra PARTS <<< "$VERSION_CORE"
-          if [[ ${#PARTS[@]} -ge 2 ]]; then
-            ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}"
-            ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}"
-          fi
-          if [[ ${#PARTS[@]} -ge 3 ]]; then
-            ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}.${PARTS[2]}"
+          VERSION_TAG="websoft9dev/websoft9:${VERSION}"
+          ALIAS_TAGS=""
+          if [[ "$IS_PRERELEASE" != "true" ]]; then
+            ALIAS_TAGS="websoft9dev/websoft9:latest,${VERSION_TAG}"
+            IFS='.' read -ra PARTS <<< "$VERSION_CORE"
+            if [[ ${#PARTS[@]} -ge 2 ]]; then
+              ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}"
+              ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}"
+            fi
+            if [[ ${#PARTS[@]} -ge 3 ]]; then
+              ALIAS_TAGS="${ALIAS_TAGS},websoft9dev/websoft9:${PARTS[0]}.${PARTS[1]}.${PARTS[2]}"
+            fi
           fi
 
           echo "candidate_tag=$CANDIDATE_TAG" >> $GITHUB_OUTPUT
+          echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
           echo "alias_tags=$ALIAS_TAGS" >> $GITHUB_OUTPUT
-          echo "tags=$CANDIDATE_TAG" >> $GITHUB_OUTPUT
+          echo "tags=$CANDIDATE_TAG,$VERSION_TAG" >> $GITHUB_OUTPUT
           echo "smoke_image=websoft9dev/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
 
   build-and-push-image:
@@ -76,7 +89,7 @@ jobs:
     with:
       push: true
       platforms: linux/amd64
-      tags: ${{ needs.image-meta.outputs.candidate_tag }}
+      tags: ${{ needs.image-meta.outputs.tags }}
     secrets: inherit
 
   smoke-test-image:
@@ -89,6 +102,7 @@ jobs:
   promote-release-tags:
     name: Promote Release Tags
     needs: [image-meta, build-and-push-image, smoke-test-image]
+    if: needs.determine-channel.outputs.is_prerelease != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Set up Docker Buildx
@@ -159,6 +173,11 @@ PY
   upload-artifacts:
     name: Upload Artifacts
     needs: [determine-channel, image-meta, release-notes, promote-release-tags, smoke-test-image]
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.smoke-test-image.result == 'success' &&
+      (needs.determine-channel.outputs.is_prerelease == 'true' || needs.promote-release-tags.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -173,7 +192,9 @@ PY
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           EDITION_KEY=$(jq -r '.edition_key' version.json)
           CANDIDATE_TAG="${{ needs.image-meta.outputs.candidate_tag }}"
+          VERSION_TAG="${{ needs.image-meta.outputs.version_tag }}"
           ALIAS_TAGS="${{ needs.image-meta.outputs.alias_tags }}"
+          IS_PRERELEASE="${{ needs.determine-channel.outputs.is_prerelease }}"
 
           mkdir -p release-assets r2-artifacts websoft9
 
@@ -189,10 +210,15 @@ PY
             --bundle-docker-dir websoft9/docker \
             --artifact-dir r2-artifacts
 
-          # Create versioned zip
-          # Create versioned zip
-          zip -r "websoft9-${VERSION_CORE}.zip" websoft9
-          cp "websoft9-${VERSION_CORE}.zip" release-assets/
+          BUNDLE_FILE="websoft9-${VERSION}.zip"
+          ALIAS_BUNDLE_FILE=""
+          if [[ "$IS_PRERELEASE" != "true" ]]; then
+            BUNDLE_FILE="websoft9-${VERSION_CORE}.zip"
+            ALIAS_BUNDLE_FILE="websoft9-latest.zip"
+          fi
+
+          zip -r "$BUNDLE_FILE" websoft9
+          cp "$BUNDLE_FILE" release-assets/
           mkdir -p legacy-r2-artifacts
           bash install/build-bundle.sh install/dist
           cp install/dist/install.sh r2-artifacts/install.sh
@@ -208,8 +234,10 @@ PY
           cp CHANGELOG.md release-assets/CHANGELOG.md
           cp mirrors.json release-assets/mirrors.json
 
-          # Provide a moving alias for the latest stable bundle.
-          cp "release-assets/websoft9-${VERSION_CORE}.zip" release-assets/websoft9-latest.zip
+          # Provide a moving alias for the latest stable bundle only for final releases.
+          if [[ "$IS_PRERELEASE" != "true" ]]; then
+            cp "release-assets/${BUNDLE_FILE}" "release-assets/${ALIAS_BUNDLE_FILE}"
+          fi
 
           jq -n \
             --arg schema_version "1" \
@@ -221,10 +249,12 @@ PY
             --arg git_sha "$GITHUB_SHA" \
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
-            --arg default_tag "latest" \
+            --arg default_tag "$([ "$IS_PRERELEASE" = "true" ] && printf '%s' "$VERSION" || printf 'latest')" \
             --arg version_tag "$VERSION" \
             --arg candidate_tag "$CANDIDATE_TAG" \
             --arg alias_tags "$ALIAS_TAGS" \
+            --arg bundle_file "$BUNDLE_FILE" \
+            --arg alias_bundle_file "$ALIAS_BUNDLE_FILE" \
             '{
               schema_version: ($schema_version | tonumber),
               product: $product,
@@ -252,8 +282,8 @@ PY
                 alias_tags: ($alias_tags | split(","))
               },
               distribution: {
-                bundle_file: ("websoft9-" + $version_core + ".zip"),
-                alias_bundle_file: "websoft9-latest.zip"
+                bundle_file: $bundle_file,
+                alias_bundle_file: $alias_bundle_file
               }
             }' > manifest.json
 
@@ -278,16 +308,25 @@ PY
 
           (
             cd release-assets
-            sha256sum \
-              "websoft9-${VERSION_CORE}.zip" \
-              websoft9-latest.zip \
-              version.json \
-              CHANGELOG.md \
-              mirrors.json \
-              manifest.json > SHA256SUMS
+            if [[ "$IS_PRERELEASE" = "true" ]]; then
+              sha256sum \
+                "$BUNDLE_FILE" \
+                version.json \
+                CHANGELOG.md \
+                mirrors.json \
+                manifest.json > SHA256SUMS
+            else
+              sha256sum \
+                "$BUNDLE_FILE" \
+                "$ALIAS_BUNDLE_FILE" \
+                version.json \
+                CHANGELOG.md \
+                mirrors.json \
+                manifest.json > SHA256SUMS
+            fi
           )
 
-          echo "✅ Release bundles created: websoft9-${VERSION_CORE}.zip"
+          echo "✅ Release bundles created: ${BUNDLE_FILE}"
 
       - name: Upload to Cloudflare R2
         uses: ryand56/r2-upload-action@latest
@@ -329,8 +368,7 @@ PY
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-assets/websoft9-${{ needs.determine-channel.outputs.version_core }}.zip
-            release-assets/websoft9-latest.zip
+            release-assets/websoft9-${{ needs.determine-channel.outputs.version }}.zip
             release-assets/manifest.json
             release-assets/SHA256SUMS
             release-assets/version.json
@@ -339,7 +377,7 @@ PY
           name: ${{ needs.determine-channel.outputs.version }}
           body: ${{ needs.release-notes.outputs.changelog_body }}
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.determine-channel.outputs.is_prerelease == 'true' }}
 
   # ── Deploy GitHub Pages ──
   pages:

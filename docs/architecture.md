@@ -1,24 +1,80 @@
-## Architecture
+# Architecture
 
-Websoft9 is very simple [architecture](https://www.canva.cn/design/DAFpI9loqzQ/hI_2vrtfoK7zJwauhJzipQ/view?utm_content=DAFpI9loqzQ&utm_campaign=designshare&utm_medium=link&utm_source=publishsharelink) which used [Redhat Cockpit ](https://cockpit-project.org/) for web framework and [Docker](https://www.docker.com/) for running [application](https://github.com/Websoft9/docker-library).  
+## Overview
 
-The benefits of this architecture means you don't have to learn new technology stacks or worry about the lack of maintenance this project.
+Websoft9 uses a **single-container integrated control plane** architecture. Unlike traditional multi-container PaaS platforms, all core services run inside one Docker container, orchestrated by supervisord.
 
-![Alt text](image/archi.png)
+```
+┌──────────────────────────────────────────────────┐
+│                  Websoft9 Container               │
+│                                                   │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │  Console  │  │  AppHub   │  │  Nginx Proxy  │  │
+│  │  (React)  │  │ (FastAPI) │  │    Manager    │  │
+│  └────┬─────┘  └────┬─────┘  └───────┬───────┘  │
+│       │              │                │           │
+│  ┌────┴─────┐  ┌────┴─────┐  ┌───────┴───────┐  │
+│  │  Gitea   │  │ Portainer │  │  supervisord  │  │
+│  │ (Git)    │  │(Container)│  │  (init/pid1)  │  │
+│  └──────────┘  └──────────┘  └───────────────┘  │
+│                                                   │
+└──────────────────────┬────────────────────────────┘
+                       │
+              ┌────────┴────────┐
+              │  Docker Socket  │
+              │  Data Volumes   │
+              │  Host Network   │
+              └─────────────────┘
+```
 
+## Core Components
 
-What we do is integrating below stacks's API or interfaces to Cockpit console by [Cockpit packages (Also known as plugin)](https://cockpit-project.org/guide/latest/packages.html) :  
+### 1. Console (Frontend)
+- **Tech**: React 19 + TypeScript + Vite + MUI
+- **Role**: Web-based management UI served at port `9000`
+- **Features**: Application catalog, My Apps, file manager, terminal, settings, services logs
 
-- [Nginx Proxy Manager](https://nginxproxymanager.com/): A web-based Nginx management
-- [Portainer](https://www.portainer.io/): Powerful container management for DevSecOps
-- [Duplicati](https://www.duplicati.com/): Backup software to store encrypted backups online
-- [Redis](https://redis.io/): The open source, in-memory data store
-- [Appmanage](https://github.com/Websoft9/websoft9/tree/main/appmanage): API for create and manage docker compose based application powered by Websoft9
-- [websoft9-plugins](https://github.com/websoft9?q=plugin&type=all&language=&sort=): Cockpit packages powered by Websoft9
+### 2. AppHub (Backend API)
+- **Tech**: Python 3.11 + FastAPI
+- **Role**: Business logic API for apps, auth, proxy, backup, files, settings
+- **Auth**: API key + internal gateway trust key
+- **Base Path**: `/api`
 
-As Websoft9 is a complete product, we also offer:
+### 3. Gitea
+- **Tech**: Go, embedded within the product container
+- **Role**: Git repository hosting and embedded workspace for code editing
+- **Port**: Internal only
 
-* API
-* CLI
+### 4. Portainer
+- **Tech**: Go + React, embedded within the product container
+- **Role**: Docker container and stack lifecycle management
+- **Port**: Internal only
 
-And Websoft9 is more attractive to users is [200+ application templates](https://github.com/Websoft9/docker-library). 
+### 5. Nginx Proxy Manager (NPM)
+- **Tech**: Node.js, embedded within the product container
+- **Role**: Reverse proxy, domain binding, SSL certificate management (Let's Encrypt)
+- **Port**: 80, 443 (host-bound)
+
+## Data Flow
+
+```
+User Browser → :9000 (Console) → /api/* (AppHub)
+                                   ├→ Portainer API (container ops)
+                                   ├→ NPM API (proxy/SSL)
+                                   ├→ Gitea API (git repos)
+                                   └→ Docker socket (host ops)
+```
+
+## Host Dependencies
+
+- **Docker Engine** (required) — container runtime
+- **Docker Socket** (`/var/run/docker.sock`) — mounted for container management
+- **Data Root** (`/opt/websoft9/data`) — persistent data, bind-mounted at same path inside container
+- **Ports**: 80, 443, 9000
+
+## Key Design Decisions
+
+1. **Single container** — simplifies deployment, upgrade, and migration compared to multi-container PaaS
+2. **Same-path volume binding** — ensures Portainer-generated compose paths resolve identically on host and container
+3. **No Kubernetes dependency** — designed for single-server deployments; microservices on one machine
+4. **Integrated third-party components** — Gitea, Portainer, NPM are embedded rather than reinvented

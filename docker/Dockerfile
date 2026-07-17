@@ -16,8 +16,8 @@ RUN CGO_ENABLED=0 go build -o /build/init_portainer /build/init_portainer.go
 
 FROM python:3.11-slim AS python-deps-builder
 
-ARG WEBSOFT9_PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-ARG WEBSOFT9_PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+ARG WEBSOFT9_PIP_INDEX_URL=
+ARG WEBSOFT9_PIP_TRUSTED_HOST=
 
 WORKDIR /build
 COPY apphub/requirements.txt /build/requirements.txt
@@ -69,8 +69,7 @@ WORKDIR /websoft9
 # Keep system package installation BEFORE ARG declarations so that
 # changing WEBSOFT9_PRODUCT_VERSION does not invalidate
 # this expensive apt cache layer on every build.
-RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list 2>/dev/null; \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install --no-install-recommends -y \
     bash \
     bzip2 \

@@ -98,7 +98,7 @@ def _runtime_state(*, edition_key: str, updated_by: str, note: Optional[str] = N
         "enterprise": None,
     }[edition_key]
     return ProductRuntimeState(
-        version="3.0.0",
+        version="2.3.0",
         edition_key=edition_key,
         edition_name=edition_name,
         edition_names={"en": edition_name},

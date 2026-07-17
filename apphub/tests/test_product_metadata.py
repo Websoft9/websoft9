@@ -11,7 +11,7 @@ from src.services import product_metadata as product_metadata_service
 from src.services import product_runtime_state as runtime_state_service
 
 
-def _configure_runtime_state_paths(tmp_path, monkeypatch, *, version='3.0.0'):
+def _configure_runtime_state_paths(tmp_path, monkeypatch, *, version='2.3.0'):
     version_path = tmp_path / 'version.json'
     version_path.write_text(
         json.dumps({

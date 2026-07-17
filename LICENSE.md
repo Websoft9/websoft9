@@ -1,5 +1,22 @@
-This program is released under LGPL-3.0 and with the additional Terms:
-Without authorization, it is not allowed to publish free or paid image based on this program in any Cloud platform's Marketplace.
+# License
+
+Copyright (c) 2024-2026 Websoft9 Inc. and contributors.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the **GNU Lesser General Public License** as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+## Additional Terms
+
+Notwithstanding any other provision of the LGPL-3.0, the following
+additional restriction applies:
+
+> It is not allowed to publish free or paid images based on this
+> program in any cloud platform's marketplace without prior written
+> authorization from Websoft9 Inc.
+
+---
 
                    GNU LESSER GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007

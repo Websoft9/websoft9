@@ -1,47 +1,73 @@
 # User Guide
 
-## FAQ
+## Installation
 
-#### user can not sudo?
+Websoft9 runs on any Linux server with Docker installed. The installer requires root privileges.
 
-```
-# add user to sudo/admin group (select one command)
-usermod -aG wheel username
-usermod -aG sudo username
+### Quick Install
 
-# sudo not need to input password
+```bash
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
 ```
 
-#### Can not login with correct credential?
+### Install with Custom Options
 
-Many reason may make you login failed with the correct credential:
-
-- Cookie at you browser if IP change, need to clear cookie
-- *.override.json is not correct
-- TLS certificate
-- User not allowed login, need to modify ssh_config file
-
-More details, you can get it from `sudo grep cockpit /var/log/messages`
-
-#### How to modify Websoft9 port?
-
-Access web console > settings or use cli to modify port
-
-#### 当服务器IP怎么办？
-
-服务器 IP 变更，Websoft9 控制台能够自动适用，即使用新的 IP 访问即可。   
-
-但是，部分没有绑定域名的应用不能自动适用，即当应用无法访问时，您需要需要重新编排应用，将 env 中的 W9_URL 更换新的 IP 后，重建应用。
-
-#### 如何创建多用户并赋予权限？
-
-Websoft9 控制台 > 【用户账号】菜单中创建用户，创建完成后在面板中将新用户增加到 docker 用户组中。
-
-如果需要给用户添加 sudo，需要通过命令 visudo 将下面的内容增加到 sudoers 文件中(user001 表示您新创建的用户名)  
-```
-user001 ALL=(ALL:ALL) ALL
+```bash
+sudo bash install.sh \
+  --console-port 9000 \
+  --channel release \
+  --version "latest" \
+  --path "/opt/websoft9/source"
 ```
 
-#### appstore 502 error?
+After installation, access Websoft9 at: **http://<server-ip>:9000**
 
-Try `docker restart websoft9-proxy` to solved it
+### Upgrade
+
+```bash
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --version "latest"
+```
+
+### Uninstall
+
+```bash
+# Default uninstall
+curl -fsSL https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash
+
+# Keep data
+sudo bash uninstall.sh --keep-data
+
+# Full purge
+sudo bash uninstall.sh --purge
+```
+
+## First Login
+
+After installation, complete the setup wizard:
+
+1. Open `http://<server-ip>:9000`
+2. Follow the setup wizard to create the administrator account
+3. Configure basic settings (timezone, network, etc.)
+
+## Core Features
+
+### App Store
+Browse and install 200+ open source applications with one click. Applications include CMS (WordPress), e-commerce, DevOps tools, databases, and more.
+
+### My Apps
+Manage installed applications: start, stop, restart, redeploy, view logs, manage files and volumes.
+
+### File Manager
+Web-based file browser for managing files and directories within application containers.
+
+### Terminal
+Browser-based terminal for remote server access. Inspect and manage your server directly from the Websoft9 console.
+
+### Proxy & SSL
+Manage domains and SSL certificates through Nginx Proxy Manager integration. Automatic Let's Encrypt certificate issuance and renewal.
+
+### Backups
+Schedule and manage backups for applications and databases. Support for local and S3 remote storage.
+
+### System Settings
+Configure platform settings including ports, mirrors, certificates, and user accounts.

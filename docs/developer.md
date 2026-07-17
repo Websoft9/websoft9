@@ -1,24 +1,106 @@
 # Developer Guide
 
+## Prerequisites
 
+- **Python 3.11+** — for AppHub backend
+- **Node.js 22+** — for Console frontend
+- **Docker & Docker Compose** — for local runtime
+- **Go 1.24+** — for Portainer init helper (optional)
 
+## Project Structure
 
-## Release
+```
+websoft9/
+├── apphub/          # Backend API (Python/FastAPI)
+│   ├── src/         # Application source
+│   └── tests/       # Test suite
+├── console/         # Frontend UI (React/TypeScript/Vite)
+│   └── src/         # Application source
+├── docker/          # Container build & runtime
+│   ├── Dockerfile   # Single-container image build
+│   └── docker-compose.yml
+├── install/         # Installation scripts
+├── cli/             # CLI tools
+├── scripts/         # Utility scripts
+└── docs/            # Documentation
+```
 
+## Development Setup
 
+### 1. Backend (AppHub)
 
-#### 制品库自动化
+```bash
+cd apphub
 
-- 插件制品管理：开发人员开发测试完成后，修改插件版本，触发 Action 构建 Github packages 制品
-- docker-libaray 库制品管理：开发人员测试完成后，修改 library 版本，触发 Action 构建 Github packages 制品
-- websoft9 制品管理：开发人员修改 appmanage 源码或微服务 docker-compose 测试完成后，修改 微服务 版本，触发 Action 构建 Dockerhub 镜像制品以及后台微服务 Github packages 制品
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
 
-> Portainer,redis,nginxproxymanager 使用外部 dockerhub 镜像
+# Install dependencies
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
-### 自动化测试
+# Run tests
+pytest --cov=src
 
-当各个制品更新后，项目管理者修改 version_test.json 对应的组件的版本，构建 Action 触发自动化系统测试。
-自动化测试失败，通知各开发人员，删除制品，修改后重新生成制品。
-自动化测试成功，同步 version_test.json 到 version.json， 新制品正式发布。
+# Run development server
+uvicorn src.main:app --reload --port 8000
+```
 
+### 2. Frontend (Console)
 
+```bash
+cd console
+
+# Install dependencies
+npm ci
+
+# Start development server
+npm run dev
+```
+
+### 3. Full Stack (Docker Compose)
+
+```bash
+cd docker
+
+# Start with dev compose file
+docker compose -f docker-compose.dev.yml up -d --build
+```
+
+## Code Standards
+
+### Python (AppHub)
+- Formatter: **Black** (line length 100)
+- Linter: **Flake8**, **Pylint**
+- Import sorting: **isort**
+- Type hints required for public APIs
+- Test coverage target: ≥70%
+
+### TypeScript (Console)
+- Formatter: **ESLint** + **Prettier**
+- Strict TypeScript mode enabled
+- Component structure: feature-based folders under `src/features/`
+
+## CI/CD
+
+All pull requests must pass:
+
+| Check | Tool |
+|-------|------|
+| Linting | Black, isort, Flake8, ESLint |
+| Tests | Pytest (≥70% coverage) |
+| Build | Docker image build |
+| Security | Container vulnerability scan |
+
+See [CI/CD Guide](ci-guide.md) for details.
+
+## Contributing
+
+1. Fork the `main` branch
+2. Create a feature branch
+3. Make changes with tests
+4. Ensure all CI checks pass locally
+5. Submit a pull request to `main`
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full contribution workflow.

@@ -1,105 +1,100 @@
-![image](https://github.com/user-attachments/assets/bb01fa37-1f53-4fc6-8992-9f784d02dd40)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/bb01fa37-1f53-4fc6-8992-9f784d02dd40" alt="Websoft9" width="200">
+</p>
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
-[![GitHub last commit](https://img.shields.io/github/last-commit/websoft9/websoft9)](https://github.com/websoft9/websoft9)
-[![GitHub Release Date](https://img.shields.io/github/release-date/websoft9/websoft9)](https://github.com/websoft9/websoft9)
-[![GitHub Repo stars](https://img.shields.io/github/stars/websoft9/websoft9?style=social)](https://github.com/websoft9/websoft9)
-[![CI Pipeline](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml/badge.svg)](https://github.com/Websoft9/websoft9/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Websoft9/websoft9/branch/main/graph/badge.svg)](https://codecov.io/gh/Websoft9/websoft9) 
+<h1 align="center">Websoft9</h1>
 
-**Certified Deployment on Major Cloud Platforms with business support**
-| [![](https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png)](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9)   |  [![](https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png)](https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4)     | [![](https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png)](https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html)     |   [![](https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png)](https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e)    |
-| ---- | ---- | ---- | ---- |
-| [![](https://libs.websoft9.com/Websoft9/logo/marketplace/aliyun-logo.png)](https://market.aliyun.com/products/53690006/cmjj00048735.html?userCode=yetrmi9y)     |   [![](https://libs.websoft9.com/Websoft9/logo/marketplace/huaweiyun-logo.png)](https://marketplace.huaweicloud.com/contents/29458a42-64b7-4637-aa7c-8bfddea1fb72#productid=OFFI1005787756558913536)    |      |      |
+<p align="center">
+  <strong>Web-based PaaS for running 200+ open source applications on your own server.</strong>
+</p>
 
+<p align="center">
+  <a href="http://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-LGPL%20v3-blue.svg" alt="License"></a>
+  <a href="https://github.com/Websoft9/websoft9/actions/workflows/ci.yml"><img src="https://github.com/Websoft9/websoft9/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Websoft9/websoft9/releases"><img src="https://img.shields.io/github/v/release/websoft9/websoft9" alt="Release"></a>
+  <a href="https://github.com/Websoft9/websoft9/stargazers"><img src="https://img.shields.io/github/stars/websoft9/websoft9?style=social" alt="Stars"></a>
+</p>
 
+---
 
-# What is Websoft9?
+## What is Websoft9?
 
-[Websoft9](https://github.com/Websoft9/websoft9) is web-based PaaS/Linux Panel for running 200+ hot [open source application](https://github.com/Websoft9/docker-library/tree/main/apps) on your own server.
+Websoft9 is a self-hosted PaaS that lets you deploy and manage **200+ open source applications** (WordPress, GitLab, Mattermost, and more) on a single server — no Kubernetes required.
 
-Websoft9 help you to run multiple applications in a single server, that means we believe Microservices on single machine is reasonable. On the contrary, it becomes more and more valuable as computing power increases
+Think of it as your own private app store: browse, one-click install, manage domains and SSL, back up data, all from a clean web console.
 
-Although the Cloud Native emphasizes high availability and clustering, but most of the time, applications do not need to implement complex clusters or K8S.
+## Quick Start
 
-Websoft9's [architecture](https://github.com/Websoft9/websoft9/blob/main/docs/architecture.md) is simple, it did not create any new technology stack, and we fully utilize popular technology components to achieve our product goals, allowing users and developers to participate in our projects without the need to learn new technologies.
-
-## Demos
-
-You can see the screenshots below:
-
-| ![image](https://github.com/Websoft9/websoft9/assets/16741975/8321780c-4824-4e40-997d-676a31534063) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/e842575b-60bc-4b0d-a57b-28c26b16196a) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/c598412a-9529-4286-ba03-6234d6da99b9) |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| ![image](https://github.com/Websoft9/websoft9/assets/16741975/7bed3744-1e9f-429e-8678-3714c8c262e2) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/a0923c69-2792-4cde-bfaf-bc018b61aee9) | ![image](https://github.com/Websoft9/websoft9/assets/16741975/901efd1c-31a0-4b31-b79c-fc2d441bb679) |
-
-
-
-Below is demo server, please **give stars** if you like it:
+```bash
+# Install on any Linux server with Docker
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
 ```
-Demo URL: http://demo.goweb.cc:9000/
-user: demo
-password: websoft9
-```
+
+Then open **http://\<server-ip\>:9000** and follow the setup wizard.
+
+> [!TIP]
+> Try the demo: [http://demo.goweb.cc:9000](http://demo.goweb.cc:9000) — user: `demo` / password: `websoft9`
 
 ## Features
 
-- Applications listing
-- Install 200+ template applications without any configuration
-- Web-based file browser to manage files and folder
-- Docker Compose GUI
-- Manage user accounts
-- Use a terminal on a remote server in your local web browser
-- Nginx gui for proxy and free SSL with Let's Encrypt
-- Deploy, configure, troubleshoot and secure containers in minutes on Kubernetes, Docker, and Swarm in any data center, cloud, network edge or IIOT device.
-- Manage your Linux by GUI: Inspect and change network settings, Configure a firewall, Manage storage, Browse and search system logs, Inspect a system’s hardware, Inspect and interact with systemd-based services,
-- Supported languages: English, Chinese（中文）
+| Category | Capabilities |
+|----------|-------------|
+| **App Store** | Browse and install 200+ apps in one click — CMS, e-commerce, DevOps, databases |
+| **My Apps** | Start, stop, restart, redeploy, view logs, manage files and volumes per app |
+| **File Manager** | Web-based file browser with upload, download, edit, and permission management |
+| **Terminal** | Browser-based SSH terminal for remote server management |
+| **Proxy & SSL** | Domain binding and free Let's Encrypt SSL certificates via Nginx Proxy Manager |
+| **Backups** | Scheduled local and S3 remote backups for apps and databases |
+| **Docker Compose** | GUI for deploying custom docker-compose stacks |
+| **User Management** | Multi-user accounts with role-based access |
+| **Monitoring** | Real-time host metrics, service status, and log viewer |
 
-# Installation
+## Architecture
 
-Websoft9 installation requires host root privileges. Use the root account directly, or run the installer with `sudo bash ...` from a regular user.
+Websoft9 runs as a **single Docker container** that bundles four key open source components:
 
-## Install & Upgrade
+| Component | Role |
+|-----------|------|
+| **AppHub** (Python/FastAPI) | Business API — app catalog, lifecycle, auth, settings |
+| **Console** (React/TypeScript) | Web management UI |
+| **Portainer** | Container and stack orchestration |
+| **Nginx Proxy Manager** | Reverse proxy, domains, SSL certificates |
 
-```
-# Install by default
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
+All components are managed by supervisord inside one container — simple to deploy, easy to upgrade.
 
-# Install Websoft9 with parameters
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --console-port 9000 --channel release --path "/data/websoft9/source" --version "latest"
+→ [Architecture overview](docs/architecture.md)
 
-# Upgrade current single-container installation
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --version "latest"
-```
-After installation, access it by: **http://Internet IP:9000**
+## Cloud Marketplace
 
-For lifecycle redesign, legacy-to-modern upgrade planning, and the future install script rewrite baseline, see [docs/platform-lifecycle/platform-lifecycle-governance_cn.md](docs/platform-lifecycle/platform-lifecycle-governance_cn.md).
+Websoft9 is certified and available on major cloud platforms:
 
-## Uninstall
+<p align="center">
+  <a href="https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png" width="40" alt="Azure"></a>&nbsp;
+  <a href="https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png" width="40" alt="AWS"></a>&nbsp;
+  <a href="https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png" width="40" alt="Alibaba Cloud"></a>&nbsp;
+  <a href="https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png" width="40" alt="Huawei Cloud"></a>
+</p>
 
-```
-# Uninstall by default
-curl -fsSL https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash
+→ [Deployment guide](docs/deployment.md)
 
-# Uninstall and keep data
-wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash -s -- --keep-data
+## Documentation
 
-# Uninstall all
-wget -O - https://artifact.websoft9.com/websoft9/release/uninstall.sh | sudo bash -s -- --purge
-```
+| Document | Description |
+|----------|-------------|
+| [User Guide](docs/user.md) | Installation, features, and daily usage |
+| [Developer Guide](docs/developer.md) | Dev environment setup, coding standards, contribution |
+| [API Reference](docs/api-reference.md) | AppHub REST API endpoints |
+| [Deployment Guide](docs/deployment.md) | Production and cloud marketplace deployment |
+| [Architecture](docs/architecture.md) | System design and component topology |
+| [FAQ](docs/faq.md) | Common questions and troubleshooting |
 
-# Contributing
+## Community
 
-Follow the [contributing guidelines](CONTRIBUTING.md) if you want to propose a change in the Websoft9 core. For more information about participating in the community and contributing to the Websoft9 project, see [this page](https://support.websoft9.com/docs/community/contributing).
+- 💬 [GitHub Issues](https://github.com/Websoft9/websoft9/issues) — Bug reports and feature requests
+- 🔧 [Contributing Guide](CONTRIBUTING.md) — How to contribute code
+- 📦 [Application Templates](https://github.com/Websoft9/docker-library) — 200+ ready-to-deploy apps
 
-- Documentation for [Websoft9 core maintainers](docs/MAINTAINERS.md)
-- Documentation for application templates based on Docker maintainers is in the [docker-library](https://github.com/Websoft9/docker-library).
-- [Articles promoting Websoft9](https://github.com/Websoft9/websoft9/issues/327)
+## License
 
-# Get Involved
-
-- Social Media: [Linkedin](https://www.linkedin.com/company/websoft9), [Weibo](https://weibo.com/chendelin1982)
-- Chat Group: [Slack](https://websoft9-hq.slack.com/), [WeChat Group](https://libs.websoft9.com/Websoft9/feature/icon-userchatgroup-websoft9.png)
-
-# License
-
-Websoft9 is licensed under the [LGPL-3.0](/LICENSE.md), and additional Terms: It is not allowed to publish free or paid image based on this repository in any Cloud platform's Marketplace without authorization
+Websoft9 is licensed under [LGPL-3.0](LICENSE.md).  
+**Additional restriction**: Publishing free or paid images based on this repository to any cloud platform marketplace without authorization is prohibited.
