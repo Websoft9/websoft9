@@ -172,48 +172,6 @@
             background: #f8fafc
         }
 
-        .hint-box {
-            display: none;
-            flex-direction: column;
-            gap: 10px;
-            text-align: left;
-            background: var(--ground);
-            border: 1px solid var(--line);
-            border-radius: 4px;
-            padding: 18px 22px;
-            margin-bottom: 28px;
-            width: 100%;
-            max-width: 620px
-        }
-
-        .hint-box.visible {
-            display: inline-flex
-        }
-
-        .hint-box .hint-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            font-size: 13px;
-            color: var(--muted);
-            line-height: 1.6
-        }
-
-        .hint-box .hint-num {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: var(--blue);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            margin-top: 1px
-        }
-
         .status-bar {
             display: inline-flex;
             align-items: center;
@@ -420,12 +378,6 @@
             <p style="font-size:13px;color:var(--muted);margin:12px 0 0">
                 <span id="support-prefix">遇到问题？</span><a id="support-link" href="https://support.websoft9.com/docs/helpdesk#contact" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none"><span id="support-label">获取技术支持</span></a>
             </p>
-            <div class="hint-box" id="hint-box">
-                <div class="hint-item"><span class="hint-num">1</span><span id="hint1">管理控制台运行在 9000 端口，请确保云服务器安全组或防火墙已放行该端口</span></div>
-                <div class="hint-item"><span class="hint-num">2</span><span id="hint2">如果使用云厂商服务，请在控制台安全组规则中添加入站 TCP 9000</span></div>
-                <div class="hint-item"><span class="hint-num">3</span><span id="hint3">遇到连接问题可通过下方技术支持链接获取帮助</span></div>
-            </div>
-
         </main>
         <a class="brand-footer" href="https://www.websoft9.com" target="_blank" rel="noopener noreferrer" aria-label="Websoft9">
             <img id="brand-logo" src="" alt="Websoft9" style="height:40px;object-fit:contain" onerror="this.style.display='none'" />
@@ -441,9 +393,6 @@
                     mainInit: 'Start Setup',
                     support: 'Get Support',
                     supportPrefix: 'Having issues? ',
-                    hint1: 'The management console runs on port 9000 — ensure your cloud security group or firewall allows this port',
-                    hint2: 'If using a cloud provider, add an inbound TCP 9000 rule in the security group settings',
-                    hint3: 'For connection issues, use the support link below to get help',
                     statusTitle: 'Management Console Running',
                     statusOk: 'Port {port} · Connected',
                     statusFail: 'Cannot reach console',
@@ -460,9 +409,6 @@
                     mainInit: '点击开始初始化',
                     support: '获取技术支持',
                     supportPrefix: '遇到问题？',
-                    hint1: '管理控制台运行在 9000 端口，请确保云服务器安全组或防火墙已放行该端口',
-                    hint2: '如果使用云厂商服务，请在控制台安全组规则中添加入站 TCP 9000',
-                    hint3: '遇到连接问题可通过下方技术支持链接获取帮助',
                     statusTitle: '管理控制台运行中',
                     statusOk: '端口 {port} · 连接正常',
                     statusFail: '无法连接控制台',
@@ -499,9 +445,6 @@
                 $('support-prefix').textContent = t('supportPrefix');
                 $('support-link').href = LK.support[l];
                 $('brand-logo').src = location.protocol + '//' + location.hostname + ':' + port + '/' + LOGOS[l];
-                $('hint1').textContent = t('hint1');
-                $('hint2').textContent = t('hint2');
-                $('hint3').textContent = t('hint3');
                 if (state === 'ready') { $('main-label').textContent = started ? t('mainReady') : t('mainInit') } else { $('main-label').textContent = t('mainReady') }
                 $('retry-button').textContent = t('retry');
                 document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('active', b.dataset.lang === l) });
@@ -512,10 +455,8 @@
                 var dot = $('status-dot'),
                     text = $('status-text'),
                     portEl = $('status-port'),
-                    retry = $('retry-button'),
-                    hintBox = $('hint-box');
+                    retry = $('retry-button');
                 retry.hidden = state !== 'error';
-                hintBox.classList.toggle('visible', state === 'error');
                 if (state === 'ready') {
                     dot.style.background = 'var(--green)';
                     text.textContent = t('statusTitle');
