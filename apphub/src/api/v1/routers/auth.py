@@ -112,9 +112,20 @@ def check_setup_wizard_access(
 ):
     setup_wizard = SetupWizardService()
     if not setup_wizard.should_use_wizard():
+        status_payload = ProductAuthService().get_status(session_token=session_token)
+        if status_payload.get("initialization_required"):
+            return Response(
+                status_code=403,
+                headers={"X-Websoft9-Setup-Route": "/auth/setup"},
+            )
+        if not status_payload.get("authenticated"):
+            return Response(
+                status_code=403,
+                headers={"X-Websoft9-Setup-Route": "/auth/login"},
+            )
         return Response(
             status_code=403,
-            headers={"X-Websoft9-Setup-Route": "/__not_found__"},
+            headers={"X-Websoft9-Setup-Route": "/dashboard"},
         )
 
     state = setup_wizard.get_state(session_token=session_token)

@@ -78,12 +78,4 @@ cp -a /etc/nginx/. "$npm_runtime_config_dir/"
 find "$npm_runtime_config_dir" -name '*.conf' -print0 \
   | xargs -0 sed -i "s#/data/logs/#$service_log_root/#g"
 
-# Inject static-file location for welcome-page SVGs before the assets proxy.
-# Using ^~ prefix to out-prioritize the regex location in assets.conf.
-mkdir -p /var/www/html/w9assets
-cp -a /var/www/html/websoft9-en.svg /var/www/html/websoft9-zh.svg /var/www/html/w9assets/ 2>/dev/null || true
-sed -i '/include conf.d\/include\/assets.conf;/i\
-    location ^~ /w9assets/ { root /var/www/html; }' \
-  "$npm_runtime_config_dir/conf.d/default.conf"
-
 exec /usr/sbin/nginx -c "$npm_runtime_config_dir/nginx.conf"
