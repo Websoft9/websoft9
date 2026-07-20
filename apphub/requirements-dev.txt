@@ -1,7 +1,7 @@
 # Development and Testing Dependencies for Websoft9 AppHub
 
 # Testing Framework
-pytest>=7.4.0
+pytest>=9.1.1
 pytest-cov>=4.1.0
 pytest-asyncio>=0.21.0
 pytest-timeout>=2.1.0
