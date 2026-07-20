@@ -1660,35 +1660,7 @@
 .terminal-xterm-host {
     display: block;
     width: 100%;
-    min-width: 0;
     height: 100%;
-    min-height: 0;
-    padding: 10px 12px 16px;
-    overflow: hidden;
-}
-
-.terminal-xterm-host .xterm {
-    max-width: 100%;
-    overflow: hidden;
-}
-
-.terminal-xterm-host .xterm-screen,
-.terminal-xterm-host .xterm-rows,
-.terminal-xterm-host .xterm-screen canvas {
-    max-width: 100% !important;
-    overflow: hidden !important;
-}
-
-.terminal-xterm-host .xterm-viewport {
-    overflow-y: auto !important;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-}
-
-.terminal-xterm-host .xterm-viewport::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-    display: none;
 }
 
 .terminal-shell-empty {
