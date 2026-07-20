@@ -22,5 +22,5 @@ types-requests
 safety>=2.3.0  # Dependency vulnerability scanner
 
 # Development utilities
-ipython>=8.14.0  # Better Python REPL
+ipython>=9.15.0  # Better Python REPL
 ipdb>=0.13.13  # Debugger
