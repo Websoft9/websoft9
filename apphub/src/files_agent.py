@@ -227,25 +227,38 @@ def action_write_text(payload):
             handle.write(str(payload.get("content", "")))
             handle.flush()
             os.fsync(handle.fileno())
+            if original_stat is not None:
+                try:
+                    os.fchown(handle.fileno(), original_stat.st_uid, original_stat.st_gid)
+                except OSError:
+                    pass
+                try:
+                    os.fchmod(handle.fileno(), stat.S_IMODE(original_stat.st_mode))
+                except OSError:
+                    pass
+            else:
+                try:
+                    parent_stat = os.stat(parent_path)
+                    os.fchown(handle.fileno(), parent_stat.st_uid, parent_stat.st_gid)
+                except OSError:
+                    pass
             temp_path = handle.name
         os.replace(temp_path, target_path)
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
-    if original_stat is not None:
-        try:
-            os.chown(target_path, original_stat.st_uid, original_stat.st_gid)
-        except OSError:
-            pass
-        try:
-            os.chmod(target_path, stat.S_IMODE(original_stat.st_mode))
-        except OSError:
-            pass
     emit({"status": "ok"})
 
 def action_create_directory(payload):
     target_path = resolve_target_path(payload.get("path", "/"), allow_root=False, require_exists=False)
+    parent_path = os.path.dirname(target_path)
+    os.makedirs(parent_path, exist_ok=True)
     os.makedirs(target_path, exist_ok=False)
+    try:
+        parent_stat = os.stat(parent_path)
+        os.chown(target_path, parent_stat.st_uid, parent_stat.st_gid)
+    except OSError:
+        pass
     emit({"status": "ok"})
 
 def action_create_file(payload):
@@ -253,6 +266,11 @@ def action_create_file(payload):
     parent_path = os.path.dirname(target_path)
     os.makedirs(parent_path, exist_ok=True)
     with open(target_path, "x", encoding="utf-8"):
+        pass
+    try:
+        parent_stat = os.stat(parent_path)
+        os.chown(target_path, parent_stat.st_uid, parent_stat.st_gid)
+    except OSError:
         pass
     emit({"status": "ok"})
 
@@ -749,22 +767,26 @@ async def write_text_file(payload: AgentWriteTextRequest):
             handle.write(payload.content)
             handle.flush()
             os.fsync(handle.fileno())
+            if original_stat is not None:
+                try:
+                    os.fchown(handle.fileno(), original_stat.st_uid, original_stat.st_gid)
+                except OSError:
+                    pass
+                try:
+                    os.fchmod(handle.fileno(), stat.S_IMODE(original_stat.st_mode))
+                except OSError:
+                    pass
+            else:
+                try:
+                    parent_stat = os.stat(parent_path)
+                    os.fchown(handle.fileno(), parent_stat.st_uid, parent_stat.st_gid)
+                except OSError:
+                    pass
             temp_path = handle.name
         os.replace(temp_path, target_path)
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
-
-    # Restore original ownership and permissions
-    if original_stat is not None:
-        try:
-            os.chown(target_path, original_stat.st_uid, original_stat.st_gid)
-        except OSError:
-            pass
-        try:
-            os.chmod(target_path, stat.S_IMODE(original_stat.st_mode))
-        except OSError:
-            pass
 
     return {"status": "ok"}
 
@@ -775,7 +797,13 @@ async def create_directory(payload: AgentPathRequest):
     if _should_use_helper_root(root_path):
         return _helper_manager().execute(root_path, "create-directory", payload.model_dump(exclude_none=True))
     target_path = _resolve_target_path(root_path, payload.path, allow_root=False, require_exists=False)
+    parent_path = os.path.dirname(target_path)
     os.makedirs(target_path, exist_ok=False)
+    try:
+        parent_stat = os.stat(parent_path)
+        os.chown(target_path, parent_stat.st_uid, parent_stat.st_gid)
+    except OSError:
+        pass
     return {"status": "ok"}
 
 
@@ -789,6 +817,11 @@ async def create_empty_file(payload: AgentPathRequest):
     _ensure_inside_root(root_path, parent_path)
     os.makedirs(parent_path, exist_ok=True)
     with open(target_path, "x", encoding="utf-8"):
+        pass
+    try:
+        parent_stat = os.stat(parent_path)
+        os.chown(target_path, parent_stat.st_uid, parent_stat.st_gid)
+    except OSError:
         pass
     return {"status": "ok"}
 
