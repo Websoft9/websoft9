@@ -33,7 +33,7 @@ wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && 
 Then open **http://\<server-ip\>:9000** and follow the setup wizard.
 
 > [!TIP]
-> Try the demo: [http://demo.goweb.cc:9000](http://demo.goweb.cc:9000) — user: `demo` / password: `websoft9`
+> Try the demo: [http://demo.goweb.cc:9000](http://demo.goweb.cc:9000) — user: `demo` / password: `Websoft9@`
 
 ## Features
 
