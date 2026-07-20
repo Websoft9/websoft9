@@ -2654,7 +2654,10 @@ export function TerminalPage() {
             }
             lastRenderedSessionIdRef.current = activeSession.id
         }
-        terminal.scrollToBottom()
+        const atBottom = terminal.rows + terminal.buffer.active.viewportY >= terminal.buffer.active.baseY
+        if (atBottom) {
+            terminal.scrollToBottom()
+        }
     }, [activeSession?.buffer, activeSession?.id, copy.sessionEmpty, workspaceView])
 
     useEffect(() => {
@@ -3562,7 +3565,7 @@ export function TerminalPage() {
                                     <input
                                         ref={accessPrivateKeyUploadInputRef}
                                         type="file"
-                                        accept=".key,.pem,.ppk,.txt,*/*"
+                                        accept="*/*"
                                         onChange={(event) => void handlePrivateKeyFileSelected(event)}
                                         style={{ display: 'none' }}
                                     />
