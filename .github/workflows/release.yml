@@ -353,16 +353,7 @@ jobs:
         env:
           CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PURGE_URLS: >-
-            ["https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/uninstall.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/install_docker.sh",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/docker-compose.yml",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/manifest.json",
-            "https://artifact.websoft9.com/websoft9/${{ needs.determine-channel.outputs.channel }}/SHA256SUMS",
-            "https://artifact.websoft9.com/release/websoft9/install.sh",
-            "https://artifact.websoft9.com/release/websoft9/uninstall.sh",
-            "https://artifact.websoft9.com/release/websoft9/install_docker.sh"]'
+          PURGE_EVERYTHING: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -404,21 +395,23 @@ jobs:
   # ── WeChat work notification ──
   notify:
     name: WeChat Notification
-    needs: [determine-channel, release-notes]
+    needs: [determine-channel, release-notes, smoke-test-image, upload-artifacts]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Send WeChat webhook
+        env:
+          WX_VERSION: ${{ needs.determine-channel.outputs.version }}
+          WX_CHANNEL: ${{ needs.determine-channel.outputs.channel }}
+          WX_CHANGELOG: ${{ needs.release-notes.outputs.changelog_body }}
         run: |
-          VERSION="${{ needs.determine-channel.outputs.version }}"
-          CHANNEL="${{ needs.determine-channel.outputs.channel }}"
-          CHANGELOG=$(printf '%s' '${{ needs.release-notes.outputs.changelog_body }}' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          CHANGELOG=$(printf '%s' "$WX_CHANGELOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
 
           curl 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${{ secrets.WIXIN_ROBOT_KEY }}' \
             -H 'Content-Type: application/json' \
             -d "{
               \"msgtype\": \"markdown\",
               \"markdown\": {
-                \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 发布通道：<font color=\\\"comment\\\">${CHANNEL}</font>\\n> 最新版本：<font color=\\\"comment\\\">${VERSION}</font>\\n> 更新内容：\\n${CHANGELOG}\\n>\"
+                \"content\": \"【Release 通知】\\n> 项目名称：<font color=\\\"info\\\">websoft9</font>\\n> 发布通道：<font color=\\\"comment\\\">${WX_CHANNEL}</font>\\n> 最新版本：<font color=\\\"comment\\\">${WX_VERSION}</font>\\n> 更新内容：\\n${CHANGELOG}\\n>\"
               }
             }"
