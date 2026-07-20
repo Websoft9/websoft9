@@ -7,7 +7,7 @@ Websoft9 runs on any Linux server with Docker installed. The installer requires 
 ### Quick Install
 
 ```bash
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && sudo bash install.sh
 ```
 
 ### Install with Custom Options
@@ -25,7 +25,7 @@ After installation, access Websoft9 at: **http://<server-ip>:9000**
 ### Upgrade
 
 ```bash
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && sudo bash install.sh --version "latest"
 ```
 
 ### Uninstall

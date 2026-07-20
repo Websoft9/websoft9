@@ -27,7 +27,7 @@ Think of it as your own private app store: browse, one-click install, manage dom
 
 ```bash
 # Install on any Linux server with Docker
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && sudo bash install.sh
 ```
 
 Then open **http://\<server-ip\>:9000** and follow the setup wizard.

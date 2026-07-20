@@ -49,7 +49,7 @@ A: Ensure port 80 is accessible from the internet (Let's Encrypt HTTP challenge)
 ### Q: How do I upgrade Websoft9?
 A: Run the installer with `--version latest`:
 ```bash
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh --version "latest"
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && sudo bash install.sh --version "latest"
 ```
 
 ### Q: Will upgrading affect my installed apps?

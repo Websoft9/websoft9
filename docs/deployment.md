@@ -21,7 +21,7 @@ curl -fsSL https://get.docker.com | sudo bash
 ### 2. Install Websoft9
 
 ```bash
-wget -O install.sh https://artifact.websoft9.com/websoft9/release/platform/install.sh && sudo bash install.sh
+wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && sudo bash install.sh
 ```
 
 ### 3. Verify Installation
