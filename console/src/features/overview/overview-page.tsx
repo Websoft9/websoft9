@@ -467,8 +467,17 @@ function getLocalizedEditionName(
     t: (key: string) => string,
 ): string {
     const normalizedKey = (editionKey || editionName || '').trim().toLowerCase()
-    if (normalizedKey === 'free' || editionName === '免费版' || editionName === 'Free') {
+    if (normalizedKey === 'free' || normalizedKey === 'community' || editionName === '免费版' || editionName === 'Free') {
         return t('overviewPage.cards.product.editionNames.community')
+    }
+    if (normalizedKey === 'starter' || editionName === '入门版' || editionName === 'Starter') {
+        return t('overviewPage.cards.product.editionNames.starter')
+    }
+    if (normalizedKey === 'standard' || editionName === '标准版' || editionName === 'Standard') {
+        return t('overviewPage.cards.product.editionNames.standard')
+    }
+    if (normalizedKey === 'enterprise' || editionName === '企业版' || editionName === 'Enterprise') {
+        return t('overviewPage.cards.product.editionNames.enterprise')
     }
 
     return editionName || editionKey || '--'

@@ -1009,7 +1009,8 @@ def main() -> int:
     )
     library_apps_root = Path(os.getenv("WEBSOFT9_LIBRARY_APPS_ROOT", "/websoft9/library/apps"))
     install_metadata_path = Path(os.getenv("WEBSOFT9_APP_STORE_INSTALL_METADATA", "/websoft9/media/json/app-store-install-metadata.json"))
-    sync_state_path = Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", "/websoft9/apphub/src/config/appstore_sync_state.json"))
+    data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+    sync_state_path = Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(Path(data_root) / "config" / "appstore_sync_state.json")))
     snapshot_root = Path(os.getenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", "/websoft9/appstore"))
 
     packages = [

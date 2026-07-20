@@ -245,7 +245,7 @@ class OverviewService:
         return {
             "version": metadata.get("version") or None,
             "edition_key": edition.key,
-            "edition_name": edition.names.get("zh-CN") or edition.name,
+            "edition_name": edition.names.get("en") or edition.name,
             "max_apps": edition.max_apps,
             "upgrade_state": "unknown",
         }

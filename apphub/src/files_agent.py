@@ -419,6 +419,9 @@ class DockerHelperManager:
         self.idle_ttl_seconds = idle_ttl_seconds
         self._lock = threading.Lock()
         self._helpers: dict[str, dict[str, object]] = {}
+        self._sweeper_started = False
+        self._start_background_sweeper()
+        self.prune_orphaned_helpers()
 
     def execute(self, root_path: str, action: str, payload: dict[str, object]) -> dict[str, object]:
         encoded_payload = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("utf-8")
@@ -459,6 +462,45 @@ class DockerHelperManager:
         for root_path in stale_roots:
             container_id = self._helpers.pop(root_path, {}).get("container_id")
             self._remove_container(container_id)
+
+    def prune_orphaned_helpers(self) -> None:
+        with self._lock:
+            known_ids = {
+                str(entry.get("container_id"))
+                for entry in self._helpers.values()
+                if entry.get("container_id")
+            }
+            try:
+                containers = self._get_docker_client().containers.list(
+                    all=True,
+                    filters={"label": "com.websoft9.role=files-helper"},
+                )
+            except Exception:
+                return
+
+            for container in containers:
+                if container.id in known_ids:
+                    continue
+                labels = container.attrs.get("Config", {}).get("Labels", {}) or {}
+                root_path = str(labels.get("com.websoft9.files-root") or "").strip()
+                if root_path and root_path in self._helpers:
+                    continue
+                self._remove_container(container.id)
+
+    def _start_background_sweeper(self) -> None:
+        if self._sweeper_started:
+            return
+        thread = threading.Thread(target=self._sweeper_loop, name="websoft9-files-helper-sweeper", daemon=True)
+        thread.start()
+        self._sweeper_started = True
+
+    def _sweeper_loop(self) -> None:
+        interval = max(min(self.idle_ttl_seconds, 60), 30)
+        while True:
+            time.sleep(interval)
+            with self._lock:
+                self._prune_stale_locked()
+            self.prune_orphaned_helpers()
 
     def _create_container(self, root_path: str):
         client = self._get_docker_client()
@@ -1162,6 +1204,10 @@ import subprocess
 
 def _detect_docker_volumes_root() -> str:
     """Auto-detect the Docker volumes directory via the Docker socket or filesystem."""
+    env_root = os.getenv("WEBSOFT9_DOCKER_VOLUMES_ROOT", "").strip()
+    if env_root and os.path.isdir(env_root):
+        return os.path.realpath(env_root)
+
     # 1) Query the Docker daemon via the mounted socket (most reliable).
     try:
         result = subprocess.run(

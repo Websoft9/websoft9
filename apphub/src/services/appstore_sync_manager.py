@@ -39,12 +39,10 @@ class AppStoreSyncManager:
         if configured_path:
             return configured_path
 
-        runtime_path = Path("/websoft9/apphub/src/config/appstore_sync_state.json")
-        if runtime_path.parent.exists():
-            return str(runtime_path)
-
-        workspace_path = Path(__file__).resolve().parents[1] / "config" / "appstore_sync_state.json"
-        return str(workspace_path)
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        persistent_path = Path(data_root) / "config" / "appstore_sync_state.json"
+        persistent_path.parent.mkdir(parents=True, exist_ok=True)
+        return str(persistent_path)
 
     def _load_sync_state(self) -> dict:
         state_path = Path(self._default_state_path)

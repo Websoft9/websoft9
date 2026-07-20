@@ -1,6 +1,9 @@
 # Websoft9 Platform — App Store daily auto-sync
-# Runs every day at 03:00 UTC and logs to supervisor log stream.
+# Runs every day at 03:00 local time and logs to supervisor log stream.
 # Uses the image metadata channel from /websoft9/version.json unless an
 # operator explicitly overrides it via CLI flags.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
 0 3 * * * root /usr/local/bin/websoft9 upgrade apps >> /var/log/supervisord.log 2>&1
 

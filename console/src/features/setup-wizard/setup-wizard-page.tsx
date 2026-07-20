@@ -384,7 +384,7 @@ export function SetupWizardPage() {
         return () => {
             active = false
         }
-    }, [apiLocale, isLoading, status])
+    }, [apiLocale, isLoading])
 
     useEffect(() => {
         if (isLoading || !status || pageLoading || !wizardState) {
@@ -448,10 +448,23 @@ export function SetupWizardPage() {
         }
 
         let cancelled = false
+        let consecutiveFailures = 0
         setCompletedAppId(wizardState.installed_app_id)
         setError(null)
         setCurrentStep('app_init_running')
         activationWaitStartedAtRef.current = Date.now()
+
+        const giveUpAndRedirect = () => {
+            if (cancelled) {
+                return
+            }
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('websoft9_setup_closed', '1')
+            }
+            void refresh().finally(() => {
+                openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+            })
+        }
 
         const finishWithReadyState = () => {
             if (cancelled) {
@@ -471,13 +484,7 @@ export function SetupWizardPage() {
             try {
                 const waitElapsed = Date.now() - (activationWaitStartedAtRef.current ?? Date.now())
                 if (waitElapsed >= STARTUP_MAX_WAIT_MS) {
-                    setError(null)
-                    if (typeof window !== 'undefined') {
-                        window.sessionStorage.setItem('websoft9_setup_closed', '1')
-                    }
-                    void refresh().finally(() => {
-                        openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
-                    })
+                    giveUpAndRedirect()
                     return
                 }
 
@@ -485,6 +492,7 @@ export function SetupWizardPage() {
                 if (cancelled) {
                     return
                 }
+                consecutiveFailures = 0
 
                 const targetApp = apps.find((app) => app.app_id === wizardState.installed_app_id)
                 if (!targetApp || targetApp.status === 3) {
@@ -508,6 +516,11 @@ export function SetupWizardPage() {
                 finishWithReadyState()
             } catch {
                 if (!cancelled) {
+                    consecutiveFailures += 1
+                    if (consecutiveFailures >= 5) {
+                        giveUpAndRedirect()
+                        return
+                    }
                     appStatusTimerRef.current = window.setTimeout(pollInstalledAppStatus, 3000)
                 }
             }
@@ -532,9 +545,24 @@ export function SetupWizardPage() {
             return
         }
 
+        const installStartRef = Date.now()
         let cancelled = false
         const poll = async () => {
             try {
+                const elapsed = Date.now() - installStartRef
+                if (elapsed >= STARTUP_MAX_WAIT_MS) {
+                    if (!cancelled) {
+                        setError(apiLocale === 'zh' ? '安装超时，请刷新页面重试。' : 'Install timed out. Please refresh the page and try again.')
+                        setWizardState((currentValue) => currentValue ? {
+                            ...currentValue,
+                            current_step: 'app_init_running',
+                            tracking_id: null,
+                            last_error: { code: 'timeout', message: apiLocale === 'zh' ? '安装超时' : 'Install timed out', retryable: true },
+                        } : currentValue)
+                    }
+                    return
+                }
+
                 const payload = await requestJson<SetupWizardInstallStatusResponse>(`/api/setup-wizard/install/${encodeURIComponent(wizardState.tracking_id as string)}`, { method: 'GET' })
                 if (cancelled) {
                     return

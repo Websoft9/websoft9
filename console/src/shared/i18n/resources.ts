@@ -499,6 +499,9 @@ const rawShellResources = {
                         unlimited: 'Unlimited',
                         editionNames: {
                             community: 'Community',
+                            starter: 'Starter',
+                            standard: 'Standard',
+                            enterprise: 'Enterprise',
                         },
                         metrics: {
                             version: 'Version',
@@ -2763,6 +2766,9 @@ const rawShellResources = {
                         unlimited: '无限制',
                         editionNames: {
                             community: '社区版',
+                            starter: '入门版',
+                            standard: '标准版',
+                            enterprise: '企业版',
                         },
                         metrics: {
                             version: '当前版本',
