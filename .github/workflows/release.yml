@@ -136,27 +136,27 @@ jobs:
         run: |
           VERSION="${{ needs.determine-channel.outputs.version }}"
           CHANGELOG_CONTENT=$(python3 - "$VERSION" <<'PY'
-import re
-import sys
-from pathlib import Path
+          import re
+          import sys
+          from pathlib import Path
 
-version = sys.argv[1]
+          version = sys.argv[1]
           pattern = re.compile(rf"^##\s+\[{re.escape(version)}\](?:\s+-\s+.+)?$")
-lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
-captured = []
-capture = False
+          lines = Path("CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+          captured = []
+          capture = False
 
-for line in lines:
-    if line.startswith("## "):
-        if capture:
-            break
-        if pattern.match(line):
-            capture = True
-    if capture:
-        captured.append(line)
+          for line in lines:
+              if line.startswith("## "):
+                  if capture:
+                      break
+                  if pattern.match(line):
+                      capture = True
+              if capture:
+                  captured.append(line)
 
-print("\n".join(captured))
-PY
+          print("\n".join(captured))
+          PY
           )
 
           if [[ -z "$CHANGELOG_CONTENT" ]]; then
