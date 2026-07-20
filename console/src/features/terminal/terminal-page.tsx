@@ -2582,7 +2582,13 @@ export function TerminalPage() {
                 return true
             }
             if (event.ctrlKey && event.key === 'c' && terminal.hasSelection()) {
-                document.execCommand('copy')
+                const selected = terminal.getSelection()
+                if (selected) {
+                    navigator.clipboard.writeText(selected).catch(() => {
+                        // Fallback for older browsers or non-HTTPS contexts
+                    })
+                }
+                terminal.clearSelection()
                 return false
             }
             return true
