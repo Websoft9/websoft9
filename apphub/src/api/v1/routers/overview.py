@@ -30,7 +30,7 @@ def _get_overview_service() -> OverviewService:
 def get_overview(
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return overview_stream_cache.get_overview(session_token=session_token)
+    return overview_stream_cache.get_overview(session_token=session_token, force_refresh=True)
 
 
 @router.get(
