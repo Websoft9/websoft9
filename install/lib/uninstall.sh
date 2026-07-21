@@ -40,14 +40,18 @@ _uninstall_modern() {
       die "$EXIT_USAGE" "purge mode touches bind-mounted data root ${data_root}, requires explicit --yes"
     fi
     remove_modern_deployment_material "$install_path"
-    die "$EXIT_USAGE" "Automatic deletion of bind-mounted data root is not supported. Remove ${data_root} manually if you really intend to purge all data."
+    log_warn "Automatic deletion of bind-mounted data root is not supported"
+    log_warn "Remove ${data_root} manually if you really intend to purge all data"
+    return 0
   elif [ "$mode" = "standard" ]; then
     if [ "$keep_data" = "0" ]; then
       if [ "$assume_yes" != "1" ]; then
         die "$EXIT_USAGE" "--keep-data=false targets bind-mounted data root ${data_root}, requires explicit --yes"
       fi
       remove_modern_deployment_material "$install_path"
-      die "$EXIT_USAGE" "Automatic deletion of bind-mounted data root is not supported. Remove ${data_root} manually if you really intend to delete runtime data."
+      log_warn "Automatic deletion of bind-mounted data root is not supported"
+      log_warn "Remove ${data_root} manually if you really intend to delete runtime data"
+      return 0
     else
       remove_modern_deployment_material "$install_path"
       log_info "Data root retained: ${data_root}"
@@ -207,7 +211,14 @@ run_uninstall() {
       die "$EXIT_ENV_GUARD" "Mixed environment detected. Please resolve manually before uninstalling."
       ;;
     empty)
-      log_info "Nothing installed, nothing to uninstall"
+      if [ -f "${install_path}/docker-compose.yml" ]; then
+        log_warn "No running installation detected, but leftover deployment files found at: ${install_path}"
+        log_step "Cleaning up leftover deployment files"
+        remove_modern_deployment_material "$install_path"
+        log_info "Leftover files removed"
+      else
+        log_info "Nothing installed, nothing to uninstall"
+      fi
       ;;
     *)
       die "$EXIT_ENV_GUARD" "Unknown environment, refusing to uninstall: $env_kind"

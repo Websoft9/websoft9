@@ -568,7 +568,12 @@ ensure_shared_network() {
 
 remove_modern_deployment_material() {
   local install_path="${1:-$DEFAULT_INSTALL_PATH}"
-  run_cmd rm -f "${install_path}/docker-compose.yml" "${install_path}/.env" 2>/dev/null || true
+  run_cmd rm -f \
+    "${install_path}/docker-compose.yml" \
+    "${install_path}/.env" \
+    "${install_path}/version.json" \
+    "${install_path}/mirrors.json" \
+    2>/dev/null || true
 }
 
 print_runtime_summary() {
