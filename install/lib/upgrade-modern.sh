@@ -68,18 +68,26 @@ _upgrade_modern_rollback() {
   run_cmd modern_compose "$install_path" down 2>/dev/null || true
 
   # Restore material
+  local _material_restored=0
   if [ -f "${backup_dir}/.env" ]; then
     run_cmd cp -a "${backup_dir}/.env" "${install_path}/.env"
+    _material_restored=1
   fi
   if [ -f "${backup_dir}/docker-compose.yml" ]; then
     run_cmd cp -a "${backup_dir}/docker-compose.yml" "${install_path}/docker-compose.yml"
+    _material_restored=1
   fi
 
   # Restore data root
   restore_host_directory "$(resolve_runtime_data_root "$install_path")" modern-data-root.tar.gz "$backup_dir" || log_warn "Data root rollback failed, check backup manually: $backup_dir"
 
-  # Restart old runtime
-  run_cmd modern_compose "$install_path" up -d || log_error "Failed to restart old runtime after rollback"
+  # Restart old runtime (only if deployment material was restored)
+  if [ "$_material_restored" -eq 1 ]; then
+    run_cmd modern_compose "$install_path" up -d || log_error "Failed to restart old runtime after rollback"
+  else
+    log_error "Backup does not contain deployment material; cannot restart old runtime"
+    log_error "Backup point: $backup_dir — restore manually if needed"
+  fi
 }
 
 # 迭代升级主流程
@@ -101,14 +109,27 @@ run_upgrade_modern() {
     fi
   fi
 
-  # Derive container name from channel (keep instances isolated)
-  case "${W9_CHANNEL:-release}" in
-    dev)  CONTAINER_NAME="websoft9-dev" ;;
-    rc)   CONTAINER_NAME="websoft9-rc" ;;
-    *)    CONTAINER_NAME="websoft9" ;;
-  esac
+  # Detect the actual container from the live system first.
+  # The script's channel may differ from what was originally deployed
+  # (e.g. a dev install upgraded via the release install.sh).
+  # Relying on the channel alone would resolve the wrong container name
+  # and fail to stop the old runtime.
+  local _detected_name
+  # Exact-match only: known container name patterns, not substring.
+  _detected_name="$(docker ps -a --format '{{.Names}}' --filter 'name=websoft9' 2>/dev/null | grep -Ex 'websoft9|websoft9-dev|websoft9-rc' | head -n1)"
+  if [ -n "$_detected_name" ]; then
+    CONTAINER_NAME="$_detected_name"
+    # Reconcile channel with the detected container to keep naming consistent.
+    case "$_detected_name" in
+      websoft9-dev) W9_CHANNEL="dev" ;;
+      websoft9-rc)  W9_CHANNEL="rc" ;;
+      *)            W9_CHANNEL="${W9_CHANNEL:-release}" ;;
+    esac
+  else
+    CONTAINER_NAME="$(resolve_container_name_by_channel "${W9_CHANNEL:-release}")"
+  fi
   export CONTAINER_NAME
-  MODERN_CONTAINER_NAME="$(_resolve_container_name "${install_path}/docker-compose.yml")"
+  MODERN_CONTAINER_NAME="$CONTAINER_NAME"
   export MODERN_CONTAINER_NAME
   WEBSOFT9_DATA_ROOT="$(resolve_existing_runtime_data_root "$install_path")"
   export WEBSOFT9_DATA_ROOT
@@ -168,8 +189,12 @@ run_upgrade_modern() {
   #    "port is already allocated" when docker compose up -d races with the
   #    old container shutdown.
   log_step "Stopping current runtime before switching to the new image"
-  if ! modern_compose "$install_path" down; then
-    log_warn "Failed to gracefully stop current runtime; forcing removal"
+  modern_compose "$install_path" down 2>/dev/null || true
+  # Compose down only manages containers started by this compose project.
+  # Force-remove any leftover container (manual starts, broken state, etc.)
+  # so ports are guaranteed free before the new container starts.
+  if container_exists "$MODERN_CONTAINER_NAME"; then
+    log_warn "Container ${MODERN_CONTAINER_NAME} still exists after compose down; forcing removal"
     docker rm -f "$MODERN_CONTAINER_NAME" 2>/dev/null || true
   fi
 

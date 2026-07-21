@@ -11,6 +11,16 @@ MODERN_COMPOSE_PROJECT="websoft9"
 MODERN_DATA_VOLUME="websoft9_data"
 MODERN_DATA_MOUNT="/data"
 
+# Resolve the container name for a given channel.
+# Keeps channel→name mapping in one place (used by install-fresh and upgrade-modern).
+resolve_container_name_by_channel() {
+  case "${1:-${W9_CHANNEL:-release}}" in
+    dev) echo "websoft9-dev" ;;
+    rc)  echo "websoft9-rc" ;;
+    *)   echo "websoft9" ;;
+  esac
+}
+
 # Resolve the actual container name. Priority:
 #   1) CONTAINER_NAME env var (set by the caller based on channel)
 #   2) Hardcoded container_name: line in the compose file
@@ -21,8 +31,15 @@ _resolve_container_name() {
   local name
   if [ -f "$compose_file" ]; then
     name="$(grep -m1 'container_name:' "$compose_file" 2>/dev/null | awk '{print $2}' | tr -d "'\"")"
-    # If the compose file uses a variable (e.g. ${CONTAINER_NAME:-websoft9}), strip it to the default
-    name="${name#\$\{CONTAINER_NAME:-}"
+    # Strip common variable patterns from compose files.
+    # Order matters: longer prefixes (:- and -) must be matched first,
+    # otherwise the bare ${CONTAINER_NAME} prefix would consume them.
+    #   ${CONTAINER_NAME:-websoft9} → websoft9
+    #   ${CONTAINER_NAME-websoft9}  → websoft9
+    #   ${CONTAINER_NAME}           → (empty, falls back to default)
+    name="${name#\$\{CONTAINER_NAME:-}"          # ${CONTAINER_NAME:-...}
+    name="${name#\$\{CONTAINER_NAME-}"           # ${CONTAINER_NAME-...}
+    name="${name#\$\{CONTAINER_NAME\}}"          # ${CONTAINER_NAME} (bare)
     name="${name%\}}"
   fi
   echo "${name:-$MODERN_CONTAINER_NAME}"
@@ -764,6 +781,10 @@ pull_image_via_temporary_daemon_mirrors() {
   local pull_status=1
   local restore_status=0
 
+  # Restore the original daemon.json even if the script is killed mid-flight.
+  # shellcheck disable=SC2064
+  trap "_restore_daemon_json '$daemon_file' '$backup_file' '$had_original'" EXIT
+
   if [ -f "$daemon_file" ]; then
     cp -a "$daemon_file" "$backup_file"
     had_original=1
@@ -785,23 +806,23 @@ pull_image_via_temporary_daemon_mirrors() {
     pull_status=1
   fi
 
-  if [ "$had_original" -eq 1 ]; then
-    cp -a "$backup_file" "$daemon_file"
-  else
-    rm -f "$daemon_file"
-  fi
-  rm -f "$backup_file"
-
-  if ! restart_docker_service; then
-    log_error "Failed to restore the original Docker daemon configuration"
-    restore_status=1
-  fi
-
-  if [ "$restore_status" -ne 0 ]; then
-    return 1
-  fi
+  # Restore now (trap also covers this, but explicit restore gives better error handling).
+  _restore_daemon_json "$daemon_file" "$backup_file" "$had_original"
+  trap - EXIT
 
   return "$pull_status"
+}
+
+# Restore original daemon.json (called via trap and inline in pull path).
+_restore_daemon_json() {
+  local daemon_file="$1" backup_file="$2" had_original="$3"
+  if [ "$had_original" = "1" ] && [ -f "$backup_file" ]; then
+    cp -a "$backup_file" "$daemon_file" 2>/dev/null || true
+  elif [ "$had_original" != "1" ]; then
+    rm -f "$daemon_file" 2>/dev/null || true
+  fi
+  rm -f "$backup_file" 2>/dev/null || true
+  restart_docker_service 2>/dev/null || true
 }
 
 # 镜像拉取（带镜像加速回退）

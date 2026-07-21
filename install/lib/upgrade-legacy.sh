@@ -982,11 +982,7 @@ run_upgrade_legacy() {
   log_info "Migration data root resolved to: ${WEBSOFT9_DATA_ROOT}"
 
   # Derive container name from channel (keep instances isolated)
-  case "${W9_CHANNEL:-release}" in
-    dev)  CONTAINER_NAME="websoft9-dev" ;;
-    rc)   CONTAINER_NAME="websoft9-rc" ;;
-    *)    CONTAINER_NAME="websoft9" ;;
-  esac
+  CONTAINER_NAME="$(resolve_container_name_by_channel "${W9_CHANNEL:-release}")"
   export CONTAINER_NAME
 
   # Stage 1: entry detection already happened; confirm there is no modern runtime.

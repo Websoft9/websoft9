@@ -77,6 +77,7 @@ done
 
 require_root
 
+export W9_INSTALL_PATH="$OPT_PATH"
 env_kind="$(detect_environment)"
 log_info "Environment: ${env_kind}"
 run_uninstall "$env_kind" "$OPT_MODE" "$OPT_PATH" "$OPT_KEEP_DATA" "$OPT_YES" "$OPT_REMOVE_CONTROLPLANE"

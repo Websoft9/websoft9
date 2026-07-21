@@ -239,6 +239,7 @@ fi
 require_root
 
 # Main flow: detect the environment and execute the right path.
+export W9_INSTALL_PATH="$OPT_PATH"
 env_kind="$(detect_environment)"
 
 if [ -n "$OPT_EXECUTE_MODE" ]; then
@@ -285,16 +286,33 @@ case "$env_kind" in
     ;;
 
   mixed)
-    log_warn "Residual components detected; the environment is inconsistent. Clean it up manually before re-running if possible"
+    log_warn "Residual legacy containers detected alongside modern deployment"
     if [ -z "$_OPT_VERSION_EXPLICIT" ]; then
       _resolved="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
       [ -n "$_resolved" ] && OPT_VERSION="$_resolved"
     fi
-    if [ "$OPT_FORCE" != "1" ]; then
-      if ! _confirm "Force continue anyway? This is risky" "n"; then
-        log_info "Cancelled."
-        exit "$EXIT_OK"
+    # Stop and remove legacy containers to free ports (80/443) before
+    # the modern upgrade starts — no manual intervention needed.
+    log_step "Cleaning up legacy containers from previous Cockpit-era installation"
+    for _legacy_name in "${LEGACY_CONTAINER_CANDIDATES[@]}"; do
+      if container_exists "$_legacy_name"; then
+        log_info "Removing legacy container: ${_legacy_name}"
+        docker rm -f "$_legacy_name" 2>/dev/null || true
       fi
+    done
+    log_info "Legacy container cleanup complete"
+    # Also stop and disable legacy systemd units (cockpit, websoft9)
+    # so they don't interfere with the modern runtime.
+    if command_exists systemctl; then
+      for _legacy_unit in "${LEGACY_SYSTEMD_UNITS[@]}"; do
+        if systemd_unit_present "$_legacy_unit"; then
+          log_info "Stopping and disabling legacy unit: ${_legacy_unit}"
+          systemctl stop "$_legacy_unit" 2>/dev/null || true
+          systemctl disable "$_legacy_unit" 2>/dev/null || true
+        fi
+      done
+      systemctl daemon-reload 2>/dev/null || true
+      log_info "Legacy systemd cleanup complete"
     fi
     run_upgrade_modern "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     ;;

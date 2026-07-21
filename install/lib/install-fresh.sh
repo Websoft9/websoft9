@@ -101,11 +101,7 @@ run_install() {
   log_info "==== Installation started ===="
 
   # Derive container name from channel (keep instances isolated)
-  case "${W9_CHANNEL:-release}" in
-    dev)  CONTAINER_NAME="websoft9-dev" ;;
-    rc)   CONTAINER_NAME="websoft9-rc" ;;
-    *)    CONTAINER_NAME="websoft9" ;;
-  esac
+  CONTAINER_NAME="$(resolve_container_name_by_channel "${W9_CHANNEL:-release}")"
   export CONTAINER_NAME
 
   install_precheck "$console_port" "$install_path"
