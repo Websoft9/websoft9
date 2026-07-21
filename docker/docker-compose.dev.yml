@@ -10,7 +10,7 @@ services:
       dockerfile: docker/Dockerfile
       args:
         WEBSOFT9_APPSTORE_CHANNEL: dev
-    image: websoft9dev/websoft9:dev
+    image: ${IMAGE_REPO:-websoft9dev/websoft9}:${IMAGE_TAG:-dev}
     container_name: ${CONTAINER_NAME:-websoft9-dev}
     restart: unless-stopped
     environment:

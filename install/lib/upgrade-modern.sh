@@ -109,28 +109,29 @@ run_upgrade_modern() {
     fi
   fi
 
-  # Detect the actual container from the live system first.
-  # The script's channel may differ from what was originally deployed
+  # Detect the actual container from the live system.
+  # The running container may use a different channel than the target
   # (e.g. a dev install upgraded via the release install.sh).
-  # Relying on the channel alone would resolve the wrong container name
-  # and fail to stop the old runtime.
+  # We detect the old container name for pre-switch operations
+  # (config export, state recording, shutdown) but do NOT change
+  # W9_CHANNEL — the compose file and .env must reflect the target channel.
   local _detected_name
   # Exact-match only: known container name patterns, not substring.
   _detected_name="$(docker ps -a --format '{{.Names}}' --filter 'name=websoft9' 2>/dev/null | grep -Ex 'websoft9|websoft9-dev|websoft9-rc' | head -n1)"
   if [ -n "$_detected_name" ]; then
-    CONTAINER_NAME="$_detected_name"
-    # Reconcile channel with the detected container to keep naming consistent.
-    case "$_detected_name" in
-      websoft9-dev) W9_CHANNEL="dev" ;;
-      websoft9-rc)  W9_CHANNEL="rc" ;;
-      *)            W9_CHANNEL="${W9_CHANNEL:-release}" ;;
-    esac
+    MODERN_CONTAINER_NAME="$_detected_name"
+    log_info "Detected existing container: ${MODERN_CONTAINER_NAME}"
   else
-    CONTAINER_NAME="$(resolve_container_name_by_channel "${W9_CHANNEL:-release}")"
+    MODERN_CONTAINER_NAME="$(resolve_container_name_by_channel "${W9_CHANNEL:-release}")"
   fi
-  export CONTAINER_NAME
-  MODERN_CONTAINER_NAME="$CONTAINER_NAME"
   export MODERN_CONTAINER_NAME
+
+  # Resolve the target container name from the script's channel.
+  # This is used for the new .env and deployment; the target channel
+  # (set by install.sh, always "release" for release artifacts) is
+  # never overwritten by container detection.
+  CONTAINER_NAME="$(resolve_container_name_by_channel "${W9_CHANNEL:-release}")"
+  export CONTAINER_NAME
   WEBSOFT9_DATA_ROOT="$(resolve_existing_runtime_data_root "$install_path")"
   export WEBSOFT9_DATA_ROOT
   log_info "Upgrade data root resolved to: ${WEBSOFT9_DATA_ROOT}"
@@ -197,6 +198,10 @@ run_upgrade_modern() {
     log_warn "Container ${MODERN_CONTAINER_NAME} still exists after compose down; forcing removal"
     docker rm -f "$MODERN_CONTAINER_NAME" 2>/dev/null || true
   fi
+
+  # Switch to the target container name now that the old runtime is stopped.
+  MODERN_CONTAINER_NAME="$CONTAINER_NAME"
+  export MODERN_CONTAINER_NAME
 
   # 5. Start new container
   if ! modern_compose "$install_path" up -d; then
