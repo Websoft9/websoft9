@@ -286,6 +286,10 @@ case "$env_kind" in
 
   mixed)
     log_warn "Residual components detected; the environment is inconsistent. Clean it up manually before re-running if possible"
+    if [ -z "$_OPT_VERSION_EXPLICIT" ]; then
+      _resolved="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
+      [ -n "$_resolved" ] && OPT_VERSION="$_resolved"
+    fi
     if [ "$OPT_FORCE" != "1" ]; then
       if ! _confirm "Force continue anyway? This is risky" "n"; then
         log_info "Cancelled."
