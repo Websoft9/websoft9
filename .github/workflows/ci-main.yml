@@ -106,10 +106,7 @@ jobs:
   upload-artifacts:
     name: Upload Dev Artifacts
     needs: [meta, changes, build-and-push]
-    if: |
-      always() &&
-      !cancelled() &&
-      (needs.changes.outputs.install == 'true' || needs.build-and-push.result == 'success')
+    if: ${{ always() && !cancelled() && (needs.changes.outputs.install == 'true' || needs.build-and-push.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
