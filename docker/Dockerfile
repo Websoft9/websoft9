@@ -170,6 +170,10 @@ COPY docker/crontab /etc/cron.d/websoft9-appstore
 
 RUN chmod 0644 /etc/cron.d/websoft9-appstore
 
+# Cache buster: changes on every workflow run so the appstore sync layer
+# always fetches fresh remote data even when other build args are unchanged.
+ARG WEBSOFT9_CACHE_BUSTER
+
 # Pre-populate app store assets during image build so first-load browsing uses
 # a prepared local dataset instead of waiting for runtime warm-up.
 # Non-fatal: build continues even if remote assets are unavailable (runtime cron retries).

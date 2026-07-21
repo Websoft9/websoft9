@@ -97,6 +97,7 @@ jobs:
           build-args: |
             WEBSOFT9_PRODUCT_VERSION=${{ steps.version.outputs.semver }}
             WEBSOFT9_APPSTORE_CHANNEL=${{ inputs.appstore_channel }}
+            WEBSOFT9_CACHE_BUSTER=${{ github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           sbom: true
