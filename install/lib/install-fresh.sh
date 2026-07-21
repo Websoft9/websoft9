@@ -62,11 +62,34 @@ install_start() {
   run_cmd modern_compose "$install_path" up -d || die "$EXIT_RUNTIME" "Failed to start container"
 }
 
-# Rollback on post-install validation failure
+# Clean up after a failed fresh install.
+# Strategy (phased cleanup — only destroy what was created):
+#   - Container was created (even if stopped): stop it, keep files for diagnosis.
+#   - Container never existed (pull / start failed early): remove all deployment
+#     files so the next run detects "empty" and starts fresh.
 install_cleanup_on_failure() {
   local install_path="$1"
-  log_warn "Post-install validation failed, cleaning up"
-  run_cmd modern_compose "$install_path" down 2>/dev/null || true
+
+  if container_exists "$MODERN_CONTAINER_NAME"; then
+    log_warn "Container was created but validation failed"
+    log_warn "Stopping container; deployment files preserved for diagnosis at: $install_path"
+    run_cmd modern_compose "$install_path" down 2>/dev/null || true
+    return 0
+  fi
+
+  # Container never started — no runtime state to diagnose.
+  # Remove leftover files so the next attempt starts from "empty".
+  log_warn "No container was created; removing deployment files so the next run starts fresh"
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) would remove: ${install_path}/docker-compose.yml ${install_path}/.env ${install_path}/version.json ${install_path}/mirrors.json"
+    return 0
+  fi
+  run_cmd rm -f \
+    "${install_path}/docker-compose.yml" \
+    "${install_path}/.env" \
+    "${install_path}/version.json" \
+    "${install_path}/mirrors.json" \
+    2>/dev/null || true
 }
 
 # Fresh install main flow

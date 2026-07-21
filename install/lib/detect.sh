@@ -13,7 +13,10 @@ _detect_modern_data_root() {
 }
 
 _detect_modern_strong() {
-  container_exists "$MODERN_CONTAINER_NAME" || [ -f "${DEFAULT_INSTALL_PATH}/docker-compose.yml" ] || _detect_modern_data_root
+  # A compose file alone (no container, no runtime data) is NOT a strong signal.
+  # It may be leftover from a failed fresh install that never started a container.
+  # Only treat it as "modern" when paired with real runtime data markers.
+  container_exists "$MODERN_CONTAINER_NAME" || { [ -f "${DEFAULT_INSTALL_PATH}/docker-compose.yml" ] && _detect_modern_data_root; }
 }
 
 # 强信号：旧版运行实体（容器或卷）是否存在

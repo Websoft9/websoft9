@@ -2,6 +2,11 @@ name: Main Release Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      notify:
+        description: 'Send WeChat notification'
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -396,7 +401,9 @@ jobs:
   notify:
     name: WeChat Notification
     needs: [determine-channel, release-notes, smoke-test-image, upload-artifacts]
-    if: always()
+    if: |
+      always() &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.notify == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Send WeChat webhook
