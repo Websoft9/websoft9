@@ -248,6 +248,10 @@ fi
 case "$env_kind" in
   empty)
     log_step "No Websoft9 installation detected. Starting a fresh install"
+    if [ -z "$_OPT_VERSION_EXPLICIT" ]; then
+      _resolved="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
+      [ -n "$_resolved" ] && OPT_VERSION="$_resolved"
+    fi
     run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
     ;;
 
@@ -255,6 +259,9 @@ case "$env_kind" in
     _target_ver="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
     if [ -z "$_target_ver" ]; then
       _target_ver="$OPT_VERSION"
+    fi
+    if [ -z "$_OPT_VERSION_EXPLICIT" ] && [ -n "$_target_ver" ]; then
+      OPT_VERSION="$_target_ver"
     fi
 
     if [ "$env_kind" = "modern" ]; then
