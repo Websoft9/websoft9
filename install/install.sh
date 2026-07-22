@@ -127,6 +127,46 @@ _read_json_version() {
   sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$file_path" | head -n1
 }
 
+_read_json_field() {
+  local file_path="$1"
+  local field_name="$2"
+  [ -f "$file_path" ] || return 1
+  sed -n "s/.*\"${field_name}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$file_path" | head -n1
+}
+
+_resolve_target_image_tag() {
+  local install_path="$1"
+  local channel="${W9_CHANNEL:-release}"
+  local manifest_candidates=(
+    "${install_path}/manifest.json"
+    "${W9_ROOT_DIR}/../manifest.json"
+    "${W9_ROOT_DIR}/../../manifest.json"
+    "${W9_LIB_DIR}/../../manifest.json"
+  )
+  local candidate manifest_tag remote_manifest_tag
+
+  remote_manifest_tag="$(_w9_fetch "${W9_ARTIFACT_BASE:-$DEFAULT_ARTIFACT_BASE}/${channel}/manifest.json" 2>/dev/null | sed -n 's/.*"default_tag"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+  if [ -n "$remote_manifest_tag" ]; then
+    echo "$remote_manifest_tag"
+    return 0
+  fi
+
+  for candidate in "${manifest_candidates[@]}"; do
+    manifest_tag="$(_read_json_field "$candidate" default_tag 2>/dev/null || true)"
+    if [ -n "$manifest_tag" ]; then
+      echo "$manifest_tag"
+      return 0
+    fi
+  done
+
+  case "$channel" in
+    dev) echo "dev" ;;
+    rc) echo "rc" ;;
+    release) echo "latest" ;;
+    *) echo "$channel" ;;
+  esac
+}
+
 _resolve_latest_version() {
   local install_path="$1"
   local channel="${W9_CHANNEL:-release}"
@@ -254,7 +294,7 @@ case "$env_kind" in
   empty)
     log_step "No Websoft9 installation detected. Starting a fresh install"
     if [ -z "$_OPT_VERSION_EXPLICIT" ]; then
-      _resolved="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
+      _resolved="$(_resolve_target_image_tag "$OPT_PATH" 2>/dev/null || true)"
       [ -n "$_resolved" ] && OPT_VERSION="$_resolved"
     fi
     run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
@@ -262,11 +302,12 @@ case "$env_kind" in
 
   modern|legacy)
     _target_ver="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
+    _target_image_tag="$(_resolve_target_image_tag "$OPT_PATH" 2>/dev/null || true)"
     if [ -z "$_target_ver" ]; then
       _target_ver="$OPT_VERSION"
     fi
-    if [ -z "$_OPT_VERSION_EXPLICIT" ] && [ -n "$_target_ver" ]; then
-      OPT_VERSION="$_target_ver"
+    if [ -z "$_OPT_VERSION_EXPLICIT" ] && [ -n "$_target_image_tag" ]; then
+      OPT_VERSION="$_target_image_tag"
     fi
 
     if [ "$env_kind" = "modern" ]; then
@@ -292,7 +333,7 @@ case "$env_kind" in
   mixed)
     log_warn "Residual legacy containers detected alongside modern deployment"
     if [ -z "$_OPT_VERSION_EXPLICIT" ]; then
-      _resolved="$(_resolve_latest_version "$OPT_PATH" 2>/dev/null || true)"
+      _resolved="$(_resolve_target_image_tag "$OPT_PATH" 2>/dev/null || true)"
       [ -n "$_resolved" ] && OPT_VERSION="$_resolved"
     fi
     # Stop and remove legacy containers to free ports (80/443) before
