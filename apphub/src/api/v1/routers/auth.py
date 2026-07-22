@@ -73,18 +73,13 @@ def check_embedded_gateway_access(
     if not status_payload["enabled"]:
         return Response(status_code=204)
 
-    if status_payload.get("cloud_marketplace_setup_pending") and status_payload.get("initialization_required"):
+    if status_payload.get("cloud_marketplace_setup") and status_payload.get("initialization_required"):
         return Response(
             status_code=403,
             headers={"X-Websoft9-Setup-Route": "/setup"},
         )
 
     if status_payload["initialization_required"]:
-        if status_payload.get("cloud_marketplace_setup"):
-            return Response(
-                status_code=403,
-                headers={"X-Websoft9-Setup-Route": "/setup"},
-            )
         return Response(
             status_code=403,
             headers={"X-Websoft9-Setup-Route": "/auth/setup"},
@@ -130,6 +125,12 @@ def check_setup_wizard_access(
 
     state = setup_wizard.get_state(session_token=session_token)
     if state.get("completed"):
+        status_payload = ProductAuthService().get_status(session_token=session_token)
+        if not status_payload.get("authenticated"):
+            return Response(
+                status_code=403,
+                headers={"X-Websoft9-Setup-Route": "/auth/login"},
+            )
         return Response(
             status_code=403,
             headers={"X-Websoft9-Setup-Route": "/dashboard"},

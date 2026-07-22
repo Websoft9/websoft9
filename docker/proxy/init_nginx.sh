@@ -52,6 +52,16 @@ ensure_nginx_storage_dirs() {
         "$nginx_root/redirection_host" \
         "$nginx_root/stream" \
         "$nginx_root/temp"
+
+    # Sync static welcome-page assets from the image into the NPM data
+    # directory so they are served on port 80.  NPM nginx serves default
+    # content from $nginx_root/default_www/, not /var/www/html/.
+    if [ -d /var/www/html ] && [ -d "$nginx_root/default_www" ]; then
+        for asset in /var/www/html/*; do
+            [ -e "$asset" ] || continue
+            cp -a "$asset" "$nginx_root/default_www/"
+        done
+    fi
 }
 
 ensure_legacy_ssl_dir() {

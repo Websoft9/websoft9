@@ -175,6 +175,7 @@ export function SetupWizardPage() {
 
     const langRef = useRef<HTMLDivElement | null>(null)
     const bootstrapLocaleAppliedRef = useRef(false)
+    const initialLoadDoneRef = useRef(false)
     useEffect(() => {
         if (!langMenuOpen) return
         const handler = (e: MouseEvent) => {
@@ -329,7 +330,10 @@ export function SetupWizardPage() {
         }
 
         let active = true
-        setPageLoading(true)
+        const isFirstLoad = !initialLoadDoneRef.current
+        if (isFirstLoad) {
+            setPageLoading(true)
+        }
         requestJson<SetupWizardState>('/api/setup-wizard/state', { method: 'GET' })
             .then(async (statePayload) => {
                 // If the marketplace bootstrap specifies a default locale and the
@@ -360,6 +364,7 @@ export function SetupWizardPage() {
                 })
                 setCurrentStep(normalizeVisibleStep(statePayload.current_step))
                 setError(statePayload.last_error?.message ? mapSetupWizardErrorMessage(statePayload.last_error.message, apiLocale) : null)
+                initialLoadDoneRef.current = true
             })
             .catch(() => {
                 if (!active) {

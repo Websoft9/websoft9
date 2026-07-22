@@ -11,7 +11,7 @@ REPO_BOOTSTRAP_PATH = REPO_ROOT / "marketplace" / "bootstrap.json"
 
 
 def get_marketplace_bootstrap_path() -> Path:
-    if RUNTIME_BOOTSTRAP_PATH.exists() or RUNTIME_BOOTSTRAP_PATH.parent.exists():
+    if RUNTIME_BOOTSTRAP_PATH.exists():
         return RUNTIME_BOOTSTRAP_PATH
     return REPO_BOOTSTRAP_PATH
 
