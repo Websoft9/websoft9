@@ -16,7 +16,10 @@ _detect_modern_strong() {
   # A compose file alone (no container, no runtime data) is NOT a strong signal.
   # It may be leftover from a failed fresh install that never started a container.
   # Only treat it as "modern" when paired with real runtime data markers.
-  container_exists "$MODERN_CONTAINER_NAME" || { [ -f "${DEFAULT_INSTALL_PATH}/docker-compose.yml" ] && _detect_modern_data_root; }
+  local install_path="${W9_INSTALL_PATH:-$DEFAULT_INSTALL_PATH}"
+  local detected_container=""
+  detected_container="$(_detect_websoft9_container)"
+  [ -n "$detected_container" ] || { [ -f "${install_path}/docker-compose.yml" ] && _detect_modern_data_root; }
 }
 
 # 强信号：旧版运行实体（容器或卷）是否存在
@@ -47,7 +50,10 @@ _detect_legacy_auxiliary() {
 # 打印关键观察信号（供 detect 命令做人工审计）
 detect_print_signals() {
   local _install_path="${W9_INSTALL_PATH:-$DEFAULT_INSTALL_PATH}"
-  log_info "Modern container exists: $(container_exists "$MODERN_CONTAINER_NAME" && echo yes || echo no)"
+  local modern_container=""
+  modern_container="$(_detect_websoft9_container)"
+  log_info "Modern container exists: $([ -n "$modern_container" ] && echo yes || echo no)"
+  log_info "Modern container detected: ${modern_container:-none}"
   log_info "Modern deployment material exists: $([ -f "${_install_path}/docker-compose.yml" ] && echo yes || echo no)"
   log_info "Modern data root configured: $(resolve_existing_runtime_data_root "$_install_path")"
   log_info "Modern data root markers exist: $(_detect_modern_data_root && echo yes || echo no)"

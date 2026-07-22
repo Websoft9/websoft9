@@ -108,6 +108,10 @@ export W9_CHANNEL="$OPT_CHANNEL"
 _confirm() {
   local prompt="$1" default="${2:-n}"
   [ "$OPT_YES" = "1" ] && return 0
+  if [ ! -r /dev/tty ]; then
+    log_error "Confirmation required in a non-interactive environment. Re-run with --yes to continue."
+    return 1
+  fi
   local hint; [ "$default" = "y" ] && hint="[Y/n]" || hint="[y/N]"
   printf "%s %s " "$prompt" "$hint"
   read -r _ans </dev/tty

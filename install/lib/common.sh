@@ -21,6 +21,27 @@ resolve_container_name_by_channel() {
   esac
 }
 
+# Detect a running Websoft9 container on the host.
+# Returns the container name, or empty if none found.
+# Identifies by IMAGE (websoft9dev/websoft9:*), not by container name.
+# This handles custom container names set by the user in .env.
+# Prefers running containers over stopped ones.
+_detect_websoft9_container() {
+  local name image running_name stopped_name
+  while IFS='|' read -r name image; do
+    [ -z "$name" ] && continue
+    [[ "$image" == websoft9dev/websoft9:* ]] || continue
+    if container_running "$name"; then
+      running_name="$name"
+      break
+    elif [ -z "$stopped_name" ]; then
+      stopped_name="$name"
+    fi
+  done < <(docker ps -a --format '{{.Names}}|{{.Image}}' 2>/dev/null)
+
+  echo "${running_name:-$stopped_name}"
+}
+
 # Resolve the actual container name. Priority:
 #   1) CONTAINER_NAME env var (set by the caller based on channel)
 #   2) Hardcoded container_name: line in the compose file
@@ -43,6 +64,28 @@ _resolve_container_name() {
     name="${name%\}}"
   fi
   echo "${name:-$MODERN_CONTAINER_NAME}"
+}
+
+_strip_wrapping_quotes() {
+  local value="$1"
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value#\"}"
+    value="${value%\"}"
+  elif [[ "$value" == "'"* && "$value" == *"'" ]]; then
+    value="${value#"'"}"
+    value="${value%"'"}"
+  fi
+  echo "$value"
+}
+
+read_env_value() {
+  local env_file="$1"
+  local key="$2"
+  [ -f "$env_file" ] || return 1
+  local value
+  value="$(grep -m1 "^${key}=" "$env_file" 2>/dev/null | cut -d= -f2-)"
+  [ -n "$value" ] || return 1
+  _strip_wrapping_quotes "$value"
 }
 
 # compose 默认环境变量（与 docker-compose.yml 的 ${VAR:-default} 一致）
@@ -510,8 +553,9 @@ resolve_existing_runtime_data_root() {
   default_data_root="$(default_data_root_for_install_path "$install_path")"
 
   if [ -z "$data_root" ] && [ -f "$env_file" ]; then
-    data_root="$(grep -m1 '^WEBSOFT9_DATA_ROOT=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+    data_root="$(read_env_value "$env_file" WEBSOFT9_DATA_ROOT 2>/dev/null || true)"
   fi
+  data_root="$(_strip_wrapping_quotes "$data_root")"
   if [ -n "$data_root" ]; then
     echo "$data_root"
     return 0
@@ -553,8 +597,9 @@ resolve_runtime_data_root() {
   local default_data_root
   default_data_root="$(default_data_root_for_install_path "$install_path")"
   if [ -z "$data_root" ] && [ -f "$env_file" ]; then
-    data_root="$(grep -m1 '^WEBSOFT9_DATA_ROOT=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+    data_root="$(read_env_value "$env_file" WEBSOFT9_DATA_ROOT 2>/dev/null || true)"
   fi
+  data_root="$(_strip_wrapping_quotes "$data_root")"
   echo "${data_root:-$default_data_root}"
 }
 
@@ -564,14 +609,16 @@ resolve_modern_compose_project() {
   local container_name="${CONTAINER_NAME:-}"
 
   if [ -z "$container_name" ] && [ -f "$env_file" ]; then
-    container_name="$(grep -m1 '^CONTAINER_NAME=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+    container_name="$(read_env_value "$env_file" CONTAINER_NAME 2>/dev/null || true)"
+  fi
+  container_name="$(_strip_wrapping_quotes "$container_name")"
+
+  if [ -n "$container_name" ]; then
+    echo "$container_name"
+    return 0
   fi
 
-  case "${container_name:-}" in
-    websoft9-dev) echo "websoft9-dev" ;;
-    websoft9-rc) echo "websoft9-rc" ;;
-    *) echo "$MODERN_COMPOSE_PROJECT" ;;
-  esac
+  echo "$MODERN_COMPOSE_PROJECT"
 }
 
 ensure_shared_network() {
@@ -781,16 +828,18 @@ pull_image_via_temporary_daemon_mirrors() {
   local pull_status=1
   local restore_status=0
 
-  # Restore the original daemon.json even if the script is killed mid-flight.
-  # shellcheck disable=SC2064
-  trap "_restore_daemon_json '$daemon_file' '$backup_file' '$had_original'" EXIT
-
   if [ -f "$daemon_file" ]; then
     cp -a "$daemon_file" "$backup_file"
     had_original=1
   else
     rm -f "$backup_file"
   fi
+
+  # Restore the original daemon.json even if the script exits mid-flight.
+  export W9_TRAP_DAEMON_FILE="$daemon_file"
+  export W9_TRAP_BACKUP_FILE="$backup_file"
+  export W9_TRAP_HAD_ORIGINAL="$had_original"
+  trap '_restore_daemon_json "$W9_TRAP_DAEMON_FILE" "$W9_TRAP_BACKUP_FILE" "$W9_TRAP_HAD_ORIGINAL"' EXIT
 
   write_temp_daemon_json_from_mirrors "$daemon_file" "$mirrors"
 
@@ -809,6 +858,7 @@ pull_image_via_temporary_daemon_mirrors() {
   # Restore now (trap also covers this, but explicit restore gives better error handling).
   _restore_daemon_json "$daemon_file" "$backup_file" "$had_original"
   trap - EXIT
+  unset W9_TRAP_DAEMON_FILE W9_TRAP_BACKUP_FILE W9_TRAP_HAD_ORIGINAL
 
   return "$pull_status"
 }
@@ -836,8 +886,8 @@ pull_image_with_mirrors() {
   local env_file="${install_path}/.env"
   local image_repo image_tag
   if [ -f "$env_file" ]; then
-    image_repo="$(grep -m1 '^IMAGE_REPO=' "$env_file" 2>/dev/null | cut -d= -f2-)"
-    image_tag="$(grep -m1 '^IMAGE_TAG=' "$env_file" 2>/dev/null | cut -d= -f2-)"
+    image_repo="$(read_env_value "$env_file" IMAGE_REPO 2>/dev/null || true)"
+    image_tag="$(read_env_value "$env_file" IMAGE_TAG 2>/dev/null || true)"
   fi
   image_repo="${image_repo:-$DEFAULT_IMAGE_REPO}"
   image_tag="${image_tag:-$DEFAULT_IMAGE_TAG}"

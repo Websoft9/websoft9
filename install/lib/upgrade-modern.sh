@@ -116,8 +116,7 @@ run_upgrade_modern() {
   # (config export, state recording, shutdown) but do NOT change
   # W9_CHANNEL — the compose file and .env must reflect the target channel.
   local _detected_name
-  # Exact-match only: known container name patterns, not substring.
-  _detected_name="$(docker ps -a --format '{{.Names}}' --filter 'name=websoft9' 2>/dev/null | grep -Ex 'websoft9|websoft9-dev|websoft9-rc' | head -n1)"
+  _detected_name="$(_detect_websoft9_container)"
   if [ -n "$_detected_name" ]; then
     MODERN_CONTAINER_NAME="$_detected_name"
     log_info "Detected existing container: ${MODERN_CONTAINER_NAME}"
@@ -186,17 +185,38 @@ run_upgrade_modern() {
   fi
 
   # 4. Stop the old runtime before starting the new one.
-  #    Explicit down ensures ports (80/443/console) are released, avoiding
-  #    "port is already allocated" when docker compose up -d races with the
-  #    old container shutdown.
   log_step "Stopping current runtime before switching to the new image"
   modern_compose "$install_path" down 2>/dev/null || true
-  # Compose down only manages containers started by this compose project.
-  # Force-remove any leftover container (manual starts, broken state, etc.)
-  # so ports are guaranteed free before the new container starts.
   if container_exists "$MODERN_CONTAINER_NAME"; then
     log_warn "Container ${MODERN_CONTAINER_NAME} still exists after compose down; forcing removal"
     docker rm -f "$MODERN_CONTAINER_NAME" 2>/dev/null || true
+  fi
+
+  # docker-proxy may take a moment to release ports after the container
+  # is removed.  Wait until ports are actually free before starting the
+  # new container, otherwise docker compose up -d will fail with
+  # "port is already allocated".
+  log_step "Waiting for ports to be released"
+  local _port _wait_ok _waited
+  _waited=0
+  while [ "$_waited" -lt 15 ]; do
+    _wait_ok=1
+    for _port in 80 443 "$console_port"; do
+      if port_in_use "$_port"; then
+        _wait_ok=0
+        break
+      fi
+    done
+    [ "$_wait_ok" = "1" ] && break
+    sleep 1
+    _waited=$((_waited + 1))
+  done
+  if [ "$_wait_ok" != "1" ]; then
+    log_warn "Ports still in use after ${_waited}s; forcing cleanup"
+    for _port in 80 443 "$console_port"; do
+      fuser -k "${_port}/tcp" 2>/dev/null || true
+    done
+    sleep 2
   fi
 
   # Switch to the target container name now that the old runtime is stopped.
