@@ -2412,6 +2412,8 @@ class AppManger:
             configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip()
             if not configured:
                 return []
+            if configured.startswith("http://") or configured.startswith("https://"):
+                return self._resolve_url_mirrors(configured)
             return [
                 self._normalize_image_accelerator(item)
                 for item in configured.replace("\n", ",").split(",")
@@ -2420,6 +2422,31 @@ class AppManger:
         except Exception as e:
             logger.error(f"Failed to download image accelerators: {e}")
             return []
+
+    def _resolve_url_mirrors(self, url: str) -> list:
+        """Fetch a mirror-list JSON URL and return normalized entries.
+        Writes resolved entries back to config.ini on success."""
+        try:
+            import requests as _req
+            response = _req.get(url, timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+            entries = payload.get("mirrors", []) if isinstance(payload, dict) else []
+        except Exception:
+            from src.services.settings_manager import load_local_mirror_entries
+            entries = load_local_mirror_entries()
+        normalized = [
+            self._normalize_image_accelerator(str(e))
+            for e in entries if str(e).strip()
+        ]
+        if normalized:
+            try:
+                ConfigManager("config.ini").set_value(
+                    "docker_mirror", "url", "\n".join(normalized)
+                )
+            except Exception:
+                pass
+        return normalized
 
     def _normalize_image_accelerator(self, value: str) -> str:
         normalized = value.strip().rstrip("/")

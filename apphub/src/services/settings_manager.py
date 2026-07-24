@@ -348,8 +348,40 @@ class SettingsManager:
         mirrors.json.  The initial value is written once during install /
         upgrade by ensure_docker_mirror_config(), and from then on
         config.ini is the single source of truth.
+
+        One exception: legacy configs may store a JSON-URL (starting with
+        http:// or https://) instead of plain mirror entries.  We resolve
+        the URL once, write the resolved entries back, and return them.
         """
-        return self.config.get("docker_mirror", "url", fallback="").strip()
+        configured = self.config.get("docker_mirror", "url", fallback="").strip()
+        if configured.startswith("http://") or configured.startswith("https://"):
+            resolved = self._resolve_mirror_url(configured)
+            if resolved:
+                self.config.set("docker_mirror", "url", resolved)
+                try:
+                    with open(self.config_file_path, "w") as configfile:
+                        self.config.write(configfile)
+                except Exception:
+                    pass
+                return resolved
+        return configured
+
+    def _resolve_mirror_url(self, url: str) -> str:
+        """Fetch a mirror-list JSON URL and return normalized entries.
+        Falls back to local mirrors.json if the URL is unreachable."""
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+            mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
+        except Exception:
+            mirrors = load_local_mirror_entries()
+        normalized = "\n".join(
+            str(e).strip().rstrip("/").removeprefix("http://").removeprefix("https://")
+            for e in mirrors
+            if str(e).strip()
+        )
+        return normalized
 
     def _docker_mirror_display_value(self) -> str:
         return self._docker_mirror_url()
