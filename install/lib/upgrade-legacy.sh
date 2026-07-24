@@ -840,6 +840,7 @@ if not stacks:
 restarted = 0
 failed = 0
 matched = 0
+skipped = 0
 
 for stack in stacks:
     name = (stack.get("Name") or "").strip()
@@ -847,6 +848,22 @@ for stack in stacks:
     if not name or sid is None:
         continue
     if name == "websoft9":
+        continue
+
+    # Only migrate stacks deployed via Gitea (have GitConfig).
+    # Stacks created through the compose editor or docker compose CLI
+    # do not reference legacy Gitea and do not need migration.
+    git_config = stack.get("GitConfig") or {}
+    if not git_config:
+        continue
+
+    stack_status = stack.get("Status")
+    # Only restart stacks that are currently active.
+    # Inactive stacks have already had their Git URLs rewritten
+    # in Stage 7; they will pick up the new settings on next start.
+    if stack_status != 1:
+        skipped += 1
+        print(f"[{name}] skipped (status={stack_status}, git settings already updated)")
         continue
 
     matched += 1
@@ -875,10 +892,10 @@ for stack in stacks:
         failed += 1
     sys.stdout.flush()
 
-if matched == 0:
+if matched == 0 and skipped == 0:
     print("SKIP: no migrated application stacks matched restart criteria")
 
-print(f"DONE: {restarted} restarted, {failed} failed, {matched} matched, {len(stacks)} total")
+print(f"DONE: {restarted} restarted, {failed} failed, {matched} matched, {skipped} skipped, {len(stacks)} total")
 if failed > 0:
     sys.exit(2)
 if matched > 0 and restarted == 0:
