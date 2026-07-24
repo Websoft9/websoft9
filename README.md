@@ -19,9 +19,9 @@
 
 **Certified and available on major cloud platforms with business support:**
 
-| <a href="https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png" width="100" alt="Azure"></a> | <a href="https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png" width="100" alt="AWS"></a> | <a href="https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png" width="100" alt="Alibaba Cloud"></a> |
+| <a href="https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png" alt="Azure"></a> | <a href="https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png" alt="AWS"></a> | <a href="https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png" alt="Alibaba Cloud"></a> |
 | ---- | ---- | ---- |
-| <a href="https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png" width="100" alt="Huawei Cloud"></a> | <a href="https://market.aliyun.com/products/53690006/cmjj00048735.html?userCode=yetrmi9y"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aliyun-logo.png" width="100" alt="Aliyun"></a> | <a href="https://marketplace.huaweicloud.com/contents/29458a42-64b7-4637-aa7c-8bfddea1fb72#productid=OFFI1005787756558913536"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweiyun-logo.png" width="100" alt="Huawei Cloud"></a> |
+| <a href="https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png" alt="Huawei Cloud"></a> | <a href="https://market.aliyun.com/products/53690006/cmjj00048735.html?userCode=yetrmi9y"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aliyun-logo.png" alt="Aliyun"></a> | <a href="https://marketplace.huaweicloud.com/contents/29458a42-64b7-4637-aa7c-8bfddea1fb72#productid=OFFI1005787756558913536"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweiyun-logo.png" alt="Huawei Cloud"></a> |
 
 → [Deployment guide](docs/deployment.md)
 
@@ -33,9 +33,12 @@ Think of it as your own private app store: browse, one-click install, manage dom
 
 ## Screenshots
 
-| ![Overview](docs/images/screenshots/image-1.png) | ![Deploy](docs/images/screenshots/image-2.png) | ![App Store](docs/images/screenshots/image-3.png) |
-| --- | --- | --- |
-| ![My Apps](docs/images/screenshots/image-4.png) | ![Terminal](docs/images/screenshots/image-5.png) | ![Files](docs/images/screenshots/image-6.png) |
+<img src="docs/images/screenshots/image-1.png" width="100%" alt="Overview" />
+<img src="docs/images/screenshots/image-2.png" width="100%" alt="Deploy" />
+<img src="docs/images/screenshots/image-3.png" width="100%" alt="App Store" />
+<img src="docs/images/screenshots/image-4.png" width="100%" alt="My Apps" />
+<img src="docs/images/screenshots/image-5.png" width="100%" alt="Terminal" />
+<img src="docs/images/screenshots/image-6.png" width="100%" alt="Files" />
 
 ## Quick Start
 
@@ -74,7 +77,7 @@ sudo bash uninstall.sh --purge
 
 | Category | Capabilities |
 |----------|-------------|
-| **App Store** | Browse and install 200+ apps in one click — CMS, e-commerce, DevOps, databases |
+| **App Store** | Browse and install 300+ apps in one click — CMS, e-commerce, DevOps, databases |
 | **My Apps** | Start, stop, restart, redeploy, view logs, manage files and volumes per app |
 | **File Manager** | Web-based file browser with upload, download, edit, and permission management |
 | **Terminal** | Browser-based SSH terminal for remote server management |
@@ -113,8 +116,7 @@ All components are managed by supervisord inside one container — simple to dep
 ## Community
 
 - 💬 [GitHub Issues](https://github.com/Websoft9/websoft9/issues) — Bug reports and feature requests
-- 🔧 [Contributing Guide](CONTRIBUTING.md) — How to contribute code
-- 📦 [Application Templates](https://github.com/Websoft9/docker-library) — 200+ ready-to-deploy apps
+-  [Application Templates](https://github.com/Websoft9/docker-library) — 300+ ready-to-deploy apps
 
 ## License
 
