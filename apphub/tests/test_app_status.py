@@ -1,4 +1,5 @@
 import sys
+import sqlite3
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -10,8 +11,10 @@ from src.services.app_status import (
     appInstalling,
     appInstallingError,
     configure_install_state_store,
+    get_app_custom_fields,
     modify_app_information,
     remove_installation_logs,
+    save_app_custom_fields,
     start_app_installation,
 )
 
@@ -49,3 +52,53 @@ def test_error_transition_keeps_persisted_stage_logs(tmp_path):
     assert errored["error"] == "Portainer restarted during build"
     assert errored["logs"][0]["title"] == "Starting the services"
     assert errored["logs"][0]["sub_logs"][0]["message"] == "Booting containers"
+
+
+def test_custom_fields_persist_multiple_empty_rows(tmp_path):
+    configure_install_state_store(str(tmp_path))
+
+    saved = save_app_custom_fields("ghost", [
+        {"field_name": "", "field_value": "", "field_type": "text"},
+        {"field_name": "", "field_value": "", "field_type": "password"},
+    ])
+
+    assert [(field["field_name"], field["field_value"], field["field_type"]) for field in saved] == [
+        ("", "", "text"),
+        ("", "", "password"),
+    ]
+
+    configure_install_state_store(str(tmp_path))
+    assert len(get_app_custom_fields("ghost")) == 2
+
+
+def test_custom_fields_rebuilds_legacy_unique_name_constraint(tmp_path):
+    database_file = tmp_path / "install-tracking.sqlite"
+    with sqlite3.connect(database_file) as connection:
+        connection.execute(
+            """
+            CREATE TABLE app_custom_fields (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_id TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                field_value TEXT NOT NULL DEFAULT '',
+                field_type TEXT NOT NULL DEFAULT 'text',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(app_id, field_name)
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO app_custom_fields (app_id, field_name, field_value, field_type, sort_order, created_at, updated_at) VALUES ('ghost', 'existing', '', 'text', 0, 'now', 'now')"
+        )
+
+    configure_install_state_store(str(tmp_path))
+    assert get_app_custom_fields("ghost") == []
+
+    saved = save_app_custom_fields("ghost", [
+        {"field_name": "", "field_value": "", "field_type": "text"},
+        {"field_name": "", "field_value": "", "field_type": "text"},
+    ])
+
+    assert len(saved) == 2

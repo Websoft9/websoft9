@@ -37,6 +37,7 @@ type ApplicationSubNavigationItem = {
 type PlatformBrandState = {
     title: string
     logoUrl: string
+    copyrightText: string
 }
 
 const navigationSections = [
@@ -194,6 +195,7 @@ export function AppShell() {
     const [platformBrand, setPlatformBrand] = useState<PlatformBrandState>({
         title: t('brand.title'),
         logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+        copyrightText: t('footer.copyright'),
     })
     const [brandLogoSrc, setBrandLogoSrc] = useState(DEFAULT_PLATFORM_BRAND_LOGO_URL)
 
@@ -262,7 +264,7 @@ export function AppShell() {
                     return
                 }
 
-                const payload = (await response.json()) as { title?: unknown; logo_url?: unknown }
+                const payload = (await response.json()) as { title?: unknown; logo_url?: unknown; copyright_text?: unknown }
                 if (disposed) {
                     return
                 }
@@ -270,10 +272,12 @@ export function AppShell() {
                 const resolvedTitle = typeof payload.title === 'string' && payload.title.trim() ? payload.title.trim() : t('brand.title')
                 const resolvedLogoUrlRaw = typeof payload.logo_url === 'string' ? payload.logo_url.trim() : ''
                 const resolvedLogoUrl = isValidPlatformBrandLogoUrl(resolvedLogoUrlRaw) ? resolvedLogoUrlRaw : DEFAULT_PLATFORM_BRAND_LOGO_URL
+                const resolvedCopyrightText = typeof payload.copyright_text === 'string' && payload.copyright_text.trim() ? payload.copyright_text.trim() : t('footer.copyright')
 
                 setPlatformBrand({
                     title: resolvedTitle,
                     logoUrl: resolvedLogoUrl,
+                    copyrightText: resolvedCopyrightText,
                 })
                 setBrandLogoSrc(resolvedLogoUrl)
                 document.title = resolvedTitle
@@ -282,6 +286,7 @@ export function AppShell() {
                     setPlatformBrand({
                         title: t('brand.title'),
                         logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+                        copyrightText: t('footer.copyright'),
                     })
                     setBrandLogoSrc(DEFAULT_PLATFORM_BRAND_LOGO_URL)
                 }
@@ -335,6 +340,13 @@ export function AppShell() {
                 if (shortcutLink) {
                     shortcutLink.href = busted
                 }
+            }
+
+            if (key === 'copyright_text') {
+                setPlatformBrand((current) => ({
+                    ...current,
+                    copyrightText: value.trim() || t('footer.copyright'),
+                }))
             }
         }
 
@@ -835,7 +847,7 @@ export function AppShell() {
 
                     <Box component="footer" className={`app-shell-footer ${useWhiteWorkspaceSurface ? 'app-shell-footer--white-surface' : ''}`}>
                         <Box className="app-shell-footer-inner">
-                            <Typography component="span" className="app-shell-footer-copy">{t('footer.copyright')}</Typography>
+                            <Typography component="span" className="app-shell-footer-copy">{platformBrand.copyrightText}</Typography>
                             {footerLinks.map((link) => (
                                 <Box key={link.key} sx={{ display: 'contents' }}>
                                     <span className="app-shell-footer-separator" aria-hidden="true">|</span>

@@ -228,6 +228,7 @@ export function SettingsPage() {
     const [reuseLogo, setReuseLogo] = useState<boolean>(false)
     const [useDomain, setUseDomain] = useState<boolean>(false)
     const [uploadingLogo, setUploadingLogo] = useState(false)
+    const [uploadingBackground, setUploadingBackground] = useState(false)
     const [letsEncryptEmail, setLetsEncryptEmail] = useState('')
     const [certAction, setCertAction] = useState<'letsencrypt' | 'existing' | 'upload'>('letsencrypt')
     const [certValidityDays, setCertValidityDays] = useState(3650)
@@ -241,6 +242,7 @@ export function SettingsPage() {
     const intermediatePemFileRef = useRef<HTMLInputElement | null>(null)
     const logoUploadRef = useRef<HTMLInputElement | null>(null)
     const faviconUploadRef = useRef<HTMLInputElement | null>(null)
+    const backgroundUploadRef = useRef<HTMLInputElement | null>(null)
     const { data, error, isLoading, refetch } = useQuery<SettingsSummaryResponse, SettingsError>({
         queryKey: ['settings-summary'],
         queryFn: fetchSettingsSummary,
@@ -268,6 +270,8 @@ export function SettingsPage() {
     const brandTitleItem = items.find((item) => item.group === 'platform_brand' && item.key === 'title') ?? null
     const brandLogoItem = items.find((item) => item.group === 'platform_brand' && item.key === 'logo_url') ?? null
     const brandFaviconItem = items.find((item) => item.group === 'platform_brand' && item.key === 'favicon_url') ?? null
+    const brandLoginBgItem = items.find((item) => item.group === 'platform_brand' && item.key === 'login_background') ?? null
+    const brandCopyrightItem = items.find((item) => item.group === 'platform_brand' && item.key === 'copyright_text') ?? null
     const activeModuleConfig = SETTINGS_MODULES.find((module) => module.id === activeModule) ?? SETTINGS_MODULES[0]
     const currentSslCert = httpsItem?.metadata?.cert_path?.trim() || ''
     const currentSslKey = httpsItem?.metadata?.key_path?.trim() || ''
@@ -427,7 +431,7 @@ export function SettingsPage() {
         }
 
         if (moduleId === 'platform-brand') {
-            return [brandTitleItem, brandLogoItem, brandFaviconItem].filter((item): item is SettingsSummaryItem => item !== null)
+            return [brandTitleItem, brandLogoItem, brandFaviconItem, brandLoginBgItem, brandCopyrightItem].filter((item): item is SettingsSummaryItem => item !== null)
         }
 
         if (moduleId === 'platform-domain') {
@@ -463,7 +467,7 @@ export function SettingsPage() {
     function validateItemValue(item: SettingsSummaryItem, nextValue: string) {
         const trimmed = nextValue.trim()
 
-        if (!trimmed && item.group !== 'domain') {
+        if (!trimmed && item.group !== 'domain' && !(item.group === 'platform_brand' && (item.key === 'login_background' || item.key === 'copyright_text'))) {
             return t('settingsPage.validation.required')
         }
 
@@ -480,7 +484,7 @@ export function SettingsPage() {
             }
         }
 
-        if (item.group === 'platform_brand' && (item.key === 'logo_url' || item.key === 'favicon_url') && !isPlatformBrandLogoUrl(nextValue)) {
+        if (item.group === 'platform_brand' && (item.key === 'logo_url' || item.key === 'favicon_url' || item.key === 'login_background') && trimmed && !isPlatformBrandLogoUrl(nextValue)) {
             return t('settingsPage.validation.logoUrl')
         }
 
@@ -756,6 +760,16 @@ export function SettingsPage() {
         const previewTitle = titleValue || 'Websoft9'
         const logoValue = brandLogoItem ? (drafts[logoDraftKey] ?? brandLogoItem.value) : ''
         const faviconValue = brandFaviconItem ? (drafts[faviconDraftKey] ?? brandFaviconItem.value) : ''
+        const loginBgDraftKey = brandLoginBgItem ? getDraftKey(brandLoginBgItem) : ''
+        const loginBgValue = brandLoginBgItem ? (drafts[loginBgDraftKey] ?? brandLoginBgItem.value) : ''
+
+        // Build preview URL with current draft values so unsaved changes are visible
+        const previewParams = new URLSearchParams()
+        if (previewTitle) previewParams.set('title', previewTitle)
+        if (logoValue) previewParams.set('logo', logoValue)
+        if (loginBgValue) previewParams.set('bg', loginBgValue)
+        const previewQuery = previewParams.toString()
+        const previewHref = `/settings/brand-preview${previewQuery ? `?${previewQuery}` : ''}`
 
         function handleUpload(file: File, draftKey: string) {
             if (!draftKey) return
@@ -799,12 +813,12 @@ export function SettingsPage() {
                 <div className="settings-form-row settings-form-row--domain-stacked">
                     <div className="settings-brand-preview-card">
                         <div className="settings-brand-preview-sidebar">
-                            <img className="settings-brand-preview-logo" key={previewLogoSrc} src={previewLogoSrc} alt="Logo preview" />
+                            <img className="settings-brand-preview-logo" key={previewLogoSrc} src={previewLogoSrc} alt="Logo preview" onError={(e) => { (e.target as HTMLImageElement).src = '/websoft9.png' }} />
                             <span className="settings-brand-preview-title">{previewTitle}</span>
                         </div>
                         <div className="settings-brand-preview-browser">
                             <div className="settings-brand-preview-tab">
-                                <img className="settings-brand-preview-favicon" key={previewFaviconSrc} src={previewFaviconSrc} alt="Favicon preview" />
+                                <img className="settings-brand-preview-favicon" key={previewFaviconSrc} src={previewFaviconSrc} alt="Favicon preview" onError={(e) => { (e.target as HTMLImageElement).src = '/favicon.ico?v=20260509c' }} />
                             </div>
                         </div>
                     </div>
@@ -931,6 +945,95 @@ export function SettingsPage() {
                                 </Typography>
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* Login Background – with upload + preview link */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <Typography className="settings-form-label">{t('settingsPage.items.platform_brand.login_background')}</Typography>
+                    <div className="settings-form-control settings-form-control--field">
+                        <div className="settings-inline-content">
+                            <div className="settings-brand-upload-row">
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    value={brandLoginBgItem ? (drafts[getDraftKey(brandLoginBgItem)] ?? brandLoginBgItem.value) : ''}
+                                    onChange={(event) => { if (brandLoginBgItem) setDraftValue(getDraftKey(brandLoginBgItem), event.target.value) }}
+                                    placeholder={t('settingsPage.brand.loginBackgroundPlaceholder')}
+                                    sx={settingsFieldSx}
+                                />
+                                <Button
+                                    className="settings-action-button"
+                                    size="small"
+                                    variant="outlined"
+                                    disabled={uploadingBackground || savingModule === activeModule}
+                                    onClick={() => backgroundUploadRef.current?.click()}
+                                >
+                                    {uploadingBackground ? '...' : t('settingsPage.brand.uploadBackground')}
+                                </Button>
+                                <input
+                                    ref={backgroundUploadRef}
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file && brandLoginBgItem) {
+                                            setUploadingBackground(true)
+                                            const formData = new FormData()
+                                            formData.append('file', file)
+                                            fetch('/api/media/upload', {
+                                                method: 'POST',
+                                                body: formData,
+                                                credentials: 'include',
+                                            })
+                                                .then(async (res) => {
+                                                    if (!res.ok) throw new Error('Upload failed')
+                                                    const data = await res.json() as { url?: string }
+                                                    if (data.url) {
+                                                        setDraftValue(getDraftKey(brandLoginBgItem), data.url)
+                                                    }
+                                                })
+                                                .catch(() => { })
+                                                .finally(() => setUploadingBackground(false))
+                                        }
+                                        e.target.value = ''
+                                    }}
+                                />
+                            </div>
+                            <Typography className="settings-field-helper settings-field-helper--inline">
+                                {t('settingsPage.brand.uploadBackgroundHint')}
+                                {' · '}
+                                <a
+                                    href={previewHref}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ color: 'inherit' }}
+                                >
+                                    {t('settingsPage.brand.loginPreview')}
+                                </a>
+                            </Typography>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Copyright text */}
+                <div className="settings-form-row settings-form-row--domain-stacked">
+                    <Typography className="settings-form-label">{t('settingsPage.items.platform_brand.copyright_text')}</Typography>
+                    <div className="settings-form-control settings-form-control--field">
+                        <div className="settings-inline-content">
+                            <TextField
+                                fullWidth
+                                size="small"
+                                value={brandCopyrightItem ? (drafts[getDraftKey(brandCopyrightItem)] ?? brandCopyrightItem.value) : ''}
+                                onChange={(event) => { if (brandCopyrightItem) setDraftValue(getDraftKey(brandCopyrightItem), event.target.value) }}
+                                placeholder={t('settingsPage.brand.copyrightPlaceholder')}
+                                sx={settingsFieldSx}
+                            />
+                            <Typography className="settings-field-helper settings-field-helper--inline">
+                                {t('settingsPage.brand.copyrightHelper')}
+                            </Typography>
+                        </div>
                     </div>
                 </div>
             </>

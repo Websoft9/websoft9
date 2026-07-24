@@ -4791,3 +4791,185 @@
 .myapps-bind-domain-inline-btn:hover {
     background: color-mix(in srgb, var(--myapps-detail-accent) 8%, transparent);
 }
+
+/* ── Custom Fields inside overview runtime block ────────────────────── */
+
+.myapps-custom-fields-head {
+    margin-top: 4px;
+}
+
+.myapps-cf-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--myapps-detail-accent);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.myapps-cf-add-btn:hover {
+    color: var(--myapps-detail-accent-hover);
+}
+
+.myapps-cf-add-btn:disabled {
+    color: var(--myapps-detail-muted);
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* data rows — flex layout overriding the overview grid, no separators */
+.myapps-cf-row {
+    display: flex !important;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0 6px !important;
+    border-top: none !important;
+}
+
+.myapps-cf-col {
+    display: flex;
+    align-items: center;
+}
+
+.myapps-cf-col--name {
+    width: 180px;
+    flex-shrink: 0;
+}
+
+.myapps-cf-col--value {
+    flex: 1;
+    min-width: 0;
+}
+
+.myapps-cf-col--type {
+    width: 100px;
+    flex-shrink: 0;
+}
+
+.myapps-cf-input,
+.myapps-cf-select {
+    min-width: 0;
+    height: 32px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 0;
+    outline: none;
+    background: transparent;
+    color: var(--myapps-detail-text);
+    font: inherit;
+    font-size: 14px;
+}
+
+.myapps-cf-input {
+    border-bottom: 1px solid var(--myapps-detail-border);
+}
+
+.myapps-cf-input::placeholder {
+    color: var(--myapps-detail-subtle);
+    opacity: 1;
+}
+
+.myapps-cf-input:focus {
+    border-bottom-color: #93c5fd;
+    box-shadow: none;
+}
+
+.myapps-cf-select {
+    appearance: auto;
+    cursor: pointer;
+}
+
+.myapps-cf-select:focus {
+    box-shadow: none;
+}
+
+.myapps-cf-value-control {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.myapps-cf-value-control .myapps-cf-input {
+    flex: 1;
+}
+
+.myapps-cf-value-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 2px;
+    margin-left: -62px;
+    z-index: 1;
+}
+
+.myapps-cf-value-actions:has(.myapps-cf-copy-btn:only-child) {
+    margin-left: -32px;
+}
+
+.myapps-cf-visibility-btn,
+.myapps-cf-copy-btn {
+    color: var(--myapps-detail-muted) !important;
+    margin: 0 !important;
+}
+
+.myapps-cf-visibility-btn:hover,
+.myapps-cf-copy-btn:hover {
+    color: var(--myapps-detail-text) !important;
+}
+
+.myapps-cf-col--actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.myapps-cf-action-btn {
+    color: var(--myapps-detail-muted) !important;
+    padding: 2px !important;
+    width: 28px;
+    height: 28px;
+    border: 1px solid color-mix(in srgb, var(--myapps-detail-border) 90%, transparent);
+    border-radius: 999px !important;
+}
+
+.myapps-cf-action-btn:hover {
+    color: var(--myapps-detail-text) !important;
+    background: color-mix(in srgb, var(--myapps-detail-accent) 6%, transparent) !important;
+}
+
+.myapps-cf-action-btn--remove:hover {
+    color: var(--myapps-detail-danger) !important;
+    background: color-mix(in srgb, var(--myapps-detail-danger) 8%, transparent) !important;
+}
+
+.myapps-cf-action-btn--add {
+    color: var(--myapps-detail-accent) !important;
+}
+
+.myapps-cf-action-btn.Mui-disabled {
+    opacity: 0.28;
+}
+
+.myapps-cf-visibility-btn {
+    color: var(--myapps-detail-muted) !important;
+    margin: 0 0 0 -34px !important;
+    z-index: 1;
+}
+
+@media (max-width: 960px) {
+    .myapps-cf-row {
+        gap: 10px;
+    }
+
+    .myapps-cf-col--name {
+        width: 140px;
+    }
+
+    .myapps-cf-col--type {
+        width: 80px;
+    }
+}

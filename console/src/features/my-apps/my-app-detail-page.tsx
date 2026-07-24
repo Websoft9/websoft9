@@ -13,7 +13,7 @@ import {
     Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -70,6 +70,8 @@ type PhpMigrationFeedback = {
     message: string
     details?: string
 }
+
+const MAX_CUSTOM_FIELDS = 10
 
 type MyAppsDetailLocationState = {
     backgroundScrollTop?: number
@@ -691,6 +693,9 @@ export function MyAppDetailPage() {
     const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
     const [activeVolumeFileManager, setActiveVolumeFileManager] = useState<{ volumeId: string; label: string } | null>(null)
+    const [customFields, setCustomFields] = useState<Array<{ field_name: string; field_value: string; field_type: string }>>([])
+    const [, setCustomFieldsSaving] = useState(false)
+    const [customFieldsLoaded, setCustomFieldsLoaded] = useState(false)
 
     useEffect(() => {
         const openedFromIntent = hasMyAppsDetailOverlayIntent(appId)
@@ -717,6 +722,66 @@ export function MyAppDetailPage() {
     const { data, error, isLoading, refetch } = useMyAppDetail(appId)
     const canLoadPhpRuntime = canProbePhpRuntime(data?.containers, data?.app_id)
     const phpInfoQuery = useMyAppPhpInfo(data?.app_id, Boolean(data?.is_php_app && selectedTab === 'php' && canLoadPhpRuntime))
+
+    // Load custom fields
+    useEffect(() => {
+        if (!appId) return
+        let disposed = false
+        setCustomFieldsLoaded(false)
+        fetch(`/api/apps/${encodeURIComponent(appId)}/custom-fields`, { credentials: 'include' })
+            .then(async (res) => {
+                if (!res.ok) return
+                const payload = await res.json() as Array<{ field_name: string; field_value: string; field_type: string }>
+                if (!disposed) setCustomFields(payload)
+            })
+            .catch(() => { })
+            .finally(() => { if (!disposed) setCustomFieldsLoaded(true) })
+        return () => { disposed = true }
+    }, [appId])
+
+    async function saveCustomFields(fields: Array<{ field_name: string; field_value: string; field_type: string }>) {
+        if (!appId) return
+        setCustomFieldsSaving(true)
+        try {
+            const res = await fetch(`/api/apps/${encodeURIComponent(appId)}/custom-fields`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fields }),
+            })
+            if (!res.ok) throw new Error('Save failed')
+        } catch {
+            setFeedback({ severity: 'error', message: t('myAppsDetailPage.customFields.saveError') })
+        } finally {
+            setCustomFieldsSaving(false)
+        }
+    }
+
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    function scheduleSave(fields: Array<{ field_name: string; field_value: string; field_type: string }>) {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = setTimeout(() => saveCustomFields(fields), 800)
+    }
+
+    function addCustomField() {
+        if (customFields.length >= MAX_CUSTOM_FIELDS) return
+        const next = [...customFields, { field_name: '', field_value: '', field_type: 'text' }]
+        setCustomFields(next)
+        scheduleSave(next)
+    }
+
+    function removeCustomField(idx: number) {
+        const next = customFields.filter((_, i) => i !== idx)
+        setCustomFields(next)
+        scheduleSave(next)
+    }
+
+    function updateCustomField(idx: number, key: string, value: string) {
+        const next = [...customFields]
+        next[idx] = { ...next[idx], [key]: value }
+        setCustomFields(next)
+        scheduleSave(next)
+    }
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const isDarkMode = colorMode === 'dark'
     const surfacePalette = getSurfacePalette(isDarkMode)
@@ -1414,6 +1479,104 @@ export function MyAppDetailPage() {
                                                             <span className="myapps-overview-runtime-value">{entry.value}</span>
                                                         </div>
                                                     ))}
+                                                </div>
+                                            </div>
+
+                                            {/* ── Custom Fields ── */}
+                                            <div className="myapps-access-section-head myapps-custom-fields-head">
+                                                <div className="myapps-section-label-bar">
+                                                    <span className="myapps-section-label-indicator" />
+                                                    <span className="myapps-section-label-text">{t('myAppsDetailPage.customFields.title')}</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="myapps-cf-add-btn"
+                                                    onClick={addCustomField}
+                                                    disabled={customFields.length >= MAX_CUSTOM_FIELDS}
+                                                >
+                                                    <IconAdd />
+                                                    {t('myAppsDetailPage.customFields.add')}
+                                                </button>
+                                            </div>
+                                            <div className="myapps-php-card-body">
+                                                <div className="myapps-overview-runtime-block">
+                                                    {!customFieldsLoaded ? (
+                                                        <div className="myapps-overview-runtime-row">
+                                                            <span className="myapps-overview-runtime-value" style={{ opacity: 0.5 }}>...</span>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {customFields.map((field, idx) => (
+                                                                <div className="myapps-overview-runtime-row myapps-cf-row" key={`cf-${idx}`}>
+                                                                    <div className="myapps-cf-col myapps-cf-col--name">
+                                                                        <input
+                                                                            className="myapps-cf-input"
+                                                                            value={field.field_name}
+                                                                            onChange={(e) => updateCustomField(idx, 'field_name', e.target.value)}
+                                                                            placeholder={t('myAppsDetailPage.customFields.fieldName')}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="myapps-cf-col myapps-cf-col--value">
+                                                                        <div className="myapps-cf-value-control">
+                                                                            <input
+                                                                                className="myapps-cf-input"
+                                                                                value={field.field_value}
+                                                                                onChange={(e) => updateCustomField(idx, 'field_value', e.target.value)}
+                                                                                type={field.field_type === 'password' && !showPasswords[`cf-${idx}`] ? 'password' : 'text'}
+                                                                                placeholder={t('myAppsDetailPage.customFields.fieldValue')}
+                                                                            />
+                                                                            <div className="myapps-cf-value-actions">
+                                                                                {field.field_type === 'password' ? (
+                                                                                    <IconButton
+                                                                                        size="small"
+                                                                                        onClick={() => setShowPasswords(prev => ({ ...prev, [`cf-${idx}`]: !prev[`cf-${idx}`] }))}
+                                                                                        className="myapps-cf-visibility-btn"
+                                                                                    >
+                                                                                        {showPasswords[`cf-${idx}`] ? <IconEyeOff /> : <IconEye />}
+                                                                                    </IconButton>
+                                                                                ) : null}
+                                                                                <IconButton
+                                                                                    size="small"
+                                                                                    onClick={async () => {
+                                                                                        try {
+                                                                                            await copyTextWithFallback(field.field_value)
+                                                                                            setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.database.copied') })
+                                                                                        } catch {
+                                                                                            setFeedback({ severity: 'error', message: t('myAppsDetailPage.tabs.database.copyFailed') })
+                                                                                        }
+                                                                                    }}
+                                                                                    title={t('myAppsDetailPage.tabs.database.copy')}
+                                                                                    className="myapps-cf-copy-btn"
+                                                                                >
+                                                                                    <IconCopy />
+                                                                                </IconButton>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="myapps-cf-col myapps-cf-col--type">
+                                                                        <select
+                                                                            className="myapps-cf-select"
+                                                                            value={field.field_type || 'text'}
+                                                                            onChange={(e) => updateCustomField(idx, 'field_type', e.target.value)}
+                                                                        >
+                                                                            <option value="text">{t('myAppsDetailPage.customFields.typeText')}</option>
+                                                                            <option value="password">{t('myAppsDetailPage.customFields.typePassword')}</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="myapps-cf-col myapps-cf-col--actions">
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            onClick={() => removeCustomField(idx)}
+                                                                            title={t('myAppsDetailPage.customFields.remove')}
+                                                                            className="myapps-cf-action-btn myapps-cf-action-btn--remove"
+                                                                        >
+                                                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 13H5v-2h14v2z" /></svg>
+                                                                        </IconButton>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

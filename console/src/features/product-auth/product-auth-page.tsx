@@ -24,6 +24,7 @@ type ProductAuthPageProps = {
 type PlatformBrandState = {
     title: string
     logoUrl: string
+    loginBackground: string
 }
 
 const DEFAULT_PLATFORM_BRAND_LOGO_URL = '/websoft9.png'
@@ -95,6 +96,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     const [platformBrand, setPlatformBrand] = useState<PlatformBrandState>({
         title: t('brand.title'),
         logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+        loginBackground: '',
     })
     const [brandLogoSrc, setBrandLogoSrc] = useState(DEFAULT_PLATFORM_BRAND_LOGO_URL)
     const nextPath = useMemo(() => resolveNext(location.search), [location.search])
@@ -155,7 +157,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                     return
                 }
 
-                const payload = (await response.json()) as { title?: unknown; logo_url?: unknown }
+                const payload = (await response.json()) as { title?: unknown; logo_url?: unknown; login_background?: unknown }
                 if (disposed) {
                     return
                 }
@@ -163,10 +165,13 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                 const resolvedTitle = typeof payload.title === 'string' && payload.title.trim() ? payload.title.trim() : t('brand.title')
                 const resolvedLogoUrlRaw = typeof payload.logo_url === 'string' ? payload.logo_url.trim() : ''
                 const resolvedLogoUrl = isValidPlatformBrandLogoUrl(resolvedLogoUrlRaw) ? resolvedLogoUrlRaw : DEFAULT_PLATFORM_BRAND_LOGO_URL
+                const resolvedLoginBgRaw = typeof payload.login_background === 'string' ? payload.login_background.trim() : ''
+                const resolvedLoginBg = isValidPlatformBrandLogoUrl(resolvedLoginBgRaw) ? resolvedLoginBgRaw : ''
 
                 setPlatformBrand({
                     title: resolvedTitle,
                     logoUrl: resolvedLogoUrl,
+                    loginBackground: resolvedLoginBg,
                 })
                 setBrandLogoSrc(resolvedLogoUrl)
             } catch {
@@ -174,6 +179,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                     setPlatformBrand({
                         title: t('brand.title'),
                         logoUrl: DEFAULT_PLATFORM_BRAND_LOGO_URL,
+                        loginBackground: '',
                     })
                     setBrandLogoSrc(DEFAULT_PLATFORM_BRAND_LOGO_URL)
                 }
@@ -211,6 +217,14 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                     logoUrl: nextLogoUrl,
                 }))
                 setBrandLogoSrc(nextLogoUrl)
+            }
+
+            if (key === 'login_background') {
+                const nextLoginBg = isValidPlatformBrandLogoUrl(value) ? value.trim() : ''
+                setPlatformBrand((current) => ({
+                    ...current,
+                    loginBackground: nextLoginBg,
+                }))
             }
         }
 
@@ -312,6 +326,13 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
         }
     }
 
+    const authPageBackground = useMemo(() => {
+        if (platformBrand.loginBackground) {
+            return `url(${platformBrand.loginBackground}) center/cover no-repeat`
+        }
+        return 'radial-gradient(circle at top left, rgba(59, 130, 246, 0.14), transparent 28%), radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.1), transparent 24%), linear-gradient(180deg, #edf3fb 0%, #f8fafc 100%)'
+    }, [platformBrand.loginBackground])
+
     return (
         <Box
             sx={{
@@ -320,8 +341,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                 placeItems: 'center',
                 px: { xs: 2, md: 4 },
                 py: { xs: 3, md: 5 },
-                background:
-                    'radial-gradient(circle at top left, rgba(59, 130, 246, 0.14), transparent 28%), radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.1), transparent 24%), linear-gradient(180deg, #edf3fb 0%, #f8fafc 100%)',
+                background: authPageBackground,
             }}
         >
             <Paper

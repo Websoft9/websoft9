@@ -85,9 +85,48 @@ class InstallStateStore:
                 CREATE INDEX IF NOT EXISTS idx_install_tasks_status ON install_tasks(status);
                 CREATE INDEX IF NOT EXISTS idx_install_stages_tracking_id ON install_stages(tracking_id, stage_order);
                 CREATE INDEX IF NOT EXISTS idx_install_stage_logs_stage_id ON install_stage_logs(stage_id, entry_order);
+
+                CREATE TABLE IF NOT EXISTS app_custom_fields (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_id TEXT NOT NULL,
+                    field_name TEXT NOT NULL,
+                    field_value TEXT NOT NULL DEFAULT '',
+                    field_type TEXT NOT NULL DEFAULT 'text',
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_app_custom_fields_app_id ON app_custom_fields(app_id);
                 """
             )
+            self._rebuild_legacy_custom_fields_table(connection)
             connection.commit()
+
+    def _rebuild_legacy_custom_fields_table(self, connection: sqlite3.Connection) -> None:
+        table_sql_row = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'app_custom_fields'"
+        ).fetchone()
+        table_sql = str(table_sql_row["sql"] or "") if table_sql_row else ""
+        if "UNIQUE(APP_ID,FIELD_NAME)" not in table_sql.upper().replace(" ", ""):
+            return
+
+        connection.executescript(
+            """
+            DROP INDEX IF EXISTS idx_app_custom_fields_app_id;
+            DROP TABLE app_custom_fields;
+            CREATE TABLE app_custom_fields (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_id TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                field_value TEXT NOT NULL DEFAULT '',
+                field_type TEXT NOT NULL DEFAULT 'text',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX idx_app_custom_fields_app_id ON app_custom_fields(app_id);
+            """
+        )
 
     def _normalize_ports(self, reserved_ports: Any) -> list[int]:
         normalized: list[int] = []
@@ -355,6 +394,36 @@ class InstallStateStore:
             "updated_at": row["updated_at"],
         }
 
+    # ── Custom Fields CRUD ──────────────────────────────────────────
+
+    def get_custom_fields(self, app_id: str) -> list[dict[str, Any]]:
+        with self._lock, self._db_connect() as connection:
+            rows = connection.execute(
+                "SELECT id, app_id, field_name, field_value, field_type, sort_order FROM app_custom_fields WHERE app_id = ? ORDER BY sort_order, id",
+                (app_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def save_custom_fields(self, app_id: str, fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        with self._lock, self._db_connect() as connection:
+            now = _utc_now()
+            connection.execute("DELETE FROM app_custom_fields WHERE app_id = ?", (app_id,))
+            for idx, field in enumerate(fields):
+                connection.execute(
+                    "INSERT INTO app_custom_fields (app_id, field_name, field_value, field_type, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        app_id,
+                        str(field.get("field_name", "")).strip(),
+                        str(field.get("field_value", "")),
+                        str(field.get("field_type", "text")),
+                        idx,
+                        now,
+                        now,
+                    ),
+                )
+            connection.commit()
+        return self.get_custom_fields(app_id)
+
 
 class InstallStateCollection:
     def __init__(self, store: InstallStateStore, statuses: tuple[int, ...]):
@@ -437,3 +506,11 @@ def remove_app_from_errors(app_uuid):
 
 def remove_app_from_errors_by_app_id(app_id):
     _install_state_store.delete_tasks_by_app_id(app_id, statuses=(4,))
+
+
+def get_app_custom_fields(app_id: str) -> list[dict[str, Any]]:
+    return _install_state_store.get_custom_fields(app_id)
+
+
+def save_app_custom_fields(app_id: str, fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return _install_state_store.save_custom_fields(app_id, fields)

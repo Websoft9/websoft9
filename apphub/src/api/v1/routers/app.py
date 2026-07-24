@@ -17,8 +17,10 @@ from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
 from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCertificateRequest, AppAccessDomainBindingRequest, AppAccessOverviewResponse, AppAccessProfile, AppAccessProfileUpdateRequest, AppAccessRootUrlRequest
+from src.schemas.appCustomFields import AppCustomFieldResponse, AppCustomFieldsRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_access_manager import AppAccessManager
+from src.services.app_status import get_app_custom_fields, save_app_custom_fields
 from src.services.app_manager import AppManger
 from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
@@ -652,3 +654,36 @@ def debug_inject_error(
         ],
     }
     return {"tracking_id": uid, "app_id": app_id}
+
+
+@router.get(
+    "/apps/{app_id}/custom-fields",
+    summary="Get App Custom Fields",
+    response_model=list[AppCustomFieldResponse],
+    responses={
+        200: {"model": list[AppCustomFieldResponse]},
+        500: {"model": ErrorResponse},
+    },
+)
+def get_custom_fields(
+    app_id: str = Path(..., description="App ID to get custom fields for"),
+):
+    return get_app_custom_fields(app_id)
+
+
+@router.put(
+    "/apps/{app_id}/custom-fields",
+    summary="Save App Custom Fields",
+    response_model=list[AppCustomFieldResponse],
+    responses={
+        200: {"model": list[AppCustomFieldResponse]},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def save_custom_fields(
+    payload: AppCustomFieldsRequest = Body(...),
+    app_id: str = Path(..., description="App ID to save custom fields for"),
+):
+    fields = [f.model_dump() for f in payload.fields]
+    return save_app_custom_fields(app_id, fields)

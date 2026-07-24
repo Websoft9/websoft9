@@ -8,6 +8,7 @@ import { shellNavigationItems, type ShellPageKey } from '../shell/shell-navigati
 import { IntegrationWorkspacePage } from '../../features/integrations/integration-workspace-page'
 import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
+import { BrandPreviewPage } from '../../features/settings/brand-preview-page'
 import { queryClient } from '../../shared/lib/query-client'
 
 type PreloadableLazyComponent = LazyExoticComponent<ComponentType<any>> & {
@@ -222,6 +223,10 @@ export function createAppRouter() {
                 {
                     path: 'setup',
                     element: <SetupWizardPage />,
+                },
+                {
+                    path: 'settings/brand-preview',
+                    element: <BrandPreviewPage />,
                 },
                 {
                     element: (

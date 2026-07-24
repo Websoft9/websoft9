@@ -580,6 +580,15 @@ export function MyAppsPage() {
         [logDialogKey, apps],
     )
 
+    const statusCounts = useMemo(() => {
+        const counts: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0 }
+        for (const app of apps) {
+            const key = String(app.status)
+            if (key in counts) counts[key]++
+        }
+        return counts
+    }, [apps])
+
     const filteredApps = useMemo(
         () => apps.filter((app) => {
             const matchesStatus = selectedStatus === 'all' || String(app.status) === selectedStatus
@@ -909,11 +918,11 @@ export function MyAppsPage() {
                         value={selectedStatus}
                         onChange={(e) => setSelectedStatus(e.target.value as StatusFilter)}
                     >
-                        <option value="all">{t('myAppsPage.filters.allStates')}</option>
-                        <option value="1">Active</option>
-                        <option value="2">Inactive</option>
-                        <option value="3">Installing</option>
-                        <option value="4">Error</option>
+                        <option value="all">{t('myAppsPage.filters.allStates')} ({apps.length})</option>
+                        <option value="1">Active ({statusCounts['1']})</option>
+                        <option value="2">Inactive ({statusCounts['2']})</option>
+                        <option value="3">Installing ({statusCounts['3']})</option>
+                        <option value="4">Error ({statusCounts['4']})</option>
                     </select>
                 </div>
                 <div className="myapps-toolbar-search">

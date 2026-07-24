@@ -47,6 +47,8 @@ DEFAULT_PLATFORM_BRAND_LOGO_URL = "/websoft9.png"
 DEFAULT_PLATFORM_BRAND_BROWSER_TITLE = ""
 DEFAULT_PLATFORM_BRAND_FAVICON_URL = "/favicon.ico?v=20260509c"
 DEFAULT_PLATFORM_BRAND_APPLE_TOUCH_ICON_URL = "/websoft9.png"
+DEFAULT_PLATFORM_BRAND_LOGIN_BACKGROUND = ""
+DEFAULT_PLATFORM_BRAND_COPYRIGHT_TEXT = "© 2026 Websoft9. All Rights Reserved."
 
 class SettingsManager:
     """
@@ -178,6 +180,24 @@ class SettingsManager:
                                 "default_value": DEFAULT_PLATFORM_BRAND_FAVICON_URL,
                             },
                         ),
+                        self._build_item(
+                            "platform_brand",
+                            "login_background",
+                            self._get_platform_brand_login_background(),
+                            editable=True,
+                            metadata={
+                                "default_value": DEFAULT_PLATFORM_BRAND_LOGIN_BACKGROUND,
+                            },
+                        ),
+                        self._build_item(
+                            "platform_brand",
+                            "copyright_text",
+                            self._get_platform_brand_copyright_text(),
+                            editable=True,
+                            metadata={
+                                "default_value": DEFAULT_PLATFORM_BRAND_COPYRIGHT_TEXT,
+                            },
+                        ),
                     ],
                 },
             ],
@@ -222,6 +242,8 @@ class SettingsManager:
                     "logo_url": self._get_platform_brand_logo_url(),
                     "favicon_url": self._get_platform_brand_favicon_url(),
                     "apple_touch_icon_url": self._get_platform_brand_apple_touch_icon_url(),
+                    "login_background": self._get_platform_brand_login_background(),
+                    "copyright_text": self._get_platform_brand_copyright_text(),
                 }
             if section not in self.config.sections():
                 raise CustomException(
@@ -824,6 +846,14 @@ class SettingsManager:
         configured = self.config.get("platform_brand", "apple_touch_icon_url", fallback="").strip()
         return configured or DEFAULT_PLATFORM_BRAND_APPLE_TOUCH_ICON_URL
 
+    def _get_platform_brand_login_background(self) -> str:
+        configured = self.config.get("platform_brand", "login_background", fallback="").strip()
+        return configured or DEFAULT_PLATFORM_BRAND_LOGIN_BACKGROUND
+
+    def _get_platform_brand_copyright_text(self) -> str:
+        configured = self.config.get("platform_brand", "copyright_text", fallback="").strip()
+        return configured or DEFAULT_PLATFORM_BRAND_COPYRIGHT_TEXT
+
     def _is_valid_brand_logo_url(self, value: str) -> bool:
         candidate = (value or "").strip()
         if not candidate:
@@ -833,7 +863,7 @@ class SettingsManager:
         return candidate.startswith("http://") or candidate.startswith("https://")
 
     def _write_platform_brand_setting(self, key: str, value: str) -> Dict[str, str]:
-        if key not in {"title", "browser_title", "logo_url", "favicon_url", "apple_touch_icon_url"}:
+        if key not in {"title", "browser_title", "logo_url", "favicon_url", "apple_touch_icon_url", "login_background", "copyright_text"}:
             raise CustomException(
                 status_code=400,
                 message="Invalid Request",
@@ -872,6 +902,15 @@ class SettingsManager:
                     message="Invalid Request",
                     details="platform_brand.apple_touch_icon_url must be an absolute http(s) URL or a root-relative path",
                 )
+        if key == "login_background":
+            if normalized_value and not self._is_valid_brand_logo_url(normalized_value):
+                raise CustomException(
+                    status_code=400,
+                    message="Invalid Request",
+                    details="platform_brand.login_background must be an absolute http(s) URL or a root-relative path",
+                )
+        if key == "copyright_text":
+            normalized_value = normalized_value or DEFAULT_PLATFORM_BRAND_COPYRIGHT_TEXT
 
         self.config.set("platform_brand", key, normalized_value)
         with open(self.config_file_path, "w") as configfile:
