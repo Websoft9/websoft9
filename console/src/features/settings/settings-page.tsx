@@ -467,7 +467,7 @@ export function SettingsPage() {
     function validateItemValue(item: SettingsSummaryItem, nextValue: string) {
         const trimmed = nextValue.trim()
 
-        if (!trimmed && item.group !== 'domain' && !(item.group === 'platform_brand' && (item.key === 'login_background' || item.key === 'copyright_text'))) {
+        if (!trimmed && item.group !== 'domain' && item.group !== 'docker_mirror' && !(item.group === 'platform_brand' && (item.key === 'login_background' || item.key === 'copyright_text'))) {
             return t('settingsPage.validation.required')
         }
 
@@ -480,7 +480,7 @@ export function SettingsPage() {
         if (item.group === 'docker_mirror' && item.key === 'url') {
             const mirrorEntries = parseMirrorEntries(nextValue)
             if (!isMirrorManifestUrl(nextValue) && !mirrorEntries.length) {
-                return t('settingsPage.validation.url')
+                return null
             }
         }
 

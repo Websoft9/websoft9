@@ -247,8 +247,6 @@ run_upgrade_modern() {
     die "$EXIT_VALIDATE" "Upgrade failed (post-upgrade validation)"
   fi
 
-  ensure_docker_mirror_config "$install_path"
-
   log_info "==== Upgrade successful ===="
   print_runtime_summary upgrade "$install_path" "$console_port" "$backup_dir"
 }
