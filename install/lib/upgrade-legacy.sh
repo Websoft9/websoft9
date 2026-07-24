@@ -825,15 +825,16 @@ stacks = []
 for attempt in range(1, 31):
   try:
     stacks = portainer.get_stacks(eid)
-    if stacks:
-      print(f"Portainer ready after {attempt * 10}s: {len(stacks)} total stacks")
-      break
+    # Portainer responded successfully — exit the wait loop regardless
+    # of whether stacks are present (empty list means no apps exist).
+    print(f"Portainer ready after {attempt * 10}s: {len(stacks)} total stacks")
+    break
   except Exception:
     pass
   time.sleep(10)
 
 if not stacks:
-    print("SKIP: Portainer stacks still empty after 5 min")
+    print("SKIP: no application stacks found (server has no apps)")
     sys.exit(0)
 
 restarted = 0
