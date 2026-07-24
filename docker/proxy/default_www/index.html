@@ -336,35 +336,6 @@
             text-decoration: underline
         }
 
-        .footer-logo {
-            display: flex;
-            justify-content: center;
-            margin-top: 40px
-        }
-
-        .footer-logo img {
-            height: 44px;
-            object-fit: contain;
-            opacity: .8;
-            transition: opacity .2s
-        }
-
-        .footer-logo:hover img {
-            opacity: 1
-        }
-
-        .footer-logo .logo-fallback {
-            display: none;
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--subtle);
-            letter-spacing: .02em
-        }
-
-        .footer-logo .logo-fallback.show {
-            display: inline
-        }
-
         @media(max-width:560px) {
             .card {
                 padding: 32px 24px
@@ -426,11 +397,6 @@
                         id="support-label">获取技术支持</span></a>
             </p>
         </main>
-        <a class="footer-logo" href="https://www.websoft9.com" target="_blank" rel="noopener noreferrer"
-            aria-label="Websoft9">
-            <img id="brand-logo" alt="Websoft9" />
-            <span class="logo-fallback" id="logo-fallback">Websoft9</span>
-        </a>
     </div>
     <script>
         (function () {
@@ -471,7 +437,6 @@
             var LK = {
                 support: { en: 'https://support.websoft9.com/en/docs/helpdesk#contact', zh: 'https://support.websoft9.com/docs/helpdesk#contact' }
             };
-            var LOGOS = { zh: 'websoft9-zh.svg', en: 'websoft9-en.svg' };
             var port = (function () { var p = '__W9_CONSOLE_PORT__'; return /^\\d+$/.test(p) ? p : '9000' })() || '9000',
                 base = location.protocol + '//' + location.hostname + ':' + port,
                 state = 'checking',
@@ -490,7 +455,6 @@
                 $('support-label').textContent = t('support');
                 $('support-prefix').textContent = t('supportPrefix');
                 $('support-link').href = LK.support[l];
-                $('brand-logo').src = LOGOS[l];
                 $('retry-button').textContent = t('retry');
                 document.querySelectorAll('#lang-menu button').forEach(function (b) { b.classList.toggle('active', b.dataset.lang === l) });
                 render();
@@ -601,16 +565,6 @@
                 langTrigger.classList.remove('open');
             });
             $('retry-button').addEventListener('click', check);
-            var logo = $('brand-logo'),
-                logoFallback = $('logo-fallback');
-            logo.addEventListener('error', function () {
-                this.style.display = 'none';
-                logoFallback.classList.add('show');
-            });
-            logo.addEventListener('load', function () {
-                logoFallback.classList.remove('show');
-            });
-
             setLang(lang);
             setTimeout(check, 300);
         })();
