@@ -342,18 +342,14 @@ class SettingsManager:
         return self.config.get(section, key, fallback="")
 
     def _docker_mirror_url(self) -> str:
-        configured = self.config.get("docker_mirror", "url", fallback="").strip()
-        if not configured or configured.startswith("http://") or configured.startswith("https://"):
-            # Empty or legacy URL — bootstrap from local mirrors.json.
-            configured = "\n".join(load_local_mirror_entries())
-            if configured:
-                self.config.set("docker_mirror", "url", configured)
-                try:
-                    with open(self.config_file_path, "w") as configfile:
-                        self.config.write(configfile)
-                except Exception:
-                    pass
-        return configured
+        """Read the configured Docker mirror URL from config.ini.
+
+        This is a pure read — it no longer bootstraps an empty value from
+        mirrors.json.  The initial value is written once during install /
+        upgrade by ensure_docker_mirror_config(), and from then on
+        config.ini is the single source of truth.
+        """
+        return self.config.get("docker_mirror", "url", fallback="").strip()
 
     def _docker_mirror_display_value(self) -> str:
         return self._docker_mirror_url()

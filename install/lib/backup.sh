@@ -14,6 +14,10 @@ MODERN_DATA_MANAGED_DIRS=(
   nginx
   letsencrypt
   custom_ssl
+  apps
+  backup
+  database.sqlite
+  credential.json
   .w9-migration
 )
 
@@ -127,6 +131,32 @@ restore_host_directory() {
   run_cmd tar xzf "$archive" -C "$target_dir"
 }
 
+backup_user_app_volume_inventory() {
+  local backup_dir="$1"
+  local inventory_path="${backup_dir}/user-app-volumes.txt"
+
+  run_cmd mkdir -p "$backup_dir"
+  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+    log_info "(dry-run) would record user application volumes in: $inventory_path"
+    return 0
+  fi
+
+  docker volume ls --format '{{.Name}}' 2>/dev/null | while IFS= read -r volume_name; do
+    [ -n "$volume_name" ] || continue
+    [ "$volume_name" = "websoft9_data" ] && continue
+    docker volume inspect --format '{{ $labels := .Labels }}{{ if index $labels "com.docker.compose.project" }}{{ .Name }}|{{ index $labels "com.docker.compose.project" }}{{ end }}' "$volume_name" 2>/dev/null
+  done >"$inventory_path"
+  log_info "User application volume inventory recorded: $inventory_path"
+}
+
+report_user_app_volumes() {
+  local backup_dir="$1"
+  local inventory_path="${backup_dir}/user-app-volumes.txt"
+
+  [ -s "$inventory_path" ] || return 0
+  log_warn "User application volumes were not automatically restored during rollback. Review: $inventory_path"
+}
+
 # 升级前现代备份点：物料 + 主数据卷
 backup_modern_pre_upgrade() {
   local install_path="$1"
@@ -135,6 +165,7 @@ backup_modern_pre_upgrade() {
   data_root="$(resolve_runtime_data_root "$install_path")"
   backup_modern_material "$install_path" "$backup_dir"
   backup_host_directory "$data_root" modern-data-root.tar.gz "$backup_dir"
+  backup_user_app_volume_inventory "$backup_dir"
   log_info "Pre-upgrade backup created: $backup_dir"
 }
 

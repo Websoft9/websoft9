@@ -14,6 +14,9 @@ from src.core.logger import logger, set_tracking_context
 
 MAX_SUB_LOGS = 30
 
+# Increment this when adding a new migration to _run_migrations().
+CURRENT_SCHEMA_VERSION = 1
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -97,23 +100,51 @@ class InstallStateStore:
                     updated_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_app_custom_fields_app_id ON app_custom_fields(app_id);
+
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER NOT NULL
+                );
                 """
             )
-            self._rebuild_legacy_custom_fields_table(connection)
+            self._run_migrations(connection)
             connection.commit()
 
-    def _rebuild_legacy_custom_fields_table(self, connection: sqlite3.Connection) -> None:
-        table_sql_row = connection.execute(
-            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'app_custom_fields'"
+    # ── Schema migrations (versioned, data-safe) ──────────────────────
+
+    def _run_migrations(self, connection: sqlite3.Connection) -> None:
+        row = connection.execute("SELECT version FROM schema_version").fetchone()
+        current = row["version"] if row else 0
+
+        if current < 1:
+            self._migrate_to_v1(connection)
+            connection.execute("DELETE FROM schema_version")
+            connection.execute("INSERT INTO schema_version (version) VALUES (1)")
+
+        # Future migrations — always preserve data using rename→create→copy→drop:
+        # if current < 2:
+        #     self._migrate_to_v2(connection)
+        #     connection.execute("UPDATE schema_version SET version = 2")
+
+    def _migrate_to_v1(self, connection: sqlite3.Connection) -> None:
+        """V1 baseline: ensure app_custom_fields has no UNIQUE(app_id, field_name).
+
+        If a legacy table with the UNIQUE constraint already exists,
+        recreate it safely by copying existing rows so no data is lost.
+        """
+        table_row = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='app_custom_fields'"
         ).fetchone()
-        table_sql = str(table_sql_row["sql"] or "") if table_sql_row else ""
+        if not table_row:
+            return  # Table does not exist yet — CREATE IF NOT EXISTS already handled it.
+
+        table_sql = str(table_row["sql"] or "")
         if "UNIQUE(APP_ID,FIELD_NAME)" not in table_sql.upper().replace(" ", ""):
-            return
+            return  # Already the expected schema.
 
         connection.executescript(
             """
             DROP INDEX IF EXISTS idx_app_custom_fields_app_id;
-            DROP TABLE app_custom_fields;
+            ALTER TABLE app_custom_fields RENAME TO app_custom_fields_old;
             CREATE TABLE app_custom_fields (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 app_id TEXT NOT NULL,
@@ -124,6 +155,10 @@ class InstallStateStore:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            INSERT INTO app_custom_fields (id, app_id, field_name, field_value, field_type, sort_order, created_at, updated_at)
+            SELECT id, app_id, field_name, field_value, field_type, sort_order, created_at, updated_at
+            FROM app_custom_fields_old;
+            DROP TABLE app_custom_fields_old;
             CREATE INDEX idx_app_custom_fields_app_id ON app_custom_fields(app_id);
             """
         )

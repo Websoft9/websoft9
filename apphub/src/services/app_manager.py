@@ -2409,11 +2409,9 @@ class AppManger:
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
     def download_image_accelerators(self):
         try:
-            from src.services.settings_manager import load_local_mirror_entries
             configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip()
-            # Legacy URL — hasn't been bootstrapped yet, fall back to local.
-            if not configured or configured.startswith("http://") or configured.startswith("https://"):
-                return load_local_mirror_entries()
+            if not configured:
+                return []
             return [
                 self._normalize_image_accelerator(item)
                 for item in configured.replace("\n", ",").split(",")

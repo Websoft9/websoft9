@@ -118,6 +118,8 @@ run_install() {
     die "$EXIT_VALIDATE" "Installation validation failed"
   fi
 
+  ensure_docker_mirror_config "$install_path"
+
   log_info "==== Installation successful ===="
   print_runtime_summary install "$install_path" "$console_port"
 }

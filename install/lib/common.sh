@@ -733,6 +733,62 @@ restart_docker_service() {
   return 0
 }
 
+# ────────────────────────────────────────────────────────────
+# Mirror config bootstrap — write mirrors.json to config.ini
+# once during install / upgrade when the value is empty.
+# ────────────────────────────────────────────────────────────
+ensure_docker_mirror_config() {
+  local install_path="$1"
+  local data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
+  local config_path="${data_root}/config/apphub/config.ini"
+
+  if [ ! -f "$config_path" ]; then
+    log_info "docker_mirror: config.ini not found at $config_path, skipping"
+    return 0
+  fi
+
+  python3 - "$config_path" "$install_path" <<'PY'
+import json, os, sys, configparser
+
+config_path, install_path = sys.argv[1], sys.argv[2]
+
+config = configparser.ConfigParser()
+config.read(config_path, encoding="utf-8")
+
+configured = config.get("docker_mirror", "url", fallback="").strip()
+if configured:
+    print("docker_mirror: already configured, skipping")
+    sys.exit(0)
+
+mirrors_file = os.path.join(install_path, "mirrors.json")
+if not os.path.exists(mirrors_file):
+    print("docker_mirror: no mirrors.json found, skipping")
+    sys.exit(0)
+
+with open(mirrors_file, encoding="utf-8") as fh:
+    payload = json.load(fh)
+entries = payload.get("mirrors", []) if isinstance(payload, dict) else []
+if not entries:
+    print("docker_mirror: mirrors.json is empty, skipping")
+    sys.exit(0)
+
+normalized = "\n".join(
+    str(e).strip().rstrip("/").removeprefix("http://").removeprefix("https://")
+    for e in entries if str(e).strip()
+)
+if not normalized:
+    print("docker_mirror: no valid entries after normalization, skipping")
+    sys.exit(0)
+
+if not config.has_section("docker_mirror"):
+    config.add_section("docker_mirror")
+config.set("docker_mirror", "url", normalized)
+with open(config_path, "w", encoding="utf-8") as fh:
+    config.write(fh)
+print(f"docker_mirror: bootstrapped with {len(normalized.splitlines())} entries")
+PY
+}
+
 load_mirror_entries() {
   local install_path="$1"
   local channel="${W9_CHANNEL:-release}"

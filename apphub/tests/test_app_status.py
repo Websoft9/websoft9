@@ -71,7 +71,8 @@ def test_custom_fields_persist_multiple_empty_rows(tmp_path):
     assert len(get_app_custom_fields("ghost")) == 2
 
 
-def test_custom_fields_rebuilds_legacy_unique_name_constraint(tmp_path):
+def test_custom_fields_migrates_legacy_unique_constraint_safely(tmp_path):
+    """Old table with UNIQUE(app_id, field_name) must be migrated without data loss."""
     database_file = tmp_path / "install-tracking.sqlite"
     with sqlite3.connect(database_file) as connection:
         connection.execute(
@@ -90,15 +91,22 @@ def test_custom_fields_rebuilds_legacy_unique_name_constraint(tmp_path):
             """
         )
         connection.execute(
-            "INSERT INTO app_custom_fields (app_id, field_name, field_value, field_type, sort_order, created_at, updated_at) VALUES ('ghost', 'existing', '', 'text', 0, 'now', 'now')"
+            "INSERT INTO app_custom_fields (app_id, field_name, field_value, field_type, sort_order, created_at, updated_at) VALUES ('ghost', 'secret', 'oldvalue', 'password', 0, '2025-01-01', '2025-01-01')"
         )
 
+    # Run migration by initialising the store against the legacy database.
     configure_install_state_store(str(tmp_path))
-    assert get_app_custom_fields("ghost") == []
 
+    # Legacy row must survive the migration.
+    fields = get_app_custom_fields("ghost")
+    assert len(fields) == 1
+    assert fields[0]["field_name"] == "secret"
+    assert fields[0]["field_value"] == "oldvalue"
+    assert fields[0]["field_type"] == "password"
+
+    # After migration, multiple empty-name rows must also be allowed.
     saved = save_app_custom_fields("ghost", [
         {"field_name": "", "field_value": "", "field_type": "text"},
         {"field_name": "", "field_value": "", "field_type": "text"},
     ])
-
     assert len(saved) == 2

@@ -35,26 +35,36 @@ _export_modern_runtime_config_to_data_root() {
     return 0
   fi
 
-  container_running "$MODERN_CONTAINER_NAME" || return 0
-
-  log_step "Migrating runtime config from container to persistent host storage"
   run_cmd mkdir -p "$(dirname "$runtime_config_path")"
 
-  # Read from the container: try the persistent path first (post-migration
-  # AppHub writes), then the bundled image-default path (old code without
-  # persistence).  We use fixed absolute paths inside docker exec because
-  # WEBSOFT9_APPHUB_CONFIG_PATH is only set for PID 1, not exec shells.
-  docker exec "$MODERN_CONTAINER_NAME" sh -lc '
-    for p in /opt/websoft9/data/config/apphub/config.ini /websoft9/apphub/src/config/config.ini; do
-      if [ -s "$p" ]; then cat "$p"; break; fi
-    done
-  ' >"$runtime_config_path" 2>/dev/null || log_warn "Failed to export runtime config from the current container"
+  # Prefer a running container, but a stopped container can still provide its
+  # configuration through docker cp during recovery upgrades.
+  if container_running "$MODERN_CONTAINER_NAME"; then
+    log_step "Migrating runtime config from running container to persistent host storage"
+    docker exec "$MODERN_CONTAINER_NAME" sh -lc '
+      for p in /opt/websoft9/data/config/apphub/config.ini /websoft9/apphub/src/config/config.ini; do
+        if [ -s "$p" ]; then cat "$p"; break; fi
+      done
+    ' >"$runtime_config_path" 2>/dev/null || true
 
-  docker exec "$MODERN_CONTAINER_NAME" sh -lc '
-    for p in /opt/websoft9/data/config/apphub/system.ini /websoft9/apphub/src/config/system.ini; do
-      if [ -s "$p" ]; then cat "$p"; break; fi
+    docker exec "$MODERN_CONTAINER_NAME" sh -lc '
+      for p in /opt/websoft9/data/config/apphub/system.ini /websoft9/apphub/src/config/system.ini; do
+        if [ -s "$p" ]; then cat "$p"; break; fi
+      done
+    ' >"$runtime_system_config_path" 2>/dev/null || true
+  elif container_exists "$MODERN_CONTAINER_NAME"; then
+    log_step "Container is stopped; migrating runtime config with docker cp"
+    local source_path
+    for source_path in /opt/websoft9/data/config/apphub/config.ini /websoft9/apphub/src/config/config.ini; do
+      docker cp "$MODERN_CONTAINER_NAME:$source_path" "$runtime_config_path" 2>/dev/null && [ -s "$runtime_config_path" ] && break
     done
-  ' >"$runtime_system_config_path" 2>/dev/null || log_warn "Failed to export runtime system config from the current container"
+    for source_path in /opt/websoft9/data/config/apphub/system.ini /websoft9/apphub/src/config/system.ini; do
+      docker cp "$MODERN_CONTAINER_NAME:$source_path" "$runtime_system_config_path" 2>/dev/null && [ -s "$runtime_system_config_path" ] && break
+    done
+  fi
+
+  [ -s "$runtime_config_path" ] || log_warn "Failed to export runtime config; new runtime will use the available persistent or image defaults"
+  [ -s "$runtime_system_config_path" ] || log_warn "Failed to export runtime system config; new runtime will use the available persistent or image defaults"
 }
 
 # 回退到升级前备份点：物料 + 主数据卷
@@ -80,6 +90,7 @@ _upgrade_modern_rollback() {
 
   # Restore data root
   restore_host_directory "$(resolve_runtime_data_root "$install_path")" modern-data-root.tar.gz "$backup_dir" || log_warn "Data root rollback failed, check backup manually: $backup_dir"
+  report_user_app_volumes "$backup_dir"
 
   # Restart old runtime (only if deployment material was restored)
   if [ "$_material_restored" -eq 1 ]; then
@@ -151,16 +162,15 @@ run_upgrade_modern() {
   backup_dir="$(backup_new_dir modern-upgrade)"
   backup_modern_pre_upgrade "$install_path" "$backup_dir"
 
-  # 3. Migrate legacy /data to the canonical /opt/websoft9/data.
-  #    Must happen AFTER the backup above so the backup captures the
-  #    original /data before it is moved.
+  # 3. Copy legacy /data to the canonical /opt/websoft9/data. The source
+  #    directory is retained because it may be a user-owned data mount.
+  #    The backup above captures the original data before this copy.
   if [ "$WEBSOFT9_DATA_ROOT" = "/data" ]; then
     log_step "Migrating data root from /data to /opt/websoft9/data"
     if [ -d /data ] && [ ! -d /opt/websoft9/data ]; then
       run_cmd mkdir -p /opt/websoft9
       run_cmd cp -a /data /opt/websoft9/data || die "$EXIT_RUNTIME" "Failed to copy data from /data to /opt/websoft9/data"
-      run_cmd rm -rf /data || log_warn "Could not remove old /data after migration; you may delete it manually"
-      log_info "Data root migrated to /opt/websoft9/data"
+      log_info "Data root copied to /opt/websoft9/data; source /data was retained"
     elif [ -d /opt/websoft9/data ]; then
       log_warn "/opt/websoft9/data already exists; keeping existing data and switching to new root"
     else
@@ -197,14 +207,15 @@ run_upgrade_modern() {
   # new container, otherwise docker compose up -d will fail with
   # "port is already allocated".
   log_step "Waiting for ports to be released"
-  local _port _wait_ok _waited
+  local _port _wait_ok _waited _blocked_ports=()
   _waited=0
-  while [ "$_waited" -lt 15 ]; do
+  while [ "$_waited" -lt 30 ]; do
     _wait_ok=1
+    _blocked_ports=()
     for _port in 80 443 "$console_port"; do
       if port_in_use "$_port"; then
         _wait_ok=0
-        break
+        _blocked_ports+=("$_port")
       fi
     done
     [ "$_wait_ok" = "1" ] && break
@@ -212,11 +223,10 @@ run_upgrade_modern() {
     _waited=$((_waited + 1))
   done
   if [ "$_wait_ok" != "1" ]; then
-    log_warn "Ports still in use after ${_waited}s; forcing cleanup"
-    for _port in 80 443 "$console_port"; do
-      fuser -k "${_port}/tcp" 2>/dev/null || true
-    done
-    sleep 2
+    log_error "Required ports are still in use after ${_waited}s: ${_blocked_ports[*]}"
+    log_error "No processes were terminated. Stop the conflicting service and retry the upgrade."
+    _upgrade_modern_rollback "$install_path" "$backup_dir"
+    die "$EXIT_RUNTIME" "Required ports are held by another service"
   fi
 
   # Switch to the target container name now that the old runtime is stopped.
@@ -236,6 +246,8 @@ run_upgrade_modern() {
     _upgrade_modern_rollback "$install_path" "$backup_dir"
     die "$EXIT_VALIDATE" "Upgrade failed (post-upgrade validation)"
   fi
+
+  ensure_docker_mirror_config "$install_path"
 
   log_info "==== Upgrade successful ===="
   print_runtime_summary upgrade "$install_path" "$console_port" "$backup_dir"
