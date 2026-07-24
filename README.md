@@ -33,9 +33,16 @@ Think of it as your own private app store: browse, one-click install, manage dom
 
 ## Screenshots
 
-| <img src="docs/images/screenshots/image-1.png" width="100%" alt="Overview"> | <img src="docs/images/screenshots/image-2.png" width="100%" alt="Deploy"> | <img src="docs/images/screenshots/image-3.png" width="100%" alt="App Store"> |
-| --- | --- | --- |
-| <img src="docs/images/screenshots/image-4.png" width="100%" alt="My Apps"> | <img src="docs/images/screenshots/image-5.png" width="100%" alt="Terminal"> | <img src="docs/images/screenshots/image-6.png" width="100%" alt="Files"> |
+<p align="center">
+  <img src="docs/images/screenshots/image-1.png" width="32%" alt="Overview">
+  <img src="docs/images/screenshots/image-2.png" width="32%" alt="Deploy">
+  <img src="docs/images/screenshots/image-3.png" width="32%" alt="App Store">
+</p>
+<p align="center">
+  <img src="docs/images/screenshots/image-4.png" width="32%" alt="My Apps">
+  <img src="docs/images/screenshots/image-5.png" width="32%" alt="Terminal">
+  <img src="docs/images/screenshots/image-6.png" width="32%" alt="Files">
+</p>
 
 ## Quick Start
 
