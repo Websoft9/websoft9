@@ -2,10 +2,8 @@
   <img src="https://github.com/user-attachments/assets/bb01fa37-1f53-4fc6-8992-9f784d02dd40" alt="Websoft9" width="200">
 </p>
 
-<h1 align="center">Websoft9</h1>
-
 <p align="center">
-  <strong>Web-based PaaS for running 200+ open source applications on your own server.</strong>
+  <strong>Web-based PaaS for running 300+ open source applications on your own server.</strong>
 </p>
 
 <p align="center">
@@ -17,11 +15,27 @@
 
 ---
 
+## Cloud Marketplace
+
+**Certified and available on major cloud platforms with business support:**
+
+| <a href="https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png" width="100" alt="Azure"></a> | <a href="https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png" width="100" alt="AWS"></a> | <a href="https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png" width="100" alt="Alibaba Cloud"></a> |
+| ---- | ---- | ---- |
+| <a href="https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png" width="100" alt="Huawei Cloud"></a> | <a href="https://market.aliyun.com/products/53690006/cmjj00048735.html?userCode=yetrmi9y"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aliyun-logo.png" width="100" alt="Aliyun"></a> | <a href="https://marketplace.huaweicloud.com/contents/29458a42-64b7-4637-aa7c-8bfddea1fb72#productid=OFFI1005787756558913536"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweiyun-logo.png" width="100" alt="Huawei Cloud"></a> |
+
+→ [Deployment guide](docs/deployment.md)
+
 ## What is Websoft9?
 
-Websoft9 is a self-hosted PaaS that lets you deploy and manage **200+ open source applications** (WordPress, GitLab, Mattermost, and more) on a single server — no Kubernetes required.
+Websoft9 is a self-hosted PaaS that lets you deploy and manage **300+ open source applications** (WordPress, GitLab, Mattermost, and more) on a single server — no Kubernetes required.
 
 Think of it as your own private app store: browse, one-click install, manage domains and SSL, back up data, all from a clean web console.
+
+## Screenshots
+
+| ![Overview](docs/images/screenshots/image-1.png) | ![Deploy](docs/images/screenshots/image-2.png) | ![App Store](docs/images/screenshots/image-3.png) |
+| --- | --- | --- |
+| ![My Apps](docs/images/screenshots/image-4.png) | ![Terminal](docs/images/screenshots/image-5.png) | ![Files](docs/images/screenshots/image-6.png) |
 
 ## Quick Start
 
@@ -31,6 +45,27 @@ wget -O install.sh https://artifact.websoft9.com/websoft9/release/install.sh && 
 ```
 
 Then open **http://\<server-ip\>:9000** and follow the setup wizard.
+
+**Install options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--console-port <port>` | Web console port | `9000` |
+| `--version <tag>` | Image version tag | `latest` |
+| `--path <dir>` | Installation directory | `/opt/websoft9` |
+| `--yes` | Skip confirmation prompts | — |
+| `--dry-run` | Pre-flight checks only, no changes | — |
+| `--force` | Skip non-destructive pre-flight checks | — |
+
+**Uninstall:**
+
+```bash
+# Standard uninstall (keeps data volumes)
+sudo bash uninstall.sh
+
+# Purge uninstall (removes everything including data)
+sudo bash uninstall.sh --purge
+```
 
 > [!TIP]
 > Try the demo: [http://demo.goweb.cc:9000](http://demo.goweb.cc:9000) — user: `demo` / password: `Websoft9@`
@@ -44,7 +79,7 @@ Then open **http://\<server-ip\>:9000** and follow the setup wizard.
 | **File Manager** | Web-based file browser with upload, download, edit, and permission management |
 | **Terminal** | Browser-based SSH terminal for remote server management |
 | **Proxy & SSL** | Domain binding and free Let's Encrypt SSL certificates via Nginx Proxy Manager |
-| **Backups** | Scheduled local and S3 remote backups for apps and databases |
+| **Backups** | Scheduled local backups for apps and databases |
 | **Docker Compose** | GUI for deploying custom docker-compose stacks |
 | **User Management** | Multi-user accounts with role-based access |
 | **Monitoring** | Real-time host metrics, service status, and log viewer |
@@ -63,19 +98,6 @@ Websoft9 runs as a **single Docker container** that bundles four key open source
 All components are managed by supervisord inside one container — simple to deploy, easy to upgrade.
 
 → [Architecture overview](docs/architecture.md)
-
-## Cloud Marketplace
-
-Websoft9 is certified and available on major cloud platforms:
-
-<p align="center">
-  <a href="https://azuremarketplace.microsoft.com/en-us/marketplace/apps/websoft9inc.websoft9"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/azure-logo.png" width="40" alt="Azure"></a>&nbsp;
-  <a href="https://aws.amazon.com/marketplace/pp/prodview-5jziwpvx4puq4"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/aws-logo.png" width="40" alt="AWS"></a>&nbsp;
-  <a href="https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/alibabacloud-logo.png" width="40" alt="Alibaba Cloud"></a>&nbsp;
-  <a href="https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e"><img src="https://libs.websoft9.com/Websoft9/logo/marketplace/huaweicloud-logo.png" width="40" alt="Huawei Cloud"></a>
-</p>
-
-→ [Deployment guide](docs/deployment.md)
 
 ## Documentation
 
