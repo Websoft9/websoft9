@@ -4792,11 +4792,7 @@
     background: color-mix(in srgb, var(--myapps-detail-accent) 8%, transparent);
 }
 
-/* ── Custom Fields inside overview runtime block ────────────────────── */
-
-.myapps-custom-fields-head {
-    margin-top: 4px;
-}
+/* ── Custom Fields standalone card ─────────────────────────────── */
 
 .myapps-cf-add-btn {
     display: inline-flex;
