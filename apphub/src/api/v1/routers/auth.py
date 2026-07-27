@@ -80,10 +80,10 @@ def check_embedded_gateway_access(
         )
 
     if status_payload["initialization_required"]:
-        return Response(
-            status_code=403,
-            headers={"X-Websoft9-Setup-Route": "/auth/setup"},
-        )
+        # Let the frontend route guard decide where to redirect.
+        # Avoid racing with cloud-init, which may write bootstrap.json
+        # shortly after the container starts.
+        return Response(status_code=204)
 
     if not status_payload["authenticated"]:
         raise CustomException(
