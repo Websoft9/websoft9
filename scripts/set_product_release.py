@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 
 VERSION_METADATA_PATH = ROOT_DIR / "version.json"
 SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
-SUPPORTED_CHANNELS = {"release", "rc", "dev"}
+SUPPORTED_CHANNELS = {"release", "dev"}
 
 
 def validate_version(value: str) -> str:

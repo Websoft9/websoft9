@@ -57,14 +57,12 @@ jobs:
     outputs:
       channel: ${{ steps.meta.outputs.channel }}
       version: ${{ steps.meta.outputs.version }}
-      edition_key: ${{ steps.meta.outputs.edition_key }}
       tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v4
       - id: meta
         run: |
           VERSION=$(jq -r '.version' version.json)
-          EDITION=$(jq -r '.edition_key' version.json)
 
           CHANNEL=dev
           # Push only dev and <version>-dev moving tags during test phase.
@@ -74,7 +72,6 @@ jobs:
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "edition_key=$EDITION" >> $GITHUB_OUTPUT
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
           echo "✅ Dev candidate | Version: $VERSION | Tags: $TAGS"
@@ -116,7 +113,6 @@ jobs:
       - name: Create dev distribution bundles
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
-          EDITION_KEY="${{ needs.meta.outputs.edition_key }}"
           CHANNEL="${{ needs.meta.outputs.channel }}"
           TAGS="${{ needs.meta.outputs.tags }}"
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -126,9 +122,8 @@ jobs:
 
           jq \
             --arg version "$VERSION" \
-            --arg edition_key "$EDITION_KEY" \
             --arg channel "$CHANNEL" \
-            '.version = $version | .edition_key = $edition_key | .channel = $channel' \
+            '.version = $version | .channel = $channel' \
             version.json > staged-version.json
 
           cp -r docker websoft9/
@@ -161,7 +156,6 @@ jobs:
             --arg product "websoft9" \
             --arg channel "$CHANNEL" \
             --arg version "$VERSION" \
-            --arg edition_key "$EDITION_KEY" \
             --arg git_sha "$GITHUB_SHA" \
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
@@ -173,7 +167,6 @@ jobs:
               product: $product,
               channel: $channel,
               version: $version,
-              edition_key: $edition_key,
               git_sha: $git_sha,
               generated_at: $generated_at,
               install: {

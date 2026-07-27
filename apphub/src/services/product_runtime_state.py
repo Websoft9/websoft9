@@ -17,7 +17,7 @@ DEFAULT_PRODUCT_EDITION_KEY = "free"
 PRODUCT_RUNTIME_SOURCE_INSTALL = "install"
 PRODUCT_RUNTIME_SOURCE_LEGACY = "legacy-migration"
 PRODUCT_RUNTIME_SOURCE_MANUAL = "manual-support"
-SUPPORTED_RELEASE_CHANNELS = ("release", "rc", "dev")
+SUPPORTED_RELEASE_CHANNELS = ("release", "dev")
 
 
 @dataclass(frozen=True)
@@ -87,9 +87,7 @@ def read_release_version() -> Optional[str]:
 
 def infer_release_channel_from_version(version: Optional[str]) -> str:
     normalized_version = str(version or "").strip().lower()
-    if "rc" in normalized_version:
-        return "rc"
-    if "dev" in normalized_version:
+    if "-dev" in normalized_version:
         return "dev"
     return "release"
 

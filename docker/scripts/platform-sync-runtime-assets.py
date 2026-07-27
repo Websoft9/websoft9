@@ -35,7 +35,7 @@ def log(message: str) -> None:
 
 def detect_channel() -> str:
     explicit_channel = (os.getenv("WEBSOFT9_RUNTIME_ASSET_CHANNEL") or "").strip().lower()
-    if explicit_channel in {"release", "rc", "dev"}:
+    if explicit_channel in {"release", "dev"}:
         return explicit_channel
 
     version_file = Path("/websoft9/version.json")
@@ -48,15 +48,13 @@ def detect_channel() -> str:
         return "release"
 
     channel = str(payload.get("channel") or "").strip().lower()
-    if channel in {"release", "rc", "dev"}:
+    if channel in {"release", "dev"}:
         return channel
 
     version = payload.get("version", "")
 
     normalized_version = version.lower()
-    if "rc" in normalized_version:
-        return "rc"
-    if "dev" in normalized_version:
+    if "-dev" in normalized_version:
         return "dev"
     return "release"
 

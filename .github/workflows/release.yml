@@ -195,7 +195,6 @@ jobs:
           VERSION="${{ needs.determine-channel.outputs.version }}"
           SHA_TAG="${{ needs.determine-channel.outputs.sha_tag }}"
           GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          EDITION_KEY=$(jq -r '.edition_key' version.json)
           CANDIDATE_TAG="${{ needs.image-meta.outputs.candidate_tag }}"
           VERSION_TAG="${{ needs.image-meta.outputs.version_tag }}"
           ALIAS_TAGS="${{ needs.image-meta.outputs.alias_tags }}"
@@ -250,7 +249,6 @@ jobs:
             --arg channel "release" \
             --arg version "$VERSION" \
             --arg version_core "$VERSION_CORE" \
-            --arg edition_key "$EDITION_KEY" \
             --arg git_sha "$GITHUB_SHA" \
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
@@ -266,7 +264,6 @@ jobs:
               channel: $channel,
               version: $version,
               version_core: $version_core,
-              edition_key: $edition_key,
               git_sha: $git_sha,
               generated_at: $generated_at,
               install: {

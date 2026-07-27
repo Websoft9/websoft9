@@ -135,7 +135,7 @@ channel = (os.environ.get("WEBSOFT9_APPSTORE_CHANNEL") or str(payload.get("chann
 if not version:
     raise SystemExit("WEBSOFT9_PRODUCT_VERSION is required for product image builds")
 
-if channel not in {"release", "rc", "dev"}:
+if channel not in {"release", "dev"}:
     raise SystemExit(f"Unsupported WEBSOFT9_APPSTORE_CHANNEL: {channel}")
 
 payload["version"] = version

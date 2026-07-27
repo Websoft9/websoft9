@@ -20,7 +20,6 @@ jobs:
       channel: ${{ steps.meta.outputs.channel }}
       candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
       version: ${{ steps.meta.outputs.version }}
-      edition_key: ${{ steps.meta.outputs.edition_key }}
       alias_tags: ${{ steps.meta.outputs.alias_tags }}
       sha_tag: ${{ steps.meta.outputs.sha_tag }}
       tags: ${{ steps.meta.outputs.tags }}
@@ -32,7 +31,6 @@ jobs:
       - id: meta
         run: |
           VERSION=$(jq -r '.version' version.json)
-          EDITION=$(jq -r '.edition_key' version.json)
           SHA_TAG="sha-$(git rev-parse --short=8 HEAD)"
 
           CHANNEL=dev
@@ -45,7 +43,6 @@ jobs:
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "edition_key=$EDITION" >> $GITHUB_OUTPUT
           echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
@@ -108,7 +105,6 @@ jobs:
       - name: Create dev distribution bundles
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
-          EDITION_KEY="${{ needs.meta.outputs.edition_key }}"
           CHANNEL="${{ needs.meta.outputs.channel }}"
           SHA_TAG="${{ needs.meta.outputs.sha_tag }}"
           CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
@@ -119,9 +115,8 @@ jobs:
 
           jq \
             --arg version "$VERSION" \
-            --arg edition_key "$EDITION_KEY" \
             --arg channel "$CHANNEL" \
-            '.version = $version | .edition_key = $edition_key | .channel = $channel' \
+            '.version = $version | .channel = $channel' \
             version.json > staged-version.json
 
           cp -r docker websoft9/
@@ -154,7 +149,6 @@ jobs:
             --arg product "websoft9" \
             --arg channel "$CHANNEL" \
             --arg version "$VERSION" \
-            --arg edition_key "$EDITION_KEY" \
             --arg git_sha "$(git rev-parse HEAD)" \
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
@@ -168,7 +162,6 @@ jobs:
               product: $product,
               channel: $channel,
               version: $version,
-              edition_key: $edition_key,
               git_sha: $git_sha,
               generated_at: $generated_at,
               install: {
