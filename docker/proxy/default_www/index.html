@@ -438,7 +438,7 @@
                 support: { en: 'https://support.websoft9.com/en/docs/helpdesk#contact', zh: 'https://support.websoft9.com/docs/helpdesk#contact' }
             };
             var port = (function () { var p = '__W9_CONSOLE_PORT__'; return /^\\d+$/.test(p) ? p : '9000' })() || '9000',
-                base = location.protocol + '//' + location.hostname + ':' + port,
+                base = 'http://' + location.hostname + ':' + port,
                 state = 'checking',
                 lang = (navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
             try { var saved = localStorage.getItem('websoft9-welcome-lang'); if (saved === 'zh' || saved === 'en') lang = saved } catch (e) { }

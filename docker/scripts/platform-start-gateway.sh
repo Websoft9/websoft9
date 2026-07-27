@@ -131,9 +131,18 @@ EOF
     cat >> "$gateway_root/default.conf" <<'EOF'
 
   include /etc/websoft9/platform-gateway/platform-gateway-ssl.conf;
-  # Always redirect plain-HTTP requests arriving on the SSL port so users
-  # get a clean redirect instead of a cryptic "400 Bad Request".
-  error_page 497 =308 https://$host:9000$request_uri;
+  # Let the port-80 welcome page verify public reachability of port 9000
+  # without requiring browsers to trust the platform's TLS certificate.
+  error_page 497 = @websoft9_plain_http_request;
+
+  location @websoft9_plain_http_request {
+    add_header Access-Control-Allow-Origin * always;
+    default_type application/json;
+    if ($request_uri = /w9gateway/healthz) {
+      return 200 '{"status":"ok","service":"platform-gateway"}';
+    }
+    return 308 https://$host:9000$request_uri;
+  }
 EOF
   fi
 
