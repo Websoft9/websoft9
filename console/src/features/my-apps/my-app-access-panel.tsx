@@ -202,8 +202,8 @@ async function copyTextWithFallback(value: string) {
 
 async function parseJsonError(response: Response, fallbackMessage: string) {
     try {
-        const payload = await response.json() as { detail?: string; message?: string }
-        return payload.detail || payload.message || fallbackMessage
+        const payload = await response.json() as { details?: string; message?: string }
+        return payload.details || payload.message || fallbackMessage
     } catch {
         return fallbackMessage
     }
