@@ -138,6 +138,17 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
     )
 
     useEffect(() => {
+        setUsername('')
+        setPassword('')
+        setShowPassword(false)
+        setConfirmPassword('')
+        setShowConfirmPassword(false)
+        setEmail('')
+        setEmailTouched(false)
+        setLocalError(null)
+    }, [mode])
+
+    useEffect(() => {
         setSelectedLocale(i18n.resolvedLanguage === 'zh-CN' ? 'zh-CN' : 'en')
     }, [i18n.resolvedLanguage])
 
@@ -411,6 +422,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                         ) : null}
                         {mode === 'setup' ? (
                             <TextField
+                                autoComplete="email"
                                 label={t('auth.fields.email')}
                                 onBlur={() => setEmailTouched(true)}
                                 onChange={(event) => {
@@ -429,6 +441,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                             />
                         ) : null}
                         <TextField
+                            autoComplete="username"
                             label={mode === 'setup' ? t('auth.fields.setupUsername') : t('auth.fields.username')}
                             onChange={(event) => setUsername(event.target.value)}
                             required
@@ -438,6 +451,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                             helperText=" "
                         />
                         <TextField
+                            autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
                             label={t('auth.fields.password')}
                             onChange={(event) => setPassword(event.target.value)}
                             error={mode === 'setup' && password.length > 0 && !setupPasswordValid}
@@ -469,6 +483,7 @@ export function ProductAuthPage({ mode }: ProductAuthPageProps) {
                         />
                         {mode === 'setup' ? (
                             <TextField
+                                autoComplete="new-password"
                                 error={confirmPassword.length > 0 && !setupPasswordsMatch}
                                 helperText={confirmPassword.length > 0 && !setupPasswordsMatch ? t('auth.errors.passwordMismatch') : ' '}
                                 label={t('auth.fields.confirmPassword')}
