@@ -5,12 +5,12 @@ on:
   push:
     branches: [dev]
     paths-ignore:
-      - '**.md'
       - 'docs/**'
       - 'media/**'
       - 'logs/**'
       - '.gitignore'
       - 'LICENSE*'
+      - 'README.md'
 
 concurrency:
   group: ci-${{ github.ref_name }}
