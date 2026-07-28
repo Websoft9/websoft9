@@ -136,13 +136,7 @@ class SetupWizardService:
 
         distribution = (app.get("distribution") or [{}])[0] or {}
         raw_version = distribution.get("value")
-        if isinstance(raw_version, list) and raw_version:
-            edition = raw_version[0]
-        elif isinstance(raw_version, str) and raw_version.strip():
-            # value may be a comma-separated string (e.g. "19.0,18.0,latest")
-            edition = raw_version.split(",")[0].strip()
-        else:
-            edition = "latest"
+        edition = raw_version[0] if isinstance(raw_version, list) and raw_version else str(raw_version or "latest")
 
         return {
             "app_slug": app_slug,
