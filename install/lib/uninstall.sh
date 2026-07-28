@@ -102,7 +102,6 @@ _remove_legacy_host_artifacts() {
   log_step "Removing legacy host directories"
   local legacy_path
   for legacy_path in \
-    "$LEGACY_HOST_COMPOSE_DIR" \
     "$LEGACY_INSTALL_DIR" \
     "$LEGACY_SERVICE_ROOT_DIR" \
     "$LEGACY_DOWNLOAD_ROOT_DIR" \
@@ -111,6 +110,12 @@ _remove_legacy_host_artifacts() {
   do
     [ -e "$legacy_path" ] && run_cmd rm -rf "$legacy_path" 2>/dev/null || true
   done
+
+  # Migrated Portainer stacks can retain absolute bind-mount paths below
+  # /data/compose. Keep that compatibility path until stack paths are migrated.
+  if [ -d "$LEGACY_HOST_COMPOSE_DIR" ]; then
+    log_info "Retaining legacy compose directory for migrated stacks: $LEGACY_HOST_COMPOSE_DIR"
+  fi
 }
 
 # Legacy uninstall (used directly for legacy hosts or after successful migration).

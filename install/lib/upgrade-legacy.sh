@@ -1069,8 +1069,8 @@ run_upgrade_legacy() {
     die "$EXIT_RUNTIME" "Migration failed during migrated stack Git settings rewrite. Review the rewrite logs above."
   fi
 
-  # Stage 8: remove legacy containers, volumes, and control-plane artifacts.
-  # On successful migration, fully retire Cockpit/systemd-based legacy runtime.
+  # Stage 8: retire the legacy control plane. Its cleanup retains /data/compose
+  # because migrated Portainer stacks can still use it for bind-mount sources.
   log_step "Removing legacy containers, volumes, and legacy control plane"
   _uninstall_legacy "purge" "0" "1" "1"
 
