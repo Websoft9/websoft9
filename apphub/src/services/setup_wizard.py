@@ -140,7 +140,13 @@ class SetupWizardService:
             edition = raw_version[0]
         elif isinstance(raw_version, str) and raw_version:
             # Handle comma-separated version strings (e.g., "19.0,18.0,17.0,latest")
-            edition = raw_version.split(",")[0].strip()
+            # Pick the highest numerical version; fall back to "latest" if none found
+            versions = [v.strip() for v in raw_version.split(",") if v.strip()]
+            numeric_versions = [v for v in versions if v != "latest"]
+            if numeric_versions:
+                edition = sorted(numeric_versions, key=lambda v: tuple(int(x) for x in v.split(".")), reverse=True)[0]
+            else:
+                edition = "latest"
         else:
             edition = "latest"
 
