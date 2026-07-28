@@ -136,17 +136,22 @@ class SetupWizardService:
 
         distribution = (app.get("distribution") or [{}])[0] or {}
         raw_version = distribution.get("value")
-        if isinstance(raw_version, list) and raw_version:
-            edition = raw_version[0]
-        elif isinstance(raw_version, str) and raw_version:
-            # Handle comma-separated version strings (e.g., "19.0,18.0,17.0,latest")
-            # Pick the highest numerical version; fall back to "latest" if none found
+
+        # Normalize to a flat list: value may be a JSON array (e.g., ["6.9","latest"])
+        # or a comma-separated string (e.g., "19.0,18.0,17.0,latest").
+        if isinstance(raw_version, list):
+            versions = [str(v).strip() for v in raw_version if str(v).strip()]
+        elif isinstance(raw_version, str) and raw_version.strip():
             versions = [v.strip() for v in raw_version.split(",") if v.strip()]
-            numeric_versions = [v for v in versions if v != "latest"]
-            if numeric_versions:
-                edition = sorted(numeric_versions, key=lambda v: tuple(int(x) for x in v.split(".")), reverse=True)[0]
-            else:
-                edition = "latest"
+        else:
+            versions = []
+
+        # Pick the highest numeric version; fall back to "latest" if none found.
+        numeric_versions = [v for v in versions if v != "latest"]
+        if numeric_versions:
+            edition = sorted(numeric_versions, key=lambda v: tuple(int(x) for x in v.split(".")), reverse=True)[0]
+        elif "latest" in versions:
+            edition = "latest"
         else:
             edition = "latest"
 
