@@ -5,6 +5,31 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-07-28
+
+### Added
+- **Custom Fields** — My Apps overview now supports customizable fields with inline editing for application metadata management.
+- **Docker Mirror Config** — Docker registry mirror configuration now serves as the single source of truth across the platform.
+
+### Changed
+- **Mirror Configuration** — Refactored mirror config to single source-of-truth model with data-safe schema migration and backup volume inventory tracking.
+
+### Fixed
+- **Product Auth** — Reset form state on mode change to prevent credential leakage across routes.
+- **Legacy Migration** — Preserve legacy compose host paths during migration; only restart active Gitea-deployed stacks; skip Portainer stack wait when no stacks exist.
+- **Domain Binding** — Fix error parsing to read `details` field instead of `detail` for accurate domain binding error messages.
+- **Health Probe** — Keep port 9000 health probe available when HTTPS is enabled.
+- **Cloud Marketplace** — Avoid `/auth/setup` flash by deferring redirect to frontend.
+- **Channel & Edition** — Remove rc channel; clean up edition_key from version.json and CI pipelines.
+- **Mirror URLs** — Handle legacy mirror URL format after upgrade.
+- **Welcome Page** — Remove broken brand logo from port 80 welcome page (dynamic asset loading fails on non-console base URL).
+- **Custom Fields UI** — Fix standalone card structure, schema migration framework, icon overlap, and empty-row persistence.
+
+### Documentation
+- Refine screenshot gallery layout and sizing for marketplace docs.
+- Fix marketplace logo sizes, remove broken links, and use full-width screenshots.
+- Add install/uninstall parameters, move Cloud Marketplace section upfront, and drop S3 mention.
+
 ## [2.3.0] - 2026-07-23
 
 ### Added
