@@ -93,6 +93,7 @@ type ProductAuthStatus = {
 
 const STARTUP_MIN_VISIBLE_MS = 5000
 const STARTUP_MAX_WAIT_MS = 180000
+const AUTO_REDIRECT_WAIT_MS = 30_000
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
@@ -555,16 +556,18 @@ export function SetupWizardPage() {
         const poll = async () => {
             try {
                 const elapsed = Date.now() - installStartRef
-                if (elapsed >= STARTUP_MAX_WAIT_MS) {
+                if (elapsed >= AUTO_REDIRECT_WAIT_MS) {
                     if (!cancelled) {
-                        setError(apiLocale === 'zh' ? '安装超时，请刷新页面重试。' : 'Install timed out. Please refresh the page and try again.')
-                        setWizardState((currentValue) => currentValue ? {
-                            ...currentValue,
-                            current_step: 'app_init_running',
-                            tracking_id: null,
-                            last_error: { code: 'timeout', message: apiLocale === 'zh' ? '安装超时' : 'Install timed out', retryable: true },
-                        } : currentValue)
+                        window.sessionStorage.setItem('websoft9_setup_failure_access', '1')
+                        window.sessionStorage.setItem('websoft9_setup_closed', '1')
+                        navigate('/myapps', { replace: true })
                     }
+                    return
+                }
+
+                // Keep STARTUP_MAX_WAIT_MS as a safety net for the background
+                // polling loop (should not be reached under normal conditions).
+                if (elapsed >= STARTUP_MAX_WAIT_MS) {
                     return
                 }
 
@@ -1128,7 +1131,7 @@ export function SetupWizardPage() {
                                                 <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
                                                     {installFailed
                                                         ? (apiLocale === 'zh' ? '你可以重试启动，或进入平台查看日志与处理建议。' : 'You can retry launch, or open the platform for logs and guidance.')
-                                                        : (apiLocale === 'zh' ? '预计 1–2 分钟，完成后自动进入控制台，请保持当前页面开启。' : 'About 1–2 min. You\'ll enter the console when done — please keep this page open.')}
+                                                        : (apiLocale === 'zh' ? '正在初始化，最多等待 30 秒后将自动进入控制台，你可以在「我的应用」中查看进度。' : 'Initializing… You\'ll enter the console within 30 seconds and can track progress in My Apps.')}
                                                 </Typography>
                                             </Box>
 
@@ -1165,9 +1168,6 @@ export function SetupWizardPage() {
                                     </Box>
                                     {installFailed ? (
                                         <Box sx={actionRowSx}>
-                                            <Button variant="outlined" onClick={handleStartUsing} disabled={busy} sx={primaryActionButtonSx}>
-                                                {busy ? (apiLocale === 'zh' ? '重试中…' : 'Retrying…') : (apiLocale === 'zh' ? '重试' : 'Retry')}
-                                            </Button>
                                             <Button variant="contained" onClick={handleOpenPlatformOverview} sx={primaryActionButtonSx}>
                                                 {apiLocale === 'zh' ? '进入平台' : 'Open Platform'}
                                             </Button>
