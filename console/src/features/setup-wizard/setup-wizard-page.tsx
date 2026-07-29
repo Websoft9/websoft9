@@ -1124,8 +1124,8 @@ export function SetupWizardPage() {
                                                 </Typography>
                                                 <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
                                                     {installFailed
-                                                        ? (apiLocale === 'zh' ? '你可以重试启动，或进入平台查看日志与处理建议。' : 'You can retry launch, or open the platform for logs and guidance.')
-                                                        : (apiLocale === 'zh' ? '正在初始化，稍后将自动进入控制台，你可以在「我的应用」中查看进度。' : 'Initializing… You\'ll enter the console shortly and can track progress in My Apps.')}
+                                                        ? (apiLocale === 'zh' ? '启动未成功，请进入平台后在「我的应用」中查看详情。' : 'Launch failed. Open the platform and check My Apps for details.')
+                                                        : (apiLocale === 'zh' ? '应用正在初始化，稍后将自动进入控制台，你可以在「我的应用」中查看。' : 'Setting up your app. You\'ll enter the console shortly. Track progress in My Apps.')}
                                                 </Typography>
                                             </Box>
 
