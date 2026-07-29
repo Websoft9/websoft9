@@ -64,32 +64,27 @@ class SetupWizardService:
         base_state = self._load_state()
         app_slug = self.get_app_slug()
         bootstrap_meta = self._read_marketplace_app_metadata()
+
         if not self.should_use_wizard():
-            return {
-                "enabled": False,
-                "current_step": "welcome",
-                "app_slug": app_slug,
-                "default_locale": None,
-                "installed_app_id": None,
-                "completed": False,
-                "tracking_id": None,
-                "pending_app_id": None,
-                "last_error": None,
-                "updated_at": _utc_now(),
-                "completed_at": None,
-            }
+            return self._disabled_state(app_slug, bootstrap_meta)
 
-        status = ProductAuthService().get_status(session_token=session_token)
         current_step = str(base_state.get("current_step") or "welcome")
-        completed = bool(base_state.get("completed"))
 
+        # Once the install has been triggered, the setup wizard has done its
+        # job.  Return disabled so the frontend redirects away from /setup.
+        if current_step in {"app_init_running", "app_init_failed"}:
+            return self._disabled_state(app_slug, bootstrap_meta)
+
+        completed = bool(base_state.get("completed"))
         if completed:
             current_step = "complete"
-        elif status.get("authenticated"):
-            if current_step not in {"app_init_running", "app_init_failed", "complete"}:
-                current_step = "app_init_ready"
-        elif current_step not in {"welcome", "platform_init"}:
-            current_step = "welcome"
+        else:
+            status = ProductAuthService().get_status(session_token=session_token)
+            if status.get("authenticated"):
+                if current_step not in {"app_init_running", "app_init_failed", "complete"}:
+                    current_step = "app_init_ready"
+            elif current_step not in {"welcome", "platform_init"}:
+                current_step = "welcome"
 
         last_error = base_state.get("last_error")
         return {
@@ -104,6 +99,21 @@ class SetupWizardService:
             "last_error": last_error,
             "updated_at": base_state.get("updated_at") or _utc_now(),
             "completed_at": base_state.get("completed_at"),
+        }
+
+    def _disabled_state(self, app_slug: str | None, bootstrap_meta: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "enabled": False,
+            "current_step": "welcome",
+            "app_slug": app_slug,
+            "default_locale": bootstrap_meta.get("default_locale") if bootstrap_meta else None,
+            "installed_app_id": None,
+            "completed": False,
+            "tracking_id": None,
+            "pending_app_id": None,
+            "last_error": None,
+            "updated_at": _utc_now(),
+            "completed_at": None,
         }
 
     def get_app(self, locale: str | None = None) -> dict[str, Any]:
