@@ -4,7 +4,7 @@ import json
 from io import BytesIO
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, Cookie, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from uvicorn.protocols.utils import ClientDisconnected
 from websockets.exceptions import InvalidState
@@ -12,6 +12,7 @@ from websockets.exceptions import InvalidState
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.hostAccess import (
+    HostAccessActivateRequest,
     HostAccessConnectionTestResponse,
     HostAccessAttributesMutationResponse,
     HostAccessCopyItemRequest,
@@ -87,8 +88,19 @@ def clear_host_access_profile(session_token: Optional[str] = Cookie(default=None
     description="Use a saved local-host login as the current runtime profile for terminal and file access",
     responses={200: {"model": HostAccessProfileResponse}, 401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-def activate_host_access_profile(profile_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
-    return _get_host_access_service().activate_saved_profile(session_token=session_token, profile_id=profile_id)
+def activate_host_access_profile(profile_id: str, payload: Optional[HostAccessActivateRequest] = Body(None), session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    password = payload.password if payload else ""
+    private_key = payload.private_key if payload else ""
+    passphrase = payload.passphrase if payload else ""
+    remember = payload.remember if payload else False
+    return _get_host_access_service().activate_saved_profile(
+        session_token=session_token,
+        profile_id=profile_id,
+        password=password,
+        private_key=private_key,
+        passphrase=passphrase,
+        remember=remember,
+    )
 
 
 @router.post(

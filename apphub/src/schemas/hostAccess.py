@@ -50,6 +50,7 @@ class HostAccessProfileUpsertRequest(BaseModel):
     working_directory: str = Field(default="", max_length=4096)
     shell: str = Field(default="", max_length=512)
     remember: bool = Field(default=True)
+    force_save: bool = Field(default=False)
     is_default: bool = Field(default=False)
 
     @field_validator("username", mode="before")
@@ -74,16 +75,22 @@ class HostAccessProfileUpsertRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_auth_secret(self):
-        # When editing an existing profile the saved credentials are merged
-        # from the database by _merge_saved_profile_auth, so empty
-        # password / private_key is legitimate (user didn't re-enter them).
         if self.profile_id:
+            return self
+        if not self.remember:
             return self
         if self.auth_method == "password" and not self.password.strip():
             raise ValueError("Password cannot be empty when password authentication is selected")
         if self.auth_method == "key" and not self.private_key.strip():
             raise ValueError("Private key cannot be empty when key authentication is selected")
         return self
+
+
+class HostAccessActivateRequest(BaseModel):
+    password: str = Field(default="", max_length=4096)
+    private_key: str = Field(default="", max_length=65535)
+    passphrase: str = Field(default="", max_length=4096)
+    remember: bool = Field(default=False)
 
 
 class HostAccessProfileResponse(BaseModel):

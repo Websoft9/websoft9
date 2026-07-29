@@ -15,6 +15,7 @@ import {
     InputAdornment,
     Menu,
     MenuItem,
+    Radio,
     Skeleton,
     Stack,
     SvgIcon,
@@ -1006,7 +1007,7 @@ function savedProfileToAccessForm(profile: HostAccessSavedProfileSummary): Acces
         shellPreset,
         customShell: shellPreset === 'custom' ? shell : '',
         shell,
-        remember: true,
+        remember: profile.has_password || profile.has_private_key,
         isLocal: profile.is_local,
         hasExistingPassword: profile.has_password,
         hasExistingKey: profile.has_private_key ?? false,
@@ -1142,6 +1143,7 @@ export function TerminalPage() {
                     keepExistingPassword: '（保留已保存的密码）',
                     keepExistingKey: '（保留已保存的密钥）',
                     accessSubmit: '确定',
+                    accessSave: '保存',
                     connectionTestTitle: '连接测试',
                     connectionTestSuccess: '连接测试成功',
                     viewTerminal: '终端',
@@ -1258,6 +1260,15 @@ export function TerminalPage() {
                     deleteProfilePrompt: '确定删除这个已保存连接吗？删除后需要重新输入认证信息。',
                     cancel: '取消',
                     confirmDelete: '确认删除',
+                    forceSaveTitle: '连接测试失败',
+                    forceSavePrompt: '连接测试未通过，是否仍然保存此连接信息？',
+                    forceSaveAction: '仍然保存',
+                    forceSaveSuccess: '连接信息已保存，可在主机列表中手动连接。',
+                    passwordEntryTitle: 'SSH用户身份验证',
+                    passwordEntryConnect: '连接',
+                    passwordEntryAuthPassword: '密码验证',
+                    passwordEntryAuthKey: '密钥验证',
+                    noCredentialIndicator: '需凭证',
                     host: '主机',
                     hostRequired: '请输入主机地址',
                     duplicateUsername: '该主机和用户名的连接已存在，请勿重复添加。',
@@ -1302,6 +1313,7 @@ export function TerminalPage() {
                     keepExistingPassword: '(keep saved password)',
                     keepExistingKey: '(keep saved key)',
                     accessSubmit: 'Confirm',
+                    accessSave: 'Save',
                     connectionTestTitle: 'Connection test',
                     connectionTestSuccess: 'Connection test succeeded',
                     viewTerminal: 'Terminal',
@@ -1418,6 +1430,15 @@ export function TerminalPage() {
                     deleteProfilePrompt: 'Delete this saved connection? You will need to enter the credentials again afterwards.',
                     cancel: 'Cancel',
                     confirmDelete: 'Delete',
+                    forceSaveTitle: 'Connection test failed',
+                    forceSavePrompt: 'The connection test did not pass. Do you still want to save this connection?',
+                    forceSaveAction: 'Save anyway',
+                    forceSaveSuccess: 'Connection saved. You can connect manually from the host list.',
+                    passwordEntryTitle: 'SSH Authentication',
+                    passwordEntryConnect: 'Connect',
+                    passwordEntryAuthPassword: 'Password',
+                    passwordEntryAuthKey: 'Private key',
+                    noCredentialIndicator: 'Credentials required',
                     host: 'Host',
                     hostRequired: 'Enter a host address',
                     duplicateUsername: 'A connection with this host and username already exists.',
@@ -1463,6 +1484,17 @@ export function TerminalPage() {
     const [createSessionAnchorEl, setCreateSessionAnchorEl] = useState<HTMLElement | null>(null)
     const [profileSearchValue, setProfileSearchValue] = useState('')
     const [pendingDeleteProfile, setPendingDeleteProfile] = useState<HostAccessSavedProfileSummary | null>(null)
+    const [forceSaveDialogOpen, setForceSaveDialogOpen] = useState(false)
+    const [forceSaveError, setForceSaveError] = useState('')
+    const [passwordEntryOpen, setPasswordEntryOpen] = useState(false)
+    const [passwordEntryProfileId, setPasswordEntryProfileId] = useState('')
+    const [passwordEntryValue, setPasswordEntryValue] = useState('')
+    const [passwordEntryPrivateKey, setPasswordEntryPrivateKey] = useState('')
+    const [passwordEntryPassphrase, setPasswordEntryPassphrase] = useState('')
+    const [passwordEntryAuthMethod, setPasswordEntryAuthMethod] = useState<AuthMethod>('password')
+    const [passwordEntryVisible, setPasswordEntryVisible] = useState(false)
+    const [passwordEntryRemember, setPasswordEntryRemember] = useState(false)
+    const [passwordEntryError, setPasswordEntryError] = useState('')
     const [isSubmittingAccess, setIsSubmittingAccess] = useState(false)
     const [isTestingConnection, setIsTestingConnection] = useState(false)
     const [isRefreshingProfiles, setIsRefreshingProfiles] = useState(false)
@@ -1983,11 +2015,11 @@ export function TerminalPage() {
             return false
         }
 
-        if (accessForm.authMethod === 'password' && !accessForm.password.trim() && !accessForm.hasExistingPassword) {
+        if (accessForm.remember && accessForm.authMethod === 'password' && !accessForm.password.trim() && !accessForm.hasExistingPassword) {
             nextErrors.password = copy.passwordRequired
         }
 
-        if (accessForm.authMethod === 'key' && !accessForm.privateKey.trim() && !accessForm.hasExistingKey) {
+        if (accessForm.remember && accessForm.authMethod === 'key' && !accessForm.privateKey.trim() && !accessForm.hasExistingKey) {
             nextErrors.privateKey = copy.privateKeyRequired
         }
 
@@ -2550,6 +2582,7 @@ export function TerminalPage() {
             xtermRef.current?.dispose()
             xtermRef.current = null
             fitAddonRef.current = null
+            lastRenderedSessionIdRef.current = null
             return
         }
 
@@ -2614,6 +2647,7 @@ export function TerminalPage() {
             terminal.dispose()
             xtermRef.current = null
             fitAddonRef.current = null
+            lastRenderedSessionIdRef.current = null
         }
     }, [accessReady, workspaceView, activeSession?.id, xtermTheme])
 
@@ -2702,6 +2736,7 @@ export function TerminalPage() {
         if (!validateAccessForm()) {
             return
         }
+        const isEdit = accessDialogMode === 'edit'
         setIsSubmittingAccess(true)
         try {
             const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', {
@@ -2718,6 +2753,7 @@ export function TerminalPage() {
                     passphrase: accessForm.passphrase,
                     working_directory: accessForm.workingDirectory.trim(),
                     remember: accessForm.remember,
+                    force_save: isEdit,
                 }),
             })
 
@@ -2729,7 +2765,52 @@ export function TerminalPage() {
             setIsAccessDialogOpen(false)
             setIsHostSelectorOpen(false)
             setCreateSessionAnchorEl(null)
-            applyProfileResponse(profile, nextAccess, { appendSession: accessReady && sessions.length > 0 })
+            setForceSaveDialogOpen(false)
+            applyProfileResponse(profile, nextAccess, { appendSession: accessReady && sessions.length > 0, autoConnect: !isEdit })
+        } catch (error) {
+            if (!isEdit && accessForm.remember) {
+                setForceSaveError(error instanceof Error ? error.message : copy.accessErrorTitle)
+                setForceSaveDialogOpen(true)
+            } else {
+                showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+            }
+        } finally {
+            setIsSubmittingAccess(false)
+        }
+    }
+
+    async function handleForceSaveProfile() {
+        setForceSaveDialogOpen(false)
+        setIsSubmittingAccess(true)
+        try {
+            const profile = await requestJson<HostAccessProfileResponse>('/api/host-access/profile', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: accessForm.name.trim(),
+                    host: accessForm.host.trim(),
+                    profile_id: accessForm.profileId,
+                    auth_method: accessForm.authMethod,
+                    username: accessForm.username,
+                    port: Number(accessForm.port || 22),
+                    password: accessForm.password,
+                    private_key: accessForm.privateKey,
+                    passphrase: accessForm.passphrase,
+                    working_directory: accessForm.workingDirectory.trim(),
+                    remember: accessForm.remember,
+                    force_save: true,
+                }),
+            })
+
+            const nextAccess = {
+                ...accessForm,
+                workingDirectory: profile.working_directory || accessForm.workingDirectory,
+                shell: profile.shell || DEFAULT_ACCESS_FORM.shell,
+            }
+            setIsAccessDialogOpen(false)
+            setIsHostSelectorOpen(false)
+            setCreateSessionAnchorEl(null)
+            applyProfileResponse(profile, nextAccess, { appendSession: accessReady && sessions.length > 0, autoConnect: false })
+            showFeedback('success', copy.forceSaveSuccess)
         } catch (error) {
             showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
         } finally {
@@ -2739,6 +2820,14 @@ export function TerminalPage() {
 
     async function handleConnectionTest() {
         if (!validateAccessForm()) {
+            return
+        }
+        if (accessForm.authMethod === 'password' && !accessForm.password.trim()) {
+            showFeedback('error', copy.passwordRequired)
+            return
+        }
+        if (accessForm.authMethod === 'key' && !accessForm.privateKey.trim()) {
+            showFeedback('error', copy.privateKeyRequired)
             return
         }
         setIsTestingConnection(true)
@@ -2856,6 +2945,22 @@ export function TerminalPage() {
             setIsAccessDialogOpen(false)
             setIsHostSelectorOpen(false)
             setCreateSessionAnchorEl(null)
+            const targetProfile = savedProfiles.find((p) => p.profile_id === profileId)
+            const hasCredentials = targetProfile?.has_password || targetProfile?.has_private_key
+            if (!hasCredentials) {
+                await ensureMinimumBusyDuration(startedAt)
+                setActivatingProfileId(null)
+                setPasswordEntryProfileId(profileId)
+                setPasswordEntryValue('')
+                setPasswordEntryPrivateKey('')
+                setPasswordEntryPassphrase('')
+                setPasswordEntryAuthMethod(targetProfile?.auth_method || 'password')
+                setPasswordEntryVisible(false)
+                setPasswordEntryRemember(false)
+                setPasswordEntryError('')
+                setPasswordEntryOpen(true)
+                return
+            }
             const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST' })
             await ensureMinimumBusyDuration(startedAt)
             applyProfileResponse(response, undefined, { appendSession: accessReady && sessions.length > 0 })
@@ -2864,6 +2969,44 @@ export function TerminalPage() {
             showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
         } finally {
             setActivatingProfileId(null)
+        }
+    }
+
+    async function handlePasswordEntryConnect() {
+        if (passwordEntryAuthMethod === 'password' && !passwordEntryValue.trim()) {
+            setPasswordEntryError(copy.passwordRequired)
+            return
+        }
+        if (passwordEntryAuthMethod === 'key' && !passwordEntryPrivateKey.trim()) {
+            setPasswordEntryError(copy.privateKeyRequired)
+            return
+        }
+        setPasswordEntryError('')
+        setPasswordEntryOpen(false)
+        const profileId = passwordEntryProfileId
+        setActivatingProfileId(profileId)
+        const startedAt = Date.now()
+        try {
+            const body: Record<string, string | boolean> = {}
+            if (passwordEntryAuthMethod === 'password') {
+                body.password = passwordEntryValue
+            } else {
+                body.private_key = passwordEntryPrivateKey
+                body.passphrase = passwordEntryPassphrase
+            }
+            body.remember = passwordEntryRemember
+            const response = await requestJson<HostAccessProfileResponse>(`/api/host-access/profiles/${encodeURIComponent(profileId)}/activate`, {
+                method: 'POST',
+                body: JSON.stringify(body),
+            })
+            await ensureMinimumBusyDuration(startedAt)
+            applyProfileResponse(response, undefined, { appendSession: accessReady && sessions.length > 0 })
+        } catch (error) {
+            await ensureMinimumBusyDuration(startedAt)
+            showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+        } finally {
+            setActivatingProfileId(null)
+            setPasswordEntryProfileId('')
         }
     }
 
@@ -3727,7 +3870,12 @@ export function TerminalPage() {
                             ) : null}
                         </Stack>
                         <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.username}</Typography>
-                        <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.subtleText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.auth_method === 'password' ? copy.authMethodPasswordHint : copy.authMethodKeyHint}</Typography>
+                        <Box sx={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.subtleText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.auth_method === 'password' ? copy.authMethodPasswordHint : copy.authMethodKeyHint}</Typography>
+                            {!profile.has_password && !profile.has_private_key ? (
+                                <Chip color="warning" label={copy.noCredentialIndicator} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 10.5, lineHeight: 1.2 }, flexShrink: 0 }} />
+                            ) : null}
+                        </Box>
                         <Typography sx={{ minWidth: 0, fontSize: 13.5, color: palette.subtleText }}>{profile.port}</Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <Box className="terminal-connections-row-actions">
@@ -4663,6 +4811,7 @@ export function TerminalPage() {
                     onClose={() => {
                         if (!formBusy) {
                             setIsAccessDialogOpen(false)
+                            setForceSaveDialogOpen(false)
                             if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true)
                         }
                     }}
@@ -4673,7 +4822,7 @@ export function TerminalPage() {
                                 <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
                                     {accessDialogMode === 'edit' ? copy.editAction : accessDialogMode === 'new-connection' ? copy.newConnectionTitle : copy.addHostAction}
                                 </Typography>
-                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={formBusy} onClick={() => { setIsAccessDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} size="small">
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" disabled={formBusy} onClick={() => { setIsAccessDialogOpen(false); setForceSaveDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} size="small">
                                     <CloseActionIcon />
                                 </IconButton>
                             </Box>
@@ -4682,13 +4831,13 @@ export function TerminalPage() {
                             {accessFields}
                         </DialogContent>
                         <DialogActions sx={{ px: 2.25, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg, justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-                            <Button onClick={() => { setIsAccessDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} disabled={formBusy}>{copy.cancel}</Button>
+                            <Button onClick={() => { setIsAccessDialogOpen(false); setForceSaveDialogOpen(false); if (accessDialogMode === 'add-host') setIsHostSelectorOpen(true) }} disabled={formBusy}>{copy.cancel}</Button>
                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                 <Button disabled={formBusy} onClick={() => void handleConnectionTest()} startIcon={isTestingConnection ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="outlined">
                                     {copy.connectionTestTitle}
                                 </Button>
                                 <Button disabled={formBusy} onClick={() => void handleAccessSubmit()} startIcon={isSubmittingAccess ? <CircularProgress color="inherit" size={16} /> : null} sx={{ minWidth: 148, fontWeight: 700 }} variant="contained">
-                                    {copy.accessSubmit}
+                                    {accessDialogMode === 'edit' ? copy.accessSave : copy.accessSubmit}
                                 </Button>
                             </Stack>
                         </DialogActions>
@@ -4722,6 +4871,198 @@ export function TerminalPage() {
                             <Button color="error" onClick={() => void handleConfirmDeleteProfile()} variant="contained">
                                 {copy.confirmDelete}
                             </Button>
+                        </DialogActions>
+                    </Card>
+                </TerminalScopedOverlay>
+
+                <TerminalScopedOverlay open={forceSaveDialogOpen} onClose={() => setForceSaveDialogOpen(false)}>
+                    <Card elevation={0} sx={{ ...surfaceCardSx, width: { xs: 'min(92vw, 440px)', sm: 440 }, mx: 'auto' }}>
+                        <DialogTitle sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
+                                    {copy.forceSaveTitle}
+                                </Typography>
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" onClick={() => setForceSaveDialogOpen(false)} size="small">
+                                    <CloseActionIcon />
+                                </IconButton>
+                            </Box>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ px: 2.5, py: 2, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                            <Typography sx={{ fontSize: 14, lineHeight: 1.65, color: palette.text }}>
+                                {copy.forceSavePrompt}
+                            </Typography>
+                            {forceSaveError ? (
+                                <Typography sx={{ mt: 1.25, fontSize: 13, fontWeight: 600, color: '#dc2626' }}>
+                                    {forceSaveError}
+                                </Typography>
+                            ) : null}
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2.5, py: 2, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg }}>
+                            <Button onClick={() => setForceSaveDialogOpen(false)}>{copy.cancel}</Button>
+                            <Button color="warning" onClick={() => void handleForceSaveProfile()} variant="contained">
+                                {copy.forceSaveAction}
+                            </Button>
+                        </DialogActions>
+                    </Card>
+                </TerminalScopedOverlay>
+
+                <TerminalScopedOverlay open={passwordEntryOpen} onClose={() => { setPasswordEntryOpen(false); setPasswordEntryProfileId('') }}>
+                    <Card elevation={0} sx={{ ...surfaceCardSx, width: 'min(960px, calc(100vw - 32px))', mx: 'auto', my: 'auto' }}>
+                        <DialogTitle sx={{ px: 2.25, py: 1.5, backgroundColor: palette.cardBg, borderBottom: `1px solid ${palette.border}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                                <Typography sx={{ fontSize: 18, fontWeight: 800, color: palette.text }}>
+                                    {copy.passwordEntryTitle}
+                                </Typography>
+                                <IconButton aria-label={copy.cancel} className="terminal-connections-dialog-close" onClick={() => { setPasswordEntryOpen(false); setPasswordEntryProfileId('') }} size="small">
+                                    <CloseActionIcon />
+                                </IconButton>
+                            </Box>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ px: { xs: 1.5, sm: 2 }, py: { xs: 1, sm: 1.5 }, backgroundColor: palette.cardBg, '&.MuiDialogContent-dividers': { borderTop: 'none', borderBottomColor: palette.border } }}>
+                            {(() => {
+                                const entryProfile = savedProfiles.find((p) => p.profile_id === passwordEntryProfileId)
+                                return entryProfile ? (
+                                    <Box sx={{ mb: 2, p: 2, borderRadius: '2px', border: `1px solid ${palette.border}`, backgroundColor: alpha(palette.accent, 0.04) }}>
+                                        <Stack spacing={0.75}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: palette.subtleText, minWidth: 56 }}>{copy.host}</Typography>
+                                                <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: palette.text }}>{entryProfile.host}{entryProfile.is_local ? ` (${copy.localHostOption})` : ''}</Typography>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: palette.subtleText, minWidth: 56 }}>{copy.username}</Typography>
+                                                <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: palette.text }}>{entryProfile.username}</Typography>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: palette.subtleText, minWidth: 56 }}>{copy.port}</Typography>
+                                                <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: palette.text }}>{entryProfile.port}</Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Box>
+                                ) : null
+                            })()}
+                            <Stack spacing={2}>
+                                <Box sx={{ p: 2, pt: 1.5, borderRadius: '2px', border: `1px solid ${palette.border}` }}>
+                                    <FormControlLabel
+                                        control={<Radio checked={passwordEntryAuthMethod === 'password'} onChange={() => { setPasswordEntryAuthMethod('password'); setPasswordEntryError('') }} size="small" sx={{ color: palette.border, '&.Mui-checked': { color: palette.accent } }} />}
+                                        label={copy.passwordEntryAuthPassword}
+                                        sx={{
+                                            m: 0,
+                                            mt: '-1.65em',
+                                            mb: 0.75,
+                                            backgroundColor: palette.cardBg,
+                                            width: 'fit-content',
+                                            px: 0.5,
+                                            '& .MuiFormControlLabel-label': { fontSize: 13.5, fontWeight: 700, color: palette.text },
+                                        }}
+                                        value="password"
+                                    />
+                                    <TextField
+                                        autoFocus={passwordEntryAuthMethod === 'password'}
+                                        disabled={passwordEntryAuthMethod !== 'password'}
+                                        error={passwordEntryAuthMethod === 'password' && Boolean(passwordEntryError)}
+                                        fullWidth
+                                        helperText={passwordEntryAuthMethod === 'password' && passwordEntryError ? passwordEntryError : undefined}
+                                        onChange={(event) => { setPasswordEntryValue(event.target.value); setPasswordEntryError('') }}
+                                        onKeyDown={(event) => { if (event.key === 'Enter') void handlePasswordEntryConnect() }}
+                                        placeholder={copy.password}
+                                        size="small"
+                                        slotProps={{
+                                            input: {
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        <IconButton
+                                                            aria-label={passwordEntryVisible ? copy.hidePassword : copy.showPassword}
+                                                            edge="end"
+                                                            onClick={() => setPasswordEntryVisible((v) => !v)}
+                                                            size="small"
+                                                            tabIndex={-1}
+                                                        >
+                                                            {passwordEntryVisible ? <VisibilityOffIcon /> : <VisibilityOnIcon />}
+                                                        </IconButton>
+                                                    </InputAdornment>
+                                                ),
+                                            },
+                                        }}
+                                        sx={terminalFieldSx}
+                                        type={passwordEntryVisible ? 'text' : 'password'}
+                                        value={passwordEntryValue}
+                                    />
+                                </Box>
+
+                                <Box sx={{ p: 2, pt: 1.5, borderRadius: '2px', border: `1px solid ${palette.border}` }}>
+                                    <FormControlLabel
+                                        control={<Radio checked={passwordEntryAuthMethod === 'key'} onChange={() => { setPasswordEntryAuthMethod('key'); setPasswordEntryError('') }} size="small" sx={{ color: palette.border, '&.Mui-checked': { color: palette.accent } }} />}
+                                        label={copy.passwordEntryAuthKey}
+                                        sx={{
+                                            m: 0,
+                                            mt: '-1.65em',
+                                            mb: 0.75,
+                                            backgroundColor: palette.cardBg,
+                                            width: 'fit-content',
+                                            px: 0.5,
+                                            '& .MuiFormControlLabel-label': { fontSize: 13.5, fontWeight: 700, color: palette.text },
+                                        }}
+                                        value="key"
+                                    />
+                                    <Stack spacing={2}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <Typography sx={{ fontSize: 13, fontWeight: 600, color: passwordEntryAuthMethod === 'key' ? palette.text : palette.subtleText }}>{copy.privateKey}</Typography>
+                                            <Button component="label" disabled={passwordEntryAuthMethod !== 'key'} size="small" variant="outlined" sx={{ fontSize: 12, py: 0.25 }}>
+                                                {copy.privateKeyUploadAction}
+                                                <input
+                                                    accept="*/*"
+                                                    onChange={(event) => {
+                                                        const file = event.target.files?.[0]
+                                                        event.target.value = ''
+                                                        if (!file) return
+                                                        void file.text().then((content) => { setPasswordEntryPrivateKey(content); setPasswordEntryError('') })
+                                                    }}
+                                                    style={{ display: 'none' }}
+                                                    type="file"
+                                                />
+                                            </Button>
+                                        </Box>
+                                        <TextField
+                                            autoFocus={passwordEntryAuthMethod === 'key'}
+                                            disabled={passwordEntryAuthMethod !== 'key'}
+                                            error={passwordEntryAuthMethod === 'key' && Boolean(passwordEntryError)}
+                                            fullWidth
+                                            helperText={passwordEntryAuthMethod === 'key' && passwordEntryError ? passwordEntryError : undefined}
+                                            multiline
+                                            onChange={(event) => { setPasswordEntryPrivateKey(event.target.value); setPasswordEntryError('') }}
+                                            placeholder={copy.privateKey}
+                                            rows={5}
+                                            size="small"
+                                            sx={terminalFieldSx}
+                                            value={passwordEntryPrivateKey}
+                                        />
+                                        <TextField
+                                            disabled={passwordEntryAuthMethod !== 'key'}
+                                            fullWidth
+                                            onChange={(event) => setPasswordEntryPassphrase(event.target.value)}
+                                            onKeyDown={(event) => { if (event.key === 'Enter') void handlePasswordEntryConnect() }}
+                                            placeholder={copy.passphrase}
+                                            size="small"
+                                            sx={terminalFieldSx}
+                                            type="password"
+                                            value={passwordEntryPassphrase}
+                                        />
+                                    </Stack>
+                                </Box>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2.25, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.cardBg, justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                            <FormControlLabel
+                                control={<Checkbox checked={passwordEntryRemember} onChange={(event) => setPasswordEntryRemember(event.target.checked)} size="small" />}
+                                label={copy.remember}
+                                sx={{ m: 0, '& .MuiFormControlLabel-label': { fontSize: 13, color: palette.subtleText } }}
+                            />
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                <Button onClick={() => { setPasswordEntryOpen(false); setPasswordEntryProfileId('') }}>{copy.cancel}</Button>
+                                <Button onClick={() => void handlePasswordEntryConnect()} variant="contained">
+                                    {copy.passwordEntryConnect}
+                                </Button>
+                            </Box>
                         </DialogActions>
                     </Card>
                 </TerminalScopedOverlay>

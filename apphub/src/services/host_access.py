@@ -69,16 +69,30 @@ class HostAccessService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         profile = self._normalize_profile_payload(payload)
         profile = self._merge_saved_profile_auth(operator["id"], profile)
-        verified_profile = self._verify_profile(profile)
+        force_save = bool(payload.get("force_save", False))
+        remember = bool(profile.get("remember", True))
+        skip_verify = force_save or not remember
+
+        if skip_verify:
+            if not str(profile.get("working_directory") or "").strip():
+                profile["working_directory"] = "/"
+            verified_profile = profile
+        else:
+            verified_profile = self._verify_profile(profile)
+
+        if remember:
+            storage_profile = dict(verified_profile)
+        else:
+            storage_profile = dict(verified_profile)
+            storage_profile["password"] = ""
+            storage_profile["private_key"] = ""
+            storage_profile["passphrase"] = ""
 
         with self._lock:
             self._runtime_profiles[operator["id"]] = dict(verified_profile)
-            if verified_profile.get("remember"):
-                self._ensure_unique_profile_username(operator["id"], verified_profile)
-                self._store_operator_profile(operator["id"], verified_profile)
-                self._set_active_profile_id(operator["id"], str(verified_profile["profile_id"]))
-            else:
-                self._clear_active_profile_id(operator["id"])
+            self._ensure_unique_profile_username(operator["id"], storage_profile)
+            self._store_operator_profile(operator["id"], storage_profile)
+            self._set_active_profile_id(operator["id"], str(verified_profile["profile_id"]))
 
         return self._get_profile_for_operator(operator["id"])
 
@@ -116,14 +130,23 @@ class HostAccessService:
             self._clear_active_profile_id(operator["id"])
         return self._get_profile_for_operator(operator["id"])
 
-    def activate_saved_profile(self, session_token: Optional[str], profile_id: str) -> dict[str, Any]:
+    def activate_saved_profile(self, session_token: Optional[str], profile_id: str, password: str = "", private_key: str = "", passphrase: str = "", remember: bool = False) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             profile = self._load_saved_profile(operator["id"], profile_id)
             if profile is None:
                 raise CustomException(404, "Host Access Profile Not Found", "The requested saved login does not exist")
+            if password:
+                profile["password"] = password
+                profile["auth_method"] = "password"
+            if private_key:
+                profile["private_key"] = private_key
+                profile["passphrase"] = passphrase
+                profile["auth_method"] = "key"
             self._runtime_profiles[operator["id"]] = dict(profile)
             self._set_active_profile_id(operator["id"], profile_id)
+            if remember and (password or private_key):
+                self._store_operator_profile(operator["id"], profile)
         return self._get_profile_for_operator(operator["id"])
 
     def set_default_profile(self, session_token: Optional[str], profile_id: str) -> dict[str, Any]:
@@ -482,6 +505,9 @@ class HostAccessService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         normalized_profile_id = str(profile_id or '').strip()
         if normalized_profile_id:
+            runtime = self._runtime_profiles.get(operator["id"])
+            if runtime and str(runtime.get("profile_id") or "").strip() == normalized_profile_id:
+                return runtime
             profile = self._load_saved_profile(operator['id'], normalized_profile_id)
             if profile is None:
                 raise CustomException(400, 'Host Access Profile Not Found', 'The requested host profile is unavailable for file operations')
@@ -531,6 +557,13 @@ class HostAccessService:
     def _resolve_active_profile(self, operator_id: str, saved_profiles: Optional[list[dict[str, Any]]] = None) -> Optional[dict[str, Any]]:
         profiles = saved_profiles if saved_profiles is not None else self._list_operator_profiles(operator_id)
         active_profile_id = self._get_active_profile_id(operator_id)
+
+        runtime_profile = self._runtime_profiles.get(operator_id)
+        if active_profile_id and runtime_profile is not None:
+            runtime_id = str(runtime_profile.get("profile_id") or "").strip()
+            if runtime_id == active_profile_id:
+                return dict(runtime_profile)
+
         if active_profile_id:
             profile = self._load_saved_profile(operator_id, active_profile_id)
             if profile is not None:
@@ -538,7 +571,6 @@ class HostAccessService:
                 return dict(profile)
             self._clear_active_profile_id(operator_id)
 
-        runtime_profile = self._runtime_profiles.get(operator_id)
         if runtime_profile is not None:
             runtime_profile_id = str(runtime_profile.get("profile_id") or "").strip()
             if not runtime_profile.get("remember"):
@@ -1142,7 +1174,7 @@ class HostAccessService:
         # Only validate auth credentials for new profiles; for edits (profile_id provided),
         # _merge_saved_profile_auth will fill in the existing credentials if left empty.
         is_new_profile = not str(payload.get("profile_id") or "").strip()
-        if is_new_profile:
+        if is_new_profile and profile.get("remember", True):
             if profile["auth_method"] == "password" and not profile["password"].strip():
                 raise CustomException(400, "Invalid Request", "Password cannot be empty for password authentication")
             if profile["auth_method"] == "key" and not profile["private_key"].strip():
@@ -1509,7 +1541,8 @@ class HostAccessService:
         payload["profile_id"] = profile_id
         payload["is_default"] = bool(row["is_default"])
         payload["remember"] = True
-        if self._needs_working_directory_refresh(payload):
+        has_credentials = bool(payload.get("password") or payload.get("private_key"))
+        if has_credentials and self._needs_working_directory_refresh(payload):
             refreshed_payload = dict(payload)
             refreshed_payload["working_directory"] = ""
             payload = self._verify_profile(refreshed_payload)
