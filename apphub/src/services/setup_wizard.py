@@ -178,7 +178,19 @@ class SetupWizardService:
 
         # Reuse the same precheck pipeline as /apps/install to fail fast
         # before long-running image pull and stack creation steps.
-        install_validate(install_payload, endpoint_id)
+        try:
+            install_validate(install_payload, endpoint_id)
+        except CustomException as e:
+            self._update_state(
+                current_step="app_init_failed",
+                last_error={
+                    "code": "INSTALL_VALIDATION_FAILED",
+                    "message": str(e.details or e.message),
+                    "retryable": True,
+                    "field_names": [],
+                },
+            )
+            raise
 
         app_manager = AppManger()
         tracked_app_id, tracking_id = app_manager.create_installation_tracking(install_payload)
