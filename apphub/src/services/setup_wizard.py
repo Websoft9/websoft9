@@ -252,17 +252,6 @@ class SetupWizardService:
         if app_id:
             try:
                 AppManger().get_app_by_id(app_id)
-                # App is installed — auto-complete the wizard so the user
-                # isn't stuck in a pending state after auto-redirect.
-                completed_at = _utc_now()
-                self._update_state(
-                    current_step="complete",
-                    completed=True,
-                    installed_app_id=app_id,
-                    completed_at=completed_at,
-                    tracking_id=None,
-                    last_error=None,
-                )
                 return {
                     "status": "succeeded",
                     "current_step": "complete",
