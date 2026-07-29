@@ -565,12 +565,6 @@ export function SetupWizardPage() {
                     return
                 }
 
-                // Keep STARTUP_MAX_WAIT_MS as a safety net for the background
-                // polling loop (should not be reached under normal conditions).
-                if (elapsed >= STARTUP_MAX_WAIT_MS) {
-                    return
-                }
-
                 const payload = await requestJson<SetupWizardInstallStatusResponse>(`/api/setup-wizard/install/${encodeURIComponent(wizardState.tracking_id as string)}`, { method: 'GET' })
                 if (cancelled) {
                     return
@@ -1131,7 +1125,7 @@ export function SetupWizardPage() {
                                                 <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
                                                     {installFailed
                                                         ? (apiLocale === 'zh' ? '你可以重试启动，或进入平台查看日志与处理建议。' : 'You can retry launch, or open the platform for logs and guidance.')
-                                                        : (apiLocale === 'zh' ? '正在初始化，最多等待 30 秒后将自动进入控制台，你可以在「我的应用」中查看进度。' : 'Initializing… You\'ll enter the console within 30 seconds and can track progress in My Apps.')}
+                                                        : (apiLocale === 'zh' ? '正在初始化，稍后将自动进入控制台，你可以在「我的应用」中查看进度。' : 'Initializing… You\'ll enter the console shortly and can track progress in My Apps.')}
                                                 </Typography>
                                             </Box>
 
