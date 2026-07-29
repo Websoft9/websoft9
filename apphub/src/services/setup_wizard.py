@@ -52,7 +52,13 @@ class SetupWizardService:
         if not self.should_use_wizard():
             return False
         state = self._load_state()
-        return not bool(state.get("completed"))
+        if state.get("completed"):
+            return False
+        # Once the install has been triggered (running or failed), the user
+        # should be in the platform, not locked on the setup page.
+        if state.get("current_step") in {"app_init_running", "app_init_failed"}:
+            return False
+        return True
 
     def get_state(self, session_token: str | None = None) -> dict[str, Any]:
         base_state = self._load_state()
