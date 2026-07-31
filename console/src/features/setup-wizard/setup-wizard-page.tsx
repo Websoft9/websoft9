@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useProductAuth } from '../product-auth/product-auth-provider'
-import { markMyAppsDetailOverlayIntent } from '../my-apps/my-app-detail-overlay-intent'
+import { markMyAppsDetailOverlayIntent, markPendingComposeReturn } from '../my-apps/my-app-detail-overlay-intent'
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 
 type WizardStep = 'welcome' | 'platform_init' | 'app_init_ready' | 'app_init_running' | 'app_init_failed' | 'complete'
@@ -591,6 +591,7 @@ export function SetupWizardPage() {
                         body: JSON.stringify({}),
                     })
                     if (!cancelled) {
+                        markPendingComposeReturn(completion.installed_app_id)
                         setCompletedAppId(completion.installed_app_id)
                         setError(null)
                         setCurrentStep('app_init_running')
