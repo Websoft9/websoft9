@@ -847,10 +847,11 @@ def sync_package(
     manifest_bundle: dict[str, object] | None = None,
     snapshot_root: Path | None = None,
     dataset_version: str | None = None,
+    force_sync: bool = False,
 ) -> dict[str, str] | None:
     force_refresh = (os.getenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC") or "0").strip().lower() in {"1", "true", "yes", "on"}
 
-    if marker_exists(marker_path, package_type) and not force_refresh:
+    if marker_exists(marker_path, package_type) and not force_refresh and not force_sync:
         log(f"[platform-assets] {package_type} already present at {marker_path}")
         return None
 
@@ -1060,8 +1061,13 @@ def main() -> int:
                 latest_catalog_dsv = _resolve_component_dataset_version(appstore_manifest, "catalog")
                 latest_library_dsv = _resolve_component_dataset_version(appstore_manifest, "library")
                 if not force_refresh and previous_state.get("datasetVersion") == latest_dataset_version:
-                    should_skip_package_sync = True
-                    log(f"[platform-assets] appstore dataset {latest_dataset_version} already active for channel {channel}")
+                    catalog_unchanged = (not latest_catalog_dsv
+                                         or latest_catalog_dsv == previous_state.get("catalogDatasetVersion"))
+                    library_unchanged = (not latest_library_dsv
+                                         or latest_library_dsv == previous_state.get("libraryDatasetVersion"))
+                    if catalog_unchanged and library_unchanged:
+                        should_skip_package_sync = True
+                        log(f"[platform-assets] appstore dataset {latest_dataset_version} already active for channel {channel}")
                 package_sync_plan = determine_package_sync_plan(
                     manifest_bundle,
                     previous_state,
@@ -1133,6 +1139,7 @@ def main() -> int:
                     manifest_bundle,
                     snapshot_root,
                     str(applied_dataset_version),
+                    force_sync=package_sync_plan.get(package_type, True),
                 )
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
