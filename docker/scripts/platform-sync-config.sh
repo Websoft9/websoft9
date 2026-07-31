@@ -91,6 +91,24 @@ EOF
 
 sync_base() {
   ensure_runtime_config_files
+
+  # Ensure marketplace section exists for upgrades from older versions
+  set_config_if_missing marketplace app_slug ""
+
+  # Cloud marketplace: env var → config.ini
+  if [ -n "${WEBSOFT9_MARKETPLACE_APP_SLUG:-}" ]; then
+    set_config marketplace app_slug "${WEBSOFT9_MARKETPLACE_APP_SLUG}"
+  fi
+
+  # One-shot migration from legacy bootstrap.json (older cloud marketplace instances)
+  if [ -f /websoft9/marketplace/bootstrap.json ]; then
+    slug=$(python3 -c "import json; d=json.load(open('/websoft9/marketplace/bootstrap.json')); print(d.get('app_slug','').strip().lower())" 2>/dev/null || true)
+    if [ -n "$slug" ]; then
+      set_config marketplace app_slug "$slug"
+    fi
+    rm -f /websoft9/marketplace/bootstrap.json
+  fi
+
   set_config_if_missing platform_gateway https_enabled "${WEBSOFT9_PLATFORM_HTTPS_ENABLED:-false}"
   set_config platform_gateway ssl_cert "${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.cert}"
   set_config platform_gateway ssl_key "${WEBSOFT9_PLATFORM_GATEWAY_KEY_PATH:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.key}"

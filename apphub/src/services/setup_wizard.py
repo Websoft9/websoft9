@@ -41,8 +41,7 @@ class SetupWizardService:
         self.bootstrap = MarketplaceBootstrapService()
 
     def should_use_wizard(self) -> bool:
-        metadata = self._read_marketplace_app_metadata()
-        return bool(metadata.get("app_slug"))
+        return self.bootstrap.is_cloud_marketplace()
 
     def require_enabled(self) -> None:
         if not self.should_use_wizard():

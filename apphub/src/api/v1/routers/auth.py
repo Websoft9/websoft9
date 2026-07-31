@@ -81,8 +81,6 @@ def check_embedded_gateway_access(
 
     if status_payload["initialization_required"]:
         # Let the frontend route guard decide where to redirect.
-        # Avoid racing with cloud-init, which may write bootstrap.json
-        # shortly after the container starts.
         return Response(status_code=204)
 
     if not status_payload["authenticated"]:

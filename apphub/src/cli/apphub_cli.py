@@ -8,7 +8,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 
 import click
 from src.core.runtime_paths import resolve_apphub_config_path
-from src.services.marketplace_bootstrap import MarketplaceBootstrapService
 from src.services.product_metadata import write_product_edition
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import ProductAuthService
@@ -87,25 +86,6 @@ def setedition(edition_key):
     except Exception as e:
         raise click.ClickException(str(e))
 
-
-@cli.command(hidden=True)
-@click.option('--app-slug', required=True, help='Marketplace app slug')
-@click.option('--edition', type=str, help='Optional product edition key to apply together with marketplace bootstrap metadata')
-@click.option('--locale', type=str, help='Default locale for the setup wizard (e.g. zh-CN, en)')
-def setmarketplace(app_slug, edition, locale):
-    """Set marketplace bootstrap metadata"""
-    try:
-        payload = MarketplaceBootstrapService().write(app_slug=app_slug, locale=locale)
-        if edition:
-            edition_state = write_product_edition(edition)
-            payload['edition'] = {
-                'key': edition_state.edition_key,
-                'name': edition_state.edition_name,
-                'max_apps': edition_state.max_apps,
-            }
-        click.echo(json.dumps(payload, ensure_ascii=False))
-    except Exception as e:
-        raise click.ClickException(str(e))
 
 @cli.command()
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))

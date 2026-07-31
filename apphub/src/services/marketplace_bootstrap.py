@@ -1,60 +1,57 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-RUNTIME_BOOTSTRAP_PATH = Path("/websoft9/marketplace/bootstrap.json")
-REPO_BOOTSTRAP_PATH = REPO_ROOT / "marketplace" / "bootstrap.json"
-
-
-def get_marketplace_bootstrap_path() -> Path:
-    if RUNTIME_BOOTSTRAP_PATH.exists():
-        return RUNTIME_BOOTSTRAP_PATH
-    return REPO_BOOTSTRAP_PATH
+from src.core.config import ConfigManager
 
 
 class MarketplaceBootstrapService:
-    def __init__(self, file_path: Path | None = None):
-        self.file_path = file_path or get_marketplace_bootstrap_path()
+    """Read/write marketplace setup-wizard config from config.ini."""
+
+    def __init__(self):
+        self._config = ConfigManager()
+
+    def is_cloud_marketplace(self) -> bool:
+        """Check whether this runtime is a cloud marketplace instance."""
+        try:
+            val = self._config.get_value("marketplace", "app_slug")
+            return bool(val.strip())
+        except Exception:
+            return False
 
     def read(self) -> dict[str, Any]:
+        """Return marketplace config as a dict, same contract as the old JSON reader."""
         try:
-            raw = self.file_path.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return {}
+            app_slug = self._config.get_value("marketplace", "app_slug")
         except Exception:
             return {}
 
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
-
-        if not isinstance(payload, dict):
-            return {}
-
-        app_slug = str(payload.get("app_slug") or "").strip().lower()
+        app_slug = str(app_slug or "").strip().lower()
         if not app_slug:
             return {}
 
         result: dict[str, Any] = {"app_slug": app_slug}
-        locale = str(payload.get("default_locale") or "").strip()
-        if locale:
-            result["default_locale"] = locale
+        try:
+            locale = self._config.get_value("marketplace", "default_locale")
+            locale = str(locale or "").strip()
+            if locale:
+                result["default_locale"] = locale
+        except Exception:
+            pass
+
         return result
 
     def write(self, app_slug: str, locale: str | None = None) -> dict[str, str]:
-        payload: dict[str, str] = {
-            "app_slug": str(app_slug or "").strip().lower(),
-        }
+        """Persist marketplace parameters to config.ini."""
+        app_slug = str(app_slug or "").strip().lower()
+        if not app_slug:
+            raise ValueError("app_slug cannot be empty")
+
+        self._config.set_value("marketplace", "app_slug", app_slug)
         if locale and str(locale).strip():
-            payload["default_locale"] = str(locale).strip()
-        if not payload["app_slug"]:
-            raise ValueError("app_slug cannot be empty")
-            raise ValueError("app_slug cannot be empty")
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
-        self.file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
-        return payload
+            self._config.set_value("marketplace", "default_locale", str(locale).strip())
+
+        return {
+            "app_slug": app_slug,
+            "default_locale": str(locale).strip() if locale else "",
+        }

@@ -85,9 +85,9 @@ Commands:
 
 以下为内部/隐式命令，不显示在 `--help` 中，但仍可调用：
 
-云市场初始化推荐调用方式：
+云市场初始化：
 ```bash
-websoft9 setmarketplace --app-slug wordpress --edition free
+websoft9 setconfig marketplace app_slug wordpress
 ```
 
 如只需要调整发行版本，仍可继续单独调用：
