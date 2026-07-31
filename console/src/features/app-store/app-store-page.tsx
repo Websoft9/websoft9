@@ -45,6 +45,7 @@ import {
 } from './app-store-model'
 import { useAppStoreApps } from './use-app-store-apps'
 import { useAppStoreCatalogs } from './use-app-store-catalogs'
+import { useMyApps, type MyApp } from '../my-apps/use-my-apps'
 
 function formatRequirement(value: number | undefined) {
     return typeof value === 'number' ? value.toString() : '-'
@@ -489,14 +490,6 @@ function DocumentationIcon() {
         <SvgIcon viewBox="0 0 24 24">
             <path d="M6 3.75A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25h12A2.25 2.25 0 0 0 20.25 18V8.56a2.25 2.25 0 0 0-.66-1.59l-2.56-2.56a2.25 2.25 0 0 0-1.59-.66H6Zm8.25 1.7 3.3 3.3h-3.3v-3.3ZM8.25 11.25h7.5v1.5h-7.5v-1.5Zm0 3h7.5v1.5h-7.5v-1.5Zm0-6h3.75v1.5H8.25v-1.5Z" />
         </SvgIcon>
-    )
-}
-
-function FavoriteSectionHeading({ title }: { title: string }) {
-    return (
-        <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 28 }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#111827', lineHeight: 1.35 }}>{title}</Typography>
-        </Box>
     )
 }
 
@@ -953,10 +946,14 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     const apps = data ?? []
     const catalogs = catalogsData ?? []
+    const { data: myAppsData } = useMyApps()
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const effectiveIsLoading = isLoading || isLocalRefreshing
     const effectiveIsSyncRunning = isRefreshingStore || appStoreSyncStatus?.status === 'running'
     const lastSyncedAt = appStoreSyncStatus?.lastSyncedAt ?? appStoreState?.lastSyncedAt
+
+    const [isRelatedSectionCollapsed, setIsRelatedSectionCollapsed] = useState(false)
+    const [isAllAppsSectionCollapsed, setIsAllAppsSectionCollapsed] = useState(false)
     const formattedFullSyncAt = formatFullSyncTimestamp(lastSyncedAt, resolvedLocale)
     const sourceParam = searchParams.get('source')
     const selectedInstallSource: InstallSourceKey = lockedInstallSource ?? (sourceParam === 'compose' ? 'compose' : 'marketplace')
@@ -979,6 +976,51 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         () => (Object.keys(installSettings).length > 0 ? installSettings : selectedAppSettings),
         [installSettings, selectedAppSettings],
     )
+
+    const installedOfficialAppNames = useMemo(() => {
+        const myApps = myAppsData ?? []
+        return new Set(
+            myApps
+                .filter((app: MyApp) => app.app_official && app.app_name)
+                .map((app: MyApp) => (app.app_name ?? '').replace(/^['"]|['"]$/g, '').toLowerCase()),
+        )
+    }, [myAppsData])
+
+    const relatedApps = useMemo(() => {
+        if (installedOfficialAppNames.size === 0 || apps.length === 0) return []
+
+        const seen = new Set<string>()
+        const result: AppStoreApp[] = []
+
+        // Include installed apps themselves first
+        for (const app of apps) {
+            const appKey = (app.key ?? '').toLowerCase()
+            if (!installedOfficialAppNames.has(appKey)) continue
+            if (seen.has(appKey)) continue
+            seen.add(appKey)
+            result.push(app)
+        }
+
+        // Then collect their related apps
+        for (const app of apps) {
+            const appKey = (app.key ?? '').toLowerCase()
+            if (!installedOfficialAppNames.has(appKey)) continue
+
+            const items = app.relatedAppsCollection?.items ?? []
+            for (const item of items) {
+                const relatedKey = (item.key ?? '').toLowerCase()
+                if (!relatedKey || seen.has(relatedKey)) continue
+                seen.add(relatedKey)
+
+                const relatedApp = apps.find((a) => (a.key ?? '').toLowerCase() === relatedKey)
+                if (relatedApp) {
+                    result.push(relatedApp)
+                }
+            }
+        }
+
+        return result
+    }, [apps, installedOfficialAppNames])
     const currentHostname = typeof window === 'undefined' ? '' : window.location.hostname
     const isDarkMode = colorMode === 'dark'
     const palette = getSurfacePalette(isDarkMode)
@@ -2639,46 +2681,33 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                     {selectedInstallSource === 'marketplace' ? (
                         <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                             <Stack spacing={1.5} sx={{ pb: 0.5 }}>
-                                <FavoriteSectionHeading title={resultsSectionTitle} />
-
-                                {effectiveIsLoading ? (
-                                    <SurfaceStateCard detail={t('appStorePage.states.loading')} loading darkMode={isDarkMode} />
-                                ) : null}
-
-                                {!effectiveIsLoading && error ? (
-                                    <SurfaceNoticeAlert
-                                        detail={t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
-                                        action={
-                                            <Button color="inherit" size="small" onClick={() => void refetch()}>
-                                                {t('appStorePage.states.retry')}
-                                            </Button>
-                                        }
-                                        severity="warning"
-                                        title={t('appStorePage.states.errorTitle')}
-                                        darkMode={isDarkMode}
-                                    />
-                                ) : null}
-
-                                {!effectiveIsLoading && !error && filteredApps.length === 0 ? (
-                                    <SurfaceStateCard detail={t('appStorePage.states.emptyDetail')} title={t('appStorePage.states.emptyTitle')} darkMode={isDarkMode} />
-                                ) : null}
-
-                                {!effectiveIsLoading && !error && filteredApps.length > 0 ? (
-                                    <Stack spacing={1.5}>
+                                {/* ── Related Recommendations ── */}
+                                {relatedApps.length > 0 ? (
+                                    <>
                                         <Box
-                                            sx={{
-                                                display: 'grid',
-                                                gap: 2.25,
-                                                gridTemplateColumns: {
-                                                    xs: '1fr',
-                                                    md: 'repeat(2, minmax(0, 1fr))',
-                                                    xl: 'repeat(4, minmax(0, 1fr))',
-                                                },
-                                            }}
+                                            sx={{ display: 'flex', alignItems: 'center', minHeight: 28, cursor: 'pointer' }}
+                                            onClick={() => setIsRelatedSectionCollapsed((v) => !v)}
                                         >
-                                            {filteredApps.map((app) => {
-                                                const isDevApp = app.production === false
-                                                return (
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#111827', lineHeight: 1.35 }}>
+                                                {t('appStorePage.results.relatedSectionTitle')}
+                                            </Typography>
+                                            <SvgIcon viewBox="0 0 24 24" sx={{ ml: 'auto', fontSize: 18, color: palette.subtleText, transition: 'transform 0.2s', transform: isRelatedSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+                                                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+                                            </SvgIcon>
+                                        </Box>
+                                        {!isRelatedSectionCollapsed ? (
+                                            <Box
+                                                sx={{
+                                                    display: 'grid',
+                                                    gap: 2.25,
+                                                    gridTemplateColumns: {
+                                                        xs: '1fr',
+                                                        md: 'repeat(2, minmax(0, 1fr))',
+                                                        xl: 'repeat(4, minmax(0, 1fr))',
+                                                    },
+                                                }}
+                                            >
+                                                {relatedApps.map((app) => (
                                                     <UnifiedAppCard
                                                         key={app.key ?? app.trademark}
                                                         darkMode={isDarkMode}
@@ -2688,28 +2717,99 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                         title={app.trademark ?? app.key ?? t('appStorePage.card.summaryFallback')}
                                                         description={app.summary || app.overview || t('appStorePage.card.summaryFallback')}
                                                         media={<AppLogo app={app} locale={resolvedLocale} />}
-                                                        actions={
-                                                            isDevApp ? (
-                                                                <Chip
-                                                                    label="TODO"
-                                                                    size="small"
-                                                                    sx={{
-                                                                        height: 22,
-                                                                        fontSize: 11,
-                                                                        fontWeight: 600,
-                                                                        borderRadius: '2px',
-                                                                        backgroundColor: '#f59e0b',
-                                                                        color: '#fff',
-                                                                        '& .MuiChip-label': { px: 0.75 },
-                                                                    }}
-                                                                />
-                                                            ) : undefined
-                                                        }
                                                     />
-                                                )
-                                            })}
-                                        </Box>
-                                    </Stack>
+                                                ))}
+                                            </Box>
+                                        ) : null}
+                                    </>
+                                ) : null}
+
+                                {/* ── All Apps ── */}
+                                <Box
+                                    sx={{ display: 'flex', alignItems: 'center', minHeight: 28, cursor: 'pointer' }}
+                                    onClick={() => setIsAllAppsSectionCollapsed((v) => !v)}
+                                >
+                                    <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#111827', lineHeight: 1.35 }}>
+                                        {resultsSectionTitle}
+                                    </Typography>
+                                    <SvgIcon viewBox="0 0 24 24" sx={{ ml: 'auto', fontSize: 18, color: palette.subtleText, transition: 'transform 0.2s', transform: isAllAppsSectionCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+                                        <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+                                    </SvgIcon>
+                                </Box>
+
+                                {!isAllAppsSectionCollapsed ? (
+                                    <>
+                                        {effectiveIsLoading ? (
+                                            <SurfaceStateCard detail={t('appStorePage.states.loading')} loading darkMode={isDarkMode} />
+                                        ) : null}
+
+                                        {!effectiveIsLoading && error ? (
+                                            <SurfaceNoticeAlert
+                                                detail={t('appStorePage.states.errorDetail', { statusCode: error.statusCode ?? 'unknown' })}
+                                                action={
+                                                    <Button color="inherit" size="small" onClick={() => void refetch()}>
+                                                        {t('appStorePage.states.retry')}
+                                                    </Button>
+                                                }
+                                                severity="warning"
+                                                title={t('appStorePage.states.errorTitle')}
+                                                darkMode={isDarkMode}
+                                            />
+                                        ) : null}
+
+                                        {!effectiveIsLoading && !error && filteredApps.length === 0 ? (
+                                            <SurfaceStateCard detail={t('appStorePage.states.emptyDetail')} title={t('appStorePage.states.emptyTitle')} darkMode={isDarkMode} />
+                                        ) : null}
+
+                                        {!effectiveIsLoading && !error && filteredApps.length > 0 ? (
+                                            <>
+                                                <Box
+                                                    sx={{
+                                                        display: 'grid',
+                                                        gap: 2.25,
+                                                        gridTemplateColumns: {
+                                                            xs: '1fr',
+                                                            md: 'repeat(2, minmax(0, 1fr))',
+                                                            xl: 'repeat(4, minmax(0, 1fr))',
+                                                        },
+                                                    }}
+                                                >
+                                                    {filteredApps.map((app) => {
+                                                        const isDevApp = app.production === false
+                                                        return (
+                                                            <UnifiedAppCard
+                                                                key={app.key ?? app.trademark}
+                                                                darkMode={isDarkMode}
+                                                                onClick={() => {
+                                                                    openAppDetail(app, 'catalog')
+                                                                }}
+                                                                title={app.trademark ?? app.key ?? t('appStorePage.card.summaryFallback')}
+                                                                description={app.summary || app.overview || t('appStorePage.card.summaryFallback')}
+                                                                media={<AppLogo app={app} locale={resolvedLocale} />}
+                                                                actions={
+                                                                    isDevApp ? (
+                                                                        <Chip
+                                                                            label="TODO"
+                                                                            size="small"
+                                                                            sx={{
+                                                                                height: 22,
+                                                                                fontSize: 11,
+                                                                                fontWeight: 600,
+                                                                                borderRadius: '2px',
+                                                                                backgroundColor: '#f59e0b',
+                                                                                color: '#fff',
+                                                                                '& .MuiChip-label': { px: 0.75 },
+                                                                            }}
+                                                                        />
+                                                                    ) : undefined
+                                                                }
+                                                            />
+                                                        )
+                                                    })}
+                                                </Box>
+                                            </>
+                                        ) : null}
+                                    </>
                                 ) : null}
                             </Stack>
                         </Box>

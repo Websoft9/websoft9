@@ -135,7 +135,8 @@ class AppManger:
             for line in env_content.split("\n"):
                 line = line.strip()
                 if line.startswith("W9_APP_NAME="):
-                    return line.split("=", 1)[1].strip()
+                    raw = line.split("=", 1)[1].strip()
+                    return raw.strip("'\"")
         except Exception:
             return None
         return None

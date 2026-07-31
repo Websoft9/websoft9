@@ -46,6 +46,9 @@ export type AppStoreApp = {
     settings?: Record<string, string>
     is_web_app?: boolean
     production?: boolean
+    relatedAppsCollection?: {
+        items?: { key?: string; trademark?: string }[]
+    }
 }
 
 export type AppStoreCategory = {
