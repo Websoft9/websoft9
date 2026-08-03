@@ -5,6 +5,21 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2026-08-03
+
+### Added
+- **App Store Recommendations** — Show related application recommendations based on installed applications.
+- **Volume Browser** — Add read-only access to application volumes from My Apps.
+
+### Changed
+- **Media Storage** — Persist user-uploaded media files across product container upgrades.
+- **Marketplace Configuration** — Migrate marketplace configuration from `bootstrap.json` to `config.ini`.
+
+### Fixed
+- **App Store Sync** — Refresh app store data when component versions change instead of incorrectly skipping synchronization.
+- **Setup Wizard** — Simplify the post-install flow and automatically open the relevant My Apps dialog with installation progress.
+- **My Apps** — Localize volume browser errors and prevent browser loading layout shifts.
+
 ## [2.3.2] - 2026-07-29
 
 ### Changed
