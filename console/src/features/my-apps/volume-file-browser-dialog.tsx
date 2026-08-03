@@ -1,7 +1,6 @@
 import {
     Alert,
     Button,
-    CircularProgress,
     IconButton,
     SvgIcon,
     TextField,
@@ -319,7 +318,7 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
 
                     <div className="terminal-files-layout">
                         <div className="terminal-files-browser-panel">
-                            {loading || previewLoading ? <div className="terminal-files-empty"><CircularProgress size={24} /></div> : null}
+                            {loading || previewLoading ? <div className="terminal-files-progress" /> : null}
                             {preview ? (
                                 <div className="terminal-files-browser-editor">
                                     <div className="terminal-files-browser-editor-header"><div className="terminal-files-browser-editor-header-main"><div className="terminal-files-browser-editor-title terminal-files-truncate">{buildVirtualPath(volumeId, preview.path)}</div><IconButton className="terminal-files-toolbar-button" onClick={() => setPreview(null)} title={t('filesPage.actions.close')}><BrowserIcon kind="close" /></IconButton></div></div>
