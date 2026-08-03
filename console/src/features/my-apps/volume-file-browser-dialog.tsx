@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
-import { SurfaceDialog } from '../../shared/design-system/standard-surfaces'
+import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import '../terminal/terminal-page.css'
 
@@ -174,7 +174,31 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
     const [displayMode, setDisplayMode] = useState<BrowserDisplayMode>('grid')
     const [showHiddenFiles, setShowHiddenFiles] = useState(false)
     const [selectedEntry, setSelectedEntry] = useState<VolumeFileItem | null>(null)
-    const [error, setError] = useState<string | null>(null)
+    const [feedback, setFeedback] = useState<string | null>(null)
+
+    function showBrowseError(requestError: unknown) {
+        const message = requestError instanceof Error ? requestError.message : ''
+        const keyByMessage: Record<string, string> = {
+            'Binary files cannot be previewed in the browser': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.binaryFile',
+            'Only UTF-8 text files can be previewed in the browser': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.utf8Only',
+            'Only files up to 1 MB can be previewed in the browser': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.fileTooLarge',
+            'The requested path does not exist or cannot be browsed': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.fileNotFound',
+            'The requested volume does not exist': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.volumeNotFound',
+            'The requested volume does not belong to this application': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.volumeAccessDenied',
+            'The application is not running or does not mount this volume': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.volumeUnavailable',
+            'The requested volume is mounted multiple times in one application container': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.unsupportedMount',
+            'The application container does not support volume file browsing': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.containerUnsupported',
+            'Application ID and volume ID are required': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidRequest',
+            'Requested path resolves outside the allowed volume root': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidPath',
+            'The volume root is not a valid file target': 'myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidPath',
+        }
+        const key = keyByMessage[message]
+            ?? (message.startsWith('Failed to list application containers:') ? 'myAppsDetailPage.tabs.volumes.fileManager.feedback.dockerUnavailable' : undefined)
+            ?? (message.startsWith('Failed to browse the application container:') ? 'myAppsDetailPage.tabs.volumes.fileManager.feedback.containerFailed' : undefined)
+            ?? (message.startsWith('The application container returned an invalid directory') ? 'myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidResponse' : undefined)
+            ?? 'myAppsDetailPage.tabs.volumes.fileManager.feedback.genericError'
+        setFeedback(t(key))
+    }
 
     const dialogStyle = useMemo(() => ({
         '& .MuiDialog-paper': {
@@ -207,7 +231,6 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
     async function loadDirectory(path: string, historyAction: 'push' | 'none' = 'push') {
         if (!appId || !volumeId) return
         setLoading(true)
-        setError(null)
         setPreview(null)
         try {
             const response = await requestJson<VolumeDirectoryResponse>(`/api/myapps/${encodeURIComponent(appId)}/volumes/${encodeURIComponent(volumeId)}/browse/tree?path=${encodeURIComponent(path)}`)
@@ -222,7 +245,7 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
                 setHistoryIndex((current) => history[current] === response.current_path ? current : current + 1)
             }
         } catch (requestError) {
-            setError(requestError instanceof Error ? requestError.message : t('filesPage.feedback.genericError'))
+            showBrowseError(requestError)
         } finally {
             setLoading(false)
         }
@@ -235,13 +258,12 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
         }
         if (!entry.text_viewable) return
         setPreviewLoading(true)
-        setError(null)
         try {
             const response = await requestJson<VolumeTextFileResponse>(`/api/myapps/${encodeURIComponent(appId)}/volumes/${encodeURIComponent(volumeId)}/browse/content?path=${encodeURIComponent(entry.path)}`)
             setPreview(response)
             setSourceContainer(response.source_container)
         } catch (requestError) {
-            setError(requestError instanceof Error ? requestError.message : t('filesPage.feedback.genericError'))
+            showBrowseError(requestError)
         } finally {
             setPreviewLoading(false)
         }
@@ -282,12 +304,11 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
                             <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={loading || preview !== null} onClick={() => void loadDirectory(currentPath, 'none')} title={t('myAppsDetailPage.tabs.volumes.fileManager.actions.refresh')} type="button"><BrowserIcon kind="refresh" /></button>
                         </div>
                         <div className="terminal-files-toolbar-paths">
-                            <TextField className="terminal-files-path-input" size="small" value={pathInputValue} disabled={preview !== null} onChange={(event) => setPathInputValue(event.target.value)} onBlur={() => setPathInputValue(buildVirtualPath(volumeId, currentPath))} onKeyDown={(event) => { if (event.key !== 'Enter') return; const path = parseVirtualPath(volumeId, pathInputValue); if (path) void loadDirectory(path); else setError(t('myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidPath')) }} />
+                            <TextField className="terminal-files-path-input" size="small" value={pathInputValue} disabled={preview !== null} onChange={(event) => setPathInputValue(event.target.value)} onBlur={() => setPathInputValue(buildVirtualPath(volumeId, currentPath))} onKeyDown={(event) => { if (event.key !== 'Enter') return; const path = parseVirtualPath(volumeId, pathInputValue); if (path) void loadDirectory(path); else setFeedback(t('myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidPath')) }} />
                             <TextField className="terminal-files-search-input" size="small" value={search} disabled={preview !== null} onChange={(event) => setSearch(event.target.value)} placeholder={t('filesPage.filters.searchPlaceholder')} />
                         </div>
                     </div>
 
-                    {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
                     <Alert
                         severity="info"
                         action={<Button color="inherit" size="small" onClick={() => { onClose(); navigate('/terminal') }}>{t('myAppsDetailPage.tabs.volumes.fileManager.actions.openTerminal')}</Button>}
@@ -317,6 +338,7 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
                     <div className="terminal-files-footer"><div className="terminal-files-footer-stats">{`${directoryCount} ${t('filesPage.footer.directories')}, ${fileEntries.length} ${t('filesPage.footer.files')} (${formatFileSize(fileSize)})`}</div><div className="terminal-files-footer-actions"><IconButton className={`terminal-files-footer-button ${showHiddenFiles ? 'terminal-files-footer-button-active' : ''}`} onClick={() => setShowHiddenFiles((current) => !current)} title={t('filesPage.footer.hiddenFiles')}>{showHiddenFiles ? <BrowserIcon kind="eyeOff" /> : <BrowserIcon kind="eye" />}</IconButton><IconButton className="terminal-files-footer-button" onClick={() => setDisplayMode((current) => current === 'grid' ? 'list' : 'grid')} title={displayMode === 'grid' ? t('filesPage.footer.listView') : t('filesPage.footer.gridView')}><BrowserIcon kind={displayMode === 'grid' ? 'list' : 'grid'} /></IconButton></div></div>
                 </div>
             </div>
+            <SurfaceFeedbackToast open={Boolean(feedback)} severity="error" message={feedback ?? ''} onClose={() => setFeedback(null)} scope="content" scopeRect={scopeRect} darkMode={darkMode} zIndex={1610} />
         </SurfaceDialog>
     )
 }

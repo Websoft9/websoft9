@@ -36,6 +36,7 @@ type SurfaceFeedbackToastProps = {
     scope?: SurfaceLayerScope
     scopeRect?: SurfaceScopeRect | null
     darkMode?: boolean
+    zIndex?: number
 }
 
 type SurfaceStatusBadgeProps = {
@@ -224,7 +225,7 @@ export function SurfaceNoticeAlert({ severity, title, detail, action, darkMode =
     )
 }
 
-export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect, darkMode = false }: SurfaceFeedbackToastProps) {
+export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect, darkMode = false, zIndex }: SurfaceFeedbackToastProps) {
     const palette = getSurfacePalette(darkMode)
     const [visibleMessage, setVisibleMessage] = useState(message)
     const [visibleSeverity, setVisibleSeverity] = useState(severity)
@@ -263,7 +264,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
                         justifyContent: 'center',
                         transform: 'none !important',
                         right: 'auto !important',
-                        zIndex: 1502,
+                        zIndex: zIndex ?? 1502,
                     }
                     : scope === 'content'
                         ? {
@@ -275,9 +276,9 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
                             justifyContent: 'center',
                             transform: 'none !important',
                             right: 'auto !important',
-                            zIndex: 6,
+                            zIndex: zIndex ?? 6,
                         }
-                        : undefined
+                        : zIndex ? { zIndex } : undefined
             }
         >
             <Alert
