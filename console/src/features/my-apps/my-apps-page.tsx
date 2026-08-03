@@ -574,6 +574,27 @@ export function MyAppsPage() {
         return () => cancel(handle)
     }, [apiLocale, apps, queryClient])
 
+    // Auto-trigger detail/log dialog after setup wizard completes
+    const setupAutoTriggeredRef = useRef(false)
+    useEffect(() => {
+        if (setupAutoTriggeredRef.current || apps.length === 0) return
+        const targetAppId = typeof window !== 'undefined' ? window.sessionStorage.getItem('websoft9_setup_target_app') : null
+        if (!targetAppId) return
+
+        const app = apps.find((a) => a.app_id === targetAppId)
+        if (!app) return
+
+        setupAutoTriggeredRef.current = true
+        window.sessionStorage.removeItem('websoft9_setup_target_app')
+
+        if (app.status === 1) {
+            markMyAppsDetailOverlayIntent(app.app_id)
+            navigate(`/myapps/${encodeURIComponent(app.app_id)}`, { replace: true })
+        } else if (app.status === 3 || app.status === 4) {
+            setLogDialogKey(app.tracking_id ?? app.app_id)
+        }
+    }, [apps, navigate])
+
     // Resolve the live app for the log dialog (auto-refreshes with the query)
     const logDialogApp = useMemo(
         () => logDialogKey ? (apps.find((a) => (a.tracking_id ?? a.app_id) === logDialogKey) ?? null) : null,

@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useProductAuth } from '../product-auth/product-auth-provider'
-import { markMyAppsDetailOverlayIntent, markPendingComposeReturn } from '../my-apps/my-app-detail-overlay-intent'
+import { markMyAppsDetailOverlayIntent } from '../my-apps/my-app-detail-overlay-intent'
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 
 type WizardStep = 'welcome' | 'platform_init' | 'app_init_ready' | 'app_init_running' | 'app_init_failed' | 'complete'
@@ -67,33 +67,11 @@ type SetupWizardApp = {
     settings: Record<string, string>
 }
 
-type SetupWizardInstallAcceptedResponse = {
-    tracking_id: string
-    current_step: WizardStep
-}
-
-type SetupWizardInstallStatusResponse = {
-    status: 'running' | 'succeeded' | 'failed'
-    current_step: WizardStep
-    installed_app_id: string | null
-    last_error: SetupWizardError | null
-}
-
-type SetupWizardInstalledAppSummary = {
-    app_id: string
-    status: number
-    error?: string | null
-}
-
 type ProductAuthStatus = {
     authenticated: boolean
     initialization_required: boolean
     cloud_marketplace_setup_pending?: boolean
 }
-
-const STARTUP_MIN_VISIBLE_MS = 5000
-const STARTUP_MAX_WAIT_MS = 180000
-const AUTO_REDIRECT_WAIT_MS = 30_000
 
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
@@ -169,7 +147,6 @@ export function SetupWizardPage() {
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [inputValues, setInputValues] = useState<Record<string, string>>({})
-    const [completedAppId, setCompletedAppId] = useState<string | null>(null)
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [langMenuOpen, setLangMenuOpen] = useState(false)
@@ -188,14 +165,9 @@ export function SetupWizardPage() {
         return () => document.removeEventListener('click', handler)
     }, [langMenuOpen])
 
-    const pollTimerRef = useRef<number | null>(null)
-    const appStatusTimerRef = useRef<number | null>(null)
-    const startupStartedAtRef = useRef<number | null>(null)
-    const activationWaitStartedAtRef = useRef<number | null>(null)
     const resolvedWizardLocale = normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en')
     const apiLocale = resolveApiLocale(resolvedWizardLocale)
     const platformInitializationRequired = Boolean(status?.initialization_required)
-    const setupClosed = typeof window !== 'undefined' && window.sessionStorage.getItem('websoft9_setup_closed') === '1'
 
     function openMyAppsWithDetail(appId: string | null | undefined, options?: { replace?: boolean }) {
         const normalizedAppId = (appId ?? '').trim()
@@ -232,14 +204,6 @@ export function SetupWizardPage() {
             ? `When done, you'll have a unified app entry, runtime status visibility, and daily operations — no more scattered management.`
             : `A platform account is already available. Continue with ${displayName} initialization to start using the platform's unified management capabilities.`
     const primaryActionLabel = apiLocale === 'zh' ? '下一步' : 'Next Step'
-    const completionTitle = apiLocale === 'zh' ? '一切就绪' : 'All Set'
-    const completionBody = apiLocale === 'zh'
-        ? `初始化完成。进入控制台即可管理 ${displayName} 的安全、访问、监控与维护。`
-        : `Setup complete. Enter the console to manage ${displayName} security, access, monitoring, and maintenance.`
-    const completionNote = apiLocale === 'zh'
-        ? null
-        : null
-    const appWorkspaceLabel = apiLocale === 'zh' ? '进入控制台' : 'Open Console'
     const welcomePlatformPoints = apiLocale === 'zh'
         ? [
             '统一管理应用入口、访问地址与对外路由',
@@ -316,15 +280,6 @@ export function SetupWizardPage() {
         borderRadius: '4px',
     }
 
-    useEffect(() => () => {
-        if (pollTimerRef.current !== null) {
-            window.clearTimeout(pollTimerRef.current)
-        }
-        if (appStatusTimerRef.current !== null) {
-            window.clearTimeout(appStatusTimerRef.current)
-        }
-    }, [])
-
     useEffect(() => {
         if (isLoading || !status) {
             return
@@ -397,25 +352,11 @@ export function SetupWizardPage() {
             return
         }
 
-        if (!wizardState.completed) {
-            if (typeof window !== 'undefined') {
-                window.sessionStorage.removeItem('websoft9_setup_closed')
-            }
-        }
-
-        if (setupClosed && status.authenticated && wizardState.completed) {
-            void refresh().finally(() => {
-                openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
-            })
-            return
-        }
-
         if (!wizardState.enabled) {
             if (status.initialization_required) {
                 navigate('/auth/setup', { replace: true })
                 return
             }
-
             if (status.authenticated) {
                 openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
             } else {
@@ -429,198 +370,16 @@ export function SetupWizardPage() {
             return
         }
 
-        if (wizardState.completed) {
-            setCompletedAppId(wizardState.installed_app_id)
-            setError(null)
-            if (wizardState.installed_app_id) {
-                if (typeof window !== 'undefined') {
-                    window.sessionStorage.setItem('websoft9_setup_closed', '1')
-                }
-                void refresh().finally(() => {
-                    openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
-                })
-            }
-            return
-        }
-    }, [isLoading, navigate, pageLoading, platformInitializationRequired, setupClosed, status, wizardState])
-
-    useEffect(() => {
-        if (!wizardState?.completed || !wizardState.installed_app_id) {
-            if (appStatusTimerRef.current !== null) {
-                window.clearTimeout(appStatusTimerRef.current)
-                appStatusTimerRef.current = null
-            }
-            return
-        }
-
-        let cancelled = false
-        let consecutiveFailures = 0
-        setCompletedAppId(wizardState.installed_app_id)
-        setError(null)
-        setCurrentStep('app_init_running')
-        activationWaitStartedAtRef.current = Date.now()
-
-        const giveUpAndRedirect = () => {
-            if (cancelled) {
-                return
-            }
+        if (wizardState.completed && status.authenticated) {
             if (typeof window !== 'undefined') {
                 window.sessionStorage.setItem('websoft9_setup_closed', '1')
             }
             void refresh().finally(() => {
-                openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
+                navigate('/myapps', { replace: true })
             })
-        }
-
-        const finishWithReadyState = () => {
-            if (cancelled) {
-                return
-            }
-            setCurrentStep('complete')
-            setError(null)
-            if (typeof window !== 'undefined') {
-                window.sessionStorage.setItem('websoft9_setup_closed', '1')
-            }
-            void refresh().finally(() => {
-                openMyAppsWithDetail(wizardState.installed_app_id, { replace: true })
-            })
-        }
-
-        const pollInstalledAppStatus = async () => {
-            try {
-                const waitElapsed = Date.now() - (activationWaitStartedAtRef.current ?? Date.now())
-                if (waitElapsed >= STARTUP_MAX_WAIT_MS) {
-                    giveUpAndRedirect()
-                    return
-                }
-
-                const apps = await requestJson<SetupWizardInstalledAppSummary[]>(`/api/apps?locale=${encodeURIComponent(apiLocale)}`, { method: 'GET' })
-                if (cancelled) {
-                    return
-                }
-                consecutiveFailures = 0
-
-                const targetApp = apps.find((app) => app.app_id === wizardState.installed_app_id)
-                if (!targetApp || targetApp.status === 3) {
-                    appStatusTimerRef.current = window.setTimeout(pollInstalledAppStatus, 2000)
-                    return
-                }
-
-                if (targetApp.status === 4) {
-                    setError(mapSetupWizardErrorMessage(targetApp.error ?? (apiLocale === 'zh' ? '应用启动失败。' : 'App launch failed.'), apiLocale))
-                    setCurrentStep('app_init_running')
-                    return
-                }
-
-                const startupElapsed = Date.now() - (startupStartedAtRef.current ?? Date.now())
-                const remainingVisible = Math.max(0, STARTUP_MIN_VISIBLE_MS - startupElapsed)
-                if (remainingVisible > 0) {
-                    appStatusTimerRef.current = window.setTimeout(finishWithReadyState, remainingVisible)
-                    return
-                }
-
-                finishWithReadyState()
-            } catch {
-                if (!cancelled) {
-                    consecutiveFailures += 1
-                    if (consecutiveFailures >= 5) {
-                        giveUpAndRedirect()
-                        return
-                    }
-                    appStatusTimerRef.current = window.setTimeout(pollInstalledAppStatus, 3000)
-                }
-            }
-        }
-
-        void pollInstalledAppStatus()
-        return () => {
-            cancelled = true
-            if (appStatusTimerRef.current !== null) {
-                window.clearTimeout(appStatusTimerRef.current)
-                appStatusTimerRef.current = null
-            }
-        }
-    }, [apiLocale, wizardState?.completed, wizardState?.installed_app_id])
-
-    useEffect(() => {
-        if (!wizardState?.tracking_id || currentStep !== 'app_init_running') {
-            if (pollTimerRef.current !== null) {
-                window.clearTimeout(pollTimerRef.current)
-                pollTimerRef.current = null
-            }
             return
         }
-
-        const installStartRef = Date.now()
-        let cancelled = false
-        const poll = async () => {
-            try {
-                const elapsed = Date.now() - installStartRef
-                if (elapsed >= AUTO_REDIRECT_WAIT_MS) {
-                    if (!cancelled) {
-                        window.sessionStorage.setItem('websoft9_setup_failure_access', '1')
-                        window.sessionStorage.setItem('websoft9_setup_closed', '1')
-                        navigate('/myapps', { replace: true })
-                    }
-                    return
-                }
-
-                const payload = await requestJson<SetupWizardInstallStatusResponse>(`/api/setup-wizard/install/${encodeURIComponent(wizardState.tracking_id as string)}`, { method: 'GET' })
-                if (cancelled) {
-                    return
-                }
-                if (payload.status === 'running') {
-                    pollTimerRef.current = window.setTimeout(poll, 2000)
-                    return
-                }
-                if (payload.status === 'failed') {
-                    setCurrentStep('app_init_running')
-                    setError(mapSetupWizardErrorMessage(payload.last_error?.message ?? (apiLocale === 'zh' ? '准备失败，请重试。' : 'Preparation failed. Please retry.'), apiLocale))
-                    setWizardState((currentValue) => currentValue ? {
-                        ...currentValue,
-                        current_step: 'app_init_running',
-                        tracking_id: null,
-                        last_error: payload.last_error,
-                    } : currentValue)
-                    return
-                }
-
-                if (payload.installed_app_id) {
-                    const completion = await requestJson<{ installed_app_id: string }>('/api/setup-wizard/complete', {
-                        method: 'POST',
-                        body: JSON.stringify({}),
-                    })
-                    if (!cancelled) {
-                        markPendingComposeReturn(completion.installed_app_id)
-                        setCompletedAppId(completion.installed_app_id)
-                        setError(null)
-                        setCurrentStep('app_init_running')
-                        setWizardState((currentValue) => currentValue ? {
-                            ...currentValue,
-                            current_step: 'complete',
-                            completed: true,
-                            installed_app_id: completion.installed_app_id,
-                            tracking_id: null,
-                            last_error: null,
-                        } : currentValue)
-                    }
-                }
-            } catch (pollError) {
-                if (!cancelled) {
-                    setError(pollError instanceof Error ? mapSetupWizardErrorMessage(pollError.message, apiLocale) : apiLocale === 'zh' ? '正在准备时发生错误。' : 'An error occurred while preparing the app.')
-                }
-            }
-        }
-
-        void poll()
-        return () => {
-            cancelled = true
-            if (pollTimerRef.current !== null) {
-                window.clearTimeout(pollTimerRef.current)
-                pollTimerRef.current = null
-            }
-        }
-    }, [apiLocale, currentStep, navigate, wizardState])
+    }, [isLoading, navigate, pageLoading, platformInitializationRequired, refresh, status, wizardState])
 
     async function handlePlatformInitSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -668,13 +427,11 @@ export function SetupWizardPage() {
             return
         }
 
-        startupStartedAtRef.current = Date.now()
-        activationWaitStartedAtRef.current = null
         setCurrentStep('app_init_running')
         setBusy(true)
         setError(null)
         try {
-            const payload = await requestJson<SetupWizardInstallAcceptedResponse>('/api/setup-wizard/install', {
+            await requestJson('/api/setup-wizard/install', {
                 method: 'POST',
                 body: JSON.stringify({
                     app_id: appInfo.default_app_id,
@@ -683,14 +440,21 @@ export function SetupWizardPage() {
                     user_inputs: inputValues,
                 }),
             })
-            setCurrentStep(normalizeVisibleStep(payload.current_step))
-            setWizardState((currentValue) => currentValue ? {
-                ...currentValue,
-                current_step: normalizeVisibleStep(payload.current_step),
-                tracking_id: payload.tracking_id,
-                pending_app_id: appInfo.default_app_id,
-                last_error: null,
-            } : currentValue)
+
+            await new Promise(resolve => setTimeout(resolve, 5000))
+
+            const completeResult = await requestJson<{ installed_app_id: string }>('/api/setup-wizard/complete', {
+                method: 'POST',
+                body: JSON.stringify({}),
+            }).catch(() => undefined)
+
+            if (typeof window !== 'undefined') {
+                window.sessionStorage.setItem('websoft9_setup_closed', '1')
+                if (completeResult?.installed_app_id) {
+                    window.sessionStorage.setItem('websoft9_setup_target_app', completeResult.installed_app_id)
+                }
+            }
+            navigate('/myapps', { replace: true })
         } catch (submitError) {
             setError(submitError instanceof Error ? mapSetupWizardErrorMessage(submitError.message, apiLocale) : apiLocale === 'zh' ? '开始使用失败。' : 'Failed to start the app.')
         } finally {
@@ -706,21 +470,7 @@ export function SetupWizardPage() {
         }
     }
 
-    function handleOpenAppWorkspace() {
-        window.sessionStorage.setItem('websoft9_setup_closed', '1')
-        openMyAppsWithDetail(completedAppId ?? wizardState?.installed_app_id, { replace: true })
-    }
-
-    function handleOpenPlatformOverview() {
-        window.sessionStorage.setItem('websoft9_setup_failure_access', '1')
-        window.sessionStorage.setItem('websoft9_setup_closed', '1')
-        openMyAppsWithDetail(completedAppId ?? wizardState?.installed_app_id, { replace: true })
-    }
-
-    const installFailed = currentStep === 'app_init_running' && !wizardState?.tracking_id && Boolean(error)
-    const installRunning = currentStep === 'app_init_running' && !installFailed
-    const showTopError = !pageLoading && error && !installFailed && currentStep !== 'complete'
-    const failedRawMessage = error ?? (apiLocale === 'zh' ? '暂无错误详情。' : 'No error details available.')
+    const showTopError = !pageLoading && error && currentStep !== 'app_init_running'
 
     return (
         <Box
@@ -1104,93 +854,75 @@ export function SetupWizardPage() {
                                 <Stack spacing={3} sx={{ py: 2 }}>
                                     <Box sx={{ ...summaryCardSx, textAlign: 'center' }}>
                                         <Stack spacing={2.5} sx={{ alignItems: 'center' }}>
-                                            {installRunning ? (
-                                                <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 100, height: 100 }}>
-                                                    <CircularProgress
-                                                        size={100}
-                                                        thickness={3}
+                                            {!error ? (
+                                                <>
+                                                    <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 100, height: 100 }}>
+                                                        <CircularProgress
+                                                            size={100}
+                                                            thickness={3}
+                                                            sx={{
+                                                                color: '#1767d1',
+                                                                '& .MuiCircularProgress-circle': { strokeLinecap: 'round' },
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                    <Box>
+                                                        <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
+                                                            {apiLocale === 'zh' ? `${displayName} 正在初始化…` : `Initializing ${displayName}…`}
+                                                        </Typography>
+                                                        <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
+                                                            {apiLocale === 'zh' ? '应用正在初始化，稍后将自动进入控制台。' : 'Setting up your app. You\'ll enter the console shortly.'}
+                                                        </Typography>
+                                                    </Box>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Box>
+                                                        <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
+                                                            {apiLocale === 'zh' ? `${displayName} 启动失败` : `${displayName} launch failed`}
+                                                        </Typography>
+                                                        <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
+                                                            {apiLocale === 'zh' ? '启动未成功，可进入平台后在「我的应用」中查看详情。' : 'Launch failed. Open the platform and check My Apps for details.'}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Box
                                                         sx={{
-                                                            color: '#1767d1',
-                                                            '& .MuiCircularProgress-circle': { strokeLinecap: 'round' },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            ) : null}
-
-                                            <Box>
-                                                <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
-                                                    {installFailed
-                                                        ? (apiLocale === 'zh' ? `${displayName} 启动失败` : `${displayName} launch failed`)
-                                                        : (apiLocale === 'zh' ? `${displayName} 正在初始化…` : `Initializing ${displayName}…`)}
-                                                </Typography>
-                                                <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
-                                                    {installFailed
-                                                        ? (apiLocale === 'zh' ? '启动未成功，请进入平台后在「我的应用」中查看详情。' : 'Launch failed. Open the platform and check My Apps for details.')
-                                                        : (apiLocale === 'zh' ? '应用正在初始化，稍后将自动进入控制台，你可以在「我的应用」中查看。' : 'Setting up your app. You\'ll enter the console shortly. Track progress in My Apps.')}
-                                                </Typography>
-                                            </Box>
-
-                                            {installFailed ? (
-                                                <Box
-                                                    sx={{
-                                                        width: '100%',
-                                                        maxWidth: 900,
-                                                        textAlign: 'left',
-                                                        borderRadius: '4px',
-                                                        border: '1px solid #fecaca',
-                                                        background: '#fff5f5',
-                                                        px: { xs: 1.75, md: 2.25 },
-                                                        py: { xs: 1.5, md: 1.75 },
-                                                        maxHeight: 240,
-                                                        overflow: 'auto',
-                                                    }}
-                                                >
-                                                    <Typography
-                                                        sx={{
-                                                            fontSize: 12,
-                                                            lineHeight: 1.65,
-                                                            color: '#7f1d1d',
-                                                            whiteSpace: 'pre-wrap',
-                                                            wordBreak: 'break-word',
-                                                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+                                                            width: '100%',
+                                                            maxWidth: 900,
+                                                            textAlign: 'left',
+                                                            borderRadius: '4px',
+                                                            border: '1px solid #fecaca',
+                                                            background: '#fff5f5',
+                                                            px: { xs: 1.75, md: 2.25 },
+                                                            py: { xs: 1.5, md: 1.75 },
+                                                            maxHeight: 240,
+                                                            overflow: 'auto',
                                                         }}
                                                     >
-                                                        {failedRawMessage}
-                                                    </Typography>
-                                                </Box>
-                                            ) : null}
+                                                        <Typography
+                                                            sx={{
+                                                                fontSize: 12,
+                                                                lineHeight: 1.65,
+                                                                color: '#7f1d1d',
+                                                                whiteSpace: 'pre-wrap',
+                                                                wordBreak: 'break-word',
+                                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+                                                            }}
+                                                        >
+                                                            {error}
+                                                        </Typography>
+                                                    </Box>
+                                                </>
+                                            )}
                                         </Stack>
                                     </Box>
-                                    {installFailed ? (
+                                    {error ? (
                                         <Box sx={actionRowSx}>
-                                            <Button variant="contained" onClick={handleOpenPlatformOverview} sx={primaryActionButtonSx}>
+                                            <Button variant="contained" onClick={() => { window.sessionStorage.setItem('websoft9_setup_closed', '1'); navigate('/myapps', { replace: true }) }} sx={primaryActionButtonSx}>
                                                 {apiLocale === 'zh' ? '进入平台' : 'Open Platform'}
                                             </Button>
                                         </Box>
                                     ) : null}
-                                </Stack>
-                            ) : null}
-
-                            {!pageLoading && currentStep === 'complete' ? (
-                                <Stack spacing={3} sx={{ py: 2 }}>
-                                    <Box sx={summaryCardSx}>
-                                        <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#0f172a' }}>
-                                            {completionTitle}
-                                        </Typography>
-                                        <Typography sx={{ mt: 1.5, color: '#475569' }}>
-                                            {completionBody}
-                                        </Typography>
-                                        {completionNote ? (
-                                            <Typography sx={{ mt: 1.5, color: '#64748b', fontSize: '0.875rem' }}>
-                                                {completionNote}
-                                            </Typography>
-                                        ) : null}
-                                    </Box>
-                                    <Box sx={actionRowSx}>
-                                        <Button variant="contained" onClick={handleOpenAppWorkspace} sx={primaryActionButtonSx}>
-                                            {appWorkspaceLabel}
-                                        </Button>
-                                    </Box>
                                 </Stack>
                             ) : null}
 
