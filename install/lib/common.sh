@@ -471,9 +471,7 @@ write_env_file() {
   local console_port="$3"
   local install_path="$4"
   local data_root_default
-  local docker_volumes_root
   data_root_default="$(default_data_root_for_install_path "$install_path")"
-  docker_volumes_root="$(resolve_docker_volumes_root)"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) writing .env -> $env_path"
@@ -487,39 +485,7 @@ IMAGE_TAG=${image_tag}
 CONSOLE_PORT=${console_port}
 CONTAINER_NAME=${CONTAINER_NAME}
 WEBSOFT9_DATA_ROOT=${WEBSOFT9_DATA_ROOT:-$data_root_default}
-WEBSOFT9_DOCKER_VOLUMES_ROOT=${WEBSOFT9_DOCKER_VOLUMES_ROOT:-$docker_volumes_root}
 EOF
-}
-
-resolve_docker_volumes_root() {
-  local docker_root=""
-  local candidate=""
-
-  if [ -n "${WEBSOFT9_DOCKER_VOLUMES_ROOT:-}" ] && [ -d "${WEBSOFT9_DOCKER_VOLUMES_ROOT}" ]; then
-    echo "${WEBSOFT9_DOCKER_VOLUMES_ROOT}"
-    return 0
-  fi
-
-  if docker_available; then
-    docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null | head -n 1)"
-    if [ -n "$docker_root" ] && [ -d "${docker_root}/volumes" ]; then
-      echo "${docker_root}/volumes"
-      return 0
-    fi
-  fi
-
-  for candidate in \
-    "$DEFAULT_DOCKER_VOLUMES_ROOT" \
-    "/data/docker/volumes" \
-    "/opt/docker/volumes"
-  do
-    if [ -d "$candidate" ]; then
-      echo "$candidate"
-      return 0
-    fi
-  done
-
-  echo "$DEFAULT_DOCKER_VOLUMES_ROOT"
 }
 
 _runtime_data_root_has_modern_markers() {

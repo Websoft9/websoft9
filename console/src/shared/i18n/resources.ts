@@ -1272,7 +1272,9 @@ const rawShellResources = {
                                 copy: 'Copy',
                                 move: 'Move',
                                 properties: 'Properties',
+                                openTerminal: 'Open Terminal',
                             },
+                            readOnlyNotice: 'This view is browse-only. Double-click regular UTF-8 text files up to 1 MB to preview them. To modify files, use Terminal and connect to the appropriate host.',
                             dialogs: {
                                 copyTitle: 'Copy Item',
                                 moveTitle: 'Move Item',
@@ -3564,7 +3566,9 @@ const rawShellResources = {
                                 copy: '复制',
                                 move: '移动',
                                 properties: '属性',
+                                openTerminal: '前往终端',
                             },
+                            readOnlyNotice: '此处仅支持浏览。双击不超过 1 MB 的常规 UTF-8 文本文件可预览内容；如需修改，请前往终端并连接相应主机后操作。',
                             dialogs: {
                                 copyTitle: '复制条目',
                                 moveTitle: '移动条目',

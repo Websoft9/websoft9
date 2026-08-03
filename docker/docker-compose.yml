@@ -10,7 +10,6 @@ services:
     restart: always
     environment:
       WEBSOFT9_DATA_ROOT: ${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}
-      WEBSOFT9_DOCKER_VOLUMES_ROOT: ${WEBSOFT9_DOCKER_VOLUMES_ROOT:-/var/lib/docker/volumes}
       WEBSOFT9_PLATFORM_HTTP_PORT: ${CONSOLE_PORT:-9000}
       WEBSOFT9_MARKETPLACE_APP_SLUG: ${WEBSOFT9_MARKETPLACE_APP_SLUG:-}
     ports:
@@ -19,7 +18,6 @@ services:
       - "443:443"
     volumes:
       - ${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}:${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}
-      - ${WEBSOFT9_DOCKER_VOLUMES_ROOT:-/var/lib/docker/volumes}:${WEBSOFT9_DOCKER_VOLUMES_ROOT:-/var/lib/docker/volumes}
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro

@@ -23,7 +23,6 @@ portainer_start_src="$repo_root/docker/scripts/platform-start-portainer.sh"
 gateway_start_src="$repo_root/docker/scripts/platform-start-gateway.sh"
 npm_backend_start_src="$repo_root/docker/scripts/platform-start-npm-backend.sh"
 npm_nginx_start_src="$repo_root/docker/scripts/platform-start-npm-nginx.sh"
-legacy_files_agent_sidecar="${WEBSOFT9_FILES_AGENT_SIDECAR_NAME:-websoft9-files-agent-current}"
 
 ensure_single_container_files_runtime() {
     local needs_port_rewire="false"
@@ -80,7 +79,6 @@ ensure_single_container_files_runtime() {
         publish_args+=(-p "$publish_spec")
     done < <(docker inspect "$container_name" --format '{{range $containerPort, $bindings := .HostConfig.PortBindings}}{{range $bindings}}{{printf "%s|%s|%s\n" .HostIp .HostPort $containerPort}}{{end}}{{end}}' | sed 's#/tcp$##')
 
-    docker rm -f "$legacy_files_agent_sidecar" >/dev/null 2>&1 || true
     docker rm -f "$container_name"
 
     docker run -d \
@@ -195,27 +193,12 @@ echo "[3/6] Syncing apphub source to $container_name:/websoft9/apphub/src"
 tar -C "$apphub_dir" -cf - src | docker exec -i "$container_name" tar -C /websoft9/apphub -xf -
 
 echo "[4/6] Updating single-container runtime support files"
-docker rm -f "$legacy_files_agent_sidecar" >/dev/null 2>&1 || true
 sync_runtime_support_files
 restore_npm_frontend_if_needed
 
 echo "[5/6] Syncing runtime assets and restarting runtime services"
 ensure_service_log_runtime_paths
-docker exec "$container_name" sh -lc 'rm -f /data/nginx/stream/stream.conf && nginx -s reload || true && /websoft9/script/platform-sync-config.sh --mode base && /websoft9/script/platform-sync-runtime-assets.py && /websoft9/script/platform-sync-config.sh --mode credentials && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf reread && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf update && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf restart portainer platform-gateway files-agent apphub-api npm-backend npm-nginx'
-
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if docker exec "$container_name" python3 - <<'PY' >/dev/null 2>&1
-import urllib.request
-urllib.request.urlopen('http://127.0.0.1:8091/healthz', timeout=2).read()
-PY
-    then
-        break
-    fi
-    if [[ "$attempt" == "10" ]]; then
-        echo "files-agent process inside product container did not become ready" >&2
-        exit 1
-    fi
-done
+docker exec "$container_name" sh -lc 'rm -f /data/nginx/stream/stream.conf && nginx -s reload || true && /websoft9/script/platform-sync-config.sh --mode base && /websoft9/script/platform-sync-runtime-assets.py && /websoft9/script/platform-sync-config.sh --mode credentials && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf reread && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf update && supervisorctl -c /etc/supervisor/conf.d/websoft9-platform.conf restart portainer platform-gateway apphub-api npm-backend npm-nginx'
 
 echo "[6/6] Verifying product entry"
 for attempt in 1 2 3 4 5 6 7 8 9 10; do

@@ -22,7 +22,7 @@ import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { LegacyMyAppLogo } from './my-app-media'
 import { canOpenMyAppsDetailOverlay, clearMyAppsDetailOverlayIntent, consumePendingComposeReturn, hasMyAppsDetailOverlayIntent, markPendingComposeReturn, rememberMyAppsDetailRoute } from './my-app-detail-overlay-intent'
-import { VolumeFileManagerDialog } from './volume-file-manager-dialog'
+import { VolumeFileBrowserDialog } from './volume-file-browser-dialog'
 import { type MyAppDetail, useMyAppDetail } from './use-my-app-detail'
 import { MyAppAccessPanel } from './my-app-access-panel'
 import { useMyAppPhpInfo } from './use-my-app-php-info'
@@ -2455,8 +2455,9 @@ export function MyAppDetailPage() {
                 </Box>
             </SurfaceDialog>
 
-            <VolumeFileManagerDialog
+            <VolumeFileBrowserDialog
                 open={activeVolumeFileManager !== null}
+                appId={appId ?? ''}
                 volumeId={activeVolumeFileManager?.volumeId ?? ''}
                 volumeLabel={activeVolumeFileManager?.label ?? ''}
                 darkMode={isDarkMode}

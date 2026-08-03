@@ -7,8 +7,8 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from starlette.requests import HTTPConnection
 from src.api.v1.routers import app as api_app
 from src.api.v1.routers import auth as api_auth
-from src.api.v1.routers import files as api_files
 from src.api.v1.routers import host_access as api_host_access
+from src.api.v1.routers import myapp_volume_browse as api_myapp_volume_browse
 from src.api.v1.routers import integrations as api_integrations
 from src.api.v1.routers import logs as api_logs
 from src.api.v1.routers import overview as api_overview
@@ -150,8 +150,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.include_router(api_app.router,tags=["apps"])
 app.include_router(api_auth.router,tags=["auth"])
-app.include_router(api_files.router,tags=["files"])
 app.include_router(api_host_access.router,tags=["host-access"])
+app.include_router(api_myapp_volume_browse.router,tags=["myapp-volume-browse"])
 app.include_router(api_integrations.router,tags=["integrations"])
 app.include_router(api_logs.router,tags=["logs"])
 app.include_router(api_overview.router,tags=["overview"])
