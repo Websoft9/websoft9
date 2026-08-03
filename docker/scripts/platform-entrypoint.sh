@@ -74,6 +74,7 @@ ensure_data_managed_paths() {
   mkdir -p "$custom_root" "$service_log_root" "$WEBSOFT9_APPHUB_CONFIG_DIR"
   ensure_legacy_compat_link "$custom_root" /etc/custom
   ensure_legacy_compat_link "$service_log_root" /var/log/websoft9
+  ensure_legacy_compat_link "$data_root/media" /websoft9/media
 
   # Ensure the backup directory exists under the data root.
   # The init_nginx.sh script already creates /data → $data_root, so the
