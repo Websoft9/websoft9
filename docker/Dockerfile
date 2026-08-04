@@ -42,8 +42,8 @@ RUN set -e; \
         echo "pip install failed on attempt $attempt, retrying..."; \
     done
 
-FROM gitea/gitea:1.25.5 AS gitea-runtime
-FROM portainer/portainer-ce:2.40.0 AS portainer-runtime
+FROM gitea/gitea:1.26.2 AS gitea-runtime
+FROM portainer/portainer-ce:2.44.0 AS portainer-runtime
 FROM jc21/nginx-proxy-manager:2.12.6 AS npm-runtime
 
 FROM python:3.11-slim

@@ -124,20 +124,16 @@ class IntegrationSessionBridge:
             login_page.raise_for_status()
 
             csrf_match = re.search(r'name="_csrf" value="([^"]+)"', login_page.text)
-            if not csrf_match:
-                raise CustomException(
-                    status_code=502,
-                    message="Integration Session Bootstrap Failed",
-                    details="Gitea login page did not expose a CSRF token",
-                )
+            login_data = {
+                "user_name": username,
+                "password": password,
+            }
+            if csrf_match:
+                login_data["_csrf"] = csrf_match.group(1)
 
             login_response = session.post(
                 f"{self.gitea_direct_origin}/user/login",
-                data={
-                    "_csrf": csrf_match.group(1),
-                    "user_name": username,
-                    "password": password,
-                },
+                data=login_data,
                 allow_redirects=False,
                 timeout=20,
             )
