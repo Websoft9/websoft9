@@ -142,3 +142,24 @@ def test_internal_product_edition_allows_authenticated_operator_read(monkeypatch
     assert response.status_code == 200
     assert response.json()["edition_key"] == "free"
     assert response.json()["updated_by"] == "system"
+
+
+def test_upgrade_status_does_not_recommend_release_candidate(monkeypatch):
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.3.3")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "release")
+    monkeypatch.setattr(settings_router, "_latest_remote_version", lambda _channel: "2.3.4-rc.1")
+
+    status = settings_router.get_upgrade_status()
+
+    assert status["latest_version"] == "2.3.4-rc.1"
+    assert status["upgrade_available"] is False
+
+
+def test_upgrade_status_keeps_stable_release_recommendation(monkeypatch):
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.3.3")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "release")
+    monkeypatch.setattr(settings_router, "_latest_remote_version", lambda _channel: "2.3.4")
+
+    status = settings_router.get_upgrade_status()
+
+    assert status["upgrade_available"] is True

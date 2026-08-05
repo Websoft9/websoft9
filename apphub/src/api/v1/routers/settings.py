@@ -17,6 +17,10 @@ router = APIRouter()
 _ARTIFACT_BASE_URL = "https://artifact.websoft9.com/websoft9"
 
 
+def _is_release_candidate(version: Optional[str]) -> bool:
+    return "-rc" in str(version or "").lower()
+
+
 def _latest_remote_version(channel: str) -> Optional[str]:
     try:
         resp = requests.get(
@@ -168,6 +172,7 @@ def get_upgrade_status():
         latest_version
         and current_version
         and latest_version != current_version
+        and not _is_release_candidate(latest_version)
     )
     artifact_url = f"{_ARTIFACT_BASE_URL}/{channel}/install.sh"
     install_command = f"wget -O install.sh {artifact_url} && sudo bash install.sh"

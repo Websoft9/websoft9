@@ -97,6 +97,53 @@
 
 <body>
   <div id="root"></div>
+  <style>
+    #startup-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: grid;
+      place-items: center;
+      background: #f8fafc;
+      opacity: 1;
+      transition: opacity 160ms ease;
+    }
+
+    #startup-splash.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .startup-splash-spinner {
+      width: 30px;
+      height: 30px;
+      box-sizing: border-box;
+      border: 3px solid rgba(23, 103, 209, 0.18);
+      border-top-color: #1767d1;
+      border-radius: 50%;
+      animation: startup-splash-spin 700ms linear infinite;
+    }
+
+    @keyframes startup-splash-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .startup-splash-spinner {
+        animation-duration: 1.8s;
+      }
+    }
+  </style>
+  <script>
+    if (/^\/setup\/?$/.test(window.location.pathname)) {
+      document.body.insertAdjacentHTML(
+        'afterbegin',
+        '<div id="startup-splash" role="status" aria-label="Loading"><span class="startup-splash-spinner" aria-hidden="true"></span></div>',
+      )
+    }
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

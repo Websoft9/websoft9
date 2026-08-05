@@ -481,7 +481,7 @@
                     detail.textContent = t('statusOk');
                     detail.style.display = '';
                     retry.hidden = true;
-                    button.href = base;
+                    button.href = state === 'ready-init' ? base + '/setup' : base;
                     button.classList.remove('disabled');
                 } else if (state === 'error') {
                     desc.textContent = t('descReadyInit');

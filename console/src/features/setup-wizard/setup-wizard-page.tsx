@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import { markMyAppsDetailOverlayIntent } from '../my-apps/my-app-detail-overlay-intent'
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
+import { dismissStartupSplash } from '../../shared/lib/startup-splash'
 
 type WizardStep = 'welcome' | 'platform_init' | 'app_init_ready' | 'app_init_running' | 'app_init_failed' | 'complete'
 
@@ -244,6 +245,18 @@ export function SetupWizardPage() {
         () => confirmPassword.length === 0 || password === confirmPassword,
         [confirmPassword, password],
     )
+    const setupValidationFieldSx = {
+        ...setupFieldSx,
+        position: 'relative',
+        '& .MuiFormHelperText-root': {
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 1,
+            margin: '3px 0 0',
+            lineHeight: '18px',
+        },
+    }
     const generateStrongPassword = () => {
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
         const pick = (set: string) => set[Math.floor(Math.random() * set.length)]
@@ -328,6 +341,7 @@ export function SetupWizardPage() {
                 }
                 // Setup wizard is not enabled in this runtime (non-cloud environment).
                 // Redirect based on current auth state instead of showing an error.
+                dismissStartupSplash()
                 if (status?.initialization_required) {
                     navigate('/auth/setup', { replace: true })
                 } else if (!status?.authenticated) {
@@ -380,6 +394,12 @@ export function SetupWizardPage() {
             return
         }
     }, [isLoading, navigate, pageLoading, platformInitializationRequired, refresh, status, wizardState])
+
+    useEffect(() => {
+        if (!isLoading && !pageLoading && wizardState) {
+            dismissStartupSplash()
+        }
+    }, [isLoading, pageLoading, wizardState])
 
     async function handlePlatformInitSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -767,12 +787,17 @@ export function SetupWizardPage() {
                                                 {apiLocale === 'zh' ? '管理员账号' : 'Admin account'}
                                             </Typography>
                                             <Box>
-                                                <TextField size="small" label={apiLocale === 'zh' ? '用户名' : 'Username'} value={username} onChange={(event) => setUsername(event.target.value)} required sx={{ ...setupFieldSx, width: '100%' }} autoComplete="username" />
-                                                {username.length > 0 && username.trim().length < 3 ? (
-                                                    <Typography sx={{ fontSize: 12, color: '#d32f2f', mt: 0.5, ml: 0.5 }}>
-                                                        {apiLocale === 'zh' ? '用户名至少 3 位。' : 'Username must be at least 3 characters.'}
-                                                    </Typography>
-                                                ) : null}
+                                                <TextField
+                                                    size="small"
+                                                    label={apiLocale === 'zh' ? '用户名' : 'Username'}
+                                                    value={username}
+                                                    onChange={(event) => setUsername(event.target.value)}
+                                                    required
+                                                    error={username.length > 0 && username.trim().length < 3}
+                                                    helperText={username.length > 0 && username.trim().length < 3 ? (apiLocale === 'zh' ? '用户名至少 3 位。' : 'Username must be at least 3 characters.') : undefined}
+                                                    sx={{ ...setupValidationFieldSx, width: '100%' }}
+                                                    autoComplete="username"
+                                                />
                                             </Box>
                                             <TextField
                                                 size="small"
@@ -783,7 +808,7 @@ export function SetupWizardPage() {
                                                 required
                                                 error={password.length > 0 && !setupPasswordValid}
                                                 helperText={password.length > 0 && !setupPasswordValid ? (apiLocale === 'zh' ? '至少 8 位，包含大小写、数字和符号。' : 'At least 8 characters with uppercase, lowercase, number, and symbol.') : undefined}
-                                                sx={{ ...setupFieldSx, width: '100%' }}
+                                                sx={{ ...setupValidationFieldSx, width: '100%' }}
                                                 autoComplete="new-password"
                                                 slotProps={{
                                                     input: {
@@ -818,7 +843,7 @@ export function SetupWizardPage() {
                                                 required
                                                 error={confirmPassword.length > 0 && !setupPasswordsMatch}
                                                 helperText={confirmPassword.length > 0 && !setupPasswordsMatch ? (apiLocale === 'zh' ? '两次输入的密码不一致。' : 'Passwords do not match.') : undefined}
-                                                sx={setupFieldSx}
+                                                sx={setupValidationFieldSx}
                                                 autoComplete="new-password"
                                                 slotProps={{
                                                     input: {
@@ -868,10 +893,10 @@ export function SetupWizardPage() {
                                                     </Box>
                                                     <Box>
                                                         <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
-                                                            {apiLocale === 'zh' ? `${displayName} 正在初始化…` : `Initializing ${displayName}…`}
+                                                            {apiLocale === 'zh' ? `${displayName} 正在启动中…` : `Starting ${displayName}…`}
                                                         </Typography>
                                                         <Typography color="text.secondary" sx={{ mt: 0.75, fontSize: 14 }}>
-                                                            {apiLocale === 'zh' ? '应用正在初始化，稍后将自动进入控制台。' : 'Setting up your app. You\'ll enter the console shortly.'}
+                                                            {apiLocale === 'zh' ? '应用正在启动中，稍后将自动进入控制台。' : 'Your app is starting. You\'ll enter the console shortly.'}
                                                         </Typography>
                                                     </Box>
                                                 </>
@@ -918,7 +943,7 @@ export function SetupWizardPage() {
                                     </Box>
                                     {error ? (
                                         <Box sx={actionRowSx}>
-                                            <Button variant="contained" onClick={() => { window.sessionStorage.setItem('websoft9_setup_closed', '1'); navigate('/myapps', { replace: true }) }} sx={primaryActionButtonSx}>
+                                            <Button variant="contained" onClick={() => { window.sessionStorage.setItem('websoft9_setup_failure_access', '1'); navigate('/myapps', { replace: true }) }} sx={primaryActionButtonSx}>
                                                 {apiLocale === 'zh' ? '进入平台' : 'Open Platform'}
                                             </Button>
                                         </Box>
