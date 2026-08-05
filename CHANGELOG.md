@@ -5,6 +5,12 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.4] - 2026-08-05
+
+### Fixed
+- **Setup Wizard** — Improve initialization loading, account form validation layout, and recovery after an application startup failure.
+- **Gitea Integration** — Keep automatic sign-in working when the Gitea login page does not expose a CSRF token.
+
 ## [2.3.3] - 2026-08-03
 
 ### Added
