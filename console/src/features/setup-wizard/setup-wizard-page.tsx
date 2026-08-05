@@ -474,7 +474,20 @@ export function SetupWizardPage() {
                     window.sessionStorage.setItem('websoft9_setup_target_app', completeResult.installed_app_id)
                 }
             }
-            navigate('/myapps', { replace: true })
+
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                try {
+                    await refresh()
+                    navigate('/myapps', { replace: true })
+                    return
+                } catch {
+                    if (attempt === 0) {
+                        await new Promise((resolve) => window.setTimeout(resolve, 1000))
+                    }
+                }
+            }
+
+            window.location.replace('/myapps')
         } catch (submitError) {
             setError(submitError instanceof Error ? mapSetupWizardErrorMessage(submitError.message, apiLocale) : apiLocale === 'zh' ? '开始使用失败。' : 'Failed to start the app.')
         } finally {
