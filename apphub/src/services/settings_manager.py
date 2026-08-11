@@ -474,6 +474,7 @@ class SettingsManager:
         force_https: str,
         ssl_cert: str = "",
         ssl_key: str = "",
+        restart_gateway: bool = True,
     ) -> Dict[str, str]:
         self.config.read(self.config_file_path)
 
@@ -520,7 +521,8 @@ class SettingsManager:
         with open(self.config_file_path, "w") as configfile:
             self.config.write(configfile)
 
-        self._restart_platform_gateway()
+        if restart_gateway:
+            self._restart_platform_gateway()
         return self.read_section("platform_gateway")
 
     def _is_default_platform_certificate(self) -> bool:

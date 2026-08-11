@@ -34,6 +34,7 @@ class appInstall(BaseModel):
         If proxy_enabled is false, provide the host machine's IP address.(e.g., ["192.168.1.1"])""",
         example=["wordpress.example1.com", "wordpress.example2.com"])
     settings: Optional[dict] = Field(None, description="The settings for the app", example={"W9_HTTP_PORT_SET": "9001"})
+    profile: Optional[str] = Field(None, description="Optional locally published installation profile")
    
     @validator('app_name')
     def validate_app_name(cls, v):
@@ -47,7 +48,15 @@ class appInstall(BaseModel):
         if not pattern.match(v):
             raise CustomException(400,"Invalid Request","The app_id must be a combination of 2 to 20 lowercase letters and numbers, and cannot start with a number.")
         return v
-    
+
+    @validator('profile')
+    def validate_profile(cls, v):
+        if v is None:
+            return v
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", v):
+            raise CustomException(400, "Invalid Request", "Invalid installation profile.")
+        return v
+
     @validator('domain_names', each_item=True)
     def validate_domain_name(cls, v):
         if not v.strip():
@@ -66,3 +75,11 @@ class appInstall(BaseModel):
             if v and len(set(v)) != len(v):
                 raise CustomException(400,"Invalid Request","Duplicate entries found in 'domain_names'. All domains must be unique.")
         return v
+
+
+class ExternalMySQLConnectionTestRequest(BaseModel):
+    host: str = Field(..., min_length=1)
+    port: int = Field(..., ge=1, le=65535)
+    database_name: str = Field(..., min_length=1)
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)

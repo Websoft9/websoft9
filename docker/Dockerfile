@@ -183,7 +183,7 @@ RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
 
 RUN printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisord "$@"' > /usr/local/bin/supervisord && \
     printf '%s\n' '#!/bin/sh' 'exec python3 -m supervisor.supervisorctl "$@"' > /usr/local/bin/supervisorctl && \
-    printf '%s\n' '#!/bin/sh' 'export PYTHONPATH="/opt/websoft9-pydeps:/websoft9/apphub:/websoft9/apphub/src"' 'export WEBSOFT9_CLI_NAME="websoft9"' 'exec python3 /websoft9/apphub/src/cli/apphub_cli.py "$@"' > /usr/local/bin/websoft9 && \
+    printf '%s\n' '#!/bin/sh' 'export PYTHONPATH="/opt/websoft9-pydeps:/websoft9/apphub:/websoft9/apphub/src"' 'export WEBSOFT9_CLI_NAME="websoft9"' 'export WEBSOFT9_DATA_ROOT="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"' 'export WEBSOFT9_APPHUB_CONFIG_PATH="${WEBSOFT9_APPHUB_CONFIG_PATH:-$WEBSOFT9_DATA_ROOT/config/apphub/config.ini}"' 'export WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH="${WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH:-$WEBSOFT9_DATA_ROOT/config/apphub/system.ini}"' 'exec python3 /websoft9/apphub/src/cli/apphub_cli.py "$@"' > /usr/local/bin/websoft9 && \
     chmod +x /usr/local/bin/supervisord /usr/local/bin/supervisorctl /usr/local/bin/websoft9
 
 RUN chmod +x /app/init_nginx.sh \

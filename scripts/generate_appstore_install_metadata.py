@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 ENV_REFERENCE_PATTERN = re.compile(r"\$\{?(\w+)\}?")
+PROFILE_COMPOSE_PATTERN = re.compile(r"^docker-compose\.([a-z0-9][a-z0-9-]*)\.yml$")
 
 
 def load_initial_apps(config_path: Path) -> list[str]:
@@ -63,6 +64,34 @@ def load_env_values(env_path: Path) -> dict[str, str]:
     return resolved_values
 
 
+def get_install_settings(env_values: dict[str, str]) -> dict[str, str]:
+    return {
+        key: value
+        for key, value in env_values.items()
+        if key.startswith("W9_") and key.endswith("_SET")
+    }
+
+
+def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
+    profiles: dict[str, dict[str, object]] = {}
+
+    for compose_path in sorted(app_dir.glob("docker-compose.*.yml")):
+        match = PROFILE_COMPOSE_PATTERN.match(compose_path.name)
+        if not match:
+            continue
+
+        profile_name = match.group(1)
+        env_path = app_dir / f".env.{profile_name}"
+        if not env_path.is_file():
+            continue
+
+        profiles[profile_name] = {
+            "settings": get_install_settings(load_env_values(env_path)),
+        }
+
+    return profiles
+
+
 def build_install_metadata(library_root: Path, config_path: Path) -> dict[str, object]:
     manifest: dict[str, object] = {
         "initial_apps": load_initial_apps(config_path),
@@ -87,12 +116,12 @@ def build_install_metadata(library_root: Path, config_path: Path) -> dict[str, o
 
         if env_path.exists():
             env_values = load_env_values(env_path)
-            app_metadata["settings"] = {
-                key: value
-                for key, value in env_values.items()
-                if key.startswith("W9_") and key.endswith("_SET")
-            }
+            app_metadata["settings"] = get_install_settings(env_values)
             app_metadata["is_web_app"] = "W9_URL" in env_values
+
+        profiles = discover_install_profiles(app_dir)
+        if profiles:
+            app_metadata["profiles"] = profiles
 
         apps_metadata[app_key] = app_metadata
 

@@ -12,7 +12,7 @@ from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
 from src.schemas.appComposeInstall import ComposeInstallAcceptedResponse, ComposeInstallRequest, ComposeValidationRequest, ComposeValidationResponse
 from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
-from src.schemas.appInstall import appInstall
+from src.schemas.appInstall import ExternalMySQLConnectionTestRequest, appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
@@ -126,6 +126,23 @@ async def stream_apps(
             "X-Accel-Buffering": "no",
         },
     )
+
+@router.get(
+        "/databases",
+        summary="List External Databases",
+        description="List external databases across installed apps.",
+        responses={
+            200: {"description": "Successful Response"},
+            400: {"model": ErrorResponse},
+            500: {"model": ErrorResponse},
+        },
+)
+def get_external_databases(
+    endpointId: int = Query(None, description="Endpoint ID to get databases from. If not set, get databases from the local endpoint"),
+    locale: str = Query("en", description="Language used to resolve installed app media", regex="^(zh|en)(-[A-Za-z]{2})?$"),
+):
+    return AppManger().get_external_databases(endpointId, locale)
+
 
 @router.get(
         "/apps/{app_id}",
@@ -344,6 +361,28 @@ async def apps_install(
         app_id=tracked_app_id,
         tracking_id=tracking_id,
     )
+
+
+@router.post(
+    "/apps/install/external-mysql/test-connection",
+    summary="Test External MySQL Connection",
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+def test_external_mysql_install_connection(payload: ExternalMySQLConnectionTestRequest):
+    from src.services.install_profile import test_external_mysql_connection
+
+    test_external_mysql_connection(
+        payload.host,
+        payload.port,
+        payload.database_name,
+        payload.username,
+        payload.password,
+    )
+    return {"status": "success"}
 
 
 @router.post(

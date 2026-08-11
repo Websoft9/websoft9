@@ -12,6 +12,10 @@ export const shellNavigationItems = [
         pageKey: 'myApps',
     },
     {
+        segment: 'databases',
+        pageKey: 'databases',
+    },
+    {
         segment: 'containers',
         pageKey: 'containers',
     },

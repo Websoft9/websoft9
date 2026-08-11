@@ -11,6 +11,7 @@ import {
     DialogContent,
     DialogTitle,
     IconButton,
+    InputAdornment,
     Link,
     MenuItem,
     Stack,
@@ -86,6 +87,18 @@ function normalizeCustomDomain(value: string) {
     return value.trim().toLowerCase()
 }
 
+function DatabasePasswordVisibilityIcon({ visible }: { visible: boolean }) {
+    return visible ? (
+        <SvgIcon fontSize="small" viewBox="0 0 24 24">
+            <path d="M12 7a5 5 0 0 1 5 5c0 .64-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46A11.8 11.8 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65a3 3 0 0 0 3 3c.22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53a5 5 0 0 1-5-5c0-.79.2-1.53.53-2.2zm4.31-.78 3.15 3.15.02-.16a3 3 0 0 0-3-3l-.17.01z" />
+        </SvgIcon>
+    ) : (
+        <SvgIcon fontSize="small" viewBox="0 0 24 24">
+            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+        </SvgIcon>
+    )
+}
+
 function normalizeMountPath(value: string) {
     return value.trim().replace(/\\+/g, '/').replace(/^\.\//, '')
 }
@@ -116,11 +129,12 @@ function getInstallPortsValidationMessage(
     settings: Record<string, string>,
     t: (key: string, options?: Record<string, unknown>) => string,
     locale: string,
+    profile: string | null,
 ) {
     const usedPorts = new Set<string>()
 
     for (const [key, rawValue] of Object.entries(settings)) {
-        if (!key.toLowerCase().includes('port')) {
+        if (!key.toLowerCase().includes('port') || (profile === 'external-mysql' && key === 'W9_DB_PORT_SET')) {
             continue
         }
 
@@ -294,6 +308,7 @@ async function installApp(
     settings: Record<string, string>,
     domainNames: string[],
     proxyEnabled: boolean,
+    profile: string | null,
 ) {
     const distribution = getPreferredAppStoreInstallDistribution(app)
     const response = await fetch('/api/apps/install', {
@@ -313,6 +328,7 @@ async function installApp(
             proxy_enabled: proxyEnabled,
             domain_names: domainNames,
             settings,
+            ...(profile ? { profile } : {}),
         }),
     })
 
@@ -332,6 +348,19 @@ async function installApp(
     }
 
     return response.json().catch(() => null) as Promise<InstallTaskAcceptedResponse | null>
+}
+
+async function testExternalMySQLConnection(settings: Record<string, string>) {
+    return requestJson<{ status: string }>('/api/apps/install/external-mysql/test-connection', {
+        method: 'POST',
+        body: JSON.stringify({
+            host: settings.W9_DB_HOST_SET,
+            port: Number(settings.W9_DB_PORT_SET),
+            database_name: settings.W9_DB_NAME_SET,
+            username: settings.W9_DB_USER_SET,
+            password: settings.W9_DB_PASSWORD_SET,
+        }),
+    })
 }
 
 function AppLogo({ app, locale }: { app: AppStoreApp; locale: string }) {
@@ -885,7 +914,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installName, setInstallName] = useState('')
     const [selectedVersion, setSelectedVersion] = useState('latest')
     const [installSettings, setInstallSettings] = useState<Record<string, string>>({})
+    const [selectedInstallProfile, setSelectedInstallProfile] = useState<string | null>(null)
+    const [profileInstallSettings, setProfileInstallSettings] = useState<Record<string, Record<string, string>>>({})
+    const [isTestingDatabase, setIsTestingDatabase] = useState(false)
+    const [isDatabasePasswordVisible, setIsDatabasePasswordVisible] = useState(false)
     const [installError, setInstallError] = useState<string | null>(null)
+    const [installToastRevision, setInstallToastRevision] = useState(0)
     const [installFieldErrors, setInstallFieldErrors] = useState<InstallFieldErrors>({})
     const [installFeedback, setInstallFeedback] = useState<InstallFeedback | null>(null)
     const [isSubmittingInstall, setIsSubmittingInstall] = useState(false)
@@ -972,10 +1006,71 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         const canonicalSelectedApp = apps.find((app) => (app.key ?? '').toLowerCase() === selectedAppKey)
         return canonicalSelectedApp?.settings ?? selectedApp?.settings ?? {}
     }, [apps, selectedApp])
+    const selectedAppProfiles = useMemo(() => {
+        const selectedAppKey = (selectedApp?.key ?? '').toLowerCase()
+        const canonicalSelectedApp = selectedAppKey
+            ? apps.find((app) => (app.key ?? '').toLowerCase() === selectedAppKey)
+            : undefined
+        return canonicalSelectedApp?.profiles ?? selectedApp?.profiles ?? {}
+    }, [apps, selectedApp])
+    const selectedProfileTemplateSettings = selectedInstallProfile
+        ? selectedAppProfiles[selectedInstallProfile]?.settings ?? {}
+        : {}
+    const isExternalMySQLProfile = selectedInstallProfile === 'external-mysql'
+    const externalMySQLSettingKeys = [
+        'W9_DB_HOST_SET',
+        'W9_DB_PORT_SET',
+        'W9_DB_NAME_SET',
+        'W9_DB_USER_SET',
+        'W9_DB_PASSWORD_SET',
+    ]
     const effectiveInstallSettings = useMemo(
-        () => (Object.keys(installSettings).length > 0 ? installSettings : selectedAppSettings),
-        [installSettings, selectedAppSettings],
+        () => {
+            if (!selectedInstallProfile) {
+                return Object.keys(installSettings).length > 0 ? installSettings : selectedAppSettings
+            }
+
+            return profileInstallSettings[selectedInstallProfile] ?? selectedProfileTemplateSettings
+        },
+        [installSettings, profileInstallSettings, selectedInstallProfile, selectedProfileTemplateSettings],
     )
+    const sharedInstallSettings = Object.entries(effectiveInstallSettings).filter(
+        ([key]) => !isExternalMySQLProfile || !externalMySQLSettingKeys.includes(key),
+    )
+    const displayedProfileInstallSettings = externalMySQLSettingKeys.map(
+        (key) => [key, effectiveInstallSettings[key] ?? ''] as [string, string],
+    )
+    const isChineseLocale = resolvedLocale.toLowerCase().startsWith('zh')
+
+    function getDatabaseSettingLabel(key: string) {
+        const labels: Record<string, { zh: string; en: string }> = {
+            W9_DB_HOST_SET: { zh: '数据库主机', en: 'Database host' },
+            W9_DB_PORT_SET: { zh: '数据库端口', en: 'Database port' },
+            W9_DB_NAME_SET: { zh: '数据库名称', en: 'Database name' },
+            W9_DB_USER_SET: { zh: '数据库用户', en: 'Database user' },
+            W9_DB_PASSWORD_SET: { zh: '数据库密码', en: 'Database password' },
+        }
+        return labels[key]?.[isChineseLocale ? 'zh' : 'en'] ?? getInstallSettingLabel(key, t, resolvedLocale)
+    }
+
+    function getExternalDatabaseValidationErrors(settings: Record<string, string>) {
+        const errors: Record<string, string> = {}
+        const requiredKeys = ['W9_DB_HOST_SET', 'W9_DB_PORT_SET', 'W9_DB_NAME_SET', 'W9_DB_USER_SET', 'W9_DB_PASSWORD_SET']
+        for (const key of requiredKeys) {
+            if (!settings[key]?.trim()) {
+                errors[key] = isChineseLocale ? `${getDatabaseSettingLabel(key)}不能为空` : `${getDatabaseSettingLabel(key)} is required`
+            }
+        }
+        const host = settings.W9_DB_HOST_SET?.trim() ?? ''
+        if (host && (host.includes('://') || /\s/.test(host))) {
+            errors.W9_DB_HOST_SET = isChineseLocale ? '数据库主机格式无效' : 'Database host is invalid'
+        }
+        const port = Number(settings.W9_DB_PORT_SET)
+        if (settings.W9_DB_PORT_SET?.trim() && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+            errors.W9_DB_PORT_SET = isChineseLocale ? '数据库端口必须在 1 到 65535 之间' : 'Database port must be between 1 and 65535'
+        }
+        return errors
+    }
 
     const installedOfficialAppNames = useMemo(() => {
         const myApps = myAppsData ?? []
@@ -1264,6 +1359,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setInstallName(normalizeInstallName(selectedApp.trademark ?? selectedApp.key ?? ''))
         setSelectedVersion(distribution.versions[0] ?? 'latest')
         setInstallSettings({ ...(selectedApp.settings ?? {}) })
+        setSelectedInstallProfile(null)
+        setProfileInstallSettings(
+            Object.fromEntries(
+                Object.entries(selectedApp.profiles ?? {}).map(([profile, metadata]) => [profile, { ...(metadata.settings ?? {}) }]),
+            ),
+        )
         setInstallError(null)
         setInstallFieldErrors({})
         setIsDomainEnabled(Boolean(wildcardDomain))
@@ -1423,12 +1524,22 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             seenDomains.add(domain)
         }
 
-        const portsValidationMessage = getInstallPortsValidationMessage(effectiveInstallSettings, t, locale)
+        const portsValidationMessage = getInstallPortsValidationMessage(effectiveInstallSettings, t, locale, selectedInstallProfile)
         if (portsValidationMessage) {
             setInstallFieldErrors({ settings: { [portsValidationMessage.key]: portsValidationMessage.message } })
             setInstallError(portsValidationMessage.message)
             installSettingInputRefs.current[portsValidationMessage.key]?.focus()
             return
+        }
+
+        if (selectedInstallProfile === 'external-mysql') {
+            const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings)
+            if (Object.keys(databaseErrors).length > 0) {
+                setInstallFieldErrors({ settings: databaseErrors })
+                setInstallError(Object.values(databaseErrors)[0] ?? null)
+                installSettingInputRefs.current[Object.keys(databaseErrors)[0]]?.focus()
+                return
+            }
         }
 
         setIsSubmittingInstall(true)
@@ -1459,6 +1570,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 effectiveInstallSettings,
                 domainNames.length > 0 ? domainNames : [currentHostname],
                 proxyEnabled,
+                selectedInstallProfile,
             )
             setSelectedApp(null)
             setIsInstallMode(false)
@@ -1475,6 +1587,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             if (/Exceed the maximum number of apps/i.test(message)) {
                 message = t('appStorePage.install.feedback.maxApps')
             }
+            if (selectedInstallProfile === 'external-mysql' && /Unable to connect to the specified MySQL database\.?/i.test(message)) {
+                message = t('appStorePage.install.databaseConnection.failed')
+            }
             // Detect port conflict error from backend and show i18n-friendly message
             const portMatch = message.match(/Port\s+(\d+)\s+is already in use/i)
             if (portMatch) {
@@ -1486,6 +1601,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                     installSettingInputRefs.current[matchedSettingKey]?.focus()
                 }
             }
+            setInstallToastRevision((currentValue) => currentValue + 1)
             setInstallError(message)
         } finally {
             setIsSubmittingInstall(false)
@@ -2682,7 +2798,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                             <Stack spacing={1.5} sx={{ pb: 0.5 }}>
                                 {/* ── Related Recommendations ── */}
-                                {relatedApps.length > 0 ? (
+                                {relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
                                     <>
                                         <Box
                                             sx={{ display: 'flex', alignItems: 'center', minHeight: 28, cursor: 'pointer' }}
@@ -3231,12 +3347,25 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                         setInstallError(null)
                                                         setSelectedVersion(event.target.value)
                                                     }}
+                                                    helperText={selectedVersion.toLowerCase() === 'latest' ? (
+                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
+                                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                                            </SvgIcon>
+                                                            {t('appStorePage.install.latestVersionWarning')}
+                                                        </Box>
+                                                    ) : undefined}
                                                     sx={{
                                                         ...installDialogFieldSx,
                                                         '& .MuiSelect-select': {
                                                             ...appStoreControlTextSx,
                                                             color: palette.text,
                                                         },
+                                                        ...(selectedVersion.toLowerCase() === 'latest' ? {
+                                                            '& .MuiFormHelperText-root': {
+                                                                color: palette.warning,
+                                                            },
+                                                        } : {}),
                                                     }}
                                                     slotProps={{
                                                         select: {
@@ -3255,6 +3384,14 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     fullWidth
                                                     size="small"
                                                     value={availableVersions[0] ?? selectedVersion}
+                                                    helperText={(availableVersions[0] ?? selectedVersion).toLowerCase() === 'latest' ? (
+                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
+                                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                                            </SvgIcon>
+                                                            {t('appStorePage.install.latestVersionWarning')}
+                                                        </Box>
+                                                    ) : undefined}
                                                     slotProps={{
                                                         input: {
                                                             readOnly: true,
@@ -3271,12 +3408,17 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                             color: palette.text,
                                                             WebkitTextFillColor: palette.text,
                                                         },
+                                                        ...((availableVersions[0] ?? selectedVersion).toLowerCase() === 'latest' ? {
+                                                            '& .MuiFormHelperText-root': {
+                                                                color: palette.warning,
+                                                            },
+                                                        } : {}),
                                                     }}
                                                 />
                                             )}
                                         </Box>
 
-                                        {Object.entries(effectiveInstallSettings).map(([key, value]) => (
+                                        {sharedInstallSettings.map(([key, value]) => (
                                             <Box key={key}>
                                                 {(() => {
 
@@ -3290,6 +3432,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                     installSettingInputRefs.current[key] = element
                                                                 }}
                                                                 size="small"
+                                                                type={key.endsWith('_PASSWORD_SET') ? 'password' : 'text'}
                                                                 value={value}
                                                                 onChange={(event) => {
                                                                     setInstallFieldErrors((currentValue) => ({
@@ -3297,10 +3440,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                         settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
                                                                     }))
                                                                     setInstallError(null)
-                                                                    setInstallSettings((currentValue) => ({
-                                                                        ...currentValue,
-                                                                        [key]: event.target.value,
-                                                                    }))
+                                                                    if (selectedInstallProfile) {
+                                                                        setProfileInstallSettings((currentValue) => ({
+                                                                            ...currentValue,
+                                                                            [selectedInstallProfile]: {
+                                                                                ...(currentValue[selectedInstallProfile] ?? selectedProfileTemplateSettings),
+                                                                                [key]: event.target.value,
+                                                                            },
+                                                                        }))
+                                                                    } else {
+                                                                        setInstallSettings((currentValue) => ({
+                                                                            ...currentValue,
+                                                                            [key]: event.target.value,
+                                                                        }))
+                                                                    }
                                                                 }}
                                                                 slotProps={{
                                                                     htmlInput: key.toLowerCase().includes('port')
@@ -3324,6 +3477,152 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 })()}
                                             </Box>
                                         ))}
+
+                                        {Object.keys(selectedAppProfiles).length > 0 ? (
+                                            <Box sx={{ pt: 0.5 }}>
+                                                <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
+                                                    {isChineseLocale ? '应用数据库' : 'Application database'}
+                                                </Typography>
+                                                <TextField
+                                                    select
+                                                    fullWidth
+                                                    size="small"
+                                                    value={selectedInstallProfile ?? ''}
+                                                    onChange={(event) => {
+                                                        setInstallError(null)
+                                                        setInstallFieldErrors({})
+                                                        setSelectedInstallProfile(event.target.value || null)
+                                                    }}
+                                                    sx={{
+                                                        ...installDialogFieldSx,
+                                                        '& .MuiSelect-select': { ...appStoreControlTextSx, color: palette.text },
+                                                    }}
+                                                    slotProps={{ select: { MenuProps: installDialogSelectMenuProps, displayEmpty: true } }}
+                                                >
+                                                    <MenuItem value="">{isChineseLocale ? '系统内置' : 'System built-in'}</MenuItem>
+                                                    {Object.keys(selectedAppProfiles).map((profile) => (
+                                                        <MenuItem key={profile} value={profile}>
+                                                            {profile === 'external-mysql' ? (isChineseLocale ? '自定义' : 'Custom') : profile.replace(/-/g, ' ')}
+                                                        </MenuItem>
+                                                    ))}
+                                                </TextField>
+
+                                                {isExternalMySQLProfile ? (
+                                                    <Box
+                                                        component="fieldset"
+                                                        sx={{
+                                                            mt: 1.5,
+                                                            p: { xs: 1.25, md: 1.5 },
+                                                            border: `1px solid ${palette.border}`,
+                                                            borderRadius: '4px',
+                                                            backgroundColor: palette.panelSoft,
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        <Typography component="legend" sx={{ px: 0.75, fontSize: 14, fontWeight: 500, color: palette.text, backgroundColor: palette.panelSoft }}>
+                                                            {isChineseLocale ? '数据库连接信息' : 'Database connection'}
+                                                        </Typography>
+                                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(6, minmax(0, 1fr))' }, gap: 1.25 }}>
+                                                            {displayedProfileInstallSettings.map(([key, value]) => (
+                                                                <Box
+                                                                    key={key}
+                                                                    sx={{
+                                                                        gridColumn: {
+                                                                            xs: 'span 1',
+                                                                            md: key === 'W9_DB_HOST_SET' ? 'span 3' : key === 'W9_DB_PORT_SET' ? 'span 1' : key === 'W9_DB_NAME_SET' ? 'span 2' : 'span 3',
+                                                                        },
+                                                                    }}
+                                                                >
+                                                                    <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getDatabaseSettingLabel(key)}</Typography>
+                                                                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                                                        <TextField
+                                                                            error={Boolean(installFieldErrors.settings?.[key])}
+                                                                            fullWidth
+                                                                            inputRef={(element) => {
+                                                                                installSettingInputRefs.current[key] = element
+                                                                            }}
+                                                                            size="small"
+                                                                            type={key === 'W9_DB_PASSWORD_SET' && !isDatabasePasswordVisible ? 'password' : 'text'}
+                                                                            value={value}
+                                                                            onChange={(event) => {
+                                                                                setInstallFieldErrors((currentValue) => ({
+                                                                                    ...currentValue,
+                                                                                    settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
+                                                                                }))
+                                                                                setInstallError(null)
+                                                                                setProfileInstallSettings((currentValue) => ({
+                                                                                    ...currentValue,
+                                                                                    [selectedInstallProfile]: {
+                                                                                        ...(currentValue[selectedInstallProfile] ?? selectedProfileTemplateSettings),
+                                                                                        [key]: event.target.value,
+                                                                                    },
+                                                                                }))
+                                                                            }}
+                                                                            slotProps={{
+                                                                                input: key === 'W9_DB_PASSWORD_SET' ? {
+                                                                                    endAdornment: (
+                                                                                        <InputAdornment position="end">
+                                                                                            <IconButton
+                                                                                                aria-label={isDatabasePasswordVisible ? (isChineseLocale ? '隐藏密码' : 'Hide password') : (isChineseLocale ? '显示密码' : 'Show password')}
+                                                                                                edge="end"
+                                                                                                onClick={() => setIsDatabasePasswordVisible((currentValue) => !currentValue)}
+                                                                                            >
+                                                                                                <DatabasePasswordVisibilityIcon visible={isDatabasePasswordVisible} />
+                                                                                            </IconButton>
+                                                                                        </InputAdornment>
+                                                                                    ),
+                                                                                } : undefined,
+                                                                                htmlInput: key.toLowerCase().includes('port')
+                                                                                    ? { inputMode: 'numeric', pattern: '[0-9]*' }
+                                                                                    : undefined,
+                                                                            }}
+                                                                            sx={{
+                                                                                ...installDialogFieldSx,
+                                                                                '& .MuiInputBase-input': {
+                                                                                    ...appStoreControlTextSx,
+                                                                                    color: palette.text,
+                                                                                    WebkitTextFillColor: palette.text,
+                                                                                },
+                                                                            }}
+                                                                        />
+                                                                        {key === 'W9_DB_PASSWORD_SET' ? (
+                                                                            <Button
+                                                                                disabled={isTestingDatabase}
+                                                                                onClick={async () => {
+                                                                                    const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings)
+                                                                                    if (Object.keys(databaseErrors).length > 0) {
+                                                                                        setInstallFieldErrors({ settings: databaseErrors })
+                                                                                        setInstallError(Object.values(databaseErrors)[0] ?? null)
+                                                                                        installSettingInputRefs.current[Object.keys(databaseErrors)[0]]?.focus()
+                                                                                        return
+                                                                                    }
+                                                                                    setIsTestingDatabase(true)
+                                                                                    setInstallError(null)
+                                                                                    setInstallFeedback(null)
+                                                                                    try {
+                                                                                        await testExternalMySQLConnection(effectiveInstallSettings)
+                                                                                        setInstallFeedback({ severity: 'success', message: t('appStorePage.install.databaseConnection.success') })
+                                                                                    } catch (error) {
+                                                                                        setInstallError(t('appStorePage.install.databaseConnection.failed'))
+                                                                                    } finally {
+                                                                                        setIsTestingDatabase(false)
+                                                                                    }
+                                                                                }}
+                                                                                variant="outlined"
+                                                                                size="small"
+                                                                                sx={{ flexShrink: 0, minWidth: 96, height: 40, borderRadius: '4px', textTransform: 'none' }}
+                                                                            >
+                                                                                {isTestingDatabase ? t('appStorePage.install.databaseConnection.testing') : t('appStorePage.install.databaseConnection.test')}
+                                                                            </Button>
+                                                                        ) : null}
+                                                                    </Box>
+                                                                </Box>
+                                                            ))}
+                                                        </Box>
+                                                    </Box>
+                                                ) : null}
+                                            </Box>
+                                        ) : null}
 
                                     </Box>
                                 )}
@@ -3473,6 +3772,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             </Box>
 
             <SurfaceFeedbackToast
+                key={installToastRevision}
                 message={installToastMessage}
                 onClose={() => {
                     setInstallFeedback(null)

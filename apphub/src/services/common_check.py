@@ -10,6 +10,7 @@ from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
 from src.services.app_status import appInstalling,appInstallingError
 from src.services.product_metadata import read_product_edition
+from src.services.install_profile import get_port_check_settings, test_external_mysql_connection, validate_profile_settings
 
 
 def _get_host_bound_ports() -> set:
@@ -238,6 +239,7 @@ def check_endpointId(endpointId:int, portainerManager):
                 details="EndpointId Not Found"
             )
 
+
 def check_apps_number(endpointId:int):
     """
     Check the apps number is exceed the maximum number of apps
@@ -289,6 +291,21 @@ def install_validate(appInstall:appInstall,endpointId:int):
         # Check the app_name and app_version is exists in docker library
         check_appName_and_appVersion(app_name, app_version)
 
+        library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+        validate_profile_settings(
+            os.path.join(library_path, app_name),
+            appInstall.profile,
+            appInstall.settings,
+        )
+        if appInstall.profile == "external-mysql":
+            settings = appInstall.settings or {}
+            test_external_mysql_connection(
+                settings["W9_DB_HOST_SET"],
+                settings["W9_DB_PORT_SET"],
+                settings["W9_DB_NAME_SET"],
+                settings["W9_DB_USER_SET"],
+                settings["W9_DB_PASSWORD_SET"],
+            )
         # Check the app_id is exists in gitea and portainer
         check_appId(app_id, endpointId, giteaManager, portainerManager)
 
@@ -302,8 +319,8 @@ def install_validate(appInstall:appInstall,endpointId:int):
         # Check the apps number is exceed the maximum number of apps
         check_apps_number(endpointId)
 
-        # Check port conflicts for any W9_*PORT_SET settings (includes template defaults)
-        check_port_conflicts(appInstall.settings, app_name)
+        port_check_settings = get_port_check_settings(appInstall.profile, appInstall.settings)
+        check_port_conflicts(port_check_settings, None if appInstall.profile == "external-mysql" else app_name)
     except CustomException as e:
         raise e
     except Exception as e:

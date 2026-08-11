@@ -2,7 +2,7 @@ import json
 from typing import Optional
 
 import requests
-from fastapi import APIRouter, Query, Path, Cookie
+from fastapi import APIRouter, BackgroundTasks, Cookie, Path, Query, Request, Response
 from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.productRuntimeState import ProductEditionStateResponse
@@ -102,14 +102,36 @@ def update_settings(
                 500: {"model": ErrorResponse},
             }
         )
-def apply_platform_gateway_settings(payload: PlatformGatewayBatchUpdateRequest):
-    return SettingsManager().write_platform_gateway_settings(
+def apply_platform_gateway_settings(
+    payload: PlatformGatewayBatchUpdateRequest,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+):
+    manager = SettingsManager()
+    was_https_enabled = manager._is_platform_https_enabled()
+    will_enable_https = manager._parse_bool(payload.https_enabled)
+    request_is_https = (request.headers.get("x-forwarded-proto") or request.url.scheme) == "https"
+
+    result = manager.write_platform_gateway_settings(
         bound_domain=payload.bound_domain,
         https_enabled=payload.https_enabled,
         force_https=payload.force_https,
         ssl_cert=payload.ssl_cert,
         ssl_key=payload.ssl_key,
+        restart_gateway=False,
     )
+
+    if was_https_enabled and not will_enable_https and request_is_https:
+        response.delete_cookie(
+            key=PRODUCT_AUTH_COOKIE_NAME,
+            path="/",
+            samesite="lax",
+            secure=True,
+        )
+
+    background_tasks.add_task(manager._restart_platform_gateway)
+    return result
 
 
 @router.post(

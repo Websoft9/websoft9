@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 from typing import Any, Dict, List
 import json
@@ -33,6 +35,7 @@ from src.services.portainer_manager import PortainerManager
 from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.proxy_manager import ProxyManager
+from src.services.install_profile import get_port_check_settings, materialize_profile_template
 from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
@@ -140,6 +143,38 @@ class AppManger:
         except Exception:
             return None
         return None
+
+    def _read_safe_app_env_from_gitea(self, app_id: str) -> dict[str, str]:
+        allowed_keys = {
+            "W9_APP_NAME",
+            "W9_DATABASE_MODE",
+            "W9_DB_EXPOSE",
+            "W9_DB_HOST_SET",
+            "W9_DB_PORT_SET",
+            "W9_DB_NAME_SET",
+            "W9_DB_USER_SET",
+            "W9_DB_PASSWORD_SET",
+            "WORDPRESS_DB_HOST",
+            "WORDPRESS_DB_NAME",
+            "WORDPRESS_DB_USER",
+            "WORDPRESS_DB_PASSWORD",
+        }
+        try:
+            env_content = GiteaManager().get_file_raw_from_repo(app_id, ".env")
+            if not env_content:
+                return {}
+            environment: dict[str, str] = {}
+            for line in env_content.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if key in allowed_keys:
+                    environment[key] = value.strip().strip("'\"")
+            return environment
+        except Exception:
+            return {}
 
     def _enrich_proxy_hosts(self, proxy_hosts: list[dict] | None, w9_url_replace: str | bool = False, w9_url: str | None = None) -> list[dict]:
         enriched_hosts: list[dict] = []
@@ -753,9 +788,12 @@ class AppManger:
         # install requests see them before Docker containers are actually started.
         reserved_ports: set = set()
         try:
-            library_path = ConfigManager("system.ini").get_value("docker_library", "path")
-            env_path = os.path.join(library_path, app_install.app_name, ".env")
-            if os.path.exists(env_path):
+            if app_install.profile != "external-mysql":
+                library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+                env_path = os.path.join(library_path, app_install.app_name, ".env")
+            else:
+                env_path = None
+            if env_path and os.path.exists(env_path):
                 with open(env_path) as _f:
                     for _line in _f:
                         _line = _line.strip()
@@ -769,8 +807,9 @@ class AppManger:
                                 pass
         except Exception as _e:
             logger.warning(f"Port reservation: could not read template .env: {_e}")
-        if app_install.settings:
-            for _key, _val in app_install.settings.items():
+        port_check_settings = get_port_check_settings(app_install.profile, app_install.settings)
+        if port_check_settings:
+            for _key, _val in port_check_settings.items():
                 if 'PORT_SET' in _key:
                     try:
                         reserved_ports.add(int(_val))
@@ -1117,6 +1156,7 @@ class AppManger:
                 return appResponse
             else:
                 app_name = None
+                inactive_env = self._read_safe_app_env_from_gitea(app_id)
                 compose_metadata = self._read_compose_metadata_safe(app_id)
                 inactive_app_dist = str(compose_metadata.get("dist") or "").strip()
                 metadata_name = compose_metadata.get("app_name")
@@ -1125,7 +1165,7 @@ class AppManger:
                 # Fallback: read W9_APP_NAME from Gitea .env when metadata is missing
                 # (app-store apps may not have compose-metadata.json)
                 if not app_name:
-                    app_name = self._read_app_name_from_gitea_env(app_id)
+                    app_name = inactive_env.get("W9_APP_NAME") or self._read_app_name_from_gitea_env(app_id)
                 metadata_version = compose_metadata.get("version")
                 inactive_app_version = str(metadata_version or "").strip()
                 is_php_app, is_monitor_app = self._get_capability_flags(app_name)
@@ -1148,7 +1188,7 @@ class AppManger:
                     gitConfig = gitConfig,
                     containers = app_containers,
                     volumes = app_volumes,
-                    env = {},
+                    env = inactive_env,
                     error = display_error,
                 )
                 return appResponse
@@ -1157,7 +1197,60 @@ class AppManger:
         except Exception as e:
             logger.error(f"Get app by app_id:{app_id} error:{e}")
             raise CustomException()
-    
+
+    def get_external_databases(self, endpointId: int | None = None, locale: str = "en") -> list[dict[str, str]]:
+        """
+        Collect external database information from all installed apps.
+
+        Returns a list of external database records across apps where
+        W9_DATABASE_MODE is 'external'.
+        """
+        try:
+            apps = self.get_apps(endpointId, locale)
+        except Exception as exc:
+            logger.warning(f"Failed to list apps for external databases: {exc}")
+            return []
+
+        # Group by database identity to merge apps sharing the same external database
+        groups: dict[tuple[str, str, str, str, str], list[dict]] = {}
+
+        for app in apps:
+            env = app.env or {}
+            # Fallback for Inactive apps: read env from Gitea .env
+            if not env.get("W9_DATABASE_MODE") and app.gitConfig:
+                env = self._read_safe_app_env_from_gitea(app.app_id)
+            if env.get("W9_DATABASE_MODE") != "external":
+                continue
+
+            db_expose = (env.get("W9_DB_EXPOSE") or "").strip()
+            db_type = db_expose.split(",")[0].strip() if db_expose else "mysql"
+            db_host = env.get("W9_DB_HOST_SET") or env.get("WORDPRESS_DB_HOST") or ""
+            db_port = env.get("W9_DB_PORT_SET") or ""
+            db_name = env.get("W9_DB_NAME_SET") or env.get("WORDPRESS_DB_NAME") or ""
+            db_user = env.get("W9_DB_USER_SET") or env.get("WORDPRESS_DB_USER") or ""
+            db_password = env.get("W9_DB_PASSWORD_SET") or env.get("WORDPRESS_DB_PASSWORD") or ""
+
+            address = f"{db_host}:{db_port}" if db_host and db_port else db_host or "-"
+            group_key = (db_type, address, db_name, db_user, db_password)
+            groups.setdefault(group_key, []).append({
+                "app_id": app.app_id,
+                "app_name": app.app_name or app.app_id,
+                "status": app.status,
+            })
+
+        databases: list[dict] = []
+        for (db_type, address, db_name, db_user, db_password), app_refs in groups.items():
+            databases.append({
+                "type": db_type,
+                "address": address,
+                "database_name": db_name or "-",
+                "username": db_user or "-",
+                "password": db_password or "-",
+                "apps": app_refs,
+            })
+
+        return databases
+
     def install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None):
         """
         Install app
@@ -1177,6 +1270,7 @@ class AppManger:
         proxy_enabled = appInstall.proxy_enabled
         domain_names = appInstall.domain_names
         settings = appInstall.settings
+        profile = appInstall.profile
 
         # Check the endpointId is exists.
         if endpointId is None:
@@ -1230,6 +1324,8 @@ class AppManger:
 
             # Copy the entire directory.
             shutil.copytree(local_path, app_tmp_dir_path)
+
+            materialize_profile_template(app_tmp_dir_path, profile)
 
             # Modify the env file
             env_file_path = f"{app_tmp_dir_path}/.env"
@@ -1287,14 +1383,14 @@ class AppManger:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # modify app status: error
-            modify_app_information(app_uuid,e.details)
+            modify_app_information(app_uuid, e.details)
             remove_installation_logs(app_uuid)
             raise
         except Exception as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # modify app status: error
-            modify_app_information(app_uuid,"Initialize repo error")
+            modify_app_information(app_uuid, "Initialize repo error")
             remove_installation_logs(app_uuid)
             logger.error(f"Initialize repo error:{e}")
             raise CustomException()

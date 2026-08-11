@@ -14,3 +14,4 @@ tenacity
 aiodocker
 paramiko
 python-multipart
+PyMySQL

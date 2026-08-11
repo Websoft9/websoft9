@@ -43,7 +43,7 @@ type PlatformBrandState = {
 const navigationSections = [
     {
         key: 'system',
-        segments: ['dashboard', 'applications', 'containers', 'gateway', 'repository'],
+        segments: ['dashboard', 'applications', 'databases', 'containers', 'gateway', 'repository'],
     },
     {
         key: 'tools',
@@ -78,6 +78,8 @@ function ShellNavIcon({ segment }: { segment: AppNavIconSegment }) {
             return <SvgIcon viewBox="0 0 24 24"><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4v10h12V8H6Zm2 2h4v4H8v-4Z" /></SvgIcon>
         case 'custom-install':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H11v2H6.5a.5.5 0 0 0-.5.5V11H4V6.5Zm9-2.5h4.5A2.5 2.5 0 0 1 20 6.5V11h-2V6.5a.5.5 0 0 0-.5-.5H13V4ZM4 13h2v4.5a.5.5 0 0 0 .5.5H11v2H6.5A2.5 2.5 0 0 1 4 17.5V13Zm14 0h2v4.5a2.5 2.5 0 0 1-2.5 2.5H13v-2h4.5a.5.5 0 0 0 .5-.5V13Zm-7-4 5 3-5 3V9Z" /></SvgIcon>
+        case 'databases':
+            return <SvgIcon viewBox="0 0 24 24"><path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4Zm0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2ZM6 17v-2.58c1.3.98 3.32 1.58 6 1.58s4.7-.6 6-1.58V17c0 .5-2.13 2-6 2s-6-1.5-6-2Zm0-5v-2.58c1.3.98 3.32 1.58 6 1.58s4.7-.6 6-1.58V12c0 .5-2.13 2-6 2s-6-1.5-6-2Z" /></SvgIcon>
         case 'containers':
             return <SvgIcon viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5V16l-9 5-9-5V7.5Zm2 1.24V14.8l6 3.33V12L5 8.74Zm14 0L13 12v6.13l6-3.33V8.74ZM12 10.26l6.02-3.01L12 4.24 5.98 7.25 12 10.26Z" /></SvgIcon>
         case 'gateway':
@@ -211,6 +213,7 @@ export function AppShell() {
         location.pathname === '/dashboard' ||
         location.pathname === '/terminal' ||
         location.pathname === '/services' ||
+        location.pathname === '/databases' ||
         location.pathname === '/logs' ||
         location.pathname === '/users' ||
         location.pathname === '/settings'

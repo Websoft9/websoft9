@@ -26,6 +26,10 @@ export type AppStoreDistribution = {
     value?: string | string[]
 }
 
+export type AppStoreInstallProfile = {
+    settings?: Record<string, string>
+}
+
 export type AppStoreApp = {
     key?: string
     hot?: number
@@ -45,6 +49,7 @@ export type AppStoreApp = {
     }
     settings?: Record<string, string>
     is_web_app?: boolean
+    profiles?: Record<string, AppStoreInstallProfile>
     production?: boolean
     relatedAppsCollection?: {
         items?: { key?: string; trademark?: string }[]

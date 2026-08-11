@@ -1,0 +1,102 @@
+.databases-page-shell {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.databases-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.databases-search-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 36px 0 12px;
+    border: 1px solid var(--databases-search-border, rgba(203, 213, 225, 0.9));
+    border-radius: 4px;
+    background: var(--databases-search-bg, #ffffff);
+    color: var(--databases-search-text, #0f172a);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+}
+
+.app-shell-root--dark .databases-search-input {
+    --databases-search-border: rgba(71, 85, 105, 0.82);
+    --databases-search-bg: #0f172a;
+    --databases-search-text: #e5edf5;
+}
+
+.databases-search-input::placeholder {
+    color: #94a3b8;
+}
+
+.databases-search-input:focus {
+    border-color: #1767d1;
+    box-shadow: 0 0 0 2px rgba(23, 103, 209, 0.15);
+}
+
+.databases-search-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    display: inline-flex;
+    align-items: center;
+    pointer-events: none;
+}
+
+.databases-password-text {
+    flex: 1;
+    min-width: 36px;
+}
+
+.databases-icon-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+    padding: 2px 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 3px;
+    transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.databases-icon-btn:hover {
+    opacity: 1;
+    background-color: rgba(145, 158, 171, 0.12);
+}
+
+.databases-icon-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.databases-app-link {
+    color: var(--databases-accent, #1767d1);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.databases-app-link:hover {
+    text-decoration: underline;
+}
+
+.app-shell-root--dark .databases-app-link {
+    --databases-accent: #60a5fa;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

@@ -46,10 +46,13 @@ type RedeployLogEntry = {
     data?: unknown
 }
 type DatabaseRow = {
+    source: string
     type: string
     host: string
+    databaseName: string
     account: string
     password: string
+    isExternal: boolean
     toolApps: Array<{ label: string; appKey: string }>
 }
 type BackupSnapshot = {
@@ -248,7 +251,7 @@ function getDetailPortLabel(key: string, t: (key: string, options?: Record<strin
 function getPortEntries(env: Record<string, string> | undefined): Array<[string, string, string]> {
     if (!env) return []
     return Object.entries(env)
-        .filter(([key]) => key.endsWith('PORT_SET'))
+        .filter(([key]) => key.endsWith('PORT_SET') && !(env.W9_DATABASE_MODE === 'external' && key === 'W9_DB_PORT_SET'))
         .map(([key, value]) => [key, knownDetailPortLabelKeys[key] ?? key, String(value || '-')])
 }
 
@@ -376,11 +379,27 @@ function getVolumeCreatedAt(v: Record<string, unknown>, locale: string) {
 function getDatabaseRows(data: MyAppDetail): DatabaseRow[] {
     const expose = data.env?.W9_DB_EXPOSE
     if (!expose) return []
+    if (data.env?.W9_DATABASE_MODE === 'external') {
+        const dbType = expose.split(',').map((value) => value.trim()).find(Boolean) ?? 'mysql'
+        return [{
+            source: 'custom',
+            type: dbType,
+            host: [data.env.W9_DB_HOST_SET, data.env.W9_DB_PORT_SET].filter(Boolean).join(':') || data.env.WORDPRESS_DB_HOST || '-',
+            databaseName: data.env.W9_DB_NAME_SET ?? data.env.WORDPRESS_DB_NAME ?? '-',
+            account: data.env.W9_DB_USER_SET ?? data.env.WORDPRESS_DB_USER ?? '-',
+            password: data.env.W9_DB_PASSWORD_SET ?? data.env.WORDPRESS_DB_PASSWORD ?? '-',
+            isExternal: true,
+            toolApps: [],
+        }]
+    }
     return expose.split(',').map((s) => s.trim()).filter(Boolean).map((dbType) => ({
+        source: '',
         type: dbType,
         host: `${data.app_id}-${dbType}`,
+        databaseName: '-',
         account: dbConfig[dbType]?.account || '-',
         password: data.env?.W9_POWER_PASSWORD || '-',
+        isExternal: false,
         toolApps: dbConfig[dbType]?.toolApps || [],
     }))
 }
@@ -1066,6 +1085,7 @@ export function MyAppDetailPage() {
 
     const isComposeApp = data?.app_dist === 'compose'
     const isComposeUI = isComposeApp || data?.is_compose_app === true
+    const isExternalDatabase = data?.env?.W9_DATABASE_MODE === 'external'
 
     async function handleSimpleAction(actionKey: 'start' | 'stop' | 'restart') {
         if (!data) return
@@ -1832,6 +1852,12 @@ export function MyAppDetailPage() {
                                                                     </table>
                                                                 </div>
                                                             </div>
+                                                            {isExternalDatabase ? (
+                                                                <div className="myapps-backup-external-notice" role="note">
+                                                                    <span className="myapps-backup-external-notice-icon" aria-hidden="true">i</span>
+                                                                    <span>{t('myAppsDetailPage.tabs.volumes.backups.externalDatabaseNotice')}</span>
+                                                                </div>
+                                                            ) : null}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1847,33 +1873,37 @@ export function MyAppDetailPage() {
                                                         <div className="myapps-php-card-body">
                                                             <div className="myapps-php-runtime-card myapps-volume-runtime-card">
                                                                 <div className="myapps-database-card-body myapps-volume-database-card-body">
-                                                                    <table className="myapps-database-table" role="table">
+                                                                    <table className={`myapps-database-table${isExternalDatabase ? ' myapps-database-table-external' : ''}`} role="table">
                                                                         <thead>
                                                                             <tr>
+                                                                                {isExternalDatabase ? <th>{t('myAppsDetailPage.tabs.database.columns.source')}</th> : null}
                                                                                 <th>{t('myAppsDetailPage.tabs.database.columns.type')}</th>
-                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.host')}</th>
-                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.account')}</th>
+                                                                                <th>{t(isExternalDatabase ? 'myAppsDetailPage.tabs.database.columns.address' : 'myAppsDetailPage.tabs.database.columns.host')}</th>
+                                                                                {isExternalDatabase ? <th>{t('myAppsDetailPage.tabs.database.columns.name')}</th> : null}
+                                                                                <th>{t(isExternalDatabase ? 'myAppsDetailPage.tabs.database.columns.username' : 'myAppsDetailPage.tabs.database.columns.account')}</th>
                                                                                 <th>{t('myAppsDetailPage.tabs.database.columns.password')}</th>
-                                                                                <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th>
+                                                                                {!isExternalDatabase ? <th>{t('myAppsDetailPage.tabs.database.columns.tool')}</th> : null}
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody>
                                                                             {databaseRows.map((row) => (
                                                                                 <tr key={`${row.type}-${row.host}`}>
+                                                                                    {row.isExternal ? <td>{t('myAppsDetailPage.tabs.database.custom')}</td> : null}
                                                                                     <td>{row.type}</td>
                                                                                     <td>{row.host}</td>
+                                                                                    {row.isExternal ? <td>{row.databaseName}</td> : null}
                                                                                     <td>{row.account}</td>
                                                                                     <td>
                                                                                         <div className="myapps-database-password-cell">
                                                                                             <span className="myapps-database-password-text">
-                                                                                                {showPasswords[row.type] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
+                                                                                                {showPasswords[`${row.source}-${row.type}`] ? row.password : '•'.repeat(Math.min(row.password.length, 16))}
                                                                                             </span>
                                                                                             <button
                                                                                                 className="myapps-database-icon-btn"
-                                                                                                title={showPasswords[row.type] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
-                                                                                                onClick={() => setShowPasswords((prev) => ({ ...prev, [row.type]: !prev[row.type] }))}
+                                                                                                title={showPasswords[`${row.source}-${row.type}`] ? t('myAppsDetailPage.tabs.database.hidePassword') : t('myAppsDetailPage.tabs.database.showPassword')}
+                                                                                                onClick={() => setShowPasswords((prev) => ({ ...prev, [`${row.source}-${row.type}`]: !prev[`${row.source}-${row.type}`] }))}
                                                                                             >
-                                                                                                {showPasswords[row.type] ? <IconEyeOff /> : <IconEye />}
+                                                                                                {showPasswords[`${row.source}-${row.type}`] ? <IconEyeOff /> : <IconEye />}
                                                                                             </button>
                                                                                             <button
                                                                                                 className="myapps-database-icon-btn"
@@ -1891,7 +1921,7 @@ export function MyAppDetailPage() {
                                                                                             </button>
                                                                                         </div>
                                                                                     </td>
-                                                                                    <td>
+                                                                                    {!row.isExternal ? <td>
                                                                                         {row.toolApps.length > 0 ? (
                                                                                             <div className="myapps-table-actions-text">
                                                                                                 {row.toolApps.map((tool) => (
@@ -1905,7 +1935,7 @@ export function MyAppDetailPage() {
                                                                                                 ))}
                                                                                             </div>
                                                                                         ) : '-'}
-                                                                                    </td>
+                                                                                    </td> : null}
                                                                                 </tr>
                                                                             ))}
                                                                         </tbody>
@@ -2248,6 +2278,11 @@ export function MyAppDetailPage() {
                             ? t('myAppsDetailPage.dialogs.removeBody', { appId: data?.app_id ?? appId ?? '-' })
                             : t('myAppsDetailPage.dialogs.uninstallBody', { appId: data?.app_id ?? appId ?? '-' })}
                     </Typography>
+                    {isExternalDatabase ? (
+                        <Alert severity="info" variant="outlined" sx={{ mt: 1.5 }}>
+                            {t('myAppsDetailPage.dialogs.externalDatabaseNotice')}
+                        </Alert>
+                    ) : null}
                     {!isComposeApp ? (
                         <Box sx={{ mt: 1.5, display: 'inline-flex', alignItems: 'center', gap: 0.75, color: dialogPalette.text }}>
                             <Typography sx={{ fontSize: 14, color: dialogPalette.text }}>{t('myAppsDetailPage.dialogs.uninstallPurge')}</Typography>

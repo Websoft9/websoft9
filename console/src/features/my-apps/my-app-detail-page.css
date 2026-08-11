@@ -796,6 +796,7 @@
 
 .myapps-volume-runtime-card {
     overflow: hidden;
+    padding: 6px 16px 12px;
 }
 
 .myapps-volume-database-card-body {
@@ -1053,7 +1054,7 @@
 
 .myapps-database-table th,
 .myapps-database-table td {
-    padding: 18px 10px;
+    padding: 10px;
     border-bottom: 1px solid var(--myapps-detail-border);
     vertical-align: middle;
     text-align: left;
@@ -1068,6 +1069,44 @@
 
 .myapps-database-table td {
     color: var(--myapps-detail-muted);
+}
+
+.myapps-database-table-external {
+    table-layout: fixed;
+}
+
+.myapps-database-table-external th:nth-child(1),
+.myapps-database-table-external td:nth-child(1) {
+    width: 12%;
+}
+
+.myapps-database-table-external th:nth-child(2),
+.myapps-database-table-external td:nth-child(2) {
+    width: 9%;
+}
+
+.myapps-database-table-external th:nth-child(3),
+.myapps-database-table-external td:nth-child(3) {
+    width: 22%;
+}
+
+.myapps-database-table-external th:nth-child(4),
+.myapps-database-table-external td:nth-child(4) {
+    width: 15%;
+}
+
+.myapps-database-table-external th:nth-child(5),
+.myapps-database-table-external td:nth-child(5) {
+    width: 12%;
+}
+
+.myapps-database-table-external th:nth-child(6),
+.myapps-database-table-external td:nth-child(6) {
+    width: 30%;
+}
+
+.myapps-database-table-external td {
+    overflow-wrap: anywhere;
 }
 
 .myapps-overview-data-table {
@@ -1100,6 +1139,12 @@
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.myapps-database-table-external .myapps-database-password-cell {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    white-space: nowrap;
 }
 
 .myapps-database-password-text {
@@ -1314,7 +1359,14 @@
 
 .myapps-backup-detail-table th,
 .myapps-backup-detail-table td {
-    padding: 18px 10px;
+    padding: 10px 14px;
+}
+
+.myapps-backup-detail-table th,
+.myapps-volume-runtime-card .myapps-detail-table th,
+.myapps-database-table th {
+    padding-top: 3px;
+    padding-bottom: 3px;
 }
 
 .myapps-detail-table {
@@ -1338,6 +1390,11 @@
 
 .myapps-detail-table td {
     color: var(--myapps-detail-muted);
+}
+
+.myapps-volume-runtime-card .myapps-detail-table th,
+.myapps-volume-runtime-card .myapps-detail-table td {
+    padding: 10px 14px;
 }
 
 .myapps-cell-center {
@@ -1372,6 +1429,10 @@
     padding: 32px 12px !important;
     color: var(--myapps-detail-subtle) !important;
     text-align: center !important;
+}
+
+.myapps-backup-detail-table .myapps-empty-cell {
+    padding: 16px 12px !important;
 }
 
 .myapps-empty-cell-placeholder {
@@ -1417,6 +1478,31 @@
 
 .myapps-volume-card {
     margin-bottom: 16px;
+}
+
+.myapps-backup-external-notice {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px 0;
+    color: var(--myapps-detail-accent);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.myapps-backup-external-notice-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-family: Georgia, serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .myapps-card-header-compose {

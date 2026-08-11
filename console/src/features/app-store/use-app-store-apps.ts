@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
-import type { AppStoreApp } from './app-store-model'
+import type { AppStoreApp, AppStoreInstallProfile } from './app-store-model'
 
 type AppStoreError = Error & {
     statusCode?: number
@@ -10,6 +10,7 @@ type AppStoreError = Error & {
 type AppStoreInstallMetadata = {
     settings?: Record<string, string>
     is_web_app?: boolean
+    profiles?: Record<string, AppStoreInstallProfile>
 }
 
 type AppStoreInstallMetadataManifest = {
@@ -54,6 +55,7 @@ function mergeInstallMetadata(apps: AppStoreApp[], metadataManifest: AppStoreIns
             ...app,
             settings: installMetadata.settings ?? app.settings ?? {},
             is_web_app: installMetadata.is_web_app ?? app.is_web_app ?? false,
+            profiles: installMetadata.profiles ?? app.profiles,
         }
     })
 }

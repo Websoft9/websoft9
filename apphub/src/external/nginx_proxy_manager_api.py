@@ -138,7 +138,7 @@ class NginxProxyManagerAPI:
                 "advanced_config": advanced_config,
                 "block_exploits": False,
                 "caching_enabled": False,
-                "allow_websocket_upgrade": False,
+                "allow_websocket_upgrade": True,
                 "http2_support": False,
                 "hsts_enabled": False,
                 "hsts_subdomains": False,

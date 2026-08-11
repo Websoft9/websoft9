@@ -163,3 +163,59 @@ def test_upgrade_status_keeps_stable_release_recommendation(monkeypatch):
     status = settings_router.get_upgrade_status()
 
     assert status["upgrade_available"] is True
+
+
+def test_disabling_https_clears_secure_product_session_before_gateway_restart(monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    manager = _GatewaySettingsManager(https_enabled=True)
+    monkeypatch.setattr(settings_router, "SettingsManager", lambda: manager)
+
+    response = client.put(
+        "/settings/platform_gateway/apply",
+        headers={"X-Forwarded-Proto": "https"},
+        json={"bound_domain": "", "https_enabled": "false", "force_https": "false", "ssl_cert": "", "ssl_key": ""},
+    )
+
+    assert response.status_code == 200
+    assert "Max-Age=0" in response.headers["set-cookie"]
+    assert "Secure" in response.headers["set-cookie"]
+    assert manager.restart_calls == 1
+    assert manager.write_calls == [{"restart_gateway": False}]
+
+
+def test_other_gateway_settings_changes_do_not_clear_product_session(monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    manager = _GatewaySettingsManager(https_enabled=True)
+    monkeypatch.setattr(settings_router, "SettingsManager", lambda: manager)
+
+    response = client.put(
+        "/settings/platform_gateway/apply",
+        headers={"X-Forwarded-Proto": "https"},
+        json={"bound_domain": "", "https_enabled": "true", "force_https": "false", "ssl_cert": "", "ssl_key": ""},
+    )
+
+    assert response.status_code == 200
+    assert "set-cookie" not in response.headers
+    assert manager.restart_calls == 1
+
+
+class _GatewaySettingsManager:
+    def __init__(self, *, https_enabled: bool):
+        self.https_enabled = https_enabled
+        self.restart_calls = 0
+        self.write_calls = []
+
+    def _is_platform_https_enabled(self):
+        return self.https_enabled
+
+    def _parse_bool(self, value: str):
+        return value == "true"
+
+    def write_platform_gateway_settings(self, **kwargs):
+        self.write_calls.append({"restart_gateway": kwargs["restart_gateway"]})
+        return {"platform_gateway": "updated"}
+
+    def _restart_platform_gateway(self):
+        self.restart_calls += 1

@@ -1,7 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
 
-import { AppRouteBoundary } from './app-route-boundary'
+import { AppRouteBoundary, AppRouteErrorBoundary } from './app-route-boundary'
 import { ShellPlaceholderPage } from '../pages/shell-placeholder-page'
 import { AppShell } from '../shell/app-shell'
 import { shellNavigationItems, type ShellPageKey } from '../shell/shell-navigation'
@@ -33,6 +33,7 @@ const SettingsPage = lazyPage(() => import('../../features/settings/settings-pag
 const FilesPage = lazyPage(() => import('../../features/files/files-page'), 'FilesPage')
 const LogsPage = lazyPage(() => import('../../features/logs/logs-page'), 'LogsPage')
 const OverviewPage = lazyPage(() => import('../../features/overview/overview-page'), 'OverviewPage')
+const DatabasesPage = lazyPage(() => import('../../features/databases/databases-page'), 'DatabasesPage')
 const ServicesPage = lazyPage(() => import('../../features/services/services-page'), 'ServicesPage')
 const TerminalPage = lazyPage(() => import('../../features/terminal/terminal-page'), 'TerminalPage')
 const UsersPage = lazyPage(() => import('../../features/users/users-page'), 'UsersPage')
@@ -86,6 +87,8 @@ function preloadInitialRoute(pathname: string) {
         preloaders.push(LogsPage.preload)
     } else if (pathname === '/services') {
         preloaders.push(ServicesPage.preload)
+    } else if (pathname === '/databases') {
+        preloaders.push(DatabasesPage.preload)
     } else if (pathname === '/applications/deploy') {
         preloaders.push(ApplicationsDeployPage.preload)
     } else if (pathname === '/applications/custom-install') {
@@ -192,6 +195,13 @@ export function createAppRouter() {
             }
         }
 
+        if (item.segment === 'databases') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><DatabasesPage /></ProductAuthRouteGuard>,
+            }
+        }
+
         if (item.segment === 'dashboard') {
             return {
                 path: item.segment,
@@ -211,6 +221,7 @@ export function createAppRouter() {
         {
             path: '/',
             element: <AppRouteBoundary />,
+            errorElement: <AppRouteErrorBoundary />,
             children: [
                 {
                     path: 'auth/setup',
