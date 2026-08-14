@@ -77,7 +77,10 @@ class appInstall(BaseModel):
         return v
 
 
-class ExternalMySQLConnectionTestRequest(BaseModel):
+class ExternalDatabaseConnectionTestRequest(BaseModel):
+    app_name: str = Field(..., min_length=1)
+    app_version: str = Field(..., min_length=1)
+    profile: str = Field(..., min_length=1)
     host: str = Field(..., min_length=1)
     port: int = Field(..., ge=1, le=65535)
     database_name: str = Field(..., min_length=1)

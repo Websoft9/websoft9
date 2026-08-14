@@ -85,9 +85,13 @@ def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
         if not env_path.is_file():
             continue
 
-        profiles[profile_name] = {
-            "settings": get_install_settings(load_env_values(env_path)),
+        env_values = load_env_values(env_path)
+        profile_metadata: dict[str, object] = {
+            "settings": get_install_settings(env_values),
         }
+        if env_values.get("W9_DATABASE_MODE") == "external":
+            profile_metadata["is_external_database"] = True
+        profiles[profile_name] = profile_metadata
 
     return profiles
 
@@ -118,6 +122,15 @@ def build_install_metadata(library_root: Path, config_path: Path) -> dict[str, o
             env_values = load_env_values(env_path)
             app_metadata["settings"] = get_install_settings(env_values)
             app_metadata["is_web_app"] = "W9_URL" in env_values
+
+        variables_path = app_dir / "variables.json"
+        if variables_path.exists():
+            try:
+                external_database_metadata = json.loads(variables_path.read_text(encoding="utf-8")).get("externalDB")
+                if isinstance(external_database_metadata, dict):
+                    app_metadata["externalDB"] = external_database_metadata
+            except json.JSONDecodeError:
+                pass
 
         profiles = discover_install_profiles(app_dir)
         if profiles:

@@ -35,7 +35,7 @@ from src.services.portainer_manager import PortainerManager
 from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.proxy_manager import ProxyManager
-from src.services.install_profile import get_port_check_settings, materialize_profile_template
+from src.services.install_profile import get_port_check_settings, is_external_database_profile, materialize_profile_template, validate_external_database_connection
 from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
@@ -690,6 +690,19 @@ class AppManger:
                     item["settings"] = {}
                     item["is_web_app"] = False
 
+            for item in data:
+                app_key = str(item.get("key") or "").strip()
+                if not app_key:
+                    continue
+                variables_path = os.path.join(app_lib_path, app_key, "variables.json")
+                try:
+                    with open(variables_path, encoding="utf-8") as handle:
+                        external_database_metadata = json.load(handle).get("externalDB")
+                    if isinstance(external_database_metadata, dict):
+                        item["externalDB"] = external_database_metadata
+                except (OSError, json.JSONDecodeError):
+                    continue
+
             data = [self._normalize_available_app_media(item, normalized_locale) for item in data if isinstance(item, dict)]
             
             # 缓存结果
@@ -788,8 +801,9 @@ class AppManger:
         # install requests see them before Docker containers are actually started.
         reserved_ports: set = set()
         try:
-            if app_install.profile != "external-mysql":
-                library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            app_directory = os.path.join(library_path, app_install.app_name)
+            if not is_external_database_profile(app_directory, app_install.profile):
                 env_path = os.path.join(library_path, app_install.app_name, ".env")
             else:
                 env_path = None
@@ -807,7 +821,7 @@ class AppManger:
                                 pass
         except Exception as _e:
             logger.warning(f"Port reservation: could not read template .env: {_e}")
-        port_check_settings = get_port_check_settings(app_install.profile, app_install.settings)
+        port_check_settings = get_port_check_settings(app_install.profile, app_install.settings, app_directory)
         if port_check_settings:
             for _key, _val in port_check_settings.items():
                 if 'PORT_SET' in _key:
@@ -1301,6 +1315,7 @@ class AppManger:
             # The source directory.
             library_path = ConfigManager("system.ini").get_value("docker_library", "path")
             local_path = f"{library_path}/{app_name}"
+            uses_external_database = is_external_database_profile(local_path, profile)
 
             # Create a temporary directory.
             app_tmp_dir = "/tmp"
@@ -1353,6 +1368,16 @@ class AppManger:
             if settings:
                 for key, value in settings.items():
                     envHelper.set_value(key, value)
+
+            if uses_external_database:
+                connection = validate_external_database_connection(
+                    envHelper.get_value("W9_DB_HOST_SET"),
+                    envHelper.get_value("W9_DB_PORT_SET"),
+                    envHelper.get_value("W9_DB_NAME_SET"),
+                    envHelper.get_value("W9_DB_USER_SET"),
+                    envHelper.get_value("W9_DB_PASSWORD_SET"),
+                )
+                envHelper.set_value("W9_DB_EXPOSE", connection.database_type)
 
             # Verify the app is web app
             is_web_app = envHelper.get_value("W9_URL")

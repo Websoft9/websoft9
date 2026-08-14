@@ -11,6 +11,7 @@ type AppStoreInstallMetadata = {
     settings?: Record<string, string>
     is_web_app?: boolean
     profiles?: Record<string, AppStoreInstallProfile>
+    externalDB?: Record<string, Record<string, string[]>>
 }
 
 type AppStoreInstallMetadataManifest = {
@@ -56,6 +57,7 @@ function mergeInstallMetadata(apps: AppStoreApp[], metadataManifest: AppStoreIns
             settings: installMetadata.settings ?? app.settings ?? {},
             is_web_app: installMetadata.is_web_app ?? app.is_web_app ?? false,
             profiles: installMetadata.profiles ?? app.profiles,
+            externalDB: installMetadata.externalDB ?? app.externalDB,
         }
     })
 }

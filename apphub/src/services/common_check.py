@@ -10,7 +10,7 @@ from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
 from src.services.app_status import appInstalling,appInstallingError
 from src.services.product_metadata import read_product_edition
-from src.services.install_profile import get_port_check_settings, test_external_mysql_connection, validate_profile_settings
+from src.services.install_profile import get_port_check_settings, is_external_database_profile, matches_external_database_version, validate_external_database_connection, validate_profile_settings
 
 
 def _get_host_bound_ports() -> set:
@@ -155,6 +155,25 @@ def check_appName_and_appVersion(app_name:str, app_version:str):
             logger.error(f"When install app:{app_name}, validate app_name and app_version error:{e}")
             raise CustomException()
 
+
+def validate_external_database_version(app_name: str, app_version: str, database_type: str, actual_version: tuple[int, ...]) -> None:
+    if app_version == "latest" or not actual_version:
+        return
+
+    library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+    try:
+        with open(os.path.join(library_path, app_name, "variables.json"), encoding="utf-8") as handle:
+            compatibility = json.load(handle).get("externalDB", {}).get(app_version, {}).get(database_type, [])
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return
+
+    if not isinstance(compatibility, list):
+        return
+
+    matched = matches_external_database_version(actual_version, compatibility)
+    if matched is False:
+        raise CustomException(400, "External Database Version Mismatch", "The connected database version is not supported by this application version.")
+
 def check_appId(app_id:str,endpointId:int,giteaManager:GiteaManager,portainerManager:PortainerManager):
     """
     Check the app_id is exists in gitea and portainer
@@ -297,15 +316,17 @@ def install_validate(appInstall:appInstall,endpointId:int):
             appInstall.profile,
             appInstall.settings,
         )
-        if appInstall.profile == "external-mysql":
+        app_directory = os.path.join(library_path, app_name)
+        if is_external_database_profile(app_directory, appInstall.profile):
             settings = appInstall.settings or {}
-            test_external_mysql_connection(
+            connection = validate_external_database_connection(
                 settings["W9_DB_HOST_SET"],
                 settings["W9_DB_PORT_SET"],
                 settings["W9_DB_NAME_SET"],
                 settings["W9_DB_USER_SET"],
                 settings["W9_DB_PASSWORD_SET"],
             )
+            validate_external_database_version(app_name, app_version, connection.database_type, connection.version)
         # Check the app_id is exists in gitea and portainer
         check_appId(app_id, endpointId, giteaManager, portainerManager)
 
@@ -319,8 +340,8 @@ def install_validate(appInstall:appInstall,endpointId:int):
         # Check the apps number is exceed the maximum number of apps
         check_apps_number(endpointId)
 
-        port_check_settings = get_port_check_settings(appInstall.profile, appInstall.settings)
-        check_port_conflicts(port_check_settings, None if appInstall.profile == "external-mysql" else app_name)
+        port_check_settings = get_port_check_settings(appInstall.profile, appInstall.settings, app_directory)
+        check_port_conflicts(port_check_settings, None if is_external_database_profile(app_directory, appInstall.profile) else app_name)
     except CustomException as e:
         raise e
     except Exception as e:

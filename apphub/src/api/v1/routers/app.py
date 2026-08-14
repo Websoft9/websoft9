@@ -12,7 +12,7 @@ from src.schemas.appAvailable import AppAvailableResponse
 from src.schemas.appCatalog import AppCatalogResponse
 from src.schemas.appComposeInstall import ComposeInstallAcceptedResponse, ComposeInstallRequest, ComposeValidationRequest, ComposeValidationResponse
 from src.schemas.appInstallAcceptedResponse import AppInstallAcceptedResponse
-from src.schemas.appInstall import ExternalMySQLConnectionTestRequest, appInstall
+from src.schemas.appInstall import ExternalDatabaseConnectionTestRequest, appInstall
 from src.schemas.appPhpInfo import AppPhpInfoResponse
 from src.schemas.appPhpMigration import AppPhpMigrationRequest
 from src.schemas.appResponse import AppResponse
@@ -364,25 +364,27 @@ async def apps_install(
 
 
 @router.post(
-    "/apps/install/external-mysql/test-connection",
-    summary="Test External MySQL Connection",
+    "/apps/install/external-db/test-connection",
+    summary="Test External Database Connection",
     responses={
         200: {"model": dict},
         400: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
     },
 )
-def test_external_mysql_install_connection(payload: ExternalMySQLConnectionTestRequest):
-    from src.services.install_profile import test_external_mysql_connection
+def test_external_database_install_connection(payload: ExternalDatabaseConnectionTestRequest):
+    from src.services.common_check import validate_external_database_version
+    from src.services.install_profile import validate_external_database_connection
 
-    test_external_mysql_connection(
+    actual_type = validate_external_database_connection(
         payload.host,
         payload.port,
         payload.database_name,
         payload.username,
         payload.password,
     )
-    return {"status": "success"}
+    validate_external_database_version(payload.app_name, payload.app_version, actual_type.database_type, actual_type.version)
+    return {"status": "success", "database_type": actual_type.database_type}
 
 
 @router.post(

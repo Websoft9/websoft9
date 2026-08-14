@@ -134,7 +134,7 @@ function getInstallPortsValidationMessage(
     const usedPorts = new Set<string>()
 
     for (const [key, rawValue] of Object.entries(settings)) {
-        if (!key.toLowerCase().includes('port') || (profile === 'external-mysql' && key === 'W9_DB_PORT_SET')) {
+        if (!key.toLowerCase().includes('port') || (profile === 'external-db' && key === 'W9_DB_PORT_SET')) {
             continue
         }
 
@@ -350,10 +350,13 @@ async function installApp(
     return response.json().catch(() => null) as Promise<InstallTaskAcceptedResponse | null>
 }
 
-async function testExternalMySQLConnection(settings: Record<string, string>) {
-    return requestJson<{ status: string }>('/api/apps/install/external-mysql/test-connection', {
+async function testExternalDatabaseConnection(app: AppStoreApp, version: string, profile: string, settings: Record<string, string>) {
+    return requestJson<{ status: string; database_type: string }>('/api/apps/install/external-db/test-connection', {
         method: 'POST',
         body: JSON.stringify({
+            app_name: app.key,
+            app_version: version,
+            profile,
             host: settings.W9_DB_HOST_SET,
             port: Number(settings.W9_DB_PORT_SET),
             database_name: settings.W9_DB_NAME_SET,
@@ -1016,8 +1019,29 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const selectedProfileTemplateSettings = selectedInstallProfile
         ? selectedAppProfiles[selectedInstallProfile]?.settings ?? {}
         : {}
-    const isExternalMySQLProfile = selectedInstallProfile === 'external-mysql'
-    const externalMySQLSettingKeys = [
+    const selectedAppExternalDatabases = useMemo(() => {
+        const selectedAppKey = (selectedApp?.key ?? '').toLowerCase()
+        const canonicalSelectedApp = selectedAppKey
+            ? apps.find((app) => (app.key ?? '').toLowerCase() === selectedAppKey)
+            : undefined
+        return canonicalSelectedApp?.externalDB ?? selectedApp?.externalDB ?? {}
+    }, [apps, selectedApp])
+    const externalDatabaseSupport = useMemo(() => {
+        const compatibility = selectedVersion === 'latest'
+            ? Object.values(selectedAppExternalDatabases).find((value) => typeof value === 'object' && !Array.isArray(value))
+            : selectedAppExternalDatabases[selectedVersion]
+        if (!compatibility || Array.isArray(compatibility)) {
+            return []
+        }
+        return Object.entries(compatibility).flatMap(([databaseType, versions]) => {
+            const displayName = ({ mariadb: 'MariaDB', mysql: 'MySQL', postgresql: 'PostgreSQL' } as Record<string, string>)[databaseType] ?? databaseType
+            return Array.isArray(versions) && versions.length > 0 ? [`${displayName} ${versions.join(' / ')}`] : [displayName]
+        })
+    }, [selectedAppExternalDatabases, selectedVersion])
+    const isExternalDatabaseProfile = Boolean(
+        selectedInstallProfile && selectedAppProfiles[selectedInstallProfile]?.is_external_database,
+    )
+    const externalDatabaseSettingKeys = [
         'W9_DB_HOST_SET',
         'W9_DB_PORT_SET',
         'W9_DB_NAME_SET',
@@ -1035,9 +1059,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         [installSettings, profileInstallSettings, selectedInstallProfile, selectedProfileTemplateSettings],
     )
     const sharedInstallSettings = Object.entries(effectiveInstallSettings).filter(
-        ([key]) => !isExternalMySQLProfile || !externalMySQLSettingKeys.includes(key),
+        ([key]) => !isExternalDatabaseProfile || !externalDatabaseSettingKeys.includes(key),
     )
-    const displayedProfileInstallSettings = externalMySQLSettingKeys.map(
+    const displayedProfileInstallSettings = externalDatabaseSettingKeys.map(
         (key) => [key, effectiveInstallSettings[key] ?? ''] as [string, string],
     )
     const isChineseLocale = resolvedLocale.toLowerCase().startsWith('zh')
@@ -1532,7 +1556,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             return
         }
 
-        if (selectedInstallProfile === 'external-mysql') {
+        if (isExternalDatabaseProfile) {
             const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings)
             if (Object.keys(databaseErrors).length > 0) {
                 setInstallFieldErrors({ settings: databaseErrors })
@@ -1587,7 +1611,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             if (/Exceed the maximum number of apps/i.test(message)) {
                 message = t('appStorePage.install.feedback.maxApps')
             }
-            if (selectedInstallProfile === 'external-mysql' && /Unable to connect to the specified MySQL database\.?/i.test(message)) {
+            if (isExternalDatabaseProfile && /Unable to connect to the specified database\.?/i.test(message)) {
                 message = t('appStorePage.install.databaseConnection.failed')
             }
             // Detect port conflict error from backend and show i18n-friendly message
@@ -3500,14 +3524,18 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     slotProps={{ select: { MenuProps: installDialogSelectMenuProps, displayEmpty: true } }}
                                                 >
                                                     <MenuItem value="">{isChineseLocale ? '系统内置' : 'System built-in'}</MenuItem>
-                                                    {Object.keys(selectedAppProfiles).map((profile) => (
-                                                        <MenuItem key={profile} value={profile}>
-                                                            {profile === 'external-mysql' ? (isChineseLocale ? '自定义' : 'Custom') : profile.replace(/-/g, ' ')}
-                                                        </MenuItem>
-                                                    ))}
+                                                    {Object.entries(selectedAppProfiles)
+                                                        .filter(([, metadata]) => !metadata.is_external_database || externalDatabaseSupport.length > 0)
+                                                        .map(([profile, metadata]) => (
+                                                            <MenuItem key={profile} value={profile}>
+                                                                {metadata.is_external_database
+                                                                    ? `${isChineseLocale ? '自定义' : 'Custom'} (${externalDatabaseSupport.join(' / ')})`
+                                                                    : profile.replace(/-/g, ' ')}
+                                                            </MenuItem>
+                                                        ))}
                                                 </TextField>
 
-                                                {isExternalMySQLProfile ? (
+                                                {isExternalDatabaseProfile ? (
                                                     <Box
                                                         component="fieldset"
                                                         sx={{
@@ -3545,6 +3573,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                             type={key === 'W9_DB_PASSWORD_SET' && !isDatabasePasswordVisible ? 'password' : 'text'}
                                                                             value={value}
                                                                             onChange={(event) => {
+                                                                                const profile = selectedInstallProfile
+                                                                                if (!profile) {
+                                                                                    return
+                                                                                }
                                                                                 setInstallFieldErrors((currentValue) => ({
                                                                                     ...currentValue,
                                                                                     settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
@@ -3552,8 +3584,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                                 setInstallError(null)
                                                                                 setProfileInstallSettings((currentValue) => ({
                                                                                     ...currentValue,
-                                                                                    [selectedInstallProfile]: {
-                                                                                        ...(currentValue[selectedInstallProfile] ?? selectedProfileTemplateSettings),
+                                                                                    [profile]: {
+                                                                                        ...(currentValue[profile] ?? selectedProfileTemplateSettings),
                                                                                         [key]: event.target.value,
                                                                                     },
                                                                                 }))
@@ -3600,9 +3632,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                                     setInstallError(null)
                                                                                     setInstallFeedback(null)
                                                                                     try {
-                                                                                        await testExternalMySQLConnection(effectiveInstallSettings)
+                                                                                        if (!selectedInstallProfile) {
+                                                                                            return
+                                                                                        }
+                                                                                        await testExternalDatabaseConnection(selectedApp, selectedVersion, selectedInstallProfile, effectiveInstallSettings)
                                                                                         setInstallFeedback({ severity: 'success', message: t('appStorePage.install.databaseConnection.success') })
                                                                                     } catch (error) {
+                                                                                        setInstallToastRevision((currentValue) => currentValue + 1)
                                                                                         setInstallError(t('appStorePage.install.databaseConnection.failed'))
                                                                                     } finally {
                                                                                         setIsTestingDatabase(false)
