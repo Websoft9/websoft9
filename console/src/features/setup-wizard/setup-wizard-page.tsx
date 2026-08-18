@@ -142,6 +142,7 @@ export function SetupWizardPage() {
     const [appInfo, setAppInfo] = useState<SetupWizardApp | null>(null)
     const [currentStep, setCurrentStep] = useState<WizardStep>('welcome')
     const [pageLoading, setPageLoading] = useState(true)
+    const [platformReady, setPlatformReady] = useState(false)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [username, setUsername] = useState('')
@@ -165,6 +166,43 @@ export function SetupWizardPage() {
         document.addEventListener('click', handler)
         return () => document.removeEventListener('click', handler)
     }, [langMenuOpen])
+
+    useEffect(() => {
+        if (platformReady) {
+            return
+        }
+
+        let active = true
+        let timerId: number | undefined
+
+        async function checkPlatformReady() {
+            try {
+                const response = await fetch('/api/healthz/ready', { credentials: 'include' })
+                // A 404 means the runtime predates the readiness endpoint;
+                // treat it as pass-through so the setup flow is not blocked.
+                if (active && (response.ok || response.status === 404)) {
+                    setPlatformReady(true)
+                    return
+                }
+            } catch {
+                // The platform may still be bootstrapping; keep polling below.
+            }
+            if (active) {
+                timerId = window.setTimeout(() => {
+                    void checkPlatformReady()
+                }, 1000)
+            }
+        }
+
+        void checkPlatformReady()
+
+        return () => {
+            active = false
+            if (timerId !== undefined) {
+                window.clearTimeout(timerId)
+            }
+        }
+    }, [platformReady])
 
     const resolvedWizardLocale = normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en')
     const apiLocale = resolveApiLocale(resolvedWizardLocale)
@@ -294,7 +332,7 @@ export function SetupWizardPage() {
     }
 
     useEffect(() => {
-        if (isLoading || !status) {
+        if (isLoading || !status || !platformReady) {
             return
         }
 
@@ -359,7 +397,7 @@ export function SetupWizardPage() {
         return () => {
             active = false
         }
-    }, [apiLocale, isLoading])
+    }, [apiLocale, isLoading, platformReady])
 
     useEffect(() => {
         if (isLoading || !status || pageLoading || !wizardState) {
@@ -632,7 +670,7 @@ export function SetupWizardPage() {
                 }}
             >
                 <Stack spacing={3.5}>
-                    {(pageLoading || isLoading) ? (
+                    {(pageLoading || isLoading || !platformReady) ? (
                         <Stack spacing={2} sx={{ alignItems: 'center', py: 6 }}>
                             <CircularProgress size={30} />
                             <Typography color="text.secondary">{apiLocale === 'zh' ? '正在加载…' : 'Loading…'}</Typography>

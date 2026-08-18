@@ -25,6 +25,7 @@ from src.core.api_key_auth import should_skip_api_key_auth
 from src.core.logger import clear_logging_context, logger, set_request_id
 from src.core.request_auth import has_valid_internal_gateway_auth
 from src.schemas.errorResponse import ErrorResponse
+from src.services.platform_readiness import PlatformReadinessService
 
 uvicorn_logger = logging.getLogger("uvicorn")
 uvicorn_logger.setLevel(logging.INFO)
@@ -102,9 +103,23 @@ async def request_logging_context(request: Request, call_next):
     finally:
         clear_logging_context()
 
+@app.on_event("startup")
+async def ensure_platform_storage():
+    # host-access.sqlite is lazily created on first use; initialize it eagerly
+    # so a fresh cloud boot can reach the fully-ready state.
+    api_host_access._get_host_access_service()._ensure_storage()
+
 @app.get("/healthz", include_in_schema=False)
 async def healthz():
     return {"status": "ok"}
+
+@app.get("/healthz/ready", include_in_schema=False)
+async def healthz_ready():
+    ready, pending = PlatformReadinessService().check()
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"ready": ready, "pending": pending},
+    )
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():

@@ -3,7 +3,7 @@ def should_skip_api_key_auth(path: str) -> bool:
     if normalized_path.startswith("/api/"):
         normalized_path = normalized_path[4:]
 
-    if normalized_path in {"/docs", "/openapi.json", "/redoc", "/healthz"}:
+    if normalized_path in {"/docs", "/openapi.json", "/redoc", "/healthz", "/healthz/ready"}:
         return True
 
     if normalized_path.startswith("/static/"):
