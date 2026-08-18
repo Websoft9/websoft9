@@ -676,29 +676,6 @@ modern_compose() {
     "$@"
 }
 
-restart_docker_service() {
-  if [ "${W9_DRY_RUN:-0}" = "1" ]; then
-    log_info "(dry-run) would restart Docker service"
-    return 0
-  fi
-
-  if command_exists systemctl; then
-    run_cmd systemctl restart docker || return 1
-  elif command_exists service; then
-    run_cmd service docker restart || return 1
-  else
-    log_error "Unable to restart Docker: neither systemctl nor service is available"
-    return 1
-  fi
-
-  if ! docker_available; then
-    log_error "Docker did not become available after restart"
-    return 1
-  fi
-
-  return 0
-}
-
 # ────────────────────────────────────────────────────────────
 # Mirror config bootstrap — write mirrors.json to config.ini
 # once during install / upgrade when the value is empty.
@@ -815,110 +792,54 @@ pull_image_via_prefixed_mirrors() {
   return "$success"
 }
 
-write_temp_daemon_json_from_mirrors() {
-  local daemon_file="$1"
-  local mirrors="$2"
-
-  {
-    printf '{\n  "registry-mirrors": [\n'
-    local first=1
-    local mirror mirror_url
-    while IFS= read -r mirror; do
-      [ -z "$mirror" ] && continue
-      mirror_url="$mirror"
-      case "$mirror_url" in
-        http://*|https://*) ;;
-        *) mirror_url="https://${mirror_url}" ;;
-      esac
-      if [ "$first" -eq 1 ]; then
-        first=0
-      else
-        printf ',\n'
-      fi
-      printf '    "%s"' "$mirror_url"
-    done <<< "$mirrors"
-    printf '\n  ]\n}\n'
-  } > "$daemon_file"
-}
-
-pull_image_via_temporary_daemon_mirrors() {
-  local install_path="$1"
-  local mirrors="$2"
-  local daemon_file="/etc/docker/daemon.json"
-  local backup_file="/tmp/websoft9-daemon-backup-$$.json"
-  local had_original=0
-  local pull_status=1
-  local restore_status=0
-
-  if [ -f "$daemon_file" ]; then
-    cp -a "$daemon_file" "$backup_file"
-    had_original=1
-  else
-    rm -f "$backup_file"
-  fi
-
-  # Restore the original daemon.json even if the script exits mid-flight.
-  export W9_TRAP_DAEMON_FILE="$daemon_file"
-  export W9_TRAP_BACKUP_FILE="$backup_file"
-  export W9_TRAP_HAD_ORIGINAL="$had_original"
-  trap '_restore_daemon_json "$W9_TRAP_DAEMON_FILE" "$W9_TRAP_BACKUP_FILE" "$W9_TRAP_HAD_ORIGINAL"' EXIT
-
-  write_temp_daemon_json_from_mirrors "$daemon_file" "$mirrors"
-
-  log_warn "Direct and explicit mirror pulls failed, retrying with a temporary Docker daemon mirror configuration"
-  if ! restart_docker_service; then
-    log_error "Failed to restart Docker after writing temporary daemon.json"
-    pull_status=1
-  elif modern_compose "$install_path" pull; then
-    log_info "Pull succeeded via temporary Docker daemon mirror configuration"
-    pull_status=0
-  else
-    log_warn "Pull failed even after applying temporary Docker daemon mirror configuration"
-    pull_status=1
-  fi
-
-  # Restore now (trap also covers this, but explicit restore gives better error handling).
-  _restore_daemon_json "$daemon_file" "$backup_file" "$had_original"
-  trap - EXIT
-  unset W9_TRAP_DAEMON_FILE W9_TRAP_BACKUP_FILE W9_TRAP_HAD_ORIGINAL
-
-  return "$pull_status"
-}
-
-# Restore original daemon.json (called via trap and inline in pull path).
-_restore_daemon_json() {
-  local daemon_file="$1" backup_file="$2" had_original="$3"
-  if [ "$had_original" = "1" ] && [ -f "$backup_file" ]; then
-    cp -a "$backup_file" "$daemon_file" 2>/dev/null || true
-  elif [ "$had_original" != "1" ]; then
-    rm -f "$daemon_file" 2>/dev/null || true
-  fi
-  rm -f "$backup_file" 2>/dev/null || true
-  restart_docker_service 2>/dev/null || true
-}
-
 # 镜像拉取（带镜像加速回退）
-# 先尝试 docker compose pull 直拉；失败后使用 mirrors.json 中的地址显式拉取；
-# 若仍失败，则临时写入全新的 /etc/docker/daemon.json 并重启 Docker 后再试一次；
-# 结束后恢复原 daemon.json。全部失败返回 1。
+# 模式一（默认，websoft9 主镜像）：docker compose pull 直拉，失败后使用
+#   mirrors.json 中的地址显式拉取。
+# 模式二（工具镜像，第二参数传入镜像引用如 "alpine:3.20"）：
+#   本地缓存检查 -> docker pull 直拉 -> mirrors.json 显式前缀拉取。
+# 注意：不再改写 /etc/docker/daemon.json 或重启 Docker 服务，避免影响宿主机上
+# 其他运行中的容器；如环境无法直连 Docker Hub，请自行配置 daemon 级镜像加速。
 pull_image_with_mirrors() {
   local install_path="$1"
+  local image_ref_override="${2:-}"
 
-  # 从 .env 读取镜像名（已由 install_prepare_material 写入）
-  local env_file="${install_path}/.env"
-  local image_repo image_tag
-  if [ -f "$env_file" ]; then
-    image_repo="$(read_env_value "$env_file" IMAGE_REPO 2>/dev/null || true)"
-    image_tag="$(read_env_value "$env_file" IMAGE_TAG 2>/dev/null || true)"
+  local image_repo image_tag image_ref
+  if [ -n "$image_ref_override" ]; then
+    image_ref="$image_ref_override"
+    image_repo="${image_ref%%:*}"
+    image_tag="${image_ref##*:}"
+    [ "$image_tag" = "$image_ref" ] && image_tag="latest"
+  else
+    # 从 .env 读取镜像名（已由 install_prepare_material 写入）
+    local env_file="${install_path}/.env"
+    if [ -f "$env_file" ]; then
+      image_repo="$(read_env_value "$env_file" IMAGE_REPO 2>/dev/null || true)"
+      image_tag="$(read_env_value "$env_file" IMAGE_TAG 2>/dev/null || true)"
+    fi
+    image_repo="${image_repo:-$DEFAULT_IMAGE_REPO}"
+    image_tag="${image_tag:-$DEFAULT_IMAGE_TAG}"
+    image_ref="${image_repo}:${image_tag}"
   fi
-  image_repo="${image_repo:-$DEFAULT_IMAGE_REPO}"
-  image_tag="${image_tag:-$DEFAULT_IMAGE_TAG}"
-  local image_ref="${image_repo}:${image_tag}"
 
-  # 1. 先尝试直拉（利用 Docker daemon 已配置的镜像加速）
-  log_info "Pulling image: $image_ref"
-  if modern_compose "$install_path" pull; then
-    return 0
+  # 1. 直拉：主镜像走 compose pull，工具镜像走 docker pull（含本地缓存短路）
+  if [ -n "$image_ref_override" ]; then
+    if [ "${W9_DRY_RUN:-0}" = "1" ]; then
+      log_info "(dry-run) would ensure utility image: $image_ref"
+      return 0
+    fi
+    if docker image inspect "$image_ref" >/dev/null 2>&1; then
+      log_info "Utility image already present: $image_ref"
+      return 0
+    fi
+    log_info "Pulling utility image: $image_ref"
+    if docker pull "$image_ref"; then
+      return 0
+    fi
+  else
+    log_info "Pulling image: $image_ref"
+    if modern_compose "$install_path" pull; then
+      return 0
+    fi
   fi
   log_warn "Direct pull failed, trying mirror accelerators..."
 
@@ -933,10 +854,14 @@ pull_image_with_mirrors() {
     return 0
   fi
 
-  if pull_image_via_temporary_daemon_mirrors "$install_path" "$mirrors"; then
-    return 0
+  # Docker 官方 library 镜像（如 alpine）在部分镜像站需要 library/ 前缀
+  if [ -n "$image_ref_override" ]; then
+    case "$image_repo" in
+      */*) ;;
+      *) pull_image_via_prefixed_mirrors "library/$image_repo" "$image_tag" "$image_ref" "$mirrors" && return 0 ;;
+    esac
   fi
 
-  log_error "Direct pull, explicit mirrors, and temporary Docker daemon mirror configuration all failed"
+  log_error "Direct pull and explicit mirror pulls all failed"
   return 1
 }

@@ -65,6 +65,7 @@ backup_volume() {
     log_warn "Volume not found, skipping backup: $volume_name"
     return 0
   fi
+  pull_image_with_mirrors "${W9_INSTALL_PATH:-$DEFAULT_INSTALL_PATH}" "alpine:3.20" || return 1
   run_cmd mkdir -p "$backup_dir"
   log_step "Backing up volume: $volume_name"
   run_cmd docker run --rm \
@@ -104,6 +105,7 @@ restore_volume() {
     log_warn "Volume backup not found, skipping restore: $archive"
     return 1
   fi
+  pull_image_with_mirrors "${W9_INSTALL_PATH:-$DEFAULT_INSTALL_PATH}" "alpine:3.20" || return 1
   run_cmd docker volume create "$volume_name" >/dev/null
   log_step "Restoring volume: $volume_name"
   run_cmd docker run --rm \
@@ -173,10 +175,15 @@ backup_modern_pre_upgrade() {
 backup_legacy_pre_migration() {
   local backup_dir="$1"
   run_cmd mkdir -p "$backup_dir"
+  # 强制备份点：循环外统一确保工具镜像可用，拉取失败立即中止，
+  # 避免逐卷重复拉取以及"备份未完成却继续迁移"的风险。
+  pull_image_with_mirrors "${W9_INSTALL_PATH:-$DEFAULT_INSTALL_PATH}" "alpine:3.20" \
+    || die "$EXIT_RUNTIME" "Failed to pull utility image alpine:3.20 for pre-migration backup"
   local v host_compose service_root download_root
   while IFS= read -r v; do
     [ -n "$v" ] || continue
-    backup_volume "$v" "$backup_dir"
+    backup_volume "$v" "$backup_dir" \
+      || die "$EXIT_RUNTIME" "Pre-migration backup failed for volume: $v (backup point: $backup_dir)"
   done < <(legacy_list_resolved_volumes)
   host_compose="$(legacy_host_compose_dir 2>/dev/null || true)"
   if [ -n "$host_compose" ]; then

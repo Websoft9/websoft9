@@ -482,6 +482,11 @@ _legacy_transform_volumes() {
     mounts+=(-v "/etc/docker/daemon.json:/legacy/docker-daemon.json:ro")
   fi
 
+  if ! pull_image_with_mirrors "$install_path" "alpine:3.20"; then
+    rm -rf "$tmpdir"
+    die "$EXIT_RUNTIME" "Failed to pull utility image alpine:3.20 for legacy data transform"
+  fi
+
   if ! docker run --rm "${mounts[@]}" alpine:3.20 sh /w9script/transform.sh; then
     rm -rf "$tmpdir"
     die "$EXIT_RUNTIME" "Legacy data transform failed"

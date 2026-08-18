@@ -257,6 +257,7 @@ if [ -n "$_SUBCMD" ]; then
       ;;
     backup)
       require_root
+      export W9_INSTALL_PATH="$OPT_PATH"
       env_kind="$(detect_environment)"
       case "$env_kind" in
         modern)
