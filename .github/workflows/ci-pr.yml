@@ -58,9 +58,12 @@ jobs:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            -w /repo \
+            zricethezav/gitleaks:v8.30.1 \
+            detect --source=/repo --redact
 
   # ── Change detection (skip irrelevant jobs) ──
   changes:
@@ -306,7 +309,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
-      - uses: hadolint/hadolint-action@v3
+      - uses: hadolint/hadolint-action@v3.4.0
         with:
           dockerfile: docker/Dockerfile
           ignore: DL3008,DL3013
@@ -336,10 +339,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install validator dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y jq rsync wget zip
+          python -m pip install --upgrade pip
+          python -m pip install -r apphub/requirements.txt pytest
 
       - name: Smoke test AppHub appstore sync entrypoints
         run: |
