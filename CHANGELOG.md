@@ -5,6 +5,20 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0-dev] - 2026-08-21
+
+### Added
+- **Scheduled Tasks** — Add managed scheduled tasks for recurring platform operations.
+- **External Database Profiles** — Add install profiles for applications that use externally managed databases, including WordPress with external MySQL.
+- **Platform Readiness** — Add a readiness endpoint and wait for the platform to become ready before the setup wizard proceeds.
+
+### Changed
+- **Installation** — Use the major-minor image tag for fresh installations, while upgrades continue to use the full release version.
+- **Image Pulling** — Use registry mirror fallback when pulling utility images.
+
+### Fixed
+- **Terminal File Uploads** — Remove the gateway's default 1 MB API request limit for file uploads.
+
 ## [2.3.4] - 2026-08-05
 
 ### Fixed
