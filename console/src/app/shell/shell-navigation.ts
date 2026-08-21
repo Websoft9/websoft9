@@ -32,6 +32,10 @@ export const shellNavigationItems = [
         pageKey: 'terminal',
     },
     {
+        segment: 'cronjob',
+        pageKey: 'scheduledTasks',
+    },
+    {
         segment: 'services',
         pageKey: 'services',
     },

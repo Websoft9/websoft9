@@ -1,0 +1,526 @@
+.scheduled-tasks-page-shell {
+    overflow-x: hidden;
+}
+
+.scheduled-tasks-toolbar {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-width: 0;
+}
+
+.scheduled-tasks-toolbar::after {
+    content: '';
+    position: absolute;
+    inset: -12px -12px -12px auto;
+}
+
+.scheduled-tasks-toolbar-search {
+    flex: 1 1 420px;
+    min-width: 0;
+    width: 460px;
+}
+
+.scheduled-tasks-toolbar-search .MuiOutlinedInput-root {
+    min-height: 42px;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.scheduled-tasks-toolbar-filters,
+.scheduled-tasks-toolbar-actions {
+    align-items: center;
+    min-width: 0;
+}
+
+.scheduled-tasks-toolbar-filter {
+    min-width: 160px;
+}
+
+.scheduled-tasks-toolbar-filter--enabled {
+    min-width: 150px;
+}
+
+.scheduled-tasks-toolbar-filter .MuiOutlinedInput-root {
+    min-height: 42px;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.scheduled-tasks-toolbar-filter .MuiSelect-select {
+    color: #334155;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.scheduled-tasks-toolbar-search .MuiInputBase-input {
+    color: #334155;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.scheduled-tasks-toolbar-search .MuiInputBase-input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+}
+
+.scheduled-tasks-toolbar-search .MuiOutlinedInput-notchedOutline {
+    border-color: #e5e7eb;
+}
+
+.scheduled-tasks-toolbar-create.MuiButton-root {
+    min-width: 110px;
+    min-height: 42px;
+    border-radius: 4px;
+    box-shadow: none;
+    font-weight: 600;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.scheduled-tasks-toolbar-refresh.MuiIconButton-root,
+.scheduled-tasks-row-actions .MuiIconButton-root {
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+    color: #475569;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.scheduled-tasks-toolbar-refresh.MuiIconButton-root {
+    width: 42px;
+    height: 42px;
+    border-radius: 4px;
+}
+
+.scheduled-tasks-row-actions .MuiIconButton-root {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    width: 34px;
+    height: 34px;
+}
+
+.scheduled-tasks-toolbar-refresh.MuiIconButton-root:hover,
+.scheduled-tasks-row-actions .MuiIconButton-root:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.scheduled-tasks-row-actions .scheduled-tasks-row-action-danger.MuiIconButton-root {
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #b91c1c;
+}
+
+.scheduled-tasks-panel.MuiPaper-root {
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.scheduled-tasks-list-frame {
+    overflow: hidden;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 2px;
+    background: transparent;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.scheduled-tasks-list-content {
+    padding: 12px;
+}
+
+.scheduled-tasks-page-shell .scheduled-tasks-toolbar {
+    position: relative;
+    padding: 0 0 12px;
+    border: 0;
+    background: transparent;
+}
+
+.scheduled-tasks-page-shell .scheduled-tasks-toolbar+* {
+    border-radius: 0 0 2px 2px;
+}
+
+.scheduled-tasks-table th {
+    padding: 13px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #64748b;
+    background: #f8fafc;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+}
+
+.scheduled-tasks-table td {
+    padding: 13px 12px;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.9);
+    vertical-align: middle;
+}
+
+.scheduled-tasks-group-row td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.scheduled-tasks-group-row .MuiChip-root {
+    height: 20px;
+    border-radius: 10px;
+    font-size: 11px;
+}
+
+.scheduled-tasks-group-toggle.MuiIconButton-root {
+    width: 24px;
+    height: 24px;
+    color: #475569;
+}
+
+.scheduled-tasks-actions-column {
+    text-align: right !important;
+}
+
+.scheduled-tasks-actions-column .scheduled-tasks-row-actions {
+    justify-content: flex-end;
+}
+
+.scheduled-tasks-scoped-overlay {
+    position: fixed;
+    z-index: 1400;
+}
+
+.scheduled-tasks-scoped-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.18);
+}
+
+.scheduled-tasks-scoped-dialog {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100% - 32px);
+    margin: 16px auto;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+    overflow: hidden;
+}
+
+.scheduled-tasks-log-dialog {
+    width: min(960px, calc(100% - 24px));
+    height: min(640px, calc(100% - 32px));
+}
+
+.scheduled-tasks-delete-dialog {
+    width: min(480px, calc(100% - 24px));
+}
+
+.scheduled-tasks-scoped-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--shell-surface-border);
+}
+
+.scheduled-tasks-log-content.MuiDialogContent-root {
+    display: flex;
+    min-height: 0;
+    padding: 16px 20px;
+    border: 0;
+}
+
+.scheduled-tasks-log-panel {
+    flex: 1;
+    min-height: 220px;
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    background: #f4f6f8;
+    color: #212b36;
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.scheduled-tasks-scoped-actions {
+    padding: 12px 20px;
+    border-top: 1px solid var(--shell-surface-border);
+}
+
+.scheduled-tasks-table-row {
+    background: #fff;
+}
+
+.scheduled-tasks-table-row:hover {
+    background: #f8fafc;
+}
+
+.scheduled-tasks-table .MuiChip-root {
+    height: 24px;
+    border-radius: 2px;
+    box-shadow: none;
+}
+
+.scheduled-tasks-editor-field .MuiOutlinedInput-root {
+    min-height: 38px;
+    border-radius: 2px;
+}
+
+.scheduled-tasks-editor-field .MuiInputBase-input,
+.scheduled-tasks-editor-field .MuiSelect-select {
+    font-size: 14px;
+}
+
+.scheduled-tasks-editor-field--multiline .MuiOutlinedInput-root {
+    min-height: 0;
+}
+
+.scheduled-tasks-editor-content {
+    padding: 18px 20px;
+}
+
+.scheduled-tasks-editor-form {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.scheduled-tasks-editor-form> :not(style) {
+    grid-column: 1 / -1;
+    margin: 0 !important;
+}
+
+.scheduled-tasks-editor-form> :nth-child(1),
+.scheduled-tasks-editor-form> :nth-child(2) {
+    grid-column: auto;
+}
+
+.scheduled-tasks-editor-content .MuiOutlinedInput-root {
+    min-height: 38px;
+    border-radius: 2px !important;
+}
+
+.scheduled-tasks-editor-content .MuiInputBase-input,
+.scheduled-tasks-editor-content .MuiSelect-select {
+    font-size: 14px;
+}
+
+.scheduled-tasks-editor-content .MuiInputBase-multiline {
+    min-height: 0;
+}
+
+.scheduled-tasks-editor-content>.MuiStack-root>.MuiBox-root>.MuiTypography-root:first-child {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.scheduled-tasks-editor-content .MuiFormHelperText-root {
+    margin-top: 4px;
+    margin-left: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.scheduled-tasks-editor-actions {
+    padding: 16px 20px;
+}
+
+.scheduled-tasks-editor-label {
+    display: block;
+    margin-bottom: 6px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.scheduled-tasks-editor-header {
+    padding: 16px 20px;
+}
+
+.scheduled-tasks-editor-hero {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.scheduled-tasks-editor-hero--plain {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.scheduled-tasks-editor-hero-icon {
+    display: flex;
+    width: 56px;
+    height: 56px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(147, 197, 253, 0.65);
+    border-radius: 4px;
+    background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+    color: #2563eb;
+}
+
+.scheduled-tasks-editor-hero-icon svg {
+    font-size: 27px;
+}
+
+.scheduled-tasks-editor-title {
+    color: #334155;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.scheduled-tasks-cycle-unit {
+    display: flex;
+    align-items: center;
+    color: #64748b;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.scheduled-tasks-cycle-unit--hour {
+    order: 2;
+}
+
+.scheduled-tasks-cycle-unit--day {
+    order: 1;
+}
+
+.scheduled-tasks-cycle-unit--minute {
+    order: 3;
+}
+
+.scheduled-tasks-editor-description {
+    margin-top: 4px;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.scheduled-tasks-editor-close.MuiIconButton-root {
+    align-self: start;
+    margin-right: -4px;
+    border-radius: 2px;
+    color: #94a3b8;
+}
+
+.app-shell-root--dark .scheduled-tasks-toolbar-search .MuiOutlinedInput-root,
+.app-shell-root--dark .scheduled-tasks-row-actions .MuiIconButton-root,
+.app-shell-root--dark .scheduled-tasks-toolbar-refresh.MuiIconButton-root,
+.app-shell-root--dark .scheduled-tasks-table-row {
+    background: #0f172a;
+}
+
+.app-shell-root--dark .scheduled-tasks-toolbar-search .MuiInputBase-input {
+    color: #e5edf5;
+}
+
+.app-shell-root--dark .scheduled-tasks-toolbar-search .MuiInputBase-input::placeholder {
+    color: #64748b;
+}
+
+.app-shell-root--dark .scheduled-tasks-row-actions .MuiIconButton-root,
+.app-shell-root--dark .scheduled-tasks-toolbar-refresh.MuiIconButton-root {
+    color: #f8fafc;
+}
+
+.app-shell-root--dark .scheduled-tasks-panel.MuiPaper-root {
+    border-color: rgba(71, 85, 105, 0.65);
+    box-shadow: none;
+}
+
+.app-shell-root--dark .scheduled-tasks-scoped-dialog {
+    border-color: rgba(71, 85, 105, 0.65);
+    background: #111827;
+    color: #e5edf5;
+}
+
+.app-shell-root--dark .scheduled-tasks-log-panel {
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.app-shell-root--dark .scheduled-tasks-list-frame {
+    border-color: rgba(71, 85, 105, 0.65);
+    background: #111827;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+}
+
+.app-shell-root--dark .scheduled-tasks-table th {
+    border-bottom-color: rgba(71, 85, 105, 0.65);
+    background: #162033;
+    color: #94a3b8;
+}
+
+.app-shell-root--dark .scheduled-tasks-table td {
+    border-bottom-color: rgba(71, 85, 105, 0.45);
+}
+
+.app-shell-root--dark .scheduled-tasks-table-row:hover,
+.app-shell-root--dark .scheduled-tasks-toolbar-refresh.MuiIconButton-root:hover,
+.app-shell-root--dark .scheduled-tasks-row-actions .MuiIconButton-root:hover {
+    background: #162033;
+    color: #ffffff;
+}
+
+.app-shell-root--dark .scheduled-tasks-editor-hero-icon {
+    border-color: rgba(96, 165, 250, 0.28);
+    background: linear-gradient(180deg, #162033 0%, #1d4ed8 100%);
+    color: #dbeafe;
+}
+
+.app-shell-root--dark .scheduled-tasks-editor-title {
+    color: #e5edf5;
+}
+
+.app-shell-root--dark .scheduled-tasks-editor-description,
+.app-shell-root--dark .scheduled-tasks-editor-label {
+    color: #94a3b8;
+}
+
+.app-shell-root--dark .scheduled-tasks-editor-content>.MuiStack-root>.MuiBox-root>.MuiTypography-root:first-child,
+.app-shell-root--dark .scheduled-tasks-editor-content .MuiFormHelperText-root {
+    color: #94a3b8;
+}
+
+@media (max-width: 680px) {
+    .scheduled-tasks-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .scheduled-tasks-toolbar-filters,
+    .scheduled-tasks-toolbar-actions {
+        flex-wrap: wrap;
+    }
+
+    .scheduled-tasks-toolbar-actions {
+        width: 100%;
+    }
+
+    .scheduled-tasks-toolbar-search {
+        flex: 1 1 220px;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .scheduled-tasks-editor-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .scheduled-tasks-editor-form> :nth-child(1),
+    .scheduled-tasks-editor-form> :nth-child(2) {
+        grid-column: 1 / -1;
+    }
+}

@@ -36,6 +36,7 @@ const OverviewPage = lazyPage(() => import('../../features/overview/overview-pag
 const DatabasesPage = lazyPage(() => import('../../features/databases/databases-page'), 'DatabasesPage')
 const ServicesPage = lazyPage(() => import('../../features/services/services-page'), 'ServicesPage')
 const TerminalPage = lazyPage(() => import('../../features/terminal/terminal-page'), 'TerminalPage')
+const ScheduledTasksPage = lazyPage(() => import('../../features/scheduled-tasks/scheduled-tasks-page'), 'ScheduledTasksPage')
 const UsersPage = lazyPage(() => import('../../features/users/users-page'), 'UsersPage')
 const ApplicationsDeployPage = lazyPage(() => import('../../features/applications/applications-deploy-page'), 'ApplicationsDeployPage')
 const ApplicationsCustomInstallPage = lazyPage(() => import('../../features/applications/applications-custom-install-page'), 'ApplicationsCustomInstallPage')
@@ -83,6 +84,8 @@ function preloadInitialRoute(pathname: string) {
         preloaders.push(FilesPage.preload)
     } else if (pathname === '/terminal') {
         preloaders.push(TerminalPage.preload)
+    } else if (pathname === '/cronjob') {
+        preloaders.push(ScheduledTasksPage.preload)
     } else if (pathname === '/logs') {
         preloaders.push(LogsPage.preload)
     } else if (pathname === '/services') {
@@ -181,6 +184,13 @@ export function createAppRouter() {
             }
         }
 
+        if (item.segment === 'cronjob') {
+            return {
+                path: item.segment,
+                element: <ProductAuthRouteGuard routeSegment={item.segment}><ScheduledTasksPage /></ProductAuthRouteGuard>,
+            }
+        }
+
         if (item.segment === 'logs') {
             return {
                 path: item.segment,
@@ -269,6 +279,10 @@ export function createAppRouter() {
                         {
                             path: 'applications/custom-install',
                             element: <ApplicationsCustomInstallPage />,
+                        },
+                        {
+                            path: 'scheduled-tasks',
+                            element: <Navigate replace to="/cronjob" />,
                         },
                         ...shellRoutes,
                     ],

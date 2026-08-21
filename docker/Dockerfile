@@ -82,7 +82,8 @@ RUN apt-get update && \
     libstdc++6 \
     logrotate \
     openssl \
-    sqlite3 && \
+    sqlite3 \
+    util-linux && \
     rm -rf /var/lib/apt/lists/*
 
 ARG WEBSOFT9_PRODUCT_VERSION=

@@ -79,6 +79,7 @@ development_status:
   4-6-build-the-controlled-terminal-bridge-and-session-audit: ready-for-dev
   4-7-build-the-core-services-view-and-log-drilldown: review
   4-8-build-the-websoft9-runtime-logs-page: review
+  4-9-build-lightweight-scheduled-tasks: done
   epic-4-retrospective: optional
 
   epic-5: in-progress

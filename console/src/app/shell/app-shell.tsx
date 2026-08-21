@@ -47,7 +47,7 @@ const navigationSections = [
     },
     {
         key: 'tools',
-        segments: ['terminal', 'services', 'logs', 'users', 'settings'],
+        segments: ['terminal', 'cronjob', 'services', 'logs', 'users', 'settings'],
     },
 ] as const
 
@@ -88,6 +88,8 @@ function ShellNavIcon({ segment }: { segment: AppNavIconSegment }) {
             return <SvgIcon viewBox="0 0 24 24"><path d="M5 4h9a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H5V4Zm2 2v12h7a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1H7Zm11 1h2v10h-2V7Z" /></SvgIcon>
         case 'terminal':
             return <SvgIcon viewBox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v10h16V7H4Zm3 2 4 3-4 3v-2l1.5-1L7 11V9Zm6 4h4v2h-4v-2Z" /></SvgIcon>
+        case 'cronjob':
+            return <SvgIcon viewBox="0 0 24 24"><path d="M6 3h2v2h8V3h2v2h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2V3Zm14 7H4v10h16V10Zm-3 3v5h-5v-5h5Zm-7 0v2H7v-2h3Zm0 3v2H7v-2h3Z" /></SvgIcon>
         case 'services':
             return <SvgIcon viewBox="0 0 24 24"><path d="M13.73 3 15 5.55l2.82.41-2.04 1.99.48 2.81L13.73 9.4 11.2 10.76l.48-2.81-2.04-1.99 2.82-.41L13.73 3ZM6 13h5v2H6v-2Zm0 4h12v2H6v-2Zm7-4h5v2h-5v-2Z" /></SvgIcon>
         case 'logs':
@@ -212,6 +214,7 @@ export function AppShell() {
         location.pathname.startsWith('/myapps/') ||
         location.pathname === '/dashboard' ||
         location.pathname === '/terminal' ||
+        location.pathname === '/cronjob' ||
         location.pathname === '/services' ||
         location.pathname === '/databases' ||
         location.pathname === '/logs' ||
