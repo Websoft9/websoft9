@@ -11,6 +11,7 @@ Welcome to the Websoft9 documentation. Websoft9 is a web-based PaaS/Linux Panel 
 | [Developer Guide](developer.md) | Development environment setup, coding standards, and contribution workflow |
 | [API Reference](api-reference.md) | AppHub REST API endpoints and usage |
 | [Deployment](deployment.md) | Production deployment, cloud marketplace, and operations |
+| [AWS CloudFormation WordPress + RDS](aws-cloudformation-websoft9-wordpress-rds.md) | AWS deployment architecture for Websoft9, WordPress, and RDS |
 | [FAQ](faq.md) | Frequently asked questions |
 
 ## Project Resources

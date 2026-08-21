@@ -48,6 +48,8 @@ Websoft9 is available on major cloud marketplaces:
 | Alibaba Cloud | [Websoft9 on Alibaba Cloud](https://marketplace.alibabacloud.com/products/201072001/sgcmjj00034378.html) |
 | Huawei Cloud | [Websoft9 on Huawei Cloud](https://marketplace.huaweicloud.com/intl/contents/bf4480ae-d0af-422c-b246-e2ec67743f4e) |
 
+For an AWS CloudFormation deployment architecture that provisions Websoft9, WordPress, and a private RDS database, see [AWS CloudFormation Websoft9 WordPress + RDS](aws-cloudformation-websoft9-wordpress-rds.md).
+
 ## Configuration
 
 ### Environment Variables
