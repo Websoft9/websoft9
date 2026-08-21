@@ -132,6 +132,10 @@ class ScheduledTaskService:
         self._start_background_sync(session_token, str(operator["id"]))
         return {"status": "started"}
 
+    def reconcile_local_schedule(self) -> None:
+        with self._lock:
+            self._sync()
+
     def _start_background_sync(self, session_token: Optional[str], operator_id: str) -> None:
         with self._lock:
             if operator_id in self._background_syncing:

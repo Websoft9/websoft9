@@ -13,6 +13,7 @@ from src.services.settings_manager import SettingsManager
 from src.services.product_auth import ProductAuthService
 from src.core.exception import CustomException
 from src.services.appstore_sync_manager import AppStoreSyncManager
+from src.services.scheduled_tasks import ScheduledTaskService
 
 @click.group()
 def cli():
@@ -115,6 +116,15 @@ def upgrade(target, channel, dev, force_refresh):
                 click.echo(f"App Store resources ({active_channel}) synchronized successfully.")
         else:
             click.echo(f"Unknown upgrade target: {target}")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@cli.command(hidden=True)
+def reconcile_scheduled_tasks():
+    """Restore local scheduled-task runners and cron after an upgrade."""
+    try:
+        ScheduledTaskService().reconcile_local_schedule()
     except Exception as e:
         raise click.ClickException(str(e))
 

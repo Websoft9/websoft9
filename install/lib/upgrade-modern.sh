@@ -247,6 +247,13 @@ run_upgrade_modern() {
     die "$EXIT_VALIDATE" "Upgrade failed (post-upgrade validation)"
   fi
 
+  log_step "Restoring local scheduled tasks"
+  if ! docker exec "$MODERN_CONTAINER_NAME" websoft9 reconcile-scheduled-tasks; then
+    log_error "Scheduled task recovery failed, rolling back"
+    _upgrade_modern_rollback "$install_path" "$backup_dir"
+    die "$EXIT_VALIDATE" "Upgrade failed (scheduled task recovery)"
+  fi
+
   log_info "==== Upgrade successful ===="
   print_runtime_summary upgrade "$install_path" "$console_port" "$backup_dir"
 }

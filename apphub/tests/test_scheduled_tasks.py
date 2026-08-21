@@ -189,6 +189,36 @@ def test_platform_task_crud_renders_cron_and_preserves_operator_isolation(monkey
         assert not (tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh").exists()
 
 
+def test_reconcile_local_schedule_rebuilds_only_enabled_container_tasks(tmp_path):
+    cron_file = tmp_path / "websoft9-tasks"
+    host_access = FakeHostTaskAccessService()
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(cron_file),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=host_access,
+    )
+    enabled = service.create_task("valid-session", {"name": "Enabled", "schedule": "* * * * *", "command": "date"})
+    disabled = service.create_task("valid-session", {"name": "Disabled", "schedule": "* * * * *", "command": "echo disabled", "enabled": False})
+    host_task = service.create_task(
+        "valid-session", {"name": "Remote", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"}
+    )
+
+    cron_file.unlink()
+    (tmp_path / "tasks" / "scripts" / f"{enabled['task_id']}.sh").unlink()
+    remote_commands_before_reconcile = len(host_access.client.commands)
+    service.reconcile_local_schedule()
+
+    cron = cron_file.read_text(encoding="utf-8")
+    assert enabled["task_id"] in cron
+    assert disabled["task_id"] not in cron
+    assert host_task["task_id"] not in cron
+    assert (tmp_path / "tasks" / "scripts" / f"{enabled['task_id']}.sh").is_file()
+    assert not (tmp_path / "tasks" / "scripts" / f"{disabled['task_id']}.sh").exists()
+    assert len(host_access.client.commands) == remote_commands_before_reconcile
+
+
 def test_platform_task_rejects_profile_on_container_target(monkeypatch, tmp_path):
     service = ScheduledTaskService(
         data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
