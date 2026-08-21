@@ -195,6 +195,19 @@ _resolve_latest_version() {
   return 1
 }
 
+_resolve_initial_image_tag() {
+  local install_path="$1"
+  local version
+
+  version="$(_resolve_latest_version "$install_path" 2>/dev/null || true)"
+  if [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
+    echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    return 0
+  fi
+
+  _resolve_target_image_tag "$install_path"
+}
+
 _resolve_current_modern_version() {
   local install_path="$1"
   local compose_file="${install_path}/docker-compose.yml"
@@ -295,7 +308,7 @@ case "$env_kind" in
   empty)
     log_step "No Websoft9 installation detected. Starting a fresh install"
     if [ -z "$_OPT_VERSION_EXPLICIT" ]; then
-      _resolved="$(_resolve_target_image_tag "$OPT_PATH" 2>/dev/null || true)"
+      _resolved="$(_resolve_initial_image_tag "$OPT_PATH" 2>/dev/null || true)"
       [ -n "$_resolved" ] && OPT_VERSION="$_resolved"
     fi
     run_install "$OPT_CONSOLE_PORT" "$OPT_PATH" "$OPT_VERSION"
