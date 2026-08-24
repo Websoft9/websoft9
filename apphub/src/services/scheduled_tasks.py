@@ -455,6 +455,7 @@ class ScheduledTaskService:
             self._write_task(task_id, sync_status="synced", updated_at=self._now_iso())
 
     def _sync(self) -> None:
+        self._ensure_storage()
         self._sync_tasks([task for task in self._list_enabled_tasks() if task["target"] == "container"])
 
     def _sync_without_task(self, task_id: str) -> None:

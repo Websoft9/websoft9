@@ -219,6 +219,23 @@ def test_reconcile_local_schedule_rebuilds_only_enabled_container_tasks(tmp_path
     assert len(host_access.client.commands) == remote_commands_before_reconcile
 
 
+def test_reconcile_local_schedule_initializes_empty_storage(tmp_path):
+    data_dir = tmp_path / "tasks"
+    cron_file = tmp_path / "websoft9-tasks"
+    service = ScheduledTaskService(
+        data_dir=str(data_dir),
+        cron_file=str(cron_file),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+
+    service.reconcile_local_schedule()
+
+    assert (data_dir / "scheduled-tasks.sqlite").is_file()
+    assert cron_file.is_file()
+    assert " root " not in cron_file.read_text(encoding="utf-8")
+
+
 def test_platform_task_rejects_profile_on_container_target(monkeypatch, tmp_path):
     service = ScheduledTaskService(
         data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
