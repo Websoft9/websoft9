@@ -128,7 +128,6 @@ function isValidCustomDomain(value: string) {
 function getInstallPortsValidationMessage(
     settings: Record<string, string>,
     t: (key: string, options?: Record<string, unknown>) => string,
-    locale: string,
     profile: string | null,
 ) {
     const usedPorts = new Set<string>()
@@ -139,7 +138,7 @@ function getInstallPortsValidationMessage(
         }
 
         const value = rawValue.trim()
-        const label = getInstallSettingLabel(key, t, locale)
+        const label = getInstallSettingLabel(key, t)
         if (!/^\d+$/.test(value)) {
             return { key, message: t('appStorePage.install.validation.port', { name: label }) }
         }
@@ -265,16 +264,6 @@ function formatFullSyncTimestamp(value: string | undefined, locale: string) {
     const timestamp = new Date(value)
     if (Number.isNaN(timestamp.getTime())) {
         return null
-    }
-
-    if (locale.toLowerCase().startsWith('zh')) {
-        const year = timestamp.getFullYear()
-        const month = String(timestamp.getMonth() + 1).padStart(2, '0')
-        const day = String(timestamp.getDate()).padStart(2, '0')
-        const hour = String(timestamp.getHours()).padStart(2, '0')
-        const minute = String(timestamp.getMinutes()).padStart(2, '0')
-        const second = String(timestamp.getSeconds()).padStart(2, '0')
-        return `${year}年${month}月${day}日 ${hour}:${minute}:${second}`
     }
 
     return new Intl.DateTimeFormat(locale, {
@@ -580,131 +569,25 @@ const knownInstallSettingLabelKeys: Record<string, string> = {
     W9_DB_PORT_SET: 'appStorePage.install.databasePortLabel',
 }
 
-const installSettingTokenLabels = {
-    en: {
-        ADMIN: 'Admin',
-        AMQP: 'AMQP',
-        API: 'API',
-        APP: 'Application',
-        BEATS: 'Beats',
-        BRIDGE: 'Bridge',
-        BROKER: 'Broker',
-        BW: 'Bitwarden',
-        CLIENT: 'Client',
-        CONFIG: 'Config',
-        CONTAINER: 'Container',
-        DASHBOARD: 'Dashboard',
-        DATA: 'Data',
-        DB: 'Database',
-        DNS: 'DNS',
-        ER: 'ER',
-        FLV: 'FLV',
-        FORWARDER: 'Forwarder',
-        GELF: 'GELF',
-        GRPC: 'gRPC',
-        GUI: 'GUI',
-        HTTP: 'HTTP',
-        HTTPS: 'HTTPS',
-        INNERIP: 'Internal IP',
-        INSTALLATION: 'Installation',
-        KAFKA: 'Kafka',
-        KEY: 'Key',
-        MQ: 'Message Queue',
-        MQTT: 'MQTT',
-        NETWORKID: 'Network ID',
-        OPENAI: 'OpenAI',
-        OPENWIRE: 'OpenWire',
-        PATH: 'Path',
-        PORT: 'Port',
-        POSTGRESQL: 'PostgreSQL',
-        RAW: 'Raw',
-        REMOTE: 'Remote',
-        RPC: 'RPC',
-        SCAN: 'Scan',
-        SERVER: 'Server',
-        SMTP: 'SMTP',
-        SSH: 'SSH',
-        STOMP: 'STOMP',
-        SYSLOG: 'Syslog',
-        TCP: 'TCP',
-        TURN: 'TURN',
-        UDP: 'UDP',
-        URI: 'URI',
-        VNC: 'VNC',
-        WS: 'WebSocket',
-    },
-    zh: {
-        ADMIN: '管理',
-        AMQP: 'AMQP',
-        API: 'API',
-        APP: '应用',
-        BEATS: 'Beats',
-        BRIDGE: '桥接',
-        BROKER: '代理',
-        BW: 'Bitwarden',
-        CLIENT: '客户端',
-        CONFIG: '配置',
-        CONTAINER: '容器',
-        DASHBOARD: '控制台',
-        DATA: '数据',
-        DB: '数据库',
-        DNS: 'DNS',
-        ER: 'ER',
-        FLV: 'FLV',
-        FORWARDER: '转发器',
-        GELF: 'GELF',
-        GRPC: 'gRPC',
-        GUI: 'GUI',
-        HTTP: 'HTTP',
-        HTTPS: 'HTTPS',
-        INNERIP: '内网 IP',
-        INSTALLATION: '安装',
-        KAFKA: 'Kafka',
-        KEY: '密钥',
-        MQ: '消息队列',
-        MQTT: 'MQTT',
-        NETWORKID: '网络 ID',
-        OPENAI: 'OpenAI',
-        OPENWIRE: 'OpenWire',
-        PATH: '路径',
-        PORT: '端口',
-        POSTGRESQL: 'PostgreSQL',
-        RAW: '原始',
-        REMOTE: '远程',
-        RPC: 'RPC',
-        SCAN: '扫描',
-        SERVER: '服务',
-        SMTP: 'SMTP',
-        SSH: 'SSH',
-        STOMP: 'STOMP',
-        SYSLOG: 'Syslog',
-        TCP: 'TCP',
-        TURN: 'TURN',
-        UDP: 'UDP',
-        URI: 'URI',
-        VNC: 'VNC',
-        WS: 'WebSocket',
-    },
-} as const
-
 function humanizeInstallSettingToken(token: string) {
     return token
         .toLowerCase()
         .replace(/(^|\s)(\w)/g, (value) => value.toUpperCase())
 }
 
-function formatInstallSettingName(value: string, locale: string) {
-    const localeKey = locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
-    const tokenLabels = installSettingTokenLabels[localeKey]
-
+function formatInstallSettingName(value: string, t: (key: string, options?: Record<string, unknown>) => string) {
     return value
         .split('_')
         .filter(Boolean)
-        .map((token) => tokenLabels[token.toUpperCase() as keyof typeof tokenLabels] ?? humanizeInstallSettingToken(token))
-        .join(localeKey === 'zh' ? ' ' : ' ')
+        .map((token) => {
+            const translationKey = `appStorePage.install.settingTokens.${token.toUpperCase()}`
+            const label = t(translationKey, { defaultValue: '' })
+            return label && label !== translationKey ? label : humanizeInstallSettingToken(token)
+        })
+        .join(' ')
 }
 
-function getInstallSettingLabel(key: string, t: (key: string, options?: Record<string, unknown>) => string, locale: string) {
+function getInstallSettingLabel(key: string, t: (key: string, options?: Record<string, unknown>) => string) {
     const knownLabelKey = knownInstallSettingLabelKeys[key]
     if (knownLabelKey) {
         return t(knownLabelKey)
@@ -718,12 +601,12 @@ function getInstallSettingLabel(key: string, t: (key: string, options?: Record<s
     if (normalizedKey.endsWith('_PORT')) {
         const portName = normalizedKey.slice(0, -'_PORT'.length)
         return t('appStorePage.install.dynamicPortLabel', {
-            name: formatInstallSettingName(portName, locale),
+            name: formatInstallSettingName(portName, t),
         })
     }
 
     return t('appStorePage.install.dynamicSettingLabel', {
-        name: formatInstallSettingName(normalizedKey, locale),
+        name: formatInstallSettingName(normalizedKey, t),
     })
 }
 
@@ -925,6 +808,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installToastRevision, setInstallToastRevision] = useState(0)
     const [installFieldErrors, setInstallFieldErrors] = useState<InstallFieldErrors>({})
     const [installFeedback, setInstallFeedback] = useState<InstallFeedback | null>(null)
+    const [testedDatabaseConnectionSignature, setTestedDatabaseConnectionSignature] = useState<string | null>(null)
     const [isSubmittingInstall, setIsSubmittingInstall] = useState(false)
     const [isRefreshingStore, setIsRefreshingStore] = useState(false)
     const [isLocalRefreshing, setIsLocalRefreshing] = useState(false)
@@ -1019,25 +903,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const selectedProfileTemplateSettings = selectedInstallProfile
         ? selectedAppProfiles[selectedInstallProfile]?.settings ?? {}
         : {}
-    const selectedAppExternalDatabases = useMemo(() => {
+    const externalDatabaseHelp = useMemo(() => {
         const selectedAppKey = (selectedApp?.key ?? '').toLowerCase()
         const canonicalSelectedApp = selectedAppKey
             ? apps.find((app) => (app.key ?? '').toLowerCase() === selectedAppKey)
             : undefined
-        return canonicalSelectedApp?.externalDB ?? selectedApp?.externalDB ?? {}
+        return canonicalSelectedApp?.help?.db ?? selectedApp?.help?.db ?? ''
     }, [apps, selectedApp])
-    const externalDatabaseSupport = useMemo(() => {
-        const compatibility = selectedVersion === 'latest'
-            ? Object.values(selectedAppExternalDatabases).find((value) => typeof value === 'object' && !Array.isArray(value))
-            : selectedAppExternalDatabases[selectedVersion]
-        if (!compatibility || Array.isArray(compatibility)) {
-            return []
-        }
-        return Object.entries(compatibility).flatMap(([databaseType, versions]) => {
-            const displayName = ({ mariadb: 'MariaDB', mysql: 'MySQL', postgresql: 'PostgreSQL' } as Record<string, string>)[databaseType] ?? databaseType
-            return Array.isArray(versions) && versions.length > 0 ? [`${displayName} ${versions.join(' / ')}`] : [displayName]
-        })
-    }, [selectedAppExternalDatabases, selectedVersion])
     const isExternalDatabaseProfile = Boolean(
         selectedInstallProfile && selectedAppProfiles[selectedInstallProfile]?.is_external_database,
     )
@@ -1054,9 +926,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 return Object.keys(installSettings).length > 0 ? installSettings : selectedAppSettings
             }
 
-            return profileInstallSettings[selectedInstallProfile] ?? selectedProfileTemplateSettings
+            return {
+                ...selectedAppSettings,
+                ...selectedProfileTemplateSettings,
+                ...(profileInstallSettings[selectedInstallProfile] ?? {}),
+            }
         },
-        [installSettings, profileInstallSettings, selectedInstallProfile, selectedProfileTemplateSettings],
+        [installSettings, profileInstallSettings, selectedAppSettings, selectedInstallProfile, selectedProfileTemplateSettings],
     )
     const sharedInstallSettings = Object.entries(effectiveInstallSettings).filter(
         ([key]) => !isExternalDatabaseProfile || !externalDatabaseSettingKeys.includes(key),
@@ -1064,17 +940,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const displayedProfileInstallSettings = externalDatabaseSettingKeys.map(
         (key) => [key, effectiveInstallSettings[key] ?? ''] as [string, string],
     )
-    const isChineseLocale = resolvedLocale.toLowerCase().startsWith('zh')
-
     function getDatabaseSettingLabel(key: string) {
-        const labels: Record<string, { zh: string; en: string }> = {
-            W9_DB_HOST_SET: { zh: '数据库主机', en: 'Database host' },
-            W9_DB_PORT_SET: { zh: '数据库端口', en: 'Database port' },
-            W9_DB_NAME_SET: { zh: '数据库名称', en: 'Database name' },
-            W9_DB_USER_SET: { zh: '数据库用户', en: 'Database user' },
-            W9_DB_PASSWORD_SET: { zh: '数据库密码', en: 'Database password' },
-        }
-        return labels[key]?.[isChineseLocale ? 'zh' : 'en'] ?? getInstallSettingLabel(key, t, resolvedLocale)
+        const label = t(`appStorePage.install.databaseFields.${key}`, { defaultValue: '' })
+        return label || getInstallSettingLabel(key, t)
     }
 
     function getExternalDatabaseValidationErrors(settings: Record<string, string>) {
@@ -1082,18 +950,29 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         const requiredKeys = ['W9_DB_HOST_SET', 'W9_DB_PORT_SET', 'W9_DB_NAME_SET', 'W9_DB_USER_SET', 'W9_DB_PASSWORD_SET']
         for (const key of requiredKeys) {
             if (!settings[key]?.trim()) {
-                errors[key] = isChineseLocale ? `${getDatabaseSettingLabel(key)}不能为空` : `${getDatabaseSettingLabel(key)} is required`
+                errors[key] = t('appStorePage.install.databaseValidation.required', { name: getDatabaseSettingLabel(key) })
             }
         }
         const host = settings.W9_DB_HOST_SET?.trim() ?? ''
         if (host && (host.includes('://') || /\s/.test(host))) {
-            errors.W9_DB_HOST_SET = isChineseLocale ? '数据库主机格式无效' : 'Database host is invalid'
+            errors.W9_DB_HOST_SET = t('appStorePage.install.databaseValidation.hostInvalid')
         }
         const port = Number(settings.W9_DB_PORT_SET)
         if (settings.W9_DB_PORT_SET?.trim() && (!Number.isInteger(port) || port < 1 || port > 65535)) {
-            errors.W9_DB_PORT_SET = isChineseLocale ? '数据库端口必须在 1 到 65535 之间' : 'Database port must be between 1 and 65535'
+            errors.W9_DB_PORT_SET = t('appStorePage.install.databaseValidation.portInvalid')
         }
         return errors
+    }
+
+    function getDatabaseConnectionSignature(profile: string, settings: Record<string, string>) {
+        return [
+            profile,
+            settings.W9_DB_HOST_SET,
+            settings.W9_DB_PORT_SET,
+            settings.W9_DB_NAME_SET,
+            settings.W9_DB_USER_SET,
+            settings.W9_DB_PASSWORD_SET,
+        ].join('\u0000')
     }
 
     const installedOfficialAppNames = useMemo(() => {
@@ -1386,7 +1265,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setSelectedInstallProfile(null)
         setProfileInstallSettings(
             Object.fromEntries(
-                Object.entries(selectedApp.profiles ?? {}).map(([profile, metadata]) => [profile, { ...(metadata.settings ?? {}) }]),
+                Object.entries(selectedApp.profiles ?? {}).map(([profile, metadata]) => [
+                    profile,
+                    {
+                        ...(selectedApp.settings ?? {}),
+                        ...(metadata.settings ?? {}),
+                    },
+                ]),
             ),
         )
         setInstallError(null)
@@ -1489,7 +1374,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         }
 
         const normalizedAppId = normalizeInstallName(installName)
-        const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
         setInstallFieldErrors({})
         setCustomDomainErrorIndex(null)
 
@@ -1548,7 +1432,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             seenDomains.add(domain)
         }
 
-        const portsValidationMessage = getInstallPortsValidationMessage(effectiveInstallSettings, t, locale, selectedInstallProfile)
+        const portsValidationMessage = getInstallPortsValidationMessage(effectiveInstallSettings, t, selectedInstallProfile)
         if (portsValidationMessage) {
             setInstallFieldErrors({ settings: { [portsValidationMessage.key]: portsValidationMessage.message } })
             setInstallError(portsValidationMessage.message)
@@ -1562,6 +1446,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 setInstallFieldErrors({ settings: databaseErrors })
                 setInstallError(Object.values(databaseErrors)[0] ?? null)
                 installSettingInputRefs.current[Object.keys(databaseErrors)[0]]?.focus()
+                return
+            }
+            if (!selectedInstallProfile || testedDatabaseConnectionSignature !== getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings)) {
+                setInstallError(t('appStorePage.install.databaseConnection.testRequired'))
                 return
             }
         }
@@ -1613,6 +1501,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             }
             if (isExternalDatabaseProfile && /Unable to connect to the specified database\.?/i.test(message)) {
                 message = t('appStorePage.install.databaseConnection.failed')
+            }
+            if (isExternalDatabaseProfile && /The connected database version is not supported by this application version\.?/i.test(message)) {
+                message = t('appStorePage.install.databaseConnection.versionUnsupported')
             }
             // Detect port conflict error from backend and show i18n-friendly message
             const portMatch = message.match(/Port\s+(\d+)\s+is already in use/i)
@@ -3448,7 +3339,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
                                                     return (
                                                         <>
-                                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getInstallSettingLabel(key, t, i18n.resolvedLanguage ?? i18n.language ?? 'en')}</Typography>
+                                                            <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getInstallSettingLabel(key, t)}</Typography>
                                                             <TextField
                                                                 error={Boolean(installFieldErrors.settings?.[key])}
                                                                 fullWidth
@@ -3505,7 +3396,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         {Object.keys(selectedAppProfiles).length > 0 ? (
                                             <Box sx={{ pt: 0.5 }}>
                                                 <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
-                                                    {isChineseLocale ? '应用数据库' : 'Application database'}
+                                                    {t('appStorePage.install.databaseProfile.label')}
                                                 </Typography>
                                                 <TextField
                                                     select
@@ -3515,6 +3406,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     onChange={(event) => {
                                                         setInstallError(null)
                                                         setInstallFieldErrors({})
+                                                        setTestedDatabaseConnectionSignature(null)
                                                         setSelectedInstallProfile(event.target.value || null)
                                                     }}
                                                     sx={{
@@ -3523,13 +3415,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     }}
                                                     slotProps={{ select: { MenuProps: installDialogSelectMenuProps, displayEmpty: true } }}
                                                 >
-                                                    <MenuItem value="">{isChineseLocale ? '系统内置' : 'System built-in'}</MenuItem>
+                                                    <MenuItem value="">{t('appStorePage.install.databaseProfile.builtIn')}</MenuItem>
                                                     {Object.entries(selectedAppProfiles)
-                                                        .filter(([, metadata]) => !metadata.is_external_database || externalDatabaseSupport.length > 0)
                                                         .map(([profile, metadata]) => (
                                                             <MenuItem key={profile} value={profile}>
                                                                 {metadata.is_external_database
-                                                                    ? `${isChineseLocale ? '自定义' : 'Custom'} (${externalDatabaseSupport.join(' / ')})`
+                                                                    ? `${t('appStorePage.install.databaseProfile.custom')}${externalDatabaseHelp ? ` (${externalDatabaseHelp})` : ''}`
                                                                     : profile.replace(/-/g, ' ')}
                                                             </MenuItem>
                                                         ))}
@@ -3548,7 +3439,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                         }}
                                                     >
                                                         <Typography component="legend" sx={{ px: 0.75, fontSize: 14, fontWeight: 500, color: palette.text, backgroundColor: palette.panelSoft }}>
-                                                            {isChineseLocale ? '数据库连接信息' : 'Database connection'}
+                                                            {t('appStorePage.install.databaseProfile.connection')}
                                                         </Typography>
                                                         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(6, minmax(0, 1fr))' }, gap: 1.25 }}>
                                                             {displayedProfileInstallSettings.map(([key, value]) => (
@@ -3582,6 +3473,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                                     settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
                                                                                 }))
                                                                                 setInstallError(null)
+                                                                                setTestedDatabaseConnectionSignature(null)
                                                                                 setProfileInstallSettings((currentValue) => ({
                                                                                     ...currentValue,
                                                                                     [profile]: {
@@ -3595,7 +3487,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                                     endAdornment: (
                                                                                         <InputAdornment position="end">
                                                                                             <IconButton
-                                                                                                aria-label={isDatabasePasswordVisible ? (isChineseLocale ? '隐藏密码' : 'Hide password') : (isChineseLocale ? '显示密码' : 'Show password')}
+                                                                                                aria-label={isDatabasePasswordVisible ? t('appStorePage.install.databaseProfile.hidePassword') : t('appStorePage.install.databaseProfile.showPassword')}
                                                                                                 edge="end"
                                                                                                 onClick={() => setIsDatabasePasswordVisible((currentValue) => !currentValue)}
                                                                                             >
@@ -3636,10 +3528,16 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                                             return
                                                                                         }
                                                                                         await testExternalDatabaseConnection(selectedApp, selectedVersion, selectedInstallProfile, effectiveInstallSettings)
+                                                                                        setTestedDatabaseConnectionSignature(getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings))
                                                                                         setInstallFeedback({ severity: 'success', message: t('appStorePage.install.databaseConnection.success') })
                                                                                     } catch (error) {
+                                                                                        const message = error instanceof Error ? error.message : t('appStorePage.install.databaseConnection.failed')
                                                                                         setInstallToastRevision((currentValue) => currentValue + 1)
-                                                                                        setInstallError(t('appStorePage.install.databaseConnection.failed'))
+                                                                                        setInstallError(
+                                                                                            /Unable to connect to the specified database\.?/i.test(message)
+                                                                                                ? t('appStorePage.install.databaseConnection.failed')
+                                                                                                : message,
+                                                                                        )
                                                                                     } finally {
                                                                                         setIsTestingDatabase(false)
                                                                                     }

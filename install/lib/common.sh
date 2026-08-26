@@ -465,13 +465,24 @@ ensure_docker_installed() {
 }
 
 # 生成标准 .env（仅写入与现代 compose 事实对齐的键）
+detect_host_timezone() {
+  local timezone_name
+  timezone_name="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+  if [ -z "$timezone_name" ] && [ -L /etc/localtime ]; then
+    timezone_name="$(readlink -f /etc/localtime 2>/dev/null | sed 's#^.*/zoneinfo/##')"
+  fi
+  printf '%s\n' "${timezone_name:-UTC}"
+}
+
 write_env_file() {
   local env_path="$1"
   local image_tag="$2"
   local console_port="$3"
   local install_path="$4"
   local data_root_default
+  local timezone_name
   data_root_default="$(default_data_root_for_install_path "$install_path")"
+  timezone_name="${TZ:-$(detect_host_timezone)}"
 
   if [ "${W9_DRY_RUN:-0}" = "1" ]; then
     log_info "(dry-run) writing .env -> $env_path"
@@ -485,6 +496,7 @@ IMAGE_TAG=${image_tag}
 CONSOLE_PORT=${console_port}
 CONTAINER_NAME=${CONTAINER_NAME}
 WEBSOFT9_DATA_ROOT=${WEBSOFT9_DATA_ROOT:-$data_root_default}
+TZ=${timezone_name}
 EOF
 }
 

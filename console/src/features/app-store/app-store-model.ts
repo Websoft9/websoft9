@@ -51,7 +51,7 @@ export type AppStoreApp = {
     settings?: Record<string, string>
     is_web_app?: boolean
     profiles?: Record<string, AppStoreInstallProfile>
-    externalDB?: Record<string, Record<string, string[]>>
+    help?: Record<string, string>
     production?: boolean
     relatedAppsCollection?: {
         items?: { key?: string; trademark?: string }[]

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List,Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 class AppAvailableResponse(BaseModel):
@@ -16,5 +16,6 @@ class AppAvailableResponse(BaseModel):
     storage: Optional[int] = Field(None, description="Storage(GB)",example=1)
     logo: Dict[str, str] = Field(None, description="Logo",example={"imageurl": "https://libs.websoft9.com/Websoft9/logo/product/gogs-websoft9.png"})
     catalogCollection: Dict[str, Any] = Field(None, description="Catalog Collection", example={"items": [{"key": "repository", "title": "Code Repository","catalogCollection": {"items": [{"key": "itdeveloper", "title": "IT Developer"}]}}]})
-    externalDB: Optional[Dict[str, Dict[str, List[str]]]] = Field(None, description="External database compatibility by application version")
+    profiles: Optional[Dict[str, Dict[str, Any]]] = Field(None, description="Available installation profiles")
+    help: Optional[Dict[str, str]] = Field(None, description="Application installation guidance")
     

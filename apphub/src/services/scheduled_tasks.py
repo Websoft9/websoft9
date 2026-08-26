@@ -29,8 +29,8 @@ class ScheduledTaskService:
     _background_syncing: set[str] = set()
     _background_syncing_task_ids: dict[str, set[str]] = {}
     _runner_version_marker = "# websoft9-task-runner-version: 4"
-    _run_retention_count = 50
-    _run_retention_days = 7
+    _run_retention_count = 20
+    _run_retention_days = 3
     _log_read_line_limit = 200
     _log_read_byte_limit = 1024 * 1024
 
@@ -134,6 +134,7 @@ class ScheduledTaskService:
 
     def reconcile_local_schedule(self) -> None:
         with self._lock:
+            self._refresh_container_task_timezones()
             self._sync()
 
     def _start_background_sync(self, session_token: Optional[str], operator_id: str) -> None:
@@ -228,7 +229,14 @@ class ScheduledTaskService:
                 raise CustomException(409, "Scheduled Task Already Exists", "A task with this name already exists")
             self._insert_task(task)
             if normalized["execution_mode"] == "upload":
-                self._store_uploaded_script(session_token, self._get_task(operator["id"], task["task_id"]), normalized["script_content"])
+                try:
+                    self._store_uploaded_script(session_token, self._get_task(operator["id"], task["task_id"]), normalized["script_content"])
+                except CustomException:
+                    self._write_task(task["task_id"], sync_status="unreachable", updated_at=self._now_iso())
+                    raise
+                except Exception:
+                    self._write_task(task["task_id"], sync_status="failed", updated_at=self._now_iso())
+                    raise
             self._sync_or_mark_failed(session_token, task["task_id"])
         return self._public_task(self._get_task(operator["id"], task["task_id"]))
 
@@ -297,8 +305,11 @@ class ScheduledTaskService:
         with self._lock:
             task = self._get_task(operator["id"], task_id)
             if task["target"] == "host":
-                self._sync_host_tasks(session_token, task["profile_id"], exclude_task_id=task_id)
-                self._remove_host_task_files(session_token, task)
+                try:
+                    self._sync_host_tasks(session_token, task["profile_id"], exclude_task_id=task_id)
+                    self._remove_host_task_files(session_token, task)
+                except CustomException:
+                    pass
             else:
                 self._sync_without_task(task_id)
             self._delete_task(task_id)
@@ -393,8 +404,10 @@ class ScheduledTaskService:
         script_path = str(payload.get("script_path") or "").strip() or None
         script_name = Path(str(payload.get("script_name") or "").strip()).name or None
         script_content = payload.get("script_content")
-        timeout_seconds = int(payload.get("timeout_seconds") or 0)
-        retry_count = int(payload.get("retry_count") or 0)
+        timeout_value = payload.get("timeout_seconds")
+        retry_value = payload.get("retry_count")
+        timeout_seconds = 30 if timeout_value is None else int(timeout_value)
+        retry_count = 3 if retry_value is None else int(retry_value)
         schedule = str(payload.get("schedule") or "").strip()
         if not name:
             raise CustomException(400, "Invalid Scheduled Task", "A task name is required")
@@ -457,6 +470,15 @@ class ScheduledTaskService:
     def _sync(self) -> None:
         self._ensure_storage()
         self._sync_tasks([task for task in self._list_enabled_tasks() if task["target"] == "container"])
+
+    def _refresh_container_task_timezones(self) -> None:
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            connection.execute(
+                "UPDATE scheduled_tasks SET timezone = ? WHERE target = 'container' AND timezone != ?",
+                (self._platform_timezone(), self._platform_timezone()),
+            )
+            connection.commit()
 
     def _sync_without_task(self, task_id: str) -> None:
         tasks = [task for task in self._list_enabled_tasks() if task["target"] == "container" and task["task_id"] != task_id]
@@ -941,7 +963,12 @@ class ScheduledTaskService:
 
     @staticmethod
     def _platform_timezone() -> str:
-        return os.getenv("TZ") or "UTC"
+        try:
+            timezone_name = os.getenv("TZ", "UTC").strip()
+            ZoneInfo(timezone_name)
+            return timezone_name
+        except (ZoneInfoNotFoundError, ValueError):
+            return "UTC"
 
     def _scripts_dir(self) -> Path:
         return self.data_dir / "scripts"

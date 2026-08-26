@@ -8,6 +8,7 @@ export NPMUSER="${NPMUSER:-npm}"
 export NPMGROUP="${NPMGROUP:-npm}"
 export NPMHOME="${NPMHOME:-/tmp/npmuserhome}"
 export HOME="$NPMHOME"
+export IP_RANGES_FETCH_ENABLED="${IP_RANGES_FETCH_ENABLED:-false}"
 # NPM's certificate flow shells out to the system certbot. Keep that child
 # process on Debian's default Python path instead of AppHub's extra packages.
 unset PYTHONPATH

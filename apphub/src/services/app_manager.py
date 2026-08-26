@@ -697,9 +697,9 @@ class AppManger:
                 variables_path = os.path.join(app_lib_path, app_key, "variables.json")
                 try:
                     with open(variables_path, encoding="utf-8") as handle:
-                        external_database_metadata = json.load(handle).get("externalDB")
-                    if isinstance(external_database_metadata, dict):
-                        item["externalDB"] = external_database_metadata
+                        help_metadata = json.load(handle).get("help")
+                    if isinstance(help_metadata, dict):
+                        item["help"] = help_metadata
                 except (OSError, json.JSONDecodeError):
                     continue
 
@@ -803,10 +803,7 @@ class AppManger:
         try:
             library_path = ConfigManager("system.ini").get_value("docker_library", "path")
             app_directory = os.path.join(library_path, app_install.app_name)
-            if not is_external_database_profile(app_directory, app_install.profile):
-                env_path = os.path.join(library_path, app_install.app_name, ".env")
-            else:
-                env_path = None
+            env_path = os.path.join(library_path, app_install.app_name, ".env")
             if env_path and os.path.exists(env_path):
                 with open(env_path) as _f:
                     for _line in _f:

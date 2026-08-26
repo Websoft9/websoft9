@@ -1,9 +1,12 @@
 import stat
+import sqlite3
 import sys
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
+
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -83,3 +86,28 @@ def test_list_directory_uses_locked_sftp_helper(monkeypatch):
             {"path": "/home/websoft9/notes.txt"},
         ],
     }
+
+
+def test_delete_saved_profile_rejects_a_profile_used_by_scheduled_tasks(monkeypatch, tmp_path):
+    data_root = tmp_path / "data"
+    monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(data_root))
+    service = HostAccessService(data_dir=str(data_root / "config" / "host-access"), auth_service=FakeAuthService())
+    service._ensure_storage()
+    with service._db_connect() as connection:
+        connection.execute(
+            "INSERT INTO host_profiles (profile_id, operator_id, payload, updated_at, is_default) VALUES (?, ?, ?, ?, ?)",
+            ("profile-1", "operator-1", "{}", "2026-08-24T00:00:00+00:00", 1),
+        )
+        connection.commit()
+
+    scheduled_tasks_dir = data_root / "config" / "scheduled-tasks"
+    scheduled_tasks_dir.mkdir(parents=True)
+    with sqlite3.connect(scheduled_tasks_dir / "scheduled-tasks.sqlite") as connection:
+        connection.execute("CREATE TABLE scheduled_tasks (operator_id TEXT, target TEXT, profile_id TEXT)")
+        connection.execute("INSERT INTO scheduled_tasks VALUES (?, ?, ?)", ("operator-1", "host", "profile-1"))
+        connection.commit()
+
+    with pytest.raises(CustomException) as error:
+        service.delete_saved_profile("valid-session", "profile-1")
+
+    assert error.value.status_code == 409

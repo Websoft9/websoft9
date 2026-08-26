@@ -9,6 +9,7 @@ PyJWT
 click
 python-dotenv
 PyYAML
+ruamel.yaml==0.17.40
 docker
 tenacity
 aiodocker

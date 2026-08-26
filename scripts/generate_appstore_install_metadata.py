@@ -75,16 +75,12 @@ def get_install_settings(env_values: dict[str, str]) -> dict[str, str]:
 def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
     profiles: dict[str, dict[str, object]] = {}
 
-    for compose_path in sorted(app_dir.glob("docker-compose.*.yml")):
-        match = PROFILE_COMPOSE_PATTERN.match(compose_path.name)
+    for env_path in sorted(app_dir.glob(".env.*")):
+        match = re.match(r"^\.env\.([a-z0-9][a-z0-9-]*)$", env_path.name)
         if not match:
             continue
 
         profile_name = match.group(1)
-        env_path = app_dir / f".env.{profile_name}"
-        if not env_path.is_file():
-            continue
-
         env_values = load_env_values(env_path)
         profile_metadata: dict[str, object] = {
             "settings": get_install_settings(env_values),
@@ -126,9 +122,9 @@ def build_install_metadata(library_root: Path, config_path: Path) -> dict[str, o
         variables_path = app_dir / "variables.json"
         if variables_path.exists():
             try:
-                external_database_metadata = json.loads(variables_path.read_text(encoding="utf-8")).get("externalDB")
-                if isinstance(external_database_metadata, dict):
-                    app_metadata["externalDB"] = external_database_metadata
+                help_metadata = json.loads(variables_path.read_text(encoding="utf-8")).get("help")
+                if isinstance(help_metadata, dict):
+                    app_metadata["help"] = help_metadata
             except json.JSONDecodeError:
                 pass
 

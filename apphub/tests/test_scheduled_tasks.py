@@ -236,6 +236,87 @@ def test_reconcile_local_schedule_initializes_empty_storage(tmp_path):
     assert " root " not in cron_file.read_text(encoding="utf-8")
 
 
+def test_scheduled_task_defaults_and_history_retention(tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+
+    task = service.create_task("valid-session", {"name": "Defaults", "schedule": "* * * * *", "command": "date"})
+
+    assert task["timeout_seconds"] == 30
+    assert task["retry_count"] == 3
+    assert service._run_retention_count == 20
+    assert service._run_retention_days == 3
+
+
+def test_platform_timezone_uses_container_tz(monkeypatch):
+    monkeypatch.setenv("TZ", "Asia/Shanghai")
+
+    assert ScheduledTaskService._platform_timezone() == "Asia/Shanghai"
+
+
+def test_reconcile_local_schedule_updates_existing_container_task_timezone(monkeypatch, tmp_path):
+    monkeypatch.setenv("TZ", "Asia/Shanghai")
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+    task = service.create_task("valid-session", {"name": "Timezone", "schedule": "* * * * *", "command": "date"})
+    service._write_task(task["task_id"], timezone="UTC")
+
+    service.reconcile_local_schedule()
+
+    assert service._get_task("operator-1", task["task_id"])["timezone"] == "Asia/Shanghai"
+
+
+def test_host_uploaded_task_marks_unreachable_when_upload_fails(monkeypatch, tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=FakeHostTaskAccessService(),
+    )
+    monkeypatch.setattr(service, "_store_uploaded_script", lambda *_args: (_ for _ in ()).throw(CustomException(503, "Scheduled Task Upload Failed", "Host unavailable")))
+
+    with pytest.raises(CustomException):
+        service.create_task(
+            "valid-session",
+            {"name": "Remote upload", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "execution_mode": "upload", "script_content": "echo task"},
+        )
+
+    task = service._list_tasks("operator-1")[0]
+    assert task["sync_status"] == "unreachable"
+
+
+def test_delete_host_task_succeeds_when_host_is_unreachable(monkeypatch, tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+        host_access_service=FakeHostTaskAccessService(),
+    )
+    task = service.create_task(
+        "valid-session",
+        {"name": "Remote", "target": "host", "profile_id": "profile-1", "schedule": "* * * * *", "command": "date"},
+    )
+    monkeypatch.setattr(
+        service,
+        "_sync_host_tasks",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(CustomException(503, "Scheduled Task Host Unavailable", "Host is unavailable")),
+    )
+
+    service.delete_task("valid-session", task["task_id"])
+
+    assert service._list_tasks("operator-1") == []
+
+
 def test_platform_task_rejects_profile_on_container_target(monkeypatch, tmp_path):
     service = ScheduledTaskService(
         data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None

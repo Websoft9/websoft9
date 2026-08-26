@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Optional, Sequence
+from urllib.parse import urljoin
 
 import requests
 
@@ -127,7 +128,7 @@ DEFAULT_SERVICE_DEFINITIONS = (
         label="Gitea",
         description="Git repository service",
         supervisor_program="gitea",
-        health_url=os.getenv("WEBSOFT9_GITEA_HEALTH_URL", "http://127.0.0.1:3000/"),
+        health_url=os.getenv("WEBSOFT9_GITEA_HEALTH_URL", "http://127.0.0.1:3001/"),
         workspace_route="repository",
         integration_key="gitea",
         log_root=Path(os.getenv("WEBSOFT9_SERVICE_LOG_ROOT", f"{os.getenv('WEBSOFT9_DATA_ROOT', '/opt/websoft9/data')}/logs")) / "gitea",
@@ -397,6 +398,13 @@ class CoreServicesService:
         return statuses
 
     def _probe_health(self, definition: ServiceDefinition) -> HealthProbeResult:
+        if definition.key == "nginx-proxy-manager":
+            token_url = urljoin(f"{definition.health_url.rstrip('/')}/", "api/tokens")
+            response = requests.post(token_url, json={}, timeout=2, verify=definition.health_verify_tls)
+            if response.status_code == 400:
+                return HealthProbeResult(ok=True, detail="NPM API ready (HTTP 400)")
+            return HealthProbeResult(ok=False, detail=f"NPM API HTTP {response.status_code}")
+
         response = requests.get(definition.health_url, timeout=2, verify=definition.health_verify_tls)
         if response.status_code < 500:
             return HealthProbeResult(ok=True, detail=f"HTTP {response.status_code}")

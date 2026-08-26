@@ -121,8 +121,8 @@ const defaultTaskForm: TaskForm = {
     command: "",
     execution_mode: "command",
     script_path: null,
-    timeout_seconds: 300,
-    retry_count: 1,
+    timeout_seconds: 30,
+    retry_count: 3,
     enabled: true,
 };
 
@@ -2232,6 +2232,11 @@ export function ScheduledTasksPage() {
                             <Typography>
                                 {t("scheduledTasks.delete.description", { name: deleteTask.name })}
                             </Typography>
+                            {deleteTask.target === "host" && deleteTask.sync_status === "unreachable" ? (
+                                <Alert severity="warning" sx={{ mt: 2 }}>
+                                    {t("scheduledTasks.delete.unreachableHostWarning")}
+                                </Alert>
+                            ) : null}
                         </DialogContent>
                         <DialogActions className="scheduled-tasks-scoped-actions">
                             <Button onClick={() => setDeleteTask(null)}>{t("scheduledTasks.actions.cancel")}</Button>

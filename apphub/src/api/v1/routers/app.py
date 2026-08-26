@@ -373,7 +373,6 @@ async def apps_install(
     },
 )
 def test_external_database_install_connection(payload: ExternalDatabaseConnectionTestRequest):
-    from src.services.common_check import validate_external_database_version
     from src.services.install_profile import validate_external_database_connection
 
     actual_type = validate_external_database_connection(
@@ -383,7 +382,6 @@ def test_external_database_install_connection(payload: ExternalDatabaseConnectio
         payload.username,
         payload.password,
     )
-    validate_external_database_version(payload.app_name, payload.app_version, actual_type.database_type, actual_type.version)
     return {"status": "success", "database_type": actual_type.database_type}
 
 

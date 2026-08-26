@@ -1075,6 +1075,22 @@ function isReloadNavigation(): boolean {
     return navigationEntry?.type === 'reload'
 }
 
+class HostAccessRequestError extends Error {
+    readonly status: number
+    readonly code?: string
+
+    constructor(
+        message: string,
+        status: number,
+        code?: string,
+    ) {
+        super(message)
+        this.name = 'HostAccessRequestError'
+        this.status = status
+        this.code = code
+    }
+}
+
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
         credentials: 'include',
@@ -1088,12 +1104,14 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
     if (!response.ok) {
         let detail = `Request failed: ${response.status}`
+        let code: string | undefined
         try {
             const body = (await response.json()) as { detail?: string; details?: string; message?: string }
             detail = body.details || body.detail || body.message || detail
+            code = body.message
         } catch {
         }
-        throw new Error(detail)
+        throw new HostAccessRequestError(detail, response.status, code)
     }
 
     return response.json() as Promise<T>
@@ -1221,7 +1239,7 @@ export function TerminalPage() {
                     sizeLabel: '大小',
                     accessedLabel: '访问时间',
                     createdLabel: '创建时间',
-                    accessErrorTitle: '宿主机登录失败',
+                    accessErrorTitle: 'SSH 主机操作失败',
                     accessValidationTitle: '请先补全连接信息',
                     terminalErrorTitle: '终端连接失败',
                     directoryLabel: '目录',
@@ -1254,6 +1272,8 @@ export function TerminalPage() {
                     currentProfileLabel: '当前',
                     defaultUpdated: '默认登录信息已更新',
                     profileDeleted: '连接已删除',
+                    profileInUse: '该 SSH 主机仍被计划任务使用，请先删除相关计划任务，或将其迁移到其他 SSH 主机。',
+                    deleteProfileFailed: '删除 SSH 主机失败。',
                     disconnectingAction: '关闭会话中…',
                     connectingAction: '连接中…',
                     deleteProfileTitle: '删除连接',
@@ -1391,7 +1411,7 @@ export function TerminalPage() {
                     sizeLabel: 'Size',
                     accessedLabel: 'Accessed',
                     createdLabel: 'Created',
-                    accessErrorTitle: 'Local host sign-in failed',
+                    accessErrorTitle: 'SSH host operation failed',
                     accessValidationTitle: 'Complete the required connection information first',
                     terminalErrorTitle: 'Terminal connection failed',
                     directoryLabel: 'Directory',
@@ -1424,6 +1444,8 @@ export function TerminalPage() {
                     currentProfileLabel: 'Current',
                     defaultUpdated: 'Default login information updated',
                     profileDeleted: 'Connection deleted',
+                    profileInUse: 'This SSH host is still used by scheduled tasks. Delete those tasks or move them to another SSH host first.',
+                    deleteProfileFailed: 'Failed to delete the SSH host.',
                     disconnectingAction: 'Closing session…',
                     connectingAction: 'Connecting…',
                     deleteProfileTitle: 'Delete connection',
@@ -3022,7 +3044,12 @@ export function TerminalPage() {
             )
             showFeedback('success', copy.profileDeleted)
         } catch (error) {
-            showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
+            const message = error instanceof HostAccessRequestError
+                && error.status === 409
+                && error.code === 'Host Access Profile In Use'
+                ? copy.profileInUse
+                : copy.deleteProfileFailed
+            showFeedback('error', message)
         }
     }
 

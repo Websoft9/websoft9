@@ -19,7 +19,8 @@ from src.api.v1.routers import services as services_router
 from src.core.exception import CustomException
 from src.schemas.coreServices import ServiceLogsQuery
 from src.schemas.errorResponse import ErrorResponse
-from src.services.core_services import CoreServicesService, HealthProbeResult, ServiceDefinition
+from src.services import core_services
+from src.services.core_services import DEFAULT_SERVICE_DEFINITIONS, CoreServicesService, HealthProbeResult, ServiceDefinition
 
 
 def create_test_app() -> FastAPI:
@@ -76,7 +77,7 @@ def build_service_definitions(tmp_path: Path) -> list[ServiceDefinition]:
             label="Gitea",
             description="Git repository service",
             supervisor_program="gitea",
-            health_url="http://127.0.0.1:3000/",
+            health_url="http://127.0.0.1:3001/",
             workspace_route="repository",
             integration_key="gitea",
             log_root=tmp_path / "gitea",
@@ -111,6 +112,32 @@ def build_service_definitions(tmp_path: Path) -> list[ServiceDefinition]:
 def write_log(root: Path, file_name: str, lines: list[str]) -> None:
     root.mkdir(parents=True, exist_ok=True)
     (root / file_name).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_default_gitea_health_url_uses_gitea_port():
+    gitea = next(definition for definition in DEFAULT_SERVICE_DEFINITIONS if definition.key == "gitea")
+
+    assert gitea.health_url == "http://127.0.0.1:3001/"
+
+
+def test_npm_health_requires_available_backend(monkeypatch, tmp_path: Path):
+    definition = next(definition for definition in build_service_definitions(tmp_path) if definition.key == "nginx-proxy-manager")
+
+    class Response:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+
+    monkeypatch.setattr(core_services.requests, "post", lambda *_args, **_kwargs: Response(502))
+    service = CoreServicesService(auth_service=FakeAuthService())
+    failed = service._probe_health(definition)
+
+    monkeypatch.setattr(core_services.requests, "post", lambda *_args, **_kwargs: Response(400))
+    ready = service._probe_health(definition)
+
+    assert failed.ok is False
+    assert failed.detail == "NPM API HTTP 502"
+    assert ready.ok is True
+    assert ready.detail == "NPM API ready (HTTP 400)"
 
 
 def test_core_services_inventory_reuses_runtime_signals(tmp_path: Path):

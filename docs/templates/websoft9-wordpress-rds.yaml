@@ -1,0 +1,270 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Deploys a Websoft9 EC2 instance and a private Amazon RDS for MySQL instance
+  into an existing VPC. WordPress is installed manually from Websoft9 with the
+  external-db profile after the stack is created.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Existing network
+        Parameters:
+          - VpcId
+          - Websoft9SubnetId
+          - RdsPrivateSubnetIds
+          - Websoft9AdminCidr
+          - WordPressAccessCidr
+      - Label:
+          default: Websoft9 EC2
+        Parameters:
+          - Websoft9AmiId
+          - Websoft9InstanceType
+          - Websoft9VolumeSizeGiB
+      - Label:
+          default: RDS MySQL
+        Parameters:
+          - DbInstanceClass
+          - DbAllocatedStorageGiB
+          - DbName
+          - DbMasterUsername
+          - DbMasterPassword
+          - DbBackupRetentionDays
+          - EnableMultiAz
+          - EnableDeletionProtection
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing VPC that contains the Websoft9 and RDS subnets.
+
+  Websoft9SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Existing subnet for the Websoft9 EC2 instance. Use a subnet that can provide the intended client access.
+
+  RdsPrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two private subnets in different Availability Zones for the RDS DB subnet group.
+
+  Websoft9AdminCidr:
+    Type: String
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$
+    ConstraintDescription: Enter an IPv4 CIDR, for example 203.0.113.10/32.
+    Description: Trusted IPv4 CIDR allowed to access the Websoft9 management console on port 9000.
+
+  WordPressAccessCidr:
+    Type: String
+    AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$
+    ConstraintDescription: Enter an IPv4 CIDR, for example 0.0.0.0/0.
+    Description: IPv4 CIDR allowed to access WordPress over HTTP and HTTPS. Use a restricted CIDR or an ALB security group in production.
+
+  Websoft9AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: Websoft9 AWS Marketplace AMI available in the selected Region.
+
+  Websoft9InstanceType:
+    Type: String
+    Default: t3.large
+    AllowedValues:
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - m6i.large
+      - m6i.xlarge
+    Description: EC2 instance type for Websoft9.
+
+  Websoft9VolumeSizeGiB:
+    Type: Number
+    Default: 50
+    MinValue: 30
+    MaxValue: 16384
+    Description: Encrypted gp3 root EBS volume size in GiB.
+
+  DbInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.m6i.large
+      - db.m6i.xlarge
+    Description: RDS for MySQL instance class.
+
+  DbAllocatedStorageGiB:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 65536
+    Description: Encrypted gp3 RDS storage size in GiB.
+
+  DbName:
+    Type: String
+    Default: wordpress
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9_]{0,63}$
+    ConstraintDescription: Start with a letter and use up to 64 letters, digits, or underscores.
+    Description: Initial RDS database name. Create a separate least-privilege WordPress user after deployment.
+
+  DbMasterUsername:
+    Type: String
+    Default: dbadmin
+    AllowedPattern: ^[a-zA-Z][a-zA-Z0-9_]{0,15}$
+    ConstraintDescription: Start with a letter and use up to 16 letters, digits, or underscores.
+    Description: RDS administrator username. Do not use this account for WordPress.
+
+  DbMasterPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 128
+    Description: RDS administrator password. This value is not written to stack outputs or EC2 user data.
+
+  DbBackupRetentionDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    Description: Automated backup retention period in days.
+
+  EnableMultiAz:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable Multi-AZ standby for RDS production workloads.
+
+  EnableDeletionProtection:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable RDS deletion protection. Set to true for production.
+
+Conditions:
+  IsMultiAz: !Equals [!Ref EnableMultiAz, 'true']
+  IsDeletionProtectionEnabled: !Equals [!Ref EnableDeletionProtection, 'true']
+
+Resources:
+  Websoft9SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access controls for the Websoft9 EC2 instance.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9000
+          ToPort: 9000
+          CidrIp: !Ref Websoft9AdminCidr
+          Description: Websoft9 management console
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref WordPressAccessCidr
+          Description: WordPress HTTP access
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref WordPressAccessCidr
+          Description: WordPress HTTPS access
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-websoft9-sg'
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows MySQL only from the Websoft9 EC2 security group.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref Websoft9SecurityGroup
+          Description: WordPress and AppHub external database connection test
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-rds-sg'
+
+  RdsSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private RDS subnets for the Websoft9 WordPress database.
+      SubnetIds: !Ref RdsPrivateSubnetIds
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-rds-subnets'
+
+  WordPressDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: mysql
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref DbAllocatedStorageGiB
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: !Ref DbName
+      MasterUsername: !Ref DbMasterUsername
+      MasterUserPassword: !Ref DbMasterPassword
+      DBSubnetGroupName: !Ref RdsSubnetGroup
+      VPCSecurityGroups:
+        - !GetAtt RdsSecurityGroup.GroupId
+      PubliclyAccessible: false
+      MultiAZ: !If [IsMultiAz, true, false]
+      DeletionProtection: !If [IsDeletionProtectionEnabled, true, false]
+      BackupRetentionPeriod: !Ref DbBackupRetentionDays
+      CopyTagsToSnapshot: true
+      EnableCloudwatchLogsExports:
+        - error
+        - general
+        - slowquery
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-wordpress-db'
+
+  Websoft9Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref Websoft9AmiId
+      InstanceType: !Ref Websoft9InstanceType
+      SubnetId: !Ref Websoft9SubnetId
+      SecurityGroupIds:
+        - !GetAtt Websoft9SecurityGroup.GroupId
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 2
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            Encrypted: true
+            DeleteOnTermination: true
+            VolumeType: gp3
+            VolumeSize: !Ref Websoft9VolumeSizeGiB
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-websoft9'
+
+Outputs:
+  Websoft9ConsoleUrl:
+    Description: Websoft9 console URL. The EC2 subnet must assign a reachable address for this URL to work.
+    Value: !Sub 'http://${Websoft9Instance.PublicDnsName}:9000'
+
+  RdsEndpointAddress:
+    Description: Enter this value as the database host in the WordPress external-db profile.
+    Value: !GetAtt WordPressDatabase.Endpoint.Address
+
+  RdsEndpointPort:
+    Description: Enter this value as the database port in the WordPress external-db profile.
+    Value: !GetAtt WordPressDatabase.Endpoint.Port
+
+  RdsDatabaseName:
+    Description: Initial RDS database name. Use a separate WordPress user rather than the RDS administrator account.
+    Value: !Ref DbName
+
+  Websoft9SecurityGroupId:
+    Description: Security group attached to Websoft9 EC2.
+    Value: !GetAtt Websoft9SecurityGroup.GroupId
+
+  RdsSecurityGroupId:
+    Description: Security group attached to RDS.
+    Value: !GetAtt RdsSecurityGroup.GroupId

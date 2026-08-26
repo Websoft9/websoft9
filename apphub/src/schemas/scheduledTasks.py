@@ -13,8 +13,8 @@ class ScheduledTaskWriteRequest(BaseModel):
     script_path: Optional[str] = Field(default=None, max_length=4096)
     script_name: Optional[str] = Field(default=None, max_length=255)
     script_content: Optional[str] = Field(default=None, max_length=524288)
-    timeout_seconds: int = Field(default=0, ge=0, le=86400)
-    retry_count: int = Field(default=0, ge=0, le=10)
+    timeout_seconds: int = Field(default=30, ge=0, le=86400)
+    retry_count: int = Field(default=3, ge=0, le=10)
     enabled: bool = True
 
 

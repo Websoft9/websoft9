@@ -171,6 +171,8 @@ class HostAccessService:
         replacement_profile_id: Optional[str] = None
 
         with self._lock:
+            if self._has_scheduled_tasks(str(operator["id"]), profile_id):
+                raise CustomException(409, "Host Access Profile In Use", "Delete or move the scheduled tasks that use this SSH host before deleting it")
             with self._db_connect() as connection:
                 row = connection.execute(
                     "SELECT is_default FROM host_profiles WHERE operator_id = ? AND profile_id = ?",
@@ -217,6 +219,21 @@ class HostAccessService:
                     self._clear_active_profile_id(operator["id"])
 
         return self._get_profile_for_operator(operator["id"])
+
+    @staticmethod
+    def _has_scheduled_tasks(operator_id: str, profile_id: str) -> bool:
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        database_file = Path(data_root) / "config" / "scheduled-tasks" / "scheduled-tasks.sqlite"
+        if not database_file.is_file():
+            return False
+        try:
+            with sqlite3.connect(database_file) as connection:
+                return connection.execute(
+                    "SELECT 1 FROM scheduled_tasks WHERE operator_id = ? AND target = 'host' AND profile_id = ? LIMIT 1",
+                    (operator_id, profile_id),
+                ).fetchone() is not None
+        except sqlite3.Error:
+            return False
 
     def list_directory(self, session_token: Optional[str], path: str, profile_id: Optional[str] = None) -> dict[str, Any]:
         profile = self.get_connection_profile(session_token, profile_id=profile_id)

@@ -38,6 +38,17 @@
 
 AMI 是平台基座，CloudFormation 是方案编排层。二者互补，不互相替代。
 
+可直接体验的“自带 VPC”模板见：[websoft9-wordpress-rds.yaml](templates/websoft9-wordpress-rds.yaml)。创建 Stack 前，请确认已订阅并可使用所选 Region 中的 Websoft9 Marketplace AMI。
+
+使用模板时，依次执行：
+
+1. 在 CloudFormation 控制台上传模板并填写已有 VPC、EC2 子网、两个 RDS 私有子网、Websoft9 AMI 与访问 CIDR；
+2. 等待 Stack 完成，从 Outputs 复制 RDS endpoint 和端口；
+3. 使用 RDS 管理员账号创建 `wordpress` 数据库及其专用低权限账号；
+4. 登录 Websoft9，在 WordPress 的“自定义”数据库 profile 中填写 endpoint 和该专用账号。
+
+不要将 RDS 管理员账号填写到 WordPress 中。
+
 ## 3. 推荐架构
 
 ```mermaid
