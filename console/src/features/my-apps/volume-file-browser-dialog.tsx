@@ -59,6 +59,7 @@ type VolumeFileBrowserDialogProps = {
     appId: string
     volumeId: string
     volumeLabel: string
+    volumePath: string
     darkMode: boolean
     scopeRect: ContentScopeRect | null
     onClose: () => void
@@ -84,12 +85,13 @@ function parentPath(path: string): string {
     return parts.length <= 1 ? '/' : `/${parts.slice(0, -1).join('/')}`
 }
 
-function buildVirtualPath(volumeId: string, currentPath: string) {
-    return currentPath === '/' ? `/volumes/${volumeId}` : `/volumes/${volumeId}${currentPath}`
+function buildDisplayPath(volumePath: string, currentPath: string) {
+    const root = volumePath.replace(/\/+$/, '')
+    return currentPath === '/' ? root : `${root}${currentPath}`
 }
 
-function parseVirtualPath(volumeId: string, input: string): string | null {
-    const root = `/volumes/${volumeId}`
+function parseDisplayPath(volumePath: string, input: string): string | null {
+    const root = volumePath.replace(/\/+$/, '')
     const trimmed = input.trim().replace(/\/+$/, '')
     if (trimmed === root) return '/'
     if (!trimmed.startsWith(`${root}/`)) return null
@@ -155,12 +157,12 @@ function FileItemGlyph({ kind, variant }: { kind: FileVisualKind; variant: 'card
     return <span className={className}><svg aria-hidden="true" className="terminal-files-item-glyph-svg" viewBox="0 0 64 64"><path d="M16 6h24l10 10v38a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V12a6 6 0 0 1 2-4.4A5.8 5.8 0 0 1 20 6Z" fill="currentColor" /><path d="M40 6v10a3 3 0 0 0 3 3h10" fill="none" stroke="rgba(255,255,255,.72)" strokeLinejoin="round" strokeWidth="2.2" />{accent}</svg></span>
 }
 
-export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, darkMode, scopeRect, onClose }: VolumeFileBrowserDialogProps) {
+export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, volumePath, darkMode, scopeRect, onClose }: VolumeFileBrowserDialogProps) {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const palette = useMemo(() => getSurfacePalette(darkMode), [darkMode])
     const [currentPath, setCurrentPath] = useState('/')
-    const [pathInputValue, setPathInputValue] = useState(buildVirtualPath(volumeId, '/'))
+    const [pathInputValue, setPathInputValue] = useState(buildDisplayPath(volumePath, '/'))
     const [history, setHistory] = useState<string[]>(['/'])
     const [historyIndex, setHistoryIndex] = useState(0)
     const [entries, setEntries] = useState<VolumeFileItem[]>([])
@@ -234,7 +236,7 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
         try {
             const response = await requestJson<VolumeDirectoryResponse>(`/api/myapps/${encodeURIComponent(appId)}/volumes/${encodeURIComponent(volumeId)}/browse/tree?path=${encodeURIComponent(path)}`)
             setCurrentPath(response.current_path)
-            setPathInputValue(buildVirtualPath(volumeId, response.current_path))
+            setPathInputValue(buildDisplayPath(volumePath, response.current_path))
             setEntries(response.items)
             setSourceContainer(response.source_container)
             setTruncated(response.truncated)
@@ -271,14 +273,14 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
     useEffect(() => {
         if (!open) return
         setCurrentPath('/')
-        setPathInputValue(buildVirtualPath(volumeId, '/'))
+        setPathInputValue(buildDisplayPath(volumePath, '/'))
         setHistory(['/'])
         setHistoryIndex(0)
         setSearch('')
         setPreview(null)
         setSelectedEntry(null)
         void loadDirectory('/', 'none')
-    }, [open, appId, volumeId])
+    }, [open, appId, volumeId, volumePath])
 
     const directoryCount = visibleEntries.filter((entry) => entry.item_type === 'directory').length
     const fileEntries = visibleEntries.filter((entry) => entry.item_type === 'file')
@@ -303,7 +305,7 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
                             <button className="terminal-files-toolbar-button terminal-files-toolbar-button-primary" disabled={loading || preview !== null} onClick={() => void loadDirectory(currentPath, 'none')} title={t('myAppsDetailPage.tabs.volumes.fileManager.actions.refresh')} type="button"><BrowserIcon kind="refresh" /></button>
                         </div>
                         <div className="terminal-files-toolbar-paths">
-                            <TextField className="terminal-files-path-input" size="small" value={pathInputValue} disabled={preview !== null} onChange={(event) => setPathInputValue(event.target.value)} onBlur={() => setPathInputValue(buildVirtualPath(volumeId, currentPath))} onKeyDown={(event) => { if (event.key !== 'Enter') return; const path = parseVirtualPath(volumeId, pathInputValue); if (path) void loadDirectory(path); else setFeedback(t('myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidPath')) }} />
+                            <TextField className="terminal-files-path-input" size="small" value={pathInputValue} disabled={preview !== null} onChange={(event) => setPathInputValue(event.target.value)} onBlur={() => setPathInputValue(buildDisplayPath(volumePath, currentPath))} onKeyDown={(event) => { if (event.key !== 'Enter') return; const path = parseDisplayPath(volumePath, pathInputValue); if (path) void loadDirectory(path); else setFeedback(t('myAppsDetailPage.tabs.volumes.fileManager.feedback.invalidPath')) }} />
                             <TextField className="terminal-files-search-input" size="small" value={search} disabled={preview !== null} onChange={(event) => setSearch(event.target.value)} placeholder={t('filesPage.filters.searchPlaceholder')} />
                         </div>
                     </div>
@@ -321,7 +323,7 @@ export function VolumeFileBrowserDialog({ open, appId, volumeId, volumeLabel, da
                             {loading || previewLoading ? <div className="terminal-files-progress" /> : null}
                             {preview ? (
                                 <div className="terminal-files-browser-editor">
-                                    <div className="terminal-files-browser-editor-header"><div className="terminal-files-browser-editor-header-main"><div className="terminal-files-browser-editor-title terminal-files-truncate">{buildVirtualPath(volumeId, preview.path)}</div><IconButton className="terminal-files-toolbar-button" onClick={() => setPreview(null)} title={t('filesPage.actions.close')}><BrowserIcon kind="close" /></IconButton></div></div>
+                                    <div className="terminal-files-browser-editor-header"><div className="terminal-files-browser-editor-header-main"><div className="terminal-files-browser-editor-title terminal-files-truncate">{buildDisplayPath(volumePath, preview.path)}</div><IconButton className="terminal-files-toolbar-button" onClick={() => setPreview(null)} title={t('filesPage.actions.close')}><BrowserIcon kind="close" /></IconButton></div></div>
                                     <pre className="terminal-files-browser-editor-body" style={{ margin: 0, padding: 16, overflow: 'auto', whiteSpace: 'pre', fontFamily: 'monospace', fontSize: 13 }}>{preview.content}</pre>
                                 </div>
                             ) : !loading && visibleEntries.length > 0 ? (

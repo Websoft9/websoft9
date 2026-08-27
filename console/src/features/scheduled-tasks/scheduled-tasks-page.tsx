@@ -14,13 +14,15 @@ import {
     Paper,
     Stack,
     Switch,
+    Tab,
+    Tabs,
     SvgIcon,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppColorMode } from "../../app/providers/color-mode";
@@ -49,6 +51,7 @@ type ScheduledTask = {
     last_run_at: string | null;
     last_status: "never" | "running" | "success" | "failed" | "skipped";
     sync_status: "synced" | "failed" | "unreachable";
+    execution_path: string;
     syncing?: boolean;
     next_run_at: string | null;
     created_at: string;
@@ -77,7 +80,6 @@ type ScheduleMode =
     | "intervalHours"
     | "custom";
 type TimeoutUnit = "seconds" | "minutes" | "hours";
-type TargetFilter = "all" | ScheduledTask["target"];
 type StatusFilter = "all" | ScheduledTask["last_status"];
 type EnabledFilter = "all" | "enabled" | "disabled";
 
@@ -168,7 +170,7 @@ function TaskStatusIcon({ status }: { status: ScheduledTask["last_status"] }) {
     const path = status === "success"
         ? "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 14.2L6.6 12l1.4-1.4 2.8 2.8 5.2-5.2 1.4 1.4-6.6 6.6Z"
         : status === "failed"
-            ? "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm3.1 13.7-1.4 1.4-1.7-1.7-1.7 1.7-1.4-1.4 1.7-1.7-1.7-1.7 1.4-1.4 1.7 1.7 1.7-1.7 1.4 1.4-1.7 1.7 1.7 1.7Z"
+            ? "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm3.1 11.7-1.4 1.4-1.7-1.7-1.7 1.7-1.4-1.4 1.7-1.7-1.7-1.7 1.4-1.4 1.7 1.7 1.7-1.7 1.4 1.4-1.7 1.7 1.7 1.7Z"
             : status === "running"
                 ? "M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2Z"
                 : status === "skipped"
@@ -203,14 +205,6 @@ function RefreshIcon() {
     return (
         <SvgIcon viewBox="0 0 24 24">
             <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.3 0 2.5.42 3.47 1.13L13 10h7V3l-2.35 3.35Z" />
-        </SvgIcon>
-    );
-}
-
-function ExpandIcon({ expanded }: { expanded: boolean }) {
-    return (
-        <SvgIcon viewBox="0 0 24 24">
-            <path d={expanded ? "m7 9 5 5 5-5z" : "m9 7 5 5-5 5z"} />
         </SvgIcon>
     );
 }
@@ -273,15 +267,12 @@ export function ScheduledTasksPage() {
     const [scheduleWeekday, setScheduleWeekday] = useState("0");
     const [timeoutUnit, setTimeoutUnit] = useState<TimeoutUnit>("seconds");
     const [searchValue, setSearchValue] = useState("");
-    const [targetFilter, setTargetFilter] = useState<TargetFilter>("all");
+    const [activeTarget, setActiveTarget] = useState<ScheduledTask["target"]>("container");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>("all");
     const [saving, setSaving] = useState(false);
     const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
     const [refreshingTaskIds, setRefreshingTaskIds] = useState<Set<string>>(() => new Set());
-    const [expandedTaskGroups, setExpandedTaskGroups] = useState<Set<ScheduledTask["target"]>>(
-        () => new Set(["container", "host"]),
-    );
     const [logTask, setLogTask] = useState<ScheduledTask | null>(null);
     const [taskRuns, setTaskRuns] = useState<ScheduledTaskRun[]>([]);
     const [selectedRun, setSelectedRun] = useState<ScheduledTaskRun | null>(null);
@@ -341,22 +332,20 @@ export function ScheduledTasksPage() {
             task.schedule,
             task.target,
             task.execution_mode,
-            targetLabel(task),
+            executionLocationLabel(task),
+            hostIdentityLabel(task) ?? "",
             t(`scheduledTasks.executionModes.${task.execution_mode}`),
             scheduleLabel(task.schedule),
         ];
         return (!query || searchableValues.some((value) => value.toLowerCase().includes(query)))
-            && (targetFilter === "all" || task.target === targetFilter)
+            && task.target === activeTarget
             && (statusFilter === "all" || task.last_status === statusFilter)
             && (enabledFilter === "all" || task.enabled === (enabledFilter === "enabled"));
     });
-    const taskGroups = (["container", "host"] as const)
-        .map((target) => ({
-            target,
-            label: t(`scheduledTasks.${target === "container" ? "platform" : "host"}`),
-            tasks: filteredTasks.filter((task) => task.target === target),
-        }))
-        .filter((group) => group.tasks.length > 0);
+    const taskCounts: Record<ScheduledTask["target"], number> = {
+        container: tasks.filter((task) => task.target === "container").length,
+        host: tasks.filter((task) => task.target === "host").length,
+    };
     const runningTaskIds = tasks
         .filter((task) => task.last_status === "running")
         .map((task) => task.task_id)
@@ -518,18 +507,6 @@ export function ScheduledTasksPage() {
         }
         setScheduleMode(mode);
         applyVisualSchedule(mode);
-    }
-
-    function toggleTaskGroup(target: ScheduledTask["target"]) {
-        setExpandedTaskGroups((current) => {
-            const next = new Set(current);
-            if (next.has(target)) {
-                next.delete(target);
-            } else {
-                next.add(target);
-            }
-            return next;
-        });
     }
 
     function localizedTaskError(error: unknown) {
@@ -725,16 +702,23 @@ export function ScheduledTasksPage() {
         }
     }
 
-    function targetLabel(task: ScheduledTask) {
-        if (task.target === "container") {
-            return t("scheduledTasks.platform");
+    function executionLocationLabel(task: ScheduledTask) {
+        return task.execution_path || "—";
+    }
+
+    function hostIdentityLabel(task: ScheduledTask) {
+        if (task.target !== "host") {
+            return null;
         }
         const profile = savedHostProfiles.find(
             (item) => item.profile_id === task.profile_id,
         );
-        return profile
-            ? t("scheduledTasks.hostLabel", { name: profile.name || profile.host })
-            : t("scheduledTasks.hostUnavailable");
+        if (!profile) {
+            return t("scheduledTasks.hostUnavailable");
+        }
+        return profile.username
+            ? `${profile.username}@${profile.host}`
+            : profile.host;
     }
 
     function scheduleLabel(schedule: string) {
@@ -978,19 +962,60 @@ export function ScheduledTasksPage() {
                 <Box className="scheduled-tasks-list-frame" sx={{ mb: 1.5 }}>
                     <Box className="scheduled-tasks-list-content">
                         <Box className="scheduled-tasks-toolbar">
-                            <Stack className="scheduled-tasks-toolbar-filters" direction="row" spacing={1}>
+                            <Tabs
+                                className="scheduled-tasks-tabs"
+                                value={activeTarget}
+                                onChange={(_event, value) => setActiveTarget(value as ScheduledTask["target"])}
+                                sx={{
+                                    minHeight: 34,
+                                    flexShrink: 0,
+                                    backgroundColor: palette.panelBg,
+                                    border: `1px solid ${palette.border}`,
+                                    borderRadius: "6px",
+                                    overflow: "hidden",
+                                    "& .MuiTabs-indicator": { display: "none" },
+                                }}
+                            >
+                                <Tab
+                                    value="container"
+                                    label={`${t("scheduledTasks.platform")} (${taskCounts.container})`}
+                                    sx={{
+                                        minHeight: 34,
+                                        px: 1.5,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        textTransform: "none",
+                                        borderRadius: "5px",
+                                        "&.Mui-selected": { backgroundColor: palette.accentSoft, color: palette.accent },
+                                    }}
+                                />
+                                <Tab
+                                    value="host"
+                                    label={`${t("scheduledTasks.host")} (${taskCounts.host})`}
+                                    sx={{
+                                        minHeight: 34,
+                                        px: 1.5,
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        textTransform: "none",
+                                        borderRadius: "5px",
+                                        "&.Mui-selected": { backgroundColor: palette.accentSoft, color: palette.accent },
+                                    }}
+                                />
+                            </Tabs>
+                            <Stack
+                                className="scheduled-tasks-toolbar-actions"
+                                direction="row"
+                                spacing={1}
+                                sx={{ flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0 }}
+                            >
                                 <TextField
-                                    className="scheduled-tasks-toolbar-filter"
-                                    select
+                                    className="scheduled-tasks-toolbar-search"
+                                    onChange={(event) => setSearchValue(event.target.value)}
+                                    placeholder={t("scheduledTasks.filters.searchPlaceholder")}
                                     size="small"
-                                    value={targetFilter}
-                                    onChange={(event) => setTargetFilter(event.target.value as TargetFilter)}
-                                    slotProps={{ select: { MenuProps: { slotProps: { paper: { sx: { borderRadius: 0, mt: 0.5, "& .MuiMenuItem-root": { fontSize: 14, fontWeight: 500 } } } } } } }}
-                                >
-                                    <MenuItem value="all">{t("scheduledTasks.filters.allLocations")}</MenuItem>
-                                    <MenuItem value="container">{t("scheduledTasks.platform")}</MenuItem>
-                                    <MenuItem value="host">{t("scheduledTasks.host")}</MenuItem>
-                                </TextField>
+                                    value={searchValue}
+                                />
                                 <TextField
                                     className="scheduled-tasks-toolbar-filter"
                                     select
@@ -1014,15 +1039,6 @@ export function ScheduledTasksPage() {
                                     <MenuItem value="enabled">{t("scheduledTasks.filters.enabled")}</MenuItem>
                                     <MenuItem value="disabled">{t("scheduledTasks.filters.disabled")}</MenuItem>
                                 </TextField>
-                            </Stack>
-                            <Stack className="scheduled-tasks-toolbar-actions" direction="row" spacing={1}>
-                                <TextField
-                                    className="scheduled-tasks-toolbar-search"
-                                    onChange={(event) => setSearchValue(event.target.value)}
-                                    placeholder={t("scheduledTasks.filters.searchPlaceholder")}
-                                    size="small"
-                                    value={searchValue}
-                                />
                                 <Button
                                     className="scheduled-tasks-toolbar-create"
                                     onClick={openCreateDialog}
@@ -1145,164 +1161,158 @@ export function ScheduledTasksPage() {
                                             </td>
                                         </tr>
                                     ) : (
-                                        taskGroups.map((group) => {
-                                            const expanded = expandedTaskGroups.has(group.target);
-                                            return (
-                                                <Fragment key={group.target}>
-                                                    <tr className="scheduled-tasks-group-row">
-                                                        <td colSpan={7}>
-                                                            <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+                                        filteredTasks.map((task) => (
+                                            <tr className="scheduled-tasks-table-row" key={task.task_id}>
+                                                <td>
+                                                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                                                        {task.name}
+                                                    </Typography>
+                                                    {hostIdentityLabel(task) ? (
+                                                        <Typography sx={{ mt: 0.25, fontSize: 12, color: palette.subtleText }}>
+                                                            {hostIdentityLabel(task)}
+                                                        </Typography>
+                                                    ) : null}
+                                                </td>
+                                                <td>
+                                                    <Tooltip title={task.execution_mode === "command" ? task.command : task.script_path ?? task.script_name ?? ""}>
+                                                        <Typography
+                                                            sx={{
+                                                                maxWidth: 235,
+                                                                overflow: "hidden",
+                                                                textOverflow: "ellipsis",
+                                                                whiteSpace: "nowrap",
+                                                                fontSize: 13,
+                                                            }}
+                                                        >
+                                                            {t(`scheduledTasks.executionModes.${task.execution_mode}`)}
+                                                        </Typography>
+                                                    </Tooltip>
+                                                </td>
+                                                <td>
+                                                    <Tooltip title={task.execution_path || ""}>
+                                                        <Typography
+                                                            sx={{
+                                                                maxWidth: 280,
+                                                                overflow: "hidden",
+                                                                textOverflow: "ellipsis",
+                                                                whiteSpace: "nowrap",
+                                                                fontFamily: "monospace",
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            {executionLocationLabel(task)}
+                                                        </Typography>
+                                                    </Tooltip>
+                                                </td>
+                                                <td>
+                                                    <Tooltip title={task.schedule}><Typography sx={{ fontSize: 13 }}>{scheduleLabel(task.schedule)}</Typography></Tooltip>
+                                                </td>
+                                                <td>
+                                                    {task.syncing || refreshingTaskIds.has(task.task_id) ? (
+                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
+                                                            <CircularProgress size={18} />
+                                                            <Typography sx={{ fontSize: 12, color: "primary.main" }}>{t("scheduledTasks.syncStatus.taskSyncing")}</Typography>
+                                                        </Stack>
+                                                    ) : task.sync_status === "unreachable" ? (
+                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
+                                                            <Tooltip title={t("scheduledTasks.hostUnavailable")}><Box sx={{ display: "flex" }}><TaskSyncStatusIcon status="unreachable" /></Box></Tooltip>
+                                                            <Typography sx={{ fontSize: 12, color: "error.main" }}>{t("scheduledTasks.hostUnavailable")}</Typography>
+                                                        </Stack>
+                                                    ) : task.sync_status === "failed" ? (
+                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
+                                                            <Tooltip title={t("scheduledTasks.syncFailed")}><Box sx={{ display: "flex" }}><TaskSyncStatusIcon status="failed" /></Box></Tooltip>
+                                                            <Typography sx={{ fontSize: 12, color: "error.main" }}>{t("scheduledTasks.syncFailed")}</Typography>
+                                                        </Stack>
+                                                    ) : task.last_run_at ? (
+                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
+                                                            <Tooltip title={t(`scheduledTasks.status.${task.last_status}`)}><Box sx={{ display: "flex" }}><TaskStatusIcon status={task.last_status} /></Box></Tooltip>
+                                                            <Typography sx={{ fontSize: 12, color: palette.subtleText }}>
+                                                                {formatDateTime(task.last_run_at, formatter)}
+                                                            </Typography>
+                                                        </Stack>
+                                                    ) : (
+                                                        <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
+                                                            <Tooltip title={t("scheduledTasks.status.never")}><Box sx={{ display: "flex" }}><TaskStatusIcon status="never" /></Box></Tooltip>
+                                                            <Typography sx={{ fontSize: 12, color: palette.subtleText }}>{t("scheduledTasks.status.never")}</Typography>
+                                                        </Stack>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <Switch
+                                                        checked={task.enabled}
+                                                        disabled={pendingTaskId === task.task_id}
+                                                        onChange={() => void updateTask(task, "toggle")}
+                                                        size="small"
+                                                        slotProps={{
+                                                            input: {
+                                                                "aria-label": t("scheduledTasks.actions.toggle", {
+                                                                    name: task.name,
+                                                                }),
+                                                            },
+                                                        }}
+                                                    />
+                                                </td>
+                                                <td className="scheduled-tasks-actions-column">
+                                                    <Stack
+                                                        className="scheduled-tasks-row-actions"
+                                                        direction="row"
+                                                        spacing={0.25}
+                                                    >
+                                                        <Tooltip title={t("scheduledTasks.actions.run")}>
+                                                            <span>
                                                                 <IconButton
-                                                                    aria-expanded={expanded}
-                                                                    aria-label={group.label}
-                                                                    className="scheduled-tasks-group-toggle"
-                                                                    onClick={() => toggleTaskGroup(group.target)}
+                                                                    disabled={
+                                                                        pendingTaskId === task.task_id ||
+                                                                        task.last_status === "running"
+                                                                    }
+                                                                    onClick={() => void updateTask(task, "run")}
                                                                     size="small"
                                                                 >
-                                                                    <ExpandIcon expanded={expanded} />
+                                                                    <RunIcon />
                                                                 </IconButton>
-                                                                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
-                                                                    {group.label}
-                                                                </Typography>
-                                                                <Chip label={group.tasks.length} size="small" />
-                                                            </Stack>
-                                                        </td>
-                                                    </tr>
-                                                    {expanded ? group.tasks.map((task) => (
-                                                        <tr className="scheduled-tasks-table-row" key={task.task_id}>
-                                                            <td>
-                                                                <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                                                                    {task.name}
-                                                                </Typography>
-                                                            </td>
-                                                            <td>
-                                                                <Tooltip title={task.execution_mode === "command" ? task.command : task.script_path ?? task.script_name ?? ""}>
-                                                                    <Typography
-                                                                        sx={{
-                                                                            maxWidth: 235,
-                                                                            overflow: "hidden",
-                                                                            textOverflow: "ellipsis",
-                                                                            whiteSpace: "nowrap",
-                                                                            fontSize: 13,
-                                                                        }}
-                                                                    >
-                                                                        {t(`scheduledTasks.executionModes.${task.execution_mode}`)}
-                                                                    </Typography>
-                                                                </Tooltip>
-                                                            </td>
-                                                            <td><Typography sx={{ fontSize: 13 }}>{targetLabel(task)}</Typography></td>
-                                                            <td>
-                                                                <Tooltip title={task.schedule}><Typography sx={{ fontSize: 13 }}>{scheduleLabel(task.schedule)}</Typography></Tooltip>
-                                                            </td>
-                                                            <td>
-                                                                {task.syncing || refreshingTaskIds.has(task.task_id) ? (
-                                                                    <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
-                                                                        <CircularProgress size={18} />
-                                                                        <Typography sx={{ fontSize: 12, color: "primary.main" }}>{t("scheduledTasks.syncStatus.taskSyncing")}</Typography>
-                                                                    </Stack>
-                                                                ) : task.sync_status === "unreachable" ? (
-                                                                    <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
-                                                                        <Tooltip title={t("scheduledTasks.hostUnavailable")}><Box sx={{ display: "flex" }}><TaskSyncStatusIcon status="unreachable" /></Box></Tooltip>
-                                                                        <Typography sx={{ fontSize: 12, color: "error.main" }}>{t("scheduledTasks.hostUnavailable")}</Typography>
-                                                                    </Stack>
-                                                                ) : task.sync_status === "failed" ? (
-                                                                    <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
-                                                                        <Tooltip title={t("scheduledTasks.syncFailed")}><Box sx={{ display: "flex" }}><TaskSyncStatusIcon status="failed" /></Box></Tooltip>
-                                                                        <Typography sx={{ fontSize: 12, color: "error.main" }}>{t("scheduledTasks.syncFailed")}</Typography>
-                                                                    </Stack>
-                                                                ) : task.last_run_at ? (
-                                                                    <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
-                                                                        <Tooltip title={t(`scheduledTasks.status.${task.last_status}`)}><Box sx={{ display: "flex" }}><TaskStatusIcon status={task.last_status} /></Box></Tooltip>
-                                                                        <Typography sx={{ fontSize: 12, color: palette.subtleText }}>
-                                                                            {formatDateTime(task.last_run_at, formatter)}
-                                                                        </Typography>
-                                                                    </Stack>
-                                                                ) : (
-                                                                    <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
-                                                                        <Tooltip title={t("scheduledTasks.status.never")}><Box sx={{ display: "flex" }}><TaskStatusIcon status="never" /></Box></Tooltip>
-                                                                        <Typography sx={{ fontSize: 12, color: palette.subtleText }}>{t("scheduledTasks.status.never")}</Typography>
-                                                                    </Stack>
-                                                                )}
-                                                            </td>
-                                                            <td>
-                                                                <Switch
-                                                                    checked={task.enabled}
+                                                            </span>
+                                                        </Tooltip>
+                                                        <Tooltip title={t("scheduledTasks.actions.refresh")}>
+                                                            <span>
+                                                                <IconButton
                                                                     disabled={pendingTaskId === task.task_id}
-                                                                    onChange={() => void updateTask(task, "toggle")}
+                                                                    onClick={() => void updateTask(task, "refresh")}
                                                                     size="small"
-                                                                    slotProps={{
-                                                                        input: {
-                                                                            "aria-label": t("scheduledTasks.actions.toggle", {
-                                                                                name: task.name,
-                                                                            }),
-                                                                        },
-                                                                    }}
-                                                                />
-                                                            </td>
-                                                            <td className="scheduled-tasks-actions-column">
-                                                                <Stack
-                                                                    className="scheduled-tasks-row-actions"
-                                                                    direction="row"
-                                                                    spacing={0.25}
                                                                 >
-                                                                    <Tooltip title={t("scheduledTasks.actions.run")}>
-                                                                        <span>
-                                                                            <IconButton
-                                                                                disabled={
-                                                                                    pendingTaskId === task.task_id ||
-                                                                                    task.last_status === "running"
-                                                                                }
-                                                                                onClick={() => void updateTask(task, "run")}
-                                                                                size="small"
-                                                                            >
-                                                                                <RunIcon />
-                                                                            </IconButton>
-                                                                        </span>
-                                                                    </Tooltip>
-                                                                    <Tooltip title={t("scheduledTasks.actions.refresh")}>
-                                                                        <span>
-                                                                            <IconButton
-                                                                                disabled={pendingTaskId === task.task_id}
-                                                                                onClick={() => void updateTask(task, "refresh")}
-                                                                                size="small"
-                                                                            >
-                                                                                {pendingTaskId === task.task_id ? <CircularProgress size={16} /> : <RefreshIcon />}
-                                                                            </IconButton>
-                                                                        </span>
-                                                                    </Tooltip>
-                                                                    <Tooltip title={t("scheduledTasks.actions.logs")}>
-                                                                        <IconButton
-                                                                            onClick={() => void openLog(task)}
-                                                                            size="small"
-                                                                        >
-                                                                            <LogIcon />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                    <Tooltip title={t("scheduledTasks.actions.edit")}>
-                                                                        <IconButton
-                                                                            onClick={() => openEditDialog(task)}
-                                                                            size="small"
-                                                                        >
-                                                                            <EditIcon />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                    <Tooltip title={t("scheduledTasks.actions.delete")}>
-                                                                        <IconButton
-                                                                            className="scheduled-tasks-row-action-danger"
-                                                                            color="error"
-                                                                            onClick={() => setDeleteTask(task)}
-                                                                            size="small"
-                                                                        >
-                                                                            <DeleteIcon />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                </Stack>
-                                                            </td>
-                                                        </tr>
-                                                    )) : null}
-                                                </Fragment>
-                                            );
-                                        })
+                                                                    {pendingTaskId === task.task_id ? <CircularProgress size={16} /> : <RefreshIcon />}
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
+                                                        <Tooltip title={t("scheduledTasks.actions.logs")}>
+                                                            <IconButton
+                                                                onClick={() => void openLog(task)}
+                                                                size="small"
+                                                            >
+                                                                <LogIcon />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title={t("scheduledTasks.actions.edit")}>
+                                                            <IconButton
+                                                                onClick={() => openEditDialog(task)}
+                                                                size="small"
+                                                            >
+                                                                <EditIcon />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title={t("scheduledTasks.actions.delete")}>
+                                                            <IconButton
+                                                                className="scheduled-tasks-row-action-danger"
+                                                                color="error"
+                                                                onClick={() => setDeleteTask(task)}
+                                                                size="small"
+                                                            >
+                                                                <DeleteIcon />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Stack>
+                                                </td>
+                                            </tr>
+                                        ))
                                     )}
                                 </tbody>
                             </Box>
@@ -1315,160 +1325,148 @@ export function ScheduledTasksPage() {
                 !tasksQuery.isFetching &&
                 filteredTasks.length > 0 ? (
                 <Stack spacing={2} sx={{ display: { xs: "flex", md: "none" } }}>
-                    {taskGroups.map((group) => {
-                        const expanded = expandedTaskGroups.has(group.target);
-                        return (
-                            <Stack key={group.target} spacing={1}>
-                                <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-                                    <IconButton
-                                        aria-expanded={expanded}
-                                        aria-label={group.label}
-                                        className="scheduled-tasks-group-toggle"
-                                        onClick={() => toggleTaskGroup(group.target)}
-                                        size="small"
-                                    >
-                                        <ExpandIcon expanded={expanded} />
-                                    </IconButton>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{group.label}</Typography>
-                                    <Chip label={group.tasks.length} size="small" />
-                                </Stack>
-                                {expanded ? group.tasks.map((task) => (
-                                    <Paper
-                                        key={task.task_id}
-                                        elevation={0}
-                                        sx={{
-                                            p: 1.5,
-                                            border: `1px solid ${palette.border}`,
-                                            borderRadius: "2px",
-                                            backgroundColor: palette.panelBg,
-                                        }}
-                                    >
-                                        <Stack spacing={1.25}>
-                                            <Stack
-                                                direction="row"
-                                                sx={{
-                                                    justifyContent: "space-between",
-                                                    alignItems: "flex-start",
-                                                    gap: 1,
-                                                }}
-                                            >
-                                                <Box sx={{ minWidth: 0 }}>
-                                                    <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                                                        {task.name}
-                                                    </Typography>
-                                                </Box>
-                                                <Switch
-                                                    checked={task.enabled}
-                                                    disabled={pendingTaskId === task.task_id}
-                                                    onChange={() => void updateTask(task, "toggle")}
-                                                    size="small"
-                                                    slotProps={{
-                                                        input: {
-                                                            "aria-label": t("scheduledTasks.actions.toggle", {
-                                                                name: task.name,
-                                                            }),
-                                                        },
-                                                    }}
-                                                />
-                                            </Stack>
-                                            <Box>
-                                                <Tooltip title={task.schedule}><Typography sx={{ fontSize: 13 }}>{scheduleLabel(task.schedule)}</Typography></Tooltip>
-                                            </Box>
-                                            <Typography
-                                                sx={{
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                    fontFamily: "monospace",
-                                                    fontSize: 12,
-                                                }}
-                                            >
-                                                {t(`scheduledTasks.executionModes.${task.execution_mode}`)} · {task.execution_mode === "command" ? task.command : task.script_path ?? task.script_name}
+                    {filteredTasks.map((task) => (
+                        <Paper
+                            key={task.task_id}
+                            elevation={0}
+                            sx={{
+                                p: 1.5,
+                                border: `1px solid ${palette.border}`,
+                                borderRadius: "2px",
+                                backgroundColor: palette.panelBg,
+                            }}
+                        >
+                            <Stack spacing={1.25}>
+                                <Stack
+                                    direction="row"
+                                    sx={{
+                                        justifyContent: "space-between",
+                                        alignItems: "flex-start",
+                                        gap: 1,
+                                    }}
+                                >
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+                                            {task.name}
+                                        </Typography>
+                                        {hostIdentityLabel(task) ? (
+                                            <Typography sx={{ mt: 0.25, fontSize: 12, color: palette.subtleText }}>
+                                                {hostIdentityLabel(task)}
                                             </Typography>
-                                            <Stack
-                                                direction="row"
-                                                sx={{
-                                                    justifyContent: "space-between",
-                                                    alignItems: "center",
-                                                    gap: 1,
-                                                }}
+                                        ) : null}
+                                    </Box>
+                                    <Switch
+                                        checked={task.enabled}
+                                        disabled={pendingTaskId === task.task_id}
+                                        onChange={() => void updateTask(task, "toggle")}
+                                        size="small"
+                                        slotProps={{
+                                            input: {
+                                                "aria-label": t("scheduledTasks.actions.toggle", {
+                                                    name: task.name,
+                                                }),
+                                            },
+                                        }}
+                                    />
+                                </Stack>
+                                <Box>
+                                    <Tooltip title={task.schedule}><Typography sx={{ fontSize: 13 }}>{scheduleLabel(task.schedule)}</Typography></Tooltip>
+                                </Box>
+                                <Typography
+                                    sx={{
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        fontFamily: "monospace",
+                                        fontSize: 12,
+                                    }}
+                                >
+                                    {t(`scheduledTasks.executionModes.${task.execution_mode}`)} · {task.execution_mode === "command" ? task.command : task.script_path ?? task.script_name}
+                                </Typography>
+                                <Typography sx={{ fontSize: 12, color: palette.subtleText, fontFamily: "monospace" }}>
+                                    {t("scheduledTasks.columns.executionLocation")}: {executionLocationLabel(task)}
+                                </Typography>
+                                <Stack
+                                    direction="row"
+                                    sx={{
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 1,
+                                    }}
+                                >
+                                    <Stack spacing={0.3}>
+                                        <Chip
+                                            label={t(`scheduledTasks.status.${task.last_status}`)}
+                                            color={statusTone(task.last_status)}
+                                            size="small"
+                                        />
+                                        {task.last_run_at ? (
+                                            <Typography
+                                                sx={{ fontSize: 12, color: palette.subtleText }}
                                             >
-                                                <Stack spacing={0.3}>
-                                                    <Chip
-                                                        label={t(`scheduledTasks.status.${task.last_status}`)}
-                                                        color={statusTone(task.last_status)}
-                                                        size="small"
-                                                    />
-                                                    {task.last_run_at ? (
-                                                        <Typography
-                                                            sx={{ fontSize: 12, color: palette.subtleText }}
-                                                        >
-                                                            {formatDateTime(task.last_run_at, formatter)}
-                                                        </Typography>
-                                                    ) : null}
-                                                    {task.sync_status === "unreachable" ? (
-                                                        <Typography sx={{ fontSize: 12, color: "error.main" }}>
-                                                            {t("scheduledTasks.hostUnavailable")}
-                                                        </Typography>
-                                                    ) : null}
-                                                </Stack>
-                                                <Stack direction="row" spacing={0.25}>
-                                                    <Tooltip title={t("scheduledTasks.actions.run")}>
-                                                        <span>
-                                                            <IconButton
-                                                                disabled={
-                                                                    pendingTaskId === task.task_id ||
-                                                                    task.last_status === "running"
-                                                                }
-                                                                onClick={() => void updateTask(task, "run")}
-                                                                size="small"
-                                                            >
-                                                                <RunIcon />
-                                                            </IconButton>
-                                                        </span>
-                                                    </Tooltip>
-                                                    <Tooltip title={t("scheduledTasks.actions.refresh")}>
-                                                        <IconButton
-                                                            disabled={pendingTaskId === task.task_id}
-                                                            onClick={() => void updateTask(task, "refresh")}
-                                                            size="small"
-                                                        >
-                                                            <RefreshIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title={t("scheduledTasks.actions.logs")}>
-                                                        <IconButton
-                                                            onClick={() => void openLog(task)}
-                                                            size="small"
-                                                        >
-                                                            <LogIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title={t("scheduledTasks.actions.edit")}>
-                                                        <IconButton
-                                                            onClick={() => openEditDialog(task)}
-                                                            size="small"
-                                                        >
-                                                            <EditIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                    <Tooltip title={t("scheduledTasks.actions.delete")}>
-                                                        <IconButton
-                                                            color="error"
-                                                            onClick={() => setDeleteTask(task)}
-                                                            size="small"
-                                                        >
-                                                            <DeleteIcon />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </Stack>
-                                            </Stack>
-                                        </Stack>
-                                    </Paper>
-                                )) : null}
+                                                {formatDateTime(task.last_run_at, formatter)}
+                                            </Typography>
+                                        ) : null}
+                                        {task.sync_status === "unreachable" ? (
+                                            <Typography sx={{ fontSize: 12, color: "error.main" }}>
+                                                {t("scheduledTasks.hostUnavailable")}
+                                            </Typography>
+                                        ) : null}
+                                    </Stack>
+                                    <Stack direction="row" spacing={0.25}>
+                                        <Tooltip title={t("scheduledTasks.actions.run")}>
+                                            <span>
+                                                <IconButton
+                                                    disabled={
+                                                        pendingTaskId === task.task_id ||
+                                                        task.last_status === "running"
+                                                    }
+                                                    onClick={() => void updateTask(task, "run")}
+                                                    size="small"
+                                                >
+                                                    <RunIcon />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                        <Tooltip title={t("scheduledTasks.actions.refresh")}>
+                                            <IconButton
+                                                disabled={pendingTaskId === task.task_id}
+                                                onClick={() => void updateTask(task, "refresh")}
+                                                size="small"
+                                            >
+                                                <RefreshIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title={t("scheduledTasks.actions.logs")}>
+                                            <IconButton
+                                                onClick={() => void openLog(task)}
+                                                size="small"
+                                            >
+                                                <LogIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title={t("scheduledTasks.actions.edit")}>
+                                            <IconButton
+                                                onClick={() => openEditDialog(task)}
+                                                size="small"
+                                            >
+                                                <EditIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title={t("scheduledTasks.actions.delete")}>
+                                            <IconButton
+                                                color="error"
+                                                onClick={() => setDeleteTask(task)}
+                                                size="small"
+                                            >
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Stack>
+                                </Stack>
                             </Stack>
-                        );
-                    })}
+                        </Paper>
+                    ))}
                 </Stack>
             ) : null}
             {!tasksQuery.isLoading &&

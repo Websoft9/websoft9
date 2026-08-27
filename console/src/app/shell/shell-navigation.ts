@@ -16,6 +16,10 @@ export const shellNavigationItems = [
         pageKey: 'databases',
     },
     {
+        segment: 'cronjob',
+        pageKey: 'scheduledTasks',
+    },
+    {
         segment: 'containers',
         pageKey: 'containers',
     },
@@ -30,10 +34,6 @@ export const shellNavigationItems = [
     {
         segment: 'terminal',
         pageKey: 'terminal',
-    },
-    {
-        segment: 'cronjob',
-        pageKey: 'scheduledTasks',
     },
     {
         segment: 'services',

@@ -43,11 +43,11 @@ type PlatformBrandState = {
 const navigationSections = [
     {
         key: 'system',
-        segments: ['dashboard', 'applications', 'databases', 'containers', 'gateway', 'repository'],
+        segments: ['dashboard', 'applications', 'databases', 'cronjob', 'containers', 'gateway', 'repository'],
     },
     {
         key: 'tools',
-        segments: ['terminal', 'cronjob', 'services', 'logs', 'users', 'settings'],
+        segments: ['terminal', 'services', 'logs', 'users', 'settings'],
     },
 ] as const
 

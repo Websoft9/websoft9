@@ -10,6 +10,7 @@ import {
     StepLabel,
     Stepper,
     Switch,
+    SvgIcon,
     Typography,
 } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
@@ -113,6 +114,19 @@ function getDetailDialogPalette(darkMode: boolean) {
 function BtnIcon({ className, spinning }: { className: string; spinning?: boolean }) {
     if (spinning) return <span style={{ width: 14, height: 14, display: 'inline-block', border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.75s linear infinite', verticalAlign: 'middle', opacity: 0.75 }} />
     return <i className={`${className} noti-icon`} />
+}
+
+function DocumentationIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M6 3.75A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25h12A2.25 2.25 0 0 0 20.25 18V8.56a2.25 2.25 0 0 0-.66-1.59l-2.56-2.56a2.25 2.25 0 0 0-1.59-.66H6Zm8.25 1.7 3.3 3.3h-3.3v-3.3ZM8.25 11.25h7.5v1.5h-7.5v-1.5Zm0 3h7.5v1.5h-7.5v-1.5Zm0-6h3.75v1.5H8.25v-1.5Z" />
+        </SvgIcon>
+    )
+}
+
+function getAppDocumentationUrl(appId: string | undefined, resolvedLanguage: string) {
+    const localePrefix = resolvedLanguage.toLowerCase().startsWith('zh') ? '' : 'en/'
+    return `https://support.websoft9.com/${localePrefix}docs/${appId ?? ''}`
 }
 
 // Password visibility icons (SVG, used in database tab)
@@ -362,6 +376,11 @@ function getVolumeLabel(v: Record<string, unknown>) {
 
 function getVolumeId(v: Record<string, unknown>) {
     return String(v.Name ?? v.name ?? '')
+}
+
+function getVolumePath(v: Record<string, unknown>) {
+    const mountpoint = typeof v.Mountpoint === 'string' ? v.Mountpoint.trim() : ''
+    return mountpoint || `/var/lib/docker/volumes/${getVolumeId(v)}/_data`
 }
 
 function getVolumeCreatedAt(v: Record<string, unknown>, locale: string) {
@@ -711,7 +730,7 @@ export function MyAppDetailPage() {
     const [phpMigrationRemarks, setPhpMigrationRemarks] = useState('')
     const [phpMigrationSubmitting, setPhpMigrationSubmitting] = useState(false)
     const [contentScopeRect, setContentScopeRect] = useState<ContentScopeRect | null>(null)
-    const [activeVolumeFileManager, setActiveVolumeFileManager] = useState<{ volumeId: string; label: string } | null>(null)
+    const [activeVolumeFileManager, setActiveVolumeFileManager] = useState<{ volumeId: string; label: string; path: string } | null>(null)
     const [customFields, setCustomFields] = useState<Array<{ field_name: string; field_value: string; field_type: string }>>([])
     const [, setCustomFieldsSaving] = useState(false)
     const [customFieldsLoaded, setCustomFieldsLoaded] = useState(false)
@@ -1353,9 +1372,25 @@ export function MyAppDetailPage() {
 
                             {/* App title + status */}
                             <div className="myapps-detail-meta">
-                                <h4 className="appstore-item-content-title myapps-detail-title">
-                                    {data?.app_id || appId}
-                                </h4>
+                                <div className="myapps-detail-title-row">
+                                    <h4 className="appstore-item-content-title myapps-detail-title">
+                                        {data?.app_id || appId}
+                                    </h4>
+                                    {data ? (
+                                        <IconButton
+                                            aria-label={t('myAppsDetailPage.actions.documentation')}
+                                            className="myapps-detail-documentation-link"
+                                            component="a"
+                                            href={getAppDocumentationUrl(data.app_name || data.app_id, locale)}
+                                            rel="noreferrer"
+                                            size="small"
+                                            target="_blank"
+                                            title={t('myAppsDetailPage.actions.documentation')}
+                                        >
+                                            <DocumentationIcon />
+                                        </IconButton>
+                                    ) : null}
+                                </div>
                                 <h5 className="myapps-detail-status" style={{ color: getStatusColor(data?.status ?? 2) }}>
                                     {getStatusLabel(data?.status ?? 2)}
                                     {' : '}
@@ -1749,13 +1784,13 @@ export function MyAppDetailPage() {
                                                                                     <tr key={`${volumeLabel}-${i}`}>
                                                                                         <td>{volumeLabel}</td>
                                                                                         <td>{String(v.Driver ?? '-')}</td>
-                                                                                        <td>{String(v.Mountpoint ?? '-')}</td>
+                                                                                        <td>{getVolumePath(v)}</td>
                                                                                         <td>{getVolumeCreatedAt(v, locale)}</td>
                                                                                         <td className="myapps-cell-center">
                                                                                             <button
                                                                                                 className="myapps-inline-link"
                                                                                                 disabled={!volumeId}
-                                                                                                onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel })}
+                                                                                                onClick={() => setActiveVolumeFileManager({ volumeId, label: volumeLabel, path: getVolumePath(v) })}
                                                                                             >
                                                                                                 {t('myAppsDetailPage.tabs.volumes.fileManager.entry')}
                                                                                             </button>
@@ -2369,7 +2404,7 @@ export function MyAppDetailPage() {
                                 {sortedVolumes.map((v, i) => (
                                     <tr key={`${getVolumeLabel(v)}-dialog-${i}`}>
                                         <td>{getVolumeLabel(v)}</td>
-                                        <td>{String(v.Mountpoint ?? '-')}</td>
+                                        <td>{getVolumePath(v)}</td>
                                         <td>{String(v.Driver ?? '-')}</td>
                                     </tr>
                                 ))}
@@ -2495,6 +2530,7 @@ export function MyAppDetailPage() {
                 appId={appId ?? ''}
                 volumeId={activeVolumeFileManager?.volumeId ?? ''}
                 volumeLabel={activeVolumeFileManager?.label ?? ''}
+                volumePath={activeVolumeFileManager?.path ?? ''}
                 darkMode={isDarkMode}
                 scopeRect={contentScopeRect}
                 onClose={() => setActiveVolumeFileManager(null)}

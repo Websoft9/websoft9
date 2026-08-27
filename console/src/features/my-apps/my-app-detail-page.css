@@ -175,6 +175,16 @@
     color: var(--myapps-detail-text);
 }
 
+.myapps-detail-title-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 5px;
+}
+
+.myapps-detail-title-row .myapps-detail-title {
+    margin: 0;
+}
+
 .myapps-detail-status {
     margin: 3px 0 0;
     font-size: 1.02rem;
@@ -185,6 +195,27 @@
 .myapps-detail-status-meta {
     color: var(--myapps-detail-subtle);
     font-weight: 500;
+}
+
+.myapps-detail-documentation-link {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    color: var(--myapps-detail-muted);
+}
+
+.myapps-detail-documentation-link:hover {
+    background-color: transparent !important;
+    color: var(--myapps-detail-accent);
+}
+
+.myapps-detail-documentation-link svg {
+    width: 18px;
+    height: 18px;
+    transform: translateY(2px);
 }
 
 .myapps-detail-shell .app-icon {

@@ -378,6 +378,28 @@ def test_public_task_always_returns_a_future_next_run(tmp_path):
     assert task["next_run_at"] > service._now_iso()
 
 
+def test_public_task_exposes_execution_path(tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
+    task = service.create_task("valid-session", {"name": "Date", "schedule": "* * * * *", "command": "date"})
+    published = service.list_tasks("valid-session")["tasks"][0]
+    assert published["execution_path"] == str(tmp_path / "tasks" / "scripts" / f"{task['task_id']}.sh")
+
+    service.create_task("valid-session", {"name": "PathMode", "schedule": "* * * * *", "execution_mode": "path", "script_path": "/usr/local/bin/backup.sh"})
+    tasks = service.list_tasks("valid-session")["tasks"]
+    path_task = next(item for item in tasks if item["name"] == "PathMode")
+    assert path_task["execution_path"] == "/usr/local/bin/backup.sh"
+
+
+def test_execution_path_for_host_tasks_uses_remote_scheduled_tasks_root(tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None
+    )
+    assert service._execution_path({"task_id": "t-1", "target": "host", "execution_mode": "command", "script_path": None}) == "~/.local/state/websoft9/scheduled-tasks/scripts/t-1.sh"
+    assert service._execution_path({"task_id": "t-1", "target": "host", "execution_mode": "upload", "script_path": None}) == "~/.local/state/websoft9/scheduled-tasks/uploads/t-1.sh"
+
+
 def test_task_list_orders_by_creation_time_descending(tmp_path):
     service = ScheduledTaskService(
         data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "websoft9-tasks"), auth_service=FakeAuthService(), cron_reloader=lambda: None

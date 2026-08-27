@@ -254,10 +254,13 @@
     color: #ffffff !important;
 }
 
+/* Labels inside the access form are also rendered through MUI Typography
+   (body1 defaults: 16px/400), which fights this rule depending on CSS
+   insertion order. Pin the intended values so the result is deterministic. */
 .terminal-access-field-label {
-    font-size: 13px;
-    line-height: 1.4;
-    font-weight: 600;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    font-weight: 600 !important;
     color: #64748b;
 }
 

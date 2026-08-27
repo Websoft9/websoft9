@@ -1016,6 +1016,19 @@ class ScheduledTaskService:
             return {}
         return dict(line.split("=", 1) for line in state_path.read_text(encoding="utf-8").splitlines() if "=" in line)
 
+    def _execution_path(self, task) -> str:
+        task_id = task["task_id"]
+        if task["execution_mode"] == "path":
+            return task["script_path"] or ""
+        if task["target"] == "container":
+            if task["execution_mode"] == "upload":
+                return str(self._uploaded_script_path(task))
+            return str(self._runner_path(task_id))
+        remote_root = "~/.local/state/websoft9/scheduled-tasks"
+        if task["execution_mode"] == "upload":
+            return f"{remote_root}/uploads/{task_id}.sh"
+        return f"{remote_root}/scripts/{task_id}.sh"
+
     def _public_task(self, task: sqlite3.Row) -> dict[str, Any]:
         return {
             "task_id": task["task_id"], "name": task["name"], "target": task["target"],
@@ -1023,6 +1036,7 @@ class ScheduledTaskService:
             "command": task["command"], "execution_mode": task["execution_mode"], "script_path": task["script_path"], "script_name": task["script_name"], "timeout_seconds": task["timeout_seconds"], "retry_count": task["retry_count"], "enabled": bool(task["enabled"]), "last_run_at": task["last_run_at"],
             "last_status": task["last_status"], "sync_status": task["sync_status"], "next_run_at": self._next_run(task["schedule"], task["timezone"]),
             "created_at": task["created_at"], "updated_at": task["updated_at"],
+            "execution_path": self._execution_path(task),
         }
 
     @staticmethod

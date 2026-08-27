@@ -626,14 +626,6 @@ function ConnectActionIcon() {
     )
 }
 
-function LocalHostIcon() {
-    return (
-        <SvgIcon fontSize="small" viewBox="0 0 24 24">
-            <path d="M3 9.5L12 3L21 9.5V20H15V15H9V20H3V9.5Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-        </SvgIcon>
-    )
-}
-
 function TestActionIcon() {
     return (
         <SvgIcon fontSize="small" viewBox="0 0 24 24">
@@ -3609,11 +3601,28 @@ export function TerminalPage() {
             </div>
             <div className="terminal-access-grid terminal-access-grid-top">
                 <div className="terminal-access-field">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.35 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75, mb: 0.35 }}>
                         <Typography className="terminal-access-field-label" sx={{ mb: '0 !important' }}>{copy.host}</Typography>
-                        {accessForm.host === localHostIp ? (
-                            <Chip color="success" label={copy.localHostOption} size="small" sx={{ height: 18, fontWeight: 700, '& .MuiChip-label': { px: 0.75, fontSize: 11, lineHeight: 1.2 } }} />
-                        ) : null}
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={accessForm.isLocal === true}
+                                    disabled={formBusy}
+                                    onChange={(event) => {
+                                        const checked = event.target.checked
+                                        setAccessForm((current) => ({
+                                            ...current,
+                                            host: checked ? localHostIp : '',
+                                            isLocal: checked,
+                                        }))
+                                    }}
+                                    size="small"
+                                    sx={{ p: 0.5 }}
+                                />
+                            }
+                            label={<Typography sx={{ fontSize: 13, fontWeight: 600, color: palette.subtleText }}>{copy.localHostOption}</Typography>}
+                            sx={{ m: 0 }}
+                        />
                     </Box>
                     <TextField
                         disabled={formBusy}
@@ -3628,26 +3637,6 @@ export function TerminalPage() {
                         }}
                         placeholder="example.com"
                         size="small"
-                        slotProps={{
-                            input: {
-                                endAdornment: accessForm.host !== localHostIp ? (
-                                    <InputAdornment position="end">
-                                        <Tooltip title={`${copy.localHostOption}: ${localHostIp}`}>
-                                            <IconButton
-                                                aria-label={copy.localHostOption}
-                                                disabled={formBusy}
-                                                edge="end"
-                                                onClick={() => setAccessForm((current) => ({ ...current, host: localHostIp, isLocal: true }))}
-                                                size="small"
-                                                tabIndex={-1}
-                                            >
-                                                <LocalHostIcon />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </InputAdornment>
-                                ) : undefined,
-                            },
-                        }}
                         sx={terminalFieldSx}
                         value={accessForm.host}
                     />
