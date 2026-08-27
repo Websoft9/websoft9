@@ -37,7 +37,6 @@ PRODUCT_EDITIONS: dict[str, ProductEditionDefinition] = {
             "en": "Enterprise",
             "zh-CN": "企业版",
         },
-        max_apps=None,
     ),
 }
 
