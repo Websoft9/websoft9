@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -69,10 +71,20 @@ def test_write_product_edition_updates_metadata_file(tmp_path, monkeypatch):
     assert payload['version'] == '3.0.0'
 
 
-def test_migrate_product_metadata_from_legacy_system_ini(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ('legacy_max_apps', 'edition_key'),
+    [
+        (2, 'free'),
+        (3, 'starter'),
+        (5, 'standard'),
+        (10, 'standard'),
+        (10000, 'enterprise'),
+    ],
+)
+def test_migrate_product_metadata_from_legacy_system_ini(tmp_path, monkeypatch, legacy_max_apps, edition_key):
     _configure_runtime_state_paths(tmp_path, monkeypatch, version='3.0.0')
     legacy_ini_path = tmp_path / 'system.ini'
-    legacy_ini_path.write_text('[max_apps]\nkey = 10\n', encoding='utf-8')
+    legacy_ini_path.write_text(f'[max_apps]\nkey = {legacy_max_apps}\n', encoding='utf-8')
 
     edition = product_metadata_service.migrate_product_metadata(
         version='3.0.0',
@@ -80,10 +92,10 @@ def test_migrate_product_metadata_from_legacy_system_ini(tmp_path, monkeypatch):
     )
     payload = product_metadata_service.read_product_metadata()
 
-    assert edition.key == 'standard'
+    assert edition.key == edition_key
     assert edition.max_apps is None
     assert payload['version'] == '3.0.0'
-    assert payload['edition_key'] == 'standard'
+    assert payload['edition_key'] == edition_key
     assert payload['max_apps'] is None
 
 

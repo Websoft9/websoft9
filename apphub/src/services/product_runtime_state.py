@@ -120,7 +120,7 @@ def infer_product_edition_key_from_max_apps(max_apps: Optional[int]) -> Optional
         return "free"
     if max_apps == 3:
         return "starter"
-    if max_apps == 10:
+    if max_apps in (5, 10):
         return "standard"
     if max_apps is None:
         return "enterprise"

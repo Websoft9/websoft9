@@ -320,6 +320,18 @@ start_apphub_core() {
   wait_for_url "apphub-media" "${WEBSOFT9_MEDIA_HEALTH_URL:-http://127.0.0.1:8081/healthz}" 60
 }
 
+ensure_product_runtime_state() {
+  log_event "info" "runtime-product-state.ensure" "phase=runtime-bootstrap action=migrate-product-state"
+  local output
+
+  if output="$(python3 /websoft9/script/platform-ensure-product-metadata.py 2>&1)"; then
+    log_event "info" "runtime-product-state.ready" "$output"
+    return 0
+  fi
+
+  log_event "warning" "runtime-product-state.failed" "$output"
+}
+
 bootstrap_product_auth() {
   log_event "info" "workspace-bootstrap.bootstrap-product-auth" "phase=workspace-bootstrap action=bootstrap-product-auth"
   local output
@@ -419,6 +431,7 @@ main() {
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   sync_runtime_config base
+  ensure_product_runtime_state
   start_supervisor
   ensure_platform_network
   start_apphub_core
