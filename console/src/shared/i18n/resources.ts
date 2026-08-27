@@ -537,6 +537,7 @@ const rawShellResources = {
                 cards: {
                     product: {
                         title: 'Product',
+                        unlimited: 'Unlimited',
                         editionNames: {
                             community: 'Community',
                             starter: 'Starter',
@@ -547,6 +548,7 @@ const rawShellResources = {
                             version: 'Version',
                             edition: 'Edition',
                             installedApps: 'Installed apps',
+                            availableApps: 'Installable apps',
                         },
                     },
                     host: {
@@ -2933,6 +2935,7 @@ const rawShellResources = {
                 cards: {
                     product: {
                         title: '产品信息',
+                        unlimited: '无限制',
                         editionNames: {
                             community: '社区版',
                             starter: '入门版',
@@ -2943,6 +2946,7 @@ const rawShellResources = {
                             version: '当前版本',
                             edition: '版本线',
                             installedApps: '已安装应用',
+                            availableApps: '可安装应用数',
                         },
                     },
                     host: {
