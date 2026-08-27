@@ -28,7 +28,7 @@ from src.core.envHelper import EnvHelper
 from src.core.exception import CustomException
 from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
-from src.services.common_check import check_apps_number, check_endpointId
+from src.services.common_check import check_endpointId
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
@@ -1581,11 +1581,6 @@ class AppManger:
 
         # Get all apps that are official and active (or inactive)
         app_official_active = [app for app in appInstallApps if app.app_official == True and app.status == 1]
-
-        # Only check limit for official (app store) apps. Compose/external apps are not subject to the limit.
-        is_official = any(app.app_id == app_id and app.app_official == True for app in appInstallApps)
-        if is_official and not any(app.app_id == app_id for app in app_official_active):
-            check_apps_number(endpointId)
 
         app_official = [app for app in appInstallApps if app.app_official == True and (app.status == 1 or app.status == 2)]
 

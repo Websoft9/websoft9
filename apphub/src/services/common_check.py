@@ -318,9 +318,6 @@ def install_validate(appInstall:appInstall,endpointId:int):
         # Check the endpointId is exists
         check_endpointId(endpointId, portainerManager)
 
-        # Check the apps number is exceed the maximum number of apps
-        check_apps_number(endpointId)
-
         port_check_settings = get_port_check_settings(appInstall.profile, appInstall.settings, app_directory)
         check_port_conflicts(port_check_settings, None if is_external_database_profile(app_directory, appInstall.profile) else app_name)
     except CustomException as e:

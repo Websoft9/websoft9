@@ -537,7 +537,6 @@ const rawShellResources = {
                 cards: {
                     product: {
                         title: 'Product',
-                        unlimited: 'Unlimited',
                         editionNames: {
                             community: 'Community',
                             starter: 'Starter',
@@ -548,7 +547,6 @@ const rawShellResources = {
                             version: 'Version',
                             edition: 'Edition',
                             installedApps: 'Installed apps',
-                            availableApps: 'Installable apps',
                         },
                     },
                     host: {
@@ -832,7 +830,6 @@ const rawShellResources = {
                     feedback: {
                         success: 'The application has started installing. You can continue tracking it in My Apps.',
                         error: 'Installation failed. Please retry after checking the current configuration.',
-                        maxApps: 'The current environment has reached the maximum number of installable apps. Remove an existing app or raise the limit before installing again.',
                         portConflict: 'Port {{port}} is already in use. Please choose a different port.',
                     },
                 },
@@ -2936,7 +2933,6 @@ const rawShellResources = {
                 cards: {
                     product: {
                         title: '产品信息',
-                        unlimited: '无限制',
                         editionNames: {
                             community: '社区版',
                             starter: '入门版',
@@ -2947,7 +2943,6 @@ const rawShellResources = {
                             version: '当前版本',
                             edition: '版本线',
                             installedApps: '已安装应用',
-                            availableApps: '可安装应用数',
                         },
                     },
                     host: {
@@ -3231,7 +3226,6 @@ const rawShellResources = {
                     feedback: {
                         success: '应用已经开始安装, 你可以到我的应用中继续跟踪。',
                         error: '安装失败, 请检查当前配置后重试。',
-                        maxApps: '当前环境已达到可安装应用数量上限。请先删除现有应用，或提高上限后再安装。',
                         portConflict: '端口 {{port}} 已被占用，请选择一个不同的端口。',
                     },
                 },

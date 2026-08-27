@@ -16,7 +16,6 @@ PRODUCT_EDITIONS: dict[str, ProductEditionDefinition] = {
             "en": "Free",
             "zh-CN": "免费版",
         },
-        max_apps=2,
     ),
     "starter": ProductEditionDefinition(
         key="starter",
@@ -24,7 +23,6 @@ PRODUCT_EDITIONS: dict[str, ProductEditionDefinition] = {
             "en": "Starter",
             "zh-CN": "入门版",
         },
-        max_apps=3,
     ),
     "standard": ProductEditionDefinition(
         key="standard",
@@ -32,7 +30,6 @@ PRODUCT_EDITIONS: dict[str, ProductEditionDefinition] = {
             "en": "Standard",
             "zh-CN": "标准版",
         },
-        max_apps=10,
     ),
     "enterprise": ProductEditionDefinition(
         key="enterprise",

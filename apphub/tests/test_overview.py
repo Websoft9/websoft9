@@ -59,7 +59,7 @@ class FakeAuthService:
 def test_overview_service_aggregates_product_apps_services_and_tasks():
     service = OverviewService(
         auth_service=FakeAuthService(),
-        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
         available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {
             "hostname": "host-a",
@@ -154,7 +154,7 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
     assert payload.product.edition_key == "free"
     assert payload.product.catalog_app_count == 432
     assert payload.product.installed_count == 3
-    assert payload.product.available_app_count == 2
+    assert payload.product.available_app_count is None
     assert payload.host.hostname == "host-a"
     assert payload.host.os_name == "Ubuntu 24.04"
     assert payload.apps.installed_count == 3
@@ -176,7 +176,7 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
 def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
     service = OverviewService(
         auth_service=FakeAuthService(),
-        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
         available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
@@ -223,7 +223,7 @@ def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
     assert payload.product.available is True
     assert payload.product.catalog_app_count == 432
     assert payload.product.installed_count is None
-    assert payload.product.available_app_count == 2
+    assert payload.product.available_app_count is None
     assert payload.host.available is True
     assert payload.host_runtime.available is True
     assert payload.runtime.available is True
@@ -234,7 +234,7 @@ def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
 def test_overview_service_supports_runtime_app_response_models():
     service = OverviewService(
         auth_service=FakeAuthService(),
-        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
         available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
@@ -298,7 +298,7 @@ def test_overview_service_reuses_loaded_apps_for_apps_and_tasks():
 
     service = OverviewService(
         auth_service=FakeAuthService(),
-        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
         available_catalog_count_loader=lambda: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
@@ -388,7 +388,7 @@ def test_overview_router_returns_normalized_payload():
 
     overview_stream_cache._overview_service = OverviewService(
         auth_service=FakeAuthService(),
-        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": 2},
+        product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
         host_summary_loader=lambda: {
             "hostname": "host-a",
             "os_name": "Ubuntu 24.04",
@@ -440,7 +440,7 @@ def test_overview_router_returns_normalized_payload():
     payload = response.json()
     assert payload["product"]["version"] == "2.2.17"
     assert payload["product"]["installed_count"] == 1
-    assert payload["product"]["available_app_count"] == 2
+    assert payload["product"]["available_app_count"] is None
     assert payload["host"]["hostname"] == "host-a"
     assert payload["host_runtime"]["disk_percent"] == 33.0
     assert payload["runtime"]["runtime_scope"] == "system"

@@ -1496,9 +1496,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             navigate(nextSearchParams.size > 0 ? `/myapps?${nextSearchParams.toString()}` : '/myapps', { replace: true })
         } catch (submitError) {
             let message = submitError instanceof Error ? submitError.message : t('appStorePage.install.feedback.error')
-            if (/Exceed the maximum number of apps/i.test(message)) {
-                message = t('appStorePage.install.feedback.maxApps')
-            }
             if (isExternalDatabaseProfile && /Unable to connect to the specified database\.?/i.test(message)) {
                 message = t('appStorePage.install.databaseConnection.failed')
             }

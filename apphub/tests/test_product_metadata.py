@@ -24,7 +24,7 @@ def _configure_runtime_state_paths(tmp_path, monkeypatch, *, version='2.3.0'):
     monkeypatch.setenv('WEBSOFT9_INSTALL_TRACKING_DIR', str(tmp_path / 'apphub-data'))
 
 
-def test_read_product_edition_uses_explicit_max_apps_from_metadata(tmp_path, monkeypatch):
+def test_read_product_edition_discards_explicit_max_apps_from_metadata(tmp_path, monkeypatch):
     _configure_runtime_state_paths(tmp_path, monkeypatch)
     store = runtime_state_service.ProductRuntimeStateStore()
     store.write_runtime_state(
@@ -37,10 +37,10 @@ def test_read_product_edition_uses_explicit_max_apps_from_metadata(tmp_path, mon
     edition = product_metadata_service.read_product_edition()
 
     assert edition.key == 'starter'
-    assert edition.max_apps == 6
+    assert edition.max_apps is None
 
 
-def test_read_product_edition_falls_back_to_catalog_limit(tmp_path, monkeypatch):
+def test_read_product_edition_has_no_catalog_app_limit(tmp_path, monkeypatch):
     _configure_runtime_state_paths(tmp_path, monkeypatch)
     store = runtime_state_service.ProductRuntimeStateStore()
     store.write_runtime_state(
@@ -53,19 +53,19 @@ def test_read_product_edition_falls_back_to_catalog_limit(tmp_path, monkeypatch)
     edition = product_metadata_service.read_product_edition()
 
     assert edition.key == 'standard'
-    assert edition.max_apps == 10
+    assert edition.max_apps is None
 
 
 def test_write_product_edition_updates_metadata_file(tmp_path, monkeypatch):
-    _configure_runtime_state_paths(tmp_path, monkeypatch)
+    _configure_runtime_state_paths(tmp_path, monkeypatch, version='3.0.0')
 
     edition = product_metadata_service.write_product_edition('starter')
     payload = product_metadata_service.read_product_metadata()
 
     assert edition.key == 'starter'
-    assert edition.max_apps == 3
+    assert edition.max_apps is None
     assert payload['edition_key'] == 'starter'
-    assert payload['max_apps'] == 3
+    assert payload['max_apps'] is None
     assert payload['version'] == '3.0.0'
 
 
@@ -81,10 +81,42 @@ def test_migrate_product_metadata_from_legacy_system_ini(tmp_path, monkeypatch):
     payload = product_metadata_service.read_product_metadata()
 
     assert edition.key == 'standard'
-    assert edition.max_apps == 10
+    assert edition.max_apps is None
     assert payload['version'] == '3.0.0'
     assert payload['edition_key'] == 'standard'
-    assert payload['max_apps'] == 10
+    assert payload['max_apps'] is None
+
+
+def test_migrate_product_metadata_clears_existing_app_limit(tmp_path, monkeypatch):
+    _configure_runtime_state_paths(tmp_path, monkeypatch, version='3.0.0')
+    store = runtime_state_service.ProductRuntimeStateStore()
+    store.write_runtime_state(
+        edition_key='free',
+        max_apps=2,
+        state_source='install',
+        updated_by='test',
+    )
+
+    edition = product_metadata_service.migrate_product_metadata(version='3.0.0')
+
+    assert edition.key == 'free'
+    assert edition.max_apps is None
+    assert store.get_runtime_state_row()['max_apps'] is None
+
+
+def test_migrate_product_metadata_clears_source_state_app_limit(tmp_path, monkeypatch):
+    _configure_runtime_state_paths(tmp_path, monkeypatch, version='3.0.0')
+    store = runtime_state_service.ProductRuntimeStateStore()
+    migrated = runtime_state_service.migrate_product_runtime_state(source_state={
+        'edition_key': 'enterprise',
+        'max_apps': 10000,
+        'state_source': 'legacy-migration',
+        'updated_by': 'test',
+    })
+
+    assert migrated.key == 'enterprise'
+    assert migrated.max_apps is None
+    assert store.get_runtime_state_row()['max_apps'] is None
 
 
 def test_migrate_product_metadata_rejects_nonstandard_legacy_max_apps(tmp_path, monkeypatch):

@@ -222,14 +222,12 @@ def read_product_runtime_state() -> ProductRuntimeState:
         )
 
     edition = resolve_product_edition_definition(str(row.get("edition_key") or DEFAULT_PRODUCT_EDITION_KEY))
-    max_apps = _normalize_max_apps(row.get("max_apps"))
-    effective_max_apps = max_apps if max_apps is not None else edition.max_apps
     return ProductRuntimeState(
         version=release_version,
         edition_key=edition.key,
         edition_name=edition.names.get("en") or edition.key,
         edition_names=dict(edition.names),
-        max_apps=effective_max_apps,
+        max_apps=None,
         state_source=str(row.get("state_source") or PRODUCT_RUNTIME_SOURCE_INSTALL),
         updated_by=str(row.get("updated_by") or "system"),
         updated_at=row.get("updated_at"),
@@ -270,7 +268,7 @@ def migrate_product_runtime_state(
             edition = resolve_product_edition_definition(source_edition_key)
             store.write_runtime_state(
                 edition_key=edition.key,
-                max_apps=source_state.get("max_apps", edition.max_apps),
+                max_apps=None,
                 state_source=str(source_state.get("state_source") or PRODUCT_RUNTIME_SOURCE_MANUAL),
                 updated_by=str(source_state.get("updated_by") or updated_by),
                 note=source_state.get("note") or note,
@@ -278,6 +276,13 @@ def migrate_product_runtime_state(
             return read_product_runtime_state()
 
     if existing_row is not None and legacy_system_ini_file is None:
+        store.write_runtime_state(
+            edition_key=str(existing_row.get("edition_key") or fallback_edition_key),
+            max_apps=None,
+            state_source=str(existing_row.get("state_source") or PRODUCT_RUNTIME_SOURCE_INSTALL),
+            updated_by=str(existing_row.get("updated_by") or updated_by),
+            note=existing_row.get("note") or note,
+        )
         return read_product_runtime_state()
 
     if legacy_system_ini_file:
@@ -287,7 +292,7 @@ def migrate_product_runtime_state(
             raise ValueError(f"Unsupported legacy max_apps value in {legacy_system_ini_file}")
         store.write_runtime_state(
             edition_key=inferred_edition_key,
-            max_apps=legacy_max_apps,
+            max_apps=None,
             state_source=PRODUCT_RUNTIME_SOURCE_LEGACY,
             updated_by=updated_by,
             note=note,

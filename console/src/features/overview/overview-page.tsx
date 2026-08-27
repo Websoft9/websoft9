@@ -327,7 +327,6 @@ export function OverviewPage() {
                                                 <InfoBlock label={t('overviewPage.cards.product.metrics.version')} value={data.product.version || '--'} />
                                                 <InfoBlock label={t('overviewPage.cards.product.metrics.edition')} value={localizedEditionName} />
                                                 <InfoBlock label={t('overviewPage.stats.healthyServices')} value={`${data.services.healthy_count ?? 0}/${data.services.total_count ?? 0}`} />
-                                                <InfoBlock label={t('overviewPage.cards.product.metrics.availableApps')} value={typeof data.product.available_app_count === 'number' ? String(data.product.available_app_count) : t('overviewPage.cards.product.unlimited')} />
                                             </Box>
 
                                             <Stack className="overview-page-resource-stack" spacing={1.5}>
