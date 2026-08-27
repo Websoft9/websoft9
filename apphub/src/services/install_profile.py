@@ -104,6 +104,14 @@ def _read_env_values(env_path: Path) -> dict[str, str]:
     return values
 
 
+def get_external_database_type(app_directory: str | Path) -> str:
+    database_type = _read_env_values(Path(app_directory) / ".env").get("W9_DB_EXPOSE", "")
+    database_type = database_type.split(",", 1)[0].strip().strip("\"'").lower()
+    if database_type not in {"mysql", "postgresql"}:
+        raise CustomException(400, "Invalid Request", "The application does not support an external database connection.")
+    return database_type
+
+
 def _merge_env_profile(base_env_path: Path, profile_env_path: Path) -> None:
     overrides = _read_env_values(profile_env_path)
     merged_lines: list[str] = []
@@ -190,8 +198,8 @@ def validate_profile_settings(app_directory: str | Path, profile: str | None, se
         raise CustomException(400, "Invalid Request", "Profile settings must be strings.")
 
 
-def validate_external_database_connection(host: str, port: int | str, database_name: str, username: str, password: str) -> ExternalDatabaseConnection:
-    if not all(isinstance(value, str) and value.strip() for value in (host, database_name, username, password)):
+def validate_external_database_connection(database_type: str, host: str, port: int | str, database_name: str | None, username: str, password: str) -> ExternalDatabaseConnection:
+    if not all(isinstance(value, str) and value.strip() for value in (host, username, password)):
         raise CustomException(400, "Invalid Request", "External database connection information is required.")
     if "://" in host or any(character.isspace() for character in host):
         raise CustomException(400, "Invalid Request", "External database host is invalid.")
@@ -202,6 +210,13 @@ def validate_external_database_connection(host: str, port: int | str, database_n
         raise CustomException(400, "Invalid Request", "External database port is invalid.") from exc
     if normalized_port < 1 or normalized_port > 65535:
         raise CustomException(400, "Invalid Request", "External database port is invalid.")
+
+    if database_type == "postgresql":
+        return _validate_postgresql_connection(host, normalized_port, database_name or "postgres", username, password)
+    if database_type != "mysql":
+        raise CustomException(400, "Invalid Request", "The application does not support this external database type.")
+    if not isinstance(database_name, str) or not database_name.strip():
+        raise CustomException(400, "Invalid Request", "External database connection information is required.")
 
     try:
         import pymysql
@@ -227,8 +242,8 @@ def validate_external_database_connection(host: str, port: int | str, database_n
                 version_row = cursor.fetchone()
         finally:
             connection.close()
-    except pymysql.MySQLError:
-        return _validate_postgresql_connection(host, normalized_port, database_name, username, password)
+    except pymysql.MySQLError as exc:
+        raise CustomException(400, "External Database Connection Failed", "Unable to connect to the specified database.") from exc
 
     version_text = str(version_row[0] if isinstance(version_row, (tuple, list)) else version_row or "").lower()
     actual_type = "mariadb" if "mariadb" in version_text else "mysql"

@@ -63,30 +63,22 @@
 
 ## 模板与部署契约
 
-仅为 WordPress 模板增加：
+WordPress 的 Docker Library 增加外接数据库 profile：
 
 ```text
-apps/wordpress/docker-compose.external-mysql.yml
-apps/wordpress/.env.external-mysql
+apps/wordpress/.env.external-db
 ```
 
-默认模式固定使用 `docker-compose.yml` 与 `.env`。额外安装模式使用配对命名约定：
+默认模式固定使用 `docker-compose.yml` 与 `.env`。额外模式使用 `.env.<模式>` 命名约定；本试点的模式键为 `external-db`。安装时通用逻辑复制默认 compose，再根据 profile 的 `W9_COMPOSE_EXCLUDE_SERVICES` 移除内置数据库服务及其未使用卷和依赖。
 
-```text
-docker-compose.<模式>.yml
-.env.<模式>
-```
-
-因此本试点的模式键为 `external-mysql`。发布工具仅将同时存在的一对文件识别为额外安装模式；未来可以按相同规则增加 `external-postgresql`、`with-redis` 或 `high-availability` 等模式，而不增加每个应用专用的描述文件。
-
-`docker-compose.external-mysql.yml` 保留 WordPress 服务、既有支持服务、Websoft9 网络和应用卷，但不包含：
+外接模式最终 compose 保留 WordPress 服务、既有支持服务、Websoft9 网络和应用卷，但不包含：
 
 - `mysql` 服务；
 - `mysql_data` 卷；
 - `depends_on: mysql`；
 - 本地 MySQL 初始化变量。
 
-`.env.external-mysql` 保留必需的 `W9_*` 应用元数据。用户在安装页填写的安装阶段字段由该文件中的 `W9_*_SET` 声明：
+`.env.external-db` 保留必需的 `W9_*` 应用元数据。用户在安装页填写的安装阶段字段由该文件中的 `W9_*_SET` 声明：
 
 ```text
 W9_DB_HOST_SET=
@@ -109,16 +101,16 @@ WORDPRESS_DB_USER
 WORDPRESS_DB_PASSWORD
 ```
 
-安装时，通用安装模式解析逻辑在“复制模板并生成安装目录”的边界选择 `external-mysql` 源文件，并在镜像拉取、Gitea 推送和 Portainer Stack 创建之前，将结果规范化为应用私有 Gitea 仓库中的：
+安装时，通用安装模式解析逻辑在“复制模板并生成安装目录”的边界将 `.env.external-db` 合并到基础 `.env`，并按 `W9_COMPOSE_EXCLUDE_SERVICES` 从基础 compose 中移除内置 MySQL 服务及关联依赖；该结果在镜像拉取、Gitea 推送和 Portainer Stack 创建之前规范化为应用私有 Gitea 仓库中的：
 
 ```text
 docker-compose.yml
 .env
 ```
 
-不修改 Portainer、重部署、启停、卸载、镜像拉取和仓库文件发现逻辑以识别第二个 compose 文件名；这些既有链路始终只消费上述规范化文件名。
+不修改 Portainer、重部署、启停、卸载、镜像拉取和仓库文件发现逻辑；这些既有链路始终只消费上述规范化文件名。
 
-外接模式不使用内置 MySQL 的 `W9_POWER_PASSWORD`。最终 `.env` 保存用户提供的 WordPress 运行凭据；`W9_DATABASE_MODE=external` 标记外接模式，缺少该变量即为现有内置模式；数据库类型复用现有 `W9_DB_EXPOSE=mysql`。此文件属于明文敏感配置，必须保持仓库私有；密码不得出现在日志、安装状态或错误响应，且只在“我的应用”详情中向已授权用户掩码显示。
+外接模式的 WordPress 运行连接不使用 `W9_POWER_PASSWORD`；最终 `.env` 仍保留基础模板的该变量，但 WordPress 使用用户提供的 `WORDPRESS_DB_*` 凭据。`W9_DATABASE_MODE=external` 标记外接模式，缺少该变量即为现有内置模式；`W9_DB_EXPOSE` 在连接探测后写入实际类型 `mysql` 或 `mariadb`。此文件属于明文敏感配置，必须保持仓库私有；密码不得出现在日志、安装状态或错误响应，且只在“我的应用”详情中向已授权用户掩码显示。
 
 ## API 与后端契约
 
@@ -126,7 +118,7 @@ docker-compose.yml
 
 ```json
 {
-  "profile": "external-mysql",
+  "profile": "external-db",
   "settings": {
     "W9_HTTP_PORT_SET": "9001",
     "W9_DB_HOST_SET": "db.example.internal",
@@ -140,8 +132,8 @@ docker-compose.yml
 
 规则：
 
-- 默认模式不传 `profile`，继续使用 `docker-compose.yml` 与 `.env`；额外模式必须来自已发布的配对文件，未知模式返回 `400`。
-- WordPress 的 `external-mysql` 模式只支持 MySQL、MariaDB 和 Aurora MySQL；用户必须预先创建目标数据库并提供可访问它的账号。
+- 默认模式不传 `profile`，继续使用 `docker-compose.yml` 与 `.env`；额外模式必须来自已发布的 `.env.<模式>` 文件，未知模式返回 `400`。
+- 外接模式的连接协议从应用基础 `.env` 的 `W9_DB_EXPOSE` 获取。WordPress 的该值为 `mysql`，因此只支持 MySQL、MariaDB 和 Aurora MySQL；用户必须预先创建目标数据库并提供可访问它的账号。
 - `W9_DB_PASSWORD_SET` 不得进入 Pydantic 校验错误、安装状态、日志、遥测或 API 响应；模板物化后作为 WordPress 运行密码写入私有 Gitea `.env`。
 - 后端仅接受当前选中模板声明的 `W9_*_SET`，并使用既有通用设置写入流程写入最终 `.env`。
 - 后端在创建安装资源前验证外部 MySQL 的账号、密码、数据库可访问性和 MySQL 协议兼容性；不创建数据库、账号或授权。
@@ -149,7 +141,7 @@ docker-compose.yml
 
 ### 安装元数据与通用表单
 
-`install metadata JSON` 是安装页面的参数来源。发布和运行时本地回退生成逻辑都必须扫描每个应用目录中的模式文件对，并把模式与其 `W9_*_SET` 字段写入元数据。例如：
+`install metadata JSON` 是安装页面的参数来源。发布和运行时本地回退生成逻辑扫描每个应用目录中的 `.env.<模式>` 文件，并把模式与其 `W9_*_SET` 字段写入元数据。例如：
 
 ```json
 {
@@ -158,7 +150,7 @@ docker-compose.yml
       "settings": { "W9_HTTP_PORT_SET": "9001" },
       "is_web_app": true,
       "profiles": {
-        "external-mysql": {
+        "external-db": {
           "settings": {
             "W9_DB_HOST_SET": "",
             "W9_DB_PORT_SET": "3306",
@@ -173,7 +165,7 @@ docker-compose.yml
 }
 ```
 
-前端通用地读取 `profiles`：没有额外模式的应用维持现有表单；存在额外模式时显示模式选择器，并以所选模式的 `settings` 完整替换默认模式字段。`external-mysql` 作为平台 MySQL-compatible 协议 profile，将其标准五项连接字段显示为数据库连接卡片并用于连接测试；其他 `W9_*_SET` 仍按通用表单显示。所有匹配 `W9_*_PASSWORD_SET` 的字段按全局命名约定使用密码输入框，并在日志、状态和响应中脱敏；其他秘密类型若未来需要支持，必须先定义同样通用的命名约定。
+前端通用地读取 `profiles`：没有额外模式的应用维持现有表单；存在额外模式时显示模式选择器，并以所选模式的 `settings` 完整替换默认模式字段。`external-db` 是外接数据库 profile，将其标准五项连接字段显示为数据库连接卡片并用于连接测试；连接协议由基础 `.env` 的 `W9_DB_EXPOSE` 决定。其他 `W9_*_SET` 仍按通用表单显示。所有匹配 `W9_*_PASSWORD_SET` 的字段按全局命名约定使用密码输入框，并在日志、状态和响应中脱敏；其他秘密类型若未来需要支持，必须先定义同样通用的命名约定。
 
 `apps index JSON` 和 `manifest` 不承载模式或字段定义：它们继续发布整个应用 bundle 并校验 checksum。模式文件随 bundle 下载后，由安装服务按用户选择的 `profile` 物化。
 
@@ -221,10 +213,10 @@ docker-compose.yml
 
 | 位置 | 改动 | 不改动的行为 |
 |---|---|---|
-| docker-library `apps/wordpress/` | 增加 `docker-compose.external-mysql.yml`、`.env.external-mysql` | 现有 `docker-compose.yml` 与 `.env` 原样保留 |
-| 安装元数据生成与同步 | 自动发现配对的 `docker-compose.<模式>.yml` 与 `.env.<模式>`，写入 `profiles` | 无额外模式的应用维持当前元数据 |
+| docker-library `apps/wordpress/` | 增加 `.env.external-db`，声明外接连接字段和需移除的内置服务 | 现有 `docker-compose.yml` 与 `.env` 原样保留 |
+| 安装元数据生成与同步 | 自动发现 `.env.<模式>`，写入 `profiles` | 无额外模式的应用维持当前元数据 |
 | `apphub/src/schemas/appInstall.py`、校验与安装服务 | 增加受约束的 `profile`，通过既有 `settings` 写入当前模板字段 | 默认模式的请求、端口保留与模板行为不变 |
-| `console/src/features/app-store/` | 渲染元数据 `profiles` 的选择器与字段；`external-mysql` 使用标准数据库连接卡片 | 其他 profile 字段仍按通用表单渲染 |
+| `console/src/features/app-store/` | 渲染元数据 `profiles` 的选择器与字段；`external-db` 使用标准数据库连接卡片 | 其他 profile 字段仍按通用表单渲染 |
 | 我的应用详情、备份和卸载提示 | 识别外接模式；增加准确提示 | 列表、启停与既有重部署接口保持不变 |
 
 ### 请求与数据模型
@@ -244,21 +236,21 @@ docker-compose.yml
     "W9_DB_USER_SET": "wordpress_user",
     "W9_DB_PASSWORD_SET": "数据库密码"
   },
-  "profile": "external-mysql",
+  "profile": "external-db",
 }
 ```
 
-- `profile` 必须由当前应用已发布的模式文件对导出，并拒绝未知模式、额外字段或缺少字段。
+- `profile` 必须由当前应用已发布的 `.env.<模式>` 文件导出，并拒绝未知模式、额外字段或缺少字段。
 - `W9_DB_PASSWORD_SET` 不得写入 `appInstalling`、安装日志或持久化状态；模板物化后作为 `WORDPRESS_DB_PASSWORD` 的来源写入私有 Gitea `.env`。
 - 外接模式写入 `W9_DATABASE_MODE=external` 和 `W9_DB_EXPOSE=mysql`，用于我的应用、备份和卸载提示；没有 `W9_DATABASE_MODE` 的应用沿用内置模式。
 
 ### 安装时序与补偿
 
 ```text
-1. 前端依据 install metadata 的 `profiles` 选择模板，并提交完整的当前模板 `settings` 与 `profile=external-mysql`
-2. 安装路由校验模式及字段；使用 MySQL 协议认证并对指定数据库执行只读 `SELECT 1`
+1. 前端依据 install metadata 的 `profiles` 选择模板，并提交完整的当前模板 `settings` 与 `profile=external-db`
+2. 安装路由校验模式及字段；从基础 `.env` 的 `W9_DB_EXPOSE` 决定连接协议，并对指定数据库执行只读 `SELECT 1`
 3. 用户负责确保目标数据库和账号已经存在且可访问；验证成功后安装服务创建安装任务
-4. 复制 WordPress 模板；选择 `external-mysql` 配对文件，并覆盖为标准 `docker-compose.yml` 与 `.env`
+4. 复制 WordPress 模板；合并 `.env.external-db` 并从基础 compose 移除 `mysql` 服务，保留标准 `docker-compose.yml` 与 `.env`
 5. 使用既有通用设置写入流程写入 `W9_*_SET`；模板派生 `WORDPRESS_DB_*`、`W9_DATABASE_MODE=external`、`W9_DB_EXPOSE=mysql`
 6. 安装服务复用既有 `GiteaManager`、`PortainerManager`、`ProxyManager` 和安装状态服务：推送 Gitea、预拉镜像、创建 Portainer Git Stack、创建代理
 7. 安装完成

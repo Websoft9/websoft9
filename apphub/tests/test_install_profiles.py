@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.core.exception import CustomException
 from src.services.install_profile import (
+    get_external_database_type,
     get_port_check_settings,
     is_external_database_profile,
     materialize_profile_template,
@@ -34,7 +35,7 @@ def _profile_template(app_dir: Path) -> None:
         "services:\n  wordpress:\n    depends_on:\n      - mysql\n    volumes:\n      - wordpress:/var/www/html\n  mysql:\n    volumes:\n      - mysql_data:/var/lib/mysql\nvolumes:\n  wordpress: {}\n  mysql_data: {}\n",
         encoding="utf-8",
     )
-    (app_dir / ".env").write_text("W9_POWER_PASSWORD=\nW9_HTTP_PORT_SET=9001\n", encoding="utf-8")
+    (app_dir / ".env").write_text("W9_POWER_PASSWORD=\nW9_HTTP_PORT_SET=9001\nW9_DB_EXPOSE=mysql\n", encoding="utf-8")
     (app_dir / ".env.external-db").write_text(
         "\n".join([
             *(f"{key}={value if key != 'W9_DB_PASSWORD_SET' else ''}" for key, value in PROFILE_SETTINGS.items() if key != "W9_HTTP_PORT_SET"),
@@ -92,6 +93,16 @@ def test_external_database_connection_settings_are_excluded_from_port_checks(tmp
     assert get_port_check_settings(None, PROFILE_SETTINGS) == PROFILE_SETTINGS
 
 
+def test_external_database_type_comes_from_the_base_template(tmp_path):
+    app_dir = tmp_path / "wordpress"
+    _profile_template(app_dir)
+
+    assert get_external_database_type(app_dir) == "mysql"
+
+    (app_dir / ".env").write_text("W9_DB_EXPOSE=postgresql\n", encoding="utf-8")
+    assert get_external_database_type(app_dir) == "postgresql"
+
+
 def test_external_database_connection_test_is_read_only(monkeypatch):
     calls = []
 
@@ -126,6 +137,7 @@ def test_external_database_connection_test_is_read_only(monkeypatch):
     monkeypatch.setitem(sys.modules, "pymysql", FakePyMySQL)
 
     result = validate_external_database_connection(
+        "mysql",
         host="mysql.example.internal",
         port=3306,
         database_name="wordpress_demo",
@@ -153,7 +165,45 @@ def test_external_database_connection_test_is_read_only(monkeypatch):
     ]
 
 
-def test_external_database_connection_falls_back_to_postgresql(monkeypatch):
+def test_mysql_external_database_connection_does_not_fall_back_to_postgresql(monkeypatch):
+    class FakePyMySQL:
+        class MySQLError(Exception):
+            pass
+
+        @staticmethod
+        def connect(**kwargs):
+            raise FakePyMySQL.MySQLError()
+
+    monkeypatch.setitem(sys.modules, "pymysql", FakePyMySQL)
+
+    with pytest.raises(CustomException) as exc_info:
+        validate_external_database_connection(
+            "mysql",
+            host="postgres.example.internal",
+            port=5432,
+            database_name="wordpress_demo",
+            username="wordpress_user",
+            password="database-secret",
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+def test_mysql_external_database_connection_requires_a_database_name(monkeypatch):
+    with pytest.raises(CustomException) as exc_info:
+        validate_external_database_connection(
+            "mysql",
+            host="mysql.example.internal",
+            port=3306,
+            database_name=None,
+            username="wordpress_user",
+            password="database-secret",
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+def test_postgresql_external_database_connection_uses_postgresql_when_declared(monkeypatch):
     class FakePyMySQL:
         class MySQLError(Exception):
             pass
@@ -185,23 +235,28 @@ def test_external_database_connection_falls_back_to_postgresql(monkeypatch):
     class FakePsycopg2:
         Error = Exception
 
+        calls = []
+
         @staticmethod
         def connect(**kwargs):
+            FakePsycopg2.calls.append(kwargs)
             return FakeConnection()
 
     monkeypatch.setitem(sys.modules, "pymysql", FakePyMySQL)
     monkeypatch.setitem(sys.modules, "psycopg2", FakePsycopg2)
 
     result = validate_external_database_connection(
+        "postgresql",
         host="postgres.example.internal",
         port=5432,
-        database_name="wordpress_demo",
+        database_name=None,
         username="wordpress_user",
         password="database-secret",
     )
 
     assert result.database_type == "postgresql"
     assert result.version == (16, 0, 3)
+    assert FakePsycopg2.calls[0]["dbname"] == "postgres"
 
 
 def test_profile_materialization_merges_external_database_overrides_and_prunes_compose(tmp_path):

@@ -348,7 +348,7 @@ async function testExternalDatabaseConnection(app: AppStoreApp, version: string,
             profile,
             host: settings.W9_DB_HOST_SET,
             port: Number(settings.W9_DB_PORT_SET),
-            database_name: settings.W9_DB_NAME_SET,
+            ...(settings.W9_DB_NAME_SET ? { database_name: settings.W9_DB_NAME_SET } : {}),
             username: settings.W9_DB_USER_SET,
             password: settings.W9_DB_PASSWORD_SET,
         }),
@@ -937,18 +937,17 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const sharedInstallSettings = Object.entries(effectiveInstallSettings).filter(
         ([key]) => !isExternalDatabaseProfile || !externalDatabaseSettingKeys.includes(key),
     )
-    const displayedProfileInstallSettings = externalDatabaseSettingKeys.map(
-        (key) => [key, effectiveInstallSettings[key] ?? ''] as [string, string],
-    )
+    const displayedProfileInstallSettings = externalDatabaseSettingKeys
+        .filter((key) => Object.hasOwn(selectedProfileTemplateSettings, key))
+        .map((key) => [key, effectiveInstallSettings[key] ?? ''] as [string, string])
     function getDatabaseSettingLabel(key: string) {
         const label = t(`appStorePage.install.databaseFields.${key}`, { defaultValue: '' })
         return label || getInstallSettingLabel(key, t)
     }
 
-    function getExternalDatabaseValidationErrors(settings: Record<string, string>) {
+    function getExternalDatabaseValidationErrors(settings: Record<string, string>, settingKeys: string[]) {
         const errors: Record<string, string> = {}
-        const requiredKeys = ['W9_DB_HOST_SET', 'W9_DB_PORT_SET', 'W9_DB_NAME_SET', 'W9_DB_USER_SET', 'W9_DB_PASSWORD_SET']
-        for (const key of requiredKeys) {
+        for (const key of settingKeys) {
             if (!settings[key]?.trim()) {
                 errors[key] = t('appStorePage.install.databaseValidation.required', { name: getDatabaseSettingLabel(key) })
             }
@@ -964,15 +963,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         return errors
     }
 
-    function getDatabaseConnectionSignature(profile: string, settings: Record<string, string>) {
-        return [
-            profile,
-            settings.W9_DB_HOST_SET,
-            settings.W9_DB_PORT_SET,
-            settings.W9_DB_NAME_SET,
-            settings.W9_DB_USER_SET,
-            settings.W9_DB_PASSWORD_SET,
-        ].join('\u0000')
+    function getDatabaseConnectionSignature(profile: string, settings: Record<string, string>, settingKeys: string[]) {
+        return [profile, ...settingKeys.map((key) => settings[key] ?? '')].join('\u0000')
     }
 
     const installedOfficialAppNames = useMemo(() => {
@@ -1441,14 +1433,14 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         }
 
         if (isExternalDatabaseProfile) {
-            const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings)
+            const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key))
             if (Object.keys(databaseErrors).length > 0) {
                 setInstallFieldErrors({ settings: databaseErrors })
                 setInstallError(Object.values(databaseErrors)[0] ?? null)
                 installSettingInputRefs.current[Object.keys(databaseErrors)[0]]?.focus()
                 return
             }
-            if (!selectedInstallProfile || testedDatabaseConnectionSignature !== getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings)) {
+            if (!selectedInstallProfile || testedDatabaseConnectionSignature !== getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key))) {
                 setInstallError(t('appStorePage.install.databaseConnection.testRequired'))
                 return
             }
@@ -3510,7 +3502,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                             <Button
                                                                                 disabled={isTestingDatabase}
                                                                                 onClick={async () => {
-                                                                                    const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings)
+                                                                                    const databaseErrors = getExternalDatabaseValidationErrors(effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key))
                                                                                     if (Object.keys(databaseErrors).length > 0) {
                                                                                         setInstallFieldErrors({ settings: databaseErrors })
                                                                                         setInstallError(Object.values(databaseErrors)[0] ?? null)
@@ -3525,7 +3517,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                                             return
                                                                                         }
                                                                                         await testExternalDatabaseConnection(selectedApp, selectedVersion, selectedInstallProfile, effectiveInstallSettings)
-                                                                                        setTestedDatabaseConnectionSignature(getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings))
+                                                                                        setTestedDatabaseConnectionSignature(getDatabaseConnectionSignature(selectedInstallProfile, effectiveInstallSettings, displayedProfileInstallSettings.map(([key]) => key)))
                                                                                         setInstallFeedback({ severity: 'success', message: t('appStorePage.install.databaseConnection.success') })
                                                                                     } catch (error) {
                                                                                         const message = error instanceof Error ? error.message : t('appStorePage.install.databaseConnection.failed')

@@ -83,6 +83,6 @@ class ExternalDatabaseConnectionTestRequest(BaseModel):
     profile: str = Field(..., min_length=1)
     host: str = Field(..., min_length=1)
     port: int = Field(..., ge=1, le=65535)
-    database_name: str = Field(..., min_length=1)
+    database_name: Optional[str] = Field(None, min_length=1)
     username: str = Field(..., min_length=1)
     password: str = Field(..., min_length=1)

@@ -10,7 +10,7 @@ from src.services.portainer_manager import PortainerManager
 from src.services.proxy_manager import ProxyManager
 from src.services.app_status import appInstalling,appInstallingError
 from src.services.product_metadata import read_product_edition
-from src.services.install_profile import get_port_check_settings, is_external_database_profile, validate_external_database_connection, validate_profile_settings
+from src.services.install_profile import get_external_database_type, get_port_check_settings, is_external_database_profile, validate_external_database_connection, validate_profile_settings
 
 
 def _get_host_bound_ports() -> set:
@@ -302,9 +302,10 @@ def install_validate(appInstall:appInstall,endpointId:int):
         if is_external_database_profile(app_directory, appInstall.profile):
             settings = appInstall.settings or {}
             validate_external_database_connection(
+                get_external_database_type(app_directory),
                 settings["W9_DB_HOST_SET"],
                 settings["W9_DB_PORT_SET"],
-                settings["W9_DB_NAME_SET"],
+                settings.get("W9_DB_NAME_SET"),
                 settings["W9_DB_USER_SET"],
                 settings["W9_DB_PASSWORD_SET"],
             )

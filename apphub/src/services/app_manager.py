@@ -35,7 +35,7 @@ from src.services.portainer_manager import PortainerManager
 from src.core.logger import logger
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.proxy_manager import ProxyManager
-from src.services.install_profile import get_port_check_settings, is_external_database_profile, materialize_profile_template, validate_external_database_connection
+from src.services.install_profile import get_external_database_type, get_port_check_settings, is_external_database_profile, materialize_profile_template, validate_external_database_connection
 from src.utils.async_utils import AsyncWrapper
 from src.utils.file_manager import FileHelper
 from src.utils.password_generator import PasswordGenerator
@@ -1313,6 +1313,7 @@ class AppManger:
             library_path = ConfigManager("system.ini").get_value("docker_library", "path")
             local_path = f"{library_path}/{app_name}"
             uses_external_database = is_external_database_profile(local_path, profile)
+            external_database_type = get_external_database_type(local_path) if uses_external_database else None
 
             # Create a temporary directory.
             app_tmp_dir = "/tmp"
@@ -1368,6 +1369,7 @@ class AppManger:
 
             if uses_external_database:
                 connection = validate_external_database_connection(
+                    external_database_type,
                     envHelper.get_value("W9_DB_HOST_SET"),
                     envHelper.get_value("W9_DB_PORT_SET"),
                     envHelper.get_value("W9_DB_NAME_SET"),

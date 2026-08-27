@@ -2313,7 +2313,8 @@ const rawShellResources = {
             states: {
                 loading: 'Loading databases...',
                 loadError: 'Database information is currently unavailable.',
-                empty: 'No external databases found. Install an app with an external database to see it here.',
+                emptyTitle: 'No external databases found',
+                emptyDescription: 'Install an app with an external database to see it here.',
                 noResults: 'No databases match the current search.',
                 refreshing: 'Refreshing...',
             },
@@ -4678,7 +4679,8 @@ const rawShellResources = {
                 states: {
                     loading: '加载中...',
                     loadError: '数据库信息暂时不可用。',
-                    empty: '未发现外接数据库。安装带有外接数据库的应用后将在此显示。',
+                    emptyTitle: '未发现外接数据库',
+                    emptyDescription: '安装带有外接数据库的应用后将在此显示。',
                     noResults: '没有匹配当前搜索的数据库。',
                     refreshing: '刷新中...',
                 },

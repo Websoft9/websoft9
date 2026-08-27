@@ -202,7 +202,7 @@ export function DatabasesPage() {
 
                 <PageDescriptionHeader title={t('databasesPage.hero.title')} description={t('databasesPage.hero.description')} descriptionColor={palette.subtleText} />
 
-                <Card elevation={0} sx={{ borderRadius: '2px', border: `1px solid ${palette.border}`, background: palette.cardBg, boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.28)' : '0 8px 24px rgba(15, 23, 42, 0.05)' }}>
+                <Card elevation={0} sx={{ borderRadius: 0, border: `1px solid ${palette.border}`, background: palette.cardBg, boxShadow: isDarkMode ? '0 12px 28px rgba(2, 6, 23, 0.28)' : '0 8px 24px rgba(15, 23, 42, 0.05)' }}>
                     <CardContent sx={{ pt: 2.5, pb: 2, '&:last-child': { pb: 2 } }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
                             <Box className="databases-search-box" sx={{ width: 440 }}>
@@ -239,126 +239,116 @@ export function DatabasesPage() {
                                 <Typography sx={{ fontSize: 15, color: palette.subtleText }}>{t('databasesPage.states.loading')}</Typography>
                             </Box>
                         ) : (
-                            <Box>
-                                {/* Table header — always visible when not loading */}
-                                <Box
-                                    sx={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '0.7fr 1.4fr 1fr 1fr 0.9fr 1.1fr',
-                                        alignItems: 'center',
-                                        gap: 1.25,
-                                        px: 1.25,
-                                        py: 1.25,
-                                        borderBottom: `1px solid ${palette.borderStrong}`,
-                                        backgroundColor: palette.tableHead,
-                                    }}
-                                >
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: palette.subtleText }}>{t('databasesPage.columns.type')}</Typography>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: palette.subtleText }}>{t('databasesPage.columns.address')}</Typography>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: palette.subtleText }}>{t('databasesPage.columns.name')}</Typography>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: palette.subtleText }}>{t('databasesPage.columns.username')}</Typography>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: palette.subtleText }}>{t('databasesPage.columns.password')}</Typography>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: palette.subtleText, textAlign: 'right' }}>{t('databasesPage.columns.appName')}</Typography>
-                                </Box>
-
-                                {!isLoading && !isFetching && data && databases.length === 0 ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 6, px: 3 }}>
-                                        <Typography sx={{ fontSize: 15, color: palette.subtleText }}>{t('databasesPage.states.empty')}</Typography>
-                                    </Box>
-                                ) : null}
-
-                                {!isLoading && !isFetching && data && databases.length > 0 && filteredDatabases.length === 0 ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 6, px: 3 }}>
-                                        <Typography sx={{ fontSize: 15, color: palette.subtleText }}>{t('databasesPage.states.noResults')}</Typography>
-                                    </Box>
-                                ) : null}
-
-                                {filteredDatabases.length > 0 && filteredDatabases.map((db, index) => {
-                                    const passwordKey = `${db.type}-${db.address}-${index}`
-                                    const isPasswordVisible = Boolean(showPasswords[passwordKey])
-                                    return (
-                                        <Box
-                                            key={passwordKey}
-                                            sx={{
-                                                display: 'grid',
-                                                gridTemplateColumns: '0.7fr 1.4fr 1fr 1fr 0.9fr 1.1fr',
-                                                alignItems: 'center',
-                                                gap: 1.25,
-                                                px: 1.25,
-                                                py: 1.35,
-                                                borderBottom: `1px solid ${palette.borderStrong}`,
-                                                backgroundColor: palette.idleBg,
-                                                '&:hover': { backgroundColor: palette.idleHover },
-                                            }}
-                                        >
-                                            <Typography sx={{ fontSize: 13.5, color: palette.text, textTransform: 'capitalize' }}>{db.type}</Typography>
-                                            <Typography sx={{ fontSize: 13.5, color: palette.text, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={db.address}>{db.address}</Typography>
-                                            <Typography sx={{ fontSize: 13.5, color: palette.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={db.database_name}>{db.database_name}</Typography>
-                                            <Typography sx={{ fontSize: 13.5, color: palette.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={db.username}>{db.username}</Typography>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                                <Typography
-                                                    className="databases-password-text"
-                                                    sx={{
-                                                        fontSize: 13.5,
-                                                        color: palette.text,
-                                                        fontFamily: 'monospace',
-                                                        letterSpacing: isPasswordVisible ? 0 : 2,
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        minWidth: 0,
-                                                    }}
-                                                >
-                                                    {isPasswordVisible ? db.password : '•'.repeat(Math.min(db.password.length, 16))}
-                                                </Typography>
-                                                <button
-                                                    className="databases-icon-btn"
-                                                    title={isPasswordVisible ? t('databasesPage.columns.hidePassword') : t('databasesPage.columns.showPassword')}
-                                                    onClick={() => setShowPasswords((prev) => ({ ...prev, [passwordKey]: !prev[passwordKey] }))}
-                                                >
-                                                    {isPasswordVisible ? <EyeOffIcon /> : <EyeIcon />}
-                                                </button>
-                                                <button
-                                                    className="databases-icon-btn"
-                                                    title={t('databasesPage.columns.copy')}
-                                                    onClick={async () => {
-                                                        try {
-                                                            await copyTextWithFallback(db.password)
-                                                        } catch {
-                                                            // ignore
-                                                        }
-                                                    }}
-                                                >
-                                                    <CopyIcon />
-                                                </button>
-                                            </Box>
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 0.5 }}>
-                                                {db.apps.map((appRef, i) => (
-                                                    <Box key={appRef.app_id} sx={{ display: 'flex', alignItems: 'center' }}>
-                                                        <Box
-                                                            component="span"
-                                                            className="databases-app-link"
-                                                            onClick={() => {
-                                                                if (appRef.status === 1) {
-                                                                    markMyAppsDetailOverlayIntent(appRef.app_id)
-                                                                    navigate(`/myapps/${encodeURIComponent(appRef.app_id)}`)
-                                                                } else {
-                                                                    navigate('/myapps')
-                                                                }
-                                                            }}
-                                                            title={appRef.app_id}
-                                                        >
-                                                            {appRef.app_id}
-                                                        </Box>
-                                                        {i < db.apps.length - 1 ? (
-                                                            <Box component="span" sx={{ color: palette.subtleText, mx: 0.25 }}>,</Box>
-                                                        ) : null}
+                            <Box className="databases-table-frame">
+                                <Box className="databases-table" component="table">
+                                    <thead>
+                                        <tr>
+                                            <th>{t('databasesPage.columns.type')}</th>
+                                            <th>{t('databasesPage.columns.address')}</th>
+                                            <th>{t('databasesPage.columns.name')}</th>
+                                            <th>{t('databasesPage.columns.username')}</th>
+                                            <th>{t('databasesPage.columns.password')}</th>
+                                            <th className="databases-applications-column">{t('databasesPage.columns.appName')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {!isLoading && !isFetching && data && databases.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6}>
+                                                    <Box className="databases-empty-state">
+                                                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{t('databasesPage.states.emptyTitle')}</Typography>
+                                                        <Typography sx={{ mt: 0.5, fontSize: 13, color: palette.subtleText }}>{t('databasesPage.states.emptyDescription')}</Typography>
                                                     </Box>
-                                                ))}
-                                            </Box>
-                                        </Box>
-                                    )
-                                })}
+                                                </td>
+                                            </tr>
+                                        ) : null}
+
+                                        {!isLoading && !isFetching && data && databases.length > 0 && filteredDatabases.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6}>
+                                                    <Box className="databases-empty-state">
+                                                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: palette.text }}>{t('databasesPage.states.noResults')}</Typography>
+                                                    </Box>
+                                                </td>
+                                            </tr>
+                                        ) : null}
+
+                                        {filteredDatabases.length > 0 && filteredDatabases.map((db, index) => {
+                                            const passwordKey = `${db.type}-${db.address}-${index}`
+                                            const isPasswordVisible = Boolean(showPasswords[passwordKey])
+                                            return (
+                                                <tr className="databases-table-row" key={passwordKey}>
+                                                    <td>{db.type}</td>
+                                                    <td className="databases-monospace-cell" title={db.address}>{db.address}</td>
+                                                    <td title={db.database_name}>{db.database_name}</td>
+                                                    <td title={db.username}>{db.username}</td>
+                                                    <td>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                                                            <Typography
+                                                                className="databases-password-text"
+                                                                sx={{
+                                                                    fontSize: 13.5,
+                                                                    color: palette.text,
+                                                                    fontFamily: 'monospace',
+                                                                    letterSpacing: isPasswordVisible ? 0 : 2,
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap',
+                                                                    minWidth: 0,
+                                                                }}
+                                                            >
+                                                                {isPasswordVisible ? db.password : '•'.repeat(Math.min(db.password.length, 16))}
+                                                            </Typography>
+                                                            <button
+                                                                className="databases-icon-btn"
+                                                                title={isPasswordVisible ? t('databasesPage.columns.hidePassword') : t('databasesPage.columns.showPassword')}
+                                                                onClick={() => setShowPasswords((prev) => ({ ...prev, [passwordKey]: !prev[passwordKey] }))}
+                                                            >
+                                                                {isPasswordVisible ? <EyeOffIcon /> : <EyeIcon />}
+                                                            </button>
+                                                            <button
+                                                                className="databases-icon-btn"
+                                                                title={t('databasesPage.columns.copy')}
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        await copyTextWithFallback(db.password)
+                                                                    } catch {
+                                                                        // ignore
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <CopyIcon />
+                                                            </button>
+                                                        </Box>
+                                                    </td>
+                                                    <td className="databases-applications-column">
+                                                        <Box className="databases-application-list">
+                                                            {db.apps.map((appRef) => (
+                                                                <Box key={appRef.app_id} className="databases-application-tag">
+                                                                    <Box
+                                                                        component="span"
+                                                                        className="databases-app-link"
+                                                                        onClick={() => {
+                                                                            if (appRef.status === 1) {
+                                                                                markMyAppsDetailOverlayIntent(appRef.app_id)
+                                                                                navigate(`/myapps/${encodeURIComponent(appRef.app_id)}`)
+                                                                            } else {
+                                                                                navigate('/myapps')
+                                                                            }
+                                                                        }}
+                                                                        title={appRef.app_id}
+                                                                    >
+                                                                        {appRef.app_id}
+                                                                    </Box>
+                                                                </Box>
+                                                            ))}
+                                                        </Box>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </Box>
                             </Box>
                         )}
                     </CardContent>

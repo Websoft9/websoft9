@@ -87,6 +87,140 @@
     text-decoration: underline;
 }
 
+.databases-table-frame {
+    overflow-x: auto;
+    border: 1px solid var(--shell-surface-border);
+    border-radius: 2px;
+}
+
+.databases-table {
+    width: 100%;
+    min-width: 960px;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.databases-table th {
+    padding: 13px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #64748b;
+    background: #f8fafc;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+}
+
+.databases-table td {
+    padding: 13px 12px;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.9);
+    color: var(--databases-table-text, #334155);
+    font-size: 14px;
+    font-weight: 400;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.databases-table th:nth-child(1) {
+    width: 10%;
+}
+
+.databases-table th:nth-child(2) {
+    width: 21%;
+}
+
+.databases-table th:nth-child(3) {
+    width: 16%;
+}
+
+.databases-table th:nth-child(4) {
+    width: 15%;
+}
+
+.databases-table th:nth-child(5) {
+    width: 19%;
+}
+
+.databases-table th:nth-child(6) {
+    width: 19%;
+}
+
+.databases-table-row:hover {
+    background: var(--databases-table-hover, #f8fafc);
+}
+
+.databases-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.databases-monospace-cell {
+    font-family: monospace;
+}
+
+.databases-applications-column {
+    text-align: right !important;
+}
+
+.databases-table td.databases-applications-column {
+    white-space: normal;
+}
+
+.databases-application-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.databases-application-tag {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    padding: 3px 7px;
+    border: 1px solid rgba(148, 163, 184, 0.48);
+    border-radius: 3px;
+    background: rgba(248, 250, 252, 0.84);
+    font-size: 13px;
+    line-height: 18px;
+}
+
+.databases-application-tag .databases-app-link {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.databases-empty-state {
+    display: flex;
+    min-height: 160px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 24px;
+    text-align: center;
+}
+
+.app-shell-root--dark .databases-table {
+    --databases-table-text: #e5edf5;
+    --databases-table-hover: #162033;
+}
+
+.app-shell-root--dark .databases-table th {
+    border-bottom-color: rgba(71, 85, 105, 0.82);
+    color: #94a3b8;
+    background: #162033;
+}
+
+.app-shell-root--dark .databases-table td {
+    border-bottom-color: rgba(71, 85, 105, 0.65);
+}
+
+.app-shell-root--dark .databases-application-tag {
+    border-color: rgba(100, 116, 139, 0.8);
+    background: rgba(30, 41, 59, 0.72);
+}
+
 .app-shell-root--dark .databases-app-link {
     --databases-accent: #60a5fa;
 }

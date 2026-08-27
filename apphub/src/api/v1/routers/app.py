@@ -25,6 +25,8 @@ from src.services.app_manager import AppManger
 from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
+from src.services.install_profile import get_external_database_type, is_external_database_profile, validate_external_database_connection
+from src.core.config import ConfigManager
 from threading import Thread
 
 router = APIRouter()
@@ -373,9 +375,13 @@ async def apps_install(
     },
 )
 def test_external_database_install_connection(payload: ExternalDatabaseConnectionTestRequest):
-    from src.services.install_profile import validate_external_database_connection
+    library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+    app_directory = f"{library_path}/{payload.app_name}"
+    if not is_external_database_profile(app_directory, payload.profile):
+        raise CustomException(400, "Invalid Request", "The selected installation profile does not use an external database.")
 
     actual_type = validate_external_database_connection(
+        get_external_database_type(app_directory),
         payload.host,
         payload.port,
         payload.database_name,
