@@ -258,8 +258,11 @@
    (body1 defaults: 16px/400), which fights this rule depending on CSS
    insertion order. Pin the intended values so the result is deterministic. */
 .terminal-access-field-label {
+    align-items: center;
+    display: flex;
     font-size: 13px !important;
     line-height: 1.4 !important;
+    min-height: 28px;
     font-weight: 600 !important;
     color: #64748b;
 }

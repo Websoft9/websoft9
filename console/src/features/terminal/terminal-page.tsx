@@ -3601,7 +3601,7 @@ export function TerminalPage() {
             </div>
             <div className="terminal-access-grid terminal-access-grid-top">
                 <div className="terminal-access-field">
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75, mb: 0.35 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
                         <Typography className="terminal-access-field-label" sx={{ mb: '0 !important' }}>{copy.host}</Typography>
                         <FormControlLabel
                             control={
