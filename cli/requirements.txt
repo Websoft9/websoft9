@@ -1,5 +1,0 @@
-typer
-psutil
-pyjq 
-docker
-docker-compose
