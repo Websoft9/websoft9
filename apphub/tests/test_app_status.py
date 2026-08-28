@@ -13,6 +13,7 @@ from src.services.app_status import (
     configure_install_state_store,
     get_app_custom_fields,
     modify_app_information,
+    remove_app_installation,
     remove_installation_logs,
     save_app_custom_fields,
     start_app_installation,
@@ -52,6 +53,16 @@ def test_error_transition_keeps_persisted_stage_logs(tmp_path):
     assert errored["error"] == "Portainer restarted during build"
     assert errored["logs"][0]["title"] == "Starting the services"
     assert errored["logs"][0]["sub_logs"][0]["message"] == "Booting containers"
+
+
+def test_completion_log_is_written_before_installation_cleanup(tmp_path):
+    configure_install_state_store(str(tmp_path))
+
+    tracking_id = start_app_installation("php_demo", "PHP")
+    add_installing_logs(tracking_id, "Installation complete", "")
+    remove_app_installation(tracking_id)
+
+    assert tracking_id not in appInstalling
 
 
 def test_custom_fields_persist_multiple_empty_rows(tmp_path):

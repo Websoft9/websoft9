@@ -1,12 +1,14 @@
 # API Reference
 
-AppHub exposes a REST API at `/api` protected by API key authentication (`x-api-key` header).
+AppHub exposes a REST API at `/api` through the product gateway.
 
 **Base URL**: `http://<server>:9000/api`
 
 ## Authentication
 
-All endpoints (except docs/openapi) require an `x-api-key` header. Internal gateway communication uses a trust key file at `/data/config/internal-gateway-auth/trust_key`.
+All API endpoints, including Swagger and OpenAPI, require a product-side operator session. Sign in to Websoft9 first, then open the API reference in the same browser session. The platform gateway validates the session before forwarding requests to AppHub.
+
+AppHub also supports `x-api-key` and a gateway-only internal trust key for service-to-service calls. Neither credential is returned by the public API.
 
 ## API Modules
 
@@ -49,7 +51,7 @@ All endpoints (except docs/openapi) require an `x-api-key` header. Internal gate
 
 ## API Documentation (Swagger)
 
-Interactive API docs are available at:
+After signing in to Websoft9, interactive API docs are available at:
 - Swagger UI: `http://<server>:9000/api/docs`
 - ReDoc: `http://<server>:9000/api/redoc`
 - OpenAPI JSON: `http://<server>:9000/api/openapi.json`

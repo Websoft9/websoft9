@@ -1553,14 +1553,13 @@ class AppManger:
             logger.error(f"Create proxy error:{e}")
             raise CustomException()
 
+        logger.access(f"Installed app: [{app_id}]")
+        add_installing_logs(app_uuid,"Installation complete","")
         # remove app from installing
         remove_app_installation(app_uuid)
 
         # Remove the tmp dir
         shutil.rmtree(app_tmp_dir_path)
-
-        logger.access(f"Installed app: [{app_id}]")
-        add_installing_logs(app_uuid,"Installation complete","")
         # 等待1秒
         time.sleep(1)
 

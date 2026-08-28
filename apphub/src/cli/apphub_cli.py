@@ -14,10 +14,14 @@ from src.services.product_auth import ProductAuthService
 from src.core.exception import CustomException
 from src.services.appstore_sync_manager import AppStoreSyncManager
 from src.services.scheduled_tasks import ScheduledTaskService
+from src.cli.app_commands import app_group
 
 @click.group()
 def cli():
     pass
+
+
+cli.add_command(app_group)
 
 
 @cli.command()

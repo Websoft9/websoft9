@@ -43,7 +43,9 @@ def _latest_remote_version(channel: str) -> Optional[str]:
             }
         )
 def get_settings():
-    return SettingsManager().read_all()
+    settings = SettingsManager().read_all()
+    settings.api_key.key = "********"
+    return settings
 
 @router.get("/settings/summary",
             summary="Get masked settings summary",

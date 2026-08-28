@@ -69,6 +69,8 @@ The project uses GitHub Actions for continuous integration. On every push or pul
 View the CI configuration: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 ## websoft9 cli
+For installation command parameters and examples, see the [Websoft9 user guide](../docs/user.md#command-line).
+
 ```
 Usage: websoft9 [OPTIONS] COMMAND [ARGS]...
 
@@ -76,6 +78,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
+  app        Install and manage applications
   getconfig  Get a config value
   resetpwd   Reset the Websoft9 system user password
   setconfig  Set a config value
