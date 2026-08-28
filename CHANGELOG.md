@@ -5,12 +5,13 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.0-dev] - 2026-08-21
+## [2.4.0] - 2026-08-28
 
 ### Added
 - **Scheduled Tasks** — Add managed scheduled tasks for recurring platform operations.
 - **External Database Profiles** — Add install profiles for applications that use externally managed databases, including WordPress with external MySQL.
 - **Platform Readiness** — Add a readiness endpoint and wait for the platform to become ready before the setup wizard proceeds.
+- **Application CLI** — Add `websoft9 app install` with application settings, profiles, JSON payload input, and operator documentation.
 
 ### Changed
 - **Installation** — Use the major-minor image tag for fresh installations, while upgrades continue to use the full release version.
@@ -18,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Terminal File Uploads** — Remove the gateway's default 1 MB API request limit for file uploads.
+- **API Access** — Require an authenticated product operator session for AppHub API, Swagger, OpenAPI, and media routes; retain gateway-only internal trust authentication.
+- **Application Installation** — Write the completion tracking log before cleaning up its parent task, preventing a false foreign-key failure after a successful install.
+- **Terminal Connections** — Align fields in the new connection dialog.
 
 ## [2.3.4] - 2026-08-05
 
