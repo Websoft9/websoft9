@@ -66,6 +66,30 @@ class AppManger:
             cls._cache.pop(key, None)
             cls._cache_timestamps.pop(key, None)
 
+    @staticmethod
+    def _merge_app_store_install_metadata(data: list[dict[str, object]], metadata_path: str) -> None:
+        try:
+            with open(metadata_path, encoding="utf-8") as handle:
+                metadata = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(f"Failed to load app store install metadata {metadata_path}: {exc}")
+            return
+
+        apps_metadata = metadata.get("apps") if isinstance(metadata, dict) else None
+        if not isinstance(apps_metadata, dict):
+            logger.warning(f"App store install metadata has no apps mapping: {metadata_path}")
+            return
+
+        for item in data:
+            app_key = str(item.get("key") or "").strip()
+            app_metadata = apps_metadata.get(app_key)
+            if not app_key or not isinstance(app_metadata, dict):
+                continue
+
+            for field in ("settings", "is_web_app", "profiles", "help", "distribution"):
+                if field in app_metadata:
+                    item[field] = app_metadata[field]
+
     def _get_capability_flags(self, app_name: str | None) -> tuple[bool, bool]:
         normalized_name = (app_name or "").strip()
         if not normalized_name:
@@ -638,7 +662,6 @@ class AppManger:
         try:
             # 预先读取所有配置，避免重复读取
             config_manager = ConfigManager("system.ini")
-            app_lib_path = config_manager.get_value("docker_library", "path")
             app_media_path = self._ensure_media_asset(f"product_{normalized_locale}.json")
             
             # Get the app available list
@@ -652,56 +675,8 @@ class AppManger:
             if app_keys_filter:
                 data = [item for item in data if item.get("key") in app_keys_filter]
             
-            # 关键优化：批量收集需要处理的环境文件路径
-            env_files_to_read = []
-            item_key_map = {}  # 建立索引映射
-            
-            for item in data:
-                key = item.get("key")
-                if key:
-                    env_path = f"{app_lib_path}/{key}/.env"
-                    if os.path.exists(env_path):
-                        env_files_to_read.append(env_path)
-                        item_key_map[env_path] = item
-                    else:
-                        # 文件不存在时直接设置默认值
-                        item["settings"] = {}
-                        item["is_web_app"] = False
-            
-            # 批量解析环境变量内容 - 使用EnvHelper的dotenv_values方法
-            for env_path in env_files_to_read:
-                item = item_key_map[env_path]
-                try:
-                    # 使用EnvHelper读取环境变量，自动处理引号等问题
-                    env_helper = EnvHelper(env_path)
-                    all_values = env_helper.get_all_values()
-                    
-                    # 检查是否为web应用
-                    is_web_app = "W9_URL" in all_values
-                    
-                    # 只获取以_SET结尾且以W9_开头的变量
-                    settings = {key: value for key, value in all_values.items() 
-                               if key.endswith("_SET") and key.startswith("W9_")}
-                    
-                    item["settings"] = settings
-                    item["is_web_app"] = is_web_app
-                except Exception as e:
-                    logger.warning(f"Failed to process env file {env_path}: {e}")
-                    item["settings"] = {}
-                    item["is_web_app"] = False
-
-            for item in data:
-                app_key = str(item.get("key") or "").strip()
-                if not app_key:
-                    continue
-                variables_path = os.path.join(app_lib_path, app_key, "variables.json")
-                try:
-                    with open(variables_path, encoding="utf-8") as handle:
-                        help_metadata = json.load(handle).get("help")
-                    if isinstance(help_metadata, dict):
-                        item["help"] = help_metadata
-                except (OSError, json.JSONDecodeError):
-                    continue
+            metadata_path = os.path.join(os.path.dirname(app_media_path), "app-store-install-metadata.json")
+            self._merge_app_store_install_metadata(data, metadata_path)
 
             data = [self._normalize_available_app_media(item, normalized_locale) for item in data if isinstance(item, dict)]
             

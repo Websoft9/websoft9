@@ -83,20 +83,10 @@ async function fetchAppStoreAppsFromApi(apiLocale: string) {
 
 async function fetchAppStoreApps(apiLocale: string) {
     try {
-        const staticApps = await fetchAppStoreAppsFromStaticAssets(apiLocale)
-        const hasInstallMetadata = staticApps.some((app) => {
-            const settings = app.settings ?? {}
-            return Object.keys(settings).length > 0 || Boolean(app.is_web_app)
-        })
-
-        if (hasInstallMetadata) {
-            return staticApps
-        }
+        return await fetchAppStoreAppsFromApi(apiLocale)
     } catch {
-        // Fall back to compatibility API below.
+        return fetchAppStoreAppsFromStaticAssets(apiLocale)
     }
-
-    return fetchAppStoreAppsFromApi(apiLocale)
 }
 
 export function useAppStoreApps() {

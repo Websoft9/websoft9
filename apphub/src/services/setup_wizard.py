@@ -31,6 +31,43 @@ def _normalize_app_id(value: str) -> str:
     return normalized[:20]
 
 
+def _get_default_edition(distributions: object) -> str:
+    if not isinstance(distributions, list) or not distributions:
+        raise CustomException(400, "Invalid Request", "No distribution data is available for this application")
+
+    community_distribution = next(
+        (
+            distribution
+            for distribution in distributions
+            if isinstance(distribution, dict) and str(distribution.get("key") or "").strip().lower() == "community"
+        ),
+        None,
+    )
+    if community_distribution is None:
+        raise CustomException(400, "Invalid Request", "No community edition is available for this application")
+
+    raw_versions = community_distribution.get("value")
+    if isinstance(raw_versions, str):
+        versions = [version.strip() for version in raw_versions.split(",") if version.strip()]
+    elif isinstance(raw_versions, list):
+        versions = [version.strip() for version in raw_versions if isinstance(version, str) and version.strip()]
+    else:
+        versions = []
+
+    non_latest_versions = [version for version in versions if version.lower() != "latest"]
+    numeric_versions = [version for version in non_latest_versions if re.search(r"\d", version)]
+    if numeric_versions:
+        return max(
+            numeric_versions,
+            key=lambda version: tuple(int(part) for part in re.findall(r"\d+", version)),
+        )
+    if non_latest_versions:
+        return non_latest_versions[0]
+    if versions:
+        return "latest"
+    raise CustomException(400, "Invalid Request", "No community version is available for this application")
+
+
 class SetupWizardService:
     _lock = threading.RLock()
 
@@ -149,9 +186,7 @@ class SetupWizardService:
             if not str(value).strip()
         ]
 
-        distribution = (app.get("distribution") or [{}])[0] or {}
-        raw_version = distribution.get("value")
-        edition = raw_version[0] if isinstance(raw_version, list) and raw_version else str(raw_version or "latest")
+        edition = _get_default_edition(app.get("distribution"))
 
         return {
             "app_slug": app_slug,

@@ -514,6 +514,14 @@ function DocumentationIcon() {
     )
 }
 
+function WebsiteIcon() {
+    return (
+        <SvgIcon viewBox="0 0 24 24">
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.93 9h-3.12a15.7 15.7 0 0 0-1.1-4.12A8.03 8.03 0 0 1 18.93 11ZM12 4c.82 1.18 1.49 2.74 1.76 4.5h-3.52C10.51 6.74 11.18 5.18 12 4ZM4.26 13h3.93c.08 1.66.37 3.22.82 4.5A8.04 8.04 0 0 1 4.26 13Zm0-2a8.04 8.04 0 0 1 4.75-4.5A15.7 15.7 0 0 0 8.19 11H4.26Zm5.95 0c.08-1.61.35-3.12.79-4.38C11.31 5.7 11.65 4.94 12 4.4c.35.54.69 1.3 1 2.22.44 1.26.71 2.77.79 4.38h-3.58Zm0 2h3.58c-.08 1.61-.35 3.12-.79 4.38-.31.92-.65 1.68-1 2.22-.35-.54-.69-1.3-1-2.22-.44-1.26-.71-2.77-.79-4.38Zm4.5 4.5c.45-1.28.74-2.84.82-4.5h3.93a8.04 8.04 0 0 1-4.75 4.5Z" />
+        </SvgIcon>
+    )
+}
+
 function RefreshIcon() {
     return (
         <SvgIcon viewBox="0 0 24 24">
@@ -561,6 +569,10 @@ function getDocumentationUrl(app: AppStoreApp, resolvedLanguage: string) {
 
 function getGitHubUrl(app: AppStoreApp) {
     return `https://github.com/Websoft9/docker-library/tree/main/apps/${app.key ?? ''}`
+}
+
+function getWebsiteUrl(app: AppStoreApp) {
+    return app.websiteurl?.trim() || null
 }
 
 const knownInstallSettingLabelKeys: Record<string, string> = {
@@ -2985,6 +2997,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     <GitHubMarkIcon />
                                                 </IconButton>
                                             </Tooltip>
+                                            {getWebsiteUrl(selectedApp) ? (
+                                                <Tooltip title={(i18n.resolvedLanguage ?? i18n.language ?? 'en').toLowerCase().startsWith('zh') ? '官方网站' : 'Official website'}>
+                                                    <IconButton
+                                                        component="a"
+                                                        href={getWebsiteUrl(selectedApp) ?? undefined}
+                                                        rel="noreferrer"
+                                                        size="small"
+                                                        target="_blank"
+                                                        sx={{ p: 0.5, color: palette.subtleText, border: `1px solid ${palette.border}`, borderRadius: '4px', '& svg': { fontSize: 18 } }}
+                                                    >
+                                                        <WebsiteIcon />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            ) : null}
                                         </Box>
                                         <Typography sx={{ mt: 0.5, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
                                             {t('appStorePage.detail.versionLine', { version: getAppStoreVersionSummary(selectedApp) || '-' })}

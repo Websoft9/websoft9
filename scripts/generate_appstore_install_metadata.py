@@ -72,6 +72,30 @@ def get_install_settings(env_values: dict[str, str]) -> dict[str, str]:
     }
 
 
+def get_distribution(edition_metadata: object) -> list[dict[str, object]]:
+    if not isinstance(edition_metadata, list):
+        return []
+
+    distributions: dict[str, list[str]] = {}
+    for edition in edition_metadata:
+        if not isinstance(edition, dict):
+            continue
+
+        dist = edition.get("dist")
+        raw_versions = edition.get("version")
+        if isinstance(raw_versions, str):
+            versions = [raw_versions.strip()] if raw_versions.strip() else []
+        elif isinstance(raw_versions, list):
+            versions = [version.strip() for version in raw_versions if isinstance(version, str) and version.strip()]
+        else:
+            versions = []
+
+        if isinstance(dist, str) and dist.strip() and versions:
+            distributions.setdefault(dist.strip(), []).extend(versions)
+
+    return [{"key": dist, "value": versions} for dist, versions in distributions.items()]
+
+
 def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
     profiles: dict[str, dict[str, object]] = {}
 
@@ -122,10 +146,14 @@ def build_install_metadata(library_root: Path, config_path: Path) -> dict[str, o
         variables_path = app_dir / "variables.json"
         if variables_path.exists():
             try:
-                help_metadata = json.loads(variables_path.read_text(encoding="utf-8")).get("help")
+                variables_metadata = json.loads(variables_path.read_text(encoding="utf-8"))
+                help_metadata = variables_metadata.get("help")
                 if isinstance(help_metadata, dict):
                     app_metadata["help"] = help_metadata
-            except json.JSONDecodeError:
+                distribution = get_distribution(variables_metadata.get("edition"))
+                if distribution:
+                    app_metadata["distribution"] = distribution
+            except (json.JSONDecodeError, OSError):
                 pass
 
         profiles = discover_install_profiles(app_dir)

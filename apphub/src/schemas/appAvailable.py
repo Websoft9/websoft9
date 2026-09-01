@@ -16,6 +16,8 @@ class AppAvailableResponse(BaseModel):
     storage: Optional[int] = Field(None, description="Storage(GB)",example=1)
     logo: Dict[str, str] = Field(None, description="Logo",example={"imageurl": "https://libs.websoft9.com/Websoft9/logo/product/gogs-websoft9.png"})
     catalogCollection: Dict[str, Any] = Field(None, description="Catalog Collection", example={"items": [{"key": "repository", "title": "Code Repository","catalogCollection": {"items": [{"key": "itdeveloper", "title": "IT Developer"}]}}]})
+    settings: Optional[Dict[str, str]] = Field(None, description="Default installation settings")
+    is_web_app: Optional[bool] = Field(None, description="Whether the app accepts a web address")
     profiles: Optional[Dict[str, Dict[str, Any]]] = Field(None, description="Available installation profiles")
     help: Optional[Dict[str, str]] = Field(None, description="Application installation guidance")
     
