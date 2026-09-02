@@ -7,6 +7,8 @@ import json
 import shutil
 import datetime
 import time
+import tempfile
+import importlib.util
 from pathlib import Path
 
 from src.core.exception import CustomException
@@ -66,6 +68,33 @@ class AppStoreSyncManager:
             shutil.rmtree(target)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, target)
+
+    def _build_candidate_manifests(self, candidate_root: Path) -> None:
+        spec = importlib.util.spec_from_file_location("platform_sync_runtime_assets", self._default_script_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Unable to load app store manifest builder: {self._default_script_path}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.build_and_publish_app_store_manifests(candidate_root / "media", candidate_root / "library")
+
+    @staticmethod
+    def _backup_trees(targets: list[Path], backup_root: Path) -> dict[Path, Path | None]:
+        backups: dict[Path, Path | None] = {}
+        for index, target in enumerate(targets):
+            if target.exists():
+                backup = backup_root / str(index)
+                shutil.copytree(target, backup)
+                backups[target] = backup
+            else:
+                backups[target] = None
+        return backups
+
+    def _restore_trees(self, backups: dict[Path, Path | None]) -> None:
+        for target, backup in backups.items():
+            if target.exists():
+                shutil.rmtree(target)
+            if backup is not None:
+                self._replace_tree(backup, target)
 
     @staticmethod
     def _resolve_default_snapshot_root() -> str:
@@ -162,23 +191,62 @@ class AppStoreSyncManager:
                 details=f"App Store dataset version not found: {dataset_version}",
             )
 
-        package_snapshot_paths: dict[str, dict[str, str]] = {}
-        activated_packages: list[str] = []
-        for package_type in ("media", "library"):
-            source_dir = release_root / package_type
-            if not source_dir.exists() or not source_dir.is_dir():
-                continue
+        required_packages = {package_type: release_root / package_type for package_type in ("media", "library")}
+        if any(not source_dir.is_dir() for source_dir in required_packages.values()):
+            raise CustomException(
+                status_code=409,
+                message="App Store Activate Failed",
+                details=f"App Store dataset is incomplete: {dataset_version}",
+            )
 
-            active_snapshot_dir = current_root / package_type
-            runtime_target_dir = self._resolve_runtime_package_root(package_type)
-            self._replace_tree(source_dir, active_snapshot_dir)
-            self._replace_tree(active_snapshot_dir, runtime_target_dir)
-            package_snapshot_paths[package_type] = {
-                "staging": str(snapshot_root / "staging" / dataset_version / package_type),
-                "release": str(source_dir),
-                "current": str(active_snapshot_dir),
-            }
-            activated_packages.append(package_type)
+        with tempfile.TemporaryDirectory(prefix="websoft9-appstore-activate-") as temporary_directory:
+            candidate_root = Path(temporary_directory) / "current"
+            for package_type, source_dir in required_packages.items():
+                self._replace_tree(source_dir, candidate_root / package_type)
+            try:
+                self._build_candidate_manifests(candidate_root)
+            except Exception as exc:
+                raise CustomException(
+                    status_code=409,
+                    message="App Store Activate Failed",
+                    details=f"App Store dataset manifest validation failed: {exc}",
+                ) from exc
+
+            package_snapshot_paths: dict[str, dict[str, str]] = {}
+            activated_packages: list[str] = []
+            targets = [
+                target
+                for package_type in ("media", "library")
+                for target in (current_root / package_type, self._resolve_runtime_package_root(package_type))
+            ]
+            backups = self._backup_trees(targets, Path(temporary_directory) / "backups")
+            try:
+                for package_type in ("media", "library"):
+                    source_dir = candidate_root / package_type
+                    active_snapshot_dir = current_root / package_type
+                    runtime_target_dir = self._resolve_runtime_package_root(package_type)
+                    self._replace_tree(source_dir, active_snapshot_dir)
+                    self._replace_tree(active_snapshot_dir, runtime_target_dir)
+                    package_snapshot_paths[package_type] = {
+                        "staging": str(snapshot_root / "staging" / dataset_version / package_type),
+                        "release": str(release_root / package_type),
+                        "current": str(active_snapshot_dir),
+                    }
+                    activated_packages.append(package_type)
+            except Exception as exc:
+                try:
+                    self._restore_trees(backups)
+                except Exception as rollback_exc:
+                    raise CustomException(
+                        status_code=500,
+                        message="App Store Activate Failed",
+                        details=f"App Store activation and rollback failed: {exc}; rollback: {rollback_exc}",
+                    ) from rollback_exc
+                raise CustomException(
+                    status_code=500,
+                    message="App Store Activate Failed",
+                    details=f"App Store activation failed and was rolled back: {exc}",
+                ) from exc
 
         if not activated_packages:
             raise CustomException(
@@ -252,6 +320,13 @@ class AppStoreSyncManager:
                 status_code=500,
                 message="App Store Sync Failed",
                 details=f"App Store sync script not found: {script_path}",
+            )
+
+        if package_types and {item.strip() for item in package_types.split(",") if item.strip()} != {"media", "library"}:
+            raise CustomException(
+                status_code=400,
+                message="App Store Sync Failed",
+                details="App Store sync requires both media and library packages",
             )
 
         env = os.environ.copy()

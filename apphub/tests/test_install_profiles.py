@@ -279,6 +279,19 @@ def test_profile_materialization_merges_external_database_overrides_and_prunes_c
     assert "W9_POWER_PASSWORD=" in env_content
 
 
+def test_profile_materialization_prunes_unselected_profile_templates(tmp_path):
+    workspace = tmp_path / "wordpress"
+    _profile_template(workspace)
+    (workspace / ".env.example").write_text("DOCUMENTATION_ONLY=true\n", encoding="utf-8")
+
+    materialize_profile_template(workspace, None)
+
+    assert not (workspace / ".env.external-db").exists()
+    assert not list(workspace.glob("docker-compose.*.yml"))
+    assert (workspace / ".env.example").exists()
+    assert "W9_HTTP_PORT_SET=9001" in (workspace / ".env").read_text(encoding="utf-8")
+
+
 def test_external_profile_pruning_preserves_compose_formatting_and_partial_depends_on(tmp_path):
     workspace = tmp_path / "wordpress"
     workspace.mkdir()

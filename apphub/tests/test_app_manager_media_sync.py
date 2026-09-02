@@ -128,3 +128,93 @@ def test_sync_media_assets_uses_dev_channel_for_dev_versions(monkeypatch, tmp_pa
 
     assert requested_urls == ['https://artifact.websoft9.com/dev/websoft9/plugin/media/media-dev.zip']
     assert (tmp_path / 'media' / 'json' / 'product_en.json').exists()
+
+
+class _ConfigManager:
+    values = {}
+
+    def __init__(self, file_name):
+        self.file_name = file_name
+
+    def get_value(self, section, key):
+        return self.values.get((self.file_name, section, key))
+
+
+def _write_manifest(path: Path, title: str):
+    path.write_text(
+        json.dumps(
+            {
+                'schemaVersion': '1',
+                'locale': 'en',
+                'apps': [
+                    {
+                        'key': 'wordpress',
+                        'title': title,
+                        'catalogCollection': {'items': []},
+                        'distribution': [{'key': 'community', 'value': ['6.6']}],
+                        'settings': {'W9_HTTP_PORT_SET': '9000'},
+                        'is_web_app': True,
+                        'profiles': {'external-db': {'settings': {}, 'is_external_database': True}},
+                        'help': {'en': 'https://example.test/help'},
+                    }
+                ],
+            }
+        ),
+        encoding='utf-8',
+    )
+
+
+def test_get_available_apps_reads_manifest_filters_and_invalidates_by_signature(monkeypatch, tmp_path):
+    media_path = tmp_path / 'media' / 'json'
+    media_path.mkdir(parents=True)
+    manifest_path = media_path / 'app-store-manifest_en.json'
+    _write_manifest(manifest_path, 'WordPress')
+    _ConfigManager.values = {
+        ('config.ini', 'initial_apps', 'keys'): 'wordpress',
+        ('system.ini', 'app_media', 'path'): str(media_path),
+    }
+    monkeypatch.setattr(app_manager_module, 'ConfigManager', _ConfigManager)
+    monkeypatch.setattr(AppManger, '_normalize_available_app_media', staticmethod(lambda app, locale: app))
+    AppManger.clear_cache()
+
+    manager = AppManger()
+    apps = manager.get_available_apps('en')
+    assert apps[0]['settings']['W9_HTTP_PORT_SET'] == '9000'
+    assert apps[0]['profiles']['external-db']['is_external_database'] is True
+
+    _write_manifest(manifest_path, 'WordPress Updated')
+    assert manager.get_available_apps('en')[0]['title'] == 'WordPress Updated'
+
+    _ConfigManager.values[('config.ini', 'initial_apps', 'keys')] = 'mysql'
+    assert manager.get_available_apps('en') == []
+
+
+def test_get_available_apps_returns_503_for_missing_manifest(monkeypatch, tmp_path):
+    _ConfigManager.values = {
+        ('config.ini', 'initial_apps', 'keys'): '',
+        ('system.ini', 'app_media', 'path'): str(tmp_path),
+    }
+    monkeypatch.setattr(app_manager_module, 'ConfigManager', _ConfigManager)
+    AppManger.clear_cache()
+
+    with pytest.raises(app_manager_module.CustomException) as exc_info:
+        AppManger().get_available_apps('en')
+
+    assert exc_info.value.status_code == 503
+
+
+def test_get_available_apps_returns_503_for_invalid_manifest_contract(monkeypatch, tmp_path):
+    media_path = tmp_path / 'media' / 'json'
+    media_path.mkdir(parents=True)
+    (media_path / 'app-store-manifest_en.json').write_text('{"apps": []}', encoding='utf-8')
+    _ConfigManager.values = {
+        ('config.ini', 'initial_apps', 'keys'): '',
+        ('system.ini', 'app_media', 'path'): str(media_path),
+    }
+    monkeypatch.setattr(app_manager_module, 'ConfigManager', _ConfigManager)
+    AppManger.clear_cache()
+
+    with pytest.raises(app_manager_module.CustomException) as exc_info:
+        AppManger().get_available_apps('en')
+
+    assert exc_info.value.status_code == 503

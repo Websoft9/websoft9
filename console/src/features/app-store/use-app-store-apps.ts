@@ -1,21 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
-import type { AppStoreApp, AppStoreInstallProfile } from './app-store-model'
+import type { AppStoreApp } from './app-store-model'
 
 type AppStoreError = Error & {
     statusCode?: number
 }
 
-type AppStoreInstallMetadata = {
-    settings?: Record<string, string>
-    is_web_app?: boolean
-    profiles?: Record<string, AppStoreInstallProfile>
-    help?: Record<string, string>
-}
-
-type AppStoreInstallMetadataManifest = {
-    apps?: Record<string, AppStoreInstallMetadata>
+type AppStoreManifest = {
+    apps?: AppStoreApp[]
 }
 
 function mapLocaleToApiLocale(locale: string) {
@@ -38,43 +31,15 @@ async function fetchJson<T>(url: string, errorMessage: string) {
     return (await response.json()) as T
 }
 
-function mergeInstallMetadata(apps: AppStoreApp[], metadataManifest: AppStoreInstallMetadataManifest | null) {
-    const installMetadataByKey = metadataManifest?.apps ?? {}
-
-    return apps.map((app) => {
-        const appKey = (app.key ?? '').trim()
-        if (!appKey) {
-            return app
-        }
-
-        const installMetadata = installMetadataByKey[appKey]
-        if (!installMetadata) {
-            return app
-        }
-
-        return {
-            ...app,
-            settings: installMetadata.settings ?? app.settings ?? {},
-            is_web_app: installMetadata.is_web_app ?? app.is_web_app ?? false,
-            profiles: installMetadata.profiles ?? app.profiles,
-            help: installMetadata.help ?? app.help,
-        }
-    })
-}
-
 async function fetchAppStoreAppsFromStaticAssets(apiLocale: string) {
-    const apps = await fetchJson<AppStoreApp[]>(`/media/json/product_${apiLocale}.json`, 'Failed to load static app store data')
-
-    try {
-        const installMetadata = await fetchJson<AppStoreInstallMetadataManifest>(
-            '/media/json/app-store-install-metadata.json',
-            'Failed to load app store install metadata',
-        )
-
-        return mergeInstallMetadata(apps, installMetadata)
-    } catch {
-        return apps
+    const manifest = await fetchJson<AppStoreManifest>(
+        `/media/json/app-store-manifest_${apiLocale}.json`,
+        'Failed to load static app store manifest',
+    )
+    if (!Array.isArray(manifest.apps)) {
+        throw new Error('Static app store manifest has no apps array')
     }
+    return manifest.apps
 }
 
 async function fetchAppStoreAppsFromApi(apiLocale: string) {

@@ -92,6 +92,26 @@ def replace_tree(source: Path, target: Path) -> None:
     sync_tree(source, target)
 
 
+def backup_trees(targets: list[Path], backup_root: Path) -> dict[Path, Path | None]:
+    backups: dict[Path, Path | None] = {}
+    for index, target in enumerate(targets):
+        if target.exists():
+            backup_path = backup_root / str(index)
+            replace_tree(target, backup_path)
+            backups[target] = backup_path
+        else:
+            backups[target] = None
+    return backups
+
+
+def restore_trees(backups: dict[Path, Path | None]) -> None:
+    for target, backup_path in backups.items():
+        if target.exists():
+            shutil.rmtree(target)
+        if backup_path is not None:
+            replace_tree(backup_path, target)
+
+
 def extract_sync_root(extract_dir: Path, package_type: str) -> Path:
     direct_child = extract_dir / package_type
     if direct_child.exists():
@@ -894,7 +914,7 @@ def sync_package(
         if snapshot_root is not None and dataset_version:
             snapshot_paths = stage_snapshot(source_root, snapshot_root, dataset_version, package_type)
             source_root = snapshot_paths["current"]
-        sync_tree(source_root, target_dir)
+        replace_tree(source_root, target_dir)
 
     if not marker_exists(marker_path, package_type):
         raise RuntimeError(f"{package_type} assets are still missing after sync: {marker_path}")
@@ -1004,62 +1024,137 @@ def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
     return profiles
 
 
-def build_app_store_install_metadata(library_root: Path, config_path: Path) -> dict[str, object]:
-    manifest: dict[str, object] = {
-        "initial_apps": load_initial_apps(config_path),
-        "apps": {},
-    }
-    apps_metadata: dict[str, dict[str, object]] = {}
+def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: str) -> dict[str, object]:
+    product_path = media_json_root / f"product_{locale}.json"
+    try:
+        products = json.loads(product_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"failed to read {product_path}: {exc}") from exc
+    if not isinstance(products, list):
+        raise RuntimeError(f"product media must be an array: {product_path}")
 
-    if not library_root.exists():
-        manifest["apps"] = apps_metadata
-        return manifest
-
-    for app_dir in sorted(library_root.iterdir()):
-        if not app_dir.is_dir():
+    product_keys: set[str] = set()
+    apps: list[dict[str, object]] = []
+    for product in products:
+        if not isinstance(product, dict):
+            log(f"[platform-assets] skipping non-object media entry in product_{locale}.json")
             continue
-
-        app_key = app_dir.name
-        env_path = app_dir / ".env"
-        app_metadata: dict[str, object] = {
-            "settings": {},
-            "is_web_app": False,
-        }
-
-        if env_path.exists():
-            try:
-                env_values = load_env_values(env_path)
-                app_metadata["settings"] = get_install_settings(env_values)
-                app_metadata["is_web_app"] = "W9_URL" in env_values
-            except Exception as exc:
-                log(f"[platform-assets] failed to read {env_path}: {exc}")
-
+        app_key = product.get("key")
+        if not isinstance(app_key, str) or not app_key.strip():
+            log("[platform-assets] skipping media entry with missing app key")
+            continue
+        app_key = app_key.strip()
+        if app_key in product_keys:
+            raise RuntimeError(f"duplicate app key in {product_path}: {app_key}")
+        product_keys.add(app_key)
+        app_dir = library_root / app_key
         variables_path = app_dir / "variables.json"
-        if variables_path.exists():
-            try:
-                variables_metadata = json.loads(variables_path.read_text(encoding="utf-8"))
-                help_metadata = variables_metadata.get("help")
-                if isinstance(help_metadata, dict):
-                    app_metadata["help"] = help_metadata
-                distribution = get_distribution(variables_metadata.get("edition"))
-                if distribution:
-                    app_metadata["distribution"] = distribution
-            except (json.JSONDecodeError, OSError) as exc:
-                log(f"[platform-assets] failed to read {variables_path}: {exc}")
-
+        env_path = app_dir / ".env"
+        if not app_dir.is_dir() or not variables_path.exists() or not env_path.exists():
+            log(f"[platform-assets] skipping {app_key}: missing Library template, variables.json, or .env")
+            continue
+        try:
+            variables_metadata = json.loads(variables_path.read_text(encoding="utf-8"))
+            if not isinstance(variables_metadata, dict):
+                raise ValueError("variables.json must be an object")
+            distribution = get_distribution(variables_metadata.get("edition"))
+            if not distribution:
+                raise ValueError("variables.json has no valid edition")
+            env_values = load_env_values(env_path)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            log(f"[platform-assets] skipping {app_key}: invalid Library metadata: {exc}")
+            continue
+        app_manifest = dict(product)
+        app_manifest.update({"distribution": distribution, "settings": get_install_settings(env_values), "is_web_app": "W9_URL" in env_values})
         profiles = discover_install_profiles(app_dir)
         if profiles:
-            app_metadata["profiles"] = profiles
+            app_manifest["profiles"] = profiles
+        help_metadata = variables_metadata.get("help")
+        if isinstance(help_metadata, dict):
+            app_manifest["help"] = help_metadata
+        apps.append(app_manifest)
 
-        apps_metadata[app_key] = app_metadata
+    if library_root.is_dir():
+        for app_dir in sorted(library_root.iterdir()):
+            if app_dir.is_dir() and app_dir.name not in product_keys:
+                log(f"[platform-assets] skipping {app_dir.name}: missing media entry in product_{locale}.json")
+    if products and not apps:
+        raise RuntimeError(f"no valid app entries generated from non-empty {product_path}")
 
-    manifest["apps"] = apps_metadata
+    manifest: dict[str, object] = {"schemaVersion": "1", "locale": locale, "apps": apps}
+    validate_app_store_manifest(manifest, product_path)
     return manifest
 
 
-def write_json_file(path: Path, payload: object) -> None:
+def validate_app_store_manifest(manifest: object, source_path: Path) -> None:
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("apps"), list):
+        raise RuntimeError(f"invalid app store manifest generated from {source_path}")
+    for app in manifest["apps"]:
+        if not isinstance(app, dict) or not isinstance(app.get("key"), str) or not app["key"].strip():
+            raise RuntimeError(f"invalid app entry generated from {source_path}")
+        if "title" in app and (not isinstance(app["title"], str) or not app["title"].strip()):
+            raise RuntimeError(f"app entry has invalid display title: {app.get('key')}")
+        if "logo" in app and not isinstance(app["logo"], dict):
+            raise RuntimeError(f"app entry has invalid display logo: {app.get('key')}")
+        if "screenshots" in app and app["screenshots"] is not None and not isinstance(app["screenshots"], list):
+            raise RuntimeError(f"app entry has invalid display screenshots: {app.get('key')}")
+        if "catalogBindings" in app and not isinstance(app["catalogBindings"], dict):
+            raise RuntimeError(f"app entry has invalid catalog bindings: {app.get('key')}")
+        if not isinstance(app.get("distribution"), list) or not isinstance(app.get("settings"), dict):
+            raise RuntimeError(f"app entry lacks installation metadata: {app.get('key')}")
+        if not isinstance(app.get("is_web_app"), bool):
+            raise RuntimeError(f"app entry has invalid web flag: {app.get('key')}")
+        if "profiles" in app and not isinstance(app["profiles"], dict):
+            raise RuntimeError(f"app entry has invalid profiles: {app.get('key')}")
+        if "help" in app and not isinstance(app["help"], dict):
+            raise RuntimeError(f"app entry has invalid help: {app.get('key')}")
+
+
+def write_json_file(path: Path, payload: object) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+        handle.write(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n")
+        return Path(handle.name)
+
+
+def publish_json_files(payloads: dict[Path, object]) -> None:
+    temporary_files: dict[Path, Path] = {}
+    backups: dict[Path, Path] = {}
+    published_paths: list[Path] = []
+    try:
+        for path, payload in payloads.items():
+            temporary_files[path] = write_json_file(path, payload)
+        for path in payloads:
+            if path.exists():
+                backup_fd, backup_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".backup", dir=path.parent)
+                os.close(backup_fd)
+                backup_path = Path(backup_name)
+                backup_path.unlink()
+                path.replace(backup_path)
+                backups[path] = backup_path
+            temporary_files[path].replace(path)
+            published_paths.append(path)
+    except Exception:
+        for path in published_paths:
+            if path.exists():
+                path.unlink()
+        for path, backup_path in backups.items():
+            if backup_path.exists():
+                backup_path.replace(path)
+        raise
+    finally:
+        for temporary_path in temporary_files.values():
+            temporary_path.unlink(missing_ok=True)
+        for backup_path in backups.values():
+            backup_path.unlink(missing_ok=True)
+
+
+def build_and_publish_app_store_manifests(media_root: Path, library_root: Path) -> None:
+    media_json_root = media_root / "json"
+    library_apps_root = library_root / "apps"
+    manifests = {locale: build_app_store_manifest(media_json_root, library_apps_root, locale) for locale in ("zh", "en")}
+    publish_json_files({media_json_root / f"app-store-manifest_{locale}.json": manifest for locale, manifest in manifests.items()})
+    log(f"[platform-assets] published app store manifests in {media_json_root}")
 
 
 def is_force_refresh_enabled() -> bool:
@@ -1074,8 +1169,6 @@ def main() -> int:
         os.getenv("WEBSOFT9_APPHUB_CONFIG_PATH")
         or os.getenv("WEBSOFT9_APPHUB_CONFIG", "/websoft9/apphub/src/config/config.ini")
     )
-    library_apps_root = Path(os.getenv("WEBSOFT9_LIBRARY_APPS_ROOT", "/websoft9/library/apps"))
-    install_metadata_path = Path(os.getenv("WEBSOFT9_APP_STORE_INSTALL_METADATA", "/websoft9/media/json/app-store-install-metadata.json"))
     data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
     sync_state_path = Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(Path(data_root) / "config" / "appstore_sync_state.json")))
     snapshot_root = Path(os.getenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", "/websoft9/appstore"))
@@ -1099,10 +1192,22 @@ def main() -> int:
         if item.strip()
     }
 
+    if requested_package_types != {"media", "library"}:
+        raise RuntimeError("app store sync requires both media and library packages")
+
     if requested_package_types:
         packages = [package for package in packages if package[0] in requested_package_types]
 
+    rollback_backups: dict[Path, Path | None] = {}
+    rollback_root: Path | None = None
     try:
+        rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
+        rollback_targets = [
+            target
+            for package_type, target_dir, _ in packages
+            for target in (target_dir, snapshot_root / "current" / package_type)
+        ]
+        rollback_backups = backup_trees(rollback_targets, rollback_root)
         previous_state = load_sync_state(sync_state_path)
         force_refresh = is_force_refresh_enabled()
         manifest_bundle = None
@@ -1212,26 +1317,9 @@ def main() -> int:
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
 
-        # ── install metadata ──────────────────────────────────────────
-        # Only consume remote install metadata when the active manifest declares it.
-        install_metadata = None
-        if manifest_bundle:
-            library_manifest_url = str(manifest_bundle["library_manifest_url"])
-            library_manifest = manifest_bundle["library_manifest"]
-            if isinstance(library_manifest, dict):
-                install_metadata_relative = library_manifest.get("installMetadata")
-                if isinstance(install_metadata_relative, str) and install_metadata_relative:
-                    install_metadata_url = resolve_json_url(library_manifest_url, install_metadata_relative)
-                    try:
-                        install_metadata = download_json(install_metadata_url)
-                        log(f"[platform-assets] downloaded app store install metadata from {install_metadata_url}")
-                    except Exception as exc:
-                        log(f"[platform-assets] declared install metadata unavailable, falling back to local generation: {exc}")
-
-        if install_metadata is None:
-            install_metadata = build_app_store_install_metadata(library_apps_root, config_path)
-
-        write_json_file(install_metadata_path, install_metadata)
+        media_root = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
+        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+        build_and_publish_app_store_manifests(media_root, library_root)
 
         state_payload: dict[str, object] = {
             "channel": channel,
@@ -1249,10 +1337,19 @@ def main() -> int:
         if latest_library_dsv is not None:
             state_payload["libraryDatasetVersion"] = latest_library_dsv
         write_sync_state(sync_state_path, state_payload)
-        log(f"[platform-assets] wrote app store install metadata to {install_metadata_path} (mode={sync_mode})")
+        log(f"[platform-assets] completed app store manifest build (mode={sync_mode})")
     except Exception as exc:
+        if rollback_backups:
+            try:
+                restore_trees(rollback_backups)
+                log("[platform-assets] restored active assets after failed sync")
+            except Exception as rollback_exc:
+                log(f"[platform-assets] failed to restore active assets after sync failure: {rollback_exc}")
         log(f"[platform-assets] asset sync failed (mode={sync_mode}): {exc}")
         return 1
+    finally:
+        if rollback_root is not None:
+            shutil.rmtree(rollback_root, ignore_errors=True)
 
     return 0
 

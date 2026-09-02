@@ -104,7 +104,6 @@ jobs:
               - 'apphub/tests/test_apphub_cli_upgrade.py'
               - 'apphub/tests/test_appstore_sync_manager_versions.py'
               - 'docker/scripts/platform-sync-runtime-assets.py'
-              - 'scripts/generate_appstore_install_metadata.py'
               - 'scripts/update_zip.sh'
               - 'scripts/validate_appstore_catalog_artifact.sh'
               - 'scripts/validate_appstore_dataset_manifests.sh'
@@ -449,10 +448,6 @@ jobs:
           sha256sum "$tmpdir/media-latest.zip" | awk '{print $1}' > "$tmpdir/media-latest.zip.sha256"
           printf 'library payload\n' > "$tmpdir/../library/library-latest.zip"
           sha256sum "$tmpdir/../library/library-latest.zip" | awk '{print $1}' > "$tmpdir/../library/library-latest.zip.sha256"
-          cat > "$tmpdir/../library/app-store-install-metadata.json" <<'EOF'
-          {"initial_apps":[],"apps":{"mysql":{"settings":{},"is_web_app":false}}}
-          EOF
-          sha256sum "$tmpdir/../library/app-store-install-metadata.json" | awk '{print $1}' > "$tmpdir/../library/app-store-install-metadata.json.sha256"
           cat > "$tmpdir/../library/apps-index.json" <<'EOF'
           {"schemaVersion":"1","datasetVersion":"2026.06.05.170000","generatedAt":"2026-06-05T17:00:00Z","apps":[{"key":"mysql"}]}
           EOF
@@ -492,7 +487,6 @@ jobs:
             "channel": "release",
             "catalogArchive": "catalog.zip",
             "libraryPackage": "../library/library-latest.zip",
-            "installMetadata": "../library/app-store-install-metadata.json",
             "appsIndex": "../library/apps-index.json",
             "libraryDeltaFiles": {
               "library": "../library/library-delta-bootstrap-to-2026.06.05.170000.json",
@@ -506,7 +500,6 @@ jobs:
             "checksum": {
               "catalogArchive": "catalog.zip.sha256",
               "libraryPackage": "../library/library-latest.zip.sha256",
-              "installMetadata": "../library/app-store-install-metadata.json.sha256",
               "appsIndex": "../library/apps-index.json.sha256",
               "libraryDelta": "../library/library-delta-bootstrap-to-2026.06.05.170000.json.sha256",
               "appsDelta": "../library/apps-delta-bootstrap-to-2026.06.05.170000.json.sha256",
@@ -574,18 +567,6 @@ jobs:
           tmpdir=$(mktemp -d)
           printf 'library payload\n' > "$tmpdir/library-dev.zip"
           sha256sum "$tmpdir/library-dev.zip" | awk '{print $1}' > "$tmpdir/library-dev.zip.sha256"
-          cat > "$tmpdir/app-store-install-metadata.json" <<'EOF'
-          {
-            "initial_apps": [],
-            "apps": {
-              "mysql": {
-                "settings": {},
-                "is_web_app": true
-              }
-            }
-          }
-          EOF
-          sha256sum "$tmpdir/app-store-install-metadata.json" | awk '{print $1}' > "$tmpdir/app-store-install-metadata.json.sha256"
           cat > "$tmpdir/apps-index.json" <<'EOF'
           {
             "schemaVersion": "1",
@@ -627,7 +608,6 @@ jobs:
             "datasetVersion": "2026.06.05.140000",
             "channel": "dev",
             "libraryPackage": "library-dev.zip",
-            "installMetadata": "app-store-install-metadata.json",
             "appsIndex": "apps-index.json",
             "deltaFiles": {
               "library": "library-delta-bootstrap-to-2026.06.05.140000.json",
@@ -635,7 +615,6 @@ jobs:
             },
             "checksum": {
               "libraryPackage": "library-dev.zip.sha256",
-              "installMetadata": "app-store-install-metadata.json.sha256",
               "appsIndex": "apps-index.json.sha256",
               "libraryDelta": "library-delta-bootstrap-to-2026.06.05.140000.json.sha256",
               "appsDelta": "apps-delta-bootstrap-to-2026.06.05.140000.json.sha256"
@@ -649,28 +628,6 @@ jobs:
           }
           EOF
           bash scripts/validate_appstore_library_metadata.sh "$tmpdir"
-
-      - name: Smoke test install metadata generator
-        run: |
-          set -euo pipefail
-          tmpdir=$(mktemp -d)
-          mkdir -p "$tmpdir/library/apps/mysql"
-          cat > "$tmpdir/library/apps/mysql/.env" <<'EOF'
-          W9_URL=https://mysql.example.com
-          W9_HTTP_PORT_SET=8080
-          W9_ADMIN_PORT_SET=${W9_HTTP_PORT_SET}
-          EOF
-          cat > "$tmpdir/config.ini" <<'EOF'
-          [initial_apps]
-          keys = mysql,redis
-          EOF
-          python3 scripts/generate_appstore_install_metadata.py \
-            --library-root "$tmpdir/library/apps" \
-            --config-path "$tmpdir/config.ini" \
-            --output "$tmpdir/app-store-install-metadata.json"
-          jq -e '.initial_apps == ["mysql","redis"]' "$tmpdir/app-store-install-metadata.json" >/dev/null
-          jq -e '.apps.mysql.is_web_app == true' "$tmpdir/app-store-install-metadata.json" >/dev/null
-          jq -e '.apps.mysql.settings.W9_ADMIN_PORT_SET == "8080"' "$tmpdir/app-store-install-metadata.json" >/dev/null
 
       - name: Smoke test library app index helper
         run: |

@@ -17,6 +17,7 @@ _COMPOSE_YAML.indent(mapping=2, sequence=4, offset=2)
 
 _PROFILE_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _PROFILE_COMPOSE_PATTERN = re.compile(r"^docker-compose\.([a-z0-9][a-z0-9-]*)\.yml$")
+_PROFILE_ENV_PATTERN = re.compile(r"^\.env\.([a-z0-9][a-z0-9-]*)$")
 EXTERNAL_DATABASE_CONNECTION_SETTING_KEYS = frozenset({
     "W9_DB_HOST_SET",
     "W9_DB_PORT_SET",
@@ -319,21 +320,19 @@ def _version_matches_prefix(actual: tuple[int, ...], expected: tuple[int, ...]) 
 
 
 def materialize_profile_template(workspace_directory: str | Path, profile: str | None) -> None:
-    if profile is None:
-        return
-
     workspace_path = Path(workspace_directory)
-    compose_path, env_path = get_profile_template(workspace_path, profile)
-    _merge_env_profile(workspace_path / ".env", env_path)
+    if profile is not None:
+        compose_path, env_path = get_profile_template(workspace_path, profile)
+        _merge_env_profile(workspace_path / ".env", env_path)
 
-    profile_values = _read_env_values(env_path)
-    if profile_values.get("W9_DATABASE_MODE", "").strip().strip("\"'") == "external":
-        excluded_services = {
-            service.strip()
-            for service in profile_values.get("W9_COMPOSE_EXCLUDE_SERVICES", "").split(",")
-            if service.strip()
-        }
-        _remove_external_services(compose_path, excluded_services)
+        profile_values = _read_env_values(env_path)
+        if profile_values.get("W9_DATABASE_MODE", "").strip().strip("\"'") == "external":
+            excluded_services = {
+                service.strip()
+                for service in profile_values.get("W9_COMPOSE_EXCLUDE_SERVICES", "").split(",")
+                if service.strip()
+            }
+            _remove_external_services(compose_path, excluded_services)
 
     profile_names = []
     for candidate in workspace_path.iterdir():
@@ -341,9 +340,12 @@ def materialize_profile_template(workspace_directory: str | Path, profile: str |
         if match and candidate.is_file():
             profile_names.append(match.group(1))
             candidate.unlink()
-    if profile not in profile_names:
+        match = _PROFILE_ENV_PATTERN.fullmatch(candidate.name)
+        if match and match.group(1) != "example" and candidate.is_file():
+            profile_names.append(match.group(1))
+    if profile is not None and profile not in profile_names:
         profile_names.append(profile)
-    for profile_name in profile_names:
+    for profile_name in set(profile_names):
         candidate = workspace_path / f".env.{profile_name}"
         if candidate.is_file():
             candidate.unlink()

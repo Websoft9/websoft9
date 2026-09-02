@@ -3419,10 +3419,28 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     size="small"
                                                     value={selectedInstallProfile ?? ''}
                                                     onChange={(event) => {
+                                                        const profile = event.target.value || null
                                                         setInstallError(null)
                                                         setInstallFieldErrors({})
                                                         setTestedDatabaseConnectionSignature(null)
-                                                        setSelectedInstallProfile(event.target.value || null)
+                                                        if (profile) {
+                                                            setProfileInstallSettings((currentValue) => {
+                                                                const userModifiedSharedSettings = Object.fromEntries(
+                                                                    Object.entries(installSettings).filter(([key, value]) => (
+                                                                        !externalDatabaseSettingKeys.includes(key)
+                                                                        && value !== selectedAppSettings[key]
+                                                                    )),
+                                                                )
+                                                                return {
+                                                                    ...currentValue,
+                                                                    [profile]: {
+                                                                        ...(currentValue[profile] ?? selectedAppProfiles[profile]?.settings ?? {}),
+                                                                        ...userModifiedSharedSettings,
+                                                                    },
+                                                                }
+                                                            })
+                                                        }
+                                                        setSelectedInstallProfile(profile)
                                                     }}
                                                     sx={{
                                                         ...installDialogFieldSx,

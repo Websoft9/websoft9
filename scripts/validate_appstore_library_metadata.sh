@@ -22,8 +22,6 @@ DATASET_VERSION="$(jq -r '.datasetVersion // empty' "$MANIFEST_PATH")"
 CHANNEL="$(jq -r '.channel // empty' "$MANIFEST_PATH")"
 LIBRARY_PACKAGE="$(jq -r '.libraryPackage // empty' "$MANIFEST_PATH")"
 CHECKSUM_FILE="$(jq -r 'if (.checksum | type) == "object" then .checksum.libraryPackage // empty else empty end' "$MANIFEST_PATH")"
-INSTALL_METADATA="$(jq -r '.installMetadata // empty' "$MANIFEST_PATH")"
-INSTALL_METADATA_CHECKSUM="$(jq -r 'if (.checksum | type) == "object" then .checksum.installMetadata // empty else empty end' "$MANIFEST_PATH")"
 APPS_INDEX="$(jq -r '.appsIndex // empty' "$MANIFEST_PATH")"
 APPS_INDEX_CHECKSUM="$(jq -r 'if (.checksum | type) == "object" then .checksum.appsIndex // empty else empty end' "$MANIFEST_PATH")"
 LIBRARY_DELTA="$(jq -r '.deltaFiles.library // empty' "$MANIFEST_PATH")"
@@ -41,8 +39,6 @@ SCHEMA_VERSION_COMPAT="$(jq -r '.compatibility.schemaVersion // empty' "$MANIFES
 [[ "$CHANNEL" =~ ^(dev|rc|release)$ ]] || fail "channel must be dev, rc, or release"
 [[ -n "$LIBRARY_PACKAGE" ]] || fail "libraryPackage must not be empty"
 [[ -n "$CHECKSUM_FILE" ]] || fail "checksum.libraryPackage must not be empty"
-[[ -n "$INSTALL_METADATA" ]] || fail "installMetadata must not be empty"
-[[ -n "$INSTALL_METADATA_CHECKSUM" ]] || fail "checksum.installMetadata must not be empty"
 [[ -n "$GENERATED_AT" ]] || fail "generatedAt must not be empty"
 [[ "$GENERATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail "generatedAt format is invalid: $GENERATED_AT"
 [[ "$LEGACY_PLUGIN_PATHS" =~ ^(true|false)$ ]] || fail "compatibility.legacyPluginPaths must be boolean"
@@ -89,8 +85,6 @@ validate_optional_payload() {
 if [[ -n "$APPS_INDEX" ]]; then
   validate_optional_payload "$APPS_INDEX" "$APPS_INDEX_CHECKSUM"
 fi
-
-validate_optional_payload "$INSTALL_METADATA" "$INSTALL_METADATA_CHECKSUM"
 
 if [[ -n "$LIBRARY_DELTA" ]]; then
   validate_optional_payload "$LIBRARY_DELTA" "$LIBRARY_DELTA_CHECKSUM"

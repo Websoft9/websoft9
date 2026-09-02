@@ -66,30 +66,6 @@ class AppManger:
             cls._cache.pop(key, None)
             cls._cache_timestamps.pop(key, None)
 
-    @staticmethod
-    def _merge_app_store_install_metadata(data: list[dict[str, object]], metadata_path: str) -> None:
-        try:
-            with open(metadata_path, encoding="utf-8") as handle:
-                metadata = json.load(handle)
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning(f"Failed to load app store install metadata {metadata_path}: {exc}")
-            return
-
-        apps_metadata = metadata.get("apps") if isinstance(metadata, dict) else None
-        if not isinstance(apps_metadata, dict):
-            logger.warning(f"App store install metadata has no apps mapping: {metadata_path}")
-            return
-
-        for item in data:
-            app_key = str(item.get("key") or "").strip()
-            app_metadata = apps_metadata.get(app_key)
-            if not app_key or not isinstance(app_metadata, dict):
-                continue
-
-            for field in ("settings", "is_web_app", "profiles", "help", "distribution"):
-                if field in app_metadata:
-                    item[field] = app_metadata[field]
-
     def _get_capability_flags(self, app_name: str | None) -> tuple[bool, bool]:
         normalized_name = (app_name or "").strip()
         if not normalized_name:
@@ -645,50 +621,61 @@ class AppManger:
         Args:
             locale (str): The language to get available apps from.
         """
-        # 预先获取初始应用过滤条件，用于缓存key
         normalized_locale = self._normalize_locale(locale)
         initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
-        
-        # 缓存检查 - 包含配置信息在key中
         cache_key = f"available_apps_{normalized_locale}_{initial_apps or 'all'}"
-        current_time = time.time()
-        
-        # 检查缓存是否存在且未过期
-        if (cache_key in self._cache and 
-            cache_key in self._cache_timestamps and 
-            current_time - self._cache_timestamps[cache_key] < self._cache_ttl):
-            return self._cache[cache_key]
-        
+        media_path = ConfigManager("system.ini").get_value("app_media", "path")
+        if not isinstance(media_path, str) or not media_path:
+            logger.error("App store manifest path is not configured")
+            raise CustomException(
+                status_code=503,
+                message="App Store Unavailable",
+                details="The official app store manifest path is not configured.",
+            )
+        manifest_path = os.path.join(
+            media_path,
+            f"app-store-manifest_{normalized_locale}.json",
+        )
         try:
-            # 预先读取所有配置，避免重复读取
-            config_manager = ConfigManager("system.ini")
-            app_media_path = self._ensure_media_asset(f"product_{normalized_locale}.json")
-            
-            # Get the app available list
-            with open(app_media_path, "r", encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 使用已获取的配置，避免重复读取
-            app_keys_filter = set(initial_apps.split(",")) if initial_apps else None
-            
-            # 如果有过滤条件，先过滤数据，减少后续处理量
+            manifest_stat = os.stat(manifest_path)
+            manifest_signature = (manifest_stat.st_mtime_ns, manifest_stat.st_size)
+            if self._cache_timestamps.get(cache_key) == manifest_signature:
+                return self._cache[cache_key]
+
+            with open(manifest_path, "r", encoding="utf-8") as handle:
+                manifest = json.load(handle)
+            data = manifest.get("apps") if isinstance(manifest, dict) else None
+            if not isinstance(manifest, dict) or manifest.get("schemaVersion") != "1" or manifest.get("locale") != normalized_locale:
+                raise ValueError("manifest has an unsupported schema or locale")
+            if not isinstance(data, list):
+                raise ValueError("manifest must contain an apps array")
+            for item in data:
+                if (
+                    not isinstance(item, dict)
+                    or not isinstance(item.get("key"), str)
+                    or not item["key"].strip()
+                    or not isinstance(item.get("distribution"), list)
+                    or not isinstance(item.get("settings"), dict)
+                    or not isinstance(item.get("is_web_app"), bool)
+                    or ("profiles" in item and not isinstance(item["profiles"], dict))
+                    or ("help" in item and not isinstance(item["help"], dict))
+                ):
+                    raise ValueError("manifest contains an invalid app entry")
+
+            app_keys_filter = {item.strip() for item in initial_apps.split(",") if item.strip()} if initial_apps else None
             if app_keys_filter:
                 data = [item for item in data if item.get("key") in app_keys_filter]
-            
-            metadata_path = os.path.join(os.path.dirname(app_media_path), "app-store-install-metadata.json")
-            self._merge_app_store_install_metadata(data, metadata_path)
-
             data = [self._normalize_available_app_media(item, normalized_locale) for item in data if isinstance(item, dict)]
-            
-            # 缓存结果
             self._cache[cache_key] = data
-            self._cache_timestamps[cache_key] = current_time
-            
+            self._cache_timestamps[cache_key] = manifest_signature
             return data
-            
-        except (CustomException,Exception) as e:
-            logger.error(f"Get available apps error:{e}")
-            raise CustomException()
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            logger.error(f"App store manifest unavailable at {manifest_path}: {exc}")
+            raise CustomException(
+                status_code=503,
+                message="App Store Unavailable",
+                details="The official app store manifest is unavailable or invalid.",
+            ) from exc
 
     def _get_available_app_logo_map(self, locale: str | None) -> dict[str, str]:
         normalized_locale = self._normalize_locale(locale)

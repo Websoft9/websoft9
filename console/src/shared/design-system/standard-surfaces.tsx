@@ -229,6 +229,8 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
     const palette = getSurfacePalette(darkMode)
     const [visibleMessage, setVisibleMessage] = useState(message)
     const [visibleSeverity, setVisibleSeverity] = useState(severity)
+    const displayedMessage = open && message ? message : visibleMessage
+    const displayedSeverity = open && message ? severity : visibleSeverity
 
     // Keep the last non-empty message and its severity visible during the exit
     // animation to prevent a blank/miscolored flash when feedback is cleared
@@ -283,7 +285,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
         >
             <Alert
                 onClose={onClose}
-                severity={visibleSeverity}
+                severity={displayedSeverity}
                 variant="filled"
                 sx={{
                     width: 'auto',
@@ -306,7 +308,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
                     },
                 }}
             >
-                {visibleMessage}
+                {displayedMessage}
             </Alert>
         </Snackbar>
     )
