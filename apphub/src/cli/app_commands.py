@@ -187,3 +187,35 @@ def install(
         fail(exc.details or exc.message)
     except Exception as exc:
         fail(str(exc))
+
+
+@app_group.command(name="refresh")
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Print machine-readable JSON on completion.",
+)
+def refresh(as_json):
+    """Refresh the private application catalog."""
+    from src.services.local_app_store import refresh_local_app_store
+
+    try:
+        report = refresh_local_app_store()
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if as_json:
+        click.echo(json.dumps(report))
+    else:
+        click.echo(
+            f"Private application catalog refreshed: "
+            f"{report['loaded']} loaded, {report['skipped']} skipped."
+        )
+        for error in report["errors"]:
+            click.echo(f"{error['app']}: {error['error']}", err=True)
+
+    if report["skipped"]:
+        raise click.exceptions.Exit(2)

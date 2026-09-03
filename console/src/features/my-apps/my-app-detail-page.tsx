@@ -1265,8 +1265,8 @@ export function MyAppDetailPage() {
 
         setPhpMigrationSubmitting(true)
         try {
-            const result = await submitPhpMigrationRequest(data.app_id, phpTargetVersion.trim(), phpMigrationRemarks.trim())
-            setFeedback({ severity: 'success', message: result.details || result.message || t('myAppsDetailPage.tabs.php.migration.submitSuccess') })
+            await submitPhpMigrationRequest(data.app_id, phpTargetVersion.trim(), phpMigrationRemarks.trim())
+            setFeedback({ severity: 'success', message: t('myAppsDetailPage.tabs.php.migration.submitSuccess') })
             setShowPhpMigrationForm(false)
             setPhpTargetVersion('')
             setPhpMigrationRemarks('')
@@ -1558,11 +1558,7 @@ export function MyAppDetailPage() {
                                                 </div>
                                                 <div className="myapps-php-card-body">
                                                     <div className="myapps-overview-runtime-block">
-                                                        {!customFieldsLoaded ? (
-                                                            <div className="myapps-overview-runtime-row">
-                                                                <span className="myapps-overview-runtime-value" style={{ opacity: 0.5 }}>...</span>
-                                                            </div>
-                                                        ) : (
+                                                        {customFieldsLoaded ? (
                                                             <>
                                                                 {customFields.map((field, idx) => (
                                                                     <div className="myapps-overview-runtime-row myapps-cf-row" key={`cf-${idx}`}>
@@ -1634,7 +1630,7 @@ export function MyAppDetailPage() {
                                                                     </div>
                                                                 ))}
                                                             </>
-                                                        )}
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                             </div>

@@ -15,6 +15,7 @@ import yaml
 import time
 import zipfile
 from datetime import datetime, timedelta, timezone
+from textwrap import dedent
 import requests
 import asyncio
 import aiodocker
@@ -559,7 +560,7 @@ class AppManger:
             if not webhook_url:
                 raise CustomException(status_code=500, message="Invalid Request", details="Webhook URL is not configured")
 
-            app_name = app_detail.get("app_name") or app_detail.get("name") or app_id
+            app_name = app_detail.app_name or app_detail.app_id or app_id
             current_version = php_info.get("version") or "Unknown"
 
             payload = {

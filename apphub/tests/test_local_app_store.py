@@ -32,7 +32,8 @@ def test_refresh_builds_and_reads_single_local_manifest(tmp_path):
     apps = get_local_app_store_apps(tmp_path)
     assert apps[0]["key"] == "canvas"
     assert apps[0]["app_origin"] == "local"
-    assert apps[0]["catalogCollection"]["items"][0]["key"] == "productivity"
+    assert apps[0]["catalogCollection"]["items"][0]["key"] == "whiteboard"
+    assert apps[0]["catalogCollection"]["items"][0]["catalogCollection"]["items"][0]["key"] == "productivity"
     assert local_manifest_path(tmp_path).is_file()
 
 

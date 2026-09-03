@@ -113,3 +113,59 @@ def test_install_json_rejects_installation_options():
 
     assert result.exit_code != 0
     assert "profile" in result.output
+
+
+def _install_local_app_store_stub(monkeypatch, refresh_local_app_store):
+    local_app_store_module = types.ModuleType("src.services.local_app_store")
+    local_app_store_module.refresh_local_app_store = refresh_local_app_store
+    monkeypatch.setitem(sys.modules, "src.services.local_app_store", local_app_store_module)
+
+
+def test_refresh_outputs_private_app_report_as_json(monkeypatch):
+    from src.cli.app_commands import app_group
+
+    _install_local_app_store_stub(
+        monkeypatch,
+        lambda: {"loaded": 2, "skipped": 0, "errors": []},
+    )
+
+    result = CliRunner().invoke(app_group, ["refresh", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"loaded": 2, "skipped": 0, "errors": []}
+
+
+def test_refresh_returns_nonzero_when_private_apps_are_skipped(monkeypatch):
+    from src.cli.app_commands import app_group
+
+    _install_local_app_store_stub(
+        monkeypatch,
+        lambda: {
+            "loaded": 1,
+            "skipped": 1,
+            "errors": [{"app": "invalid-app", "error": "missing compose file"}],
+        },
+    )
+
+    result = CliRunner().invoke(app_group, ["refresh", "--json"])
+
+    assert result.exit_code == 2
+    assert json.loads(result.output) == {
+        "loaded": 1,
+        "skipped": 1,
+        "errors": [{"app": "invalid-app", "error": "missing compose file"}],
+    }
+
+
+def test_refresh_surfaces_local_catalog_validation_errors(monkeypatch):
+    from src.cli.app_commands import app_group
+
+    def fail_refresh():
+        raise ValueError("no valid local applications were found")
+
+    _install_local_app_store_stub(monkeypatch, fail_refresh)
+
+    result = CliRunner().invoke(app_group, ["refresh"])
+
+    assert result.exit_code != 0
+    assert "no valid local applications were found" in result.output

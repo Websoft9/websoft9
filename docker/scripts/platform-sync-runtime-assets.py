@@ -86,10 +86,11 @@ def sync_tree(source: Path, target: Path) -> None:
 
 
 def replace_tree(source: Path, target: Path) -> None:
-    if target.exists():
-        shutil.rmtree(target)
-    target.mkdir(parents=True, exist_ok=True)
-    sync_tree(source, target)
+    target_dir = target.resolve() if target.is_symlink() else target
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    sync_tree(source, target_dir)
 
 
 def backup_trees(targets: list[Path], backup_root: Path) -> dict[Path, Path | None]:
@@ -106,10 +107,11 @@ def backup_trees(targets: list[Path], backup_root: Path) -> dict[Path, Path | No
 
 def restore_trees(backups: dict[Path, Path | None]) -> None:
     for target, backup_path in backups.items():
-        if target.exists():
-            shutil.rmtree(target)
+        target_dir = target.resolve() if target.is_symlink() else target
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
         if backup_path is not None:
-            replace_tree(backup_path, target)
+            replace_tree(backup_path, target_dir)
 
 
 def extract_sync_root(extract_dir: Path, package_type: str) -> Path:

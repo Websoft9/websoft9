@@ -755,6 +755,10 @@ function formatCatalogOptionLabel(category: CatalogOption, options?: { hideCount
     return `${category.title}(${category.count})`
 }
 
+function getAppStoreCardKey(app: AppStoreApp) {
+    return `${app.app_origin ?? 'official'}-${app.key ?? app.trademark ?? 'app'}`
+}
+
 function getSubCatalogs(catalogs: AppStoreCatalogItem[], selectedMainCatalogKey: string) {
     if (selectedMainCatalogKey === 'all') {
         return []
@@ -1071,21 +1075,33 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const availableVersions = selectedApp ? getAppStoreInstallDistributions(selectedApp).flatMap((distribution) => distribution.versions) : []
     const syncStatusTitle = effectiveIsSyncRunning ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')
     const keywordMatchedApps = useMemo(() => apps.filter((app) => matchesAppStoreSearch(app, deferredSearchValue)), [apps, deferredSearchValue])
+    const appsForSelectedOrigin = useMemo(
+        () => keywordMatchedApps.filter((app) => appOriginFilter === 'all' || (appOriginFilter === 'local' ? app.app_origin === 'local' : app.app_origin !== 'local')),
+        [appOriginFilter, keywordMatchedApps],
+    )
+    const appOriginCounts = useMemo(
+        () => ({
+            all: keywordMatchedApps.length,
+            official: keywordMatchedApps.filter((app) => app.app_origin !== 'local').length,
+            local: keywordMatchedApps.filter((app) => app.app_origin === 'local').length,
+        }),
+        [keywordMatchedApps],
+    )
     const mainCategoryCounts = useMemo(() => {
         const counts = new Map<string, number>()
 
-        counts.set('all', keywordMatchedApps.length)
+        counts.set('all', appsForSelectedOrigin.length)
         for (const catalog of catalogs) {
             const catalogKey = catalog.key ?? ''
             if (!catalogKey) {
                 continue
             }
 
-            counts.set(catalogKey, keywordMatchedApps.filter((app) => matchesLegacyMainCatalog(app, catalogKey)).length)
+            counts.set(catalogKey, appsForSelectedOrigin.filter((app) => matchesLegacyMainCatalog(app, catalogKey)).length)
         }
 
         return counts
-    }, [catalogs, keywordMatchedApps])
+    }, [appsForSelectedOrigin, catalogs])
     const mainCategories = useMemo<CatalogOption[]>(
         () => [
             {
@@ -1111,8 +1127,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         [catalogs, mainCategoryCounts, t],
     )
     const appsInSelectedMainCategory = useMemo(
-        () => keywordMatchedApps.filter((app) => matchesLegacyMainCatalog(app, selectedMainCatalogKey)),
-        [keywordMatchedApps, selectedMainCatalogKey],
+        () => appsForSelectedOrigin.filter((app) => matchesLegacyMainCatalog(app, selectedMainCatalogKey)),
+        [appsForSelectedOrigin, selectedMainCatalogKey],
     )
     const subCategoryCounts = useMemo(() => {
         const counts = new Map<string, number>()
@@ -1154,7 +1170,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         [catalogs, selectedMainCatalogKey, subCategoryCounts, t],
     )
     const resultsSectionTitle = useMemo(() => {
-        const segments = [t('appStorePage.results.allAppsSectionTitle')]
+        const titleKey = appOriginFilter === 'official'
+            ? 'appStorePage.results.officialAppsSectionTitle'
+            : appOriginFilter === 'local'
+                ? 'appStorePage.results.localAppsSectionTitle'
+                : 'appStorePage.results.allAppsSectionTitle'
+        const segments = [t(titleKey)]
         const selectedMainCategory = mainCategories.find((category) => category.key === selectedMainCatalogKey)
         const selectedSubCategory = subCategories.find((category) => category.key === selectedSubCatalogKey)
 
@@ -1167,7 +1188,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         }
 
         return segments.join(' / ')
-    }, [mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, subCategories, t])
+    }, [appOriginFilter, mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, subCategories, t])
 
     const filteredApps = useMemo(
         () =>
@@ -1823,12 +1844,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 refetchFavorites(),
                 refetchAppStoreSyncStatus(),
             ])
-            setRefreshFeedback({
-                severity: report.skipped > 0 ? 'error' : 'success',
-                message: report.skipped > 0
-                    ? `${report.loaded} loaded; ${report.skipped} skipped: ${report.errors.map((item) => `${item.app}: ${item.error}`).join('; ')}`
-                    : `${report.loaded} local apps refreshed`,
-            })
+            if (report.skipped > 0) {
+                setRefreshFeedback({
+                    severity: 'error',
+                    message: `${report.loaded} loaded; ${report.skipped} skipped: ${report.errors.map((item) => `${item.app}: ${item.error}`).join('; ')}`,
+                })
+            }
         } catch (refreshError) {
             setRefreshFeedback({
                 severity: 'error',
@@ -2232,6 +2253,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     value={appOriginFilter}
                                     onChange={(event) => {
                                         setAppOriginFilter(event.target.value as 'all' | 'official' | 'local')
+                                        setSelectedMainCatalogKey('all')
+                                        setSelectedSubCatalogKey('all')
                                     }}
                                     sx={{
                                         '& .MuiOutlinedInput-root': {
@@ -2257,9 +2280,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         },
                                     }}
                                 >
-                                    <MenuItem value="all">{resolvedLocale.startsWith('zh') ? '全部应用' : 'All apps'}</MenuItem>
-                                    <MenuItem value="official">{resolvedLocale.startsWith('zh') ? '官方应用' : 'Official apps'}</MenuItem>
-                                    <MenuItem value="local">{resolvedLocale.startsWith('zh') ? '本地应用' : 'Local apps'}</MenuItem>
+                                    <MenuItem value="all">{`${t('appStorePage.results.allAppsSectionTitle')} (${appOriginCounts.all})`}</MenuItem>
+                                    <MenuItem value="official">{`${t('appStorePage.results.officialAppsSectionTitle')} (${appOriginCounts.official})`}</MenuItem>
+                                    <MenuItem value="local">{`${t('appStorePage.results.localAppsSectionTitle')} (${appOriginCounts.local})`}</MenuItem>
                                 </TextField>
                                 <TextField
                                     select
@@ -2795,7 +2818,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             >
                                                 {relatedApps.map((app) => (
                                                     <UnifiedAppCard
-                                                        key={app.key ?? app.trademark}
+                                                        key={getAppStoreCardKey(app)}
                                                         darkMode={isDarkMode}
                                                         onClick={() => {
                                                             openAppDetail(app, 'catalog')
@@ -2862,9 +2885,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 >
                                                     {filteredApps.map((app) => {
                                                         const isDevApp = app.production === false
+                                                        const isLocalApp = app.app_origin === 'local'
                                                         return (
                                                             <UnifiedAppCard
-                                                                key={app.key ?? app.trademark}
+                                                                key={getAppStoreCardKey(app)}
                                                                 darkMode={isDarkMode}
                                                                 onClick={() => {
                                                                     openAppDetail(app, 'catalog')
@@ -2873,7 +2897,21 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                 description={app.summary || app.overview || t('appStorePage.card.summaryFallback')}
                                                                 media={<AppLogo app={app} locale={resolvedLocale} />}
                                                                 actions={
-                                                                    isDevApp ? (
+                                                                    isLocalApp ? (
+                                                                        <Chip
+                                                                            label={t('appStorePage.results.customBadge')}
+                                                                            size="small"
+                                                                            sx={{
+                                                                                height: 22,
+                                                                                fontSize: 11,
+                                                                                fontWeight: 600,
+                                                                                borderRadius: '2px',
+                                                                                backgroundColor: '#0f766e',
+                                                                                color: '#fff',
+                                                                                '& .MuiChip-label': { px: 0.75 },
+                                                                            }}
+                                                                        />
+                                                                    ) : isDevApp ? (
                                                                         <Chip
                                                                             label="TODO"
                                                                             size="small"

@@ -21,6 +21,8 @@ export type AppStoreScreenshot = {
     value?: string
 }
 
+export type AppStoreScreenshotSource = AppStoreScreenshot | string
+
 export type AppStoreDistribution = {
     key?: string
     value?: string | string[]
@@ -40,7 +42,7 @@ export type AppStoreApp = {
     overview?: string
     description?: string | null
     websiteurl?: string
-    screenshots?: AppStoreScreenshot[]
+    screenshots?: AppStoreScreenshotSource[]
     distribution?: AppStoreDistribution[]
     vcpu?: number
     memory?: number
@@ -225,7 +227,19 @@ export function getPreferredAppStoreInstallDistribution(app: AppStoreApp) {
 }
 
 export function getPreferredAppStoreScreenshot(app: AppStoreApp) {
-    return app.screenshots?.find((item) => item.value)?.value
+    for (const screenshot of app.screenshots ?? []) {
+        if (typeof screenshot === 'string') {
+            if (screenshot.trim()) {
+                return screenshot
+            }
+            continue
+        }
+        if (screenshot.value?.trim()) {
+            return screenshot.value
+        }
+    }
+
+    return undefined
 }
 
 export function getAppStoreCategoryLabels(app: AppStoreApp) {

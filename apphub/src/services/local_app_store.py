@@ -54,11 +54,15 @@ def _catalog_collection(bindings: object) -> dict[str, object]:
             continue
         parent_key = binding.get("parentKey")
         child_key = binding.get("childKey")
-        if not isinstance(parent_key, str) or not parent_key.strip():
+        if (
+            not isinstance(parent_key, str)
+            or not parent_key.strip()
+            or not isinstance(child_key, str)
+            or not child_key.strip()
+        ):
             continue
-        parent = items.setdefault(parent_key.strip(), {"key": parent_key.strip(), "catalogCollection": {"items": []}})
-        if isinstance(child_key, str) and child_key.strip():
-            parent["catalogCollection"]["items"].append({"key": child_key.strip()})
+        child = items.setdefault(child_key.strip(), {"key": child_key.strip(), "catalogCollection": {"items": []}})
+        child["catalogCollection"]["items"].append({"key": parent_key.strip()})
     return {"items": list(items.values())}
 
 

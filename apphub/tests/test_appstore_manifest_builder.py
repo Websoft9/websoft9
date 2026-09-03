@@ -107,3 +107,28 @@ def test_manifest_allows_null_optional_screenshots(tmp_path):
     manifest = runtime_assets.build_app_store_manifest(media_json, library_root / "apps", "en")
 
     assert manifest["apps"][0]["screenshots"] is None
+
+
+def test_replace_and_restore_tree_preserves_symbolic_link_target(tmp_path):
+    active_media = tmp_path / "data" / "media"
+    active_media.mkdir(parents=True)
+    (active_media / "version.txt").write_text("old", encoding="utf-8")
+    runtime_media = tmp_path / "runtime" / "media"
+    runtime_media.parent.mkdir()
+    runtime_media.symlink_to(active_media, target_is_directory=True)
+
+    updated_media = tmp_path / "updated-media"
+    updated_media.mkdir()
+    (updated_media / "version.txt").write_text("new", encoding="utf-8")
+    rollback_root = tmp_path / "rollback"
+
+    backups = runtime_assets.backup_trees([runtime_media], rollback_root)
+    runtime_assets.replace_tree(updated_media, runtime_media)
+
+    assert runtime_media.is_symlink()
+    assert (runtime_media / "version.txt").read_text(encoding="utf-8") == "new"
+
+    runtime_assets.restore_trees(backups)
+
+    assert runtime_media.is_symlink()
+    assert (runtime_media / "version.txt").read_text(encoding="utf-8") == "old"
