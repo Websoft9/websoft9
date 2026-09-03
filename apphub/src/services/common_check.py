@@ -115,7 +115,7 @@ def check_port_conflicts(settings: dict, app_name: str = None):
                 details=f"Port {port} is already in use. Please choose a different port.",
             )
 
-def check_appName_and_appVersion(app_name:str, app_version:str):
+def check_appName_and_appVersion(app_name:str, app_version:str, library_path: str = None):
         """
         Check the app_name and app_version is exists in docker library
 
@@ -127,7 +127,7 @@ def check_appName_and_appVersion(app_name:str, app_version:str):
         """
         try:
             # Get docker library path
-            library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
 
             if not os.path.exists(f"{library_path}/{app_name}"):
                 logger.error(f"When install app:{app_name}, the app is not exists in docker library")
@@ -268,7 +268,7 @@ def check_apps_number(endpointId:int):
                 details="Exceed the maximum number of apps"
             )
 
-def install_validate(appInstall:appInstall,endpointId:int):
+def install_validate(appInstall:appInstall,endpointId:int, library_path: str = None):
     """
     before install app, check the appInstall is valid
 
@@ -290,9 +290,9 @@ def install_validate(appInstall:appInstall,endpointId:int):
         app_id = appInstall.app_id
 
         # Check the app_name and app_version is exists in docker library
-        check_appName_and_appVersion(app_name, app_version)
+        check_appName_and_appVersion(app_name, app_version, library_path)
 
-        library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+        library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
         validate_profile_settings(
             os.path.join(library_path, app_name),
             appInstall.profile,

@@ -65,3 +65,11 @@ export function useAppStoreApps() {
         staleTime: 60_000,
     })
 }
+
+export function useLocalAppStoreApps() {
+    return useQuery<AppStoreApp[], AppStoreError>({
+        queryKey: ['local-app-store-apps'],
+        queryFn: () => fetchJson<AppStoreApp[]>('/api/apps/local/available', 'Failed to load local app store data'),
+        staleTime: 60_000,
+    })
+}

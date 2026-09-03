@@ -33,6 +33,7 @@ export type AppStoreInstallProfile = {
 
 export type AppStoreApp = {
     key?: string
+    app_origin?: 'local'
     hot?: number
     trademark?: string
     summary?: string

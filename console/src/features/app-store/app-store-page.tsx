@@ -44,7 +44,7 @@ import {
     type AppStoreCatalogItem,
     type AppStoreApp,
 } from './app-store-model'
-import { useAppStoreApps } from './use-app-store-apps'
+import { useAppStoreApps, useLocalAppStoreApps } from './use-app-store-apps'
 import { useAppStoreCatalogs } from './use-app-store-catalogs'
 import { useMyApps, type MyApp } from '../my-apps/use-my-apps'
 
@@ -300,7 +300,7 @@ async function installApp(
     profile: string | null,
 ) {
     const distribution = getPreferredAppStoreInstallDistribution(app)
-    const response = await fetch('/api/apps/install', {
+    const response = await fetch(app.app_origin === 'local' ? '/api/apps/local/install' : '/api/apps/install', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -805,6 +805,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const [searchValue, setSearchValue] = useState(() => searchParams.get('keyword') ?? '')
+    const [appOriginFilter, setAppOriginFilter] = useState<'all' | 'official' | 'local'>('all')
     const [selectedMainCatalogKey, setSelectedMainCatalogKey] = useState('all')
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
     const [selectedApp, setSelectedApp] = useState<AppStoreApp | null>(null)
@@ -857,6 +858,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const lastRefreshMessageRef = useRef('')
     const deferredSearchValue = useDeferredValue(searchValue)
     const { data, error, isLoading, refetch } = useAppStoreApps()
+    const { data: localAppsData, isLoading: isLocalAppsLoading, refetch: refetchLocalApps } = useLocalAppStoreApps()
     const { data: catalogsData, refetch: refetchCatalogs } = useAppStoreCatalogs()
     const { data: favoritesData, refetch: refetchFavorites } = useQuery<ProductAuthFavoritesResponse, Error>({
         queryKey: ['product-auth-favorites'],
@@ -877,11 +879,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         refetchInterval: isRefreshingStore ? 2_000 : false,
     })
 
-    const apps = data ?? []
+    const apps = useMemo(() => [...(data ?? []), ...(localAppsData ?? [])], [data, localAppsData])
     const catalogs = catalogsData ?? []
     const { data: myAppsData } = useMyApps()
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
-    const effectiveIsLoading = isLoading || isLocalRefreshing
+    const effectiveIsLoading = isLoading || isLocalAppsLoading || isLocalRefreshing
     const effectiveIsSyncRunning = isRefreshingStore || appStoreSyncStatus?.status === 'running'
     const lastSyncedAt = appStoreSyncStatus?.lastSyncedAt ?? appStoreState?.lastSyncedAt
 
@@ -990,12 +992,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     const relatedApps = useMemo(() => {
         if (installedOfficialAppNames.size === 0 || apps.length === 0) return []
+        const officialApps = apps.filter((app) => app.app_origin !== 'local')
 
         const seen = new Set<string>()
         const result: AppStoreApp[] = []
 
         // Include installed apps themselves first
-        for (const app of apps) {
+        for (const app of officialApps) {
             const appKey = (app.key ?? '').toLowerCase()
             if (!installedOfficialAppNames.has(appKey)) continue
             if (seen.has(appKey)) continue
@@ -1004,7 +1007,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         }
 
         // Then collect their related apps
-        for (const app of apps) {
+        for (const app of officialApps) {
             const appKey = (app.key ?? '').toLowerCase()
             if (!installedOfficialAppNames.has(appKey)) continue
 
@@ -1014,7 +1017,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 if (!relatedKey || seen.has(relatedKey)) continue
                 seen.add(relatedKey)
 
-                const relatedApp = apps.find((a) => (a.key ?? '').toLowerCase() === relatedKey)
+                const relatedApp = officialApps.find((a) => (a.key ?? '').toLowerCase() === relatedKey)
                 if (relatedApp) {
                     result.push(relatedApp)
                 }
@@ -1170,11 +1173,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         () =>
             apps.filter(
                 (app) =>
+                    (appOriginFilter === 'all' || (appOriginFilter === 'local' ? app.app_origin === 'local' : app.app_origin !== 'local')) &&
                     matchesLegacyMainCatalog(app, selectedMainCatalogKey) &&
                     matchesLegacySubCatalog(app, selectedSubCatalogKey) &&
                     matchesAppStoreSearch(app, deferredSearchValue),
             ),
-        [apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey],
+        [appOriginFilter, apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey],
     )
     const favoriteApps = useMemo(() => {
         const favoriteKeys = [...(favoritesData?.favorites ?? [])].reverse()
@@ -1808,13 +1812,28 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     async function handleLocalRefresh() {
         setIsLocalRefreshing(true)
         try {
+            const report = await requestJson<{ loaded: number; skipped: number; errors: Array<{ app: string; error: string }> }>('/api/apps/local/refresh', {
+                method: 'POST',
+            })
             await Promise.all([
                 refetch(),
+                refetchLocalApps(),
                 refetchAppStoreState(),
                 refetchCatalogs(),
                 refetchFavorites(),
                 refetchAppStoreSyncStatus(),
             ])
+            setRefreshFeedback({
+                severity: report.skipped > 0 ? 'error' : 'success',
+                message: report.skipped > 0
+                    ? `${report.loaded} loaded; ${report.skipped} skipped: ${report.errors.map((item) => `${item.app}: ${item.error}`).join('; ')}`
+                    : `${report.loaded} local apps refreshed`,
+            })
+        } catch (refreshError) {
+            setRefreshFeedback({
+                severity: 'error',
+                message: refreshError instanceof Error ? refreshError.message : 'Failed to refresh local apps',
+            })
         } finally {
             setIsLocalRefreshing(false)
         }
@@ -2201,12 +2220,47 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     gap: 1.25,
                                     gridTemplateColumns: {
                                         xs: '1fr',
-                                        md: 'repeat(2, minmax(0, 1fr))',
+                                        md: 'repeat(4, minmax(0, 1fr))',
                                         xl: 'repeat(4, minmax(0, 1fr))',
                                     },
                                     alignItems: 'stretch',
                                 }}
                             >
+                                <TextField
+                                    select
+                                    size="small"
+                                    value={appOriginFilter}
+                                    onChange={(event) => {
+                                        setAppOriginFilter(event.target.value as 'all' | 'official' | 'local')
+                                    }}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '4px',
+                                            backgroundColor: palette.panelBg,
+                                            minHeight: 42,
+                                        },
+                                        '& .MuiSelect-select': appStoreControlTextSx,
+                                    }}
+                                    slotProps={{
+                                        select: {
+                                            MenuProps: {
+                                                slotProps: {
+                                                    paper: {
+                                                        sx: {
+                                                            borderRadius: 0,
+                                                            mt: 0.5,
+                                                            '& .MuiMenuItem-root': appStoreMenuItemSx,
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        },
+                                    }}
+                                >
+                                    <MenuItem value="all">{resolvedLocale.startsWith('zh') ? '全部应用' : 'All apps'}</MenuItem>
+                                    <MenuItem value="official">{resolvedLocale.startsWith('zh') ? '官方应用' : 'Official apps'}</MenuItem>
+                                    <MenuItem value="local">{resolvedLocale.startsWith('zh') ? '本地应用' : 'Local apps'}</MenuItem>
+                                </TextField>
                                 <TextField
                                     select
                                     size="small"
@@ -2285,7 +2339,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                 </TextField>
                                 <Box
                                     sx={{
-                                        gridColumn: { xs: '1 / -1', md: 'span 2', xl: 'span 2' },
+                                        gridColumn: { xs: '1 / -1', md: 'span 1', xl: 'span 1' },
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'flex-start',
@@ -2714,7 +2768,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                             <Stack spacing={1.5} sx={{ pb: 0.5 }}>
                                 {/* ── Related Recommendations ── */}
-                                {relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
+                                {appOriginFilter !== 'local' && relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
                                     <>
                                         <Box
                                             sx={{ display: 'flex', alignItems: 'center', minHeight: 28, cursor: 'pointer' }}

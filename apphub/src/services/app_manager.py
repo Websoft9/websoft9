@@ -1224,7 +1224,7 @@ class AppManger:
 
         return databases
 
-    def install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None):
+    def install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None, library_path: str = None):
         """
         Install app
 
@@ -1272,7 +1272,7 @@ class AppManger:
         # Install app - Step 2 : initialize local git repo and push to gitea
         try:
             # The source directory.
-            library_path = ConfigManager("system.ini").get_value("docker_library", "path")
+            library_path = library_path or ConfigManager("system.ini").get_value("docker_library", "path")
             local_path = f"{library_path}/{app_name}"
             uses_external_database = is_external_database_profile(local_path, profile)
             external_database_type = get_external_database_type(local_path) if uses_external_database else None

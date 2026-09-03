@@ -26,6 +26,7 @@ from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
 from src.services.install_profile import get_external_database_type, is_external_database_profile, validate_external_database_connection
+from src.services.local_app_store import LOCAL_APP_STORE_ROOT, get_local_app_store_apps, refresh_local_app_store
 from src.core.config import ConfigManager
 from threading import Thread
 
@@ -60,6 +61,22 @@ def get_available_apps(
     locale: str = Path(..., description="Language to get available apps from", regex="^(zh|en)(-[A-Za-z]{2})?$"),
 ):
     return AppManger().get_available_apps(locale)
+
+
+@router.get("/apps/local/available", summary="List Local App Store Apps")
+def get_local_available_apps():
+    try:
+        return get_local_app_store_apps()
+    except ValueError as exc:
+        raise CustomException(503, "Service Unavailable", str(exc)) from exc
+
+
+@router.post("/apps/local/refresh", summary="Refresh Local App Store Manifest")
+def refresh_local_apps():
+    try:
+        return refresh_local_app_store()
+    except ValueError as exc:
+        raise CustomException(400, "Invalid Request", str(exc)) from exc
 
 @router.get(
         "/apps",
@@ -357,6 +374,43 @@ async def apps_install(
     Thread(target=app_manager.install_app, args=(appInstall, endpointId, tracked_app_id, tracking_id), daemon=True).start()
     
     # return success
+    return AppInstallAcceptedResponse(
+        message="Success",
+        details="The app is installing and can be viewed through 'My Apps.'",
+        app_id=tracked_app_id,
+        tracking_id=tracking_id,
+    )
+
+
+@router.post(
+    "/apps/local/install",
+    summary="Install Local App Store App",
+    response_model=AppInstallAcceptedResponse,
+    response_model_exclude_defaults=True,
+)
+async def local_apps_install(
+    appInstall: appInstall,
+    endpointId: int = Query(None, description="Endpoint ID to install app on, if not set, install on the local endpoint"),
+):
+    try:
+        local_apps = get_local_app_store_apps()
+    except ValueError as exc:
+        raise CustomException(503, "Service Unavailable", str(exc)) from exc
+
+    requested_key = appInstall.app_name.strip().lower()
+    requested_version = appInstall.edition.version
+    local_app = next((app for app in local_apps if app.get("key", "").lower() == requested_key), None)
+    if local_app is None:
+        raise CustomException(400, "Invalid Request", f"app_name:{appInstall.app_name} not supported by the local app store")
+    versions = [version for item in local_app.get("distribution", []) for version in item.get("value", []) if isinstance(item, dict) and isinstance(item.get("value"), list)]
+    if requested_version not in versions:
+        raise CustomException(400, "Invalid Request", f"app_version:{requested_version} not supported by the local app store")
+
+    library_path = str(LOCAL_APP_STORE_ROOT / "library" / "apps")
+    install_validate(appInstall, endpointId, library_path)
+    app_manager = AppManger()
+    tracked_app_id, tracking_id = app_manager.create_installation_tracking(appInstall)
+    Thread(target=app_manager.install_app, args=(appInstall, endpointId, tracked_app_id, tracking_id, library_path), daemon=True).start()
     return AppInstallAcceptedResponse(
         message="Success",
         details="The app is installing and can be viewed through 'My Apps.'",
