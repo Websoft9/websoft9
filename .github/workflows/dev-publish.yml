@@ -119,7 +119,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.image == 'true'
     uses: ./.github/workflows/smoke-test.yml
     with:
-      image: public.ecr.aws/w6g2g5k1/websoft9dev/websoft9:${{ needs.meta.outputs.sha_tag }}
+      image: public.ecr.aws/websoft9/websoft9:${{ needs.meta.outputs.sha_tag }}
 
   # ── Promote tested candidate to moving dev aliases ──
   promote-tags:
@@ -160,7 +160,7 @@ jobs:
 
       - name: Promote Amazon ECR Public dev aliases
         run: |
-          ECR_REPOSITORY="public.ecr.aws/w6g2g5k1/websoft9dev/websoft9"
+          ECR_REPOSITORY="public.ecr.aws/websoft9/websoft9"
           SOURCE_IMAGE="${ECR_REPOSITORY}:${{ needs.meta.outputs.sha_tag }}"
           IFS=',' read -ra TARGETS <<< "${{ needs.meta.outputs.alias_tags }}"
           for target in "${TARGETS[@]}"; do
@@ -172,7 +172,7 @@ jobs:
       - name: Remove Amazon ECR Public candidate tag
         run: |
           aws ecr-public batch-delete-image \
-            --repository-name websoft9dev/websoft9 \
+            --repository-name websoft9 \
             --image-ids imageTag="${{ needs.meta.outputs.sha_tag }}" \
             --region us-east-1
 

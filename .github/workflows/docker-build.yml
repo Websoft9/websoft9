@@ -33,7 +33,7 @@ on:
         description: Disable Docker layer cache (use for dev to ensure fresh console build)
       ecr_public_repository:
         type: string
-        default: public.ecr.aws/w6g2g5k1/websoft9dev/websoft9
+        default: public.ecr.aws/websoft9/websoft9
         description: Amazon ECR Public repository to mirror image tags to
     outputs:
       image_tag:

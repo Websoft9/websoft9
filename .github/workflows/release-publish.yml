@@ -85,7 +85,7 @@ jobs:
           echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
           echo "alias_tags=$ALIAS_TAGS" >> $GITHUB_OUTPUT
           echo "tags=$CANDIDATE_TAG,$VERSION_TAG" >> $GITHUB_OUTPUT
-          echo "smoke_image=public.ecr.aws/w6g2g5k1/websoft9dev/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
+          echo "smoke_image=public.ecr.aws/websoft9/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
 
   build-and-push-image:
     name: Build & Push Image
@@ -142,7 +142,7 @@ jobs:
 
       - name: Promote Amazon ECR Public release aliases
         run: |
-          ECR_REPOSITORY="public.ecr.aws/w6g2g5k1/websoft9dev/websoft9"
+          ECR_REPOSITORY="public.ecr.aws/websoft9/websoft9"
           SOURCE_IMAGE="${ECR_REPOSITORY}:${{ needs.determine-channel.outputs.sha_tag }}"
           VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
           IFS='.' read -ra VERSION_PARTS <<< "$VERSION_CORE"
@@ -155,7 +155,7 @@ jobs:
       - name: Remove Amazon ECR Public temporary release tags
         run: |
           aws ecr-public batch-delete-image \
-            --repository-name websoft9dev/websoft9 \
+            --repository-name websoft9 \
             --image-ids \
               imageTag="${{ needs.determine-channel.outputs.sha_tag }}" \
               imageTag="${{ needs.determine-channel.outputs.version }}" \
