@@ -39,46 +39,65 @@ jobs:
         run: |
           set -euo pipefail
 
-          aws ecr-public describe-images \
-            --repository-name "$REPOSITORY_NAME" \
-            --region us-east-1 \
-            --output json > images.json
-
-          # Keep every tagged manifest and the image/SBOM/provenance manifests it references.
-          jq -r '.imageDetails[] | select((.imageTags // []) | length > 0) | .imageDigest' images.json \
-            | sort -u > protected-digests.txt
-
-          jq -r '.imageDetails[] | select((.imageTags // []) | length > 0) | .imageTags[]' images.json \
-            | sort -u > tagged-image-tags.txt
-          while IFS= read -r tag; do
-            manifest=$(docker buildx imagetools inspect --raw "${REPOSITORY_URI}:${tag}")
-            if [[ -n "$manifest" ]]; then
-              jq -r '.manifests[]?.digest // empty' <<< "$manifest" >> protected-digests.txt
-            fi
-          done < tagged-image-tags.txt
-
-          sort -u -o protected-digests.txt protected-digests.txt
-          jq -r --rawfile protected protected-digests.txt '
-            .imageDetails[]
-            | select((.imageTags // []) | length == 0)
-            | select(.imageDigest as $digest | ($protected | split("\n") | index($digest) | not))
-            | .imageDigest
-          ' images.json > orphaned-digests.txt
-
-          if [[ ! -s orphaned-digests.txt ]]; then
-            echo "No unreferenced ECR Public manifests found."
-            exit 0
-          fi
-
-          mapfile -t orphaned_digests < orphaned-digests.txt
-          echo "Deleting ${#orphaned_digests[@]} unreferenced manifest(s)."
-          for ((index = 0; index < ${#orphaned_digests[@]}; index += 100)); do
-            image_ids=()
-            for digest in "${orphaned_digests[@]:index:100}"; do
-              image_ids+=("imageDigest=$digest")
-            done
-            aws ecr-public batch-delete-image \
+          collect_orphans() {
+            aws ecr-public describe-images \
               --repository-name "$REPOSITORY_NAME" \
-              --image-ids "${image_ids[@]}" \
-              --region us-east-1
+              --region us-east-1 \
+              --output json > images.json
+
+            # Keep every tagged manifest and the image/SBOM/provenance manifests it references.
+            jq -r '.imageDetails[] | select((.imageTags // []) | length > 0) | .imageDigest' images.json \
+              | sort -u > protected-digests.txt
+            jq -r '.imageDetails[] | select((.imageTags // []) | length > 0) | .imageTags[]' images.json \
+              | sort -u > tagged-image-tags.txt
+            while IFS= read -r tag; do
+              manifest=$(docker buildx imagetools inspect --raw "${REPOSITORY_URI}:${tag}")
+              jq -r '.manifests[]?.digest // empty' <<< "$manifest" >> protected-digests.txt
+            done < tagged-image-tags.txt
+
+            sort -u -o protected-digests.txt protected-digests.txt
+            jq -r --rawfile protected protected-digests.txt '
+              .imageDetails[]
+              | select((.imageTags // []) | length == 0)
+              | select(.imageDigest as $digest | ($protected | split("\n") | index($digest) | not))
+              | .imageDigest
+            ' images.json > orphaned-digests.txt
+          }
+
+          # ECR rejects a child manifest while an untagged Image Index still references it.
+          # Recalculate after each pass so the next pass can remove newly unblocked children.
+          for attempt in {1..3}; do
+            collect_orphans
+            if [[ ! -s orphaned-digests.txt ]]; then
+              echo "No unreferenced ECR Public manifests remain."
+              exit 0
+            fi
+
+            mapfile -t orphaned_digests < orphaned-digests.txt
+            deleted_count=0
+            echo "Cleanup pass $attempt: deleting ${#orphaned_digests[@]} unreferenced manifest(s)."
+            for ((index = 0; index < ${#orphaned_digests[@]}; index += 100)); do
+              image_ids=()
+              for digest in "${orphaned_digests[@]:index:100}"; do
+                image_ids+=("imageDigest=$digest")
+              done
+              response=$(aws ecr-public batch-delete-image \
+                --repository-name "$REPOSITORY_NAME" \
+                --image-ids "${image_ids[@]}" \
+                --region us-east-1)
+              deleted_count=$((deleted_count + $(jq '.imageIds | length' <<< "$response")))
+              jq -r '.failures[]? | "ECR deletion deferred: \(.imageId.imageDigest) (\(.failureCode)): \(.failureReason)"' <<< "$response"
+            done
+
+            if (( deleted_count == 0 )); then
+              echo "::error::ECR Public cleanup made no progress; retained orphan manifests require investigation."
+              exit 1
+            fi
           done
+
+          collect_orphans
+          if [[ -s orphaned-digests.txt ]]; then
+            echo "::error::ECR Public cleanup left the following unreferenced manifests after three passes:"
+            cat orphaned-digests.txt
+            exit 1
+          fi
