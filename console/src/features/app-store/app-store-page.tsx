@@ -10,11 +10,13 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    FormControlLabel,
     IconButton,
     InputAdornment,
     Link,
     MenuItem,
     Stack,
+    Switch,
     SvgIcon,
     TextField,
     Tooltip,
@@ -809,9 +811,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const [searchValue, setSearchValue] = useState(() => searchParams.get('keyword') ?? '')
-    const [appOriginFilter, setAppOriginFilter] = useState<'all' | 'official' | 'local'>('all')
     const [selectedMainCatalogKey, setSelectedMainCatalogKey] = useState('all')
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
+    const [showCustomAppsOnly, setShowCustomAppsOnly] = useState(false)
     const [selectedApp, setSelectedApp] = useState<AppStoreApp | null>(null)
     const [isInstallMode, setIsInstallMode] = useState(false)
     const [installName, setInstallName] = useState('')
@@ -885,6 +887,23 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     const apps = useMemo(() => [...(data ?? []), ...(localAppsData ?? [])], [data, localAppsData])
     const catalogs = catalogsData ?? []
+    const selectedAppCategoryItems = useMemo(() => {
+        if (!selectedApp) {
+            return []
+        }
+
+        return (selectedApp.catalogCollection?.items ?? []).map((subCategory) => {
+            const mainCategory = subCategory.catalogCollection?.items?.[0]
+            const catalog = catalogs.find((item) => item.key === mainCategory?.key)
+            const catalogItem = catalog?.linkedFrom?.catalogCollection?.items?.find((item) => item.key === subCategory.key)
+
+            return {
+                mainCategory,
+                subCategory,
+                title: subCategory.title ?? catalogItem?.title ?? subCategory.key,
+            }
+        }).filter((category) => Boolean(category.title))
+    }, [catalogs, selectedApp])
     const { data: myAppsData } = useMyApps()
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const effectiveIsLoading = isLoading || isLocalAppsLoading || isLocalRefreshing
@@ -1075,33 +1094,21 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const availableVersions = selectedApp ? getAppStoreInstallDistributions(selectedApp).flatMap((distribution) => distribution.versions) : []
     const syncStatusTitle = effectiveIsSyncRunning ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')
     const keywordMatchedApps = useMemo(() => apps.filter((app) => matchesAppStoreSearch(app, deferredSearchValue)), [apps, deferredSearchValue])
-    const appsForSelectedOrigin = useMemo(
-        () => keywordMatchedApps.filter((app) => appOriginFilter === 'all' || (appOriginFilter === 'local' ? app.app_origin === 'local' : app.app_origin !== 'local')),
-        [appOriginFilter, keywordMatchedApps],
-    )
-    const appOriginCounts = useMemo(
-        () => ({
-            all: keywordMatchedApps.length,
-            official: keywordMatchedApps.filter((app) => app.app_origin !== 'local').length,
-            local: keywordMatchedApps.filter((app) => app.app_origin === 'local').length,
-        }),
-        [keywordMatchedApps],
-    )
     const mainCategoryCounts = useMemo(() => {
         const counts = new Map<string, number>()
 
-        counts.set('all', appsForSelectedOrigin.length)
+        counts.set('all', keywordMatchedApps.length)
         for (const catalog of catalogs) {
             const catalogKey = catalog.key ?? ''
             if (!catalogKey) {
                 continue
             }
 
-            counts.set(catalogKey, appsForSelectedOrigin.filter((app) => matchesLegacyMainCatalog(app, catalogKey)).length)
+            counts.set(catalogKey, keywordMatchedApps.filter((app) => matchesLegacyMainCatalog(app, catalogKey)).length)
         }
 
         return counts
-    }, [appsForSelectedOrigin, catalogs])
+    }, [catalogs, keywordMatchedApps])
     const mainCategories = useMemo<CatalogOption[]>(
         () => [
             {
@@ -1127,8 +1134,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         [catalogs, mainCategoryCounts, t],
     )
     const appsInSelectedMainCategory = useMemo(
-        () => appsForSelectedOrigin.filter((app) => matchesLegacyMainCatalog(app, selectedMainCatalogKey)),
-        [appsForSelectedOrigin, selectedMainCatalogKey],
+        () => keywordMatchedApps.filter((app) => matchesLegacyMainCatalog(app, selectedMainCatalogKey)),
+        [keywordMatchedApps, selectedMainCatalogKey],
     )
     const subCategoryCounts = useMemo(() => {
         const counts = new Map<string, number>()
@@ -1170,12 +1177,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         [catalogs, selectedMainCatalogKey, subCategoryCounts, t],
     )
     const resultsSectionTitle = useMemo(() => {
-        const titleKey = appOriginFilter === 'official'
-            ? 'appStorePage.results.officialAppsSectionTitle'
-            : appOriginFilter === 'local'
-                ? 'appStorePage.results.localAppsSectionTitle'
-                : 'appStorePage.results.allAppsSectionTitle'
-        const segments = [t(titleKey)]
+        const segments = [t('appStorePage.results.allAppsSectionTitle')]
         const selectedMainCategory = mainCategories.find((category) => category.key === selectedMainCatalogKey)
         const selectedSubCategory = subCategories.find((category) => category.key === selectedSubCatalogKey)
 
@@ -1187,19 +1189,23 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             segments.push(selectedSubCategory.title)
         }
 
+        if (showCustomAppsOnly) {
+            segments.push(t('appStorePage.filters.customAppsOnly'))
+        }
+
         return segments.join(' / ')
-    }, [appOriginFilter, mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, subCategories, t])
+    }, [mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, showCustomAppsOnly, subCategories, t])
 
     const filteredApps = useMemo(
         () =>
             apps.filter(
                 (app) =>
-                    (appOriginFilter === 'all' || (appOriginFilter === 'local' ? app.app_origin === 'local' : app.app_origin !== 'local')) &&
+                    (!showCustomAppsOnly || app.app_origin === 'local') &&
                     matchesLegacyMainCatalog(app, selectedMainCatalogKey) &&
                     matchesLegacySubCatalog(app, selectedSubCatalogKey) &&
                     matchesAppStoreSearch(app, deferredSearchValue),
             ),
-        [appOriginFilter, apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey],
+        [apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey, showCustomAppsOnly],
     )
     const favoriteApps = useMemo(() => {
         const favoriteKeys = [...(favoritesData?.favorites ?? [])].reverse()
@@ -2241,49 +2247,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     gap: 1.25,
                                     gridTemplateColumns: {
                                         xs: '1fr',
-                                        md: 'repeat(4, minmax(0, 1fr))',
-                                        xl: 'repeat(4, minmax(0, 1fr))',
+                                        md: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr) minmax(0, 1.5fr)',
+                                        xl: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr) minmax(0, 1.5fr)',
                                     },
                                     alignItems: 'stretch',
                                 }}
                             >
-                                <TextField
-                                    select
-                                    size="small"
-                                    value={appOriginFilter}
-                                    onChange={(event) => {
-                                        setAppOriginFilter(event.target.value as 'all' | 'official' | 'local')
-                                        setSelectedMainCatalogKey('all')
-                                        setSelectedSubCatalogKey('all')
-                                    }}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            borderRadius: '4px',
-                                            backgroundColor: palette.panelBg,
-                                            minHeight: 42,
-                                        },
-                                        '& .MuiSelect-select': appStoreControlTextSx,
-                                    }}
-                                    slotProps={{
-                                        select: {
-                                            MenuProps: {
-                                                slotProps: {
-                                                    paper: {
-                                                        sx: {
-                                                            borderRadius: 0,
-                                                            mt: 0.5,
-                                                            '& .MuiMenuItem-root': appStoreMenuItemSx,
-                                                        },
-                                                    },
-                                                },
-                                            },
-                                        },
-                                    }}
-                                >
-                                    <MenuItem value="all">{`${t('appStorePage.results.allAppsSectionTitle')} (${appOriginCounts.all})`}</MenuItem>
-                                    <MenuItem value="official">{`${t('appStorePage.results.officialAppsSectionTitle')} (${appOriginCounts.official})`}</MenuItem>
-                                    <MenuItem value="local">{`${t('appStorePage.results.localAppsSectionTitle')} (${appOriginCounts.local})`}</MenuItem>
-                                </TextField>
                                 <TextField
                                     select
                                     size="small"
@@ -2360,6 +2329,23 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         </MenuItem>
                                     ))}
                                 </TextField>
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        minHeight: 42,
+                                        px: 1,
+                                        border: `1px solid ${palette.border}`,
+                                        borderRadius: '4px',
+                                        backgroundColor: palette.panelBg,
+                                    }}
+                                >
+                                    <FormControlLabel
+                                        control={<Switch checked={showCustomAppsOnly} onChange={(event) => setShowCustomAppsOnly(event.target.checked)} size="small" />}
+                                        label={t('appStorePage.filters.customAppsOnly')}
+                                        sx={{ m: 0, '& .MuiFormControlLabel-label': appStoreControlTextSx }}
+                                    />
+                                </Box>
                                 <Box
                                     sx={{
                                         gridColumn: { xs: '1 / -1', md: 'span 1', xl: 'span 1' },
@@ -2791,7 +2777,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                             <Stack spacing={1.5} sx={{ pb: 0.5 }}>
                                 {/* ── Related Recommendations ── */}
-                                {appOriginFilter !== 'local' && relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
+                                {!showCustomAppsOnly && relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
                                     <>
                                         <Box
                                             sx={{ display: 'flex', alignItems: 'center', minHeight: 28, cursor: 'pointer' }}
@@ -3114,15 +3100,15 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 storage: formatRequirement(selectedApp.storage),
                                             })}
                                         </Typography>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mt: 0.15, color: 'primary.main', fontSize: 14 }}>
+                                        {selectedAppCategoryItems.length > 0 ? <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mt: 0.15, color: 'primary.main', fontSize: 14 }}>
                                             <Typography component="span" sx={{ color: palette.subtleText, fontSize: 14, fontWeight: 400 }}>
                                                 {t('appStorePage.detail.categoriesLabel')}
                                             </Typography>
-                                            {(selectedApp.catalogCollection?.items ?? []).map((mainCategory, index) => (
-                                                <Box key={`${mainCategory.key}-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                            {selectedAppCategoryItems.map(({ mainCategory, subCategory, title }, index) => (
+                                                <Box key={`${subCategory.key}-${index}`} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                                     <Link
                                                         component="button"
-                                                        onClick={() => handleCatalogClick(mainCategory, mainCategory.catalogCollection?.items?.[0])}
+                                                        onClick={() => handleCatalogClick(subCategory, mainCategory)}
                                                         sx={{
                                                             color: palette.accent,
                                                             fontSize: 14,
@@ -3134,12 +3120,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                             p: 0,
                                                         }}
                                                     >
-                                                        {mainCategory.title}
+                                                        {title}
                                                     </Link>
-                                                    {index !== (selectedApp.catalogCollection?.items?.length ?? 0) - 1 ? <Typography color="text.secondary">|</Typography> : null}
+                                                    {index !== selectedAppCategoryItems.length - 1 ? <Typography color="text.secondary">|</Typography> : null}
                                                 </Box>
                                             ))}
-                                        </Box>
+                                        </Box> : null}
                                     </Box>
                                     <IconButton
                                         onClick={handleCloseModal}
