@@ -176,6 +176,13 @@ jobs:
             --image-ids imageTag="${{ needs.meta.outputs.sha_tag }}" \
             --region us-east-1
 
+  cleanup-ecr-orphans:
+    name: Clean ECR Public Orphans
+    needs: [changes, build-and-push, smoke-test, promote-tags]
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.image == 'true'
+    uses: ./.github/workflows/ecr-cleanup.yml
+    secrets: inherit
+
   # ── Publish dev artifacts to R2 without creating a formal release ──
   upload-artifacts:
     name: Upload Dev Artifacts

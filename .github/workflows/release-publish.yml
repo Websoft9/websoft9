@@ -161,6 +161,13 @@ jobs:
               imageTag="${{ needs.determine-channel.outputs.version }}" \
             --region us-east-1
 
+  cleanup-ecr-orphans:
+    name: Clean ECR Public Orphans
+    needs: [determine-channel, promote-release-tags]
+    if: needs.determine-channel.outputs.is_prerelease != 'true'
+    uses: ./.github/workflows/ecr-cleanup.yml
+    secrets: inherit
+
   # ── Extract release notes from CHANGELOG ──
   release-notes:
     name: Resolve Release Notes

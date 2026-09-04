@@ -1,0 +1,84 @@
+name: Clean ECR Public Orphans
+
+on:
+  workflow_call:
+    inputs:
+      repository_name:
+        type: string
+        default: websoft9
+        description: Amazon ECR Public repository name
+      repository_uri:
+        type: string
+        default: public.ecr.aws/w6g2g5k1/websoft9
+        description: Amazon ECR Public repository URI
+
+jobs:
+  cleanup:
+    name: Remove Unreferenced Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Log in to Amazon ECR Public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
+      - name: Remove untagged manifests not referenced by a tagged image index
+        env:
+          REPOSITORY_NAME: ${{ inputs.repository_name }}
+          REPOSITORY_URI: ${{ inputs.repository_uri }}
+        run: |
+          set -euo pipefail
+
+          aws ecr-public describe-images \
+            --repository-name "$REPOSITORY_NAME" \
+            --region us-east-1 \
+            --output json > images.json
+
+          # Keep every tagged manifest and the image/SBOM/provenance manifests it references.
+          jq -r '.imageDetails[] | select((.imageTags // []) | length > 0) | .imageDigest' images.json \
+            | sort -u > protected-digests.txt
+
+          jq -r '.imageDetails[] | select((.imageTags // []) | length > 0) | .imageTags[]' images.json \
+            | sort -u > tagged-image-tags.txt
+          while IFS= read -r tag; do
+            manifest=$(docker buildx imagetools inspect --raw "${REPOSITORY_URI}:${tag}")
+            if [[ -n "$manifest" ]]; then
+              jq -r '.manifests[]?.digest // empty' <<< "$manifest" >> protected-digests.txt
+            fi
+          done < tagged-image-tags.txt
+
+          sort -u -o protected-digests.txt protected-digests.txt
+          jq -r --rawfile protected protected-digests.txt '
+            .imageDetails[]
+            | select((.imageTags // []) | length == 0)
+            | select(.imageDigest as $digest | ($protected | split("\n") | index($digest) | not))
+            | .imageDigest
+          ' images.json > orphaned-digests.txt
+
+          if [[ ! -s orphaned-digests.txt ]]; then
+            echo "No unreferenced ECR Public manifests found."
+            exit 0
+          fi
+
+          mapfile -t orphaned_digests < orphaned-digests.txt
+          echo "Deleting ${#orphaned_digests[@]} unreferenced manifest(s)."
+          for ((index = 0; index < ${#orphaned_digests[@]}; index += 100)); do
+            image_ids=()
+            for digest in "${orphaned_digests[@]:index:100}"; do
+              image_ids+=("imageDigest=$digest")
+            done
+            aws ecr-public batch-delete-image \
+              --repository-name "$REPOSITORY_NAME" \
+              --image-ids "${image_ids[@]}" \
+              --region us-east-1
+          done
