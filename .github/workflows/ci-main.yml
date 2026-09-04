@@ -31,6 +31,9 @@ jobs:
         with:
           filters: |
             image:
+              - '.github/workflows/ci-main.yml'
+              - '.github/workflows/docker-build.yml'
+              - '.github/workflows/smoke-test.yml'
               - 'docker/Dockerfile'
               - 'docker/proxy/**'
               - 'docker/gateway/**'
@@ -97,7 +100,7 @@ jobs:
     if: needs.changes.outputs.image == 'true'
     uses: ./.github/workflows/smoke-test.yml
     with:
-      image: websoft9dev/websoft9:dev
+      image: public.ecr.aws/w6g2g5k1/websoft9dev/websoft9:dev
 
   # ── Publish dev artifacts to R2 without creating a formal release ──
   upload-artifacts:

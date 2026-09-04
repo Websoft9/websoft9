@@ -31,6 +31,10 @@ on:
         type: boolean
         default: false
         description: Disable Docker layer cache (use for dev to ensure fresh console build)
+      ecr_public_repository:
+        type: string
+        default: public.ecr.aws/w6g2g5k1/websoft9dev/websoft9
+        description: Amazon ECR Public repository to mirror image tags to
     outputs:
       image_tag:
         description: Primary image tag
@@ -44,6 +48,9 @@ jobs:
     name: Build & Scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       primary_tag: ${{ steps.meta.outputs.version }}
       digest: ${{ steps.build.outputs.digest }}
@@ -71,10 +78,39 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Configure AWS credentials
+        if: ${{ inputs.push }}
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Log in to Amazon ECR Public
+        if: ${{ inputs.push }}
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
       - name: Docker meta
         id: meta
         run: |
           echo "version=${{ steps.version.outputs.semver }}" >> $GITHUB_OUTPUT
+
+      - name: Add Amazon ECR Public tags
+        id: publish-tags
+        env:
+          SOURCE_TAGS: ${{ inputs.tags }}
+          ECR_PUBLIC_REPOSITORY: ${{ inputs.ecr_public_repository }}
+        run: |
+          IFS=',' read -ra SOURCE_TAG_LIST <<< "$SOURCE_TAGS"
+          ECR_TAGS=()
+          for source_tag in "${SOURCE_TAG_LIST[@]}"; do
+            ECR_TAGS+=("${ECR_PUBLIC_REPOSITORY}:${source_tag##*:}")
+          done
+
+          ECR_TAGS_CSV=$(IFS=,; echo "${ECR_TAGS[*]}")
+          echo "all=${SOURCE_TAGS},${ECR_TAGS_CSV}" >> $GITHUB_OUTPUT
+          echo "primary=${ECR_TAGS[0]}" >> $GITHUB_OUTPUT
 
       - name: Select scan image
         id: scan-image
@@ -90,7 +126,7 @@ jobs:
           file: ${{ inputs.dockerfile }}
           push: ${{ inputs.push }}
           platforms: ${{ inputs.platforms }}
-          tags: ${{ inputs.tags }}
+          tags: ${{ steps.publish-tags.outputs.all }}
           no-cache: ${{ inputs.no_cache }}
           build-args: |
             WEBSOFT9_PRODUCT_VERSION=${{ steps.version.outputs.semver }}

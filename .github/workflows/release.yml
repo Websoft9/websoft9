@@ -85,7 +85,7 @@ jobs:
           echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
           echo "alias_tags=$ALIAS_TAGS" >> $GITHUB_OUTPUT
           echo "tags=$CANDIDATE_TAG,$VERSION_TAG" >> $GITHUB_OUTPUT
-          echo "smoke_image=websoft9dev/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
+          echo "smoke_image=public.ecr.aws/w6g2g5k1/websoft9dev/websoft9:${SHA_TAG}" >> $GITHUB_OUTPUT
 
   build-and-push-image:
     name: Build & Push Image
@@ -106,9 +106,12 @@ jobs:
 
   promote-release-tags:
     name: Promote Release Tags
-    needs: [image-meta, build-and-push-image, smoke-test-image]
+    needs: [determine-channel, image-meta, build-and-push-image, smoke-test-image]
     if: needs.determine-channel.outputs.is_prerelease != 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -119,6 +122,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Log in to Amazon ECR Public
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: public
+
       - name: Promote candidate to release aliases
         run: |
           SOURCE_IMAGE="${{ needs.image-meta.outputs.candidate_tag }}"
@@ -126,6 +140,17 @@ jobs:
           for target in "${TARGETS[@]}"; do
             echo "Promoting $SOURCE_IMAGE -> $target"
             docker buildx imagetools create -t "$target" "$SOURCE_IMAGE"
+          done
+
+      - name: Promote Amazon ECR Public release aliases
+        run: |
+          ECR_REPOSITORY="public.ecr.aws/w6g2g5k1/websoft9dev/websoft9"
+          SOURCE_IMAGE="${ECR_REPOSITORY}:${{ needs.determine-channel.outputs.sha_tag }}"
+          IFS=',' read -ra TARGETS <<< "${{ needs.image-meta.outputs.alias_tags }}"
+          for target in "${TARGETS[@]}"; do
+            target_tag="${target##*:}"
+            echo "Promoting $SOURCE_IMAGE -> ${ECR_REPOSITORY}:${target_tag}"
+            docker buildx imagetools create -t "${ECR_REPOSITORY}:${target_tag}" "$SOURCE_IMAGE"
           done
 
   # ── Extract release notes from CHANGELOG ──
