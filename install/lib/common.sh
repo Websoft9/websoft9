@@ -23,14 +23,17 @@ resolve_container_name_by_channel() {
 
 # Detect a running Websoft9 container on the host.
 # Returns the container name, or empty if none found.
-# Identifies by IMAGE (websoft9dev/websoft9:*), not by container name.
+# Identifies by an official product IMAGE, not by container name.
 # This handles custom container names set by the user in .env.
 # Prefers running containers over stopped ones.
 _detect_websoft9_container() {
   local name image running_name stopped_name
   while IFS='|' read -r name image; do
     [ -z "$name" ] && continue
-    [[ "$image" == websoft9dev/websoft9:* ]] || continue
+    case "$image" in
+      "${DEFAULT_IMAGE_REPO}:"*|"${ECR_PUBLIC_IMAGE_REPO}:"*) ;;
+      *) continue ;;
+    esac
     if container_running "$name"; then
       running_name="$name"
       break
@@ -91,6 +94,7 @@ read_env_value() {
 # compose 默认环境变量（与 docker-compose.yml 的 ${VAR:-default} 一致）
 DEFAULT_IMAGE_REPO="websoft9dev/websoft9"
 DEFAULT_IMAGE_TAG="latest"
+ECR_PUBLIC_IMAGE_REPO="public.ecr.aws/w6g2g5k1/websoft9"
 DEFAULT_NETWORK_NAME="websoft9"
 DEFAULT_CONSOLE_PORT="9000"
 DEFAULT_INSTALL_PATH="/opt/websoft9"
@@ -804,9 +808,37 @@ pull_image_via_prefixed_mirrors() {
   return "$success"
 }
 
+ecr_public_supports_image_tag() {
+  [[ "$1" =~ ^(latest|dev|[0-9]+\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+-dev)$ ]]
+}
+
+pull_product_image_from_ecr() {
+  local image_tag="$1"
+  local image_ref="$2"
+  local ecr_image="${ECR_PUBLIC_IMAGE_REPO}:${image_tag}"
+
+  ecr_public_supports_image_tag "$image_tag" || return 1
+
+  log_info "Docker Hub pull failed, trying Amazon ECR Public: $ecr_image"
+  if ! docker pull "$ecr_image"; then
+    log_warn "Amazon ECR Public pull failed"
+    return 1
+  fi
+
+  if ! docker tag "$ecr_image" "$image_ref"; then
+    log_warn "Failed to tag Amazon ECR Public image as $image_ref"
+    docker rmi "$ecr_image" >/dev/null 2>&1 || true
+    return 1
+  fi
+  if [ "$ecr_image" != "$image_ref" ]; then
+    docker rmi "$ecr_image" >/dev/null 2>&1 || true
+  fi
+  log_info "Pull succeeded via Amazon ECR Public"
+}
+
 # 镜像拉取（带镜像加速回退）
-# 模式一（默认，websoft9 主镜像）：docker compose pull 直拉，失败后使用
-#   mirrors.json 中的地址显式拉取。
+# 模式一（默认，websoft9 主镜像）：Docker Hub 直拉，失败后尝试 Amazon
+#   ECR Public，最后使用 mirrors.json 中的 Docker Hub 镜像站显式拉取。
 # 模式二（工具镜像，第二参数传入镜像引用如 "alpine:3.20"）：
 #   本地缓存检查 -> docker pull 直拉 -> mirrors.json 显式前缀拉取。
 # 注意：不再改写 /etc/docker/daemon.json 或重启 Docker 服务，避免影响宿主机上
@@ -850,6 +882,9 @@ pull_image_with_mirrors() {
   else
     log_info "Pulling image: $image_ref"
     if modern_compose "$install_path" pull; then
+      return 0
+    fi
+    if [ "$image_repo" = "$DEFAULT_IMAGE_REPO" ] && pull_product_image_from_ecr "$image_tag" "$image_ref"; then
       return 0
     fi
   fi
