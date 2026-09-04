@@ -169,6 +169,13 @@ jobs:
             docker buildx imagetools create -t "${ECR_REPOSITORY}:${target_tag}" "$SOURCE_IMAGE"
           done
 
+      - name: Remove Amazon ECR Public candidate tag
+        run: |
+          aws ecr-public batch-delete-image \
+            --repository-name websoft9dev/websoft9 \
+            --image-ids imageTag="${{ needs.meta.outputs.sha_tag }}" \
+            --region us-east-1
+
   # ── Publish dev artifacts to R2 without creating a formal release ──
   upload-artifacts:
     name: Upload Dev Artifacts

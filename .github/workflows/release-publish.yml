@@ -144,12 +144,22 @@ jobs:
         run: |
           ECR_REPOSITORY="public.ecr.aws/w6g2g5k1/websoft9dev/websoft9"
           SOURCE_IMAGE="${ECR_REPOSITORY}:${{ needs.determine-channel.outputs.sha_tag }}"
-          IFS=',' read -ra TARGETS <<< "${{ needs.image-meta.outputs.alias_tags }}"
-          for target in "${TARGETS[@]}"; do
-            target_tag="${target##*:}"
+          VERSION_CORE="${{ needs.determine-channel.outputs.version_core }}"
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION_CORE"
+          ECR_TAGS=(latest "${VERSION_PARTS[0]}.${VERSION_PARTS[1]}")
+          for target_tag in "${ECR_TAGS[@]}"; do
             echo "Promoting $SOURCE_IMAGE -> ${ECR_REPOSITORY}:${target_tag}"
             docker buildx imagetools create -t "${ECR_REPOSITORY}:${target_tag}" "$SOURCE_IMAGE"
           done
+
+      - name: Remove Amazon ECR Public temporary release tags
+        run: |
+          aws ecr-public batch-delete-image \
+            --repository-name websoft9dev/websoft9 \
+            --image-ids \
+              imageTag="${{ needs.determine-channel.outputs.sha_tag }}" \
+              imageTag="${{ needs.determine-channel.outputs.version }}" \
+            --region us-east-1
 
   # ── Extract release notes from CHANGELOG ──
   release-notes:
