@@ -36,10 +36,16 @@ jobs:
       - name: Wait for healthy
         run: |
           echo "Waiting for container to become healthy..."
-          for i in $(seq 1 ${{ inputs.health_timeout }}); do
+          STARTED_AT=$(date +%s)
+          while true; do
             if docker exec websoft9-smoke /websoft9/script/platform-healthcheck.sh --readiness 2>/dev/null; then
-              echo "✅ Container healthy after ${i}s"
+              ELAPSED=$(( $(date +%s) - STARTED_AT ))
+              echo "✅ Container healthy after ${ELAPSED}s"
               exit 0
+            fi
+            ELAPSED=$(( $(date +%s) - STARTED_AT ))
+            if [[ "$ELAPSED" -ge "${{ inputs.health_timeout }}" ]]; then
+              break
             fi
             sleep 2
           done
@@ -57,11 +63,17 @@ jobs:
             exit 1
           fi
 
-      - name: Verify AppHub health
+      - name: Verify platform gateway health
         run: |
           curl -fsS --retry 3 --retry-delay 2 \
-            http://localhost:${{ inputs.console_port }}/api/healthz && \
-            echo "✅ AppHub health endpoint OK"
+            http://localhost:${{ inputs.console_port }}/w9gateway/healthz && \
+            echo "✅ Platform gateway health endpoint OK"
+
+      - name: Verify AppHub readiness
+        run: |
+          curl -fsS --retry 3 --retry-delay 2 \
+            http://localhost:${{ inputs.console_port }}/api/healthz/ready && \
+            echo "✅ AppHub readiness endpoint OK"
 
       - name: Verify auth status
         run: |
