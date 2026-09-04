@@ -96,7 +96,7 @@ jobs:
               - 'scripts/**'
               - 'install/**'
             appstore_data:
-              - '.github/workflows/release.yml'
+              - '.github/workflows/release-publish.yml'
               - 'apphub/src/cli/apphub_cli.py'
               - 'apphub/src/api/v1/routers/appstore_sync.py'
               - 'apphub/src/services/appstore_sync_manager.py'
