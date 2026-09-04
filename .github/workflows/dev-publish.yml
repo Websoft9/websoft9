@@ -1,7 +1,13 @@
-name: Dev Candidate Build
+name: Dev Candidate Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch or tag to publish as a dev candidate
+        required: false
+        default: dev
+        type: string
   push:
     branches: [dev]
     paths-ignore:
@@ -13,7 +19,7 @@ on:
       - 'README.md'
 
 concurrency:
-  group: ci-${{ github.ref_name }}
+  group: dev-publish-${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -26,12 +32,14 @@ jobs:
       install: ${{ steps.filter.outputs.install }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
             image:
-              - '.github/workflows/ci-main.yml'
+              - '.github/workflows/dev-publish.yml'
               - '.github/workflows/docker-build.yml'
               - '.github/workflows/smoke-test.yml'
               - 'docker/Dockerfile'
@@ -63,13 +71,17 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       alias_tags: ${{ steps.meta.outputs.alias_tags }}
       sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      source_ref: ${{ steps.meta.outputs.source_ref }}
       tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
       - id: meta
         run: |
           VERSION=$(jq -r '.version' version.json)
-          SHA_TAG="sha-${GITHUB_SHA:0:8}"
+          SOURCE_REF=$(git rev-parse HEAD)
+          SHA_TAG="sha-${SOURCE_REF:0:8}"
 
           CHANNEL=dev
           CANDIDATE_TAG="websoft9dev/websoft9:${SHA_TAG}"
@@ -81,15 +93,16 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "alias_tags=$ALIAS_TAGS" >> $GITHUB_OUTPUT
           echo "sha_tag=$SHA_TAG" >> $GITHUB_OUTPUT
+          echo "source_ref=$SOURCE_REF" >> $GITHUB_OUTPUT
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
-          echo "✅ Dev candidate | Version: $VERSION | SHA: $SHA_TAG"
+          echo "✅ Dev candidate | Ref: $SOURCE_REF | Version: $VERSION | SHA: $SHA_TAG"
 
   # ── Build, scan, push dev image ──
   build-and-push:
     name: Build & Push Image
     needs: [meta, changes]
-    if: needs.changes.outputs.image == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.image == 'true'
     uses: ./.github/workflows/docker-build.yml
     with:
       push: true
@@ -103,7 +116,7 @@ jobs:
   smoke-test:
     name: Smoke Test
     needs: [meta, changes, build-and-push]
-    if: needs.changes.outputs.image == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.image == 'true'
     uses: ./.github/workflows/smoke-test.yml
     with:
       image: public.ecr.aws/w6g2g5k1/websoft9dev/websoft9:${{ needs.meta.outputs.sha_tag }}
@@ -112,7 +125,7 @@ jobs:
   promote-tags:
     name: Promote Dev Tags
     needs: [meta, changes, build-and-push, smoke-test]
-    if: needs.changes.outputs.image == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.image == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Set up Docker Buildx
@@ -166,6 +179,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.source_ref }}
 
       - name: Create dev distribution bundles
         run: |
@@ -215,7 +230,7 @@ jobs:
             --arg product "websoft9" \
             --arg channel "$CHANNEL" \
             --arg version "$VERSION" \
-            --arg git_sha "$GITHUB_SHA" \
+            --arg git_sha "${{ needs.meta.outputs.source_ref }}" \
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
             --arg default_tag "dev" \
@@ -314,7 +329,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-artifacts
-          target_commitish: dev
+          target_commitish: ${{ needs.meta.outputs.source_ref }}
           name: Dev Artifacts
           prerelease: true
           draft: false
@@ -327,18 +342,3 @@ jobs:
             release-assets/SHA256SUMS
             release-assets/version.json
             release-assets/CHANGELOG.md
-
-  # ── Docker Hub description is maintained by the release workflow ──
-  dockerhub-description:
-    name: Update DockerHub README
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: websoft9dev/websoft9
-          readme-filepath: docker/README.md
