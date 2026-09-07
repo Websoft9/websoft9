@@ -112,7 +112,7 @@ jobs:
       platforms: linux/amd64
       tags: ${{ needs.meta.outputs.tags }}
       appstore_channel: ${{ needs.meta.outputs.channel }}
-      no_cache: true
+      no_cache: false
     secrets: inherit
 
   # ── Smoke test the immutable ECR Public candidate ──
@@ -123,6 +123,7 @@ jobs:
     uses: ./.github/workflows/smoke-test.yml
     with:
       image: public.ecr.aws/w6g2g5k1/websoft9:${{ needs.meta.outputs.sha_tag }}
+    secrets: inherit
 
   # ── Promote tested candidate to moving dev aliases ──
   promote-tags:

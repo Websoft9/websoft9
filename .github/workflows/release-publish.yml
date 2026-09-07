@@ -103,6 +103,7 @@ jobs:
     uses: ./.github/workflows/smoke-test.yml
     with:
       image: ${{ needs.image-meta.outputs.smoke_image }}
+    secrets: inherit
 
   promote-release-tags:
     name: Promote Release Tags
