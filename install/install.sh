@@ -197,7 +197,13 @@ _resolve_latest_version() {
 
 _resolve_initial_image_tag() {
   local install_path="$1"
+  local channel="${W9_CHANNEL:-release}"
   local version
+
+  if [ "$channel" != "release" ]; then
+    _resolve_target_image_tag "$install_path"
+    return 0
+  fi
 
   version="$(_resolve_latest_version "$install_path" 2>/dev/null || true)"
   if [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then

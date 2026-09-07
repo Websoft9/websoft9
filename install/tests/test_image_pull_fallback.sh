@@ -4,6 +4,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
+load_install_tag_resolvers() {
+  W9_ROOT_DIR="$ROOT_DIR/install"
+  W9_LIB_DIR="$W9_ROOT_DIR/lib"
+  source "$ROOT_DIR/install/lib/common.sh"
+  source <(sed -n '/^_read_json_version()/,/^# Hidden subcommands\./p' "$ROOT_DIR/install/install.sh")
+  _w9_fetch() { return 1; }
+}
+
 run_case() {
   local case_name="$1"
   shift
@@ -89,9 +97,24 @@ test_utility_image_skips_ecr() {
   [[ "${CALLS[*]}" != *"${ECR_PUBLIC_IMAGE_REPO}"* ]]
 }
 
+test_initial_tag_respects_channel() {
+  load_install_tag_resolvers
+  printf '{"version":"2.4.0"}\n' > "$TEST_DIR/version.json"
+
+  W9_CHANNEL=release
+  [[ "$(_resolve_initial_image_tag "$TEST_DIR")" == "2.4" ]]
+
+  W9_CHANNEL=dev
+  [[ "$(_resolve_initial_image_tag "$TEST_DIR")" == "dev" ]]
+
+  W9_CHANNEL=rc
+  [[ "$(_resolve_initial_image_tag "$TEST_DIR")" == "rc" ]]
+}
+
 run_case "Docker Hub success" test_docker_hub_success
 run_case "ECR fallback retags" test_ecr_fallback_retags
 run_case "ECR failure uses mirror" test_ecr_failure_uses_mirror
 run_case "ECR tag failure uses mirror" test_ecr_tag_failure_uses_mirror
 run_case "Patch tag skips ECR" test_patch_tag_skips_ecr
 run_case "Utility image skips ECR" test_utility_image_skips_ecr
+run_case "Initial tag respects channel" test_initial_tag_respects_channel
