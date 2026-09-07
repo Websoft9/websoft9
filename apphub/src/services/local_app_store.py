@@ -6,11 +6,17 @@ from pathlib import Path
 from typing import Any
 
 
-LOCAL_APP_STORE_ROOT = Path(os.getenv("WEBSOFT9_LOCAL_APP_STORE_ROOT", "/opt/websoft9/data/local-apps"))
+DATA_ROOT = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+LOCAL_APP_STORE_ROOT = Path(os.getenv("WEBSOFT9_LOCAL_APP_STORE_ROOT", f"{DATA_ROOT}/localapps"))
 _APP_KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
-def local_manifest_path(root: Path = LOCAL_APP_STORE_ROOT) -> Path:
+def resolve_local_app_store_root() -> Path:
+    return LOCAL_APP_STORE_ROOT
+
+
+def local_manifest_path(root: Path | None = None) -> Path:
+    root = root or resolve_local_app_store_root()
     return root / "manifest" / "app-store-manifest.json"
 
 
@@ -124,9 +130,10 @@ def _build_app(media_path: Path, library_root: Path) -> dict[str, object]:
     return manifest
 
 
-def refresh_local_app_store(root: Path = LOCAL_APP_STORE_ROOT) -> dict[str, Any]:
-    media_root = root / "media"
-    library_root = root / "library" / "apps"
+def refresh_local_app_store(root: Path | None = None) -> dict[str, Any]:
+    root = root or resolve_local_app_store_root()
+    media_root = root / "catalog"
+    library_root = root / "apps"
     apps: list[dict[str, object]] = []
     errors: list[dict[str, str]] = []
     if media_root.is_dir():
@@ -148,7 +155,7 @@ def refresh_local_app_store(root: Path = LOCAL_APP_STORE_ROOT) -> dict[str, Any]
     return {"loaded": len(apps), "skipped": len(errors), "errors": errors}
 
 
-def get_local_app_store_apps(root: Path = LOCAL_APP_STORE_ROOT) -> list[dict[str, object]]:
+def get_local_app_store_apps(root: Path | None = None) -> list[dict[str, object]]:
     manifest_path = local_manifest_path(root)
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

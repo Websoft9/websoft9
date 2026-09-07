@@ -26,7 +26,7 @@ from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
 from src.services.install_profile import get_external_database_type, is_external_database_profile, validate_external_database_connection
-from src.services.local_app_store import LOCAL_APP_STORE_ROOT, get_local_app_store_apps, refresh_local_app_store
+from src.services.local_app_store import get_local_app_store_apps, refresh_local_app_store, resolve_local_app_store_root
 from src.core.config import ConfigManager
 from threading import Thread
 
@@ -406,7 +406,7 @@ async def local_apps_install(
     if requested_version not in versions:
         raise CustomException(400, "Invalid Request", f"app_version:{requested_version} not supported by the local app store")
 
-    library_path = str(LOCAL_APP_STORE_ROOT / "library" / "apps")
+    library_path = str(resolve_local_app_store_root() / "apps")
     install_validate(appInstall, endpointId, library_path)
     app_manager = AppManger()
     tracked_app_id, tracking_id = app_manager.create_installation_tracking(appInstall)

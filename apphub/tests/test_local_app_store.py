@@ -8,12 +8,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.services.local_app_store import get_local_app_store_apps, local_manifest_path, refresh_local_app_store
+from src.services import local_app_store
+from src.services.local_app_store import get_local_app_store_apps, local_manifest_path, refresh_local_app_store, resolve_local_app_store_root
 
 
 def _write_app(root: Path, key: str, media: Optional[object] = None) -> None:
-    media_root = root / "media"
-    app_root = root / "library" / "apps" / key
+    media_root = root / "catalog"
+    app_root = root / "apps" / key
     media_root.mkdir(parents=True, exist_ok=True)
     app_root.mkdir(parents=True, exist_ok=True)
     payload = media if media is not None else {"title": "Canvas", "catalogBindings": [{"parentKey": "productivity", "childKey": "whiteboard"}]}
@@ -64,3 +65,18 @@ def test_refresh_preserves_previous_manifest_when_no_valid_apps_exist(tmp_path):
         raise AssertionError("expected refresh to preserve the previous manifest")
 
     assert [app["key"] for app in get_local_app_store_apps(tmp_path)] == ["canvas"]
+
+
+def test_resolve_local_app_store_root_uses_configured_root(tmp_path, monkeypatch):
+    configured_root = tmp_path / "localapps"
+    monkeypatch.setattr(local_app_store, "LOCAL_APP_STORE_ROOT", configured_root)
+
+    assert resolve_local_app_store_root() == configured_root
+
+
+def test_resolve_local_app_store_root_prefers_explicit_environment_path(tmp_path, monkeypatch):
+    configured_root = tmp_path / "custom-local-apps"
+    monkeypatch.setenv("WEBSOFT9_LOCAL_APP_STORE_ROOT", str(configured_root))
+    monkeypatch.setattr(local_app_store, "LOCAL_APP_STORE_ROOT", configured_root)
+
+    assert resolve_local_app_store_root() == configured_root
