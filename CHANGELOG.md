@@ -5,6 +5,23 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-09-07
+
+### Added
+- **Custom Applications** — Add a local custom application catalog with category filtering, application details, and validation for application metadata and library templates.
+- **Application Catalog CLI** — Add `websoft9 app refresh` to rebuild the custom application catalog, with JSON output for scripts and AI-assisted workflows.
+- **Registry Fallback** — Add Amazon ECR Public as an installation image-pull fallback when Docker Hub is unavailable.
+
+### Changed
+- **App Store** — Unify platform and custom application manifests so both application sources share search, category filtering, and installation flows.
+- **App Store** — Refine custom application presentation, including a dedicated custom-applications filter and card label.
+- **Release Delivery** — Publish release images through the Websoft9 Amazon ECR Public repository and retain tested development image aliases.
+
+### Fixed
+- **App Store Sync** — Preserve and refresh application catalog metadata reliably across runtime synchronization and manifest updates.
+- **SSL Bindings** — Preserve custom SSL certificate bindings when the platform restarts.
+- **Development Installation** — Retain the selected development image tag during installation.
+
 ## [2.4.0] - 2026-08-28
 
 ### Added
