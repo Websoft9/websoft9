@@ -80,12 +80,15 @@ jobs:
       - id: meta
         run: |
           VERSION=$(jq -r '.version' version.json)
+          VERSION_CORE="${VERSION%%-*}"
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION_CORE"
+          VERSION_MINOR="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}"
           SOURCE_REF=$(git rev-parse HEAD)
           SHA_TAG="sha-${SOURCE_REF:0:8}"
 
           CHANNEL=dev
           CANDIDATE_TAG="websoft9dev/websoft9:${SHA_TAG}"
-          ALIAS_TAGS="websoft9dev/websoft9:dev,websoft9dev/websoft9:${VERSION}-dev"
+          ALIAS_TAGS="websoft9dev/websoft9:dev,websoft9dev/websoft9:${VERSION_MINOR}-dev"
           TAGS="$CANDIDATE_TAG"
 
           echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
@@ -96,7 +99,7 @@ jobs:
           echo "source_ref=$SOURCE_REF" >> $GITHUB_OUTPUT
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
 
-          echo "✅ Dev candidate | Ref: $SOURCE_REF | Version: $VERSION | SHA: $SHA_TAG"
+          echo "✅ Dev candidate | Ref: $SOURCE_REF | Version: $VERSION | Alias: ${VERSION_MINOR}-dev | SHA: $SHA_TAG"
 
   # ── Build, scan, push dev image ──
   build-and-push:
@@ -169,6 +172,29 @@ jobs:
             docker buildx imagetools create -t "${ECR_REPOSITORY}:${target_tag}" "$SOURCE_IMAGE"
           done
 
+      - name: Remove legacy patch dev aliases from Amazon ECR Public
+        run: |
+          mapfile -t LEGACY_TAGS < <(
+            aws ecr-public describe-images \
+              --repository-name websoft9 \
+              --region us-east-1 \
+              --output json \
+              | jq -r '.imageDetails[] | .imageTags[]? | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+-dev$"))'
+          )
+
+          if (( ${#LEGACY_TAGS[@]} == 0 )); then
+            echo "No legacy patch dev aliases to remove."
+            exit 0
+          fi
+
+          printf 'Removing legacy patch dev aliases: %s\n' "${LEGACY_TAGS[*]}"
+          for tag in "${LEGACY_TAGS[@]}"; do
+            aws ecr-public batch-delete-image \
+              --repository-name websoft9 \
+              --image-ids imageTag="$tag" \
+              --region us-east-1
+          done
+
       - name: Remove Amazon ECR Public candidate tag
         run: |
           aws ecr-public batch-delete-image \
@@ -199,6 +225,9 @@ jobs:
       - name: Create dev distribution bundles
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
+          VERSION_CORE="${VERSION%%-*}"
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION_CORE"
+          VERSION_MINOR="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}"
           CHANNEL="${{ needs.meta.outputs.channel }}"
           SHA_TAG="${{ needs.meta.outputs.sha_tag }}"
           CANDIDATE_TAG="${{ needs.meta.outputs.candidate_tag }}"
@@ -248,7 +277,7 @@ jobs:
             --arg generated_at "$GENERATED_AT" \
             --arg repository "websoft9dev/websoft9" \
             --arg default_tag "dev" \
-            --arg version_tag "${VERSION}-dev" \
+            --arg version_tag "${VERSION_MINOR}-dev" \
             --arg candidate_tag "$CANDIDATE_TAG" \
             --arg alias_tags "$ALIAS_TAGS" \
             --arg sha_tag "$SHA_TAG" \
