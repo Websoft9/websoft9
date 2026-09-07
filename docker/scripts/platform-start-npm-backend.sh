@@ -24,11 +24,21 @@ import time
 from src.services.proxy_manager import ProxyManager
 
 
-def certificate_path_for(proxy_host: dict) -> str | None:
+def certificate_paths_for(proxy_host: dict, certificate: dict | None) -> list[str]:
     certificate_id = proxy_host.get("certificate_id") or 0
     if not isinstance(certificate_id, int) or certificate_id <= 0:
-        return None
-    return f"/etc/letsencrypt/live/npm-{certificate_id}/fullchain.pem"
+        return []
+
+    provider = (certificate or {}).get("provider")
+    if provider == "letsencrypt":
+        cert_dir = f"/etc/letsencrypt/live/npm-{certificate_id}"
+    elif provider == "other":
+        data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+        cert_dir = f"{os.getenv('WEBSOFT9_NPM_SSL_DIR', f'{data_root}/custom_ssl')}/npm-{certificate_id}"
+    else:
+        return []
+
+    return [f"{cert_dir}/fullchain.pem", f"{cert_dir}/privkey.pem"]
 
 
 def find_matching_letsencrypt_certificate(certificates: dict[int, dict], domain_names: list[str]) -> dict | None:
@@ -63,14 +73,29 @@ for attempt in range(30):
             certificate_id = proxy_host.get("certificate_id") or 0
             ssl_forced = bool(proxy_host.get("ssl_forced"))
             desired_ssl_forced = ssl_forced
-            cert_path = certificate_path_for(proxy_host)
             domain_names = proxy_host.get("domain_names") or []
-            recovery_certificate = certificates.get(certificate_id) or find_matching_letsencrypt_certificate(certificates, domain_names)
+            certificate = certificates.get(certificate_id)
+            certificate_paths = certificate_paths_for(proxy_host, certificate)
+            certificate_missing = bool(certificate_paths) and not all(os.path.exists(path) for path in certificate_paths)
+            recovery_certificate = (
+                certificate
+                if certificate and certificate.get("provider") == "letsencrypt"
+                else find_matching_letsencrypt_certificate(certificates, domain_names) if not certificate_id else None
+            )
 
             if recovery_certificate is not None:
                 desired_ssl_forced = True
 
-            if (cert_path and not os.path.exists(cert_path)) or (not certificate_id and not os.path.exists(conf_path) and recovery_certificate is not None):
+            if certificate and certificate.get("provider") == "other" and certificate_missing:
+                print(f"Custom certificate files missing for proxy host {proxy_id}; preserving SSL binding for certificate npm-{certificate_id}")
+
+            if (
+                recovery_certificate is not None
+                and (
+                    certificate_missing
+                    or (not certificate_id and not os.path.exists(conf_path))
+                )
+            ):
                 print(f"Rebuilding proxy host {proxy_id} without missing certificate npm-{certificate_id}")
                 meta = proxy_host.get("meta") or {}
                 certificate = recovery_certificate or {}
