@@ -9,7 +9,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.services import local_app_store
-from src.services.local_app_store import get_local_app_store_apps, local_manifest_path, refresh_local_app_store, resolve_local_app_store_root
+from src.services.local_app_store import get_local_app_store_apps, local_manifest_path, refresh_local_app_store, refresh_local_app_store_catalog, resolve_local_app_store_root
 
 
 def _write_app(root: Path, key: str, media: Optional[object] = None) -> None:
@@ -80,3 +80,26 @@ def test_resolve_local_app_store_root_prefers_explicit_environment_path(tmp_path
     monkeypatch.setattr(local_app_store, "LOCAL_APP_STORE_ROOT", configured_root)
 
     assert resolve_local_app_store_root() == configured_root
+
+
+def test_catalog_refresh_rebuilds_official_and_custom_catalogs(tmp_path, monkeypatch):
+    _write_app(tmp_path, "canvas")
+    monkeypatch.setattr(local_app_store, "_refresh_official_app_store", lambda: {"loaded": {"zh": 2, "en": 2}, "errors": []})
+
+    report = refresh_local_app_store_catalog(tmp_path)
+
+    assert report == {
+        "official": {"loaded": {"zh": 2, "en": 2}, "errors": []},
+        "custom": {"loaded": 1, "skipped": 0, "errors": []},
+    }
+
+
+def test_catalog_refresh_preserves_each_catalog_failure_in_its_report(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_app_store, "_refresh_official_app_store", lambda: (_ for _ in ()).throw(RuntimeError("invalid official metadata")))
+    _write_app(tmp_path, "broken", media=[])
+
+    report = refresh_local_app_store_catalog(tmp_path)
+
+    assert report["official"]["errors"] == [{"error": "invalid official metadata"}]
+    assert report["custom"]["skipped"] == 1
+    assert "previous manifest was preserved" in report["custom"]["errors"][0]["error"]

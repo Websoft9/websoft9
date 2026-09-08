@@ -1839,7 +1839,10 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     async function handleLocalRefresh() {
         setIsLocalRefreshing(true)
         try {
-            const report = await requestJson<{ loaded: number; skipped: number; errors: Array<{ app: string; error: string }> }>('/api/apps/local/refresh', {
+            const report = await requestJson<{
+                official: { loaded: Record<string, number>; errors: Array<{ error: string }> }
+                custom: { loaded: number; skipped: number; errors: Array<{ app: string; error: string }> }
+            }>('/api/apps/local/refresh', {
                 method: 'POST',
             })
             await Promise.all([
@@ -1850,10 +1853,14 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 refetchFavorites(),
                 refetchAppStoreSyncStatus(),
             ])
-            if (report.skipped > 0) {
+            const refreshErrors = [
+                ...report.official.errors.map((item) => `platform: ${item.error}`),
+                ...report.custom.errors.map((item) => `${item.app}: ${item.error}`),
+            ]
+            if (refreshErrors.length > 0) {
                 setRefreshFeedback({
                     severity: 'error',
-                    message: `${report.loaded} loaded; ${report.skipped} skipped: ${report.errors.map((item) => `${item.app}: ${item.error}`).join('; ')}`,
+                    message: `Platform zh=${report.official.loaded.zh ?? 0}, en=${report.official.loaded.en ?? 0}; ${report.custom.loaded} custom loaded, ${report.custom.skipped} skipped: ${refreshErrors.join('; ')}`,
                 })
             }
         } catch (refreshError) {

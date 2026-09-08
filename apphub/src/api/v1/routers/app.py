@@ -26,7 +26,7 @@ from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
 from src.services.common_check import install_validate
 from src.services.install_profile import get_external_database_type, is_external_database_profile, validate_external_database_connection
-from src.services.local_app_store import get_local_app_store_apps, refresh_local_app_store, resolve_local_app_store_root
+from src.services.local_app_store import get_local_app_store_apps, refresh_local_app_store_catalog, resolve_local_app_store_root
 from src.core.config import ConfigManager
 from threading import Thread
 
@@ -71,12 +71,9 @@ def get_local_available_apps():
         raise CustomException(503, "Service Unavailable", str(exc)) from exc
 
 
-@router.post("/apps/local/refresh", summary="Refresh Local App Store Manifest")
+@router.post("/apps/local/refresh", summary="Rebuild Local App Store Catalog")
 def refresh_local_apps():
-    try:
-        return refresh_local_app_store()
-    except ValueError as exc:
-        raise CustomException(400, "Invalid Request", str(exc)) from exc
+    return refresh_local_app_store_catalog()
 
 @router.get(
         "/apps",

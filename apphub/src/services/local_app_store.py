@@ -2,6 +2,7 @@ import json
 import os
 import re
 import tempfile
+import importlib.util
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +154,59 @@ def refresh_local_app_store(root: Path | None = None) -> dict[str, Any]:
         temporary_path = Path(handle.name)
     temporary_path.replace(target_path)
     return {"loaded": len(apps), "skipped": len(errors), "errors": errors}
+
+
+def _resolve_runtime_asset_builder_path() -> Path:
+    configured_path = os.getenv("WEBSOFT9_PLATFORM_ASSET_SYNC_SCRIPT")
+    if configured_path:
+        return Path(configured_path)
+
+    runtime_path = Path("/websoft9/script/platform-sync-runtime-assets.py")
+    if runtime_path.exists():
+        return runtime_path
+
+    return Path(__file__).resolve().parents[3] / "docker" / "scripts" / "platform-sync-runtime-assets.py"
+
+
+def _refresh_official_app_store() -> dict[str, Any]:
+    builder_path = _resolve_runtime_asset_builder_path()
+    module_spec = importlib.util.spec_from_file_location("platform_sync_runtime_assets", builder_path)
+    if module_spec is None or module_spec.loader is None:
+        raise RuntimeError(f"unable to load app store manifest builder: {builder_path}")
+
+    builder_module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(builder_module)
+    media_root = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
+    library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+    builder_module.build_and_publish_app_store_manifests(media_root, library_root)
+
+    loaded: dict[str, int] = {}
+    for locale in ("zh", "en"):
+        manifest_path = media_root / "json" / f"app-store-manifest_{locale}.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        loaded[locale] = len(manifest.get("apps", [])) if isinstance(manifest, dict) else 0
+    return {"loaded": loaded, "errors": []}
+
+
+def refresh_local_app_store_catalog(root: Path | None = None) -> dict[str, Any]:
+    official_report: dict[str, Any]
+    custom_report: dict[str, Any]
+
+    try:
+        official_report = _refresh_official_app_store()
+    except Exception as exc:
+        official_report = {"loaded": {}, "errors": [{"error": str(exc)}]}
+
+    try:
+        custom_report = refresh_local_app_store(root)
+    except Exception as exc:
+        custom_report = {
+            "loaded": 0,
+            "skipped": 1,
+            "errors": [{"app": "custom", "error": str(exc)}],
+        }
+
+    return {"official": official_report, "custom": custom_report}
 
 
 def get_local_app_store_apps(root: Path | None = None) -> list[dict[str, object]]:

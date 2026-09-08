@@ -197,13 +197,11 @@ def install(
     help="Print machine-readable JSON on completion.",
 )
 def refresh(as_json):
-    """Refresh the private application catalog."""
-    from src.services.local_app_store import refresh_local_app_store
+    """Rebuild local platform and custom application catalogs."""
+    from src.services.local_app_store import refresh_local_app_store_catalog
 
     try:
-        report = refresh_local_app_store()
-    except ValueError as exc:
-        raise click.ClickException(str(exc)) from exc
+        report = refresh_local_app_store_catalog()
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -211,11 +209,18 @@ def refresh(as_json):
         click.echo(json.dumps(report))
     else:
         click.echo(
-            f"Private application catalog refreshed: "
-            f"{report['loaded']} loaded, {report['skipped']} skipped."
+            f"Platform application manifests refreshed: "
+            f"zh={report['official']['loaded'].get('zh', 0)}, "
+            f"en={report['official']['loaded'].get('en', 0)}."
         )
-        for error in report["errors"]:
+        click.echo(
+            f"Custom application catalog refreshed: "
+            f"{report['custom']['loaded']} loaded, {report['custom']['skipped']} skipped."
+        )
+        for error in report["official"]["errors"]:
+            click.echo(f"platform: {error['error']}", err=True)
+        for error in report["custom"]["errors"]:
             click.echo(f"{error['app']}: {error['error']}", err=True)
 
-    if report["skipped"]:
+    if report["official"]["errors"] or report["custom"]["skipped"]:
         raise click.exceptions.Exit(2)
