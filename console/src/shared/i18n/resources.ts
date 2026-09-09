@@ -748,6 +748,7 @@ const rawShellResources = {
                     relatedSectionTitle: 'Related',
                     allAppsSectionTitle: 'All applications',
                     customBadge: 'Custom',
+                    developmentBadge: 'Development',
                     favoriteEmptyTitle: 'No favorites yet',
                     favoriteEmptyDetail: 'Add favorites from the app details and manage them here.',
                     collapse: 'Collapse',
@@ -868,6 +869,14 @@ const rawShellResources = {
                 },
                 feedback: {
                     refreshComplete: 'App catalog sync completed.',
+                    upgradeRequired: 'This App Store update requires a newer Websoft9 version.',
+                },
+                incompatibility: {
+                    title: 'App Store update unavailable',
+                    lastSyncTitle: 'Last sync failed',
+                    detailPrefix: 'Your current Websoft9 version does not support this App Store update. Go to Settings - ',
+                    detailSuffix: 'to check the available update.',
+                    action: 'Version & Upgrade',
                 },
             },
             myAppsPage: {
@@ -3149,6 +3158,7 @@ const rawShellResources = {
                     relatedSectionTitle: '相关推荐',
                     allAppsSectionTitle: '全部应用',
                     customBadge: '自定义',
+                    developmentBadge: '开发',
                     favoriteEmptyTitle: '还没有收藏应用',
                     favoriteEmptyDetail: '可在应用详情中添加收藏，然后在这里集中查看。',
                     collapse: '收起',
@@ -3269,6 +3279,14 @@ const rawShellResources = {
                 },
                 feedback: {
                     refreshComplete: '应用目录已完成同步。',
+                    upgradeRequired: '当前 Websoft9 版本暂不支持此应用商店更新。',
+                },
+                incompatibility: {
+                    title: '应用商店更新不可用',
+                    lastSyncTitle: '上次同步失败',
+                    detailPrefix: '当前 Websoft9 版本暂不支持此应用商店更新，请前往设置-',
+                    detailSuffix: '查看可用升级。',
+                    action: '版本与升级',
                 },
             },
             myAppsPage: {

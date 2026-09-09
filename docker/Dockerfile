@@ -29,17 +29,17 @@ RUN set -e; \
     if [ -n "$WEBSOFT9_PIP_TRUSTED_HOST" ]; then export PIP_TRUSTED_HOST="$WEBSOFT9_PIP_TRUSTED_HOST"; fi; \
     mkdir -p /tmp/pip-cache; \
     for attempt in 1 2 3; do \
-        python -m pip install \
-            --cache-dir /tmp/pip-cache \
-            --retries 10 \
-            --timeout 120 \
-            --target /opt/websoft9-pydeps \
-            -r /build/requirements.txt \
-            supervisor && break; \
-        if [ "$attempt" -eq 3 ]; then \
-            exit 1; \
-        fi; \
-        echo "pip install failed on attempt $attempt, retrying..."; \
+    python -m pip install \
+    --cache-dir /tmp/pip-cache \
+    --retries 10 \
+    --timeout 120 \
+    --target /opt/websoft9-pydeps \
+    -r /build/requirements.txt \
+    supervisor && break; \
+    if [ "$attempt" -eq 3 ]; then \
+    exit 1; \
+    fi; \
+    echo "pip install failed on attempt $attempt, retrying..."; \
     done
 
 FROM gitea/gitea:1.25.5 AS gitea-runtime
@@ -175,9 +175,9 @@ RUN chmod 0644 /etc/cron.d/websoft9-appstore
 # always fetches fresh remote data even when other build args are unchanged.
 ARG WEBSOFT9_CACHE_BUSTER
 
-# Pre-populate app store assets during image build so first-load browsing uses
-# a prepared local dataset instead of waiting for runtime warm-up.
-# Non-fatal: build continues even if remote assets are unavailable (runtime cron retries).
+# Pre-populate app store assets during image build so every image includes a
+# usable Appstore baseline. Do not publish an image when this initial download
+# fails; runtime sync is only an update mechanism, not initialization.
 RUN WEBSOFT9_RUNTIME_ASSET_SYNC_MODE=build \
     WEBSOFT9_RUNTIME_ASSET_CHANNEL="${WEBSOFT9_APPSTORE_CHANNEL}" \
     python3 /websoft9/script/platform-sync-runtime-assets.py
@@ -226,6 +226,7 @@ RUN chmod +x /app/init_nginx.sh \
     /opt/websoft9/data/portainer \
     /websoft9/media \
     /websoft9/library/apps \
+    /websoft9/library/metadata/catalog \
     /websoft9/apphub/swagger-ui
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=6 CMD ["/websoft9/script/platform-healthcheck.sh", "--readiness"]

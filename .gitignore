@@ -4,6 +4,8 @@ __pycache__
 .venv
 .vscode
 .pytest_cache
+.coverage
+coverage.xml
 apphub/swagger-ui
 apphub/apphub.egg-info
 apphub/logs/

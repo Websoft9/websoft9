@@ -10,13 +10,11 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
-    FormControlLabel,
     IconButton,
     InputAdornment,
     Link,
     MenuItem,
     Stack,
-    Switch,
     SvgIcon,
     TextField,
     Tooltip,
@@ -25,7 +23,7 @@ import {
 import { yaml as yamlLanguage } from '@codemirror/lang-yaml'
 import { useQuery } from '@tanstack/react-query'
 import CodeMirror from '@uiw/react-codemirror'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
@@ -193,6 +191,8 @@ type AppStoreSyncStatusResponse = {
 }
 
 type AppStoreStateResponse = {
+    syncStatus?: 'ready' | 'incompatible'
+    incompatibility?: { message?: string } | null
     channel?: string
     datasetVersion?: string
     catalogDatasetVersion?: string
@@ -813,7 +813,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [searchValue, setSearchValue] = useState(() => searchParams.get('keyword') ?? '')
     const [selectedMainCatalogKey, setSelectedMainCatalogKey] = useState('all')
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
-    const [showCustomAppsOnly, setShowCustomAppsOnly] = useState(false)
     const [selectedApp, setSelectedApp] = useState<AppStoreApp | null>(null)
     const [isInstallMode, setIsInstallMode] = useState(false)
     const [installName, setInstallName] = useState('')
@@ -909,6 +908,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const effectiveIsLoading = isLoading || isLocalAppsLoading || isLocalRefreshing
     const effectiveIsSyncRunning = isRefreshingStore || appStoreSyncStatus?.status === 'running'
     const lastSyncedAt = appStoreSyncStatus?.lastSyncedAt ?? appStoreState?.lastSyncedAt
+    const isAppStoreIncompatible = appStoreState?.syncStatus === 'incompatible'
+    const appStoreIncompatibilityDetail = (
+        <>
+            {t('appStorePage.incompatibility.detailPrefix')}
+            <Link
+                component={RouterLink}
+                to="/settings#version-and-upgrade"
+                sx={{ color: 'primary.main', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+            >
+                {t('appStorePage.incompatibility.action')}
+            </Link>
+            {t('appStorePage.incompatibility.detailSuffix')}
+        </>
+    )
 
     const [isRelatedSectionCollapsed, setIsRelatedSectionCollapsed] = useState(false)
     const [isAllAppsSectionCollapsed, setIsAllAppsSectionCollapsed] = useState(false)
@@ -1189,23 +1202,18 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             segments.push(selectedSubCategory.title)
         }
 
-        if (showCustomAppsOnly) {
-            segments.push(t('appStorePage.filters.customAppsOnly'))
-        }
-
         return segments.join(' / ')
-    }, [mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, showCustomAppsOnly, subCategories, t])
+    }, [mainCategories, selectedMainCatalogKey, selectedSubCatalogKey, subCategories, t])
 
     const filteredApps = useMemo(
         () =>
             apps.filter(
                 (app) =>
-                    (!showCustomAppsOnly || app.app_origin === 'local') &&
                     matchesLegacyMainCatalog(app, selectedMainCatalogKey) &&
                     matchesLegacySubCatalog(app, selectedSubCatalogKey) &&
                     matchesAppStoreSearch(app, deferredSearchValue),
             ),
-        [apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey, showCustomAppsOnly],
+        [apps, deferredSearchValue, selectedMainCatalogKey, selectedSubCatalogKey],
     )
     const favoriteApps = useMemo(() => {
         const favoriteKeys = [...(favoritesData?.favorites ?? [])].reverse()
@@ -1816,10 +1824,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                 refetchFavorites(),
                 refetchAppStoreState(),
             ])
-                .then(() => {
+                .then(([, , , stateResult]) => {
+                    const incompatibilityMessage = stateResult.data?.incompatibility?.message
                     setRefreshFeedback({
-                        severity: 'success',
-                        message: t('appStorePage.feedback.refreshComplete'),
+                        severity: incompatibilityMessage ? 'error' : 'success',
+                        message: incompatibilityMessage
+                            ? t('appStorePage.feedback.upgradeRequired')
+                            : t('appStorePage.feedback.refreshComplete'),
                     })
                 })
                 .catch(() => {
@@ -1984,7 +1995,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         borderColor: `${palette.borderStrong} !important`,
                         color: `${palette.text} !important`,
                     },
-                    '& .MuiPaper-root': {
+                    '& .MuiPaper-root:not(.MuiAlert-root)': {
                         backgroundColor: `${palette.panelBg} !important`,
                         color: `${palette.text} !important`,
                     },
@@ -2008,10 +2019,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                     '& .MuiTypography-root': {
                         color: palette.text,
                     },
+                    '& .MuiLink-root': {
+                        color: '#1976d2 !important',
+                        textDecoration: 'underline !important',
+                        textUnderlineOffset: '2px',
+                    },
                     '& .MuiAlert-root': {
-                        backgroundColor: `${palette.panelBg} !important`,
                         color: `${palette.text} !important`,
-                        border: `1px solid ${palette.border}`,
                     },
                 }}
             >
@@ -2247,15 +2261,23 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     </Box>
                                 )}
                             />
+                            {isAppStoreIncompatible ? (
+                                <SurfaceNoticeAlert
+                                    severity="warning"
+                                    title={t('appStorePage.incompatibility.title')}
+                                    detail={appStoreIncompatibilityDetail}
+                                    darkMode={isDarkMode}
+                                />
+                            ) : null}
                             <Box
                                 sx={{
                                     flexShrink: 0,
                                     display: 'grid',
-                                    gap: 1.25,
+                                    gap: 2.25,
                                     gridTemplateColumns: {
                                         xs: '1fr',
-                                        md: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr) minmax(0, 1.5fr)',
-                                        xl: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.5fr) minmax(0, 1.5fr)',
+                                        md: 'repeat(2, minmax(0, 1fr))',
+                                        xl: 'repeat(4, minmax(0, 1fr))',
                                     },
                                     alignItems: 'stretch',
                                 }}
@@ -2338,24 +2360,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                 </TextField>
                                 <Box
                                     sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        minHeight: 42,
-                                        px: 1,
-                                        border: `1px solid ${palette.border}`,
-                                        borderRadius: '4px',
-                                        backgroundColor: palette.panelBg,
-                                    }}
-                                >
-                                    <FormControlLabel
-                                        control={<Switch checked={showCustomAppsOnly} onChange={(event) => setShowCustomAppsOnly(event.target.checked)} size="small" />}
-                                        label={t('appStorePage.filters.customAppsOnly')}
-                                        sx={{ m: 0, '& .MuiFormControlLabel-label': appStoreControlTextSx }}
-                                    />
-                                </Box>
-                                <Box
-                                    sx={{
-                                        gridColumn: { xs: '1 / -1', md: 'span 1', xl: 'span 1' },
+                                        gridColumn: { xs: '1 / -1', md: '1 / -1', xl: 'span 2' },
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'flex-start',
@@ -2784,7 +2789,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                         <Box sx={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pr: 0.5 }}>
                             <Stack spacing={1.5} sx={{ pb: 0.5 }}>
                                 {/* ── Related Recommendations ── */}
-                                {!showCustomAppsOnly && relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
+                                {relatedApps.length > 0 && !deferredSearchValue && selectedMainCatalogKey === 'all' && selectedSubCatalogKey === 'all' ? (
                                     <>
                                         <Box
                                             sx={{ display: 'flex', alignItems: 'center', minHeight: 28, cursor: 'pointer' }}
@@ -2879,6 +2884,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     {filteredApps.map((app) => {
                                                         const isDevApp = app.production === false
                                                         const isLocalApp = app.app_origin === 'local'
+                                                        const isDevelopmentApp = app.app_origin === 'development'
                                                         return (
                                                             <UnifiedAppCard
                                                                 key={getAppStoreCardKey(app)}
@@ -2893,6 +2899,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                     isLocalApp ? (
                                                                         <Chip
                                                                             label={t('appStorePage.results.customBadge')}
+                                                                            size="small"
+                                                                            sx={{
+                                                                                height: 22,
+                                                                                fontSize: 11,
+                                                                                fontWeight: 600,
+                                                                                borderRadius: '2px',
+                                                                                backgroundColor: '#0f766e',
+                                                                                color: '#fff',
+                                                                                '& .MuiChip-label': { px: 0.75 },
+                                                                            }}
+                                                                        />
+                                                                    ) : isDevelopmentApp ? (
+                                                                        <Chip
+                                                                            label={t('appStorePage.results.developmentBadge')}
                                                                             size="small"
                                                                             sx={{
                                                                                 height: 22,
@@ -3794,6 +3814,14 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     {t('appStorePage.actions.syncNever')}
                                 </Typography>
                             )}
+                            {isAppStoreIncompatible ? (
+                                <SurfaceNoticeAlert
+                                    severity="warning"
+                                    title={t('appStorePage.incompatibility.lastSyncTitle')}
+                                    detail={appStoreIncompatibilityDetail}
+                                    darkMode={isDarkMode}
+                                />
+                            ) : null}
                         </Box>
                     </DialogContent>
                     <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.dialogBg }}>

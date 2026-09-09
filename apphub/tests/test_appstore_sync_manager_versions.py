@@ -49,6 +49,21 @@ def test_list_versions_returns_sorted_releases_and_active_dataset(tmp_path, monk
     assert result["versions"][1]["active"] is True
 
 
+def test_get_state_exposes_appstore_incompatibility(tmp_path, monkeypatch):
+    state_path = tmp_path / "config" / "appstore_sync_state.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps({"syncStatus": "incompatible", "incompatibility": {"message": "Please upgrade Websoft9"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(state_path))
+
+    state = AppStoreSyncManager().get_state()
+
+    assert state["syncStatus"] == "incompatible"
+    assert state["incompatibility"] == {"message": "Please upgrade Websoft9"}
+
+
 def test_activate_switches_current_snapshot_and_runtime_roots(tmp_path, monkeypatch):
     snapshot_root = tmp_path / "appstore"
     release_root = snapshot_root / "releases" / "2026.06.08.110000"

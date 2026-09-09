@@ -23,7 +23,7 @@ type SurfaceStateCardProps = {
 type SurfaceNoticeAlertProps = {
     severity: AlertColor
     title: string
-    detail: string
+    detail: ReactNode
     action?: ReactNode
     darkMode?: boolean
 }
@@ -216,9 +216,18 @@ export function SurfaceStatusBadge({ label, tone, darkMode = false }: SurfaceSta
 
 export function SurfaceNoticeAlert({ severity, title, detail, action, darkMode = false }: SurfaceNoticeAlertProps) {
     const palette = getSurfacePalette(darkMode)
+    const errorSurface = severity === 'error'
+        ? darkMode
+            ? { backgroundColor: 'rgba(127, 29, 29, 0.28)', borderColor: 'rgba(248, 113, 113, 0.5)' }
+            : { backgroundColor: '#fef2f2', borderColor: '#fecaca' }
+        : severity === 'warning'
+            ? darkMode
+                ? { backgroundColor: 'rgba(120, 53, 15, 0.3)', borderColor: 'rgba(251, 191, 36, 0.5)' }
+                : { backgroundColor: '#fffbeb', borderColor: '#fde68a' }
+            : {}
 
     return (
-        <Alert action={action} severity={severity} variant="outlined" sx={{ borderRadius: '2px', alignItems: 'flex-start', backgroundColor: palette.panelBg, color: palette.text, borderColor: palette.borderStrong }}>
+        <Alert action={action} severity={severity} variant="outlined" sx={{ borderRadius: '2px', alignItems: 'flex-start', backgroundColor: palette.panelBg, color: palette.text, borderColor: palette.borderStrong, ...errorSurface }}>
             <Typography sx={{ fontWeight: 600, color: palette.text }}>{title}</Typography>
             <Typography variant="body2" sx={{ color: palette.subtleText }}>{detail}</Typography>
         </Alert>

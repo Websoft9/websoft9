@@ -135,6 +135,8 @@ class AppStoreSyncManager:
         """Return the current sync state for consumer inspection."""
         state = self._load_sync_state()
         return {
+            "syncStatus": state.get("syncStatus", "ready"),
+            "incompatibility": state.get("incompatibility"),
             "channel": state.get("channel"),
             "datasetVersion": state.get("datasetVersion"),
             "catalogDatasetVersion": state.get("catalogDatasetVersion"),

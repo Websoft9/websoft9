@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Optional
 
 import requests
@@ -19,6 +20,19 @@ _ARTIFACT_BASE_URL = "https://artifact.websoft9.com/websoft9"
 
 def _is_release_candidate(version: Optional[str]) -> bool:
     return "-rc" in str(version or "").lower()
+
+
+def _parse_version(version: Optional[str]) -> Optional[tuple[int, int, int]]:
+    match = re.fullmatch(r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?", str(version or "").strip())
+    if not match:
+        return None
+    return tuple(int(part or 0) for part in match.groups())
+
+
+def _is_newer_stable_version(latest_version: Optional[str], current_version: Optional[str]) -> bool:
+    latest = _parse_version(latest_version)
+    current = _parse_version(current_version)
+    return bool(latest and current and not _is_release_candidate(latest_version) and latest > current)
 
 
 def _latest_remote_version(channel: str) -> Optional[str]:
@@ -192,12 +206,7 @@ def get_upgrade_status():
     current_version = read_release_version() or ""
     channel = read_release_channel()
     latest_version = _latest_remote_version(channel)
-    upgrade_available = bool(
-        latest_version
-        and current_version
-        and latest_version != current_version
-        and not _is_release_candidate(latest_version)
-    )
+    upgrade_available = _is_newer_stable_version(latest_version, current_version)
     artifact_url = f"{_ARTIFACT_BASE_URL}/{channel}/install.sh"
     install_command = f"wget -O install.sh {artifact_url} && sudo bash install.sh"
 

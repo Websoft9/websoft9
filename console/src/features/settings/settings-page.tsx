@@ -261,6 +261,12 @@ export function SettingsPage() {
 
     const [copied, setCopied] = useState(false)
 
+    useEffect(() => {
+        if (window.location.hash === '#version-and-upgrade') {
+            setActiveModule('platform-system')
+        }
+    }, [])
+
     const items = data?.groups.flatMap((group) => group.items) ?? []
     const boundDomainItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'bound_domain') ?? null
     const globalDomainItem = items.find((item) => item.group === 'domain' && item.key === 'wildcard_domain') ?? null
@@ -1575,7 +1581,7 @@ export function SettingsPage() {
                                 </Box>
                             </Box>
 
-                            <Box className="settings-module-area">
+                            <Box className="settings-module-area" id={activeModule === 'platform-system' ? 'version-and-upgrade' : undefined}>
                                 <Box className="settings-module-header">
                                     <span className="settings-module-indicator" />
                                     <Box className="settings-module-headline">

@@ -29,6 +29,53 @@ SUPPORTED_SCHEMA_VERSIONS = {"1"}
 _V2_APPSTORE_MANIFEST_PATH = "appstore/{channel}/manifests/appstore-manifest.json"
 
 
+class AppStoreCompatibilityError(RuntimeError):
+    """Raised when an App Store dataset requires a newer Websoft9 runtime."""
+
+
+def _parse_version(value: object, label: str) -> tuple[int, ...]:
+    if not isinstance(value, str) or not value.strip():
+        raise AppStoreCompatibilityError(f"invalid {label}: {value!r}")
+
+    match = re.fullmatch(r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?", value.strip())
+    if not match:
+        raise AppStoreCompatibilityError(f"invalid {label}: {value!r}")
+    return tuple(int(part or 0) for part in match.groups())
+
+
+def get_websoft9_version() -> str:
+    version_path = Path(os.getenv("WEBSOFT9_VERSION_FILE", "/websoft9/version.json"))
+    try:
+        payload = json.loads(version_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AppStoreCompatibilityError(f"failed to read Websoft9 version from {version_path}: {exc}") from exc
+
+    version = payload.get("version") if isinstance(payload, dict) else None
+    _parse_version(version, "Websoft9 version")
+    return version.strip()
+
+
+def check_appstore_compatibility(appstore_manifest: dict[str, object], websoft9_version: str | None = None) -> None:
+    schema_version = appstore_manifest.get("schemaVersion")
+    if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise AppStoreCompatibilityError(
+            f"unsupported appstore schemaVersion: {schema_version}. "
+            f"Supported versions: {', '.join(sorted(SUPPORTED_SCHEMA_VERSIONS))}. "
+            "Please upgrade your Websoft9 platform."
+        )
+
+    minimum_version = appstore_manifest.get("minWebsoft9Version")
+    if minimum_version is None:
+        return
+
+    current_version = websoft9_version or get_websoft9_version()
+    if _parse_version(current_version, "Websoft9 version") < _parse_version(minimum_version, "minWebsoft9Version"):
+        raise AppStoreCompatibilityError(
+            f"appstore requires Websoft9 >= {minimum_version}; current version is {current_version}. "
+            "Please upgrade your Websoft9 platform."
+        )
+
+
 def log(message: str) -> None:
     print(message, flush=True)
 
@@ -237,7 +284,7 @@ def _resolve_appstore_manifest_url(artifact_base: str, channel: str) -> str:
 def _check_schema_version(manifest: dict[str, object], manifest_url: str, label: str = "appstore") -> None:
     schema_version = manifest.get("schemaVersion")
     if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
-        raise RuntimeError(
+        raise AppStoreCompatibilityError(
             f"unsupported {label} schemaVersion: {schema_version}. "
             f"Supported versions: {', '.join(sorted(SUPPORTED_SCHEMA_VERSIONS))}. "
             f"Please upgrade your Websoft9 platform."
@@ -277,6 +324,7 @@ def fetch_appstore_manifests(artifact_base: str, channel: str) -> dict[str, obje
         raise RuntimeError(f"invalid appstore manifest payload: {appstore_manifest_url}")
 
     _check_schema_version(appstore_manifest, appstore_manifest_url, "appstore")
+    check_appstore_compatibility(appstore_manifest)
 
     catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
 
@@ -1026,6 +1074,99 @@ def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
     return profiles
 
 
+def load_catalog_metadata(library_root: Path) -> dict[str, dict[str, object]]:
+    metadata_root = library_root.parent / "metadata" / "catalog"
+    metadata: dict[str, dict[str, object]] = {}
+    metadata_root.mkdir(parents=True, exist_ok=True)
+    if not metadata_root.is_dir():
+        return metadata
+
+    for metadata_path in sorted(metadata_root.glob("*.json")):
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"failed to read catalog metadata {metadata_path}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"catalog metadata must be an object: {metadata_path}")
+
+        app_key = metadata_path.stem
+        declared_key = payload.get("key")
+        if declared_key is not None and declared_key != app_key:
+            raise RuntimeError(f"catalog metadata key does not match filename: {metadata_path}")
+        metadata[app_key] = payload
+
+    return metadata
+
+
+def load_catalog_titles(media_json_root: Path, locale: str) -> dict[str, dict[str, object]]:
+    catalog_path = media_json_root / f"catalog_{locale}.json"
+    try:
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"failed to read {catalog_path}: {exc}") from exc
+    if not isinstance(catalog, list):
+        raise RuntimeError(f"catalog metadata must be an array: {catalog_path}")
+
+    titles: dict[str, dict[str, object]] = {}
+    for parent in catalog:
+        if not isinstance(parent, dict) or not isinstance(parent.get("key"), str):
+            continue
+        children = parent.get("linkedFrom", {}).get("catalogCollection", {}).get("items", [])
+        child_titles = {
+            child["key"]: child
+            for child in children
+            if isinstance(child, dict) and isinstance(child.get("key"), str)
+        }
+        titles[parent["key"]] = {"parent": parent, "children": child_titles}
+    return titles
+
+
+def build_catalog_collection(bindings: object, catalog_titles: dict[str, dict[str, object]]) -> dict[str, object]:
+    if not isinstance(bindings, list):
+        raise ValueError("catalogBindings must be an array")
+
+    parents: dict[str, dict[str, object]] = {}
+    for binding in bindings:
+        if not isinstance(binding, dict):
+            raise ValueError("catalogBindings entries must be objects")
+        parent_key = binding.get("parentKey")
+        child_key = binding.get("childKey")
+        if not isinstance(parent_key, str) or not isinstance(child_key, str):
+            raise ValueError("catalogBindings entries require parentKey and childKey")
+        catalog_entry = catalog_titles.get(parent_key)
+        if catalog_entry is None:
+            raise ValueError(f"catalog parent does not exist: {parent_key}")
+        child = catalog_entry["children"].get(child_key)
+        if not isinstance(child, dict):
+            raise ValueError(f"catalog child does not exist: {parent_key}/{child_key}")
+
+        parent = catalog_entry["parent"]
+        parent_item = parents.setdefault(
+            parent_key,
+            {
+                "key": parent_key,
+                "title": parent.get("title", parent_key),
+                "catalogCollection": {"items": []},
+            },
+        )
+        parent_item["catalogCollection"]["items"].append(
+            {"key": child_key, "title": child.get("title", child_key), "position": child.get("position")}
+        )
+
+    return {"items": list(parents.values())}
+
+
+def resolve_catalog_product(metadata: dict[str, object], app_key: str, locale: str, catalog_titles: dict[str, dict[str, object]]) -> dict[str, object]:
+    product = {key: value for key, value in metadata.items() if key not in {"key", "translations", "catalogBindings"}}
+    translations = metadata.get("translations")
+    if isinstance(translations, dict) and isinstance(translations.get(locale), dict):
+        product.update(translations[locale])
+    product["key"] = app_key
+    product["app_origin"] = "development"
+    product["catalogCollection"] = build_catalog_collection(metadata.get("catalogBindings"), catalog_titles)
+    return product
+
+
 def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: str) -> dict[str, object]:
     product_path = media_json_root / f"product_{locale}.json"
     try:
@@ -1035,8 +1176,10 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
     if not isinstance(products, list):
         raise RuntimeError(f"product media must be an array: {product_path}")
 
-    product_keys: set[str] = set()
-    apps: list[dict[str, object]] = []
+    catalog_metadata = load_catalog_metadata(library_root)
+    catalog_titles = load_catalog_titles(media_json_root, locale) if catalog_metadata else {}
+    legacy_products: dict[str, dict[str, object]] = {}
+    product_order: list[str] = []
     for product in products:
         if not isinstance(product, dict):
             log(f"[platform-assets] skipping non-object media entry in product_{locale}.json")
@@ -1046,9 +1189,27 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
             log("[platform-assets] skipping media entry with missing app key")
             continue
         app_key = app_key.strip()
-        if app_key in product_keys:
+        if app_key in legacy_products:
             raise RuntimeError(f"duplicate app key in {product_path}: {app_key}")
-        product_keys.add(app_key)
+        legacy_products[app_key] = product
+        product_order.append(app_key)
+
+    product_keys = set(legacy_products) | set(catalog_metadata)
+    metadata_only_keys = sorted(set(catalog_metadata) - set(legacy_products))
+    for app_key in sorted(set(catalog_metadata) & set(legacy_products)):
+        log(f"[platform-assets] ignoring local catalog metadata for {app_key}: standard product entry already exists")
+    product_order.extend(metadata_only_keys)
+    apps: list[dict[str, object]] = []
+    for app_key in product_order:
+        product = legacy_products.get(app_key)
+        if app_key in metadata_only_keys:
+            try:
+                product = resolve_catalog_product(catalog_metadata[app_key], app_key, locale, catalog_titles)
+            except ValueError as exc:
+                log(f"[platform-assets] skipping {app_key}: invalid catalog metadata: {exc}")
+                continue
+        if product is None:
+            continue
         app_dir = library_root / app_key
         variables_path = app_dir / "variables.json"
         env_path = app_dir / ".env"
@@ -1080,7 +1241,7 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
         for app_dir in sorted(library_root.iterdir()):
             if app_dir.is_dir() and app_dir.name not in product_keys:
                 log(f"[platform-assets] skipping {app_dir.name}: missing media entry in product_{locale}.json")
-    if products and not apps:
+    if product_keys and not apps:
         raise RuntimeError(f"no valid app entries generated from non-empty {product_path}")
 
     manifest: dict[str, object] = {"schemaVersion": "1", "locale": locale, "apps": apps}
@@ -1202,6 +1363,7 @@ def main() -> int:
 
     rollback_backups: dict[Path, Path | None] = {}
     rollback_root: Path | None = None
+    previous_state: dict[str, object] = {}
     try:
         rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
         rollback_targets = [
@@ -1253,6 +1415,8 @@ def main() -> int:
                     previous_state.get("datasetVersion"),
                     latest_dataset_version,
                 )
+        except AppStoreCompatibilityError:
+            raise
         except Exception as exc:
             log(f"[platform-assets] appstore manifests unavailable, falling back to legacy package resolution: {exc}")
 
@@ -1340,6 +1504,24 @@ def main() -> int:
             state_payload["libraryDatasetVersion"] = latest_library_dsv
         write_sync_state(sync_state_path, state_payload)
         log(f"[platform-assets] completed app store manifest build (mode={sync_mode})")
+    except AppStoreCompatibilityError as exc:
+        if rollback_backups:
+            try:
+                restore_trees(rollback_backups)
+                log("[platform-assets] restored active assets after incompatible appstore update")
+            except Exception as rollback_exc:
+                log(f"[platform-assets] failed to restore active assets after incompatible update: {rollback_exc}")
+        incompatible_state = dict(previous_state)
+        incompatible_state.update(
+            {
+                "syncStatus": "incompatible",
+                "lastSyncAttemptAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                "incompatibility": {"message": str(exc)},
+            }
+        )
+        write_sync_state(sync_state_path, incompatible_state)
+        log(f"[platform-assets] app store update requires a Websoft9 upgrade: {exc}")
+        return 1
     except Exception as exc:
         if rollback_backups:
             try:

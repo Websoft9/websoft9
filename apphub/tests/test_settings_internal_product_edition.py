@@ -165,6 +165,17 @@ def test_upgrade_status_keeps_stable_release_recommendation(monkeypatch):
     assert status["upgrade_available"] is True
 
 
+def test_upgrade_status_does_not_recommend_an_older_release(monkeypatch):
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.2")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+    monkeypatch.setattr(settings_router, "_latest_remote_version", lambda _channel: "2.4.1")
+
+    status = settings_router.get_upgrade_status()
+
+    assert status["latest_version"] == "2.4.1"
+    assert status["upgrade_available"] is False
+
+
 def test_disabling_https_clears_secure_product_session_before_gateway_restart(monkeypatch):
     app = create_test_app()
     client = TestClient(app)

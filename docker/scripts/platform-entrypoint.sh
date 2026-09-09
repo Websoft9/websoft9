@@ -189,6 +189,19 @@ sync_runtime_config() {
   /websoft9/script/platform-sync-config.sh --mode "$mode"
 }
 
+sync_appstore_assets() {
+  local output
+
+  log_event "info" "appstore-sync.start" "phase=runtime-bootstrap action=sync-appstore-assets"
+  if output="$(/websoft9/script/platform-sync-runtime-assets.py 2>&1)"; then
+    log_event "info" "appstore-sync.completed" "$output"
+    return 0
+  fi
+
+  log_event "warning" "appstore-sync.failed" "$output"
+  return 0
+}
+
 update_runtime_status() {
   local mode="${1:-strict}"
   local output
@@ -431,6 +444,7 @@ main() {
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   sync_runtime_config base
+  sync_appstore_assets
   ensure_product_runtime_state
   start_supervisor
   ensure_platform_network
