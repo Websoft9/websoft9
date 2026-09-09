@@ -130,8 +130,6 @@ function getInstallPortsValidationMessage(
     t: (key: string, options?: Record<string, unknown>) => string,
     profile: string | null,
 ) {
-    const usedPorts = new Set<string>()
-
     for (const [key, rawValue] of Object.entries(settings)) {
         if (!key.toLowerCase().includes('port') || (profile === 'external-db' && key === 'W9_DB_PORT_SET')) {
             continue
@@ -147,12 +145,6 @@ function getInstallPortsValidationMessage(
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
             return { key, message: t('appStorePage.install.validation.port', { name: label }) }
         }
-
-        if (usedPorts.has(value)) {
-            return { key, message: t('appStorePage.install.validation.portDuplicate', { port: value }) }
-        }
-
-        usedPorts.add(value)
     }
 
     return null
