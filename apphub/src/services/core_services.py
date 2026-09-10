@@ -55,6 +55,7 @@ TIME_RANGE_DELTAS = {
     "24h": timedelta(hours=24),
     "7d": timedelta(days=7),
 }
+HEALTH_PROBE_TIMEOUT_SECONDS = 5
 
 
 @dataclass(frozen=True)
@@ -400,12 +401,12 @@ class CoreServicesService:
     def _probe_health(self, definition: ServiceDefinition) -> HealthProbeResult:
         if definition.key == "nginx-proxy-manager":
             token_url = urljoin(f"{definition.health_url.rstrip('/')}/", "api/tokens")
-            response = requests.post(token_url, json={}, timeout=2, verify=definition.health_verify_tls)
+            response = requests.post(token_url, json={}, timeout=HEALTH_PROBE_TIMEOUT_SECONDS, verify=definition.health_verify_tls)
             if response.status_code == 400:
                 return HealthProbeResult(ok=True, detail="NPM API ready (HTTP 400)")
             return HealthProbeResult(ok=False, detail=f"NPM API HTTP {response.status_code}")
 
-        response = requests.get(definition.health_url, timeout=2, verify=definition.health_verify_tls)
+        response = requests.get(definition.health_url, timeout=HEALTH_PROBE_TIMEOUT_SECONDS, verify=definition.health_verify_tls)
         if response.status_code < 500:
             return HealthProbeResult(ok=True, detail=f"HTTP {response.status_code}")
         return HealthProbeResult(ok=False, detail=f"HTTP {response.status_code}")

@@ -238,7 +238,7 @@ export function OverviewPage() {
                     description={t('overviewPage.description')}
                     descriptionColor={colorMode === 'dark' ? '#94a3b8' : '#64748b'}
                     actions={(
-                        <Tooltip title={isManualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}>
+                        <Tooltip title={isManualRefreshing ? t('overviewPage.actions.refreshing') : t('overviewPage.actions.refresh')}>
                             <span>
                                 <IconButton
                                     color="inherit"
@@ -248,7 +248,7 @@ export function OverviewPage() {
                                     size="small"
                                     disabled={isManualRefreshing}
                                     className="app-shell-page-action"
-                                    title={isManualRefreshing ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')}
+                                    title={isManualRefreshing ? t('overviewPage.actions.refreshing') : t('overviewPage.actions.refresh')}
                                 >
                                     {isManualRefreshing ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
                                 </IconButton>
@@ -326,7 +326,10 @@ export function OverviewPage() {
                                             <Box className="overview-page-info-grid overview-page-info-grid--platform">
                                                 <InfoBlock label={t('overviewPage.cards.product.metrics.version')} value={data.product.version || '--'} />
                                                 <InfoBlock label={t('overviewPage.cards.product.metrics.edition')} value={localizedEditionName} />
-                                                <InfoBlock label={t('overviewPage.stats.healthyServices')} value={`${data.services.healthy_count ?? 0}/${data.services.total_count ?? 0}`} />
+                                                <InfoBlock
+                                                    label={t('overviewPage.stats.healthyServices')}
+                                                    value={`${data.services.healthy_count ?? 0}/${data.services.total_count ?? 0}`}
+                                                />
                                                 <InfoBlock label={t('overviewPage.cards.product.metrics.availableApps')} value={t('overviewPage.cards.product.unlimited')} />
                                             </Box>
 

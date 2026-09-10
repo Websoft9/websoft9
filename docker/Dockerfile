@@ -153,6 +153,7 @@ COPY mirrors.json /websoft9/mirrors.json
 COPY docker/gateway/nginx.conf /etc/websoft9/platform-gateway/nginx.conf
 COPY docker/gateway/default.conf /etc/websoft9/platform-gateway/default.conf
 COPY docker/gateway/platform-gateway-routes.conf /etc/websoft9/platform-gateway/platform-gateway-routes.conf
+COPY docker/gateway/startup.html /etc/websoft9/platform-gateway/startup.html
 COPY docker/apphub/logging_config.yaml /etc/supervisor/conf.d/logging_config.yaml
 COPY docker/supervisord.conf /etc/supervisor/conf.d/websoft9-platform.conf
 COPY docker/scripts/platform-container-entrypoint.sh /websoft9/script/platform-container-entrypoint.sh

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Websoft9</title>
+    <style>
+        :root {
+            color: #172033;
+            background: #f4f7fb;
+            font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+        }
+
+        main {
+            display: grid;
+            justify-items: center;
+            gap: 18px;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #c9d8ef;
+            border-top-color: #1767d1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        p {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="spinner" aria-hidden="true"></div>
+        <h1>Websoft9 is starting</h1>
+        <p>This page will continue automatically when the service is ready.</p>
+    </main>
+    <script>
+        const retry = () => fetch('/api/healthz/ready', { credentials: 'include', cache: 'no-store' })
+            .then((response) => {
+                if (response.ok) window.location.reload()
+                else window.setTimeout(retry, 1500)
+            })
+            .catch(() => window.setTimeout(retry, 1500))
+        retry()
+    </script>
+</body>
+
+</html>
