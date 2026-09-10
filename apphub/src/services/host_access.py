@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import shlex
 import socket
@@ -26,6 +27,8 @@ except ModuleNotFoundError:
 
 from src.core.exception import CustomException
 from src.services.product_auth import ProductAuthService
+
+logger = logging.getLogger(__name__)
 
 
 HOST_ACCESS_HOST = os.getenv("WEBSOFT9_HOST_ACCESS_HOST") or os.getenv("DOCKER0_IP") or "172.17.0.1"
@@ -89,10 +92,11 @@ class HostAccessService:
             storage_profile["passphrase"] = ""
 
         with self._lock:
-            self._runtime_profiles[operator["id"]] = dict(verified_profile)
             self._ensure_unique_profile_username(operator["id"], storage_profile)
             self._store_operator_profile(operator["id"], storage_profile)
-            self._set_active_profile_id(operator["id"], str(verified_profile["profile_id"]))
+            if not force_save:
+                self._runtime_profiles[operator["id"]] = dict(verified_profile)
+                self._set_active_profile_id(operator["id"], str(verified_profile["profile_id"]))
 
         return self._get_profile_for_operator(operator["id"])
 
@@ -845,13 +849,24 @@ class HostAccessService:
                     self._file_browser_clients[cache_key]["last_used_at"] = time.time()
                 else:
                     self._close_file_browser_client_locked(cache_key)
-                    client = self._connect_client(profile)
-                    self._file_browser_clients[cache_key] = {
-                        "client": client,
-                        "sftp": None,
-                        "lock": threading.RLock(),
-                        "last_used_at": time.time(),
-                    }
+
+            if client is None:
+                # 在锁外建立 SSH 连接，避免阻塞全局锁影响其他终端的读写。
+                client = self._connect_client(profile)
+                with self._lock:
+                    cached_client = self._file_browser_clients.get(cache_key, {}).get("client")
+                    if cached_client is not None and self._is_ssh_client_active(cached_client):
+                        # 并发下已有可用连接，关闭本次多余建立的连接并复用缓存。
+                        client.close()
+                        client = cached_client
+                        self._file_browser_clients[cache_key]["last_used_at"] = time.time()
+                    else:
+                        self._file_browser_clients[cache_key] = {
+                            "client": client,
+                            "sftp": None,
+                            "lock": threading.RLock(),
+                            "last_used_at": time.time(),
+                        }
 
             yield client
         except Exception:

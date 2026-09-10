@@ -1518,6 +1518,7 @@ export function TerminalPage() {
     const [accessErrors, setAccessErrors] = useState<Partial<Record<AccessFieldName, string>>>({})
     const [passwordVisible, setPasswordVisible] = useState(false)
     const [browserLoading, setBrowserLoading] = useState(false)
+    const [browserError, setBrowserError] = useState<string | null>(null)
     const [isEditorLoading, setIsEditorLoading] = useState(false)
     const [isFileActionSubmitting, setIsFileActionSubmitting] = useState(false)
     const [browserEntries, setBrowserEntries] = useState<HostAccessFileItem[]>([])
@@ -2312,7 +2313,6 @@ export function TerminalPage() {
 
             if (message.type === 'error') {
                 handledError = true
-                showFeedback('error', `${copy.terminalErrorTitle}: ${message.details || message.message || copy.terminalErrorTitle}`)
                 updateSession(sessionId, (session) => ({
                     ...session,
                     status: 'ended',
@@ -2339,12 +2339,12 @@ export function TerminalPage() {
                 return
             }
 
-            if (!receivedReady && !handledError) {
-                showFeedback('error', copy.terminalErrorTitle)
-            }
             updateSession(sessionId, (session) => ({
                 ...session,
                 status: session.status === 'connected' || !receivedReady ? 'ended' : session.status,
+                buffer: !receivedReady && !handledError
+                    ? `${session.buffer}\r\n${copy.terminalErrorTitle}\r\n`
+                    : session.buffer,
             }))
             delete sessionSocketRef.current[sessionId]
         }
@@ -2394,6 +2394,7 @@ export function TerminalPage() {
         if (!activeSession) {
             invalidateFileBrowserRequests()
             setBrowserEntries([])
+            setBrowserError(null)
             setPathSuggestions([])
             setBrowserLoading(false)
             setIsEditorLoading(false)
@@ -2405,6 +2406,7 @@ export function TerminalPage() {
         setBrowserHistory([nextPath])
         setBrowserHistoryIndex(0)
         setBrowserEntries([])
+        setBrowserError(null)
         setSelectedEntryPath(null)
         setBrowserMetadata(null)
         setPathSuggestions([])
@@ -2544,6 +2546,7 @@ export function TerminalPage() {
         browserRequestIdRef.current = requestId
         let cancelled = false
         setBrowserLoading(true)
+        setBrowserError(null)
         void requestJson<HostAccessDirectoryResponse>(buildFileApiUrl('/api/host-access/files/tree', { path: browserPath }), { method: 'GET' })
             .then((response) => {
                 const currentSession = activeSessionRef.current
@@ -2565,7 +2568,7 @@ export function TerminalPage() {
             .catch((error) => {
                 const currentSession = activeSessionRef.current
                 if (!cancelled && browserRequestIdRef.current === requestId && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
-                    showFeedback('error', `${copy.browserErrorTitle}: ${error instanceof Error ? error.message : copy.browserErrorTitle}`)
+                    setBrowserError(`${copy.browserErrorTitle}: ${error instanceof Error ? error.message : copy.browserErrorTitle}`)
                     setBrowserEntries([])
                     setBrowserMetadata(null)
                 }
@@ -2817,13 +2820,16 @@ export function TerminalPage() {
 
             const nextAccess = {
                 ...accessForm,
-                workingDirectory: profile.working_directory || accessForm.workingDirectory,
-                shell: profile.shell || DEFAULT_ACCESS_FORM.shell,
+                workingDirectory: accessForm.workingDirectory,
+                shell: accessForm.shell || profile.shell || DEFAULT_ACCESS_FORM.shell,
             }
             setIsAccessDialogOpen(false)
             setIsHostSelectorOpen(false)
             setCreateSessionAnchorEl(null)
-            applyProfileResponse(profile, nextAccess, { appendSession: accessReady && sessions.length > 0, autoConnect: false })
+            // 强制保存（连接测试未通过）：仅把连接信息写入“已保存主机”列表并刷新连接表单，
+            // 不切换当前激活主机、不重置当前终端工作区，避免影响已连接的终端会话。
+            setSavedProfiles(profile.saved_profiles ?? [])
+            setAccessForm(nextAccess)
             showFeedback('success', copy.forceSaveSuccess)
         } catch (error) {
             showFeedback('error', `${copy.accessErrorTitle}: ${error instanceof Error ? error.message : copy.accessErrorTitle}`)
@@ -4393,6 +4399,10 @@ export function TerminalPage() {
                                                                                     </div>
                                                                                 ))}
                                                                             </div>
+                                                                        </div>
+                                                                    ) : browserError ? (
+                                                                        <div className="terminal-files-empty">
+                                                                            <Typography sx={{ fontSize: 13.5, color: '#dc2626', wordBreak: 'break-all' }}>{browserError}</Typography>
                                                                         </div>
                                                                     ) : (
                                                                         <div className="terminal-files-empty">

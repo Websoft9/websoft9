@@ -346,7 +346,13 @@ async def host_access_terminal_ws(websocket: WebSocket):
     try:
         cols = int(websocket.query_params.get("cols", "120"))
         rows = int(websocket.query_params.get("rows", "32"))
-        attached = service.attach_terminal_session(session_token=session_token, session_id=session_id, cols=cols, rows=rows)
+        attached = await asyncio.to_thread(
+            service.attach_terminal_session,
+            session_token=session_token,
+            session_id=session_id,
+            cols=cols,
+            rows=rows,
+        )
         profile = attached["profile"]
         snapshot = str(attached.get("buffer") or "")
         output_cursor = int(attached.get("cursor") or 0)
