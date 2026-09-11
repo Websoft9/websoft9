@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import shutil
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence
 
 from src.core.config import ConfigManager
+from src.core.logger import logger
 from src.schemas.coreServices import CoreServiceSummary
 from src.schemas.overview import (
     OverviewAlert,
@@ -154,6 +156,24 @@ class OverviewService:
             services = list(self._services_loader(session_token) or [])
         except Exception as exc:
             return OverviewServicesSummary(available=False, unavailable_reason=str(exc))
+
+        non_healthy_services = [service for service in services if service.health_state != "healthy"]
+        if non_healthy_services:
+            diagnostics = [
+                {
+                    "key": service.key,
+                    "runtime_state": service.runtime_state,
+                    "health_state": service.health_state,
+                    "runtime_detail": service.runtime_detail,
+                    "indicators": [
+                        indicator.model_dump(exclude_none=True)
+                        for indicator in service.indicators
+                        if indicator.status != "ok"
+                    ],
+                }
+                for service in non_healthy_services
+            ]
+            logger.warning(f"Overview core-service health check failed: {json.dumps(diagnostics, ensure_ascii=False)}")
 
         return OverviewServicesSummary(
             total_count=len(services),

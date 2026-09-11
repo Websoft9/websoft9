@@ -23,6 +23,7 @@ from src.schemas.appResponse import AppResponse
 from src.schemas.coreServices import CoreServiceSummary
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.overview import OverviewTaskItem
+from src.services import overview_service
 from src.services.overview_service import OverviewService
 from src.services.overview_stream_cache import overview_stream_cache
 
@@ -148,7 +149,8 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
         now_provider=lambda: datetime(2026, 5, 7, 9, 0, tzinfo=timezone.utc),
     )
 
-    payload = service.get_overview("valid-session")
+    with patch.object(overview_service.logger, "warning") as warning:
+        payload = service.get_overview("valid-session")
 
     assert payload.product.version == "2.2.17"
     assert payload.product.edition_key == "free"
@@ -171,6 +173,8 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
     assert payload.services.degraded_count == 1
     assert payload.tasks.items[0].status == "running"
     assert payload.alerts[0].target_route in {"/myapps", "/services"}
+    warning.assert_called_once()
+    assert '"key": "portainer"' in warning.call_args.args[0]
 
 
 def test_overview_service_degrades_per_section_instead_of_failing_whole_page():

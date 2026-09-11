@@ -205,30 +205,6 @@ export function OverviewPage() {
         [locale],
     )
     const localizedEditionName = getLocalizedEditionName(data?.product.edition_key ?? null, data?.product.edition_name ?? null, t)
-    const runtimeAlertSummary = useMemo(() => {
-        if (!data || data.runtime.health_state === 'healthy') {
-            return null
-        }
-
-        const runtimeAlert = data.alerts[0]
-        if (runtimeAlert) {
-            return runtimeAlert.detail ? `${runtimeAlert.title} - ${runtimeAlert.detail}` : runtimeAlert.title
-        }
-
-        if (typeof data.runtime.cpu_percent === 'number' && data.runtime.cpu_percent >= 85) {
-            return t('overviewPage.cards.runtime.warningReasonCpu', { value: formatPercent(data.runtime.cpu_percent) })
-        }
-
-        if (typeof data.runtime.memory_percent === 'number' && data.runtime.memory_percent >= 85) {
-            return t('overviewPage.cards.runtime.warningReasonMemory', { value: formatPercent(data.runtime.memory_percent) })
-        }
-
-        if (data.runtime.unavailable_reason) {
-            return data.runtime.unavailable_reason
-        }
-
-        return t('overviewPage.cards.runtime.warningReasonGeneric')
-    }, [data, t])
 
     return (
         <Box className="overview-page-shell">
@@ -308,17 +284,7 @@ export function OverviewPage() {
                                         <Box sx={{ minWidth: 0, flex: '1 1 auto' }}>
                                             <Typography className="overview-page-panel-title">{t('overviewPage.cards.runtime.title')}</Typography>
                                             <Typography className="overview-page-panel-subtitle">{t('overviewPage.cards.runtime.subtitle')}</Typography>
-                                            {runtimeAlertSummary ? (
-                                                <Typography sx={{ mt: 0.5, fontSize: 12.5, lineHeight: 1.45, color: '#b45309' }}>
-                                                    {t('overviewPage.cards.runtime.warningReason', { reason: runtimeAlertSummary })}
-                                                </Typography>
-                                            ) : null}
                                         </Box>
-                                        <SurfaceStatusBadge
-                                            label={t(`overviewPage.cards.runtime.badges.${data.runtime.health_state}`)}
-                                            tone={data.runtime.health_state === 'healthy' ? 'success' : data.runtime.health_state === 'warning' ? 'warning' : 'error'}
-                                            darkMode={colorMode === 'dark'}
-                                        />
                                     </Stack>
 
                                     {data.runtime.available ? (

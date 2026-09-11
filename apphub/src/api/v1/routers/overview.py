@@ -53,7 +53,11 @@ async def stream_overview(
             sleep_seconds = 10.0
 
             try:
-                snapshot = overview_stream_cache.get_snapshot(session_token, force_refresh=last_digest is None)
+                snapshot = await asyncio.to_thread(
+                    overview_stream_cache.get_snapshot,
+                    session_token,
+                    force_refresh=last_digest is None,
+                )
                 sleep_seconds = min(max(snapshot.refresh_interval_seconds, 1.0), 10.0)
 
                 if snapshot.digest != last_digest:
