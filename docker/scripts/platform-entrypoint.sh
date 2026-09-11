@@ -11,6 +11,7 @@ status_interval="${WEBSOFT9_STATUS_INTERVAL:-60}"
 strict_status_interval="${WEBSOFT9_STRICT_STATUS_INTERVAL:-1800}"
 platform_runtime_log_path="${WEBSOFT9_PLATFORM_RUNTIME_LOG_PATH:-$data_root/logs/platform-runtime.log}"
 product_auth_credential_path="${WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH:-$data_root/product-auth/credential.json}"
+appstore_startup_state_file="${WEBSOFT9_APPSTORE_STARTUP_STATE_FILE:-$data_root/config/appstore_startup_state.json}"
 service_log_root="${WEBSOFT9_SERVICE_LOG_ROOT:-$data_root/logs}"
 custom_root="${WEBSOFT9_CUSTOM_ROOT:-$data_root/config}"
 platform_network_name="${WEBSOFT9_PLATFORM_NETWORK_NAME:-websoft9}"
@@ -189,15 +190,42 @@ sync_runtime_config() {
   /websoft9/script/platform-sync-config.sh --mode "$mode"
 }
 
+write_appstore_startup_state() {
+  local state="$1"
+  local detail="$2"
+
+  mkdir -p "$(dirname "$appstore_startup_state_file")"
+  python3 - "$appstore_startup_state_file" "$state" "$detail" <<'PY'
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+path, state, detail = sys.argv[1:]
+temporary_path = f"{path}.tmp"
+payload = {
+    "state": state,
+    "updatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "detail": detail,
+}
+with open(temporary_path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, ensure_ascii=True, separators=(",", ":"))
+    handle.write("\n")
+os.replace(temporary_path, path)
+PY
+}
+
 sync_appstore_assets() {
   local output
 
   log_event "info" "appstore-sync.start" "phase=runtime-bootstrap action=sync-appstore-assets"
   if output="$(/websoft9/script/platform-sync-runtime-assets.py 2>&1)"; then
+    write_appstore_startup_state "completed" "runtime appstore synchronization completed"
     log_event "info" "appstore-sync.completed" "$output"
     return 0
   fi
 
+  write_appstore_startup_state "failed" "runtime appstore synchronization failed"
   log_event "warning" "appstore-sync.failed" "$output"
   return 0
 }
@@ -444,9 +472,10 @@ main() {
   write_status "starting" "bootstrap started"
   export WEBSOFT9_PRODUCT_AUTH_CREDENTIAL_PATH="$product_auth_credential_path"
   sync_runtime_config base
-  sync_appstore_assets
   ensure_product_runtime_state
+  write_appstore_startup_state "running" "runtime appstore synchronization is in progress"
   start_supervisor
+  sync_appstore_assets
   ensure_platform_network
   start_apphub_core
   bootstrap_product_auth

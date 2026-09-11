@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import configparser
+import json
 import os
 import sqlite3
 from pathlib import Path
 from typing import Callable, Optional
 
 import requests
+
+from src.services.marketplace_bootstrap import MarketplaceBootstrapService
 
 READINESS_PROBE_TIMEOUT_SECONDS = 2.0
 
@@ -20,6 +24,10 @@ MARKER_GITEA_CREDENTIAL = "gitea-credential"
 MARKER_PORTAINER_CREDENTIAL = "portainer-credential"
 MARKER_NPM_CREDENTIAL = "npm-credential"
 MARKER_NPM_CERTIFICATE = "npm-certificate"
+MARKER_APPSTORE_MANIFEST = "appstore-manifest"
+MARKER_APPSTORE_SYNC = "appstore-sync"
+MARKER_APPSTORE_SYNC_FAILED = "appstore-sync-failed"
+MARKER_MARKETPLACE_APP = "marketplace-app"
 
 
 def _data_root() -> str:
@@ -36,6 +44,68 @@ def _sqlite_database_path(kind: str) -> Path:
         return Path(directory) / "install-tracking.sqlite"
     directory = os.getenv("WEBSOFT9_HOST_ACCESS_DATA_DIR", f"{data_root}/config/host-access")
     return Path(directory) / "host-access.sqlite"
+
+
+def _appstore_manifest_paths() -> list[Path]:
+    data_root = _data_root()
+    config_path = Path(os.getenv("WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH", f"{data_root}/config/apphub/system.ini"))
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    media_path = config.get("app_media", "path", fallback=f"{data_root}/media/json").strip()
+    return [Path(media_path) / f"app-store-manifest_{locale}.json" for locale in ("zh", "en")]
+
+
+def _has_valid_appstore_manifests() -> bool:
+    try:
+        for locale, manifest_path in zip(("zh", "en"), _appstore_manifest_paths()):
+            with manifest_path.open(encoding="utf-8") as handle:
+                manifest = json.load(handle)
+            if (
+                not isinstance(manifest, dict)
+                or manifest.get("schemaVersion") != "1"
+                or manifest.get("locale") != locale
+                or not isinstance(manifest.get("apps"), list)
+            ):
+                return False
+        return True
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def _appstore_contains_app(app_slug: str) -> bool:
+    normalized_slug = str(app_slug or "").strip().lower()
+    if not normalized_slug:
+        return False
+
+    try:
+        for manifest_path in _appstore_manifest_paths():
+            with manifest_path.open(encoding="utf-8") as handle:
+                manifest = json.load(handle)
+            if any(
+                str(app.get("key") or "").strip().lower() == normalized_slug
+                for app in manifest.get("apps", [])
+                if isinstance(app, dict)
+            ):
+                return True
+    except (OSError, json.JSONDecodeError):
+        return False
+    return False
+
+
+def _read_appstore_startup_state() -> str:
+    state_path = Path(
+        os.getenv(
+            "WEBSOFT9_APPSTORE_STARTUP_STATE_FILE",
+            f"{_data_root()}/config/appstore_startup_state.json",
+        )
+    )
+    try:
+        with state_path.open(encoding="utf-8") as handle:
+            payload = json.load(handle)
+        state = str(payload.get("state") or "").strip().lower()
+        return state if state in {"completed", "failed", "running"} else "running"
+    except (OSError, json.JSONDecodeError):
+        return "running"
 
 
 class PlatformReadinessService:
@@ -76,8 +146,28 @@ class PlatformReadinessService:
             pending.append(MARKER_NPM_CREDENTIAL)
         if not Path(os.getenv("WEBSOFT9_NPM_CERT_MARKER", f"{data_root}/custom_ssl/websoft9-self-signed.cert")).is_file():
             pending.append(MARKER_NPM_CERTIFICATE)
+        if not _has_valid_appstore_manifests():
+            pending.append(MARKER_APPSTORE_MANIFEST)
 
         return (not pending, pending)
+
+    def check_setup(self) -> tuple[bool, list[str]]:
+        ready, pending = self.check()
+        if not ready:
+            return ready, pending
+
+        marketplace = MarketplaceBootstrapService().read()
+        if not marketplace:
+            return True, []
+
+        appstore_startup_state = _read_appstore_startup_state()
+        if appstore_startup_state == "running":
+            return False, [MARKER_APPSTORE_SYNC]
+        if not _appstore_contains_app(str(marketplace.get("app_slug") or "")):
+            if appstore_startup_state == "failed":
+                return False, [MARKER_APPSTORE_SYNC_FAILED]
+            return False, [MARKER_MARKETPLACE_APP]
+        return True, []
 
     @staticmethod
     def _probe_http(url: str) -> bool:

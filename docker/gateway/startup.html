@@ -59,14 +59,25 @@
 <body>
     <main>
         <div class="spinner" aria-hidden="true"></div>
-        <h1>Websoft9 is starting</h1>
-        <p>This page will continue automatically when the service is ready.</p>
+        <h1 id="status-title">Websoft9 is starting</h1>
+        <p id="status-detail">This page will continue automatically when the service is ready.</p>
     </main>
     <script>
-        const retry = () => fetch('/api/healthz/ready', { credentials: 'include', cache: 'no-store' })
+        const readinessPath = window.location.pathname === '/setup'
+            ? '/api/healthz/setup-ready'
+            : '/api/healthz/ready'
+        const statusTitle = document.getElementById('status-title')
+        const statusDetail = document.getElementById('status-detail')
+        const retry = () => fetch(readinessPath, { credentials: 'include', cache: 'no-store' })
             .then((response) => {
                 if (response.ok) window.location.reload()
-                else window.setTimeout(retry, 1500)
+                else return response.json().catch(() => ({})).then((payload) => {
+                    if (payload.pending && payload.pending.includes('appstore-sync-failed')) {
+                        statusTitle.textContent = 'Marketplace setup is unavailable'
+                        statusDetail.textContent = 'The Appstore update failed and no usable catalog is available.'
+                    }
+                    window.setTimeout(retry, 1500)
+                })
             })
             .catch(() => window.setTimeout(retry, 1500))
         retry()

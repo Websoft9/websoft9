@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import configparser
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import hashlib
 import json
@@ -22,8 +23,6 @@ except Exception:  # pragma: no cover - bootstrap fallback
 
 
 ENV_REFERENCE_PATTERN = re.compile(r"\$\{?(\w+)\}?")
-
-SUPPORTED_SCHEMA_VERSIONS = {"1"}
 
 # ── v2 manifest URL templates ──────────────────────────────────────────
 _V2_APPSTORE_MANIFEST_PATH = "appstore/{channel}/manifests/appstore-manifest.json"
@@ -55,12 +54,16 @@ def get_websoft9_version() -> str:
     return version.strip()
 
 
-def check_appstore_compatibility(appstore_manifest: dict[str, object], websoft9_version: str | None = None) -> None:
+def check_appstore_compatibility(
+    appstore_manifest: dict[str, object],
+    local_schema_version: str | None,
+    websoft9_version: str | None = None,
+) -> None:
     schema_version = appstore_manifest.get("schemaVersion")
-    if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+    if local_schema_version is not None and schema_version != local_schema_version:
         raise AppStoreCompatibilityError(
-            f"unsupported appstore schemaVersion: {schema_version}. "
-            f"Supported versions: {', '.join(sorted(SUPPORTED_SCHEMA_VERSIONS))}. "
+            f"appstore schemaVersion {schema_version!r} does not match the active local schemaVersion "
+            f"{local_schema_version!r}. "
             "Please upgrade your Websoft9 platform."
         )
 
@@ -274,23 +277,6 @@ def write_sync_state(state_path: Path, payload: dict[str, object]) -> None:
     state_path.write_text(f"{json.dumps(payload, ensure_ascii=False, indent=2)}\n", encoding="utf-8")
 
 
-def _resolve_appstore_manifest_url(artifact_base: str, channel: str) -> str:
-    """Resolve the current appstore v2 manifest URL for the requested channel."""
-    v2_url = f"{artifact_base}/{_V2_APPSTORE_MANIFEST_PATH.format(channel=channel)}"
-    download_json(v2_url)
-    return v2_url
-
-
-def _check_schema_version(manifest: dict[str, object], manifest_url: str, label: str = "appstore") -> None:
-    schema_version = manifest.get("schemaVersion")
-    if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
-        raise AppStoreCompatibilityError(
-            f"unsupported {label} schemaVersion: {schema_version}. "
-            f"Supported versions: {', '.join(sorted(SUPPORTED_SCHEMA_VERSIONS))}. "
-            f"Please upgrade your Websoft9 platform."
-        )
-
-
 def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url: str) -> tuple[str, str]:
     """Resolve catalog/library manifest paths from appstore manifest.
 
@@ -317,14 +303,13 @@ def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url
     raise RuntimeError(f"appstore manifest has unrecognized structure: {manifest_url}")
 
 
-def fetch_appstore_manifests(artifact_base: str, channel: str) -> dict[str, object]:
-    appstore_manifest_url = _resolve_appstore_manifest_url(artifact_base, channel)
+def fetch_appstore_manifests(artifact_base: str, channel: str, local_schema_version: str | None) -> dict[str, object]:
+    appstore_manifest_url = f"{artifact_base}/{_V2_APPSTORE_MANIFEST_PATH.format(channel=channel)}"
     appstore_manifest = download_json(appstore_manifest_url)
     if not isinstance(appstore_manifest, dict):
         raise RuntimeError(f"invalid appstore manifest payload: {appstore_manifest_url}")
 
-    _check_schema_version(appstore_manifest, appstore_manifest_url, "appstore")
-    check_appstore_compatibility(appstore_manifest)
+    check_appstore_compatibility(appstore_manifest, local_schema_version)
 
     catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
 
@@ -334,13 +319,13 @@ def fetch_appstore_manifests(artifact_base: str, channel: str) -> dict[str, obje
     appstore_base = f"{artifact_base}/appstore/{channel}"
     catalog_manifest_url = f"{appstore_base}/{catalog_relative}"
     library_manifest_url = f"{appstore_base}/{library_relative}"
-    catalog_manifest = download_json(catalog_manifest_url)
-    library_manifest = download_json(library_manifest_url)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        catalog_future = executor.submit(download_json, catalog_manifest_url)
+        library_future = executor.submit(download_json, library_manifest_url)
+        catalog_manifest = catalog_future.result()
+        library_manifest = library_future.result()
     if not isinstance(catalog_manifest, dict) or not isinstance(library_manifest, dict):
         raise RuntimeError("catalog or library manifest payload is invalid")
-
-    _check_schema_version(catalog_manifest, catalog_manifest_url, "catalog")
-    _check_schema_version(library_manifest, library_manifest_url, "library")
 
     return {
         "appstore_manifest_url": appstore_manifest_url,
@@ -1273,6 +1258,47 @@ def validate_app_store_manifest(manifest: object, source_path: Path) -> None:
             raise RuntimeError(f"app entry has invalid help: {app.get('key')}")
 
 
+def get_published_app_store_schema_version(media_root: Path) -> str | None:
+    schemas: set[str] = set()
+    for locale in ("zh", "en"):
+        manifest_path = media_root / "json" / f"app-store-manifest_{locale}.json"
+        if not manifest_path.exists():
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise AppStoreCompatibilityError(f"failed to read active appstore manifest {manifest_path}: {exc}") from exc
+        schema_version = manifest.get("schemaVersion") if isinstance(manifest, dict) else None
+        if not isinstance(schema_version, str) or not schema_version.strip():
+            raise AppStoreCompatibilityError(f"active appstore manifest has no schemaVersion: {manifest_path}")
+        schemas.add(schema_version)
+
+    if not schemas:
+        return None
+    if len(schemas) != 1:
+        raise AppStoreCompatibilityError("active appstore manifests use different schemaVersions")
+    return schemas.pop()
+
+
+def has_valid_published_app_store_manifests(media_root: Path) -> bool:
+    media_json_root = media_root / "json"
+    try:
+        for locale in ("zh", "en"):
+            manifest_path = media_json_root / f"app-store-manifest_{locale}.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if (
+                not isinstance(manifest, dict)
+                or not isinstance(manifest.get("schemaVersion"), str)
+                or not manifest["schemaVersion"].strip()
+                or manifest.get("locale") != locale
+            ):
+                return False
+            validate_app_store_manifest(manifest, manifest_path)
+        return True
+    except (OSError, json.JSONDecodeError, RuntimeError):
+        return False
+
+
 def write_json_file(path: Path, payload: object) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
@@ -1365,18 +1391,12 @@ def main() -> int:
     rollback_root: Path | None = None
     previous_state: dict[str, object] = {}
     try:
-        rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
-        rollback_targets = [
-            target
-            for package_type, target_dir, _ in packages
-            for target in (target_dir, snapshot_root / "current" / package_type)
-        ]
-        rollback_backups = backup_trees(rollback_targets, rollback_root)
         previous_state = load_sync_state(sync_state_path)
         force_refresh = is_force_refresh_enabled()
         manifest_bundle = None
         latest_dataset_version = None
         latest_generated_at = None
+        latest_schema_version = None
         latest_catalog_dsv = None
         latest_library_dsv = None
         should_skip_package_sync = False
@@ -1388,10 +1408,21 @@ def main() -> int:
             "library": True,
         }
 
+        media_root = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
+        local_schema_version = get_published_app_store_schema_version(media_root)
+        if local_schema_version is None:
+            state_schema_version = previous_state.get("schemaVersion")
+            if isinstance(state_schema_version, str) and state_schema_version.strip():
+                local_schema_version = state_schema_version
+        if local_schema_version is None and sync_mode != "build":
+            raise AppStoreCompatibilityError(
+                "active appstore schemaVersion is unavailable. Please upgrade your Websoft9 platform before updating Appstore."
+            )
         try:
-            manifest_bundle = fetch_appstore_manifests(artifact_base, channel)
+            manifest_bundle = fetch_appstore_manifests(artifact_base, channel, local_schema_version)
             appstore_manifest = manifest_bundle["appstore_manifest"]
             if isinstance(appstore_manifest, dict):
+                latest_schema_version = appstore_manifest.get("schemaVersion")
                 latest_dataset_version = appstore_manifest.get("datasetVersion")
                 latest_generated_at = appstore_manifest.get("generatedAt")
                 # Resolve per-component datasetVersions (v2) for state tracking
@@ -1405,22 +1436,36 @@ def main() -> int:
                     if catalog_unchanged and library_unchanged:
                         should_skip_package_sync = True
                         log(f"[platform-assets] appstore dataset {latest_dataset_version} already active for channel {channel}")
-                package_sync_plan = determine_package_sync_plan(
-                    manifest_bundle,
-                    previous_state,
-                    latest_dataset_version,
-                )
-                library_delta_context = resolve_library_delta_context(
-                    manifest_bundle,
-                    previous_state.get("datasetVersion"),
-                    latest_dataset_version,
-                )
+                if not should_skip_package_sync:
+                    package_sync_plan = determine_package_sync_plan(
+                        manifest_bundle,
+                        previous_state,
+                        latest_dataset_version,
+                    )
+                    library_delta_context = resolve_library_delta_context(
+                        manifest_bundle,
+                        previous_state.get("datasetVersion"),
+                        latest_dataset_version,
+                    )
         except AppStoreCompatibilityError:
             raise
         except Exception as exc:
             log(f"[platform-assets] appstore manifests unavailable, falling back to legacy package resolution: {exc}")
 
         applied_dataset_version = latest_dataset_version or previous_state.get("datasetVersion") or datetime.datetime.utcnow().strftime("%Y.%m.%d.%H%M%S")
+        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
+        should_rebuild_manifests = not (
+            should_skip_package_sync and has_valid_published_app_store_manifests(media_root)
+        )
+
+        if not should_skip_package_sync or should_rebuild_manifests:
+            rollback_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-sync-rollback-"))
+            rollback_targets = [
+                target
+                for package_type, target_dir, _ in packages
+                for target in (target_dir, snapshot_root / "current" / package_type)
+            ]
+            rollback_backups = backup_trees(rollback_targets, rollback_root)
 
         if not should_skip_package_sync:
             for package_type, target_dir, marker_path in packages:
@@ -1483,12 +1528,14 @@ def main() -> int:
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
 
-        media_root = Path(os.getenv("WEBSOFT9_MEDIA_ROOT", "/websoft9/media"))
-        library_root = Path(os.getenv("WEBSOFT9_LIBRARY_ROOT", "/websoft9/library"))
-        build_and_publish_app_store_manifests(media_root, library_root)
+        if not should_rebuild_manifests:
+            log(f"[platform-assets] skipping manifest rebuild for unchanged dataset {applied_dataset_version}")
+        else:
+            build_and_publish_app_store_manifests(media_root, library_root)
 
         state_payload: dict[str, object] = {
             "channel": channel,
+            "schemaVersion": latest_schema_version,
             "datasetVersion": applied_dataset_version,
             "generatedAt": latest_generated_at,
             "lastSyncedAt": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",

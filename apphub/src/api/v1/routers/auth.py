@@ -17,6 +17,7 @@ from src.schemas.productAuth import (
     ProductAuthUsersResponse,
 )
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, SESSION_TTL_HOURS, ProductAuthService
+from src.services.platform_readiness import PlatformReadinessService
 from src.services.setup_wizard import SetupWizardService
 
 router = APIRouter()
@@ -119,6 +120,14 @@ def check_setup_wizard_access(
         return Response(
             status_code=403,
             headers={"X-Websoft9-Setup-Route": "/dashboard"},
+        )
+
+    setup_ready, _ = PlatformReadinessService().check_setup()
+    if not setup_ready:
+        raise CustomException(
+            status_code=500,
+            message="Setup Unavailable",
+            details="The marketplace catalog is still preparing",
         )
 
     state = setup_wizard.get_state(session_token=session_token)

@@ -74,6 +74,15 @@ type ProductAuthStatus = {
     cloud_marketplace_setup_pending?: boolean
 }
 
+class SetupWizardRequestError extends Error {
+    readonly status: number
+
+    constructor(status: number, message: string) {
+        super(message)
+        this.status = status
+    }
+}
+
 async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, {
         credentials: 'include',
@@ -90,7 +99,7 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
             payload && typeof payload === 'object' && 'details' in payload
                 ? payload.details ?? payload.message ?? `HTTP ${response.status}`
                 : `HTTP ${response.status}`
-        throw new Error(errorMessage)
+        throw new SetupWizardRequestError(response.status, errorMessage)
     }
 
     return payload as T
@@ -122,7 +131,10 @@ function mapSetupWizardErrorMessage(message: string | null, locale: 'zh' | 'en')
 }
 
 function normalizeVisibleStep(step: WizardStep): WizardStep {
-    if (step === 'app_init_ready' || step === 'app_init_failed') {
+    if (step === 'app_init_ready') {
+        return 'welcome'
+    }
+    if (step === 'app_init_failed') {
         return 'app_init_running'
     }
     return step
@@ -142,7 +154,6 @@ export function SetupWizardPage() {
     const [appInfo, setAppInfo] = useState<SetupWizardApp | null>(null)
     const [currentStep, setCurrentStep] = useState<WizardStep>('welcome')
     const [pageLoading, setPageLoading] = useState(true)
-    const [platformReady, setPlatformReady] = useState(false)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [username, setUsername] = useState('')
@@ -166,43 +177,6 @@ export function SetupWizardPage() {
         document.addEventListener('click', handler)
         return () => document.removeEventListener('click', handler)
     }, [langMenuOpen])
-
-    useEffect(() => {
-        if (platformReady) {
-            return
-        }
-
-        let active = true
-        let timerId: number | undefined
-
-        async function checkPlatformReady() {
-            try {
-                const response = await fetch('/api/healthz/ready', { credentials: 'include' })
-                // A 404 means the runtime predates the readiness endpoint;
-                // treat it as pass-through so the setup flow is not blocked.
-                if (active && (response.ok || response.status === 404)) {
-                    setPlatformReady(true)
-                    return
-                }
-            } catch {
-                // The platform may still be bootstrapping; keep polling below.
-            }
-            if (active) {
-                timerId = window.setTimeout(() => {
-                    void checkPlatformReady()
-                }, 1000)
-            }
-        }
-
-        void checkPlatformReady()
-
-        return () => {
-            active = false
-            if (timerId !== undefined) {
-                window.clearTimeout(timerId)
-            }
-        }
-    }, [platformReady])
 
     const resolvedWizardLocale = normalizeSupportedLocale(i18n.resolvedLanguage ?? i18n.language ?? 'en')
     const apiLocale = resolveApiLocale(resolvedWizardLocale)
@@ -332,7 +306,7 @@ export function SetupWizardPage() {
     }
 
     useEffect(() => {
-        if (isLoading || !status || !platformReady) {
+        if (isLoading || !status) {
             return
         }
 
@@ -341,63 +315,89 @@ export function SetupWizardPage() {
         if (isFirstLoad) {
             setPageLoading(true)
         }
-        requestJson<SetupWizardState>('/api/setup-wizard/state', { method: 'GET' })
-            .then(async (statePayload) => {
-                // If the marketplace bootstrap specifies a default locale and the
-                // user hasn't explicitly switched languages, apply it immediately (only once).
-                if (!bootstrapLocaleAppliedRef.current) {
-                    const bootstrapLocale = statePayload.default_locale
-                    if (bootstrapLocale && normalizeSupportedLocale(bootstrapLocale) !== resolvedWizardLocale) {
-                        await i18n.changeLanguage(normalizeSupportedLocale(bootstrapLocale))
-                    }
-                    bootstrapLocaleAppliedRef.current = true
-                }
-                const effectiveLocale = normalizeSupportedLocale(i18n.language ?? 'en')
-                const effectiveApiLocale = resolveApiLocale(effectiveLocale)
-                const appPayload = await requestJson<SetupWizardApp>(`/api/setup-wizard/app?locale=${encodeURIComponent(effectiveApiLocale)}`, { method: 'GET' })
-                if (!active) {
-                    return
-                }
-                setWizardState(statePayload)
-                setAppInfo(appPayload)
-                setInputValues((currentValue) => {
-                    const nextValues = { ...currentValue }
-                    for (const field of appPayload.required_inputs ?? []) {
-                        if (!(field.name in nextValues)) {
-                            nextValues[field.name] = field.default_value ?? ''
+        let retryTimer: number | undefined
+        let retryingForAppStore = false
+
+        const loadWizard = () => {
+            retryingForAppStore = false
+            return requestJson<SetupWizardState>('/api/setup-wizard/state', { method: 'GET' })
+                .then(async (statePayload) => {
+                    // If the marketplace bootstrap specifies a default locale and the
+                    // user hasn't explicitly switched languages, apply it immediately (only once).
+                    if (!bootstrapLocaleAppliedRef.current) {
+                        const bootstrapLocale = statePayload.default_locale
+                        if (bootstrapLocale && normalizeSupportedLocale(bootstrapLocale) !== resolvedWizardLocale) {
+                            await i18n.changeLanguage(normalizeSupportedLocale(bootstrapLocale))
                         }
+                        bootstrapLocaleAppliedRef.current = true
                     }
-                    return nextValues
+                    const effectiveLocale = normalizeSupportedLocale(i18n.language ?? 'en')
+                    const effectiveApiLocale = resolveApiLocale(effectiveLocale)
+                    let appPayload: SetupWizardApp
+                    try {
+                        appPayload = await requestJson<SetupWizardApp>(
+                            `/api/setup-wizard/app?locale=${encodeURIComponent(effectiveApiLocale)}`,
+                            { method: 'GET' },
+                        )
+                    } catch (appLoadError) {
+                        if (appLoadError instanceof SetupWizardRequestError && appLoadError.status === 503) {
+                            retryingForAppStore = true
+                            retryTimer = window.setTimeout(() => {
+                                void loadWizard()
+                            }, 1500)
+                            return
+                        }
+                        throw appLoadError
+                    }
+                    if (!active) {
+                        return
+                    }
+                    setWizardState(statePayload)
+                    setAppInfo(appPayload)
+                    setInputValues((currentValue) => {
+                        const nextValues = { ...currentValue }
+                        for (const field of appPayload.required_inputs ?? []) {
+                            if (!(field.name in nextValues)) {
+                                nextValues[field.name] = field.default_value ?? ''
+                            }
+                        }
+                        return nextValues
+                    })
+                    setCurrentStep(normalizeVisibleStep(statePayload.current_step))
+                    setError(statePayload.last_error?.message ? mapSetupWizardErrorMessage(statePayload.last_error.message, apiLocale) : null)
+                    initialLoadDoneRef.current = true
                 })
-                setCurrentStep(normalizeVisibleStep(statePayload.current_step))
-                setError(statePayload.last_error?.message ? mapSetupWizardErrorMessage(statePayload.last_error.message, apiLocale) : null)
-                initialLoadDoneRef.current = true
-            })
-            .catch(() => {
-                if (!active) {
-                    return
-                }
-                // Setup wizard is not enabled in this runtime (non-cloud environment).
-                // Redirect based on current auth state instead of showing an error.
-                dismissStartupSplash()
-                if (status?.initialization_required) {
-                    navigate('/auth/setup', { replace: true })
-                } else if (!status?.authenticated) {
-                    navigate('/auth/login', { replace: true })
-                } else {
-                    navigate('/dashboard', { replace: true })
-                }
-            })
-            .finally(() => {
-                if (active) {
-                    setPageLoading(false)
-                }
-            })
+                .catch(() => {
+                    if (!active) {
+                        return
+                    }
+                    // Setup wizard is not enabled in this runtime (non-cloud environment).
+                    // Redirect based on current auth state instead of showing an error.
+                    dismissStartupSplash()
+                    if (status?.initialization_required) {
+                        navigate('/auth/setup', { replace: true })
+                    } else if (!status?.authenticated) {
+                        navigate('/auth/login', { replace: true })
+                    } else {
+                        navigate('/dashboard', { replace: true })
+                    }
+                })
+                .finally(() => {
+                    if (active && !retryingForAppStore) {
+                        setPageLoading(false)
+                    }
+                })
+        }
+
+        void loadWizard()
 
         return () => {
             active = false
+            if (retryTimer !== undefined) {
+                window.clearTimeout(retryTimer)
+            }
         }
-    }, [apiLocale, isLoading, platformReady])
+    }, [apiLocale, isLoading])
 
     useEffect(() => {
         if (isLoading || !status || pageLoading || !wizardState) {
@@ -670,7 +670,7 @@ export function SetupWizardPage() {
                 }}
             >
                 <Stack spacing={3.5}>
-                    {(pageLoading || isLoading || !platformReady) ? (
+                    {(pageLoading || isLoading) ? (
                         <Stack spacing={2} sx={{ alignItems: 'center', py: 6 }}>
                             <CircularProgress size={30} />
                             <Typography color="text.secondary">{apiLocale === 'zh' ? '正在加载…' : 'Loading…'}</Typography>

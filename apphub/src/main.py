@@ -122,6 +122,14 @@ async def healthz_ready():
         content={"ready": ready, "pending": pending},
     )
 
+@app.get("/healthz/setup-ready", include_in_schema=False)
+async def healthz_setup_ready():
+    ready, pending = PlatformReadinessService().check_setup()
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"ready": ready, "pending": pending},
+    )
+
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
