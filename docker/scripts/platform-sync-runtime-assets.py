@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import configparser
+import logging
 from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 import datetime
 import hashlib
 import json
@@ -20,6 +22,11 @@ try:
     from dotenv import dotenv_values
 except Exception:  # pragma: no cover - bootstrap fallback
     dotenv_values = None
+
+# Library .env files may contain Compose interpolation that python-dotenv does
+# not parse. The values we need remain available, so avoid emitting one warning
+# per unsupported line during normal Appstore synchronization.
+logging.getLogger("dotenv.main").setLevel(logging.ERROR)
 
 
 ENV_REFERENCE_PATTERN = re.compile(r"\$\{?(\w+)\}?")
@@ -81,6 +88,11 @@ def check_appstore_compatibility(
 
 def log(message: str) -> None:
     print(message, flush=True)
+
+
+def verbose_log(message: str) -> None:
+    if (os.getenv("WEBSOFT9_RUNTIME_ASSET_VERBOSE") or "").strip().lower() in {"1", "true", "yes", "on"}:
+        log(message)
 
 
 def detect_channel() -> str:
@@ -1036,7 +1048,7 @@ def get_distribution(edition_metadata: object) -> list[dict[str, object]]:
     return [{"key": dist, "value": versions} for dist, versions in distributions.items()]
 
 
-def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
+def discover_install_profiles(app_dir: Path, skipped: Counter[str] | None = None) -> dict[str, dict[str, object]]:
     profiles: dict[str, dict[str, object]] = {}
 
     for env_path in sorted(app_dir.glob(".env.*")):
@@ -1054,7 +1066,9 @@ def discover_install_profiles(app_dir: Path) -> dict[str, dict[str, object]]:
                 profile_metadata["is_external_database"] = True
             profiles[profile_name] = profile_metadata
         except Exception as exc:
-            log(f"[platform-assets] failed to read {env_path}: {exc}")
+            if skipped is not None:
+                skipped["invalid-profile"] += 1
+            verbose_log(f"[platform-assets] skipping profile {env_path}: {exc}")
 
     return profiles
 
@@ -1165,13 +1179,16 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
     catalog_titles = load_catalog_titles(media_json_root, locale) if catalog_metadata else {}
     legacy_products: dict[str, dict[str, object]] = {}
     product_order: list[str] = []
+    skipped: Counter[str] = Counter()
     for product in products:
         if not isinstance(product, dict):
-            log(f"[platform-assets] skipping non-object media entry in product_{locale}.json")
+            skipped["invalid-media"] += 1
+            verbose_log(f"[platform-assets] skipping non-object media entry in product_{locale}.json")
             continue
         app_key = product.get("key")
         if not isinstance(app_key, str) or not app_key.strip():
-            log("[platform-assets] skipping media entry with missing app key")
+            skipped["invalid-media"] += 1
+            verbose_log("[platform-assets] skipping media entry with missing app key")
             continue
         app_key = app_key.strip()
         if app_key in legacy_products:
@@ -1182,7 +1199,8 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
     product_keys = set(legacy_products) | set(catalog_metadata)
     metadata_only_keys = sorted(set(catalog_metadata) - set(legacy_products))
     for app_key in sorted(set(catalog_metadata) & set(legacy_products)):
-        log(f"[platform-assets] ignoring local catalog metadata for {app_key}: standard product entry already exists")
+        skipped["duplicate-catalog-metadata"] += 1
+        verbose_log(f"[platform-assets] ignoring local catalog metadata for {app_key}: standard product entry already exists")
     product_order.extend(metadata_only_keys)
     apps: list[dict[str, object]] = []
     for app_key in product_order:
@@ -1191,7 +1209,8 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
             try:
                 product = resolve_catalog_product(catalog_metadata[app_key], app_key, locale, catalog_titles)
             except ValueError as exc:
-                log(f"[platform-assets] skipping {app_key}: invalid catalog metadata: {exc}")
+                skipped["invalid-catalog-metadata"] += 1
+                verbose_log(f"[platform-assets] skipping {app_key}: invalid catalog metadata: {exc}")
                 continue
         if product is None:
             continue
@@ -1199,7 +1218,8 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
         variables_path = app_dir / "variables.json"
         env_path = app_dir / ".env"
         if not app_dir.is_dir() or not variables_path.exists() or not env_path.exists():
-            log(f"[platform-assets] skipping {app_key}: missing Library template, variables.json, or .env")
+            skipped["missing-library-metadata"] += 1
+            verbose_log(f"[platform-assets] skipping {app_key}: missing Library template, variables.json, or .env")
             continue
         try:
             variables_metadata = json.loads(variables_path.read_text(encoding="utf-8"))
@@ -1210,11 +1230,12 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
                 raise ValueError("variables.json has no valid edition")
             env_values = load_env_values(env_path)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
-            log(f"[platform-assets] skipping {app_key}: invalid Library metadata: {exc}")
+            skipped["invalid-library-metadata"] += 1
+            verbose_log(f"[platform-assets] skipping {app_key}: invalid Library metadata: {exc}")
             continue
         app_manifest = dict(product)
         app_manifest.update({"distribution": distribution, "settings": get_install_settings(env_values), "is_web_app": "W9_URL" in env_values})
-        profiles = discover_install_profiles(app_dir)
+        profiles = discover_install_profiles(app_dir, skipped)
         if profiles:
             app_manifest["profiles"] = profiles
         help_metadata = variables_metadata.get("help")
@@ -1225,9 +1246,14 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
     if library_root.is_dir():
         for app_dir in sorted(library_root.iterdir()):
             if app_dir.is_dir() and app_dir.name not in product_keys:
-                log(f"[platform-assets] skipping {app_dir.name}: missing media entry in product_{locale}.json")
+                skipped["missing-media-entry"] += 1
+                verbose_log(f"[platform-assets] skipping {app_dir.name}: missing media entry in product_{locale}.json")
     if product_keys and not apps:
         raise RuntimeError(f"no valid app entries generated from non-empty {product_path}")
+
+    if skipped:
+        summary = " ".join(f"{reason}={count}" for reason, count in sorted(skipped.items()))
+        log(f"[platform-assets] manifest locale={locale} apps={len(apps)} skipped {summary}")
 
     manifest: dict[str, object] = {"schemaVersion": "1", "locale": locale, "apps": apps}
     validate_app_store_manifest(manifest, product_path)

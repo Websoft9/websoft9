@@ -190,6 +190,17 @@ sync_runtime_config() {
   /websoft9/script/platform-sync-config.sh --mode "$mode"
 }
 
+log_appstore_sync_output() {
+  local level="$1"
+  local event="$2"
+  local output_file="$3"
+  local line
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    log_event "$level" "$event" "$line"
+  done <"$output_file"
+}
+
 write_appstore_startup_state() {
   local state="$1"
   local detail="$2"
@@ -216,17 +227,23 @@ PY
 }
 
 sync_appstore_assets() {
-  local output
+  local output_file
+
+  output_file="$(mktemp)"
 
   log_event "info" "appstore-sync.start" "phase=runtime-bootstrap action=sync-appstore-assets"
-  if output="$(/websoft9/script/platform-sync-runtime-assets.py 2>&1)"; then
+  if /websoft9/script/platform-sync-runtime-assets.py >"$output_file" 2>&1; then
+    log_appstore_sync_output "info" "appstore-sync.output" "$output_file"
+    rm -f "$output_file"
     write_appstore_startup_state "completed" "runtime appstore synchronization completed"
-    log_event "info" "appstore-sync.completed" "$output"
+    log_event "info" "appstore-sync.completed" "phase=runtime-bootstrap action=sync-appstore-assets"
     return 0
   fi
 
+  log_appstore_sync_output "warning" "appstore-sync.output" "$output_file"
+  rm -f "$output_file"
   write_appstore_startup_state "failed" "runtime appstore synchronization failed"
-  log_event "warning" "appstore-sync.failed" "$output"
+  log_event "warning" "appstore-sync.failed" "phase=runtime-bootstrap action=sync-appstore-assets"
   return 0
 }
 

@@ -3515,6 +3515,14 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     fullWidth
                                                     size="small"
                                                     value={selectedInstallProfile ?? ''}
+                                                    helperText={isExternalDatabaseProfile && externalDatabaseHelp ? (
+                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
+                                                            <SvgIcon viewBox="0 0 24 24" sx={{ mt: '1px', flexShrink: 0, fontSize: 15, color: palette.warning }}>
+                                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                                            </SvgIcon>
+                                                            <Box component="span">{externalDatabaseHelp}</Box>
+                                                        </Box>
+                                                    ) : undefined}
                                                     onChange={(event) => {
                                                         const profile = event.target.value || null
                                                         setInstallError(null)
@@ -3542,6 +3550,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                     sx={{
                                                         ...installDialogFieldSx,
                                                         '& .MuiSelect-select': { ...appStoreControlTextSx, color: palette.text },
+                                                        '& .MuiFormHelperText-root': {
+                                                            color: palette.warning,
+                                                            whiteSpace: 'normal',
+                                                            overflowWrap: 'anywhere',
+                                                            lineHeight: 1.5,
+                                                        },
                                                     }}
                                                     slotProps={{ select: { MenuProps: installDialogSelectMenuProps, displayEmpty: true } }}
                                                 >
@@ -3550,7 +3564,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                         .map(([profile, metadata]) => (
                                                             <MenuItem key={profile} value={profile}>
                                                                 {metadata.is_external_database
-                                                                    ? `${t('appStorePage.install.databaseProfile.custom')}${externalDatabaseHelp ? ` (${externalDatabaseHelp})` : ''}`
+                                                                    ? t('appStorePage.install.databaseProfile.custom')
                                                                     : profile.replace(/-/g, ' ')}
                                                             </MenuItem>
                                                         ))}

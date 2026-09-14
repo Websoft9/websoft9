@@ -180,7 +180,7 @@ def test_manifest_publish_preserves_existing_locales_when_one_locale_is_invalid(
     assert (media_json / "app-store-manifest_en.json").read_text(encoding="utf-8") == '{"previous":"en"}'
 
 
-def test_build_manifest_rejects_nonempty_product_with_no_valid_entries_and_logs_missing_media(tmp_path, capsys):
+def test_build_manifest_rejects_nonempty_product_with_no_valid_entries_and_logs_summary(tmp_path, capsys):
     media_json = tmp_path / "media" / "json"
     media_json.mkdir(parents=True)
     _write_product(media_json / "product_en.json", "missing-template")
@@ -191,8 +191,28 @@ def test_build_manifest_rejects_nonempty_product_with_no_valid_entries_and_logs_
         runtime_assets.build_app_store_manifest(media_json, library_root, "en")
 
     output = capsys.readouterr().out
-    assert "missing-template: missing Library template" in output
-    assert "wordpress: missing media entry in product_en.json" in output
+    assert "skipping missing-template" not in output
+    assert "skipping wordpress" not in output
+
+
+def test_build_manifest_logs_a_skip_summary_without_app_names(tmp_path, capsys):
+    media_json = tmp_path / "media" / "json"
+    media_json.mkdir(parents=True)
+    (media_json / "product_en.json").write_text(
+        json.dumps([
+            {"key": "wordpress", "title": "WordPress"},
+            {"key": "missing-template", "title": "Missing template"},
+        ]),
+        encoding="utf-8",
+    )
+    library_root = tmp_path / "library"
+    _write_wordpress_library(library_root)
+
+    runtime_assets.build_app_store_manifest(media_json, library_root / "apps", "en")
+
+    output = capsys.readouterr().out
+    assert "manifest locale=en apps=1 skipped missing-library-metadata=1" in output
+    assert "skipping missing-template" not in output
 
 
 def test_manifest_rejects_invalid_display_metadata(tmp_path):
