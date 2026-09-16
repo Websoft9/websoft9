@@ -4,10 +4,7 @@ import {
     Button,
     Chip,
     CircularProgress,
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogTitle,
+    IconButton,
     List,
     ListItemButton,
     Stack,
@@ -1802,16 +1799,54 @@ export function SettingsPage() {
                     </Box>
                 </SurfaceDialog>
 
-                <Dialog open={applyConfirmationOpen} onClose={() => setApplyConfirmationOpen(false)} maxWidth="xs" fullWidth>
-                    <DialogTitle>{t('settingsPage.upgrade.confirm.title')}</DialogTitle>
-                    <DialogContent>
-                        <Typography variant="body2">{t('settingsPage.upgrade.confirm.body')}</Typography>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setApplyConfirmationOpen(false)}>{t('settingsPage.upgrade.confirm.cancel')}</Button>
-                        <Button color="warning" variant="contained" onClick={() => void handleApplyUpgrade()}>{t('settingsPage.upgrade.confirm.confirm')}</Button>
-                    </DialogActions>
-                </Dialog>
+                <SurfaceDialog
+                    open={applyConfirmationOpen}
+                    onClose={() => setApplyConfirmationOpen(false)}
+                    scope="content"
+                    scopeRect={upgradeDialogScopeRect}
+                    contentStrategy="viewport-fixed"
+                    darkMode={isDarkMode}
+                    // A short dialog reads better anchored near the top than dead centre.
+                    sx={{
+                        '& .MuiDialog-container': {
+                            alignItems: 'flex-start',
+                            pt: { xs: 3, md: 6 },
+                        },
+                    }}
+                    paperSx={{
+                        width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
+                        maxWidth: '560px',
+                        backgroundColor: surfacePalette.dialogBg,
+                        color: surfacePalette.text,
+                        border: `1px solid ${surfacePalette.borderStrong}`,
+                    }}
+                >
+                    <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${surfacePalette.divider}`, backgroundColor: surfacePalette.dialogBg, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Typography sx={{ flex: 1, fontSize: 16, fontWeight: 700, color: surfacePalette.text }}>
+                            {t('settingsPage.upgrade.confirm.title')}
+                        </Typography>
+                        <IconButton
+                            onClick={() => setApplyConfirmationOpen(false)}
+                            size="small"
+                            sx={{ width: 36, height: 36, color: surfacePalette.subtleText, borderRadius: '999px', backgroundColor: 'transparent', '&:hover': { backgroundColor: 'transparent', color: surfacePalette.text, opacity: 0.84 } }}
+                        >
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${surfacePalette.divider}`, backgroundColor: surfacePalette.dialogBg }}>
+                        <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: surfacePalette.subtleText }}>
+                            {t('settingsPage.upgrade.confirm.body')}
+                        </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25, backgroundColor: surfacePalette.dialogBg }}>
+                        <Button onClick={() => setApplyConfirmationOpen(false)} sx={upgradeDialogCancelButtonSx}>
+                            {t('settingsPage.upgrade.confirm.cancel')}
+                        </Button>
+                        <Button variant="contained" onClick={() => void handleApplyUpgrade()} sx={upgradeDialogPrimaryButtonSx}>
+                            {t('settingsPage.upgrade.confirm.confirm')}
+                        </Button>
+                    </Box>
+                </SurfaceDialog>
             </>
         )
     }

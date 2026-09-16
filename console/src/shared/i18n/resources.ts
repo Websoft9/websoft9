@@ -1853,8 +1853,8 @@ const rawShellResources = {
                     copied: 'Copied!',
                 },
                 confirm: {
-                    title: 'Start system upgrade?',
-                    body: 'The console and managed application access will be interrupted briefly while the platform container is replaced.',
+                    title: 'Start system upgrade',
+                    body: 'During the upgrade the console and app access through the platform are briefly interrupted (about 1-2 minutes). App containers and application data are not stopped or deleted.',
                     cancel: 'Cancel',
                     confirm: 'Start upgrade',
                 },
@@ -4269,8 +4269,8 @@ const rawShellResources = {
                         copied: '已复制！',
                     },
                     confirm: {
-                        title: '开始系统升级？',
-                        body: '替换平台容器期间，控制台和托管应用访问将短暂中断。',
+                        title: '开始系统升级',
+                        body: '升级过程中，控制台和通过平台访问的应用会短暂中断（约 1-2 分钟）；应用容器与应用数据不会被停止或删除。',
                         cancel: '取消',
                         confirm: '开始升级',
                     },
