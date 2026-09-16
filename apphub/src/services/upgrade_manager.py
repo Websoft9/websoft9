@@ -427,7 +427,9 @@ class UpgradeManager:
                 "TARGET_VERSION": target_version,
                 "CONTAINER_NAME": deployment["container_name"],
             }
-            task_file = self.upgrade_root / "task.env"
+            # The runner refuses a task file that sits outside the staging directory, so the task
+            # and the material it points at always travel together in the same folder.
+            task_file = staging_dir / "task.env"
             temporary_file = task_file.with_suffix(".tmp")
             temporary_file.write_text("".join(f"{key}={value}\n" for key, value in task.items()), encoding="utf-8")
             os.replace(temporary_file, task_file)
@@ -471,8 +473,9 @@ class UpgradeManager:
             state = self._read_state()
             if state.get("state") != "ready" or not state.get("run_id"):
                 raise CustomException(409, "Upgrade Not Ready", "Prepare a newer version before starting the upgrade")
-            task = self._read_task(self.upgrade_root / "task.env")
             run_id = str(state["run_id"])
+            task_file = self.upgrade_root / "staging" / run_id / "task.env"
+            task = self._read_task(task_file)
             if task["RUN_ID"] != run_id:
                 raise CustomException(409, "Upgrade Not Ready", "The prepared task does not match its status")
             try:
@@ -483,7 +486,7 @@ class UpgradeManager:
                 require_local_image(docker_client, RUNNER_IMAGE_TAG, RUNNER_IMAGE_DIGEST)
                 docker_client.containers.run(
                     image=RUNNER_IMAGE_TAG,
-                    command=["sh", f"{task['STAGING_DIR']}/runner-upgrade.sh", str(self.upgrade_root / "task.env")],
+                    command=["sh", f"{task['STAGING_DIR']}/runner-upgrade.sh", str(task_file)],
                     name=f"websoft9-upgrade-{run_id[:12]}",
                     volumes={
                         "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},

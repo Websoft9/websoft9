@@ -1,5 +1,7 @@
 import json
+import os
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -9,6 +11,10 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# Importing the app modules initialises the install-tracking store; keep it away from the
+# host's real data root so a test run can never touch a live deployment.
+os.environ.setdefault("WEBSOFT9_INSTALL_TRACKING_DIR", tempfile.mkdtemp(prefix="w9-tracking-"))
 
 from src.core.exception import CustomException
 from src.services import upgrade_manager
@@ -196,7 +202,7 @@ def test_prepare_writes_verified_task_with_precise_image_digest(tmp_path, monkey
 
     assert status["state"] == "ready"
     assert status["target_version"] == "2.5.0"
-    task = (data_root / "upgrade" / "task.env").read_text(encoding="utf-8")
+    task = (data_root / "upgrade" / "staging" / status["run_id"] / "task.env").read_text(encoding="utf-8")
     assert "TARGET_IMAGE_TAG=2.5.0\n" in task
     assert f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}\n" in task
     assert "INSTALL_PATH=" + str(install_path) in task
@@ -228,7 +234,7 @@ def test_apply_starts_only_the_fixed_runner_for_a_ready_task(tmp_path, monkeypat
     staging_dir.mkdir(parents=True)
     install_path.mkdir()
     manager = UpgradeManager(data_root=str(data_root))
-    (data_root / "upgrade" / "task.env").write_text(
+    (staging_dir / "task.env").write_text(
         "\n".join([
             "RUN_ID=run-1",
             f"DATA_ROOT={data_root}",
@@ -272,7 +278,7 @@ def test_apply_starts_only_the_fixed_runner_for_a_ready_task(tmp_path, monkeypat
     assert status["state"] == "applying"
     assert len(calls) == 1
     assert calls[0]["image"] == upgrade_manager.RUNNER_IMAGE_TAG
-    assert calls[0]["command"] == ["sh", f"{staging_dir}/runner-upgrade.sh", str(data_root / "upgrade" / "task.env")]
+    assert calls[0]["command"] == ["sh", f"{staging_dir}/runner-upgrade.sh", str(staging_dir / "task.env")]
     assert calls[0]["volumes"]["/var/run/docker.sock"] == {"bind": "/var/run/docker.sock", "mode": "rw"}
 
 
@@ -283,7 +289,7 @@ def test_apply_rejects_a_runner_image_that_lost_its_pin(tmp_path, monkeypatch):
     staging_dir.mkdir(parents=True)
     install_path.mkdir()
     manager = UpgradeManager(data_root=str(data_root))
-    (data_root / "upgrade" / "task.env").write_text(
+    (staging_dir / "task.env").write_text(
         "\n".join([
             "RUN_ID=run-1",
             f"DATA_ROOT={data_root}",
@@ -321,10 +327,10 @@ def test_apply_rejects_a_runner_image_that_lost_its_pin(tmp_path, monkeypatch):
 
 def test_apply_rejects_a_tampered_task_before_starting_runner(tmp_path):
     data_root = tmp_path / "data"
-    upgrade_root = data_root / "upgrade"
-    upgrade_root.mkdir(parents=True)
+    staging_dir = data_root / "upgrade" / "staging" / "run-1"
+    staging_dir.mkdir(parents=True)
     manager = UpgradeManager(data_root=str(data_root))
-    (upgrade_root / "task.env").write_text("RUN_ID=run-1\nUNKNOWN=value\n", encoding="utf-8")
+    (staging_dir / "task.env").write_text("RUN_ID=run-1\nUNKNOWN=value\n", encoding="utf-8")
     manager._write_state({"run_id": "run-1", "state": "ready"})
 
     with pytest.raises(CustomException, match="prepared task is invalid"):
