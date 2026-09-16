@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { i18n, normalizeSupportedLocale } from '../../shared/i18n/i18n'
 
 const PRODUCT_AUTH_STATUS_STORAGE_KEY = 'websoft9:product-auth-status'
-const PRODUCT_AUTH_UNAUTHORIZED_EVENT = 'websoft9:product-auth-unauthorized'
+export const PRODUCT_AUTH_UNAUTHORIZED_EVENT = 'websoft9:product-auth-unauthorized'
 
 type ProductAuthUser = {
     id: string
@@ -123,6 +123,7 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
 export function ProductAuthProvider({ children }: { children: ReactNode }) {
     const bootstrapStateRef = useRef<ProductAuthBootstrapState>(readPersistedProductAuthStatus())
+    const unauthorizedRedirectingRef = useRef(false)
     const [status, setStatus] = useState<ProductAuthStatus | null>(bootstrapStateRef.current.status)
     const [isLoading, setIsLoading] = useState(bootstrapStateRef.current.isLoading)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -186,9 +187,10 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         function handleUnauthorized() {
             // Avoid redirect loops — don't redirect if already on an auth page
-            if (isAuthRoute(window.location.pathname)) {
+            if (unauthorizedRedirectingRef.current || isAuthRoute(window.location.pathname)) {
                 return
             }
+            unauthorizedRedirectingRef.current = true
 
             // Clear local auth state
             setStatus(null)
@@ -200,8 +202,8 @@ export function ProductAuthProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            // Redirect to login
-            window.location.href = '/auth/login'
+            const nextPath = `${window.location.pathname}${window.location.search}`
+            window.location.href = `/auth/login?next=${encodeURIComponent(nextPath)}`
         }
 
         window.addEventListener(PRODUCT_AUTH_UNAUTHORIZED_EVENT, handleUnauthorized)

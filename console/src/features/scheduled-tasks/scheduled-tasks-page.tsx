@@ -32,6 +32,8 @@ import {
     SurfaceStateCard,
 } from "../../shared/design-system/standard-surfaces";
 import { getSurfacePalette } from "../../shared/design-system/surface-theme";
+import { useConnectionUnavailable } from "../../shared/connection/connection-provider";
+import { isPlatformUnavailableError } from "../../shared/lib/api-error";
 import "./scheduled-tasks-page.css";
 
 type ScheduledTask = {
@@ -250,6 +252,7 @@ export function ScheduledTasksPage() {
     const { colorMode } = useAppColorMode();
     const darkMode = colorMode === "dark";
     const palette = getSurfacePalette(darkMode);
+    const isConnectionUnavailable = useConnectionUnavailable();
     const queryClient = useQueryClient();
     const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage, {
         dateStyle: "medium",
@@ -942,7 +945,7 @@ export function ScheduledTasksPage() {
                     darkMode={darkMode}
                 />
             ) : null}
-            {tasksQuery.error ? (
+            {tasksQuery.error && !(isConnectionUnavailable && isPlatformUnavailableError(tasksQuery.error)) ? (
                 <Alert
                     severity="error"
                     action={

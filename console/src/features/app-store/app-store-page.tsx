@@ -44,7 +44,7 @@ import {
     type AppStoreCatalogItem,
     type AppStoreApp,
 } from './app-store-model'
-import { useAppStoreApps, useLocalAppStoreApps } from './use-app-store-apps'
+import { useAppStoreApps } from './use-app-store-apps'
 import { useAppStoreCatalogs } from './use-app-store-catalogs'
 import { useMyApps, type MyApp } from '../my-apps/use-my-apps'
 
@@ -855,7 +855,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const lastRefreshMessageRef = useRef('')
     const deferredSearchValue = useDeferredValue(searchValue)
     const { data, error, isLoading, refetch } = useAppStoreApps()
-    const { data: localAppsData, isLoading: isLocalAppsLoading, refetch: refetchLocalApps } = useLocalAppStoreApps()
     const { data: catalogsData, refetch: refetchCatalogs } = useAppStoreCatalogs()
     const { data: favoritesData, refetch: refetchFavorites } = useQuery<ProductAuthFavoritesResponse, Error>({
         queryKey: ['product-auth-favorites'],
@@ -876,7 +875,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         refetchInterval: isRefreshingStore ? 2_000 : false,
     })
 
-    const apps = useMemo(() => [...(data ?? []), ...(localAppsData ?? [])], [data, localAppsData])
+    const apps = data ?? []
     const catalogs = catalogsData ?? []
     const selectedAppCategoryItems = useMemo(() => {
         if (!selectedApp) {
@@ -897,7 +896,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }, [catalogs, selectedApp])
     const { data: myAppsData } = useMyApps()
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
-    const effectiveIsLoading = isLoading || isLocalAppsLoading || isLocalRefreshing
+    const effectiveIsLoading = isLoading || isLocalRefreshing
     const effectiveIsSyncRunning = isRefreshingStore || appStoreSyncStatus?.status === 'running'
     const lastSyncedAt = appStoreSyncStatus?.lastSyncedAt ?? appStoreState?.lastSyncedAt
     const isAppStoreIncompatible = appStoreState?.syncStatus === 'incompatible'
@@ -1850,7 +1849,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             })
             await Promise.all([
                 refetch(),
-                refetchLocalApps(),
                 refetchAppStoreState(),
                 refetchCatalogs(),
                 refetchFavorites(),

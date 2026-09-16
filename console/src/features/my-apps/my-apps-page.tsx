@@ -19,6 +19,8 @@ import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { clearMyAppsDetailOverlayIntent, markMyAppsDetailOverlayIntent } from './my-app-detail-overlay-intent'
 import { useMyApps, type MyApp } from './use-my-apps'
 import { fetchMyAppDetail } from './use-my-app-detail'
@@ -455,6 +457,7 @@ function LogDialog({
 export function MyAppsPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const queryClient = useQueryClient()
     const navigate = useNavigate()
     const location = useLocation()
@@ -972,7 +975,7 @@ export function MyAppsPage() {
             ) : null}
 
             {/* Error */}
-            {!showLoadingState && error ? (
+            {!showLoadingState && error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                 <Alert
                     action={<Button color="inherit" size="small" onClick={() => void refetch()}>{t('myAppsPage.states.retry')}</Button>}
                     severity="warning"

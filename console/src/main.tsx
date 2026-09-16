@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './app/App'
 import './index.css'
 import './shared/i18n/i18n'
+import { dismissStartupSplash } from './shared/lib/startup-splash'
 
 const CHUNK_RELOAD_KEY = 'websoft9:chunk-load-reload'
 const CHUNK_RELOAD_WINDOW_MS = 30_000
@@ -51,3 +52,7 @@ root.render(
     <App />
   </StrictMode>,
 )
+
+if (!/^\/setup\/?$/.test(window.location.pathname)) {
+  window.requestAnimationFrame(dismissStartupSplash)
+}

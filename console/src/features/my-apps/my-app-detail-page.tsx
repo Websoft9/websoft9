@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { LegacyMyAppLogo } from './my-app-media'
 import { canOpenMyAppsDetailOverlay, clearMyAppsDetailOverlayIntent, consumePendingComposeReturn, hasMyAppsDetailOverlayIntent, markPendingComposeReturn, rememberMyAppsDetailRoute } from './my-app-detail-overlay-intent'
 import { VolumeFileBrowserDialog } from './volume-file-browser-dialog'
@@ -693,6 +695,7 @@ async function runRedeployRequest(
 export function MyAppDetailPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const { appId } = useParams()
     const location = useLocation()
     const navigate = useNavigate()
@@ -1468,7 +1471,7 @@ export function MyAppDetailPage() {
                     ) : null}
 
                     {/* ── Error state ── */}
-                    {!isLoading && error ? (
+                    {!isLoading && error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                         <div style={{ padding: 24 }}>
                             <Alert
                                 action={<Button color="inherit" size="small" onClick={() => void refetch()}>{t('myAppsDetailPage.states.retry')}</Button>}

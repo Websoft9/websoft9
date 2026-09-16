@@ -22,6 +22,8 @@ import { useSearchParams } from 'react-router-dom'
 import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './logs-page.css'
 
@@ -149,6 +151,7 @@ export function LogsPage() {
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
     const { status, isLoading: authLoading } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const queryClient = useQueryClient()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const [searchParams] = useSearchParams()
@@ -405,7 +408,7 @@ export function LogsPage() {
 
                 {!status?.enabled ? <Alert severity="info">{t('logsPage.states.authDisabled')}</Alert> : null}
 
-                {error ? (
+                {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                     <Alert
                         action={
                             <Button color="inherit" size="small" onClick={() => refetch()}>

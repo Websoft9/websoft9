@@ -26,6 +26,9 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
+
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
@@ -349,6 +352,7 @@ export function UsersPage() {
     const location = useLocation()
     const navigate = useNavigate()
     const { refresh, status } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const createUsernameInputRef = useRef<HTMLInputElement | null>(null)
     const createDisplayNameInputRef = useRef<HTMLInputElement | null>(null)
@@ -854,7 +858,7 @@ export function UsersPage() {
                     </Alert>
                 ) : null}
 
-                {error ? (
+                {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                     <Alert
                         action={
                             <Button color="inherit" onClick={() => void refetch()} size="small">

@@ -137,12 +137,10 @@
     }
   </style>
   <script>
-    if (/^\/setup\/?$/.test(window.location.pathname)) {
-      document.body.insertAdjacentHTML(
-        'afterbegin',
-        '<div id="startup-splash" role="status" aria-label="Loading"><span class="startup-splash-spinner" aria-hidden="true"></span></div>',
-      )
-    }
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div id="startup-splash" role="status" aria-label="Loading"><span class="startup-splash-spinner" aria-hidden="true"></span></div>',
+    )
   </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>

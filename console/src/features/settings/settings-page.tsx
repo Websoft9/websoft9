@@ -27,6 +27,8 @@ import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { fetchUpgradeStatus, UPGRADE_SECTION_HASH, UPGRADE_STATUS_QUERY_KEY } from '../../shared/upgrade-status'
 import { checkUpgrade } from '../../shared/upgrade-status'
 import type { UpgradeStatus } from '../../shared/upgrade-status'
@@ -249,6 +251,7 @@ export function SettingsPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
     const { status: authStatus } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const location = useLocation()
     const isDarkMode = colorMode === 'dark'
     const surfacePalette = getSurfacePalette(isDarkMode)
@@ -1919,7 +1922,7 @@ export function SettingsPage() {
                     </Box>
                 </Box>
 
-                {error ? <Alert severity="error">{error.message}</Alert> : null}
+                {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? <Alert severity="error">{error.message}</Alert> : null}
 
                 <SurfaceFeedbackToast
                     open={toastOpen}

@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { SurfaceStateCard, SurfaceStatusBadge } from '../../shared/design-system/standard-surfaces'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { useAppColorMode } from '../../app/providers/color-mode'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './overview-page.css'
 
@@ -148,6 +150,7 @@ export function OverviewPage() {
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const queryClient = useQueryClient()
     const [isManualRefreshing, setIsManualRefreshing] = useState(false)
     const supportsEventSource = typeof window !== 'undefined' && typeof EventSource !== 'undefined'
@@ -235,7 +238,7 @@ export function OverviewPage() {
 
                 {!status?.enabled ? <Alert severity="info">{t('overviewPage.states.authDisabled')}</Alert> : null}
 
-                {error ? (
+                {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                     <Alert
                         action={<Button color="inherit" size="small" onClick={() => void refetch()}>{t('overviewPage.actions.retry')}</Button>}
                         severity="error"

@@ -26,6 +26,8 @@ import { useTranslation } from 'react-i18next'
 import { SurfaceStateCard, SurfaceStatusBadge } from '../../shared/design-system/standard-surfaces'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { useAppColorMode } from '../../app/providers/color-mode'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './services-page.css'
 
@@ -303,6 +305,7 @@ export function ServicesPage() {
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const queryClient = useQueryClient()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const logBodyRef = useRef<HTMLDivElement | null>(null)
@@ -676,7 +679,7 @@ export function ServicesPage() {
             <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
                 {!status?.enabled ? <Alert severity="info">{t('servicesPage.states.authDisabled')}</Alert> : null}
 
-                {error ? (
+                {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                     <Alert
                         action={
                             <Button color="inherit" size="small" onClick={() => refetch()}>

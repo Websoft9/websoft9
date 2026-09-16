@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import { SurfaceDialog } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useMyAppAccess } from './use-my-app-access'
 
 type ContentScopeRect = {
@@ -231,6 +233,7 @@ function getConnectionTitle(t: (key: string, options?: Record<string, unknown>) 
 
 export function MyAppAccessPanel({ appId, env, isComposeApp, onUpdated, scopeRect, isDarkMode = false }: MyAppAccessPanelProps) {
     const { t, i18n } = useTranslation('shell')
+    const isConnectionUnavailable = useConnectionUnavailable()
     const palette = getSurfacePalette(isDarkMode)
     const [selectedProxyId, setSelectedProxyId] = useState<number | null>(null)
     const [selectedDomainName, setSelectedDomainName] = useState<string | null>(null)
@@ -941,7 +944,7 @@ ${customCertIntermediate.trim()}`
                 </div>
             ) : null}
 
-            {error ? (
+            {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                 <Alert
                     action={
                         <Button color="inherit" onClick={() => void refetch()} size="small">

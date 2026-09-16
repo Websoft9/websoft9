@@ -7,6 +7,7 @@ import { RouterProvider, type RouterProviderProps } from 'react-router-dom'
 
 import { ColorModeProvider, SHELL_MODE_STORAGE_KEY, type AppColorMode } from './color-mode'
 import { ProductAuthProvider } from '../../features/product-auth/product-auth-provider'
+import { ConnectionProvider } from '../../shared/connection/connection-provider'
 import { i18n } from '../../shared/i18n/i18n'
 import { queryClient } from '../../shared/lib/query-client'
 import { createAppTheme } from '../../shared/theme/theme'
@@ -43,7 +44,9 @@ export function AppProviders({ router }: AppProvidersProps) {
                 <I18nextProvider i18n={i18n}>
                     <QueryClientProvider client={queryClient}>
                         <ProductAuthProvider>
-                            <RouterProvider router={router} />
+                            <ConnectionProvider>
+                                <RouterProvider router={router} />
+                            </ConnectionProvider>
                         </ProductAuthProvider>
                     </QueryClientProvider>
                 </I18nextProvider>

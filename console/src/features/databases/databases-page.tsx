@@ -19,6 +19,8 @@ import { markMyAppsDetailOverlayIntent } from '../my-apps/my-app-detail-overlay-
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import './databases-page.css'
 
 type ExternalDatabaseAppRef = {
@@ -121,6 +123,7 @@ export function DatabasesPage() {
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const navigate = useNavigate()
     const pageShellRef = useRef<HTMLDivElement | null>(null)
     const [searchValue, setSearchValue] = useState('')
@@ -187,7 +190,7 @@ export function DatabasesPage() {
             <Stack spacing={2} sx={{ height: '100%', minHeight: 0 }}>
                 {!status?.enabled ? <Alert severity="info">{t('servicesPage.states.authDisabled')}</Alert> : null}
 
-                {error ? (
+                {error && !(isConnectionUnavailable && isPlatformUnavailableError(error)) ? (
                     <Alert
                         action={
                             <Button color="inherit" size="small" onClick={() => refetch()}>

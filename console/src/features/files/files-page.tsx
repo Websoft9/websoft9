@@ -17,6 +17,8 @@ import type { ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 
+import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
+import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './files-page.css'
 
@@ -521,6 +523,7 @@ export function FilesPage() {
     const { t, i18n } = useTranslation('shell')
     const [searchParams, setSearchParams] = useSearchParams()
     const { status } = useProductAuth()
+    const isConnectionUnavailable = useConnectionUnavailable()
     const queryClient = useQueryClient()
     const [selectedVolume, setSelectedVolume] = useState('')
     const [selectedRootVolume, setSelectedRootVolume] = useState<FileManagerVolume | null>(null)
@@ -1575,11 +1578,11 @@ export function FilesPage() {
                                     <Typography variant="body2">{t('filesPage.states.loadingVolumes')}</Typography>
                                 </Stack>
                             </div>
-                        ) : volumeError ? (
+                        ) : volumeError && !(isConnectionUnavailable && isPlatformUnavailableError(volumeError)) ? (
                             <div className="files-empty">
                                 <Alert severity="error">{volumeError.message}</Alert>
                             </div>
-                        ) : isVolumeRoot && rootDirectoryError ? (
+                        ) : isVolumeRoot && rootDirectoryError && !(isConnectionUnavailable && isPlatformUnavailableError(rootDirectoryError)) ? (
                             <div className="files-empty">
                                 <Alert severity="error">{rootDirectoryError.message}</Alert>
                             </div>
@@ -1590,7 +1593,7 @@ export function FilesPage() {
                                     <Typography variant="body2">{t('filesPage.states.loadingDirectory')}</Typography>
                                 </Stack>
                             </div>
-                        ) : !isVolumeRoot && directoryError ? (
+                        ) : !isVolumeRoot && directoryError && !(isConnectionUnavailable && isPlatformUnavailableError(directoryError)) ? (
                             <div className="files-empty">
                                 <Alert severity="error">{directoryError.message}</Alert>
                             </div>

@@ -48,6 +48,11 @@ const rawShellResources = {
                 light: 'Light',
                 dark: 'Dark',
             },
+            connection: {
+                unavailableTitle: 'Service is temporarily unavailable',
+                unavailableDetail: 'Reconnecting to Websoft9. Actions are temporarily disabled.',
+                retry: 'Retry now',
+            },
             upgradeNotice: {
                 title: 'Update available',
                 readyTitle: 'Update ready to install',
@@ -2494,6 +2499,11 @@ const rawShellResources = {
                 current: '当前',
                 light: '亮色',
                 dark: '暗色',
+            },
+            connection: {
+                unavailableTitle: '服务暂时不可用',
+                unavailableDetail: '正在重新连接 Websoft9，暂时无法继续操作。',
+                retry: '立即重试',
             },
             upgradeNotice: {
                 title: '发现新版本',
