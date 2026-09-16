@@ -11,7 +11,9 @@ import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-
 import { BrandPreviewPage } from '../../features/settings/brand-preview-page'
 import { queryClient } from '../../shared/lib/query-client'
 
-type PreloadableLazyComponent = LazyExoticComponent<ComponentType<any>> & {
+type LazyPageComponent = ComponentType<Record<string, unknown>>
+
+type PreloadableLazyComponent = LazyExoticComponent<LazyPageComponent> & {
     preload: () => Promise<unknown>
 }
 
@@ -19,7 +21,7 @@ function lazyPage<TModule extends Record<string, unknown>>(
     loader: () => Promise<TModule>,
     exportName: keyof TModule,
 ): PreloadableLazyComponent {
-    const load = () => loader().then((module) => ({ default: module[exportName] as ComponentType<any> }))
+    const load = () => loader().then((module) => ({ default: module[exportName] as unknown as LazyPageComponent }))
     const component = lazy(load) as PreloadableLazyComponent
     component.preload = load
     return component

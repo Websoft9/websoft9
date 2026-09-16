@@ -10,7 +10,7 @@ const resourcesFile = path.join(consoleRoot, 'src/shared/i18n/resources.ts')
 function loadShellResources() {
     const source = fs.readFileSync(resourcesFile, 'utf8')
     const executableSource = source
-        .replace('function normalizeLocaleNamespaces(resources: Record<string, Record<string, any>>) {', 'function normalizeLocaleNamespaces(resources) {')
+        .replace(/function normalizeLocaleNamespaces\(\s*resources:[^)]*\)/, 'function normalizeLocaleNamespaces(resources)')
         .replace('export const shellResources =', 'const shellResources =')
         .replace(/\s+as const/g, '')
     const sandbox = { module: { exports: {} }, exports: {} }

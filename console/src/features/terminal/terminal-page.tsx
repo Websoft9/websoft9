@@ -1102,6 +1102,7 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
             detail = body.details || body.detail || body.message || detail
             code = body.message
         } catch {
+            // Keep the status-text fallback when the API response is not JSON.
         }
         throw new HostAccessRequestError(detail, response.status, code)
     }
@@ -2490,6 +2491,7 @@ export function TerminalPage() {
                             .slice(0, 12),
                     )
                 } catch {
+                    // Keep the HTTP status fallback when the API response is not JSON.
                     const currentSession = activeSessionRef.current
                     if (!cancelled && currentSession?.id === requestSessionId && currentSession?.profileId === requestProfileId) {
                         setPathSuggestions([])
@@ -3481,6 +3483,7 @@ export function TerminalPage() {
                     const payload = (await response.json()) as { details?: string; message?: string }
                     message = payload.details ?? payload.message ?? message
                 } catch {
+                    // Keep the HTTP status fallback when the API response is not JSON.
                 }
                 throw new Error(message)
             }

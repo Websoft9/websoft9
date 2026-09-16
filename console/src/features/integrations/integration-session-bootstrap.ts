@@ -78,7 +78,7 @@ export function ensureBulkIntegrationSessionBootstrap(requestKey: string, locale
                 }
             })
         })
-    } catch (_) {
+    } catch {
         // cross-origin or storage-disabled — ignore
     }
 
