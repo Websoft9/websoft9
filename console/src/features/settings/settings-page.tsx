@@ -4,22 +4,32 @@ import {
     Button,
     Chip,
     CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     List,
     ListItemButton,
     Stack,
     Switch,
     TextField,
+    Tooltip,
     Typography,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
+import { useProductAuth } from '../product-auth/product-auth-provider'
 import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
-import { SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
+import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
+import { fetchUpgradeStatus, UPGRADE_SECTION_HASH, UPGRADE_STATUS_QUERY_KEY } from '../../shared/upgrade-status'
+import { checkUpgrade } from '../../shared/upgrade-status'
+import type { UpgradeStatus } from '../../shared/upgrade-status'
 import './settings-page.css'
 
 type SettingsSummaryItem = {
@@ -116,23 +126,45 @@ async function updateSetting(section: string, key: string, value: string) {
     }
 }
 
-type UpgradeStatus = {
-    current_version: string
-    latest_version: string
-    channel: string
-    upgrade_available: boolean
-    install_command: string
-    artifact_url: string
-    doc_url: string
+type ContentScopeRect = {
+    top: number
+    left: number
+    width: number
+    height: number
 }
 
-async function fetchUpgradeStatus(): Promise<UpgradeStatus> {
-    const response = await fetch('/api/settings/upgrade/status', {
+class UpgradeRequestError extends Error {
+    readonly status: number
+
+    constructor(status: number, message: string) {
+        super(message)
+        this.name = 'UpgradeRequestError'
+        this.status = status
+    }
+}
+
+async function prepareUpgrade(): Promise<UpgradeStatus> {
+    const response = await fetch('/api/settings/upgrade/prepare', {
+        method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },
     })
     if (!response.ok) {
-        throw new Error(`Failed to load upgrade status: ${response.status}`)
+        const payload = await response.json().catch(() => ({})) as { details?: string; message?: string }
+        throw new UpgradeRequestError(response.status, payload.details || payload.message || `Failed to prepare upgrade: ${response.status}`)
+    }
+    return (await response.json()) as UpgradeStatus
+}
+
+async function applyUpgrade(): Promise<UpgradeStatus> {
+    const response = await fetch('/api/settings/upgrade/apply', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { details?: string; message?: string }
+        throw new Error(payload.details || payload.message || `Failed to start upgrade: ${response.status}`)
     }
     return (await response.json()) as UpgradeStatus
 }
@@ -216,13 +248,15 @@ const SETTINGS_MODULES: SettingsModule[] = [
 export function SettingsPage() {
     const { t, i18n } = useTranslation('shell')
     const { colorMode } = useAppColorMode()
+    const { status: authStatus } = useProductAuth()
+    const location = useLocation()
     const isDarkMode = colorMode === 'dark'
     const surfacePalette = getSurfacePalette(isDarkMode)
     const settingsFieldSx = getSurfaceFieldSx(surfacePalette)
     const [drafts, setDrafts] = useState<Record<string, string>>({})
     const [mirrorPendingInputs, setMirrorPendingInputs] = useState<Record<string, string>>({})
     const [activeModule, setActiveModule] = useState<SettingsModuleId>('app-domain')
-    const [feedback, setFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
+    const [feedback, setFeedback] = useState<{ severity: 'success' | 'error' | 'info'; message: string } | null>(null)
     const [toastOpen, setToastOpen] = useState(false)
     const [savingModule, setSavingModule] = useState<SettingsModuleId | null>(null)
     const [reuseLogo, setReuseLogo] = useState<boolean>(false)
@@ -253,19 +287,96 @@ export function SettingsPage() {
         data: upgradeStatus,
         error: upgradeStatusError,
         isLoading: isUpgradeStatusLoading,
+        isFetching: isUpgradeStatusFetching,
+        refetch: refetchUpgradeStatus,
     } = useQuery<UpgradeStatus, Error>({
-        queryKey: ['upgrade-status'],
+        queryKey: UPGRADE_STATUS_QUERY_KEY,
         queryFn: fetchUpgradeStatus,
         staleTime: 60_000,
+        // The endpoint sits behind the gateway session, so it must not run before the operator
+        // is authenticated: a 401 here sticks until something retries the query.
+        enabled: Boolean(authStatus?.enabled && authStatus?.authenticated),
+        // Keep polling while a download or the upgrade itself is running. The
+        // backend does not touch updated_at during a download, so this must not
+        // depend on state changes to reschedule itself.
+        refetchInterval: (query) => {
+            const state = query.state.data?.state
+            return state === 'downloading' || state === 'applying' ? 2_000 : false
+        },
     })
 
     const [copied, setCopied] = useState(false)
+    const [preparingUpgrade, setPreparingUpgrade] = useState(false)
+    // Only a download started from this page load may surface a failure: a reload clears the
+    // marker, so the operator always gets back to a plain "Download update" action while the
+    // record itself stays available through the API and the upgrade logs.
+    const [initiatedUpgradeRunId, setInitiatedUpgradeRunId] = useState<string | null>(null)
+    const [applyConfirmationOpen, setApplyConfirmationOpen] = useState(false)
+    const [applyingUpgrade, setApplyingUpgrade] = useState(false)
+    const [upgradeManualOpen, setUpgradeManualOpen] = useState(false)
+    const [checkingUpgrade, setCheckingUpgrade] = useState(false)
+
+    const settingsPageShellRef = useRef<HTMLDivElement | null>(null)
+    const [upgradeDialogScopeRect, setUpgradeDialogScopeRect] = useState<ContentScopeRect | null>(null)
+
+    // Keep the manual-upgrade dialog inside the workspace area so it never covers the
+    // navigation, matching the other scoped dialogs of the console.
+    useLayoutEffect(() => {
+        const shellElement = settingsPageShellRef.current
+        const mainElement = shellElement?.closest('main')
+        if (!shellElement || !(mainElement instanceof HTMLElement)) {
+            return
+        }
+
+        const updateScopeRect = () => {
+            const rect = mainElement.getBoundingClientRect()
+            setUpgradeDialogScopeRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+        }
+
+        updateScopeRect()
+
+        const resizeObserver = new ResizeObserver(() => updateScopeRect())
+        resizeObserver.observe(mainElement)
+        window.addEventListener('resize', updateScopeRect)
+
+        return () => {
+            resizeObserver.disconnect()
+            window.removeEventListener('resize', updateScopeRect)
+        }
+    }, [isLoading])
+
+    const upgradeDialogCancelButtonSx = {
+        minWidth: 68,
+        borderRadius: 0,
+        boxShadow: 'none',
+        border: `1px solid ${surfacePalette.borderStrong}`,
+        backgroundColor: surfacePalette.actionBg,
+        color: surfacePalette.subtleText,
+        '&:hover': {
+            backgroundColor: surfacePalette.actionHover,
+            color: surfacePalette.text,
+            boxShadow: 'none',
+        },
+    }
+
+    const upgradeDialogPrimaryButtonSx = {
+        minWidth: 68,
+        borderRadius: 0,
+        boxShadow: 'none',
+        backgroundColor: surfacePalette.accent,
+        color: surfacePalette.accentContrast,
+        '&:hover': {
+            backgroundColor: surfacePalette.accent,
+            filter: 'brightness(0.94)',
+            boxShadow: 'none',
+        },
+    }
 
     useEffect(() => {
-        if (window.location.hash === '#version-and-upgrade') {
+        if (location.hash === UPGRADE_SECTION_HASH) {
             setActiveModule('platform-system')
         }
-    }, [])
+    }, [location.hash])
 
     const items = data?.groups.flatMap((group) => group.items) ?? []
     const boundDomainItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'bound_domain') ?? null
@@ -1358,6 +1469,42 @@ export function SettingsPage() {
     function renderUpgradeRow() {
         const status = upgradeStatus
         const currentVersion = status?.current_version || t('settingsPage.values.notConfigured')
+        const sessionFailure = status?.last_failure && initiatedUpgradeRunId && status.last_failure.run_id === initiatedUpgradeRunId
+            ? status.last_failure
+            : null
+        const upgradeFailureDetail = sessionFailure?.detail === 'download_interrupted'
+            ? t('settingsPage.upgrade.downloadInterrupted')
+            : sessionFailure?.detail || t('settingsPage.upgrade.actions.downloadFailed')
+        const upgradeCheckBusy = checkingUpgrade || isUpgradeStatusFetching
+
+        async function handleCheckUpgrade() {
+            setCheckingUpgrade(true)
+            let failed = false
+            try {
+                // Forces a fresh check against the artifact channel, then re-reads the cache.
+                await checkUpgrade()
+            } catch {
+                failed = true
+            } finally {
+                setCheckingUpgrade(false)
+            }
+
+            if (failed) {
+                setFeedback({ severity: 'error', message: t('settingsPage.upgrade.checkFailed') })
+                setToastOpen(true)
+                return
+            }
+
+            // Report the outcome here: the row itself has no state to change when nothing is found.
+            const result = await refetchUpgradeStatus()
+            setFeedback({
+                severity: 'success',
+                message: result.data?.upgrade_available
+                    ? t('settingsPage.upgrade.foundNewVersion', { version: result.data.latest_version })
+                    : t('settingsPage.upgrade.upToDate'),
+            })
+            setToastOpen(true)
+        }
 
         function handleCopy() {
             const text = status?.install_command
@@ -1390,10 +1537,52 @@ export function SettingsPage() {
             }
         }
 
+        async function handlePrepareUpgrade() {
+            setPreparingUpgrade(true)
+            try {
+                const started = await prepareUpgrade()
+                setInitiatedUpgradeRunId(started.run_id ?? null)
+                await refetchUpgradeStatus()
+            } catch (prepareError) {
+                if (prepareError instanceof UpgradeRequestError && prepareError.status === 409) {
+                    // Another tab or operator already owns the upgrade job. That is a concurrency
+                    // conflict, not a failed download, so report it as information and re-read the
+                    // status to follow whatever is actually running.
+                    setFeedback({ severity: 'info', message: t('settingsPage.upgrade.actions.alreadyRunning') })
+                } else {
+                    setFeedback({
+                        severity: 'error',
+                        message: prepareError instanceof Error ? prepareError.message : t('settingsPage.upgrade.actions.downloadFailed'),
+                    })
+                }
+                setToastOpen(true)
+                await refetchUpgradeStatus()
+            } finally {
+                setPreparingUpgrade(false)
+            }
+        }
+
+        async function handleApplyUpgrade() {
+            setApplyConfirmationOpen(false)
+            setApplyingUpgrade(true)
+            try {
+                await applyUpgrade()
+                await refetchUpgradeStatus()
+            } catch (applyError) {
+                setFeedback({
+                    severity: 'error',
+                    message: applyError instanceof Error ? applyError.message : t('settingsPage.upgrade.actions.applyFailed'),
+                })
+                setToastOpen(true)
+            } finally {
+                setApplyingUpgrade(false)
+            }
+        }
+
         if (isUpgradeStatusLoading) {
             return (
                 <div className="settings-form-row">
-                    <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}：</Typography>
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
                     <div className="settings-form-control">
                         <Typography variant="body2" color="text.secondary">{t('settingsPage.upgrade.checking')}</Typography>
                     </div>
@@ -1406,7 +1595,7 @@ export function SettingsPage() {
             return (
                 <>
                     <div className="settings-form-row">
-                        <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}：</Typography>
+                        <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
                         <div className="settings-form-control">
                             <Typography className="settings-form-value" variant="body2">
                                 {currentVersion}
@@ -1416,11 +1605,20 @@ export function SettingsPage() {
                     </div>
 
                     <div className="settings-form-row">
-                        <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}：</Typography>
+                        <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
                         <div className="settings-form-control">
-                            <Typography variant="body2" color="error.main">
+                            <Typography variant="body2" component="span" color="error.main">
                                 {t('settingsPage.upgrade.unavailable')}
                             </Typography>
+                            <Button
+                                size="small"
+                                variant="contained"
+                                sx={{ ml: 1.5, verticalAlign: 'middle' }}
+                                onClick={() => void handleCheckUpgrade()}
+                                disabled={upgradeCheckBusy}
+                            >
+                                {checkingUpgrade ? t('settingsPage.upgrade.actions.checking') : t('settingsPage.upgrade.actions.check')}
+                            </Button>
                         </div>
                         <div className="settings-form-actions" />
                     </div>
@@ -1428,22 +1626,51 @@ export function SettingsPage() {
             )
         }
 
+        // Terminal outcomes of an upgrade stay actionable long after it finished, so they remain
+        // on screen until the next download or upgrade overwrites the recorded state.
+        const upgradeResultNotice = (() => {
+            const target = status.target_version || status.latest_version
+            switch (status.state) {
+                case 'degraded':
+                    return { severity: 'warning' as const, message: t('settingsPage.upgrade.result.degraded', { version: target }) }
+                case 'rolled_back':
+                    return { severity: 'warning' as const, message: t('settingsPage.upgrade.result.rolledBack', { version: target, current: currentVersion }) }
+                case 'rollback_failed':
+                    return { severity: 'error' as const, message: t('settingsPage.upgrade.result.rollbackFailed', { version: target }) }
+                case 'apply_interrupted':
+                    return { severity: 'error' as const, message: t('settingsPage.upgrade.result.interrupted') }
+                default:
+                    return null
+            }
+        })()
+
         return (
             <>
+                {upgradeResultNotice && (
+                    <div className="settings-form-row">
+                        <Alert severity={upgradeResultNotice.severity} sx={{ gridColumn: '1 / -1' }}>
+                            {upgradeResultNotice.message}
+                        </Alert>
+                    </div>
+                )}
                 <div className="settings-form-row">
-                    <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}：</Typography>
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.currentVersion')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
                     <div className="settings-form-control">
                         <Typography className="settings-form-value" variant="body2" component="span">
                             {currentVersion}
                         </Typography>
                         {!status.upgrade_available && (
-                            <Typography
-                                variant="caption"
-                                component="span"
-                                sx={{ ml: 1, color: 'success.main', fontWeight: 500 }}
+                            <Button
+                                size="small"
+                                variant="contained"
+                                sx={{ ml: 1.5, verticalAlign: 'middle' }}
+                                onClick={() => void handleCheckUpgrade()}
+                                disabled={upgradeCheckBusy}
                             >
-                                — {t('settingsPage.upgrade.upToDate')}
-                            </Typography>
+                                {/* Only a manual check relabels the button. Background status refreshes
+                                    merely disable it, so the label never flickers. */}
+                                {checkingUpgrade ? t('settingsPage.upgrade.actions.checking') : t('settingsPage.upgrade.actions.check')}
+                            </Button>
                         )}
                     </div>
                     <div className="settings-form-actions" />
@@ -1452,55 +1679,136 @@ export function SettingsPage() {
                 {status.upgrade_available && (
                     <>
                         <div className="settings-form-row">
-                            <Typography className="settings-form-label">{t('settingsPage.upgrade.latestVersion')}：</Typography>
+                            <Typography className="settings-form-label">{t('settingsPage.upgrade.latestVersion')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
                             <div className="settings-form-control">
-                                <Typography className="settings-form-value" variant="body2">
-                                    {status.latest_version}
-                                </Typography>
+                                <Stack direction="row" spacing={3} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <Typography className="settings-form-value" variant="body2">
+                                        {status.latest_version}
+                                    </Typography>
+                                    <Stack direction="row" spacing={1.5} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                                        {status.state === 'downloading' || preparingUpgrade ? (
+                                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                                <CircularProgress size={16} />
+                                                <Typography variant="body2" color="text.secondary">
+                                                    {t('settingsPage.upgrade.actions.downloading')}
+                                                </Typography>
+                                            </Stack>
+                                        ) : status.state === 'ready' ? (
+                                            <Button size="small" color="warning" variant="contained" onClick={() => setApplyConfirmationOpen(true)} disabled={applyingUpgrade}>
+                                                {t('settingsPage.upgrade.actions.apply')}
+                                            </Button>
+                                        ) : (
+                                            <Button size="small" variant="contained" onClick={handlePrepareUpgrade}>
+                                                {t('settingsPage.upgrade.actions.download')}
+                                            </Button>
+                                        )}
+                                        {sessionFailure && (
+                                            <Tooltip title={upgradeFailureDetail}>
+                                                <Typography variant="caption" sx={{ color: 'error.main', cursor: 'help' }}>
+                                                    {t('settingsPage.upgrade.actions.downloadFailed')}
+                                                </Typography>
+                                            </Tooltip>
+                                        )}
+                                    </Stack>
+                                </Stack>
+                                {status.state === 'ready' && (
+                                    <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: 'text.secondary' }}>
+                                        {t('settingsPage.upgrade.downloadedHint')}
+                                    </Typography>
+                                )}
                             </div>
                             <div className="settings-form-actions" />
                         </div>
 
-                        <div className="settings-form-row">
-                            <Typography className="settings-form-label">{t('settingsPage.upgrade.command')}：</Typography>
-                            <div className="settings-form-control">
-                                <Box
-                                    component="pre"
-                                    sx={{
-                                        m: 0,
-                                        p: 1.5,
-                                        fontSize: '0.8rem',
-                                        borderRadius: 1,
-                                        bgcolor: surfacePalette.panelSoft,
-                                        color: surfacePalette.text,
-                                        overflowX: 'auto',
-                                        whiteSpace: 'pre-wrap',
-                                        wordBreak: 'break-all',
-                                    }}
-                                >
-                                    {status.install_command}
-                                </Box>
-                                <Typography
-                                    variant="caption"
-                                    sx={{ mt: 1, display: 'block', color: 'text.secondary' }}
-                                >
-                                    {t('settingsPage.upgrade.upgradeHint')}
-                                </Typography>
-                            </div>
-                            <div className="settings-form-actions" />
-                        </div>
-
-                        <div className="settings-form-row">
-                            <Typography className="settings-form-label" />
-                            <div className="settings-form-control">
-                                <Button size="small" variant="contained" onClick={handleCopy}>
-                                    {copied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.actions.copy')}
-                                </Button>
-                            </div>
-                            <div className="settings-form-actions" />
-                        </div>
                     </>
                 )}
+
+                <div className="settings-form-row">
+                    <Typography className="settings-form-label">{t('settingsPage.upgrade.manualLabel')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
+                    <div className="settings-form-control">
+                        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                            {t('settingsPage.upgrade.manualHint')}
+                        </Typography>
+                    </div>
+                    <div className="settings-form-actions">
+                        <Button size="small" variant="text" onClick={() => setUpgradeManualOpen(true)}>
+                            {t('settingsPage.upgrade.actions.viewMethod')}
+                        </Button>
+                    </div>
+                </div>
+
+                <SurfaceDialog
+                    open={upgradeManualOpen}
+                    onClose={() => setUpgradeManualOpen(false)}
+                    scope="content"
+                    scopeRect={upgradeDialogScopeRect}
+                    contentStrategy="viewport-fixed"
+                    darkMode={isDarkMode}
+                    maxWidth="sm"
+                    // A short dialog reads better anchored near the top than dead centre.
+                    sx={{
+                        '& .MuiDialog-container': {
+                            alignItems: 'flex-start',
+                            pt: { xs: 3, md: 6 },
+                        },
+                    }}
+                    paperSx={{
+                        width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' },
+                        maxWidth: '560px',
+                        backgroundColor: surfacePalette.dialogBg,
+                        color: surfacePalette.text,
+                        border: `1px solid ${surfacePalette.borderStrong}`,
+                    }}
+                >
+                    <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${surfacePalette.divider}`, backgroundColor: surfacePalette.dialogBg }}>
+                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: surfacePalette.text }}>
+                            {t('settingsPage.upgrade.manualLabel')}
+                        </Typography>
+                    </Box>
+                    <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${surfacePalette.divider}`, backgroundColor: surfacePalette.dialogBg }}>
+                        <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: surfacePalette.subtleText }}>
+                            {t('settingsPage.upgrade.manualHint')}
+                        </Typography>
+                        <Box
+                            component="pre"
+                            sx={{
+                                m: 0,
+                                mt: 1.5,
+                                p: 1.5,
+                                fontSize: '0.8rem',
+                                lineHeight: 1.6,
+                                borderRadius: '2px',
+                                border: `1px solid ${surfacePalette.border}`,
+                                bgcolor: surfacePalette.panelSoft,
+                                color: surfacePalette.text,
+                                overflowX: 'auto',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                            }}
+                        >
+                            {status.install_command}
+                        </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25, backgroundColor: surfacePalette.dialogBg }}>
+                        <Button onClick={() => setUpgradeManualOpen(false)} sx={upgradeDialogCancelButtonSx}>
+                            {t('settingsPage.upgrade.actions.close')}
+                        </Button>
+                        <Button variant="contained" onClick={handleCopy} sx={upgradeDialogPrimaryButtonSx}>
+                            {copied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.actions.copy')}
+                        </Button>
+                    </Box>
+                </SurfaceDialog>
+
+                <Dialog open={applyConfirmationOpen} onClose={() => setApplyConfirmationOpen(false)} maxWidth="xs" fullWidth>
+                    <DialogTitle>{t('settingsPage.upgrade.confirm.title')}</DialogTitle>
+                    <DialogContent>
+                        <Typography variant="body2">{t('settingsPage.upgrade.confirm.body')}</Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setApplyConfirmationOpen(false)}>{t('settingsPage.upgrade.confirm.cancel')}</Button>
+                        <Button color="warning" variant="contained" onClick={() => void handleApplyUpgrade()}>{t('settingsPage.upgrade.confirm.confirm')}</Button>
+                    </DialogActions>
+                </Dialog>
             </>
         )
     }
@@ -1557,7 +1865,7 @@ export function SettingsPage() {
             <Stack spacing={2}>
                 <PageDescriptionHeader title={t('nav.settings.label')} description={t('settingsPage.hero.description')} />
 
-                <Box className="settings-page-shell">
+                <Box className="settings-page-shell" ref={settingsPageShellRef}>
                     <Box className="settings-outer-card">
                         <Box className="settings-page-grid">
                             <Box className="settings-nav-area">

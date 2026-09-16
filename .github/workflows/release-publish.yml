@@ -269,6 +269,7 @@ jobs:
           cp install/dist/install.sh r2-artifacts/install.sh
           cp install/dist/uninstall.sh r2-artifacts/uninstall.sh
           cp install/install_docker.sh r2-artifacts/install_docker.sh
+          cp scripts/runner-upgrade.sh r2-artifacts/runner-upgrade.sh
           cp install/dist/install.sh legacy-r2-artifacts/install.sh
           cp install/dist/uninstall.sh legacy-r2-artifacts/uninstall.sh
           cp install/install_docker.sh legacy-r2-artifacts/install_docker.sh
@@ -312,6 +313,7 @@ jobs:
                 install_script: "install.sh",
                 uninstall_script: "uninstall.sh",
                 docker_install_script: "install_docker.sh",
+                runner_upgrade_script: "runner-upgrade.sh",
                 changelog_file: "CHANGELOG.md",
                 version_file: "version.json",
                 mirrors_file: "mirrors.json",
@@ -342,6 +344,7 @@ jobs:
               install.sh \
               uninstall.sh \
               install_docker.sh \
+              runner-upgrade.sh \
               docker-compose.yml \
               version.json \
               CHANGELOG.md \

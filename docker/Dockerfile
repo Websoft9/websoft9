@@ -168,9 +168,9 @@ COPY docker/scripts/platform-start-portainer.sh /websoft9/script/platform-start-
 COPY docker/scripts/platform-sync-config.sh /websoft9/script/platform-sync-config.sh
 COPY docker/scripts/platform-ensure-product-metadata.py /websoft9/script/platform-ensure-product-metadata.py
 COPY docker/scripts/platform-sync-runtime-assets.py /websoft9/script/platform-sync-runtime-assets.py
-COPY docker/crontab /etc/cron.d/websoft9-appstore
+COPY docker/crontab /etc/cron.d/websoft9-maintenance
 
-RUN chmod 0644 /etc/cron.d/websoft9-appstore
+RUN chmod 0644 /etc/cron.d/websoft9-maintenance
 
 # Cache buster: changes on every workflow run so the appstore sync layer
 # always fetches fresh remote data even when other build args are unchanged.

@@ -10,6 +10,7 @@ import {
     SvgIcon,
     Typography,
 } from '@mui/material'
+import { useQuery } from '@tanstack/react-query'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +19,11 @@ import { useAppColorMode } from '../providers/color-mode'
 import { useProductAuth } from '../../features/product-auth/product-auth-provider'
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 import { useIdleTimeout } from '../../shared/hooks/useIdleTimeout'
+import {
+    fetchUpgradeStatus,
+    UPGRADE_STATUS_QUERY_KEY,
+    UPGRADE_SECTION_HASH,
+} from '../../shared/upgrade-status'
 import { PersistentIntegrationWorkspaces } from '../../features/integrations/integration-workspace-page'
 import { useIntegrationSessionPrewarm } from '../../features/integrations/integration-session-bootstrap'
 import { getRememberedMyAppsDetailRoute, rememberMyAppsDetailRoute } from '../../features/my-apps/my-app-detail-overlay-intent'
@@ -152,6 +158,10 @@ function ChevronDownIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="m7 10 5 5 5-5H7Z" /></SvgIcon>
 }
 
+function UpdateIcon() {
+    return <SvgIcon viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Zm-1 11V8.8L9.4 10.4 8 9l4-4 4 4-1.4 1.4L13 8.8V15h-2Z" /></SvgIcon>
+}
+
 function MenuIcon() {
     return <SvgIcon viewBox="0 0 24 24"><path d="M4 7h16v2H4V7Zm0 4h16v2H4v-2Zm0 4h16v2H4v-2Z" /></SvgIcon>
 }
@@ -183,6 +193,36 @@ export function AppShell() {
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
     const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
     const [appearanceMenuAnchor, setAppearanceMenuAnchor] = useState<HTMLElement | null>(null)
+    const [upgradeMenuAnchor, setUpgradeMenuAnchor] = useState<HTMLElement | null>(null)
+
+    const { data: upgradeStatus } = useQuery({
+        queryKey: UPGRADE_STATUS_QUERY_KEY,
+        queryFn: fetchUpgradeStatus,
+        // The endpoint reads the remote release manifest, so this stays lazy: one check per
+        // session, refreshed when the operator returns to the tab. It must never poll.
+        staleTime: 5 * 60_000,
+        retry: false,
+        enabled: Boolean(status?.enabled && status?.authenticated),
+    })
+
+    // This stays visible until the upgrade actually happens. Hiding it on "Later" left the
+    // operator with no hint at all that a newer release was waiting.
+    const upgradeNotice = useMemo(() => {
+        if (!upgradeStatus?.upgrade_available) {
+            return null
+        }
+
+        return {
+            version: upgradeStatus.latest_version || upgradeStatus.target_version || '',
+            readyToInstall: upgradeStatus.state === 'ready',
+            currentVersion: upgradeStatus.current_version,
+        }
+    }, [upgradeStatus])
+
+    function handleGoToUpgrade() {
+        setUpgradeMenuAnchor(null)
+        navigate(`/settings${UPGRADE_SECTION_HASH}`)
+    }
     const [collapsedApplicationsAnchor, setCollapsedApplicationsAnchor] = useState<HTMLElement | null>(null)
     const collapsedApplicationsCloseTimerRef = useRef<number | null>(null)
     const { colorMode, setColorMode } = useAppColorMode()
@@ -780,6 +820,21 @@ export function AppShell() {
                             </Button>
                         ) : null}
                         <Box className="app-shell-topbar-actions">
+                            {upgradeNotice ? (
+                                <Button
+                                    color="inherit"
+                                    onClick={(event) => {
+                                        setUpgradeMenuAnchor(event.currentTarget)
+                                    }}
+                                    size="small"
+                                    className="app-shell-topbar-pill app-shell-topbar-pill--upgrade"
+                                    aria-label={upgradeNotice.readyToInstall ? t('upgradeNotice.readyTitle') : t('upgradeNotice.title')}
+                                    title={upgradeNotice.readyToInstall ? t('upgradeNotice.readyTitle') : t('upgradeNotice.title')}
+                                    startIcon={<UpdateIcon />}
+                                >
+                                    <span className="app-shell-topbar-pill-label">{t('upgradeNotice.badge')}</span>
+                                </Button>
+                            ) : null}
                             <Button
                                 color="inherit"
                                 onClick={(event) => {
@@ -867,6 +922,60 @@ export function AppShell() {
                 </Box>
             </Box>
 
+            <Menu
+                anchorEl={upgradeMenuAnchor}
+                open={Boolean(upgradeMenuAnchor)}
+                onClose={() => {
+                    setUpgradeMenuAnchor(null)
+                }}
+                sx={{ zIndex: 1700 }}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                slotProps={{
+                    paper: {
+                        className: `app-shell-account-menu app-shell-account-menu--${colorMode}`,
+                        // Let the card hug its content instead of reserving a fixed, half-empty width.
+                        sx: { width: 'auto', minWidth: 0, maxWidth: 'min(260px, calc(100vw - 24px))' },
+                    },
+                }}
+            >
+                <Box className="app-shell-account-panel">
+                    <Typography
+                        sx={{
+                            px: 1,
+                            pt: 0.5,
+                            pb: 0.5,
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: 'var(--account-menu-strong, var(--shell-strong-text))',
+                        }}
+                    >
+                        {upgradeNotice?.readyToInstall ? t('upgradeNotice.readyTitle') : t('upgradeNotice.title')}
+                    </Typography>
+                    <Typography
+                        sx={{
+                            px: 1,
+                            pb: 1,
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                            whiteSpace: 'normal',
+                            color: 'var(--account-menu-subtle, var(--shell-subtle-text))',
+                        }}
+                    >
+                        {upgradeNotice?.readyToInstall
+                            ? t('upgradeNotice.readyBody', { version: upgradeNotice?.version })
+                            : t('upgradeNotice.body', { version: upgradeNotice?.version, current: upgradeNotice?.currentVersion })}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, px: 1, pb: 0.5 }}>
+                        <Button size="small" variant="contained" sx={{ borderRadius: 0 }} onClick={handleGoToUpgrade}>
+                            {t('upgradeNotice.action')}
+                        </Button>
+                        <Button size="small" color="inherit" sx={{ borderRadius: 0 }} onClick={() => { setUpgradeMenuAnchor(null) }}>
+                            {t('upgradeNotice.later')}
+                        </Button>
+                    </Box>
+                </Box>
+            </Menu>
             <Menu
                 anchorEl={localeMenuAnchor}
                 open={Boolean(localeMenuAnchor)}

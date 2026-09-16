@@ -1,8 +1,6 @@
-import json
 import re
 from typing import Optional
 
-import requests
 from fastapi import APIRouter, BackgroundTasks, Cookie, Path, Query, Request, Response
 from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest
 from src.schemas.errorResponse import ErrorResponse
@@ -12,10 +10,10 @@ from src.schemas.settingsSummary import SettingsSummaryResponse
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
 from src.services.product_runtime_state import read_product_runtime_state, read_release_version, read_release_channel
+from src.services.release_checker import ARTIFACT_BASE_URL, ReleaseVersionChecker
+from src.services.upgrade_manager import UpgradeManager, maybe_start_auto_download
 
 router = APIRouter()
-
-_ARTIFACT_BASE_URL = "https://artifact.websoft9.com/websoft9"
 
 
 def _is_release_candidate(version: Optional[str]) -> bool:
@@ -35,17 +33,35 @@ def _is_newer_stable_version(latest_version: Optional[str], current_version: Opt
     return bool(latest and current and not _is_release_candidate(latest_version) and latest > current)
 
 
-def _latest_remote_version(channel: str) -> Optional[str]:
-    try:
-        resp = requests.get(
-            f"{_ARTIFACT_BASE_URL}/{channel}/version.json",
-            timeout=10,
-            headers={"Cache-Control": "no-cache"},
-        )
-        resp.raise_for_status()
-        return str(json.loads(resp.text).get("version", "")).strip() or None
-    except Exception:
-        return None
+def _upgrade_status_payload(*, refresh_latest: bool = False) -> dict:
+    """Latest version comes from the cached daily check; only a missing or stale entry hits
+    the artifact server."""
+    current_version = read_release_version() or ""
+    channel = read_release_channel()
+    latest_version = ReleaseVersionChecker().ensure_latest_version(
+        channel=channel,
+        force=refresh_latest,
+        background=refresh_latest,
+    )
+    if refresh_latest:
+        # An explicit check that finds a newer release also stages it, so the operator only has
+        # to confirm the install. `upgrade.auto_download = false` turns this off.
+        maybe_start_auto_download(latest_version=latest_version, current_version=current_version)
+    # Read the state after the check: it may just have switched to `downloading`.
+    status = UpgradeManager().status()
+    artifact_url = f"{ARTIFACT_BASE_URL}/{channel}/install.sh"
+
+    return {
+        **status,
+        "current_version": current_version,
+        "channel": channel,
+        "latest_version": latest_version or current_version,
+        "upgrade_available": _is_newer_stable_version(latest_version, current_version),
+        "install_command": f"wget -O install.sh {artifact_url} && sudo bash install.sh",
+        "artifact_url": artifact_url,
+        "doc_url": "https://github.com/Websoft9/websoft9/blob/main/install/upgrade-guide.md",
+    }
+
 
 @router.get("/settings",
             summary="Get settings",
@@ -203,22 +219,63 @@ def upload_cert(payload: UploadCertRequest):
     },
 )
 def get_upgrade_status():
-    current_version = read_release_version() or ""
-    channel = read_release_channel()
-    latest_version = _latest_remote_version(channel)
-    upgrade_available = _is_newer_stable_version(latest_version, current_version)
-    artifact_url = f"{_ARTIFACT_BASE_URL}/{channel}/install.sh"
-    install_command = f"wget -O install.sh {artifact_url} && sudo bash install.sh"
+    return _upgrade_status_payload()
 
-    return {
-        "current_version": current_version,
-        "latest_version": latest_version or current_version,
-        "channel": channel,
-        "upgrade_available": upgrade_available,
-        "install_command": install_command,
-        "artifact_url": artifact_url,
-        "doc_url": "https://github.com/Websoft9/websoft9/blob/main/install/upgrade-guide.md",
-    }
+
+@router.post(
+    "/settings/upgrade/check",
+    status_code=200,
+    summary="Re-check the artifact channel for a newer platform release",
+    description="Force a fresh release check and refresh the cached latest version",
+    responses={
+        200: {"model": dict},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
+)
+def check_upgrade(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    return _upgrade_status_payload(refresh_latest=True)
+
+
+@router.post(
+    "/settings/upgrade/prepare",
+    status_code=202,
+    summary="Download the next upgrade in the background",
+    responses={
+        202: {"model": dict},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+    },
+)
+def prepare_upgrade(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    return UpgradeManager().start_prepare()
+
+
+@router.post(
+    "/settings/upgrade/apply",
+    status_code=202,
+    summary="Start a prepared in-console upgrade",
+    responses={
+        202: {"model": dict},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+    },
+)
+def apply_upgrade(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    return UpgradeManager().apply()
 
 
 @router.get(

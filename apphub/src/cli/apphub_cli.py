@@ -14,6 +14,9 @@ from src.services.product_auth import ProductAuthService
 from src.core.exception import CustomException
 from src.services.appstore_sync_manager import AppStoreSyncManager
 from src.services.scheduled_tasks import ScheduledTaskService
+from src.services.product_runtime_state import read_release_channel
+from src.services.release_checker import ReleaseVersionChecker
+from src.services.upgrade_manager import maybe_start_auto_download
 from src.cli.app_commands import app_group
 
 @click.group()
@@ -120,6 +123,23 @@ def upgrade(target, channel, dev, force_refresh):
                 click.echo(f"App Store resources ({active_channel}) synchronized successfully.")
         else:
             click.echo(f"Unknown upgrade target: {target}")
+    except Exception as e:
+        raise click.ClickException(str(e))
+
+
+@cli.command(name='check-update')
+def check_update():
+    """Check the artifact channel for a newer platform release"""
+    try:
+        channel = read_release_channel()
+        version = ReleaseVersionChecker().ensure_latest_version(channel=channel, force=True)
+        if not version:
+            raise click.ClickException(f"Unable to determine the latest {channel} release")
+        click.echo(f"Latest {channel} release: {version}")
+        if maybe_start_auto_download(latest_version=version):
+            click.echo("Upgrade download started in the background")
+    except click.ClickException:
+        raise
     except Exception as e:
         raise click.ClickException(str(e))
 

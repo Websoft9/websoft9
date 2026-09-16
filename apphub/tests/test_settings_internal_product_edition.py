@@ -144,10 +144,18 @@ def test_internal_product_edition_allows_authenticated_operator_read(monkeypatch
     assert response.json()["updated_by"] == "system"
 
 
+def _stub_release_checker(monkeypatch, version):
+    class StubChecker:
+        def ensure_latest_version(self, **_kwargs):
+            return version
+
+    monkeypatch.setattr(settings_router, "ReleaseVersionChecker", StubChecker)
+
+
 def test_upgrade_status_does_not_recommend_release_candidate(monkeypatch):
     monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.3.3")
     monkeypatch.setattr(settings_router, "read_release_channel", lambda: "release")
-    monkeypatch.setattr(settings_router, "_latest_remote_version", lambda _channel: "2.3.4-rc.1")
+    _stub_release_checker(monkeypatch, "2.3.4-rc.1")
 
     status = settings_router.get_upgrade_status()
 
@@ -158,7 +166,7 @@ def test_upgrade_status_does_not_recommend_release_candidate(monkeypatch):
 def test_upgrade_status_keeps_stable_release_recommendation(monkeypatch):
     monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.3.3")
     monkeypatch.setattr(settings_router, "read_release_channel", lambda: "release")
-    monkeypatch.setattr(settings_router, "_latest_remote_version", lambda _channel: "2.3.4")
+    _stub_release_checker(monkeypatch, "2.3.4")
 
     status = settings_router.get_upgrade_status()
 
@@ -168,12 +176,194 @@ def test_upgrade_status_keeps_stable_release_recommendation(monkeypatch):
 def test_upgrade_status_does_not_recommend_an_older_release(monkeypatch):
     monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.2")
     monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
-    monkeypatch.setattr(settings_router, "_latest_remote_version", lambda _channel: "2.4.1")
+    _stub_release_checker(monkeypatch, "2.4.1")
 
     status = settings_router.get_upgrade_status()
 
     assert status["latest_version"] == "2.4.1"
     assert status["upgrade_available"] is False
+
+
+def _authenticated_auth_service():
+    class AuthenticatedAuthService:
+        def _require_authenticated_operator(self, _session_token):
+            return {"id": "op-1", "username": "admin"}
+
+    return AuthenticatedAuthService
+
+
+def _rejecting_auth_service():
+    class RejectingAuthService:
+        def _require_authenticated_operator(self, _session_token):
+            raise CustomException(401, "Unauthorized", "Authentication required")
+
+    return RejectingAuthService
+
+
+def test_upgrade_status_is_readable_without_a_session(monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+    _stub_release_checker(monkeypatch, "2.4.2")
+
+    response = client.get("/settings/upgrade/status")
+
+    assert response.status_code == 200
+    assert response.json()["upgrade_available"] is True
+
+
+def test_upgrade_status_never_waits_for_the_full_network_timeout(monkeypatch):
+    captured = []
+
+    class StubChecker:
+        def ensure_latest_version(self, **kwargs):
+            captured.append(kwargs)
+            return "2.4.2"
+
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ReleaseVersionChecker", StubChecker)
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+
+    client.get("/settings/upgrade/status")
+
+    # A plain status read is on the console's hot path, so it must stay on the short timeout.
+    assert captured == [{"channel": "dev", "force": False, "background": False}]
+
+
+def test_upgrade_prepare_requires_an_authenticated_operator(monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _rejecting_auth_service())
+
+    response = client.post("/settings/upgrade/prepare")
+
+    assert response.status_code == 401
+
+
+def test_upgrade_prepare_reports_a_conflict_while_another_job_holds_the_lock(tmp_path, monkeypatch):
+    from src.services.upgrade_manager import UpgradeManager
+
+    app = create_test_app()
+    client = TestClient(app)
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
+    monkeypatch.setattr(settings_router, "UpgradeManager", lambda: manager)
+
+    held = manager._acquire_lock()
+    try:
+        response = client.post(
+            "/settings/upgrade/prepare",
+            cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
+        )
+    finally:
+        manager._release_lock(held)
+
+    assert response.status_code == 409
+    assert "already active" in response.json()["details"]
+
+
+def test_upgrade_apply_requires_a_prepared_task(tmp_path, monkeypatch):
+    from src.services.upgrade_manager import UpgradeManager
+
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
+    monkeypatch.setattr(settings_router, "UpgradeManager", lambda: UpgradeManager(data_root=str(tmp_path / "data")))
+
+    response = client.post(
+        "/settings/upgrade/apply",
+        cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
+    )
+
+    assert response.status_code == 409
+    assert "Prepare a newer version" in response.json()["details"]
+
+
+def test_upgrade_check_requires_an_authenticated_operator(monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _rejecting_auth_service())
+
+    response = client.post("/settings/upgrade/check")
+
+    assert response.status_code == 401
+
+
+def test_upgrade_check_forces_a_fresh_release_lookup(monkeypatch):
+    captured = []
+
+    class StubChecker:
+        def ensure_latest_version(self, **kwargs):
+            captured.append(kwargs)
+            return "2.4.2"
+
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
+    monkeypatch.setattr(settings_router, "ReleaseVersionChecker", StubChecker)
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+    # The auto download has its own tests; this one only cares about the forced lookup.
+    monkeypatch.setattr(settings_router, "maybe_start_auto_download", lambda **_kwargs: False)
+
+    response = client.post(
+        "/settings/upgrade/check",
+        cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
+    )
+
+    assert response.status_code == 200
+    # The operator asked for a fresh answer, so this call may skip the cache and wait longer.
+    assert captured == [{"channel": "dev", "force": True, "background": True}]
+
+
+def test_upgrade_check_hands_a_newer_release_to_the_auto_download(monkeypatch):
+    auto_downloads = []
+
+    class StubChecker:
+        def ensure_latest_version(self, **_kwargs):
+            return "2.4.2"
+
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
+    monkeypatch.setattr(settings_router, "ReleaseVersionChecker", StubChecker)
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+    monkeypatch.setattr(
+        settings_router,
+        "maybe_start_auto_download",
+        lambda **kwargs: auto_downloads.append(kwargs) or True,
+    )
+
+    response = client.post(
+        "/settings/upgrade/check",
+        cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
+    )
+
+    assert response.status_code == 200
+    assert auto_downloads == [{"latest_version": "2.4.2", "current_version": "2.4.1"}]
+
+
+def test_upgrade_status_survives_a_corrupt_state_file(tmp_path, monkeypatch):
+    from src.services.upgrade_manager import UpgradeManager
+
+    app = create_test_app()
+    client = TestClient(app)
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager.upgrade_root.mkdir(parents=True, exist_ok=True)
+    manager.state_file.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setattr(settings_router, "UpgradeManager", lambda: manager)
+    monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+    _stub_release_checker(monkeypatch, "2.4.2")
+
+    response = client.get("/settings/upgrade/status")
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "idle"
 
 
 def test_disabling_https_clears_secure_product_session_before_gateway_restart(monkeypatch):

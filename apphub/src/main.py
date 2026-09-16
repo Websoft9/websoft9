@@ -1,4 +1,5 @@
 import logging, os, sys
+import threading
 from uuid import uuid4
 from fastapi import FastAPI, Request, Depends
 from fastapi.exceptions import RequestValidationError
@@ -27,6 +28,9 @@ from src.core.logger import clear_logging_context, logger, set_request_id
 from src.core.request_auth import has_valid_internal_gateway_auth
 from src.schemas.errorResponse import ErrorResponse
 from src.services.platform_readiness import PlatformReadinessService
+from src.services.product_runtime_state import read_release_channel
+from src.services.release_checker import ReleaseVersionChecker
+from src.services.upgrade_manager import maybe_start_auto_download
 
 uvicorn_logger = logging.getLogger("uvicorn")
 uvicorn_logger.setLevel(logging.INFO)
@@ -109,6 +113,18 @@ async def ensure_platform_storage():
     # host-access.sqlite is lazily created on first use; initialize it eagerly
     # so a fresh cloud boot can reach the fully-ready state.
     api_host_access._get_host_access_service()._ensure_storage()
+    # Warm the release-version cache in the background: a fresh deployment would otherwise
+    # show no upgrade hint until the daily check runs. Runs off the request path on purpose.
+    threading.Thread(target=_refresh_latest_release_version, daemon=True).start()
+
+
+def _refresh_latest_release_version() -> None:
+    try:
+        version = ReleaseVersionChecker().ensure_latest_version(channel=read_release_channel())
+        # A release published while the platform was offline is staged right away.
+        maybe_start_auto_download(latest_version=version)
+    except Exception as exc:  # pragma: no cover - startup must never fail because of this
+        logger.warning("Initial release version check failed: %s", exc)
 
 @app.get("/healthz", include_in_schema=False)
 async def healthz():

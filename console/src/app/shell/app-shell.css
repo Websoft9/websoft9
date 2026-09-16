@@ -428,6 +428,37 @@
     font-size: 18px;
 }
 
+.app-shell-topbar-pill--upgrade,
+.app-shell-topbar-pill--upgrade.MuiButton-root {
+    height: 26px;
+    padding: 0 10px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 12px;
+    border-radius: 999px;
+}
+
+.app-shell-topbar-pill--upgrade .MuiButton-startIcon {
+    margin-right: 4px;
+}
+
+.app-shell-topbar-pill--upgrade .MuiButton-startIcon .MuiSvgIcon-root {
+    font-size: 15px;
+}
+
+.app-shell-root--dark .app-shell-topbar-pill--upgrade,
+.app-shell-root--dark .app-shell-topbar-pill--upgrade.MuiButton-root {
+    background: #2b7be0;
+    color: #ffffff;
+}
+
+.app-shell-topbar-pill--upgrade:hover,
+.app-shell-topbar-pill--upgrade.MuiButton-root:hover {
+    background: #1d4ed8;
+    color: #ffffff;
+    border-radius: 999px;
+}
+
 .app-shell-topbar-pill:hover {
     background: rgba(145, 158, 171, 0.12);
     color: var(--shell-strong-text);
