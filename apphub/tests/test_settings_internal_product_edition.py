@@ -1,4 +1,6 @@
+import os
 import sys
+import tempfile
 import types
 from pathlib import Path
 from typing import Optional
@@ -8,11 +10,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# Importing the app modules initialises the install-tracking store; keep it away from the
+# host's real data root so a test run can never touch a live deployment.
+os.environ.setdefault("WEBSOFT9_INSTALL_TRACKING_DIR", tempfile.mkdtemp(prefix="w9-tracking-"))
 
 
 settings_summary_module = types.ModuleType("src.schemas.settingsSummary")
@@ -61,6 +68,13 @@ from src.api.v1.routers import settings as settings_router
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.services.product_runtime_state import ProductRuntimeState
+
+
+@pytest.fixture(autouse=True)
+def _isolated_runtime_data_root(tmp_path, monkeypatch):
+    """These tests drive the HTTP API, so keep the runtime on a throwaway data root instead of
+    writing into the host's real /opt/websoft9/data."""
+    monkeypatch.setenv("WEBSOFT9_DATA_ROOT", str(tmp_path / "data"))
 
 
 def create_test_app() -> FastAPI:
@@ -306,8 +320,6 @@ def test_upgrade_check_forces_a_fresh_release_lookup(monkeypatch):
     monkeypatch.setattr(settings_router, "ReleaseVersionChecker", StubChecker)
     monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
     monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
-    # The auto download has its own tests; this one only cares about the forced lookup.
-    monkeypatch.setattr(settings_router, "maybe_start_auto_download", lambda **_kwargs: False)
 
     response = client.post(
         "/settings/upgrade/check",
@@ -319,24 +331,24 @@ def test_upgrade_check_forces_a_fresh_release_lookup(monkeypatch):
     assert captured == [{"channel": "dev", "force": True, "background": True}]
 
 
-def test_upgrade_check_hands_a_newer_release_to_the_auto_download(monkeypatch):
-    auto_downloads = []
+def test_upgrade_check_only_reports_a_newer_release(monkeypatch):
+    """Checking for updates must stay read-only so the operator still sees the download action."""
 
     class StubChecker:
         def ensure_latest_version(self, **_kwargs):
             return "2.4.2"
 
+    class StubManager:
+        def status(self, **_kwargs):
+            return {"state": "idle"}
+
     app = create_test_app()
     client = TestClient(app)
     monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
     monkeypatch.setattr(settings_router, "ReleaseVersionChecker", StubChecker)
+    monkeypatch.setattr(settings_router, "UpgradeManager", StubManager)
     monkeypatch.setattr(settings_router, "read_release_version", lambda: "2.4.1")
     monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
-    monkeypatch.setattr(
-        settings_router,
-        "maybe_start_auto_download",
-        lambda **kwargs: auto_downloads.append(kwargs) or True,
-    )
 
     response = client.post(
         "/settings/upgrade/check",
@@ -344,7 +356,12 @@ def test_upgrade_check_hands_a_newer_release_to_the_auto_download(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert auto_downloads == [{"latest_version": "2.4.2", "current_version": "2.4.1"}]
+    payload = response.json()
+    assert payload["upgrade_available"] is True
+    assert payload["state"] == "idle"
+    # The endpoint must never stage anything by itself: the auto-download hook is not even
+    # reachable from this router anymore.
+    assert not hasattr(settings_router, "maybe_start_auto_download")
 
 
 def test_upgrade_status_survives_a_corrupt_state_file(tmp_path, monkeypatch):

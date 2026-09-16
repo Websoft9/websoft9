@@ -11,7 +11,7 @@ from src.services.settings_manager import SettingsManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
 from src.services.product_runtime_state import read_product_runtime_state, read_release_version, read_release_channel
 from src.services.release_checker import ARTIFACT_BASE_URL, ReleaseVersionChecker
-from src.services.upgrade_manager import UpgradeManager, maybe_start_auto_download
+from src.services.upgrade_manager import UpgradeManager
 
 router = APIRouter()
 
@@ -43,11 +43,9 @@ def _upgrade_status_payload(*, refresh_latest: bool = False) -> dict:
         force=refresh_latest,
         background=refresh_latest,
     )
-    if refresh_latest:
-        # An explicit check that finds a newer release also stages it, so the operator only has
-        # to confirm the install. `upgrade.auto_download = false` turns this off.
-        maybe_start_auto_download(latest_version=latest_version, current_version=current_version)
-    # Read the state after the check: it may just have switched to `downloading`.
+    # Checking for updates stays read-only: the download is started by the daily job, the
+    # startup refresh or the operator's own "download update" action, so this endpoint never
+    # takes that decision away from them.
     status = UpgradeManager().status()
     artifact_url = f"{ARTIFACT_BASE_URL}/{channel}/install.sh"
 

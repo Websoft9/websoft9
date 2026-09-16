@@ -84,7 +84,7 @@ AppHub 在数据根原子写入 `{data_root}/upgrade/task.env`、`state.json`、
 auto_download = true
 ```
 
-触发点只有三处，都与版本检查同时发生：每日 03:30 的 `check-update` 定时任务、AppHub 启动时的版本刷新、控制台里操作员显式点击“检查更新”。被动的 `GET status` 只读缓存，不触发下载，避免下载失败被前端轮询放大成反复重试。新安装直接拷贝镜像自带的 `config.ini`（已含该段）；**老部署不会覆盖已有配置**，由容器启动时的 `platform-sync-config.sh` 用 `set_config_if_missing upgrade auto_download true` 补齐，因此升级/重启一次即可在文件里看到该行。
+触发点只有两处：每日 03:30 的 `check-update` 定时任务、AppHub 启动时的版本刷新。控制台的「检查更新」（`POST /settings/upgrade/check`）与被动 `GET status` 只刷新/读取版本号，**不触发下载** —— 操作员看到「下载更新」按钮后由自己决定，避免下载失败被前端轮询放大成反复重试。新安装直接拷贝镜像自带的 `config.ini`（已含该段）；**老部署不会覆盖已有配置**，由容器启动时的 `platform-sync-config.sh` 用 `set_config_if_missing upgrade auto_download true` 补齐，因此升级/重启一次即可在文件里看到该行。
 
 发起下载需同时满足：开关开启、`latest_version` 严格高于当前版本、且没有进行中或已暂存的任务（`downloading`/`applying` 直接跳过；`ready` 且目标版本相同视为已暂存）。它复用与 `POST prepare` 完全相同的入口、升级锁与状态机，因此与页面手动下载天然互斥（并发时后到者拿不到锁）。
 
@@ -135,7 +135,7 @@ Runner 通过 docker.sock 拥有等价宿主 Docker 管理权限，因此只执�
 | 接口 | 行为 |
 |---|---|
 | `GET /settings/upgrade/status?run_id=<id>` | 返回当前/目标版本、下载状态、最终状态、日志标识和 `auth_enabled`；未提供 run ID 时返回最近任务 |
-| `POST /settings/upgrade/check` | 显式 operator 认证；强制刷新版本缓存，并按 3.3 的规则在后台开始预下载 |
+| `POST /settings/upgrade/check` | 显式 operator 认证；只强制刷新版本缓存（只查不下载，下载由「下载更新」或 3.3 的自动触发点发起） |
 | `POST /settings/upgrade/prepare` | 显式 operator 认证；AppHub 下载并校验当前通道制品、用 Docker SDK 预拉取镜像、暂存物料并生成任务，幂等返回状态（自动预下载与手动下载走同一入口） |
 | `POST /settings/upgrade/apply` | 显式 operator 认证；仅 `ready` 可执行，创建唯一执行 Runner，返回 `202` 和 `run_id` |
 
@@ -178,7 +178,7 @@ Runner 通过 docker.sock 拥有等价宿主 Docker 管理权限，因此只执�
 | 职责边界 | AppHub 暂存 `runner-upgrade.sh` 和部署物料、生成 `task.env` 并预拉镜像；修改任务、前端参数或 Runner 远程下载均被拒绝 |
 | 部署发现 | 无法通过容器、数据根、安装目录和 Compose 物料交叉验证部署时拒绝执行，不修改任何宿主文件 |
 | 认证 | 认证关闭或无有效 session 时不能 prepare/apply |
-| 自动预下载 | 默认开启：检测到新版本后无需点击即开始下载，完成后页面直接可“立即升级”；`auto_download = false` 时只有点击才下载；预下载失败不阻塞定时任务、启动流程或接口 |
+| 自动预下载 | 默认开启：定时任务或启动刷新检测到新版本后自动开始下载；控制台「检查更新」只查不下载，仍由操作员点「下载更新」；`auto_download = false` 时自动触发点也不下载；预下载失败不阻塞定时任务、启动流程或接口 |
 | 断连恢复 | apply 后页面断连，服务恢复后可读取 run 结果；无 run 的断连显示普通错误 |
 | 兼容性 | 升级后 `install.sh`、`docker compose up` 与 Portainer redeploy 均使用新物料，不回退旧版本 |
 
