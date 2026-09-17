@@ -909,6 +909,17 @@
     min-width: 0;
 }
 
+.settings-port-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.settings-port-hint-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
 /* ── Domain mode radio buttons ──────────── */
 .settings-domain-mode-radios {
     display: flex;

@@ -75,7 +75,7 @@ type SettingsError = Error & {
     statusCode?: number
 }
 
-type SettingsModuleId = 'app-domain' | 'app-mirror' | 'platform-brand' | 'platform-domain' | 'platform-system'
+type SettingsModuleId = 'app-domain' | 'app-mirror' | 'app-ports' | 'platform-brand' | 'platform-domain' | 'platform-system'
 
 type SettingsModuleGroup = 'applications' | 'platform'
 
@@ -210,6 +210,17 @@ const PLATFORM_GATEWAY_LETSENCRYPT_EMAIL_DRAFT_KEY = 'platform_gateway.letsencry
 const PLATFORM_GATEWAY_UPLOAD_CERT_PEM_DRAFT_KEY = 'platform_gateway.upload_cert_pem'
 const PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY = 'platform_gateway.upload_key_pem'
 const PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY = 'platform_gateway.upload_intermediate_pem'
+const PORT_RANGE_START_DRAFT_SUFFIX = ':start'
+const PORT_RANGE_END_DRAFT_SUFFIX = ':end'
+const PORTS_SECTION_HASH = '#application-ports'
+
+function parsePortRangeValue(value: string | undefined) {
+    const match = /^\s*(\d{1,5})\s*-\s*(\d{1,5})\s*$/.exec(value ?? '')
+    if (!match) {
+        return { start: (value ?? '').trim(), end: '' }
+    }
+    return { start: match[1], end: match[2] }
+}
 
 const SETTINGS_MODULES: SettingsModule[] = [
     {
@@ -217,6 +228,12 @@ const SETTINGS_MODULES: SettingsModule[] = [
         group: 'applications',
         titleKey: 'settingsPage.modules.appDomain.title',
         descriptionKey: 'settingsPage.modules.appDomain.description',
+    },
+    {
+        id: 'app-ports',
+        group: 'applications',
+        titleKey: 'settingsPage.modules.appPorts.title',
+        descriptionKey: 'settingsPage.modules.appPorts.description',
     },
     {
         id: 'app-mirror',
@@ -375,6 +392,8 @@ export function SettingsPage() {
     useEffect(() => {
         if (location.hash === UPGRADE_SECTION_HASH) {
             setActiveModule('platform-system')
+        } else if (location.hash === PORTS_SECTION_HASH) {
+            setActiveModule('app-ports')
         }
     }, [location.hash])
 
@@ -384,6 +403,7 @@ export function SettingsPage() {
     const httpsItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'https_enabled') ?? null
     const forceHttpsItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'force_https') ?? null
     const mirrorItem = items.find((item) => item.group === 'docker_mirror' && item.key === 'url') ?? null
+    const portRangeItem = items.find((item) => item.group === 'port_allocation' && item.key === 'range') ?? null
     const brandTitleItem = items.find((item) => item.group === 'platform_brand' && item.key === 'title') ?? null
     const brandLogoItem = items.find((item) => item.group === 'platform_brand' && item.key === 'logo_url') ?? null
     const brandFaviconItem = items.find((item) => item.group === 'platform_brand' && item.key === 'favicon_url') ?? null
@@ -547,6 +567,10 @@ export function SettingsPage() {
             return mirrorItem ? [mirrorItem] : []
         }
 
+        if (moduleId === 'app-ports') {
+            return portRangeItem ? [portRangeItem] : []
+        }
+
         if (moduleId === 'platform-brand') {
             return [brandTitleItem, brandLogoItem, brandFaviconItem, brandLoginBgItem, brandCopyrightItem].filter((item): item is SettingsSummaryItem => item !== null)
         }
@@ -571,6 +595,11 @@ export function SettingsPage() {
                 PLATFORM_GATEWAY_UPLOAD_KEY_PEM_DRAFT_KEY,
                 PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY,
             ]
+        }
+
+        if (moduleId === 'app-ports' && portRangeItem) {
+            const draftKey = getDraftKey(portRangeItem)
+            return [`${draftKey}${PORT_RANGE_START_DRAFT_SUFFIX}`, `${draftKey}${PORT_RANGE_END_DRAFT_SUFFIX}`]
         }
 
         return getModuleItems(moduleId).map(getDraftKey)
@@ -609,6 +638,37 @@ export function SettingsPage() {
     }
 
     async function saveSimpleModule(moduleId: SettingsModuleId) {
+        if (moduleId === 'app-ports' && portRangeItem) {
+            const draftKey = getDraftKey(portRangeItem)
+            const startDraftKey = `${draftKey}${PORT_RANGE_START_DRAFT_SUFFIX}`
+            const endDraftKey = `${draftKey}${PORT_RANGE_END_DRAFT_SUFFIX}`
+            const currentRange = parsePortRangeValue(portRangeItem.value)
+            const startValue = (drafts[startDraftKey] ?? currentRange.start).trim()
+            const endValue = (drafts[endDraftKey] ?? currentRange.end).trim()
+
+            if (!/^\d{1,5}$/.test(startValue) || !/^\d{1,5}$/.test(endValue)) {
+                throw new Error(t('settingsPage.validation.portInvalid'))
+            }
+
+            const startPort = Number(startValue)
+            const endPort = Number(endValue)
+            if (startPort < 1 || startPort > 65535 || endPort < 1 || endPort > 65535) {
+                throw new Error(t('settingsPage.validation.portInvalid'))
+            }
+
+            if (startPort > endPort) {
+                throw new Error(t('settingsPage.validation.portRangeBounds'))
+            }
+
+            const nextRange = `${startPort}-${endPort}`
+            if (nextRange !== portRangeItem.value.trim()) {
+                await updateSetting(portRangeItem.group, portRangeItem.key, nextRange)
+                await refetch()
+            }
+            clearDraftKeys([startDraftKey, endDraftKey])
+            return
+        }
+
         const moduleItems = getModuleItems(moduleId)
         const changedEntries = moduleItems
             .map((item) => {
@@ -1154,6 +1214,67 @@ export function SettingsPage() {
                     </div>
                 </div>
             </>
+        )
+    }
+
+    function renderPortRangeRow(item: SettingsSummaryItem | null) {
+        if (!item) {
+            return null
+        }
+
+        const draftKey = getDraftKey(item)
+        const startDraftKey = `${draftKey}${PORT_RANGE_START_DRAFT_SUFFIX}`
+        const endDraftKey = `${draftKey}${PORT_RANGE_END_DRAFT_SUFFIX}`
+        const currentRange = parsePortRangeValue(item.value)
+        const startValue = drafts[startDraftKey] ?? currentRange.start
+        const endValue = drafts[endDraftKey] ?? currentRange.end
+
+        return (
+            <div className="settings-form-row settings-form-row--domain-stacked" key={draftKey}>
+                <div className="settings-domain-label-row">
+                    <Typography className="settings-form-label">
+                        {t('settingsPage.items.port_allocation.range')}
+                    </Typography>
+                </div>
+
+                <div className="settings-form-control settings-form-control--field">
+                    <div className="settings-inline-content">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: '50%' } }}>
+                            <TextField
+                                size="small"
+                                value={startValue}
+                                onChange={(event) => setDraftValue(startDraftKey, event.target.value)}
+                                placeholder={t('settingsPage.portRange.startPlaceholder')}
+                                sx={{ ...settingsFieldSx, flex: 1, minWidth: 0 }}
+                            />
+                            <Typography color="text.secondary">-</Typography>
+                            <TextField
+                                size="small"
+                                value={endValue}
+                                onChange={(event) => setDraftValue(endDraftKey, event.target.value)}
+                                placeholder={t('settingsPage.portRange.endPlaceholder')}
+                                sx={{ ...settingsFieldSx, flex: 1, minWidth: 0 }}
+                            />
+                        </Box>
+                        <Typography className="settings-field-helper settings-field-helper--inline settings-port-hint">
+                            <svg className="settings-port-hint-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+                                <path d="M12 11.2v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                <circle cx="12" cy="7.9" r="1.15" fill="currentColor" />
+                            </svg>
+                            <span>{t('settingsPage.portRange.helper')}</span>
+                        </Typography>
+                        <Typography className="settings-field-helper settings-field-helper--inline settings-port-hint">
+                            <svg className="settings-port-hint-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+                                <path d="M12 3.5 18.4 6v4.7c0 4-2.6 7-6.4 8.7-3.8-1.7-6.4-4.7-6.4-8.7V6L12 3.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                                <path d="M12 8.9v3.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                <circle cx="12" cy="15.2" r="1.05" fill="currentColor" />
+                            </svg>
+                            <span>{t('settingsPage.portRange.securityHint')}</span>
+                        </Typography>
+                    </div>
+                </div>
+            </div>
         )
     }
 
@@ -1860,6 +1981,10 @@ export function SettingsPage() {
             return renderMirrorRow(mirrorItem)
         }
 
+        if (activeModule === 'app-ports') {
+            return renderPortRangeRow(portRangeItem)
+        }
+
         if (activeModule === 'platform-brand') {
             return renderBrandRows()
         }
@@ -1927,7 +2052,7 @@ export function SettingsPage() {
                                 </Box>
                             </Box>
 
-                            <Box className="settings-module-area" id={activeModule === 'platform-system' ? 'version-and-upgrade' : undefined}>
+                            <Box className="settings-module-area" id={activeModule === 'platform-system' ? 'version-and-upgrade' : activeModule === 'app-ports' ? 'application-ports' : undefined}>
                                 <Box className="settings-module-header">
                                     <span className="settings-module-indicator" />
                                     <Box className="settings-module-headline">

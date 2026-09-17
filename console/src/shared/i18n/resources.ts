@@ -829,6 +829,12 @@ const rawShellResources = {
                     databaseProfile: { label: 'Application database', builtIn: 'System built-in', custom: 'External database', connection: 'Database connection', showPassword: 'Show password', hidePassword: 'Hide password' },
                     databaseFields: { W9_DB_HOST_SET: 'Database host', W9_DB_PORT_SET: 'Database port', W9_DB_NAME_SET: 'Database name', W9_DB_USER_SET: 'Database user', W9_DB_PASSWORD_SET: 'Database password' },
                     databaseValidation: { required: '{{name}} is required', hostInvalid: 'Database host is invalid', portInvalid: 'Database port must be between 1 and 65535' },
+                    portCheck: { check: 'Check availability', checking: 'Checking…', available: 'Port {{port}} is available', occupied: 'Port {{port}} is already in use', failed: 'Unable to check port availability right now', invalid: 'Enter a port between 1 and 65535.' },
+                    portRange: {
+                        exhaustedPrefix: 'The configured port range is exhausted; some ports could not be assigned automatically. Enter them manually or enlarge the range in ',
+                        exhaustedLink: 'Settings → Application Ports',
+                        exhaustedSuffix: '.',
+                    },
                     settingTokens: { ADMIN: 'Admin', AMQP: 'AMQP', API: 'API', APP: 'Application', BEATS: 'Beats', BRIDGE: 'Bridge', BROKER: 'Broker', BW: 'Bitwarden', CLIENT: 'Client', CONFIG: 'Config', CONTAINER: 'Container', DASHBOARD: 'Dashboard', DATA: 'Data', DB: 'Database', DNS: 'DNS', ER: 'ER', FLV: 'FLV', FORWARDER: 'Forwarder', GELF: 'GELF', GRPC: 'gRPC', GUI: 'GUI', HTTP: 'HTTP', HTTPS: 'HTTPS', INNERIP: 'Internal IP', INSTALLATION: 'Installation', KAFKA: 'Kafka', KEY: 'Key', MQ: 'Message Queue', MQTT: 'MQTT', NETWORKID: 'Network ID', OPENAI: 'OpenAI', OPENWIRE: 'OpenWire', PATH: 'Path', PORT: 'Port', POSTGRESQL: 'PostgreSQL', RAW: 'Raw', REMOTE: 'Remote', RPC: 'RPC', SCAN: 'Scan', SERVER: 'Server', SMTP: 'SMTP', SSH: 'SSH', STOMP: 'STOMP', SYSLOG: 'Syslog', TCP: 'TCP', TURN: 'TURN', UDP: 'UDP', URI: 'URI', VNC: 'VNC', WS: 'WebSocket' },
                     disableDomain: 'Disable',
                     enableDomain: 'Enable',
@@ -1617,6 +1623,8 @@ const rawShellResources = {
                 url: 'Enter a valid URL before saving.',
                 logoUrl: 'Enter a valid logo URL: use https://, http://, or a path starting with /.',
                 domainNoProtocol: 'Domain must not start with http:// or https://. Enter a bare domain, e.g. example.com.',
+                portInvalid: 'Each port must be an integer between 1 and 65535.',
+                portRangeBounds: 'The start port must not exceed the end port.',
             },
             navigation: {
                 groups: {
@@ -1632,6 +1640,10 @@ const rawShellResources = {
                 appMirror: {
                     title: 'Image Accelerator',
                     description: 'Manage registry mirror addresses used during app installation and image pulling.',
+                },
+                appPorts: {
+                    title: 'Application Ports',
+                    description: 'Set the host port range used to pick free ports automatically when installing applications.',
                 },
                 platformBrand: {
                     title: 'Brand & Copyright',
@@ -1663,6 +1675,12 @@ const rawShellResources = {
             mirror: {
                 placeholderInline: 'Type an accelerator address and press Enter',
                 helper: 'During app installation, the platform tries these accelerator addresses in order',
+            },
+            portRange: {
+                helper: 'Installed applications receive their host ports from this range: free ports are assigned automatically during installation.',
+                startPlaceholder: 'Start port',
+                endPlaceholder: 'End port',
+                securityHint: 'On cloud servers, also allow these ports in the cloud security group and the host firewall, otherwise installed apps cannot be reached from outside.',
             },
             certificates: {
                 helper: 'Open the certificate directory in Files to upload or replace the current platform certificate and key',
@@ -1788,6 +1806,9 @@ const rawShellResources = {
                 },
                 docker_mirror: {
                     url: 'Image accelerator address',
+                },
+                port_allocation: {
+                    range: 'Port range',
                 },
                 platform_brand: {
                     title: 'Brand name',
@@ -3281,6 +3302,12 @@ const rawShellResources = {
                     databaseProfile: { label: '应用数据库', builtIn: '系统内置', custom: '外接数据库', connection: '数据库连接信息', showPassword: '显示密码', hidePassword: '隐藏密码' },
                     databaseFields: { W9_DB_HOST_SET: '数据库主机', W9_DB_PORT_SET: '数据库端口', W9_DB_NAME_SET: '数据库名称', W9_DB_USER_SET: '数据库用户', W9_DB_PASSWORD_SET: '数据库密码' },
                     databaseValidation: { required: '{{name}}不能为空', hostInvalid: '数据库主机格式无效', portInvalid: '数据库端口必须在 1 到 65535 之间' },
+                    portCheck: { check: '检测端口', checking: '检测中…', available: '端口 {{port}} 可用', occupied: '端口 {{port}} 已被占用', failed: '暂时无法检测端口', invalid: '请输入 1 到 65535 之间的端口号。' },
+                    portRange: {
+                        exhaustedPrefix: '端口范围已用尽，部分端口未能自动分配；请手动填写，或在',
+                        exhaustedLink: '设置 → 应用端口',
+                        exhaustedSuffix: '中扩大范围。',
+                    },
                     settingTokens: { ADMIN: '管理', AMQP: 'AMQP', API: 'API', APP: '应用', BEATS: 'Beats', BRIDGE: '桥接', BROKER: '代理', BW: 'Bitwarden', CLIENT: '客户端', CONFIG: '配置', CONTAINER: '容器', DASHBOARD: '控制台', DATA: '数据', DB: '数据库', DNS: 'DNS', ER: 'ER', FLV: 'FLV', FORWARDER: '转发器', GELF: 'GELF', GRPC: 'gRPC', GUI: 'GUI', HTTP: 'HTTP', HTTPS: 'HTTPS', INNERIP: '内网 IP', INSTALLATION: '安装', KAFKA: 'Kafka', KEY: '密钥', MQ: '消息队列', MQTT: 'MQTT', NETWORKID: '网络 ID', OPENAI: 'OpenAI', OPENWIRE: 'OpenWire', PATH: '路径', PORT: '端口', POSTGRESQL: 'PostgreSQL', RAW: '原始', REMOTE: '远程', RPC: 'RPC', SCAN: '扫描', SERVER: '服务', SMTP: 'SMTP', SSH: 'SSH', STOMP: 'STOMP', SYSLOG: 'Syslog', TCP: 'TCP', TURN: 'TURN', UDP: 'UDP', URI: 'URI', VNC: 'VNC', WS: 'WebSocket' },
                     disableDomain: '禁用',
                     enableDomain: '启用',
@@ -4031,6 +4058,8 @@ const rawShellResources = {
                     url: '保存前请输入有效的 URL。',
                     logoUrl: '请输入有效的 Logo 地址：支持 http://、https:// 或 / 开头的路径。',
                     domainNoProtocol: '域名不能以 http:// 或 https:// 开头，请输入纯域名，例如 example.com。',
+                    portInvalid: '端口必须是 1 到 65535 之间的整数。',
+                    portRangeBounds: '起始端口不能大于结束端口。',
                 },
                 navigation: {
                     groups: {
@@ -4046,6 +4075,10 @@ const rawShellResources = {
                     appMirror: {
                         title: '镜像加速',
                         description: '管理安装应用与拉取镜像时使用的加速地址。',
+                    },
+                    appPorts: {
+                        title: '应用端口',
+                        description: '设置安装应用时自动分配空闲端口所使用的主机端口范围。',
                     },
                     platformBrand: {
                         title: '品牌与版权',
@@ -4077,6 +4110,12 @@ const rawShellResources = {
                 mirror: {
                     placeholderInline: '输入加速地址后按 Enter',
                     helper: '安装应用时，会按顺序尝试这些镜像加速地址',
+                },
+                portRange: {
+                    helper: '安装应用时会从该范围中按顺序自动分配空闲端口。',
+                    startPlaceholder: '起始端口',
+                    endPlaceholder: '结束端口',
+                    securityHint: '云服务器环境还需在云平台安全组或主机防火墙中放行这些端口，否则安装的应用无法从外部访问。',
                 },
                 certificates: {
                     helper: '点击后会在文件菜单打开证书目录，可直接上传或替换当前平台证书和私钥',
@@ -4201,6 +4240,9 @@ const rawShellResources = {
                     },
                     docker_mirror: {
                         url: '镜像加速地址',
+                    },
+                    port_allocation: {
+                        range: '端口范围',
                     },
                     platform_brand: {
                         title: '品牌名称',

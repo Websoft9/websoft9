@@ -1,4 +1,5 @@
 import {
+    Alert,
     Avatar,
     Badge,
     Box,
@@ -44,6 +45,7 @@ import {
     type AppStoreCatalogItem,
     type AppStoreApp,
 } from './app-store-model'
+import { checkPortAvailability, fetchPortSuggestions, isPortSettingKey, type PortCheckStatus, type PortSuggestion } from './app-store-ports'
 import { useAppStoreApps } from './use-app-store-apps'
 import { useAppStoreCatalogs } from './use-app-store-catalogs'
 import { useMyApps, type MyApp } from '../my-apps/use-my-apps'
@@ -95,6 +97,38 @@ function DatabasePasswordVisibilityIcon({ visible }: { visible: boolean }) {
     ) : (
         <SvgIcon fontSize="small" viewBox="0 0 24 24">
             <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+        </SvgIcon>
+    )
+}
+
+function PortCheckIcon({ status }: { status?: PortCheckStatus }) {
+    if (status === 'available') {
+        return (
+            <SvgIcon sx={{ color: 'success.main', fontSize: 18 }} viewBox="0 0 24 24">
+                <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </SvgIcon>
+        )
+    }
+
+    if (status === 'occupied' || status === 'invalid') {
+        return (
+            <SvgIcon sx={{ color: 'error.main', fontSize: 18 }} viewBox="0 0 24 24">
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+            </SvgIcon>
+        )
+    }
+
+    if (status === 'failed') {
+        return (
+            <SvgIcon sx={{ color: 'warning.main', fontSize: 18 }} viewBox="0 0 24 24">
+                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </SvgIcon>
+        )
+    }
+
+    return (
+        <SvgIcon sx={{ fontSize: 18 }} viewBox="0 0 24 24">
+            <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z" />
         </SvgIcon>
     )
 }
@@ -810,6 +844,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installName, setInstallName] = useState('')
     const [selectedVersion, setSelectedVersion] = useState('latest')
     const [installSettings, setInstallSettings] = useState<Record<string, string>>({})
+    const [portCheckStates, setPortCheckStates] = useState<Record<string, PortCheckStatus>>({})
+    const [portRangeExhausted, setPortRangeExhausted] = useState(false)
     const [selectedInstallProfile, setSelectedInstallProfile] = useState<string | null>(null)
     const [profileInstallSettings, setProfileInstallSettings] = useState<Record<string, Record<string, string>>>({})
     const [isTestingDatabase, setIsTestingDatabase] = useState(false)
@@ -849,6 +885,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const composeEnvFileInputRef = useRef<HTMLInputElement | null>(null)
     const composeMountFileInputRef = useRef<HTMLInputElement | null>(null)
     const installSettingInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+    const portSuggestionCacheRef = useRef<Record<string, PortSuggestion[]>>({})
     const lastInstallSeverityRef = useRef<'error' | 'success'>('error')
     const lastRefreshSeverityRef = useRef<'success' | 'error'>('success')
     const lastInstallMessageRef = useRef('')
@@ -1288,32 +1325,188 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }, [])
 
     useEffect(() => {
+        if (!isInstallMode) {
+            portSuggestionCacheRef.current = {}
+        }
+    }, [isInstallMode])
+
+    useEffect(() => {
         if (!selectedApp || !isInstallMode) {
             return
         }
 
         const distribution = getPreferredAppStoreInstallDistribution(selectedApp)
+        const templateSettings = selectedApp.settings ?? {}
+        const portKeys = Object.keys(templateSettings).filter((key) => isPortSettingKey(key))
+        const blankPortSettings = Object.fromEntries(portKeys.map((key) => [key, '']))
         setInstallName(normalizeInstallName(selectedApp.trademark ?? selectedApp.key ?? ''))
         setSelectedVersion(distribution.versions[0] ?? 'latest')
-        setInstallSettings({ ...(selectedApp.settings ?? {}) })
+        setInstallSettings({ ...templateSettings, ...blankPortSettings })
         setSelectedInstallProfile(null)
         setProfileInstallSettings(
             Object.fromEntries(
                 Object.entries(selectedApp.profiles ?? {}).map(([profile, metadata]) => [
                     profile,
                     {
-                        ...(selectedApp.settings ?? {}),
+                        ...templateSettings,
                         ...(metadata.settings ?? {}),
+                        ...blankPortSettings,
                     },
                 ]),
             ),
         )
         setInstallError(null)
         setInstallFieldErrors({})
-        setIsDomainEnabled(Boolean(wildcardDomain))
+        setPortCheckStates({})
+        setPortRangeExhausted(false)
         setCustomDomains([])
         setCustomDomainErrorIndex(null)
+
+        let suggestionActive = true
+
+        if (portKeys.length > 0) {
+            const appKey = selectedApp.key ?? ''
+            const toPortNumber = (value: string | undefined): number | null => {
+                const parsed = Number((value ?? '').trim())
+                return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535 ? parsed : null
+            }
+            // Port fields start empty and are filled with platform-assigned
+            // ports; template values are only used when suggestions are
+            // unavailable so the form stays usable offline.
+            const fillEmptyPorts = (suggestions: PortSuggestion[]) => {
+                const fillSettings = (currentValue: Record<string, string>) => {
+                    let changed = false
+                    const nextValue = { ...currentValue }
+                    for (const suggestion of suggestions) {
+                        if (suggestion.port === null || !(suggestion.key in nextValue) || (nextValue[suggestion.key] ?? '') !== '') {
+                            continue
+                        }
+                        nextValue[suggestion.key] = String(suggestion.port)
+                        changed = true
+                    }
+                    return changed ? nextValue : currentValue
+                }
+                setInstallSettings(fillSettings)
+                setProfileInstallSettings((currentValue) => {
+                    let changed = false
+                    const nextValue: Record<string, Record<string, string>> = {}
+                    for (const [profile, settings] of Object.entries(currentValue)) {
+                        const filledSettings = fillSettings(settings)
+                        nextValue[profile] = filledSettings
+                        if (filledSettings !== settings) {
+                            changed = true
+                        }
+                    }
+                    return changed ? nextValue : currentValue
+                })
+            }
+            const applySuggestions = (suggestions: PortSuggestion[]) => {
+                fillEmptyPorts(suggestions)
+                setPortRangeExhausted(suggestions.some((suggestion) => suggestion.port === null))
+            }
+            const templatePortSuggestions = portKeys.map((key) => ({ key, port: toPortNumber(templateSettings[key]) }))
+            const cachedSuggestions = portSuggestionCacheRef.current[appKey]
+            if (cachedSuggestions) {
+                applySuggestions(cachedSuggestions)
+            } else {
+                void fetchPortSuggestions(portKeys)
+                    .then((suggestions) => {
+                        if (!suggestionActive) {
+                            return
+                        }
+                        portSuggestionCacheRef.current[appKey] = suggestions
+                        applySuggestions(suggestions)
+                    })
+                    .catch(() => {
+                        if (!suggestionActive) {
+                            return
+                        }
+                        fillEmptyPorts(templatePortSuggestions)
+                        setPortRangeExhausted(false)
+                    })
+            }
+        }
+
+        return () => {
+            suggestionActive = false
+        }
+    }, [isInstallMode, selectedApp])
+
+    // Keep the domain default in sync without re-seeding the install form after user edits.
+    useEffect(() => {
+        if (isInstallMode && selectedApp) {
+            setIsDomainEnabled(Boolean(wildcardDomain))
+        }
     }, [isInstallMode, selectedApp, wildcardDomain])
+
+    function clearPortCheckState(key: string) {
+        setPortCheckStates((currentValue) => {
+            if (!(key in currentValue)) {
+                return currentValue
+            }
+            const nextValue = { ...currentValue }
+            delete nextValue[key]
+            return nextValue
+        })
+    }
+
+    async function handlePortCheck(key: string, rawValue: string) {
+        const trimmedValue = rawValue.trim()
+        const port = Number(trimmedValue)
+        if (!/^\d+$/.test(trimmedValue) || !Number.isInteger(port) || port < 1 || port > 65535) {
+            setPortCheckStates((currentValue) => ({ ...currentValue, [key]: 'invalid' }))
+            return
+        }
+
+        setPortCheckStates((currentValue) => ({ ...currentValue, [key]: 'checking' }))
+        try {
+            const result = await checkPortAvailability(port)
+            setPortCheckStates((currentValue) => ({ ...currentValue, [key]: result.available ? 'available' : 'occupied' }))
+        } catch {
+            setPortCheckStates((currentValue) => ({ ...currentValue, [key]: 'failed' }))
+        }
+    }
+
+    function getPortCheckTooltip(status: PortCheckStatus | undefined, value: string) {
+        const port = value.trim()
+        if (status === 'checking') {
+            return t('appStorePage.install.portCheck.checking')
+        }
+        if (status === 'available') {
+            return t('appStorePage.install.portCheck.available', { port })
+        }
+        if (status === 'occupied') {
+            return t('appStorePage.install.portCheck.occupied', { port })
+        }
+        if (status === 'failed') {
+            return t('appStorePage.install.portCheck.failed')
+        }
+        if (status === 'invalid') {
+            return t('appStorePage.install.portCheck.invalid')
+        }
+        return t('appStorePage.install.portCheck.check')
+    }
+
+    function renderPortCheckAdornment(key: string, value: string) {
+        const status = portCheckStates[key]
+        return (
+            <InputAdornment position="end">
+                <Tooltip title={getPortCheckTooltip(status, value)}>
+                    <span>
+                        <IconButton
+                            aria-label={t('appStorePage.install.portCheck.check')}
+                            disabled={status === 'checking'}
+                            edge="end"
+                            onClick={() => void handlePortCheck(key, value)}
+                            size="small"
+                        >
+                            {status === 'checking' ? <CircularProgress size={14} /> : <PortCheckIcon status={status} />}
+                        </IconButton>
+                    </span>
+                </Tooltip>
+            </InputAdornment>
+        )
+    }
 
     function captureContentViewport() {
         if (!(contentScopeContainer instanceof HTMLElement)) {
@@ -3443,6 +3636,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                             )}
                                         </Box>
 
+                                        {portRangeExhausted ? (
+                                            <Alert severity="warning" sx={{ fontSize: 13, gridColumn: '1 / -1' }}>
+                                                {t('appStorePage.install.portRange.exhaustedPrefix')}
+                                                <Link
+                                                    component={RouterLink}
+                                                    to="/settings#application-ports"
+                                                    sx={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                                                >
+                                                    {t('appStorePage.install.portRange.exhaustedLink')}
+                                                </Link>
+                                                {t('appStorePage.install.portRange.exhaustedSuffix')}
+                                            </Alert>
+                                        ) : null}
+
                                         {sharedInstallSettings.map(([key, value]) => (
                                             <Box key={key}>
                                                 {(() => {
@@ -3465,6 +3672,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                         settings: currentValue.settings ? { ...currentValue.settings, [key]: undefined } : currentValue.settings,
                                                                     }))
                                                                     setInstallError(null)
+                                                                    clearPortCheckState(key)
                                                                     if (selectedInstallProfile) {
                                                                         setProfileInstallSettings((currentValue) => ({
                                                                             ...currentValue,
@@ -3481,6 +3689,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                     }
                                                                 }}
                                                                 slotProps={{
+                                                                    input: isPortSettingKey(key) ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
                                                                     htmlInput: key.toLowerCase().includes('port')
                                                                         ? {
                                                                             inputMode: 'numeric',
@@ -3525,6 +3734,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                         const profile = event.target.value || null
                                                         setInstallError(null)
                                                         setInstallFieldErrors({})
+                                                        setPortCheckStates({})
                                                         setTestedDatabaseConnectionSignature(null)
                                                         if (profile) {
                                                             setProfileInstallSettings((currentValue) => {
