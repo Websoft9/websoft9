@@ -110,6 +110,8 @@ sync_base() {
   fi
 
   set_config_if_missing platform_gateway https_enabled "${WEBSOFT9_PLATFORM_HTTPS_ENABLED:-false}"
+  # Ensure the app install port range is available on deployments upgraded from older versions
+  set_config_if_missing port_allocation range "9001-9999"
   # Ensure the upgrade auto-download switch is visible on deployments upgraded from older versions
   set_config_if_missing upgrade auto_download "true"
   set_config platform_gateway ssl_cert "${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.cert}"

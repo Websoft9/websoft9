@@ -10,6 +10,7 @@ from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.runtime_paths import resolve_apphub_config_path
 from src.schemas.appSettings import AppSettings
+from src.services.port_allocator import DEFAULT_PORT_RANGE_VALUE
 from src.services.product_metadata import read_product_edition, read_product_metadata
 
 
@@ -134,6 +135,20 @@ class SettingsManager:
                             editable=True,
                             metadata={
                                 "default_value": "\n".join(self._load_docker_mirror_entries(_mirror_list_url())),
+                            },
+                        ),
+                    ],
+                },
+                {
+                    "id": "application",
+                    "items": [
+                        self._build_item(
+                            "port_allocation",
+                            "range",
+                            self._get_value("port_allocation", "range") or DEFAULT_PORT_RANGE_VALUE,
+                            editable=True,
+                            metadata={
+                                "default_value": DEFAULT_PORT_RANGE_VALUE,
                             },
                         ),
                     ],

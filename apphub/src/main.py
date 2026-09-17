@@ -21,6 +21,7 @@ from src.api.v1.routers import compose_app as api_compose_app
 from src.api.v1.routers import appstore_sync as api_appstore_sync
 from src.api.v1.routers import setup_wizard as api_setup_wizard
 from src.api.v1.routers import scheduled_tasks as api_scheduled_tasks
+from src.api.v1.routers import ports as api_ports
 from src.core.config import ConfigManager
 from src.core.exception import CustomException
 from src.core.api_key_auth import should_skip_api_key_auth
@@ -203,5 +204,6 @@ app.include_router(api_compose_app.router,tags=["compose-apps"])
 app.include_router(api_appstore_sync.router,tags=["appstore-sync"])
 app.include_router(api_setup_wizard.router,tags=["setup-wizard"])
 app.include_router(api_scheduled_tasks.router, tags=["scheduled-tasks"])
+app.include_router(api_ports.router, tags=["ports"])
 
 remove_422_responses()
