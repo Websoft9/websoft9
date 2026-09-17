@@ -153,6 +153,16 @@ PY
 
 mkdir -p "$NPMHOME" "$service_log_root" "$service_log_root/npm"
 
+# Seed the platform nginx zone definitions before reconciling proxy hosts:
+# nginx rejects host configs that reference undefined zones and NPM then
+# deletes those configs, so this must exist before the rebuild runs.
+nginx_root="${WEBSOFT9_NPM_NGINX_ROOT:-$data_root/nginx}"
+if [[ -f /etc/websoft9/nginx/http.conf ]]; then
+	mkdir -p "$nginx_root/custom"
+	cmp -s /etc/websoft9/nginx/http.conf "$nginx_root/custom/http.conf" || \
+		cp -f /etc/websoft9/nginx/http.conf "$nginx_root/custom/http.conf"
+fi
+
 reconcile_proxy_host_configs &
 
 cd /app

@@ -78,4 +78,22 @@ cp -a /etc/nginx/. "$npm_runtime_config_dir/"
 find "$npm_runtime_config_dir" -name '*.conf' -print0 \
   | xargs -0 sed -i "s#/data/logs/#$service_log_root/#g"
 
+# Platform-managed nginx zone definitions (rate limit / connection limit).
+# The image ships them at /etc/websoft9/nginx/http.conf while NPM reads them
+# from the data root; anything baked under the data root is masked at runtime
+# by the host bind mount, so re-seed the file before nginx starts.
+ensure_platform_nginx_zones() {
+	local zone_source="/etc/websoft9/nginx/http.conf"
+	local zone_target="$nginx_root/custom/http.conf"
+
+	[[ -f "$zone_source" ]] || return 0
+
+	mkdir -p "$(dirname "$zone_target")"
+	if ! cmp -s "$zone_source" "$zone_target"; then
+		cp -f "$zone_source" "$zone_target"
+		echo "Synced platform nginx zone config to $zone_target"
+	fi
+}
+ensure_platform_nginx_zones
+
 exec /usr/sbin/nginx -c "$npm_runtime_config_dir/nginx.conf"
