@@ -306,6 +306,43 @@ def test_upgrade_check_requires_an_authenticated_operator(monkeypatch):
     assert response.status_code == 401
 
 
+def test_internal_upgrade_dispatch_requires_the_platform_secret(tmp_path, monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    secret_file = tmp_path / "trust_key"
+    secret_file.write_text("dispatch-secret\n", encoding="utf-8")
+    monkeypatch.setenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", str(secret_file))
+
+    response = client.post("/settings/internal/upgrade/auto-prepare")
+
+    assert response.status_code == 403
+
+
+def test_internal_upgrade_dispatch_starts_the_apphub_download(tmp_path, monkeypatch):
+    app = create_test_app()
+    client = TestClient(app)
+    secret_file = tmp_path / "trust_key"
+    secret_file.write_text("dispatch-secret\n", encoding="utf-8")
+    monkeypatch.setenv("WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE", str(secret_file))
+    monkeypatch.setattr(settings_router, "read_release_channel", lambda: "dev")
+    _stub_release_checker(monkeypatch, "2.4.4")
+    started = []
+    monkeypatch.setattr(
+        settings_router.upgrade_manager,
+        "maybe_start_auto_download",
+        lambda *, latest_version: started.append(latest_version) or True,
+    )
+
+    response = client.post(
+        "/settings/internal/upgrade/auto-prepare",
+        headers={settings_router.UPGRADE_DISPATCH_SECRET_HEADER: "dispatch-secret"},
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {"started": True}
+    assert started == ["2.4.4"]
+
+
 def test_upgrade_log_requires_an_authenticated_operator(monkeypatch):
     """A log names internal paths and image digests, so it is not a public read."""
     app = create_test_app()

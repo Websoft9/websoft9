@@ -22,6 +22,7 @@ import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 import { useIdleTimeout } from '../../shared/hooks/useIdleTimeout'
 import {
     fetchUpgradeStatus,
+    getUpgradeStatusRefetchInterval,
     takeCompletedUpgradeNotice,
     UPGRADE_STATUS_QUERY_KEY,
     UPGRADE_SECTION_HASH,
@@ -214,11 +215,11 @@ export function AppShell() {
     const { data: upgradeStatus } = useQuery({
         queryKey: UPGRADE_STATUS_QUERY_KEY,
         queryFn: fetchUpgradeStatus,
-        // The endpoint reads the remote release manifest, so this stays lazy: one check per
-        // session, refreshed when the operator returns to the tab. It must never poll.
+        // Pending background downloads are reflected in both the shell notice and settings.
         staleTime: 5 * 60_000,
         retry: false,
         enabled: Boolean(status?.enabled && status?.authenticated),
+        refetchInterval: (query) => getUpgradeStatusRefetchInterval(query.state.data),
     })
 
     // This stays visible until the upgrade actually happens. Hiding it on "Later" left the

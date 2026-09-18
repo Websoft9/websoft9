@@ -38,6 +38,14 @@ export type UpgradeLog = {
     lines: string[]
 }
 
+/** Poll rapidly only while work is active, and otherwise refresh a pending update unobtrusively. */
+export function getUpgradeStatusRefetchInterval(status: UpgradeStatus | undefined): number | false {
+    if (status?.state === 'downloading' || status?.state === 'applying') {
+        return 2_000
+    }
+    return status?.upgrade_available && status.state !== 'ready' ? 15_000 : false
+}
+
 /** Retry the last failed upgrade using the release that is already staged. */
 export async function retryUpgrade(): Promise<UpgradeStatus> {
     const response = await fetch('/api/settings/upgrade/retry', {

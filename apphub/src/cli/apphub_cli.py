@@ -3,6 +3,8 @@ import sys
 import os
 import json
 import re
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
@@ -16,8 +18,39 @@ from src.services.appstore_sync_manager import AppStoreSyncManager
 from src.services.scheduled_tasks import ScheduledTaskService
 from src.services.product_runtime_state import read_release_channel
 from src.services.release_checker import ReleaseVersionChecker
-from src.services.upgrade_manager import maybe_start_auto_download
 from src.cli.app_commands import app_group
+
+
+UPGRADE_DISPATCH_URL = "http://127.0.0.1:8080/api/settings/internal/upgrade/auto-prepare"
+UPGRADE_DISPATCH_SECRET_HEADER = "x-websoft9-upgrade-dispatch-secret"
+
+
+def _dispatch_auto_download() -> bool:
+    data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+    secret_path = os.getenv(
+        "WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE",
+        f"{data_root}/config/internal-gateway-auth/trust_key",
+    )
+    try:
+        with open(secret_path, encoding="utf-8") as handle:
+            secret = handle.read().strip()
+    except OSError as exc:
+        raise click.ClickException(f"Unable to read the upgrade dispatcher credential: {exc}") from exc
+    if not secret:
+        raise click.ClickException("The upgrade dispatcher credential is empty")
+
+    request = Request(
+        UPGRADE_DISPATCH_URL,
+        data=b"",
+        headers={UPGRADE_DISPATCH_SECRET_HEADER: secret},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed loopback URL
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, URLError, ValueError) as exc:
+        raise click.ClickException(f"Unable to dispatch the upgrade download to AppHub: {exc}") from exc
+    return bool(payload.get("started"))
 
 @click.group()
 def cli():
@@ -136,7 +169,7 @@ def check_update():
         if not version:
             raise click.ClickException(f"Unable to determine the latest {channel} release")
         click.echo(f"Latest {channel} release: {version}")
-        if maybe_start_auto_download(latest_version=version):
+        if _dispatch_auto_download():
             click.echo("Upgrade download started in the background")
     except click.ClickException:
         raise

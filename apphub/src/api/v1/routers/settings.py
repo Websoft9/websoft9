@@ -1,3 +1,5 @@
+import hmac
+import os
 import re
 from typing import Optional
 
@@ -9,11 +11,31 @@ from src.schemas.settingsSummary import SettingsSummaryResponse
 
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
+from src.core.exception import CustomException
 from src.services.product_runtime_state import read_product_runtime_state, read_release_version, read_release_channel
 from src.services.release_checker import ARTIFACT_BASE_URL, ReleaseVersionChecker
+from src.services import upgrade_manager
 from src.services.upgrade_manager import UpgradeManager
 
 router = APIRouter()
+
+UPGRADE_DISPATCH_SECRET_HEADER = "x-websoft9-upgrade-dispatch-secret"
+
+
+def _require_upgrade_dispatch_secret(request: Request) -> None:
+    data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+    secret_path = os.getenv(
+        "WEBSOFT9_INTERNAL_GATEWAY_TRUST_KEY_FILE",
+        f"{data_root}/config/internal-gateway-auth/trust_key",
+    )
+    try:
+        with open(secret_path, encoding="utf-8") as handle:
+            expected_secret = handle.read().strip()
+    except OSError:
+        expected_secret = ""
+    provided_secret = request.headers.get(UPGRADE_DISPATCH_SECRET_HEADER, "")
+    if not expected_secret or not hmac.compare_digest(provided_secret, expected_secret):
+        raise CustomException(403, "Upgrade Dispatch Forbidden", "The upgrade dispatcher credential is invalid")
 
 
 def _is_release_candidate(version: Optional[str]) -> bool:
@@ -260,6 +282,21 @@ def check_upgrade(
 ):
     ProductAuthService()._require_authenticated_operator(session_token)
     return _upgrade_status_payload(refresh_latest=True)
+
+
+@router.post(
+    "/settings/internal/upgrade/auto-prepare",
+    status_code=202,
+    include_in_schema=False,
+)
+def dispatch_auto_prepare(request: Request):
+    """Hand a CLI or cron auto-download request to the long-lived AppHub process."""
+    _require_upgrade_dispatch_secret(request)
+    latest_version = ReleaseVersionChecker().ensure_latest_version(
+        channel=read_release_channel(),
+        background=False,
+    )
+    return {"started": upgrade_manager.maybe_start_auto_download(latest_version=latest_version)}
 
 
 @router.post(

@@ -32,6 +32,7 @@ import { isPlatformUnavailableError } from '../../shared/lib/api-error'
 import {
     fetchUpgradeLog,
     fetchUpgradeStatus,
+    getUpgradeStatusRefetchInterval,
     retryUpgrade,
     setUpgradeInProgress,
     UPGRADE_SECTION_HASH,
@@ -344,13 +345,7 @@ export function SettingsPage() {
         // The endpoint sits behind the gateway session, so it must not run before the operator
         // is authenticated: a 401 here sticks until something retries the query.
         enabled: Boolean(authStatus?.enabled && authStatus?.authenticated),
-        // Keep polling while a download or the upgrade itself is running. The
-        // backend does not touch updated_at during a download, so this must not
-        // depend on state changes to reschedule itself.
-        refetchInterval: (query) => {
-            const state = query.state.data?.state
-            return state === 'downloading' || state === 'applying' || activeApplyRunId ? 2_000 : false
-        },
+        refetchInterval: (query) => getUpgradeStatusRefetchInterval(query.state.data),
     })
 
     const [copied, setCopied] = useState(false)
