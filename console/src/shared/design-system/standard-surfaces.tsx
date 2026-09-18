@@ -37,6 +37,8 @@ type SurfaceFeedbackToastProps = {
     scopeRect?: SurfaceScopeRect | null
     darkMode?: boolean
     zIndex?: number
+    /** `null` keeps the message on screen until the operator closes it. */
+    autoHideDuration?: number | null
 }
 
 type SurfaceStatusBadgeProps = {
@@ -234,7 +236,7 @@ export function SurfaceNoticeAlert({ severity, title, detail, action, darkMode =
     )
 }
 
-export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect, darkMode = false, zIndex }: SurfaceFeedbackToastProps) {
+export function SurfaceFeedbackToast({ open, severity, message, onClose, scope = 'viewport', scopeRect, darkMode = false, zIndex, autoHideDuration = 4000 }: SurfaceFeedbackToastProps) {
     const palette = getSurfacePalette(darkMode)
     const [visibleMessage, setVisibleMessage] = useState(message)
     const [visibleSeverity, setVisibleSeverity] = useState(severity)
@@ -257,7 +259,7 @@ export function SurfaceFeedbackToast({ open, severity, message, onClose, scope =
 
     return (
         <Snackbar
-            autoHideDuration={4000}
+            autoHideDuration={autoHideDuration}
             disableWindowBlurListener
             onClose={onClose}
             open={open}

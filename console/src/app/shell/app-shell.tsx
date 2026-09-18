@@ -10,17 +10,19 @@ import {
     SvgIcon,
     Typography,
 } from '@mui/material'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAppColorMode } from '../providers/color-mode'
 import { useProductAuth } from '../../features/product-auth/product-auth-provider'
+import { SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { normalizeSupportedLocale } from '../../shared/i18n/i18n'
 import { useIdleTimeout } from '../../shared/hooks/useIdleTimeout'
 import {
     fetchUpgradeStatus,
+    takeCompletedUpgradeNotice,
     UPGRADE_STATUS_QUERY_KEY,
     UPGRADE_SECTION_HASH,
 } from '../../shared/upgrade-status'
@@ -189,11 +191,25 @@ export function AppShell() {
     const { t, i18n } = useTranslation('shell')
     const navigate = useNavigate()
     const location = useLocation()
+    const queryClient = useQueryClient()
     const { isSubmitting, logout, refresh, status } = useProductAuth()
     const [userMenuAnchor, setUserMenuAnchor] = useState<HTMLElement | null>(null)
     const [localeMenuAnchor, setLocaleMenuAnchor] = useState<HTMLElement | null>(null)
     const [appearanceMenuAnchor, setAppearanceMenuAnchor] = useState<HTMLElement | null>(null)
     const [upgradeMenuAnchor, setUpgradeMenuAnchor] = useState<HTMLElement | null>(null)
+    // Set when the previous page was reloaded right after a finished upgrade, so the operator
+    // gets one global confirmation on whatever page they land on.
+    const [completedUpgradeVersion, setCompletedUpgradeVersion] = useState<string | null>(null)
+
+    useEffect(() => {
+        const version = takeCompletedUpgradeNotice()
+        if (version) {
+            setCompletedUpgradeVersion(version)
+            // The version we just installed is the latest one, so drop the cached "update
+            // available" answer instead of waiting for it to go stale.
+            void queryClient.invalidateQueries({ queryKey: UPGRADE_STATUS_QUERY_KEY })
+        }
+    }, [queryClient])
 
     const { data: upgradeStatus } = useQuery({
         queryKey: UPGRADE_STATUS_QUERY_KEY,
@@ -1112,6 +1128,13 @@ export function AppShell() {
                     </List>
                 </Box>
             </Menu>
+            <SurfaceFeedbackToast
+                open={Boolean(completedUpgradeVersion)}
+                severity="success"
+                message={completedUpgradeVersion ? t('upgradeCompleted', { version: completedUpgradeVersion }) : ''}
+                onClose={() => setCompletedUpgradeVersion(null)}
+                autoHideDuration={null}
+            />
         </Box>
     )
 }

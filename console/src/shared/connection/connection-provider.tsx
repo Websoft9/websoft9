@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { useTranslation } from 'react-i18next'
 
 import { PRODUCT_AUTH_UNAUTHORIZED_EVENT, useProductAuth } from '../../features/product-auth/product-auth-provider'
+import { useUpgradeInProgress } from '../upgrade-status'
 
 const CONNECTION_FAILURE_EVENT = 'websoft9:connection-failure'
 const CONNECTION_UNAVAILABLE_EVENT = 'websoft9:connection-unavailable'
@@ -49,6 +50,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const { t } = useTranslation('shell')
     const { refresh, status } = useProductAuth()
     const queryClient = useQueryClient()
+    // An upgrade recreates the platform container on purpose; the mask explains it, so the
+    // connection banner must not pile a second "service unavailable" report on top.
+    const upgradeInProgress = useUpgradeInProgress()
     const [isUnavailable, setIsUnavailable] = useState(false)
     const originalFetchRef = useRef<typeof window.fetch | null>(null)
     const unavailableRef = useRef(false)
@@ -241,7 +245,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     return (
         <ConnectionStatusContext.Provider value={isUnavailable}>
             {children}
-            {isUnavailable ? (
+            {isUnavailable && !upgradeInProgress ? (
                 <Alert
                     severity="warning"
                     role="status"

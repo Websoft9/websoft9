@@ -8,6 +8,9 @@ import {
     List,
     ListItemButton,
     Stack,
+    Step,
+    StepLabel,
+    Stepper,
     Switch,
     TextField,
     Tooltip,
@@ -26,10 +29,27 @@ import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { SurfaceDialog, SurfaceFeedbackToast } from '../../shared/design-system/standard-surfaces'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
-import { fetchUpgradeStatus, UPGRADE_SECTION_HASH, UPGRADE_STATUS_QUERY_KEY } from '../../shared/upgrade-status'
-import { checkUpgrade } from '../../shared/upgrade-status'
-import type { UpgradeStatus } from '../../shared/upgrade-status'
+import {
+    fetchUpgradeLog,
+    fetchUpgradeStatus,
+    retryUpgrade,
+    setUpgradeInProgress,
+    UPGRADE_SECTION_HASH,
+    UPGRADE_STATUS_QUERY_KEY,
+} from '../../shared/upgrade-status'
+import { checkUpgrade, rememberCompletedUpgrade } from '../../shared/upgrade-status'
+import type { UpgradeLog, UpgradeStatus } from '../../shared/upgrade-status'
 import './settings-page.css'
+
+// Lines requested from the upgrade log endpoint; reaching this count means the tail was cut off.
+const UPGRADE_LOG_TAIL = 200
+
+// The ticket / support desk is the same destination the shell footer links to.
+function UPGRADE_SUPPORT_URL(isChinese: boolean): string {
+    return isChinese
+        ? 'https://support.websoft9.com/docs/helpdesk/#contact'
+        : 'https://support.websoft9.com/en/docs/helpdesk#contact'
+}
 
 type SettingsSummaryItem = {
     group: string
@@ -294,6 +314,17 @@ export function SettingsPage() {
     const logoUploadRef = useRef<HTMLInputElement | null>(null)
     const faviconUploadRef = useRef<HTMLInputElement | null>(null)
     const backgroundUploadRef = useRef<HTMLInputElement | null>(null)
+    const [activeApplyRunId, setActiveApplyRunId] = useState<string | null>(null)
+    // One-shot reload after a completed upgrade; kept in a ref so the status effect above can
+    // re-run without cancelling it.
+    const upgradeReloadTimerRef = useRef<number | null>(null)
+    // The overlay cannot read progress from the backend while the platform container is being
+    // replaced, so it falls back to a phase timeline driven by elapsed time.
+    const [applyStartedAt, setApplyStartedAt] = useState<number | null>(null)
+    const [applyElapsedSeconds, setApplyElapsedSeconds] = useState(0)
+    // Keeps the mask on screen between "upgrade finished" and the reload, so the page never
+    // flashes back to an interactive console for a few seconds.
+    const [applyFinishing, setApplyFinishing] = useState(false)
     const { data, error, isLoading, refetch } = useQuery<SettingsSummaryResponse, SettingsError>({
         queryKey: ['settings-summary'],
         queryFn: fetchSettingsSummary,
@@ -318,7 +349,7 @@ export function SettingsPage() {
         // depend on state changes to reschedule itself.
         refetchInterval: (query) => {
             const state = query.state.data?.state
-            return state === 'downloading' || state === 'applying' ? 2_000 : false
+            return state === 'downloading' || state === 'applying' || activeApplyRunId ? 2_000 : false
         },
     })
 
@@ -332,9 +363,96 @@ export function SettingsPage() {
     const [applyingUpgrade, setApplyingUpgrade] = useState(false)
     const [upgradeManualOpen, setUpgradeManualOpen] = useState(false)
     const [checkingUpgrade, setCheckingUpgrade] = useState(false)
+    // A failed upgrade keeps only the essentials: what happened, why, the log, and a way to reach
+    // support. Everything else belongs to the normal upgrade rows.
+    const [upgradeLogOpen, setUpgradeLogOpen] = useState(false)
+    // Set when a retry had to download the release again: the upgrade then starts by itself once
+    // the release is staged, so a retry is always a single operator action.
+    const [autoApplyPending, setAutoApplyPending] = useState(false)
+    const [upgradeLog, setUpgradeLog] = useState<UpgradeLog | null>(null)
+    const [upgradeLogLoading, setUpgradeLogLoading] = useState(false)
+    const [upgradeLogFailed, setUpgradeLogFailed] = useState(false)
+    const [upgradeLogCopied, setUpgradeLogCopied] = useState(false)
+
+    useEffect(() => {
+        const terminalStates = new Set(['completed', 'degraded', 'rolled_back', 'rollback_failed', 'apply_interrupted'])
+        const isActiveRun = activeApplyRunId === 'pending' || upgradeStatus?.run_id === activeApplyRunId
+        if (isActiveRun && upgradeStatus?.state && terminalStates.has(upgradeStatus.state)) {
+            if (upgradeStatus.state === 'completed') {
+                // Report the version we actually installed: the channel may already have moved on.
+                const installedVersion = String(upgradeStatus.target_version || upgradeStatus.latest_version || '')
+                rememberCompletedUpgrade(installedVersion)
+                setApplyFinishing(true)
+                upgradeReloadTimerRef.current = window.setTimeout(() => window.location.replace('/'), 3_000)
+                return
+            }
+            setActiveApplyRunId(null)
+            // The run is over: the console goes back to reporting connection problems normally.
+            setUpgradeInProgress(false)
+        }
+    }, [activeApplyRunId, upgradeStatus?.run_id, upgradeStatus?.state, upgradeStatus?.latest_version, upgradeStatus?.target_version, t])
 
     const settingsPageShellRef = useRef<HTMLDivElement | null>(null)
     const [upgradeDialogScopeRect, setUpgradeDialogScopeRect] = useState<ContentScopeRect | null>(null)
+
+    useEffect(() => () => {
+        if (upgradeReloadTimerRef.current !== null) {
+            window.clearTimeout(upgradeReloadTimerRef.current)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!autoApplyPending || upgradeStatus?.state !== 'ready') {
+            return
+        }
+        setAutoApplyPending(false)
+        setApplyFinishing(false)
+        setApplyStartedAt(Date.now())
+        setApplyElapsedSeconds(0)
+        setActiveApplyRunId(upgradeStatus.run_id ?? 'pending')
+        setUpgradeInProgress(true)
+        void applyUpgrade()
+            .then(() => refetchUpgradeStatus())
+            .catch(() => {
+                setActiveApplyRunId(null)
+                setUpgradeInProgress(false)
+            })
+    }, [autoApplyPending, upgradeStatus?.state, upgradeStatus?.run_id, refetchUpgradeStatus])
+
+    useEffect(() => {
+        // The clock follows the run itself, not the button this tab pressed: after a reload the
+        // marker is gone but the upgrade is still on screen and must keep counting.
+        if (applyStartedAt === null) {
+            return
+        }
+        setApplyElapsedSeconds(Math.max(0, Math.round((Date.now() - applyStartedAt) / 1000)))
+        const timer = window.setInterval(() => {
+            setApplyElapsedSeconds(Math.max(0, Math.round((Date.now() - applyStartedAt) / 1000)))
+        }, 1_000)
+        return () => window.clearInterval(timer)
+    }, [applyStartedAt])
+
+    /**
+     * The backend owns the truth about a running upgrade: it may have been started here, in another
+     * tab, or before this page was reloaded. Locking the console and muting the connection banner
+     * therefore follows the reported state, not just the button this tab happened to press.
+     */
+    useEffect(() => {
+        if (upgradeStatus?.state === 'applying') {
+            setUpgradeInProgress(true)
+            setApplyStartedAt((current) => current ?? Date.now())
+            return
+        }
+        if (!activeApplyRunId) {
+            setUpgradeInProgress(false)
+        }
+    }, [upgradeStatus?.state, activeApplyRunId])
+
+    // Rough phases, in the order the runner actually works: it backs up the current deployment and
+    // writes the new configuration first (fast), then recreates the container (the bulk of the
+    // wait), and finally checks service health.
+    const applyPhaseIndex = applyElapsedSeconds < 8 ? 0 : applyElapsedSeconds < 75 ? 1 : 2
+    const applyPhaseKeys = ['settingsPage.upgrade.phases.prepare', 'settingsPage.upgrade.phases.replace', 'settingsPage.upgrade.phases.verify']
 
     // Keep the manual-upgrade dialog inside the workspace area so it never covers the
     // navigation, matching the other scoped dialogs of the console.
@@ -1597,6 +1715,46 @@ export function SettingsPage() {
             ? t('settingsPage.upgrade.downloadInterrupted')
             : sessionFailure?.detail || t('settingsPage.upgrade.actions.downloadFailed')
         const upgradeCheckBusy = checkingUpgrade || isUpgradeStatusFetching
+        const isChineseLocale = i18n.resolvedLanguage === 'zh-CN'
+
+        function copyPlainText(text: string) {
+            if (navigator.clipboard && window.isSecureContext) {
+                void navigator.clipboard.writeText(text).catch(() => { /* clipboard can be blocked */ })
+                return
+            }
+            // Fallback for non-HTTPS deployments, where the clipboard API is unavailable.
+            const textarea = document.createElement('textarea')
+            textarea.value = text
+            textarea.style.position = 'fixed'
+            textarea.style.left = '-9999px'
+            document.body.appendChild(textarea)
+            textarea.focus()
+            textarea.select()
+            try {
+                document.execCommand('copy')
+            } catch {
+                // Nothing else to try; the text stays selectable in the dialog.
+            }
+            document.body.removeChild(textarea)
+        }
+
+        async function loadUpgradeLog(runId: string) {
+            setUpgradeLogLoading(true)
+            setUpgradeLogFailed(false)
+            try {
+                setUpgradeLog(await fetchUpgradeLog(runId, UPGRADE_LOG_TAIL))
+            } catch {
+                setUpgradeLog(null)
+                setUpgradeLogFailed(true)
+            } finally {
+                setUpgradeLogLoading(false)
+            }
+        }
+
+        function openUpgradeLog(runId: string) {
+            setUpgradeLogOpen(true)
+            void loadUpgradeLog(runId)
+        }
 
         async function handleCheckUpgrade() {
             setCheckingUpgrade(true)
@@ -1687,7 +1845,14 @@ export function SettingsPage() {
             setApplyConfirmationOpen(false)
             setApplyingUpgrade(true)
             try {
-                await applyUpgrade()
+                const started = await applyUpgrade()
+                setApplyFinishing(false)
+                setApplyStartedAt(Date.now())
+                setApplyElapsedSeconds(0)
+                setActiveApplyRunId(started.run_id ?? 'pending')
+                // From here the platform container will be recreated (and possibly rolled back),
+                // so the console owns the screen until the run reaches a terminal state.
+                setUpgradeInProgress(true)
                 await refetchUpgradeStatus()
             } catch (applyError) {
                 setFeedback({
@@ -1700,6 +1865,32 @@ export function SettingsPage() {
             }
         }
 
+        async function handleRetryUpgrade() {
+            setApplyingUpgrade(true)
+            let started: Awaited<ReturnType<typeof retryUpgrade>> | null = null
+            try {
+                // The staged release of the failed run is still on disk, so one click restarts the
+                // same attempt: no second download and no "upgrade now" confirmation afterwards.
+                started = await retryUpgrade()
+            } catch {
+                // Nothing left to reuse: download the release again and continue automatically.
+                setAutoApplyPending(true)
+            } finally {
+                setApplyingUpgrade(false)
+            }
+            if (started) {
+                setApplyFinishing(false)
+                setApplyStartedAt(Date.now())
+                setApplyElapsedSeconds(0)
+                setActiveApplyRunId(started.run_id ?? 'pending')
+                setUpgradeInProgress(true)
+                // A refresh can fail while the platform restarts; the run itself is unaffected.
+                void refetchUpgradeStatus().catch(() => undefined)
+                return
+            }
+            await handlePrepareUpgrade()
+        }
+
         if (isUpgradeStatusLoading) {
             return (
                 <div className="settings-form-row">
@@ -1709,6 +1900,80 @@ export function SettingsPage() {
                     </div>
                     <div className="settings-form-actions" />
                 </div>
+            )
+        }
+
+        if (activeApplyRunId || upgradeStatus?.state === 'applying') {
+            return (
+                <>
+                    <div className="settings-form-row">
+                        <Typography className="settings-form-label">{t('settingsPage.upgrade.status')}{t('settingsPage.upgrade.labelSuffix')}</Typography>
+                        <div className="settings-form-control">
+                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <CircularProgress size={16} />
+                                <Typography variant="body2" color="text.secondary">
+                                    {t('settingsPage.upgrade.applying')}
+                                </Typography>
+                            </Stack>
+                        </div>
+                        <div className="settings-form-actions" />
+                    </div>
+                    {/* The platform container is being replaced, so the whole console must stay
+                        read-only: a full-screen mask stops the operator from retrying an upgrade
+                        that is already running while the backend is briefly unreachable. */}
+                    <SurfaceDialog
+                        open
+                        onClose={() => undefined}
+                        darkMode={isDarkMode}
+                        paperSx={{
+                            width: { xs: 'min(100%, 460px)', md: '460px' },
+                            maxWidth: '460px',
+                            backgroundColor: surfacePalette.dialogBg,
+                            color: surfacePalette.text,
+                            border: `1px solid ${surfacePalette.borderStrong}`,
+                        }}
+                    >
+                        <Box sx={{ px: 3, py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, textAlign: 'center' }}>
+                            {applyFinishing ? (
+                                <>
+                                    <Box component="svg" viewBox="0 0 24 24" sx={{ width: 32, height: 32, color: surfacePalette.accent }}>
+                                        <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                                    </Box>
+                                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: surfacePalette.subtleText }}>
+                                        {t('settingsPage.upgrade.result.completed', {
+                                            version: upgradeStatus?.target_version || upgradeStatus?.latest_version || '',
+                                        })}
+                                    </Typography>
+                                </>
+                            ) : (
+                                <>
+                                    <CircularProgress size={32} />
+                                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: surfacePalette.text }}>
+                                        {t('settingsPage.upgrade.applying')}
+                                    </Typography>
+                                    <Typography sx={{ m: 0, fontSize: 14, lineHeight: 1.7, color: surfacePalette.subtleText }}>
+                                        {t('settingsPage.upgrade.applyingHint')}
+                                    </Typography>
+                                    <Stepper activeStep={applyPhaseIndex} orientation="vertical" sx={{ mt: 1, textAlign: 'left', '& .MuiStepLabel-label': { fontSize: 13 } }}>
+                                        {applyPhaseKeys.map((phaseKey) => (
+                                            <Step key={phaseKey}>
+                                                <StepLabel>{t(phaseKey)}</StepLabel>
+                                            </Step>
+                                        ))}
+                                    </Stepper>
+                                    <Typography sx={{ m: 0, fontSize: 12, color: surfacePalette.subtleText }}>
+                                        {t('settingsPage.upgrade.applyingElapsed', { seconds: applyElapsedSeconds })}
+                                    </Typography>
+                                    {applyElapsedSeconds > 180 && (
+                                        <Typography sx={{ m: 0, fontSize: 12, color: surfacePalette.subtleText }}>
+                                            {t('settingsPage.upgrade.applyingSlow')}
+                                        </Typography>
+                                    )}
+                                </>
+                            )}
+                        </Box>
+                    </SurfaceDialog>
+                </>
             )
         }
 
@@ -1748,14 +2013,38 @@ export function SettingsPage() {
         }
 
         // Terminal outcomes of an upgrade stay actionable long after it finished, so they remain
-        // on screen until the next download or upgrade overwrites the recorded state.
+        // on screen until the next download or upgrade overwrites the recorded state. The banner
+        // states what happened and why; the log carries the evidence, and support is one click away.
+        const upgradeFailure = status.last_failure ?? null
+        // Causes are grouped instead of translated one by one: an operator needs to know whether
+        // the platform was left untouched, needs a fix, or is in between versions.
+        const upgradeFailureGroup = (() => {
+            const reason = String(upgradeFailure?.reason || '')
+            if (reason.startsWith('download')) return 'download'
+            if (reason.startsWith('rollback')) return 'rollback'
+            if (reason === 'health_check_degraded') return 'degraded'
+            if (reason === 'apply_interrupted' || reason === 'runner_exit') return 'interrupted'
+            if (reason.startsWith('container') || reason.startsWith('health') || reason.startsWith('strict')) return 'container'
+            return reason ? 'unknown' : ''
+        })()
+        const failureReason = upgradeFailureGroup
+            ? t(`settingsPage.upgrade.reason.${upgradeFailureGroup}`, { defaultValue: '' })
+            : ''
+        const failureRunId = upgradeFailure?.run_id ? String(upgradeFailure.run_id) : ''
         const upgradeResultNotice = (() => {
             const target = status.target_version || status.latest_version
             switch (status.state) {
                 case 'degraded':
                     return { severity: 'warning' as const, message: t('settingsPage.upgrade.result.degraded', { version: target }) }
                 case 'rolled_back':
-                    return { severity: 'warning' as const, message: t('settingsPage.upgrade.result.rolledBack', { version: target, current: currentVersion }) }
+                    // Name the version the platform actually runs now; that is the fact the
+                    // operator cares about, and it avoids quoting the same number twice.
+                    return {
+                        severity: 'warning' as const,
+                        message: String(currentVersion || '')
+                            ? t('settingsPage.upgrade.result.rolledBack', { current: currentVersion })
+                            : t('settingsPage.upgrade.result.rolledBackUnknown'),
+                    }
                 case 'rollback_failed':
                     return { severity: 'error' as const, message: t('settingsPage.upgrade.result.rollbackFailed', { version: target }) }
                 case 'apply_interrupted':
@@ -1769,8 +2058,65 @@ export function SettingsPage() {
             <>
                 {upgradeResultNotice && (
                     <div className="settings-form-row">
-                        <Alert severity={upgradeResultNotice.severity} sx={{ gridColumn: '1 / -1' }}>
-                            {upgradeResultNotice.message}
+                        <Alert
+                            severity={upgradeResultNotice.severity}
+                            sx={{
+                                gridColumn: '1 / -1',
+                                '& .MuiAlert-message': { width: '100%' },
+                                // The actions sit vertically centred in the banner, matching the
+                                // height of the message block next to them.
+                                '& .MuiAlert-action': { alignItems: 'center', alignSelf: 'stretch', my: 0 },
+                            }}
+                            action={(
+                                <Stack
+                                    direction="row"
+                                    spacing={1}
+                                    sx={{ alignItems: 'center', flexWrap: 'nowrap', flexShrink: 0, whiteSpace: 'nowrap' }}
+                                >
+                                    {failureRunId && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="inherit"
+                                            sx={{ fontWeight: 600 }}
+                                            onClick={() => openUpgradeLog(failureRunId)}
+                                        >
+                                            {t('settingsPage.upgrade.diagnostic.viewLog')}
+                                        </Button>
+                                    )}
+                                    {status.upgrade_available && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="inherit"
+                                            sx={{ fontWeight: 600 }}
+                                            disabled={upgradeCheckBusy || status.state === 'downloading' || preparingUpgrade}
+                                            onClick={() => void handleRetryUpgrade()}
+                                        >
+                                            {t('settingsPage.upgrade.actions.retry')}
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="inherit"
+                                        sx={{ fontWeight: 600 }}
+                                        onClick={() => window.open(UPGRADE_SUPPORT_URL(isChineseLocale), '_blank', 'noopener,noreferrer')}
+                                    >
+                                        {t('settingsPage.upgrade.diagnostic.support')}
+                                    </Button>
+                                </Stack>
+                            )}
+                        >
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {upgradeResultNotice.message}
+                            </Typography>
+                            {failureReason && (
+                                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                    <Box component="span" sx={{ color: 'text.secondary' }}>{t('settingsPage.upgrade.reasonLabel')}</Box>
+                                    {failureReason}
+                                </Typography>
+                            )}
                         </Alert>
                     </div>
                 )}
@@ -1807,17 +2153,23 @@ export function SettingsPage() {
                                         {status.latest_version}
                                     </Typography>
                                     <Stack direction="row" spacing={1.5} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                                        {status.state === 'downloading' || preparingUpgrade ? (
+                                        {status.state === 'downloading' || status.state === 'applying' || preparingUpgrade ? (
                                             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                                 <CircularProgress size={16} />
                                                 <Typography variant="body2" color="text.secondary">
-                                                    {t('settingsPage.upgrade.actions.downloading')}
+                                                    {status.state === 'applying'
+                                                        ? t('settingsPage.upgrade.applying')
+                                                        : t('settingsPage.upgrade.actions.downloading')}
                                                 </Typography>
                                             </Stack>
                                         ) : status.state === 'ready' ? (
                                             <Button size="small" color="warning" variant="contained" onClick={() => setApplyConfirmationOpen(true)} disabled={applyingUpgrade}>
                                                 {t('settingsPage.upgrade.actions.apply')}
                                             </Button>
+                                        ) : upgradeResultNotice ? (
+                                            // After a failure the retry lives in the failure banner, so the
+                                            // same action is not offered twice on one screen.
+                                            null
                                         ) : (
                                             <Button size="small" variant="contained" onClick={handlePrepareUpgrade}>
                                                 {t('settingsPage.upgrade.actions.download')}
@@ -1965,6 +2317,128 @@ export function SettingsPage() {
                         </Button>
                         <Button variant="contained" onClick={() => void handleApplyUpgrade()} sx={upgradeDialogPrimaryButtonSx}>
                             {t('settingsPage.upgrade.confirm.confirm')}
+                        </Button>
+                    </Box>
+                </SurfaceDialog>
+
+                {/* Failure explanation: the operator can read the run log without leaving the console. */}
+                <SurfaceDialog
+                    open={upgradeLogOpen}
+                    onClose={() => setUpgradeLogOpen(false)}
+                    scope="content"
+                    scopeRect={upgradeDialogScopeRect}
+                    contentStrategy="viewport-fixed"
+                    darkMode={isDarkMode}
+                    maxWidth="sm"
+                    sx={{
+                        '& .MuiDialog-container': {
+                            alignItems: 'flex-start',
+                            pt: { xs: 3, md: 6 },
+                        },
+                    }}
+                    paperSx={{
+                        // Same footprint as the service log dialog so both read the same way.
+                        width: { xs: 'min(100%, 1100px)', md: 'min(1100px, calc(100% - 16px))' },
+                        maxWidth: '1100px',
+                        backgroundColor: surfacePalette.dialogBg,
+                        color: surfacePalette.text,
+                        border: `1px solid ${surfacePalette.borderStrong}`,
+                    }}
+                >
+                    <Box sx={{ px: 2.25, py: 1.5, borderBottom: `1px solid ${surfacePalette.divider}`, backgroundColor: surfacePalette.dialogBg, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Typography sx={{ flex: 1, fontSize: 16, fontWeight: 700, color: surfacePalette.text }}>
+                            {failureRunId
+                                ? `${t('settingsPage.upgrade.diagnostic.logTitle')} · ${failureRunId}`
+                                : t('settingsPage.upgrade.diagnostic.logTitle')}
+                        </Typography>
+                        <Button
+                            size="small"
+                            variant="text"
+                            disabled={upgradeLogLoading || !upgradeFailure?.run_id}
+                            onClick={() => {
+                                if (upgradeFailure?.run_id) {
+                                    void loadUpgradeLog(String(upgradeFailure.run_id))
+                                }
+                            }}
+                        >
+                            {t('settingsPage.upgrade.diagnostic.refresh')}
+                        </Button>
+                        <IconButton
+                            onClick={() => setUpgradeLogOpen(false)}
+                            size="small"
+                            sx={{ width: 36, height: 36, color: surfacePalette.subtleText, borderRadius: '999px', backgroundColor: 'transparent', '&:hover': { backgroundColor: 'transparent', color: surfacePalette.text, opacity: 0.84 } }}
+                        >
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ px: 2.25, py: 2, borderBottom: `1px solid ${surfacePalette.divider}`, backgroundColor: surfacePalette.dialogBg }}>
+                        {upgradeLogLoading ? (
+                            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                                <CircularProgress size={16} />
+                                <Typography variant="body2" color="text.secondary">
+                                    {t('settingsPage.upgrade.diagnostic.logLoading')}
+                                </Typography>
+                            </Stack>
+                        ) : upgradeLogFailed ? (
+                            <Typography variant="body2" color="error.main">
+                                {t('settingsPage.upgrade.diagnostic.logFailed')}
+                            </Typography>
+                        ) : upgradeLog && upgradeLog.lines.length > 0 ? (
+                            <>
+                                {upgradeLog.source === 'runner' && (
+                                    <Typography variant="caption" sx={{ display: 'block', mb: 1, color: surfacePalette.subtleText }}>
+                                        {t('settingsPage.upgrade.diagnostic.logFromRunner')}
+                                    </Typography>
+                                )}
+                                <Box
+                                    component="pre"
+                                    sx={{
+                                        m: 0,
+                                        p: 1.5,
+                                        maxHeight: '46vh',
+                                        overflow: 'auto',
+                                        fontSize: '0.78rem',
+                                        lineHeight: 1.6,
+                                        borderRadius: '2px',
+                                        border: `1px solid ${surfacePalette.border}`,
+                                        bgcolor: surfacePalette.panelSoft,
+                                        color: surfacePalette.text,
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-all',
+                                    }}
+                                >
+                                    {upgradeLog.lines.join('\n')}
+                                </Box>
+                                <Typography variant="caption" sx={{ display: 'block', mt: 1, color: surfacePalette.subtleText }}>
+                                    {/* Only mention the window when the log was actually cut off. */}
+                                    {upgradeLog.lines.length >= UPGRADE_LOG_TAIL
+                                        ? t('settingsPage.upgrade.diagnostic.logTruncated', { count: upgradeLog.lines.length })
+                                        : null}
+                                </Typography>
+                            </>
+                        ) : (
+                            <Typography variant="body2" color="text.secondary">
+                                {t('settingsPage.upgrade.diagnostic.logEmpty')}
+                            </Typography>
+                        )}
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.25, py: 1.25, backgroundColor: surfacePalette.dialogBg }}>
+                        <Button onClick={() => setUpgradeLogOpen(false)} sx={upgradeDialogCancelButtonSx}>
+                            {t('settingsPage.upgrade.actions.close')}
+                        </Button>
+                        <Button
+                            variant="contained"
+                            disabled={!upgradeLog || upgradeLog.lines.length === 0}
+                            onClick={() => {
+                                if (upgradeLog) {
+                                    copyPlainText(upgradeLog.lines.join('\n'))
+                                    setUpgradeLogCopied(true)
+                                    window.setTimeout(() => setUpgradeLogCopied(false), 2_000)
+                                }
+                            }}
+                            sx={upgradeDialogPrimaryButtonSx}
+                        >
+                            {upgradeLogCopied ? t('settingsPage.upgrade.actions.copied') : t('settingsPage.upgrade.diagnostic.copyLog')}
                         </Button>
                     </Box>
                 </SurfaceDialog>
