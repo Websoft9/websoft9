@@ -10,6 +10,7 @@ Welcome to the Websoft9 documentation. Websoft9 is a web-based PaaS/Linux Panel 
 | [Architecture](architecture.md) | System architecture, components, and design decisions |
 | [ARM 与容器构建优化方案](arm-container-optimization.md) | ARM64 支持评估与容器构建优化方案 |
 | [Developer Guide](developer.md) | Development environment setup, coding standards, and contribution workflow |
+| [Platform Upgrade Testing](upgrade-testing.md) | 模拟平台升级成功 / 失败与回滚的测试手册 |
 | [Custom Application Development](local-app-store.md) | Build and publish local Docker Compose applications in the App Store |
 | [API Reference](api-reference.md) | AppHub REST API endpoints and usage |
 | [Deployment](deployment.md) | Production deployment, cloud marketplace, and operations |
