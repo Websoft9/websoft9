@@ -1,4 +1,6 @@
+import json
 import sys
+import threading
 import types
 from pathlib import Path
 from unittest.mock import patch
@@ -72,6 +74,9 @@ class FakePortainer:
 def _build_manager():
     manager = object.__new__(BackupManager)
     manager.docker_client = None
+    # The manager is normally created through __init__, which resolves these two values.
+    manager.repository_path = "/var/lib/websoft9/backup/restic-repo"
+    manager.restic_image = "restic/restic:latest"
     return manager
 
 
@@ -85,7 +90,7 @@ def test_restore_uses_up_stack_after_restore(monkeypatch):
     )
 
     monkeypatch.setattr(manager, '_check_repository', lambda: True)
-    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id: [{"id": "snap-1", "short_id": "snap-1"}])
+    monkeypatch.setattr(manager, 'list_snapshots', lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1"}])
     monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
     monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
         get_app_by_id=lambda app_id: types.SimpleNamespace(
@@ -172,19 +177,132 @@ def test_repo_operations_use_restic_container_runner(monkeypatch):
         raise AssertionError(f'unexpected command: {command}')
 
     monkeypatch.setattr(manager, '_run_restic_container', fake_run_restic_container)
+    back_manager_module._repository_ready_cache.clear()
+    back_manager_module._snapshot_list_cache.clear()
 
     assert manager._check_repository() is True
     snapshots = manager.list_snapshots('wordpress_demo')
     manager.delete_snapshot('snap-1')
 
     assert snapshots == [{"id": "snap-1", "short_id": "snap-1"}]
+    # The readiness check is cached, so the delete does not repeat `cat config`.
     assert commands == [
         (['cat', 'config'], {}),
         (['cat', 'config'], {}),
         (['snapshots', '--tag', 'wordpress_demo'], {}),
-        (['cat', 'config'], {}),
         (['forget', 'snap-1'], {}),
     ]
+
+
+def test_snapshot_list_is_served_from_cache_until_refreshed(monkeypatch):
+    """Listing starts a restic container, so repeated reads reuse a short-lived cache."""
+    manager = _build_manager()
+    commands = []
+    snapshots = [{"id": "snap-1", "short_id": "snap-1"}]
+
+    def fake_run_restic_container(command, extra_volumes):
+        commands.append(command)
+        if command == ['cat', 'config']:
+            return '{"id":"repo-id","version":2}'
+        if command[:1] == ['snapshots']:
+            return json.dumps(snapshots)
+        if command[:1] == ['forget']:
+            return ''
+        raise AssertionError(f'unexpected command: {command}')
+
+    monkeypatch.setattr(manager, '_run_restic_container', fake_run_restic_container)
+    back_manager_module._repository_ready_cache.clear()
+    back_manager_module._snapshot_list_cache.clear()
+
+    assert manager.list_snapshots('wordpress_demo') == snapshots
+    first_round = list(commands)
+
+    # Second read: no restic call at all.
+    assert manager.list_snapshots('wordpress_demo') == snapshots
+    assert commands == first_round
+
+    # An explicit refresh goes back to the repository.
+    assert manager.list_snapshots('wordpress_demo', use_cache=False) == snapshots
+    assert commands[-1] == ['snapshots', '--tag', 'wordpress_demo']
+
+    # A mutation drops the cache so the next read is accurate.
+    manager.delete_snapshot('snap-1')
+    before_read = len(commands)
+    assert manager.list_snapshots('wordpress_demo') == snapshots
+    assert len(commands) > before_read
+
+
+def test_repository_readiness_is_cached(monkeypatch):
+    """Repeated requests must not each pay for a restic container just to check the repository."""
+    manager = _build_manager()
+    checks = []
+
+    def fake_run_restic_container(command, extra_volumes):
+        checks.append(command)
+        return '{"id":"repo-id","version":2}'
+
+    monkeypatch.setattr(manager, '_run_restic_container', fake_run_restic_container)
+    back_manager_module._repository_ready_cache.clear()
+
+    manager._ensure_repository()
+    manager._ensure_repository()
+    manager._ensure_repository()
+
+    assert checks == [['cat', 'config']]
+
+
+def test_concurrent_repository_initialization_runs_once(monkeypatch):
+    manager = _build_manager()
+    initialization_started = threading.Event()
+    release_initialization = threading.Event()
+    initialized = []
+
+    monkeypatch.setattr(manager, '_check_repository', lambda: False)
+
+    def fake_init_repository():
+        initialized.append(True)
+        initialization_started.set()
+        assert release_initialization.wait(timeout=1)
+
+    monkeypatch.setattr(manager, '_init_repository', fake_init_repository)
+    back_manager_module._repository_ready_cache.clear()
+
+    first = threading.Thread(target=manager._ensure_repository)
+    second = threading.Thread(target=manager._ensure_repository)
+    first.start()
+    assert initialization_started.wait(timeout=1)
+    second.start()
+    release_initialization.set()
+    first.join(timeout=1)
+    second.join(timeout=1)
+
+    assert initialized == [True]
+
+
+def test_snapshot_list_does_not_recache_results_invalidated_while_loading(monkeypatch):
+    manager = _build_manager()
+    loading_started = threading.Event()
+    release_loading = threading.Event()
+
+    monkeypatch.setattr(manager, '_ensure_repository', lambda: None)
+    back_manager_module._snapshot_list_cache.clear()
+
+    def fake_run_restic_repo_command(_command):
+        loading_started.set()
+        assert release_loading.wait(timeout=1)
+        return '[{"id": "stale-snapshot"}]'
+
+    monkeypatch.setattr(manager, '_run_restic_repo_command', fake_run_restic_repo_command)
+
+    request = threading.Thread(target=manager.list_snapshots, args=('wordpress_demo',))
+    request.start()
+    assert loading_started.wait(timeout=1)
+    back_manager_module._invalidate_snapshot_cache()
+    release_loading.set()
+    request.join(timeout=1)
+
+    cache_key = f'{manager.repository_path}:wordpress_demo'
+    assert cache_key not in back_manager_module._snapshot_list_cache
 
 
 def test_backup_manager_defaults_restic_image_when_missing_from_system_config(monkeypatch):

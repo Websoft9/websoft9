@@ -12,8 +12,8 @@ from src.core.runtime_paths import resolve_apphub_config_path
 from src.services.app_status import appInstalling
 
 
-DEFAULT_PORT_RANGE = (9001, 9999)
-DEFAULT_PORT_RANGE_VALUE = "9001-9999"
+DEFAULT_PORT_RANGE = (9001, 9099)
+DEFAULT_PORT_RANGE_VALUE = "9001-9099"
 _PORT_RANGE_PATTERN = re.compile(r"^\s*(\d{1,5})\s*-\s*(\d{1,5})\s*$")
 
 

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 import docker
 import requests
@@ -13,6 +14,25 @@ from src.services.app_manager import AppManger
 from src.services.portainer_manager import PortainerManager
 
 RESTIC_CACHE_PATH = "/data/restic-cache"
+
+# Every restic command runs in its own throwaway container, which costs about a second even for an
+# empty repository. Checking readiness and listing snapshots is therefore cached in-process, with a
+# short TTL so a change made elsewhere (or a rebuilt repository) is picked up quickly.
+REPOSITORY_READY_TTL_SECONDS = 60.0
+SNAPSHOT_LIST_TTL_SECONDS = 5.0
+_repository_ready_cache: Dict[str, float] = {}
+_snapshot_list_cache: Dict[str, tuple[float, List[Dict[str, Any]]]] = {}
+_cache_lock = threading.Lock()
+_repository_lock = threading.Lock()
+_snapshot_cache_generation = 0
+
+
+def _invalidate_snapshot_cache() -> None:
+    """Drop the cached snapshot list every time the repository changes."""
+    global _snapshot_cache_generation
+    with _cache_lock:
+        _snapshot_list_cache.clear()
+        _snapshot_cache_generation += 1
 
 
 def _extract_restic_error(data: Dict[str, Any]) -> str:
@@ -109,7 +129,8 @@ class BackupManager:
             # Ensure cache dir exists
             os.makedirs(RESTIC_CACHE_PATH, exist_ok=True)
 
-            self._init_repository()
+            # The repository is verified lazily: doing it here would start a restic container for
+            # every request (the manager is created per call) and the console would wait for it.
         except CustomException:
             raise
         except Exception as e:
@@ -261,9 +282,21 @@ class BackupManager:
         except (json.JSONDecodeError, KeyError):
             return False
 
+    def _ensure_repository(self) -> None:
+        """Make sure the repository exists, reusing the cached readiness for a short while."""
+        key = str(self.repository_path)
+        with _repository_lock:
+            with _cache_lock:
+                checked_at = _repository_ready_cache.get(key)
+            if checked_at is not None and (time.monotonic() - checked_at) < REPOSITORY_READY_TTL_SECONDS:
+                return
+            if not self._check_repository():
+                logger.info("Repository not initialized, re-initializing...")
+                self._init_repository()
+            with _cache_lock:
+                _repository_ready_cache[key] = time.monotonic()
+
     def _init_repository(self):
-        if self._check_repository():
-            return
         try:
             output = self._run_restic_repo_command(["init"])
             result = json.loads(output)
@@ -276,17 +309,31 @@ class BackupManager:
     # ------------------------------------------------------------------
     #  Repository operations — container Restic
     # ------------------------------------------------------------------
-    def list_snapshots(self, app_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_snapshots(self, app_id: Optional[str] = None, use_cache: bool = True) -> List[Dict[str, Any]]:
         try:
-            if not self._check_repository():
-                raise CustomException(400, "Repository not initialized", "Repository Error")
+            cache_key = f"{self.repository_path}:{app_id or ''}"
+            if use_cache:
+                with _cache_lock:
+                    cached = _snapshot_list_cache.get(cache_key)
+                    cache_generation = _snapshot_cache_generation
+                if cached is not None and (time.monotonic() - cached[0]) < SNAPSHOT_LIST_TTL_SECONDS:
+                    return [dict(item) for item in cached[1]]
+            else:
+                with _cache_lock:
+                    cache_generation = _snapshot_cache_generation
+
+            self._ensure_repository()
 
             command = ["snapshots"]
             if app_id:
                 command.extend(["--tag", app_id])
 
             output = self._run_restic_repo_command(command)
-            return json.loads(output) if output.strip() else []
+            snapshots = json.loads(output) if output.strip() else []
+            with _cache_lock:
+                if cache_generation == _snapshot_cache_generation:
+                    _snapshot_list_cache[cache_key] = (time.monotonic(), snapshots)
+            return snapshots
         except (json.JSONDecodeError, KeyError):
             raise CustomException(500, "Failed to parse snapshot list", "Parse Error")
         except CustomException:
@@ -296,12 +343,12 @@ class BackupManager:
 
     def delete_snapshot(self, snapshot_id: str) -> None:
         try:
-            if not self._check_repository():
-                raise CustomException(400, "Repository not initialized", "Repository Error")
+            self._ensure_repository()
 
             output = self._run_restic_repo_command(["forget", snapshot_id])
             if output.strip():
                 raise CustomException(400, f"Delete failed: {output}", f"Snapshot: {snapshot_id}")
+            _invalidate_snapshot_cache()
         except CustomException:
             raise
         except Exception as e:
@@ -319,9 +366,7 @@ class BackupManager:
             if not container_paths:
                 raise CustomException(400, f"No volumes found for app: {app_id}", "No Volumes")
 
-            if not self._check_repository():
-                logger.info("Repository not initialized, re-initializing...")
-                self._init_repository()
+            self._ensure_repository()
 
             command = ["backup"] + container_paths + ["--tag", app_id]
             output = self._run_restic_container(command, extra_volumes)
@@ -347,6 +392,7 @@ class BackupManager:
             if not summary_found:
                 raise CustomException(500, f"Backup incomplete — no summary returned for app: {app_id}", "Backup Failed")
 
+            _invalidate_snapshot_cache()
             logger.access(f"Backup successful for app: {app_id}")
         except CustomException:
             raise
@@ -358,11 +404,10 @@ class BackupManager:
         try:
             logger.access(f"Restoring snapshot: {snapshot_id}")
 
-            if not self._check_repository():
-                raise CustomException(400, "Repository not initialized", "Repository Error")
+            self._ensure_repository()
 
             # Verify the snapshot exists before attempting restore
-            snapshots = self.list_snapshots(app_id)
+            snapshots = self.list_snapshots(app_id, use_cache=False)
             snapshot_ids = {s.get("short_id") or s.get("id") or "" for s in snapshots}
             full_snapshot_ids = {s.get("id") or "" for s in snapshots}
             if snapshot_id not in snapshot_ids and snapshot_id not in full_snapshot_ids:
@@ -441,6 +486,7 @@ class BackupManager:
             if not summary_found:
                 raise CustomException(500, f"Restore incomplete — no summary returned for snapshot: {snapshot_id}", "Restore Failed")
 
+            _invalidate_snapshot_cache()
             logger.access(f"Snapshot {snapshot_id} restored successfully")
         except CustomException:
             raise

@@ -481,6 +481,45 @@ monitor_runtime() {
   done
 }
 
+read_volume_backup_setting() {
+  awk -F= -v key="$1" '
+    /^\[/ { section = $0 }
+    section == "[volume_backup]" && $1 ~ "^ *" key " *$" { gsub(/^ +| +$/, "", $2); print $2; exit }
+  ' "$WEBSOFT9_APPHUB_SYSTEM_CONFIG_PATH" 2>/dev/null
+}
+
+# The volume backup runs restic in a throwaway container, so the image has to exist before the
+# first backup or snapshot list. Pulling it here keeps that download off the operator's first
+# click; it runs in the background so startup and the health check are never delayed. The pull
+# itself goes through the apphub helper, which already falls back to the configured mirrors.
+prepull_volume_backup_image() {
+  local image enabled
+  image=$(read_volume_backup_setting image)
+  image=${image:-restic/restic:latest}
+  enabled=$(read_volume_backup_setting prepull)
+  case "${enabled:-true}" in
+    0|false|no|off) return 0 ;;
+  esac
+
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  log_event "info" "backup.image.prepull" "Pre-pulling the volume backup image in the background: $image"
+  (
+    if python3 -c "
+import sys
+sys.path.insert(0, '/websoft9/apphub')
+from src.services.back_manager import BackupManager
+BackupManager()._ensure_restic_image()
+" >/dev/null 2>&1; then
+      log_event "info" "backup.image.ready" "Volume backup image is ready: $image"
+    else
+      log_event "warning" "backup.image.prepull-failed" "Could not pre-pull $image; it will be pulled on first use"
+    fi
+  ) &
+}
+
 main() {
   trap shutdown_supervisor EXIT INT TERM
 
@@ -495,6 +534,7 @@ main() {
   sync_appstore_assets
   ensure_platform_network
   start_apphub_core
+  prepull_volume_backup_image
   bootstrap_product_auth
   bootstrap_platform_gateway
   bootstrap_gitea

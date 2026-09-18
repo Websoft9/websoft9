@@ -572,8 +572,11 @@ async function runLifecycleRequest(url: string, method: 'POST' | 'DELETE') {
     }
 }
 
-async function fetchBackupSnapshots(appId: string) {
-    const response = await fetch(`/api/backup/snapshots?app_id=${encodeURIComponent(appId)}`, {
+async function fetchBackupSnapshots(appId: string, refresh = false) {
+    // The backend caches the list for a few seconds because listing starts a restic container;
+    // an explicit refresh (or a just-finished action) must always hit the repository.
+    const suffix = refresh ? '&refresh=true' : ''
+    const response = await fetch(`/api/backup/snapshots?app_id=${encodeURIComponent(appId)}${suffix}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
     })
@@ -1175,12 +1178,12 @@ export function MyAppDetailPage() {
         }
     }
 
-    async function refreshVolumeBackups() {
+    async function refreshVolumeBackups(refresh = false) {
         if (!data?.app_id) return
         setVolumeBackupLoading(true)
         setVolumeBackupError(null)
         try {
-            const snapshots = await fetchBackupSnapshots(data.app_id)
+            const snapshots = await fetchBackupSnapshots(data.app_id, refresh)
             setVolumeBackups(formatBackupRows(snapshots, locale))
         } catch (err) {
             setVolumeBackups([])
@@ -1823,7 +1826,7 @@ export function MyAppDetailPage() {
                                                             </button>
                                                             <button
                                                                 className="myapps-inline-icon-action myapps-inline-icon-action-neutral myapps-inline-icon-action-compact"
-                                                                onClick={() => void refreshVolumeBackups()}
+                                                                onClick={() => void refreshVolumeBackups(true)}
                                                                 title={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
                                                                 aria-label={volumeBackupLoading ? t('myAppsDetailPage.tabs.volumes.backups.refreshing') : t('myAppsDetailPage.tabs.volumes.backups.refresh')}
                                                                 disabled={volumeBackupLoading}

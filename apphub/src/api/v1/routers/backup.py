@@ -34,8 +34,11 @@ def create_backup(
 )
 def list_snapshots(
     app_id: str = Query(None, description="App ID to filter snapshots by (optional)"),
+    refresh: bool = Query(False, description="Bypass the short-lived snapshot cache"),
 ):
-    snapshots = BackupManager().list_snapshots(app_id)
+    # Listing starts a restic container, so the result is cached for a few seconds; an explicit
+    # refresh (the console's refresh button) always goes to the repository.
+    snapshots = BackupManager().list_snapshots(app_id, use_cache=not refresh)
     return snapshots
 
 @router.delete(

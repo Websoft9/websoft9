@@ -62,6 +62,23 @@ set_system_config() {
   websoft9 setsysconfig --section "$1" --key "$2" --value "$3" >/dev/null
 }
 
+set_system_config_if_missing() {
+  python3 - "$runtime_system_config_path" "$1" "$2" "$3" <<'PY'
+import configparser
+import sys
+
+config_path, section, key, value = sys.argv[1:5]
+config = configparser.ConfigParser()
+config.read(config_path)
+if not config.has_section(section):
+    config.add_section(section)
+if not config.has_option(section, key):
+    config.set(section, key, value)
+    with open(config_path, 'w', encoding='utf-8') as file:
+        config.write(file)
+PY
+}
+
 write_apphub_gateway_auth() {
   local trust_key=""
   local internal_gateway_auth_dir="${WEBSOFT9_INTERNAL_GATEWAY_AUTH_DIR:-$data_root/config/internal-gateway-auth}"
@@ -111,7 +128,7 @@ sync_base() {
 
   set_config_if_missing platform_gateway https_enabled "${WEBSOFT9_PLATFORM_HTTPS_ENABLED:-false}"
   # Ensure the app install port range is available on deployments upgraded from older versions
-  set_config_if_missing port_allocation range "9001-9999"
+  set_config_if_missing port_allocation range "9001-9099"
   # Ensure the upgrade auto-download switch is visible on deployments upgraded from older versions
   set_config_if_missing upgrade auto_download "true"
   set_config platform_gateway ssl_cert "${WEBSOFT9_PLATFORM_GATEWAY_CERT_PATH:-$data_root/config/platform-gateway/ssl/websoft9-platform-gateway.cert}"
@@ -120,6 +137,8 @@ sync_base() {
   set_system_config app_media path "${WEBSOFT9_MEDIA_PATH:-/websoft9/media/json}"
   set_system_config volume_backup repopath "$data_root/backup/restic-repo"
   set_system_config volume_backup image "${WEBSOFT9_RESTIC_IMAGE:-restic/restic:latest}"
+  # Pull the backup image while the platform boots instead of on the operator's first backup.
+  set_system_config_if_missing volume_backup prepull "true"
   write_apphub_gateway_auth
 }
 
