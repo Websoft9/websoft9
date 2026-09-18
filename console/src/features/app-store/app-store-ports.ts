@@ -11,9 +11,17 @@ export type PortCheckResult = {
 
 export type PortCheckStatus = 'checking' | 'available' | 'occupied' | 'failed' | 'invalid'
 
-export function isPortSettingKey(key: string) {
+export type PortSettingKeyOptions = {
+    /** An external database profile treats W9_DB_PORT_SET as the remote database port. */
+    externalDatabase?: boolean
+}
+
+export function isPortSettingKey(key: string, options: PortSettingKeyOptions = {}) {
     const normalizedKey = key.toUpperCase()
-    return normalizedKey.includes('PORT_SET') && normalizedKey !== 'W9_DB_PORT_SET'
+    if (!normalizedKey.includes('PORT_SET')) {
+        return false
+    }
+    return !(Boolean(options.externalDatabase) && normalizedKey === 'W9_DB_PORT_SET')
 }
 
 export async function fetchPortSuggestions(keys: string[]): Promise<PortSuggestion[]> {

@@ -1337,20 +1337,29 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
         const distribution = getPreferredAppStoreInstallDistribution(selectedApp)
         const templateSettings = selectedApp.settings ?? {}
-        const portKeys = Object.keys(templateSettings).filter((key) => isPortSettingKey(key))
-        const blankPortSettings = Object.fromEntries(portKeys.map((key) => [key, '']))
+        const appProfiles = selectedApp.profiles ?? {}
+        const isExternalDatabaseProfileMeta = (profile: string) => Boolean(appProfiles[profile]?.is_external_database)
+        // Port keys are resolved per target: an external database profile keeps
+        // W9_DB_PORT_SET as the remote database port, so it must not be blanked.
+        const portKeysFor = (profileSettings: Record<string, string> | undefined, externalDatabase: boolean) =>
+            Object.keys({ ...templateSettings, ...(profileSettings ?? {}) })
+                .filter((key) => isPortSettingKey(key, { externalDatabase }))
+        const blankPortsFor = (profileSettings: Record<string, string> | undefined, externalDatabase: boolean) =>
+            Object.fromEntries(portKeysFor(profileSettings, externalDatabase).map((key) => [key, '']))
+        const portKeys = portKeysFor(undefined, false)
+        const blankPortSettings = blankPortsFor(undefined, false)
         setInstallName(normalizeInstallName(selectedApp.trademark ?? selectedApp.key ?? ''))
         setSelectedVersion(distribution.versions[0] ?? 'latest')
         setInstallSettings({ ...templateSettings, ...blankPortSettings })
         setSelectedInstallProfile(null)
         setProfileInstallSettings(
             Object.fromEntries(
-                Object.entries(selectedApp.profiles ?? {}).map(([profile, metadata]) => [
+                Object.entries(appProfiles).map(([profile, metadata]) => [
                     profile,
                     {
                         ...templateSettings,
                         ...(metadata.settings ?? {}),
-                        ...blankPortSettings,
+                        ...blankPortsFor(metadata.settings, isExternalDatabaseProfileMeta(profile)),
                     },
                 ]),
             ),
@@ -1374,11 +1383,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             // ports; template values are only used when suggestions are
             // unavailable so the form stays usable offline.
             const fillEmptyPorts = (suggestions: PortSuggestion[]) => {
-                const fillSettings = (currentValue: Record<string, string>) => {
+                const fillSettings = (currentValue: Record<string, string>, externalDatabase: boolean) => {
                     let changed = false
                     const nextValue = { ...currentValue }
                     for (const suggestion of suggestions) {
-                        if (suggestion.port === null || !(suggestion.key in nextValue) || (nextValue[suggestion.key] ?? '') !== '') {
+                        if (suggestion.port === null || !isPortSettingKey(suggestion.key, { externalDatabase }) || !(suggestion.key in nextValue) || (nextValue[suggestion.key] ?? '') !== '') {
                             continue
                         }
                         nextValue[suggestion.key] = String(suggestion.port)
@@ -1386,12 +1395,12 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                     }
                     return changed ? nextValue : currentValue
                 }
-                setInstallSettings(fillSettings)
+                setInstallSettings((currentValue) => fillSettings(currentValue, false))
                 setProfileInstallSettings((currentValue) => {
                     let changed = false
                     const nextValue: Record<string, Record<string, string>> = {}
                     for (const [profile, settings] of Object.entries(currentValue)) {
-                        const filledSettings = fillSettings(settings)
+                        const filledSettings = fillSettings(settings, isExternalDatabaseProfileMeta(profile))
                         nextValue[profile] = filledSettings
                         if (filledSettings !== settings) {
                             changed = true
@@ -3689,7 +3698,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                     }
                                                                 }}
                                                                 slotProps={{
-                                                                    input: isPortSettingKey(key) ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
+                                                                    input: isPortSettingKey(key, { externalDatabase: isExternalDatabaseProfile }) ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
                                                                     htmlInput: key.toLowerCase().includes('port')
                                                                         ? {
                                                                             inputMode: 'numeric',
