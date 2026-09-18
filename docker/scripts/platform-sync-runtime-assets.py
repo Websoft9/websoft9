@@ -1235,6 +1235,7 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
             continue
         app_manifest = dict(product)
         app_manifest.update({"distribution": distribution, "settings": get_install_settings(env_values), "is_web_app": "W9_URL" in env_values})
+        normalize_display_logo(app_manifest, skipped)
         profiles = discover_install_profiles(app_dir, skipped)
         if profiles:
             app_manifest["profiles"] = profiles
@@ -1260,6 +1261,33 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
     return manifest
 
 
+def normalize_display_logo(app: dict[str, object], skipped: dict[str, int]) -> None:
+    """Drop a missing or malformed display logo.
+
+    The logo is presentation only: the console falls back to a bundled default icon when it is
+    absent. A single upstream catalog entry with ``"logo": null`` must therefore never stop an
+    image build or an asset sync, so the field is removed and reported instead.
+    """
+    if "logo" not in app:
+        return
+    logo = app.get("logo")
+    if logo is None:
+        del app["logo"]
+        skipped["missing-logo"] += 1
+        verbose_log(f"[platform-assets] {app.get('key')}: no display logo, the default icon is used")
+        return
+    if not isinstance(logo, dict):
+        # A plain string is what some catalog entries carry: keep the image, wrap it properly.
+        if isinstance(logo, str) and logo.strip():
+            app["logo"] = {"imageurl": logo.strip()}
+            skipped["normalized-logo"] += 1
+            verbose_log(f"[platform-assets] {app.get('key')}: normalized a plain display logo")
+            return
+        del app["logo"]
+        skipped["malformed-logo"] += 1
+        verbose_log(f"[platform-assets] {app.get('key')}: malformed display logo, the default icon is used")
+
+
 def validate_app_store_manifest(manifest: object, source_path: Path) -> None:
     if not isinstance(manifest, dict) or not isinstance(manifest.get("apps"), list):
         raise RuntimeError(f"invalid app store manifest generated from {source_path}")
@@ -1268,7 +1296,8 @@ def validate_app_store_manifest(manifest: object, source_path: Path) -> None:
             raise RuntimeError(f"invalid app entry generated from {source_path}")
         if "title" in app and (not isinstance(app["title"], str) or not app["title"].strip()):
             raise RuntimeError(f"app entry has invalid display title: {app.get('key')}")
-        if "logo" in app and not isinstance(app["logo"], dict):
+        # The display logo is optional on purpose: a missing icon is rendered with the default one.
+        if app.get("logo") is not None and not isinstance(app["logo"], dict):
             raise RuntimeError(f"app entry has invalid display logo: {app.get('key')}")
         if "screenshots" in app and app["screenshots"] is not None and not isinstance(app["screenshots"], list):
             raise RuntimeError(f"app entry has invalid display screenshots: {app.get('key')}")

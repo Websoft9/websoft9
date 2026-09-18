@@ -553,3 +553,76 @@ def test_replace_and_restore_tree_preserves_symbolic_link_target(tmp_path):
 
     assert runtime_media.is_symlink()
     assert (runtime_media / "version.txt").read_text(encoding="utf-8") == "old"
+
+def test_manifest_build_survives_an_app_without_a_display_logo(tmp_path):
+    """A missing logo is cosmetic: the console falls back to its default icon.
+
+    Upstream catalog data carries ``"logo": null`` for a few apps, which must never stop an image
+    build or a runtime sync.
+    """
+    media_json = tmp_path / "media" / "json"
+    media_json.mkdir(parents=True)
+    (media_json / "product_zh.json").write_text(
+        json.dumps([
+            {"key": "wordpress", "title": "WordPress", "logo": {"imageurl": "https://example.test/w.png"}},
+            {"key": "springboot", "title": "SpringBoot", "logo": None},
+        ]),
+        encoding="utf-8",
+    )
+    library_root = tmp_path / "library"
+    _write_wordpress_library(library_root)
+    springboot = library_root / "apps" / "springboot"
+    springboot.mkdir(parents=True)
+    (springboot / ".env").write_text("W9_URL=http://example.test:8081\n", encoding="utf-8")
+    (springboot / "variables.json").write_text(
+        json.dumps({"edition": [{"dist": "community", "version": "1.0"}]}),
+        encoding="utf-8",
+    )
+
+    manifest = runtime_assets.build_app_store_manifest(media_json, library_root / "apps", "zh")
+
+    apps = {app["key"]: app for app in manifest["apps"]}
+    assert "springboot" in apps
+    # The unusable field is dropped instead of failing the build.
+    assert "logo" not in apps["springboot"]
+    assert apps["wordpress"]["logo"]["imageurl"] == "https://example.test/w.png"
+
+
+def test_plain_string_display_logo_is_normalized(tmp_path):
+    """Some catalog entries carry the image URL directly; it is wrapped for the console."""
+    media_json = tmp_path / "media" / "json"
+    media_json.mkdir(parents=True)
+    (media_json / "product_zh.json").write_text(
+        json.dumps([{"key": "wordpress", "title": "WordPress", "logo": "https://example.test/w.png"}]),
+        encoding="utf-8",
+    )
+    library_root = tmp_path / "library"
+    _write_wordpress_library(library_root)
+
+    manifest = runtime_assets.build_app_store_manifest(media_json, library_root / "apps", "zh")
+
+    app = manifest["apps"][0]
+    assert app["logo"] == {"imageurl": "https://example.test/w.png"}
+
+
+def test_unusable_display_logo_is_dropped_without_failing_the_build(tmp_path):
+    """Anything that is neither an object nor a URL is ignored, never fatal."""
+    media_json = tmp_path / "media" / "json"
+    media_json.mkdir(parents=True)
+    (media_json / "product_zh.json").write_text(
+        json.dumps([{"key": "wordpress", "title": "WordPress", "logo": 42}]),
+        encoding="utf-8",
+    )
+    library_root = tmp_path / "library"
+    _write_wordpress_library(library_root)
+
+    manifest = runtime_assets.build_app_store_manifest(media_json, library_root / "apps", "zh")
+
+    assert "logo" not in manifest["apps"][0]
+
+
+def test_manifest_validation_accepts_apps_without_a_logo():
+    """The validator only rejects a logo that is present but unusable."""
+    manifest = {"apps": [{"key": "springboot", "distribution": [], "settings": {}, "is_web_app": False}]}
+
+    runtime_assets.validate_app_store_manifest(manifest, Path("generated.json"))
