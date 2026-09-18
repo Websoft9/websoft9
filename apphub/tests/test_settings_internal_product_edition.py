@@ -306,6 +306,58 @@ def test_upgrade_check_requires_an_authenticated_operator(monkeypatch):
     assert response.status_code == 401
 
 
+def test_upgrade_log_requires_an_authenticated_operator(monkeypatch):
+    """A log names internal paths and image digests, so it is not a public read."""
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _rejecting_auth_service())
+
+    response = client.get("/settings/upgrade/logs", params={"run_id": "run-1"})
+
+    assert response.status_code == 401
+
+
+def test_upgrade_log_returns_the_requested_tail(tmp_path, monkeypatch):
+    from src.services.upgrade_manager import UpgradeManager
+
+    app = create_test_app()
+    client = TestClient(app)
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    log_dir = manager.upgrade_root / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "run-1.log").write_text("first\nsecond\nthird\n", encoding="utf-8")
+    monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
+    monkeypatch.setattr(settings_router, "UpgradeManager", lambda: manager)
+
+    response = client.get(
+        "/settings/upgrade/logs",
+        params={"run_id": "run-1", "tail": 2},
+        cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "file"
+    assert payload["lines"] == ["second", "third"]
+
+
+def test_upgrade_log_rejects_a_run_id_that_is_a_path(tmp_path, monkeypatch):
+    from src.services.upgrade_manager import UpgradeManager
+
+    app = create_test_app()
+    client = TestClient(app)
+    monkeypatch.setattr(settings_router, "ProductAuthService", _authenticated_auth_service())
+    monkeypatch.setattr(settings_router, "UpgradeManager", lambda: UpgradeManager(data_root=str(tmp_path / "data")))
+
+    response = client.get(
+        "/settings/upgrade/logs",
+        params={"run_id": "../../etc/passwd"},
+        cookies={settings_router.PRODUCT_AUTH_COOKIE_NAME: "valid-session"},
+    )
+
+    assert response.status_code == 400
+
+
 def test_upgrade_check_forces_a_fresh_release_lookup(monkeypatch):
     captured = []
 

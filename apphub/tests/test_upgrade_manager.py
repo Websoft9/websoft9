@@ -382,6 +382,7 @@ def test_status_reports_an_interrupted_download_as_a_failure_record(tmp_path):
     assert status["state"] == "idle"
     assert status["detail"] is None
     assert status["last_failure"]["run_id"] == "run-1"
+    assert status["last_failure"]["reason"] == "download_failed"
     assert status["last_failure"]["detail"] == "download_interrupted"
 
 
@@ -426,6 +427,278 @@ def test_applying_falls_back_to_the_deadline_when_docker_is_unavailable(tmp_path
         encoding="utf-8",
     )
     assert manager.status()["state"] == "apply_interrupted"
+
+
+def test_interrupted_upgrade_reports_the_runner_exit_reason(tmp_path, monkeypatch):
+    """A runner that dies before writing a state is explained by its exit code and last line."""
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager._write_state({"run_id": "run-1", "state": "applying", "detail": "runner started"})
+    monkeypatch.setattr(manager, "_runner_is_active", lambda _run_id: False)
+    monkeypatch.setattr(
+        manager,
+        "_runner_failure",
+        lambda _state: {
+            "detail": "upgrade runner: target image is not available locally",
+            "exit_code": 1,
+            "lines": ["upgrade runner: target image is not available locally"],
+        },
+    )
+
+    status = manager.status()
+
+    assert status["state"] == "apply_interrupted"
+    assert status["reason"] == "runner_exit"
+    assert status["exit_code"] == 1
+    assert status["last_failure"]["reason"] == "runner_exit"
+    assert status["last_failure"]["detail"] == "upgrade runner: target image is not available locally"
+    assert status["last_failure"]["exit_code"] == 1
+
+
+@pytest.mark.parametrize(
+    ("state", "reason"),
+    [
+        ("rolled_back", "health_check_timeout"),
+        ("rollback_failed", "rollback_health_check_timeout"),
+        ("degraded", "health_check_degraded"),
+    ],
+)
+def test_terminal_failures_keep_their_state_and_expose_a_failure_record(tmp_path, state, reason):
+    """The console keeps explaining a failed upgrade long after it happened."""
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager._write_state({
+        "run_id": "run-1",
+        "state": state,
+        "target_version": "2.5.0",
+        "detail": "previous deployment restored after health_check_timeout",
+        "reason": reason,
+    })
+
+    status = manager.status()
+
+    # Unlike a failed download, a terminal outcome still describes the platform: keep the state.
+    assert status["state"] == state
+    assert status["last_failure"]["run_id"] == "run-1"
+    assert status["last_failure"]["reason"] == reason
+    assert status["last_failure"]["target_version"] == "2.5.0"
+    assert status["last_failure"]["at"]
+
+
+def test_terminal_failure_without_a_reason_code_falls_back_to_its_state(tmp_path):
+    """State files written by an older runner still produce a usable reason."""
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager._write_state({"run_id": "run-1", "state": "rolled_back", "target_version": "2.5.0"})
+
+    status = manager.status()
+
+    assert status["last_failure"]["reason"] == "rolled_back"
+
+
+def test_read_log_returns_the_tail_of_a_run_log(tmp_path):
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    log_dir = manager.upgrade_root / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "run-1.log").write_text("\n".join(f"line {index}" for index in range(1, 11)), encoding="utf-8")
+
+    payload = manager.read_log("run-1", tail=3)
+
+    assert payload["source"] == "file"
+    assert payload["lines"] == ["line 8", "line 9", "line 10"]
+    assert payload["path"].endswith("logs/run-1.log")
+
+
+def test_read_log_falls_back_to_the_runner_output(tmp_path, monkeypatch):
+    """The runner opens its log late, so an early abort only exists in the container output."""
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    monkeypatch.setattr(
+        manager,
+        "_runner_failure",
+        lambda _state: {"detail": "boom", "exit_code": 1, "lines": ["upgrade runner: staged compose file is missing"]},
+    )
+
+    payload = manager.read_log("run-1")
+
+    assert payload["source"] == "runner"
+    assert payload["lines"] == ["upgrade runner: staged compose file is missing"]
+
+
+def test_read_log_reports_missing_when_nothing_is_left(tmp_path, monkeypatch):
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    monkeypatch.setattr(manager, "_runner_failure", lambda _state: None)
+
+    payload = manager.read_log("run-1")
+
+    assert payload["source"] == "missing"
+    assert payload["lines"] == []
+
+
+def test_read_log_rejects_a_path_like_run_id(tmp_path):
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+
+    with pytest.raises(CustomException, match="run id is not valid"):
+        manager.read_log("../../etc/passwd")
+
+
+def test_read_log_can_look_up_a_specific_run(tmp_path):
+    """Only the requested run's log is returned, whatever else lives in the log directory."""
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    log_dir = manager.upgrade_root / "logs"
+    log_dir.mkdir(parents=True)
+    (log_dir / "run-1.log").write_text("first\nsecond\n", encoding="utf-8")
+    (log_dir / "run-2.log").write_text("other run\n", encoding="utf-8")
+
+    payload = manager.read_log("run-1", tail=50)
+
+    assert payload["lines"] == ["first", "second"]
+
+
+def _stage_release(data_root: Path, install_path: Path, run_id: str) -> Path:
+    staging_dir = data_root / "upgrade" / "staging" / run_id
+    staging_dir.mkdir(parents=True)
+    (staging_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+    (staging_dir / "runner-upgrade.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    (staging_dir / "task.env").write_text(
+        "\n".join([
+            f"RUN_ID={run_id}",
+            f"DATA_ROOT={data_root}",
+            f"STAGING_DIR={staging_dir}",
+            f"INSTALL_PATH={install_path}",
+            f"COMPOSE_FILE={install_path}/docker-compose.yml",
+            "COMPOSE_PROJECT=websoft9",
+            "TARGET_IMAGE_REPO=websoft9dev/websoft9",
+            "TARGET_IMAGE_TAG=2.5.0",
+            f"TARGET_IMAGE_DIGEST=sha256:{'b' * 64}",
+            "TARGET_VERSION=2.5.0",
+            "CONTAINER_NAME=websoft9",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    return staging_dir
+
+
+def test_retry_restarts_the_failed_run_without_downloading(tmp_path, monkeypatch):
+    """A rollback keeps the staged release, so one click is enough to try the same upgrade again."""
+    data_root = tmp_path / "data"
+    install_path = tmp_path / "install"
+    install_path.mkdir()
+    manager = UpgradeManager(data_root=str(data_root))
+    _stage_release(data_root, install_path, "run-1")
+    manager._write_state({"run_id": "run-1", "state": "rolled_back", "target_version": "2.5.0", "reason": "health_check_timeout"})
+    applied = []
+
+    def fake_apply(self):
+        applied.append(self._read_state()["state"])
+        return {"state": "applying", "run_id": "run-1"}
+
+    monkeypatch.setattr(UpgradeManager, "apply", fake_apply)
+
+    result = manager.retry()
+
+    assert result["state"] == "applying"
+    # apply() must see a prepared task, exactly like a fresh upgrade started from the console.
+    assert applied == ["ready"]
+
+
+def test_retry_rejects_a_run_with_nothing_staged(tmp_path):
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager._write_state({"run_id": "run-1", "state": "rolled_back", "target_version": "2.5.0"})
+
+    with pytest.raises(CustomException, match="staged release is no longer available"):
+        manager.retry()
+
+
+def test_retry_rejects_a_failed_download(tmp_path):
+    """Nothing was installed, so the operator has to download the release again first."""
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager._write_state({"run_id": "run-1", "state": "download_failed", "detail": "boom"})
+
+    with pytest.raises(CustomException, match="downloaded again"):
+        manager.retry()
+
+
+def test_retry_rejects_a_run_that_did_not_fail(tmp_path):
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    manager._write_state({"run_id": "run-1", "state": "completed", "target_version": "2.5.0"})
+
+    with pytest.raises(CustomException, match="no failed upgrade to retry"):
+        manager.retry()
+
+
+def test_apply_clears_the_leftover_runner_of_a_failed_attempt(tmp_path, monkeypatch):
+    """A failed run keeps its runner for diagnosis; the retry must not clash with that name."""
+    data_root = tmp_path / "data"
+    install_path = tmp_path / "install"
+    install_path.mkdir()
+    manager = UpgradeManager(data_root=str(data_root))
+    _stage_release(data_root, install_path, "run-1")
+    manager._write_state({"run_id": "run-1", "state": "ready", "target_version": "2.5.0"})
+    removed = []
+
+    class Leftover:
+        status = "exited"
+
+        def remove(self, force=False):
+            removed.append(force)
+
+    class Image:
+        attrs = {"RepoDigests": [f"mirror.example.test/library/docker@{upgrade_manager.RUNNER_IMAGE_DIGEST}"]}
+
+    class Images:
+        def get(self, _image_name):
+            return Image()
+
+    class Containers:
+        def get(self, name):
+            assert name == "websoft9-upgrade-run-1"
+            return Leftover()
+
+        def run(self, **_kwargs):
+            return None
+
+    class DockerClient:
+        images = Images()
+        containers = Containers()
+
+    monkeypatch.setattr(upgrade_manager.docker, "from_env", lambda: DockerClient())
+
+    status = manager.apply()
+
+    assert status["state"] == "applying"
+    assert removed == [True]
+
+
+def test_apply_never_kills_a_running_runner(tmp_path, monkeypatch):
+    data_root = tmp_path / "data"
+    install_path = tmp_path / "install"
+    install_path.mkdir()
+    manager = UpgradeManager(data_root=str(data_root))
+    _stage_release(data_root, install_path, "run-1")
+    manager._write_state({"run_id": "run-1", "state": "ready", "target_version": "2.5.0"})
+
+    class Running:
+        status = "running"
+
+        def remove(self, force=False):
+            pytest.fail("a running runner must never be removed")
+
+    class Image:
+        attrs = {"RepoDigests": [f"mirror.example.test/library/docker@{upgrade_manager.RUNNER_IMAGE_DIGEST}"]}
+
+    class DockerClient:
+        class images:  # noqa: N801 - mirrors the docker SDK surface
+            @staticmethod
+            def get(_image_name):
+                return Image()
+
+        class containers:  # noqa: N801 - mirrors the docker SDK surface
+            @staticmethod
+            def get(_name):
+                return Running()
+
+    monkeypatch.setattr(upgrade_manager.docker, "from_env", lambda: DockerClient())
+
+    with pytest.raises(CustomException, match="runner is still running"):
+        manager.apply()
 
 
 def test_stale_applying_does_not_block_a_new_download(tmp_path, monkeypatch):

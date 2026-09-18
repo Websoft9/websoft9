@@ -54,6 +54,16 @@ def _seconds_since(value: Any) -> float | None:
 # sooner, so beyond this window the persisted "applying" flag can no longer be trusted.
 STALE_APPLY_GRACE_SECONDS = 30 * 60
 
+# A failure is only useful when it says what went wrong and what to do next. The runner records
+# a machine-readable reason next to its human detail; these are the terminal states that carry one.
+FAILURE_STATES = ("rolled_back", "rollback_failed", "degraded")
+# Reason reported when the runner died without writing a terminal state of its own.
+RUNNER_EXIT_REASON = "runner_exit"
+# Runner logs are the fallback when the on-disk log is missing (the runner died before it opened
+# its log), so the console can always show the operator why an upgrade stopped.
+MAX_LOG_LINES = 1000
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
 # A deployment can use any compose file name. The runner has to replay the upgrade with the
 # file the stack was actually created from: regenerating it from a different file would start a
 # second container (name/port clash) while the health check kept watching the original one, so
@@ -150,19 +160,26 @@ class UpgradeManager:
         if state.get("state") == "applying" and self._apply_is_stale(state):
             # The runner vanished without writing a terminal state, so the upgrade was cut off.
             # Report it (and stop blocking retries) instead of pinning the console on
-            # "applying" forever.
-            state = {**state, "state": "apply_interrupted", "detail": "upgrade_interrupted"}
+            # "applying" forever. Its exit code and last log line are the only reason available.
+            runner_failure = self._runner_failure(state)
+            state = {
+                **state,
+                "state": "apply_interrupted",
+                "detail": runner_failure.get("detail") if runner_failure else "upgrade_interrupted",
+                "reason": RUNNER_EXIT_REASON,
+                **({"exit_code": runner_failure["exit_code"]} if runner_failure else {}),
+            }
         # A failed download is a diagnostic, not a lifecycle state: nothing was installed, the
         # platform is idle and the operator can simply retry. Expose the durable record through
         # last_failure so that `state` only answers "what can I do right now".
         last_failure = None
         if state.get("state") == "download_failed":
-            last_failure = {
-                "run_id": state.get("run_id"),
-                "detail": state.get("detail"),
-                "at": state.get("updated_at"),
-            }
+            last_failure = self._failure_payload(state, default_reason="download_failed")
             state = {**state, "state": "idle", "detail": None}
+        elif state.get("state") in FAILURE_STATES or state.get("state") == "apply_interrupted":
+            # Terminal outcomes keep their own state so the console can explain what the platform
+            # looks like now; the failure record is what makes the reason and the log reachable.
+            last_failure = self._failure_payload(state, default_reason=str(state.get("state")))
         current_version = read_release_version() or ""
         return {
             "current_version": current_version,
@@ -171,9 +188,95 @@ class UpgradeManager:
             "state": state.get("state", "idle"),
             "target_version": state.get("target_version"),
             "detail": state.get("detail"),
+            "reason": state.get("reason"),
+            "exit_code": state.get("exit_code"),
             "updated_at": state.get("updated_at"),
             "log_path": state.get("log_path"),
             "last_failure": last_failure,
+        }
+
+    def _failure_payload(self, state: dict[str, Any], *, default_reason: str) -> dict[str, Any]:
+        """Describe the last failed run so the console can show a reason, not just an outcome."""
+        return {
+            "run_id": str(state.get("run_id") or ""),
+            "reason": state.get("reason") or default_reason,
+            "detail": state.get("detail"),
+            "exit_code": state.get("exit_code"),
+            "target_version": state.get("target_version"),
+            "at": state.get("updated_at"),
+            "log_path": state.get("log_path"),
+        }
+
+    def _runner_failure(self, state: dict[str, Any]) -> dict[str, Any] | None:
+        """Read why the runner container stopped: its exit code and last log line.
+
+        A runner that aborts before touching the deployment never writes a state of its own, so
+        the container itself is the only witness left. Returns None when Docker cannot answer,
+        which keeps the caller on its generic "interrupted" wording.
+        """
+        run_id = str(state.get("run_id") or "").strip()
+        if not run_id:
+            return None
+        try:
+            container = docker.from_env().containers.get(self._runner_container_name(run_id))
+            container.reload()
+            exit_code = container.attrs.get("State", {}).get("ExitCode")
+            raw = container.logs(tail=20, stdout=True, stderr=True)
+        except Exception:  # noqa: BLE001 - diagnostics must never break the status endpoint
+            return None
+        text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw or "")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        # The runner mirrors its log to the container output; the last non-empty line is the abort
+        # message ("upgrade runner: ...") or the final progress line of a killed run.
+        detail = lines[-1][:300] if lines else "upgrade_interrupted"
+        return {"detail": detail, "exit_code": exit_code, "lines": lines[-20:]}
+
+    @staticmethod
+    def _runner_container_name(run_id: str) -> str:
+        return f"websoft9-upgrade-{run_id[:12]}"
+
+    @staticmethod
+    def _clear_stale_runner(docker_client, run_id: str) -> None:
+        """Remove the runner container left behind by an earlier attempt of the same run."""
+        name = UpgradeManager._runner_container_name(run_id)
+        try:
+            container = docker_client.containers.get(name)
+        except Exception:  # noqa: BLE001 - not found is the normal case
+            return
+        if getattr(container, "status", "") == "running":
+            # Never kill a live runner: that would leave the platform half upgraded.
+            raise CustomException(409, "Upgrade In Progress", "The previous upgrade runner is still running")
+        try:
+            container.remove(force=True)
+            logger.info(f"Removed the leftover upgrade runner container {name}")
+        except Exception as exc:  # noqa: BLE001 - surface it as a clear runner problem
+            raise CustomException(502, "Upgrade Runner Unavailable", f"Unable to clear the previous upgrade runner: {exc}")
+
+    def read_log(self, run_id: str, *, tail: int = 200) -> dict[str, Any]:
+        """Return the tail of a run's upgrade log, falling back to the runner container output."""
+        run_id = str(run_id or "").strip()
+        if not RUN_ID_PATTERN.match(run_id):
+            raise CustomException(400, "Invalid Upgrade Run", "The upgrade run id is not valid")
+        try:
+            limit = max(1, min(int(tail), MAX_LOG_LINES))
+        except (TypeError, ValueError):
+            limit = 200
+        log_file = self.upgrade_root / "logs" / f"{run_id}.log"
+        lines: list[str] = []
+        try:
+            lines = [line for line in log_file.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+        except OSError:
+            lines = []
+        source = "file"
+        if not lines:
+            runner_failure = self._runner_failure({"run_id": run_id})
+            lines = list(runner_failure.get("lines", [])) if runner_failure else []
+            source = "runner" if lines else "missing"
+        return {
+            "run_id": run_id,
+            "source": source,
+            "path": str(log_file),
+            "lines": lines[-limit:],
         }
 
     def _acquire_lock(self):
@@ -354,9 +457,19 @@ class UpgradeManager:
         try:
             self._prepare_locked(run_id)
         except CustomException as exc:
-            self._write_state({"run_id": run_id, "state": "download_failed", "detail": exc.details})
+            self._write_state({
+                "run_id": run_id,
+                "state": "download_failed",
+                "detail": exc.details,
+                "reason": "download_failed",
+            })
         except Exception as exc:  # surface any failure through the persisted state
-            self._write_state({"run_id": run_id, "state": "download_failed", "detail": str(exc)})
+            self._write_state({
+                "run_id": run_id,
+                "state": "download_failed",
+                "detail": str(exc),
+                "reason": "download_failed",
+            })
         finally:
             self._release_lock(lock)
 
@@ -467,6 +580,36 @@ class UpgradeManager:
             raise CustomException(409, "Upgrade Not Ready", "The prepared task is incomplete")
         return values
 
+    def retry(self) -> dict[str, Any]:
+        """Re-run the last failed upgrade with the release that is already staged.
+
+        A rollback restores the deployment but keeps the staged material, so a retry needs no
+        download: once the cause is fixed (a freed port, a pulled image) the same attempt can be
+        started again with a single click.
+        """
+        state = self._read_state()
+        run_id = str(state.get("run_id") or "").strip()
+        retryable = (*FAILURE_STATES, "apply_interrupted", "download_failed")
+        if state.get("state") not in retryable or not RUN_ID_PATTERN.match(run_id):
+            raise CustomException(409, "Upgrade Not Retryable", "There is no failed upgrade to retry")
+        if state.get("state") == "download_failed":
+            # Nothing was staged, so a retry means downloading again.
+            raise CustomException(409, "Upgrade Not Retryable", "The release has to be downloaded again")
+        staging_dir = self.upgrade_root / "staging" / run_id
+        if not (staging_dir / "docker-compose.yml").is_file() or not (staging_dir / "runner-upgrade.sh").is_file():
+            raise CustomException(409, "Upgrade Not Retryable", "The staged release is no longer available")
+        # Raises when the staged task is missing or tampered with, before any state changes.
+        self._read_task(staging_dir / "task.env")
+        self._write_state({
+            "run_id": run_id,
+            "state": "ready",
+            "target_version": state.get("target_version"),
+            "detail": "Upgrade is prepared",
+            "log_path": str(self.upgrade_root / "logs" / f"{run_id}.log"),
+        })
+        logger.info(f"Upgrade {run_id} retried after {state.get('reason') or 'a failure'}")
+        return self.apply()
+
     def apply(self) -> dict[str, Any]:
         lock = self._acquire_lock()
         try:
@@ -484,10 +627,13 @@ class UpgradeManager:
                 # pull records the digest under the mirror's repository, so the pinned reference
                 # would not resolve on its own even though the content is the pinned one.
                 require_local_image(docker_client, RUNNER_IMAGE_TAG, RUNNER_IMAGE_DIGEST)
+                # A failed run deliberately keeps its runner container for diagnosis. Retrying the
+                # same run id would clash with that leftover, so it is cleared first.
+                self._clear_stale_runner(docker_client, run_id)
                 docker_client.containers.run(
                     image=RUNNER_IMAGE_TAG,
                     command=["sh", f"{task['STAGING_DIR']}/runner-upgrade.sh", str(task_file)],
-                    name=f"websoft9-upgrade-{run_id[:12]}",
+                    name=self._runner_container_name(run_id),
                     volumes={
                         "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
                         task["DATA_ROOT"]: {"bind": task["DATA_ROOT"], "mode": "rw"},

@@ -220,6 +220,30 @@ def get_upgrade_status():
     return _upgrade_status_payload()
 
 
+@router.get(
+    "/settings/upgrade/logs",
+    summary="Read the log of an upgrade run",
+    description=(
+        "Return the tail of the on-disk upgrade log; when the runner died before writing one, "
+        "the runner container output is returned instead"
+    ),
+    responses={
+        200: {"model": dict},
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+    },
+)
+def get_upgrade_log(
+    run_id: str = Query(..., description="Upgrade run id reported by the status endpoint"),
+    tail: int = Query(200, ge=1, le=1000, description="Number of trailing lines to return"),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    # A log can name internal paths and image digests, so it stays behind the operator session.
+    ProductAuthService()._require_authenticated_operator(session_token)
+    return UpgradeManager().read_log(run_id, tail=tail)
+
+
 @router.post(
     "/settings/upgrade/check",
     status_code=200,
@@ -274,6 +298,26 @@ def apply_upgrade(
 ):
     ProductAuthService()._require_authenticated_operator(session_token)
     return UpgradeManager().apply()
+
+
+@router.post(
+    "/settings/upgrade/retry",
+    status_code=202,
+    summary="Retry the last failed in-console upgrade",
+    description="Reuse the staged release of the last failed run and start it again, without downloading",
+    responses={
+        202: {"model": dict},
+        401: {"model": ErrorResponse},
+        403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        502: {"model": ErrorResponse},
+    },
+)
+def retry_upgrade(
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    ProductAuthService()._require_authenticated_operator(session_token)
+    return UpgradeManager().retry()
 
 
 @router.get(
