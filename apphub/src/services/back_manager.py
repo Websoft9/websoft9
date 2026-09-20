@@ -4,6 +4,7 @@ import re
 import subprocess
 import threading
 import time
+import fcntl
 import docker
 import requests
 from typing import Any, Dict, List, Optional
@@ -16,11 +17,10 @@ from src.services.portainer_manager import PortainerManager
 RESTIC_CACHE_PATH = "/data/restic-cache"
 
 # Every restic command runs in its own throwaway container, which costs about a second even for an
-# empty repository. Checking readiness and listing snapshots is therefore cached in-process, with a
-# short TTL so a change made elsewhere (or a rebuilt repository) is picked up quickly.
-REPOSITORY_READY_TTL_SECONDS = 60.0
+# empty repository. Repository readiness is determined from its local config file so listing
+# snapshots does not need to start a separate `cat config` container.
 SNAPSHOT_LIST_TTL_SECONDS = 5.0
-_repository_ready_cache: Dict[str, float] = {}
+_repository_ready_cache: Dict[str, tuple[int, int]] = {}
 _snapshot_list_cache: Dict[str, tuple[float, List[Dict[str, Any]]]] = {}
 _cache_lock = threading.Lock()
 _repository_lock = threading.Lock()
@@ -190,6 +190,16 @@ class BackupManager:
 
         raise CustomException(500, f"Failed to pull {self.restic_image}", "Image Pull Error")
 
+    def bootstrap_repository(self) -> None:
+        """Prepare the image and empty repository during platform startup.
+
+        Repository initialization starts a short-lived restic container through
+        the Docker SDK, which also validates the image runtime without requiring
+        a Docker CLI inside the platform container.
+        """
+        self._ensure_restic_image()
+        self._ensure_repository()
+
     def _run_restic_container(self, command: List[str], extra_volumes: Dict[str, Dict[str, str]]) -> str:
         self._ensure_restic_image()
 
@@ -273,28 +283,42 @@ class BackupManager:
     # ------------------------------------------------------------------
     #  Repository management
     # ------------------------------------------------------------------
-    def _check_repository(self) -> bool:
+    def _repository_marker(self) -> tuple[int, int] | None:
+        """Return a cheap local marker for an initialized restic repository."""
         try:
-            cfg = json.loads(self._run_restic_repo_command(["cat", "config"]))
-            return bool(cfg.get("id") and cfg.get("version"))
-        except CustomException:
-            return False
-        except (json.JSONDecodeError, KeyError):
-            return False
+            stat = os.stat(os.path.join(self.repository_path, "config"))
+            return stat.st_mtime_ns, stat.st_size
+        except OSError:
+            return None
 
     def _ensure_repository(self) -> None:
-        """Make sure the repository exists, reusing the cached readiness for a short while."""
+        """Make sure the repository exists without starting a check-only restic container."""
         key = str(self.repository_path)
-        with _repository_lock:
-            with _cache_lock:
-                checked_at = _repository_ready_cache.get(key)
-            if checked_at is not None and (time.monotonic() - checked_at) < REPOSITORY_READY_TTL_SECONDS:
-                return
-            if not self._check_repository():
-                logger.info("Repository not initialized, re-initializing...")
-                self._init_repository()
-            with _cache_lock:
-                _repository_ready_cache[key] = time.monotonic()
+        repository_parent = os.path.dirname(self.repository_path)
+        os.makedirs(repository_parent, exist_ok=True)
+        lock_path = os.path.join(repository_parent, ".restic-repository-init.lock")
+
+        # The startup bootstrap and API workers are separate processes. A lock
+        # beside the repository makes their first initialization mutually exclusive.
+        with open(lock_path, "a", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                with _repository_lock:
+                    marker = self._repository_marker()
+                    with _cache_lock:
+                        cached_marker = _repository_ready_cache.get(key)
+                    if marker is not None and marker == cached_marker:
+                        return
+                    if marker is None:
+                        logger.info("Repository not initialized, initializing...")
+                        self._init_repository()
+                        marker = self._repository_marker()
+                        if marker is None:
+                            raise CustomException(500, "Restic repository initialization did not create config", "Repository Error")
+                    with _cache_lock:
+                        _repository_ready_cache[key] = marker
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def _init_repository(self):
         try:

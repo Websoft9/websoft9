@@ -501,21 +501,17 @@ prepull_volume_backup_image() {
     0|false|no|off) return 0 ;;
   esac
 
-  if docker image inspect "$image" >/dev/null 2>&1; then
-    return 0
-  fi
-
-  log_event "info" "backup.image.prepull" "Pre-pulling the volume backup image in the background: $image"
+  log_event "info" "backup.repository.bootstrap" "Preparing the volume backup image and repository in the background: $image"
   (
     if python3 -c "
 import sys
 sys.path.insert(0, '/websoft9/apphub')
 from src.services.back_manager import BackupManager
-BackupManager()._ensure_restic_image()
+BackupManager().bootstrap_repository()
 " >/dev/null 2>&1; then
-      log_event "info" "backup.image.ready" "Volume backup image is ready: $image"
+      log_event "info" "backup.repository.ready" "Volume backup image is ready and repository initialized: $image"
     else
-      log_event "warning" "backup.image.prepull-failed" "Could not pre-pull $image; it will be pulled on first use"
+      log_event "warning" "backup.repository.bootstrap-failed" "Could not prepare $image or initialize its repository; it will be initialized on first use"
     fi
   ) &
 }

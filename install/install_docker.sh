@@ -363,11 +363,28 @@ _build_repo_list() {
 
   # Quick probe (2s) — if docker.com responds, prefer it first (faster overseas)
   if _url_reachable "$docker_com" 2; then
-    log_info "Docker official repo is reachable, preferring it"
+    log_info "Docker official repo is reachable, preferring it" >&2
     printf '%s\n' "$docker_com" "$aliyun" "$azure_cn"
   else
-    log_info "Docker official repo is slow/unreachable, using mirrors first"
+    log_info "Docker official repo is slow/unreachable, using mirrors first" >&2
     printf '%s\n' "$aliyun" "$azure_cn" "$docker_com"
+  fi
+}
+
+# get-docker.sh runs apt-get update before it writes its selected Docker repo.
+# Remove a failed prior candidate so its repository cannot block the next one.
+_clear_failed_docker_apt_repos() {
+  local sources_dir="${W9_APT_SOURCES_LIST_DIR:-/etc/apt/sources.list.d}"
+  local source_file cleared="0"
+  for source_file in "$sources_dir/docker.list" "$sources_dir/docker.sources"; do
+    if [ -f "$source_file" ] && grep -Eq '([./]docker\.com|docker-ce/linux)' "$source_file"; then
+      rm -f "$source_file"
+      cleared="1"
+    fi
+  done
+
+  if [ "$cleared" = "1" ]; then
+    log_info "Removed a previous Docker APT repository before retrying"
   fi
 }
 
@@ -528,6 +545,7 @@ install_docker_official() {
   fi
 
   for mirror in "${mirrors[@]}"; do
+    _clear_failed_docker_apt_repos
     local cmd="sh get-docker.sh${mirror:+ $mirror}"
     log_step "Running: $cmd  (up to ${install_timeout}s)"
 

@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import threading
 import types
@@ -80,7 +81,19 @@ def _build_manager():
     return manager
 
 
-def test_restore_uses_up_stack_after_restore(monkeypatch):
+def test_bootstrap_repository_ensures_image_before_repository(monkeypatch):
+    manager = _build_manager()
+    steps = []
+
+    monkeypatch.setattr(manager, '_ensure_restic_image', lambda: steps.append('image'))
+    monkeypatch.setattr(manager, '_ensure_repository', lambda: steps.append('repository'))
+
+    manager.bootstrap_repository()
+
+    assert steps == ['image', 'repository']
+
+
+def test_restore_starts_containers_after_restore(monkeypatch):
     manager = _build_manager()
     portainer = FakePortainer(
         stack_status=1,
@@ -89,7 +102,7 @@ def test_restore_uses_up_stack_after_restore(monkeypatch):
         ]],
     )
 
-    monkeypatch.setattr(manager, '_check_repository', lambda: True)
+    monkeypatch.setattr(manager, '_ensure_repository', lambda: None)
     monkeypatch.setattr(manager, 'list_snapshots', lambda app_id, use_cache=True: [{"id": "snap-1", "short_id": "snap-1"}])
     monkeypatch.setattr(manager, '_run_restic_container', lambda command, extra_volumes: '{"message_type":"summary"}')
     monkeypatch.setattr(back_manager_module, 'AppManger', lambda: types.SimpleNamespace(
@@ -104,8 +117,8 @@ def test_restore_uses_up_stack_after_restore(monkeypatch):
     manager.restore_backup('wordpress_demo', 'snap-1')
 
     assert portainer.stop_calls == [('wordpress_demo', 1)]
-    assert portainer.up_calls == [(9, 1)]
-    assert portainer.start_calls == []
+    assert portainer.up_calls == []
+    assert portainer.start_calls == [('wordpress_demo', 1)]
 
 
 def test_restore_validation_rejects_only_exited_runtime_containers(monkeypatch):
@@ -162,14 +175,15 @@ def test_build_restic_volume_mounts_resolves_host_mountpoints(monkeypatch):
     }
 
 
-def test_repo_operations_use_restic_container_runner(monkeypatch):
+def test_repo_operations_use_restic_container_runner(monkeypatch, tmp_path):
     manager = _build_manager()
+    manager.repository_path = str(tmp_path / "repo")
+    os.makedirs(manager.repository_path)
+    (tmp_path / "repo" / "config").write_text("{}")
     commands = []
 
     def fake_run_restic_container(command, extra_volumes):
         commands.append((command, extra_volumes))
-        if command == ['cat', 'config']:
-            return '{"id":"repo-id","version":2}'
         if command == ['snapshots', '--tag', 'wordpress_demo']:
             return '[{"id":"snap-1","short_id":"snap-1"}]'
         if command == ['forget', 'snap-1']:
@@ -180,30 +194,27 @@ def test_repo_operations_use_restic_container_runner(monkeypatch):
     back_manager_module._repository_ready_cache.clear()
     back_manager_module._snapshot_list_cache.clear()
 
-    assert manager._check_repository() is True
     snapshots = manager.list_snapshots('wordpress_demo')
     manager.delete_snapshot('snap-1')
 
     assert snapshots == [{"id": "snap-1", "short_id": "snap-1"}]
-    # The readiness check is cached, so the delete does not repeat `cat config`.
     assert commands == [
-        (['cat', 'config'], {}),
-        (['cat', 'config'], {}),
         (['snapshots', '--tag', 'wordpress_demo'], {}),
         (['forget', 'snap-1'], {}),
     ]
 
 
-def test_snapshot_list_is_served_from_cache_until_refreshed(monkeypatch):
+def test_snapshot_list_is_served_from_cache_until_refreshed(monkeypatch, tmp_path):
     """Listing starts a restic container, so repeated reads reuse a short-lived cache."""
     manager = _build_manager()
+    manager.repository_path = str(tmp_path / "repo")
+    os.makedirs(manager.repository_path)
+    (tmp_path / "repo" / "config").write_text("{}")
     commands = []
     snapshots = [{"id": "snap-1", "short_id": "snap-1"}]
 
     def fake_run_restic_container(command, extra_volumes):
         commands.append(command)
-        if command == ['cat', 'config']:
-            return '{"id":"repo-id","version":2}'
         if command[:1] == ['snapshots']:
             return json.dumps(snapshots)
         if command[:1] == ['forget']:
@@ -232,14 +243,17 @@ def test_snapshot_list_is_served_from_cache_until_refreshed(monkeypatch):
     assert len(commands) > before_read
 
 
-def test_repository_readiness_is_cached(monkeypatch):
-    """Repeated requests must not each pay for a restic container just to check the repository."""
+def test_repository_readiness_is_cached_from_local_config(monkeypatch, tmp_path):
+    """Repeated readiness checks use the repository config marker, not a restic container."""
     manager = _build_manager()
-    checks = []
+    manager.repository_path = str(tmp_path / "repo")
+    os.makedirs(manager.repository_path)
+    (tmp_path / "repo" / "config").write_text("{}")
+    commands = []
 
     def fake_run_restic_container(command, extra_volumes):
-        checks.append(command)
-        return '{"id":"repo-id","version":2}'
+        commands.append(command)
+        raise AssertionError("existing repository should not run a readiness command")
 
     monkeypatch.setattr(manager, '_run_restic_container', fake_run_restic_container)
     back_manager_module._repository_ready_cache.clear()
@@ -248,21 +262,22 @@ def test_repository_readiness_is_cached(monkeypatch):
     manager._ensure_repository()
     manager._ensure_repository()
 
-    assert checks == [['cat', 'config']]
+    assert commands == []
 
 
-def test_concurrent_repository_initialization_runs_once(monkeypatch):
+def test_concurrent_repository_initialization_runs_once(monkeypatch, tmp_path):
     manager = _build_manager()
+    manager.repository_path = str(tmp_path / "repo")
     initialization_started = threading.Event()
     release_initialization = threading.Event()
     initialized = []
-
-    monkeypatch.setattr(manager, '_check_repository', lambda: False)
 
     def fake_init_repository():
         initialized.append(True)
         initialization_started.set()
         assert release_initialization.wait(timeout=1)
+        os.makedirs(manager.repository_path)
+        (tmp_path / "repo" / "config").write_text("{}")
 
     monkeypatch.setattr(manager, '_init_repository', fake_init_repository)
     back_manager_module._repository_ready_cache.clear()
@@ -277,6 +292,25 @@ def test_concurrent_repository_initialization_runs_once(monkeypatch):
     second.join(timeout=1)
 
     assert initialized == [True]
+
+
+def test_repository_initialization_uses_a_parent_directory_lock(monkeypatch, tmp_path):
+    manager = _build_manager()
+    manager.repository_path = str(tmp_path / "repo")
+    initialized = []
+
+    def fake_init_repository():
+        initialized.append(True)
+        os.makedirs(manager.repository_path)
+        (tmp_path / "repo" / "config").write_text("{}")
+
+    monkeypatch.setattr(manager, '_init_repository', fake_init_repository)
+    back_manager_module._repository_ready_cache.clear()
+
+    manager._ensure_repository()
+
+    assert initialized == [True]
+    assert (tmp_path / ".restic-repository-init.lock").is_file()
 
 
 def test_snapshot_list_does_not_recache_results_invalidated_while_loading(monkeypatch):
