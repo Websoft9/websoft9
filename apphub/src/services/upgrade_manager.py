@@ -57,6 +57,7 @@ STALE_APPLY_GRACE_SECONDS = 30 * 60
 # A failure is only useful when it says what went wrong and what to do next. The runner records
 # a machine-readable reason next to its human detail; these are the terminal states that carry one.
 FAILURE_STATES = ("rolled_back", "rollback_failed", "degraded")
+UPGRADE_PHASES = ("prepare", "replace", "verify")
 # Reason reported when the runner died without writing a terminal state of its own.
 RUNNER_EXIT_REASON = "runner_exit"
 # Runner logs are the fallback when the on-disk log is missing (the runner died before it opened
@@ -181,11 +182,15 @@ class UpgradeManager:
             # looks like now; the failure record is what makes the reason and the log reachable.
             last_failure = self._failure_payload(state, default_reason=str(state.get("state")))
         current_version = read_release_version() or ""
+        phase = state.get("phase")
+        if phase not in UPGRADE_PHASES:
+            phase = None
         return {
             "current_version": current_version,
             "channel": read_release_channel(),
             "run_id": state.get("run_id"),
             "state": state.get("state", "idle"),
+            "phase": phase,
             "target_version": state.get("target_version"),
             "detail": state.get("detail"),
             "reason": state.get("reason"),

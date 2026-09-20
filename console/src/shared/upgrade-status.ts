@@ -11,6 +11,8 @@ export type UpgradeFailure = {
     log_path?: string | null
 }
 
+export type UpgradePhase = 'prepare' | 'replace' | 'verify'
+
 export type UpgradeStatus = {
     current_version: string
     latest_version: string
@@ -18,6 +20,7 @@ export type UpgradeStatus = {
     upgrade_available: boolean
     run_id?: string | null
     state?: string
+    phase?: UpgradePhase | null
     target_version?: string | null
     detail?: string | null
     /** Cause recorded by the upgrade runner for a terminal failure. */

@@ -28,6 +28,19 @@ def test_checksums_reject_duplicate_artifact_name():
         UpgradeManager._checksums(f"{digest} runner-upgrade.sh\n{digest} runner-upgrade.sh\n")
 
 
+def test_status_exposes_only_known_upgrade_phases(tmp_path, monkeypatch):
+    manager = UpgradeManager(data_root=str(tmp_path / "data"))
+    monkeypatch.setattr(upgrade_manager, "read_release_version", lambda: "2.4.2")
+    monkeypatch.setattr(upgrade_manager, "read_release_channel", lambda: "dev")
+    monkeypatch.setattr(manager, "_apply_is_stale", lambda _state: False)
+
+    manager._write_state({"run_id": "run-1", "state": "applying", "phase": "verify"})
+    assert manager.status()["phase"] == "verify"
+
+    manager._write_state({"run_id": "run-1", "state": "applying", "phase": "unexpected"})
+    assert manager.status()["phase"] is None
+
+
 def test_auto_download_defaults_to_on(monkeypatch):
     class MissingSection:
         def get_value(self, section, key):

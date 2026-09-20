@@ -88,11 +88,18 @@ write_state() {
   state=$1
   detail=$2
   reason=${3:-}
+  phase=${4:-}
   timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   temporary_file="${STATE_FILE}.tmp"
-  if [ -n "$reason" ]; then
+  if [ -n "$reason" ] && [ -n "$phase" ]; then
+    printf '{"run_id":"%s","state":"%s","target_version":"%s","detail":"%s","reason":"%s","phase":"%s","updated_at":"%s"}\n' \
+      "$RUN_ID" "$state" "${TARGET_VERSION:-}" "$detail" "$reason" "$phase" "$timestamp" > "$temporary_file"
+  elif [ -n "$reason" ]; then
     printf '{"run_id":"%s","state":"%s","target_version":"%s","detail":"%s","reason":"%s","updated_at":"%s"}\n' \
       "$RUN_ID" "$state" "${TARGET_VERSION:-}" "$detail" "$reason" "$timestamp" > "$temporary_file"
+  elif [ -n "$phase" ]; then
+    printf '{"run_id":"%s","state":"%s","target_version":"%s","detail":"%s","phase":"%s","updated_at":"%s"}\n' \
+      "$RUN_ID" "$state" "${TARGET_VERSION:-}" "$detail" "$phase" "$timestamp" > "$temporary_file"
   else
     printf '{"run_id":"%s","state":"%s","target_version":"%s","detail":"%s","updated_at":"%s"}\n' \
       "$RUN_ID" "$state" "${TARGET_VERSION:-}" "$detail" "$timestamp" > "$temporary_file"
@@ -254,7 +261,7 @@ main() {
   if [ -s "$LOG_FILE" ]; then
     printf '===== attempt at %s =====\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$LOG_FILE"
   fi
-  write_state applying "runner started"
+  write_state applying "preparing upgrade environment" "" prepare
   log_step "upgrade started $(date -u +%Y-%m-%dT%H:%M:%SZ): run_id=$RUN_ID target=$TARGET_VERSION image=${TARGET_IMAGE_REPO}:${TARGET_IMAGE_TAG}"
   log_info "install path: $INSTALL_PATH"
   log_info "compose project: $COMPOSE_PROJECT file: $COMPOSE_FILE"
@@ -287,6 +294,7 @@ main() {
   ensure_env_default CONTAINER_NAME "$CONTAINER_NAME"
   log_info ".env updated: IMAGE_REPO=$TARGET_IMAGE_REPO IMAGE_TAG=$TARGET_IMAGE_TAG"
 
+  write_state applying "recreating the platform container" "" replace
   log_step "recreating the platform container with $TARGET_VERSION"
   if ! run_compose_logged up -d --force-recreate; then
     restore_and_restart container_recreate_failed
@@ -298,13 +306,14 @@ main() {
   fi
   log_info "container is healthy after $(elapsed_seconds "$RUN_STARTED_AT")s"
 
+  write_state applying "validating platform health" "" verify
   log_step "running the platform health check"
   strict_output=$(docker exec "$CONTAINER_NAME" /websoft9/script/platform-healthcheck.sh --strict 2>&1) || strict_status=$?
   strict_status=${strict_status:-0}
   log_info "health check output: $strict_output"
   case "$strict_output" in
     *"status=ready"*)
-      write_state completed "upgraded to $TARGET_VERSION"
+      write_state completed "upgraded to $TARGET_VERSION" "" verify
       log_step "upgrade completed in $(elapsed_seconds "$RUN_STARTED_AT")s"
       prune_old_backups
       ;;

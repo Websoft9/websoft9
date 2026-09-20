@@ -44,6 +44,7 @@ import './settings-page.css'
 
 // Lines requested from the upgrade log endpoint; reaching this count means the tail was cut off.
 const UPGRADE_LOG_TAIL = 200
+const COMPLETION_VERIFY_DELAY_MS = 1_000
 
 // The ticket / support desk is the same destination the shell footer links to.
 function UPGRADE_SUPPORT_URL(isChinese: boolean): string {
@@ -319,6 +320,9 @@ export function SettingsPage() {
     // One-shot reload after a completed upgrade; kept in a ref so the status effect above can
     // re-run without cancelling it.
     const upgradeReloadTimerRef = useRef<number | null>(null)
+    const completionVerifyTimerRef = useRef<number | null>(null)
+    const sawVerificationPhaseRef = useRef(false)
+    const completionScheduledRef = useRef(false)
     // The overlay cannot read progress from the backend while the platform container is being
     // replaced, so it falls back to a phase timeline driven by elapsed time.
     const [applyStartedAt, setApplyStartedAt] = useState<number | null>(null)
@@ -374,11 +378,22 @@ export function SettingsPage() {
         const isActiveRun = activeApplyRunId === 'pending' || upgradeStatus?.run_id === activeApplyRunId
         if (isActiveRun && upgradeStatus?.state && terminalStates.has(upgradeStatus.state)) {
             if (upgradeStatus.state === 'completed') {
+                if (completionScheduledRef.current) {
+                    return
+                }
+                completionScheduledRef.current = true
                 // Report the version we actually installed: the channel may already have moved on.
                 const installedVersion = String(upgradeStatus.target_version || upgradeStatus.latest_version || '')
                 rememberCompletedUpgrade(installedVersion)
-                setApplyFinishing(true)
-                upgradeReloadTimerRef.current = window.setTimeout(() => window.location.replace('/'), 3_000)
+                const finishUpgrade = () => {
+                    setApplyFinishing(true)
+                    upgradeReloadTimerRef.current = window.setTimeout(() => window.location.replace('/'), 3_000)
+                }
+                if (!sawVerificationPhaseRef.current) {
+                    completionVerifyTimerRef.current = window.setTimeout(finishUpgrade, COMPLETION_VERIFY_DELAY_MS)
+                } else {
+                    finishUpgrade()
+                }
                 return
             }
             setActiveApplyRunId(null)
@@ -391,6 +406,9 @@ export function SettingsPage() {
     const [upgradeDialogScopeRect, setUpgradeDialogScopeRect] = useState<ContentScopeRect | null>(null)
 
     useEffect(() => () => {
+        if (completionVerifyTimerRef.current !== null) {
+            window.clearTimeout(completionVerifyTimerRef.current)
+        }
         if (upgradeReloadTimerRef.current !== null) {
             window.clearTimeout(upgradeReloadTimerRef.current)
         }
@@ -404,6 +422,8 @@ export function SettingsPage() {
         setApplyFinishing(false)
         setApplyStartedAt(Date.now())
         setApplyElapsedSeconds(0)
+        sawVerificationPhaseRef.current = false
+        completionScheduledRef.current = false
         setActiveApplyRunId(upgradeStatus.run_id ?? 'pending')
         setUpgradeInProgress(true)
         void applyUpgrade()
@@ -434,6 +454,9 @@ export function SettingsPage() {
      */
     useEffect(() => {
         if (upgradeStatus?.state === 'applying') {
+            if (upgradeStatus.phase === 'verify') {
+                sawVerificationPhaseRef.current = true
+            }
             setUpgradeInProgress(true)
             setApplyStartedAt((current) => current ?? Date.now())
             return
@@ -443,10 +466,16 @@ export function SettingsPage() {
         }
     }, [upgradeStatus?.state, activeApplyRunId])
 
-    // Rough phases, in the order the runner actually works: it backs up the current deployment and
-    // writes the new configuration first (fast), then recreates the container (the bulk of the
-    // wait), and finally checks service health.
-    const applyPhaseIndex = applyElapsedSeconds < 8 ? 0 : applyElapsedSeconds < 75 ? 1 : 2
+    const reportedApplyPhaseIndex = upgradeStatus?.phase === 'prepare'
+        ? 0
+        : upgradeStatus?.phase === 'replace'
+            ? 1
+            : upgradeStatus?.phase === 'verify'
+                ? 2
+                : null
+    // Older release artifacts do not report a phase. Keep their conservative time-based display
+    // until every supported Runner writes an explicit stage.
+    const applyPhaseIndex = reportedApplyPhaseIndex ?? (applyElapsedSeconds < 8 ? 0 : applyElapsedSeconds < 75 ? 1 : 2)
     const applyPhaseKeys = ['settingsPage.upgrade.phases.prepare', 'settingsPage.upgrade.phases.replace', 'settingsPage.upgrade.phases.verify']
 
     // Keep the manual-upgrade dialog inside the workspace area so it never covers the
@@ -1844,6 +1873,8 @@ export function SettingsPage() {
                 setApplyFinishing(false)
                 setApplyStartedAt(Date.now())
                 setApplyElapsedSeconds(0)
+                sawVerificationPhaseRef.current = false
+                completionScheduledRef.current = false
                 setActiveApplyRunId(started.run_id ?? 'pending')
                 // From here the platform container will be recreated (and possibly rolled back),
                 // so the console owns the screen until the run reaches a terminal state.
@@ -1877,6 +1908,8 @@ export function SettingsPage() {
                 setApplyFinishing(false)
                 setApplyStartedAt(Date.now())
                 setApplyElapsedSeconds(0)
+                sawVerificationPhaseRef.current = false
+                completionScheduledRef.current = false
                 setActiveApplyRunId(started.run_id ?? 'pending')
                 setUpgradeInProgress(true)
                 // A refresh can fail while the platform restarts; the run itself is unaffected.
