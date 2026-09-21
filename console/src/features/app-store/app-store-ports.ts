@@ -24,7 +24,7 @@ export function isPortSettingKey(key: string, options: PortSettingKeyOptions = {
     return !(Boolean(options.externalDatabase) && normalizedKey === 'W9_DB_PORT_SET')
 }
 
-export async function fetchPortSuggestions(keys: string[]): Promise<PortSuggestion[]> {
+export async function fetchPortSuggestions(keys: string[], signal?: AbortSignal): Promise<PortSuggestion[]> {
     const response = await fetch('/api/ports/suggest', {
         method: 'POST',
         credentials: 'include',
@@ -33,6 +33,7 @@ export async function fetchPortSuggestions(keys: string[]): Promise<PortSuggesti
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ports: keys.map((key) => ({ key })) }),
+        signal,
     })
 
     if (!response.ok) {

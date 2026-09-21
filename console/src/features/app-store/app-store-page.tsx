@@ -242,6 +242,12 @@ type ComposeMountRow = {
     content: string
 }
 
+// Port fields stay blank until the platform suggests ports. Waiting is usually instant, so the
+// spinner is delayed to avoid flicker, and the request is bounded so a stalled network still falls
+// back to the template values instead of leaving the fields empty forever.
+const PORT_SUGGESTION_TIMEOUT_MS = 8_000
+const PORT_SUGGESTION_SPINNER_DELAY_MS = 250
+
 const DEFAULT_COMPOSE_TEMPLATE = `services:
   nginx:
     image: nginx:latest
@@ -603,6 +609,21 @@ function getWebsiteUrl(app: AppStoreApp) {
     return app.websiteurl?.trim() || null
 }
 
+// App update times come from the published library index; older datasets omit the field entirely.
+function formatAppStoreUpdatedAt(value: string | undefined, locale: string) {
+    const rawValue = (value ?? '').trim()
+    if (!rawValue) {
+        return ''
+    }
+
+    const parsed = new Date(rawValue)
+    if (Number.isNaN(parsed.getTime())) {
+        return ''
+    }
+
+    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(parsed)
+}
+
 const knownInstallSettingLabelKeys: Record<string, string> = {
     W9_HTTP_PORT_SET: 'appStorePage.install.httpPortLabel',
     W9_HTTPS_PORT_SET: 'appStorePage.install.httpsPortLabel',
@@ -846,6 +867,8 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installSettings, setInstallSettings] = useState<Record<string, string>>({})
     const [portCheckStates, setPortCheckStates] = useState<Record<string, PortCheckStatus>>({})
     const [portRangeExhausted, setPortRangeExhausted] = useState(false)
+    const [showPortSuggestionSpinner, setShowPortSuggestionSpinner] = useState(false)
+    const [isPortSuggestionPending, setIsPortSuggestionPending] = useState(false)
     const [selectedInstallProfile, setSelectedInstallProfile] = useState<string | null>(null)
     const [profileInstallSettings, setProfileInstallSettings] = useState<Record<string, Record<string, string>>>({})
     const [isTestingDatabase, setIsTestingDatabase] = useState(false)
@@ -886,6 +909,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const composeMountFileInputRef = useRef<HTMLInputElement | null>(null)
     const installSettingInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
     const portSuggestionCacheRef = useRef<Record<string, PortSuggestion[]>>({})
+    const portSuggestionSpinnerTimerRef = useRef<number | null>(null)
     const lastInstallSeverityRef = useRef<'error' | 'success'>('error')
     const lastRefreshSeverityRef = useRef<'success' | 'error'>('success')
     const lastInstallMessageRef = useRef('')
@@ -1368,10 +1392,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         setInstallFieldErrors({})
         setPortCheckStates({})
         setPortRangeExhausted(false)
+        setShowPortSuggestionSpinner(false)
+        setIsPortSuggestionPending(false)
         setCustomDomains([])
         setCustomDomainErrorIndex(null)
 
         let suggestionActive = true
+        let suggestionController: AbortController | null = null
 
         if (portKeys.length > 0) {
             const appKey = selectedApp.key ?? ''
@@ -1418,18 +1445,39 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             if (cachedSuggestions) {
                 applySuggestions(cachedSuggestions)
             } else {
-                void fetchPortSuggestions(portKeys)
+                // Port fields stay blank until suggestions arrive: wait for the response, show the
+                // spinner only when it is slow, and fall back to template values if it stalls.
+                const controller = new AbortController()
+                suggestionController = controller
+                setIsPortSuggestionPending(true)
+                const timeoutTimer = window.setTimeout(() => controller.abort(), PORT_SUGGESTION_TIMEOUT_MS)
+                portSuggestionSpinnerTimerRef.current = window.setTimeout(() => {
+                    if (suggestionActive) {
+                        setShowPortSuggestionSpinner(true)
+                    }
+                }, PORT_SUGGESTION_SPINNER_DELAY_MS)
+                const clearSuggestionTimers = () => {
+                    window.clearTimeout(timeoutTimer)
+                    clearPortSuggestionSpinnerTimer()
+                }
+                void fetchPortSuggestions(portKeys, controller.signal)
                     .then((suggestions) => {
+                        clearSuggestionTimers()
                         if (!suggestionActive) {
                             return
                         }
+                        setShowPortSuggestionSpinner(false)
+                        setIsPortSuggestionPending(false)
                         portSuggestionCacheRef.current[appKey] = suggestions
                         applySuggestions(suggestions)
                     })
                     .catch(() => {
+                        clearSuggestionTimers()
                         if (!suggestionActive) {
                             return
                         }
+                        setShowPortSuggestionSpinner(false)
+                        setIsPortSuggestionPending(false)
                         fillEmptyPorts(templatePortSuggestions)
                         setPortRangeExhausted(false)
                     })
@@ -1438,8 +1486,19 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
         return () => {
             suggestionActive = false
+            suggestionController?.abort()
+            clearPortSuggestionSpinnerTimer()
+            setShowPortSuggestionSpinner(false)
+            setIsPortSuggestionPending(false)
         }
     }, [isInstallMode, selectedApp])
+
+    function clearPortSuggestionSpinnerTimer() {
+        if (portSuggestionSpinnerTimerRef.current !== null) {
+            window.clearTimeout(portSuggestionSpinnerTimerRef.current)
+            portSuggestionSpinnerTimerRef.current = null
+        }
+    }
 
     // Keep the domain default in sync without re-seeding the install form after user edits.
     useEffect(() => {
@@ -1498,13 +1557,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
     function renderPortCheckAdornment(key: string, value: string) {
         const status = portCheckStates[key]
+        if (showPortSuggestionSpinner) {
+            return (
+                <InputAdornment position="end">
+                    <CircularProgress aria-label={t('appStorePage.install.portCheck.checking')} size={14} />
+                </InputAdornment>
+            )
+        }
         return (
             <InputAdornment position="end">
                 <Tooltip title={getPortCheckTooltip(status, value)}>
                     <span>
                         <IconButton
                             aria-label={t('appStorePage.install.portCheck.check')}
-                            disabled={status === 'checking'}
+                            disabled={status === 'checking' || isPortSuggestionPending}
                             edge="end"
                             onClick={() => void handlePortCheck(key, value)}
                             size="small"
@@ -3319,6 +3385,11 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 storage: formatRequirement(selectedApp.storage),
                                             })}
                                         </Typography>
+                                        {formatAppStoreUpdatedAt(selectedApp.updatedAt, resolvedLocale) ? (
+                                            <Typography sx={{ mt: 0.15, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>
+                                                {t('appStorePage.detail.updatedAtLine', { time: formatAppStoreUpdatedAt(selectedApp.updatedAt, resolvedLocale) })}
+                                            </Typography>
+                                        ) : null}
                                         {selectedAppCategoryItems.length > 0 ? <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mt: 0.15, color: 'primary.main', fontSize: 14 }}>
                                             <Typography component="span" sx={{ color: palette.subtleText, fontSize: 14, fontWeight: 400 }}>
                                                 {t('appStorePage.detail.categoriesLabel')}
@@ -3662,11 +3733,16 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         {sharedInstallSettings.map(([key, value]) => (
                                             <Box key={key}>
                                                 {(() => {
+                                                    const isPortField = isPortSettingKey(key, { externalDatabase: isExternalDatabaseProfile })
+                                                    // Port fields stay disabled while the platform assigns their ports, so a
+                                                    // manual value can never race the suggestion response.
+                                                    const isPortAllocationPending = isPortField && isPortSuggestionPending
 
                                                     return (
                                                         <>
                                                             <Typography sx={{ mb: 0.75, fontSize: 14, fontWeight: 400, color: palette.subtleText }}>{getInstallSettingLabel(key, t)}</Typography>
                                                             <TextField
+                                                                disabled={isPortAllocationPending}
                                                                 error={Boolean(installFieldErrors.settings?.[key])}
                                                                 fullWidth
                                                                 inputRef={(element) => {
@@ -3697,8 +3773,9 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                                         }))
                                                                     }
                                                                 }}
+                                                                placeholder={isPortAllocationPending ? t('appStorePage.install.portAllocating') : undefined}
                                                                 slotProps={{
-                                                                    input: isPortSettingKey(key, { externalDatabase: isExternalDatabaseProfile }) ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
+                                                                    input: isPortField ? { endAdornment: renderPortCheckAdornment(key, value) } : undefined,
                                                                     htmlInput: key.toLowerCase().includes('port')
                                                                         ? {
                                                                             inputMode: 'numeric',

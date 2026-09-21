@@ -792,6 +792,7 @@ const rawShellResources = {
                 detail: {
                     versionLine: 'Version: {{version}}',
                     requirementLine: 'Minimum requirements: {{cpu}} vCPU, {{memory}} GB memory, {{storage}} GB storage',
+                    updatedAtLine: 'Updated: {{time}}',
                     categoriesLabel: 'Categories:',
                     overviewTitle: 'Overview',
                     descriptionTitle: 'Details',
@@ -830,6 +831,7 @@ const rawShellResources = {
                     databaseProfile: { label: 'Application database', builtIn: 'System built-in', custom: 'External database', connection: 'Database connection', showPassword: 'Show password', hidePassword: 'Hide password' },
                     databaseFields: { W9_DB_HOST_SET: 'Database host', W9_DB_PORT_SET: 'Database port', W9_DB_NAME_SET: 'Database name', W9_DB_USER_SET: 'Database user', W9_DB_PASSWORD_SET: 'Database password' },
                     databaseValidation: { required: '{{name}} is required', hostInvalid: 'Database host is invalid', portInvalid: 'Database port must be between 1 and 65535' },
+                    portAllocating: 'Allocating port',
                     portCheck: { check: 'Check availability', checking: 'Checking…', available: 'Port {{port}} is available', occupied: 'Port {{port}} is already in use', failed: 'Unable to check port availability right now', invalid: 'Enter a port between 1 and 65535.' },
                     portRange: {
                         exhaustedPrefix: 'The configured port range is exhausted; some ports could not be assigned automatically. Enter them manually or enlarge the range in ',
@@ -3300,6 +3302,7 @@ const rawShellResources = {
                 detail: {
                     versionLine: '版本: {{version}}',
                     requirementLine: '最低配置要求: {{cpu}} vCPU, {{memory}} GB memory, {{storage}} GB storage',
+                    updatedAtLine: '更新时间: {{time}}',
                     categoriesLabel: '类别:',
                     overviewTitle: '概览',
                     descriptionTitle: '详情',
@@ -3338,6 +3341,7 @@ const rawShellResources = {
                     databaseProfile: { label: '应用数据库', builtIn: '系统内置', custom: '外接数据库', connection: '数据库连接信息', showPassword: '显示密码', hidePassword: '隐藏密码' },
                     databaseFields: { W9_DB_HOST_SET: '数据库主机', W9_DB_PORT_SET: '数据库端口', W9_DB_NAME_SET: '数据库名称', W9_DB_USER_SET: '数据库用户', W9_DB_PASSWORD_SET: '数据库密码' },
                     databaseValidation: { required: '{{name}}不能为空', hostInvalid: '数据库主机格式无效', portInvalid: '数据库端口必须在 1 到 65535 之间' },
+                    portAllocating: '端口分配中',
                     portCheck: { check: '检测端口', checking: '检测中…', available: '端口 {{port}} 可用', occupied: '端口 {{port}} 已被占用', failed: '暂时无法检测端口', invalid: '请输入 1 到 65535 之间的端口号。' },
                     portRange: {
                         exhaustedPrefix: '端口范围已用尽，部分端口未能自动分配；请手动填写，或在',

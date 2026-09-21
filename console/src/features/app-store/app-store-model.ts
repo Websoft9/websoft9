@@ -42,6 +42,7 @@ export type AppStoreApp = {
     overview?: string
     description?: string | null
     websiteurl?: string
+    updatedAt?: string
     screenshots?: AppStoreScreenshotSource[]
     distribution?: AppStoreDistribution[]
     vcpu?: number
