@@ -576,6 +576,75 @@ def determine_package_sync_plan(manifest_bundle: dict[str, object] | None, previ
     return plan
 
 
+def load_library_apps_index(library_root: Path) -> dict[str, str]:
+    """Map each app key to the update time published in the library apps index.
+
+    The index is optional metadata: anything missing or malformed is ignored so it can never
+    block a manifest build.
+    """
+    index_path = library_root / "apps-index.json"
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    apps = payload.get("apps") if isinstance(payload, dict) else None
+    if not isinstance(apps, list):
+        return {}
+
+    updated_at_by_key: dict[str, str] = {}
+    for item in apps:
+        if not isinstance(item, dict):
+            continue
+        key = item.get("app") or item.get("key")
+        updated_at = item.get("updatedAt")
+        if isinstance(key, str) and key.strip() and isinstance(updated_at, str) and updated_at.strip():
+            updated_at_by_key[key.strip()] = updated_at.strip()
+    return updated_at_by_key
+
+
+def fetch_library_apps_index_payload(manifest_bundle: dict[str, object] | None) -> dict[str, object] | None:
+    """Download the published apps index verbatim so it can be persisted locally."""
+    if not manifest_bundle:
+        return None
+
+    library_manifest = manifest_bundle.get("library_manifest")
+    library_manifest_url = str(manifest_bundle.get("library_manifest_url", ""))
+    if not isinstance(library_manifest, dict) or not library_manifest_url:
+        return None
+
+    apps_index_relative = library_manifest.get("appsIndex")
+    if not isinstance(apps_index_relative, str) or not apps_index_relative:
+        return None
+
+    try:
+        payload = download_json(resolve_json_url(library_manifest_url, apps_index_relative))
+    except Exception as exc:
+        verbose_log(f"[platform-assets] apps index unavailable: {exc}")
+        return None
+
+    return payload if isinstance(payload, dict) else None
+
+
+def publish_library_apps_index(library_root: Path, manifest_bundle: dict[str, object] | None, extra_targets: list[Path] | None = None) -> None:
+    """Persist the apps index beside the library and inside the dataset snapshots.
+
+    Keeping it next to the library lets the manifest builder pick it up, and the snapshot copies
+    keep an offline activation able to rebuild the same manifests.
+    """
+    payload = fetch_library_apps_index_payload(manifest_bundle)
+    if payload is None:
+        return
+
+    serialized = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    for target in [library_root / "apps-index.json", *(extra_targets or [])]:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(serialized, encoding="utf-8")
+        except OSError as exc:
+            verbose_log(f"[platform-assets] could not persist apps index at {target}: {exc}")
+
+
 def resolve_package_url(package_type: str, channel: str, artifact_base: str, manifest_bundle: dict[str, object] | None) -> str:
     if manifest_bundle:
         if package_type == "media":
@@ -1175,6 +1244,10 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
     if not isinstance(products, list):
         raise RuntimeError(f"product media must be an array: {product_path}")
 
+    # Per-app update times travel with the library apps index; the manifest only exposes the field
+    # when the published dataset provides it.
+    updated_at_by_key = load_library_apps_index(library_root.parent)
+
     catalog_metadata = load_catalog_metadata(library_root)
     catalog_titles = load_catalog_titles(media_json_root, locale) if catalog_metadata else {}
     legacy_products: dict[str, dict[str, object]] = {}
@@ -1235,6 +1308,9 @@ def build_app_store_manifest(media_json_root: Path, library_root: Path, locale: 
             continue
         app_manifest = dict(product)
         app_manifest.update({"distribution": distribution, "settings": get_install_settings(env_values), "is_web_app": "W9_URL" in env_values})
+        updated_at = updated_at_by_key.get(app_key)
+        if updated_at:
+            app_manifest["updatedAt"] = updated_at
         normalize_display_logo(app_manifest, skipped)
         profiles = discover_install_profiles(app_dir, skipped)
         if profiles:
@@ -1582,6 +1658,18 @@ def main() -> int:
                 )
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
+
+        # Persist the library apps index next to the active library and inside this dataset's
+        # snapshots, so the manifest build and a later offline activation both see the per-app
+        # update times. Publishing is best effort: a missing index only drops the field.
+        library_snapshot_paths = package_snapshot_paths.get("library")
+        apps_index_targets: list[Path] = []
+        if isinstance(library_snapshot_paths, dict):
+            for snapshot_key in ("staging", "release", "current"):
+                snapshot_value = library_snapshot_paths.get(snapshot_key)
+                if isinstance(snapshot_value, str) and snapshot_value:
+                    apps_index_targets.append(Path(snapshot_value) / "apps-index.json")
+        publish_library_apps_index(library_root, manifest_bundle, apps_index_targets)
 
         if not should_rebuild_manifests:
             log(f"[platform-assets] skipping manifest rebuild for unchanged dataset {applied_dataset_version}")
