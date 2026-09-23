@@ -5,6 +5,33 @@ All notable changes to Websoft9 are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-09-23
+
+### Added
+- **In-Console Platform Upgrade** — Upgrade the platform from Platform Settings with a channel-aware update check, staged download with SHA256 verification, pre-pulled images, automatic release download, and apply progress.
+- **Upgrade Failure Recovery** — Explain and retry a failed upgrade: a failure record with reason, exit code and log path, `GET /settings/upgrade/logs`, and `POST /settings/upgrade/retry` that reuses the staged release without downloading again.
+- **Port Suggestions** — Suggest free host ports from a configurable range (`[port_allocation]`, default 9001-9099) with `POST /ports/suggest` and `GET /ports/check`.
+- **App Update Times** — Publish per-app update times into the store manifest and show the last update time in application details.
+- **Platform Readiness** — Add a readiness service so the setup wizard, console and app store sync agree on when the platform is usable.
+
+### Changed
+- **Image Pulling** — Pull install and utility images through a shared direct → Amazon ECR Public → accelerator fallback chain.
+- **Backups** — Cache snapshots and pre-pull the restic image to speed up backup and restore.
+- **Install Ports** — Drive install ports from the platform port range instead of pre-filled template values, with availability feedback and an application-ports deep link in Settings.
+- **App Store Sync** — Streamline sync feedback, coordinate it with setup readiness, and rebuild local catalog manifests.
+- **Console** — Add startup and connection feedback, refine the upgrade progress experience, and align lint, i18n and type checks.
+
+### Fixed
+- **Upgrade Runner** — Report real apply phases, dispatch automatic downloads through AppHub, keep the prepared task inside the staging directory, keep the update check read-only, and restore the previous deployment on rollback.
+- **Upgrade Checks** — Keep the check endpoint read-only so the download action stays visible to the operator.
+- **Readiness** — Prevent the overview health probe from blocking itself and improve startup health feedback.
+- **Terminal** — Avoid blocking the event loop and preserve sessions after a failed SSH connection.
+- **Docker** — Seed the platform nginx limit zones before NPM starts so domain bindings survive restarts.
+- **App Store Assets** — Never fail a build or sync over a missing display logo; drop unusable values and fall back to the default icon.
+- **App Store Compatibility** — Harden handling of older catalog datasets.
+- **Install Forms** — Allow shared install form ports and suggest database ports unless the profile uses an external database.
+- **Maintenance** — Drop stale duplicate platform scripts and harden Docker install and backup restore tests.
+
 ## [2.4.1] - 2026-09-07
 
 ### Added
