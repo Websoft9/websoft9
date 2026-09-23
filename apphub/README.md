@@ -79,12 +79,23 @@ Options:
 
 Commands:
   app        Install and manage applications
+  appstore   Manage the local App Store dataset
   getconfig  Get a config value
   resetpwd   Reset the Websoft9 system user password
   setconfig  Set a config value
   setsysconfig  Set a system config value
-  upgrade    Upgrade apps
+  upgrade    Upgrade apps (deprecated no-op)
 ```
+
+App Store 资产同步由 `appstore sync` 触发（默认同步阻塞，失败以非零退出码返回）：
+
+```bash
+websoft9 appstore sync
+websoft9 appstore sync --channel rc --force-refresh
+websoft9 appstore sync --no-wait          # 后台执行，立即返回
+```
+
+`upgrade apps` 仅为兼容外部自动化保留：它不再触发任何同步，只打印提示并以 0 退出。
 
 以下为内部/隐式命令，不显示在 `--help` 中，但仍可调用：
 

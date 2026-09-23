@@ -670,6 +670,20 @@ class AppManger:
             self._cache[cache_key] = data
             self._cache_timestamps[cache_key] = manifest_signature
             return data
+        except FileNotFoundError as exc:
+            # A running App Store sync replaces the media tree, so the published manifest can be
+            # absent for a moment.  Serving the last successful payload keeps the store usable
+            # instead of failing the request while the sync finishes.
+            cached_apps = self._cache.get(cache_key)
+            if cached_apps is not None:
+                logger.warning(f"App store manifest temporarily missing at {manifest_path}; serving the cached payload")
+                return cached_apps
+            logger.error(f"App store manifest unavailable at {manifest_path}: {exc}")
+            raise CustomException(
+                status_code=503,
+                message="App Store Unavailable",
+                details="The official app store manifest is unavailable or invalid.",
+            ) from exc
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             logger.error(f"App store manifest unavailable at {manifest_path}: {exc}")
             raise CustomException(

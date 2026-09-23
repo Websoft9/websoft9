@@ -130,32 +130,60 @@ def setedition(edition_key):
 
 @cli.command()
 @click.argument('target', required=True, type=click.Choice(['apps'], case_sensitive=False))
-@click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Upgrade using the specified artifact channel')
-@click.option('--dev', is_flag=True, help='Upgrade using dev environment')
-@click.option('--force-refresh', is_flag=True, help='Force a full App Store sync instead of using incremental update detection')
+@click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Deprecated; use "appstore sync --channel"')
+@click.option('--dev', is_flag=True, help='Deprecated; use "appstore sync --dev"')
+@click.option('--force-refresh', is_flag=True, help='Deprecated; use "appstore sync --force-refresh"')
 def upgrade(target, channel, dev, force_refresh):
-    """Upgrade apps"""
-    try:
-        if target == 'apps':
-            if dev and channel and channel.lower() != 'dev':
-                raise click.ClickException("--dev cannot be combined with a non-dev --channel value")
+    """Upgrade apps (deprecated no-op)"""
+    # Deprecated compatibility shim. External automation still calls `upgrade apps`, but
+    # App Store synchronization is now triggered explicitly through `appstore sync`.
+    # Keep the command cheap and successful so those callers keep working unchanged.
+    click.echo("'upgrade apps' no longer synchronizes App Store resources; run 'websoft9 appstore sync' instead.")
 
-            resolved_channel = (channel or ('dev' if dev else '')).lower() or None
-            result = AppStoreSyncManager().sync(
-                trigger='cli',
-                channel=resolved_channel,
-                package_types='media,library',
-                force_refresh=force_refresh,
-                background=False,
-            )
-            active_channel = str(result.get('channel') or resolved_channel or 'release').lower()
-            dataset_version = result.get('datasetVersion')
-            if dataset_version:
-                click.echo(f"App Store resources ({active_channel}) synchronized successfully: {dataset_version}")
-            else:
-                click.echo(f"App Store resources ({active_channel}) synchronized successfully.")
+
+@cli.group()
+def appstore():
+    """Manage the local App Store dataset"""
+
+
+@appstore.command(name='sync')
+@click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Sync using the specified artifact channel')
+@click.option('--dev', is_flag=True, help='Sync using dev environment')
+@click.option('--force-refresh', is_flag=True, help='Force a full App Store sync instead of using incremental update detection')
+@click.option('--no-wait', is_flag=True, help='Return immediately and keep the sync running in the background')
+def appstore_sync(channel, dev, force_refresh, no_wait):
+    """Synchronize App Store assets"""
+    try:
+        if dev and channel and channel.lower() != 'dev':
+            raise click.ClickException("--dev cannot be combined with a non-dev --channel value")
+
+        resolved_channel = (channel or ('dev' if dev else '')).lower() or None
+        manager = AppStoreSyncManager()
+        if manager.is_sync_running():
+            raise click.ClickException("An App Store sync is already running")
+
+        result = manager.sync(
+            trigger='cli',
+            channel=resolved_channel,
+            package_types='media,library',
+            force_refresh=force_refresh,
+            background=no_wait,
+        )
+
+        if no_wait:
+            click.echo("App Store sync started in the background.")
+            return
+
+        active_channel = str(result.get('channel') or resolved_channel or 'release').lower()
+        dataset_version = result.get('datasetVersion')
+        if dataset_version:
+            click.echo(f"App Store resources ({active_channel}) synchronized successfully: {dataset_version}")
         else:
-            click.echo(f"Unknown upgrade target: {target}")
+            click.echo(f"App Store resources ({active_channel}) synchronized successfully.")
+    except click.ClickException:
+        raise
+    except CustomException as e:
+        raise click.ClickException(e.details)
     except Exception as e:
         raise click.ClickException(str(e))
 

@@ -527,7 +527,12 @@ main() {
   ensure_product_runtime_state
   write_appstore_startup_state "running" "runtime appstore synchronization is in progress"
   start_supervisor
-  sync_appstore_assets
+  # The Appstore sync does not depend on the remaining bootstrap steps, so it runs in the
+  # background while the platform brings up networking and the supporting services.  Startup
+  # then costs max(sync, bootstrap) instead of the sum.  /setup still waits for the sync through
+  # appstore_startup_state, so installs never start from stale Appstore data.
+  sync_appstore_assets &
+  appstore_sync_pid=$!
   ensure_platform_network
   start_apphub_core
   prepull_volume_backup_image
@@ -537,6 +542,10 @@ main() {
   bootstrap_portainer
   bootstrap_nginx_proxy_manager
   sync_runtime_config credentials || true
+
+  # Finish the overlapped Appstore sync before the platform reports strict readiness.  The
+  # script exits on its own; a failure only downgrades the Appstore state file, never startup.
+  wait "$appstore_sync_pid" || true
 
   if ! update_runtime_status strict; then
     log_event "error" "runtime.bootstrap-failed" "bootstrap failed and runtime is not ready"

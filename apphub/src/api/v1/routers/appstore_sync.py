@@ -21,7 +21,15 @@ def sync_appstore_assets(
     package_types: str | None = Query(None, description="Comma-separated package types to sync, for example media,library"),
     force_refresh: bool = Query(False, description="Force a full sync even when incremental update checks can skip unchanged packages"),
 ):
-    return AppStoreSyncManager().sync(
+    manager = AppStoreSyncManager()
+    if manager.is_sync_running():
+        # The console treats `already_running` as a successful no-op and keeps polling the sync
+        # status, so a second request never spawns a competing sync process.
+        return {
+            "status": "already_running",
+            "message": "An App Store sync is already running in the background.",
+        }
+    return manager.sync(
         trigger="manual",
         channel=channel,
         package_types=package_types,
@@ -53,33 +61,3 @@ def get_appstore_state():
 )
 def get_appstore_sync_status():
     return AppStoreSyncManager().get_sync_status()
-
-
-@router.get(
-    "/appstore/versions",
-    summary="List App Store Dataset Versions",
-    description="List locally available App Store dataset versions from the snapshot release history.",
-    responses={
-        200: {"model": dict},
-        500: {"model": ErrorResponse},
-    },
-)
-def list_appstore_versions():
-    return AppStoreSyncManager().list_versions()
-
-
-@router.post(
-    "/appstore/activate",
-    summary="Activate App Store Dataset Version",
-    description="Activate a locally available App Store dataset version from the snapshot releases.",
-    responses={
-        200: {"model": dict},
-        400: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
-)
-def activate_appstore_version(
-    dataset_version: str = Query(..., description="Dataset version to activate from local releases"),
-):
-    return AppStoreSyncManager().activate(dataset_version=dataset_version, trigger="manual")

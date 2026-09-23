@@ -203,6 +203,29 @@ def test_get_available_apps_returns_503_for_missing_manifest(monkeypatch, tmp_pa
     assert exc_info.value.status_code == 503
 
 
+def test_get_available_apps_serves_cached_payload_while_manifest_is_missing(monkeypatch, tmp_path):
+    media_path = tmp_path / 'media' / 'json'
+    media_path.mkdir(parents=True)
+    manifest_path = media_path / 'app-store-manifest_en.json'
+    _write_manifest(manifest_path, 'WordPress')
+    _ConfigManager.values = {
+        ('config.ini', 'initial_apps', 'keys'): '',
+        ('system.ini', 'app_media', 'path'): str(media_path),
+    }
+    monkeypatch.setattr(app_manager_module, 'ConfigManager', _ConfigManager)
+    monkeypatch.setattr(AppManger, '_normalize_available_app_media', staticmethod(lambda app, locale: app))
+    AppManger.clear_cache()
+
+    manager = AppManger()
+    cached = manager.get_available_apps('en')
+    assert cached[0]['title'] == 'WordPress'
+
+    # A running App Store sync replaces the media tree, so the published manifest is briefly gone.
+    manifest_path.unlink()
+
+    assert manager.get_available_apps('en') == cached
+
+
 def test_get_available_apps_returns_503_for_invalid_manifest_contract(monkeypatch, tmp_path):
     media_path = tmp_path / 'media' / 'json'
     media_path.mkdir(parents=True)

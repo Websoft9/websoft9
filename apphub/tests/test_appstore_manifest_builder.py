@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -11,6 +12,17 @@ MODULE_SPEC = importlib.util.spec_from_file_location("platform_sync_runtime_asse
 assert MODULE_SPEC is not None and MODULE_SPEC.loader is not None
 runtime_assets = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(runtime_assets)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_appstore_sync_lock(tmp_path, monkeypatch):
+    """Keep the cross-process sync lock out of the developer/CI machine.
+
+    The runtime default lives under /opt/websoft9/data and is held for the whole process
+    lifetime, so repeated ``main()`` calls in one pytest session must use their own lock file.
+    """
+    monkeypatch.setenv("WEBSOFT9_APPSTORE_SYNC_LOCK_FILE", str(tmp_path / "appstore_sync.lock"))
+    monkeypatch.setenv("WEBSOFT9_APPSTORE_SYNC_PID_FILE", str(tmp_path / "appstore_sync.pid"))
 
 
 def _write_product(path: Path, key: str = "wordpress") -> None:
@@ -256,6 +268,187 @@ def test_appstore_compatibility_rejects_mismatched_schema_without_legacy_fallbac
         runtime_assets.check_appstore_compatibility({"schemaVersion": "2"}, "1", "2.4.1")
 
 
+def test_replace_tree_keeps_published_manifests_readable(tmp_path, monkeypatch):
+    source = tmp_path / "package" / "media"
+    (source / "json").mkdir(parents=True)
+    (source / "json" / "product_en.json").write_text("[]", encoding="utf-8")
+
+    target = tmp_path / "media"
+    (target / "json").mkdir(parents=True)
+    for locale in ("zh", "en"):
+        (target / "json" / f"app-store-manifest_{locale}.json").write_text(
+            json.dumps({"schemaVersion": "1", "locale": locale, "apps": []}),
+            encoding="utf-8",
+        )
+    (target / "json" / "stale.json").write_text("{}", encoding="utf-8")
+
+    original_sync_tree = runtime_assets.sync_tree
+    manifests_present_during_copy = []
+
+    def spying_sync_tree(copied_source, copied_target):
+        manifests_present_during_copy.append(
+            all((copied_target / "json" / f"app-store-manifest_{locale}.json").exists() for locale in ("zh", "en"))
+        )
+        original_sync_tree(copied_source, copied_target)
+
+    monkeypatch.setattr(runtime_assets, "sync_tree", spying_sync_tree)
+
+    runtime_assets.replace_tree_preserving_generated_manifests(source, target)
+
+    # The previously published manifests must already be back before the payload is copied in.
+    assert manifests_present_during_copy == [True]
+    for locale in ("zh", "en"):
+        assert (target / "json" / f"app-store-manifest_{locale}.json").exists()
+    assert not (target / "json" / "stale.json").exists()
+
+
+def test_stage_snapshot_reuses_payload_through_hard_links(tmp_path):
+    source = tmp_path / "package" / "media"
+    (source / "json").mkdir(parents=True)
+    (source / "json" / "product_en.json").write_text('[{"key":"wordpress"}]', encoding="utf-8")
+
+    snapshot_root = tmp_path / "appstore"
+    paths = runtime_assets.stage_snapshot(source, snapshot_root, "2026.09.23.000000", "media")
+
+    staged_file = paths["staging"] / "json" / "product_en.json"
+    current_file = paths["current"] / "json" / "product_en.json"
+    assert current_file.read_text(encoding="utf-8") == '[{"key":"wordpress"}]'
+    assert (paths["release"] / "json" / "product_en.json").exists()
+    if os.stat(staged_file).st_dev == os.stat(current_file).st_dev:
+        assert os.stat(staged_file).st_ino == os.stat(current_file).st_ino
+
+
+def test_resolve_package_artifact_exposes_manifest_base_and_checksum():
+    bundle = {
+        "catalog_manifest_url": "https://artifact.example.test/appstore/dev/catalog/manifest.json",
+        "library_manifest_url": "https://artifact.example.test/appstore/dev/library/manifest.json",
+        "catalog_manifest": {
+            "fullPackage": "full/latest.zip",
+            "checksum": {"fullPackage": "full/latest.zip.sha256"},
+        },
+        "library_manifest": {
+            "fullPackage": "full/latest.zip",
+            "checksum": {"fullPackage": "full/latest.zip.sha256"},
+        },
+    }
+
+    media_url, media_base, media_checksum = runtime_assets.resolve_package_artifact(
+        "media", "dev", "https://artifact.example.test", bundle
+    )
+    library_url, library_base, library_checksum = runtime_assets.resolve_package_artifact(
+        "library", "dev", "https://artifact.example.test", bundle
+    )
+
+    assert media_url == "https://artifact.example.test/appstore/dev/catalog/full/latest.zip"
+    assert media_base == "https://artifact.example.test/appstore/dev/catalog/manifest.json"
+    assert media_checksum == "full/latest.zip.sha256"
+    assert library_url == "https://artifact.example.test/appstore/dev/library/full/latest.zip"
+    assert library_base == "https://artifact.example.test/appstore/dev/library/manifest.json"
+    assert library_checksum == "full/latest.zip.sha256"
+
+    fallback_url, fallback_base, fallback_checksum = runtime_assets.resolve_package_artifact(
+        "media", "dev", "https://artifact.example.test", None
+    )
+    assert fallback_url == "https://artifact.example.test/dev/websoft9/plugin/media/media-dev.zip"
+    assert fallback_base is None
+    assert fallback_checksum is None
+
+
+def test_prune_stale_appstore_datasets_removes_everything_but_the_active_one(tmp_path):
+    snapshot_root = tmp_path / "appstore"
+    for root_name in ("releases", "staging"):
+        for version in ("v1", "v2", "v3"):
+            (snapshot_root / root_name / version / "media").mkdir(parents=True)
+
+    # Without a known active dataset nothing may be deleted.
+    assert runtime_assets.prune_stale_appstore_datasets(snapshot_root, None) == []
+    assert len(list((snapshot_root / "releases").iterdir())) == 3
+
+    removed = runtime_assets.prune_stale_appstore_datasets(snapshot_root, "v3")
+
+    assert sorted(removed) == ["releases/v1", "releases/v2", "staging/v1", "staging/v2"]
+    assert [item.name for item in (snapshot_root / "releases").iterdir()] == ["v3"]
+    assert [item.name for item in (snapshot_root / "staging").iterdir()] == ["v3"]
+
+
+def test_sync_pid_marker_is_published_and_removed(tmp_path, monkeypatch):
+    pid_file = tmp_path / "appstore_sync.pid"
+    monkeypatch.setenv("WEBSOFT9_APPSTORE_SYNC_PID_FILE", str(pid_file))
+
+    written = runtime_assets.write_appstore_sync_pid_marker()
+
+    assert written == pid_file
+    assert pid_file.read_text(encoding="utf-8") == str(os.getpid())
+
+    runtime_assets.clear_appstore_sync_pid_marker(pid_file)
+
+    assert not pid_file.exists()
+
+
+def test_appstore_manifest_fetch_skips_component_manifests_for_active_dataset(monkeypatch):
+    requested_urls = []
+
+    def record_download(url):
+        requested_urls.append(url)
+        return {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.09.11.120000",
+            "catalog": {"datasetVersion": "catalog-1"},
+            "library": {"datasetVersion": "library-1"},
+        }
+
+    monkeypatch.setattr(runtime_assets, "download_json", record_download)
+    monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
+
+    bundle = runtime_assets.fetch_appstore_manifests(
+        "https://artifact.example.test",
+        "dev",
+        "1",
+        previous_state={
+            "schemaVersion": "1",
+            "datasetVersion": "2026.09.11.120000",
+            "catalogDatasetVersion": "catalog-1",
+            "libraryDatasetVersion": "library-1",
+        },
+    )
+
+    assert requested_urls == ["https://artifact.example.test/appstore/dev/manifests/appstore-manifest.json"]
+    assert bundle["componentManifestsSkipped"] is True
+    assert bundle["catalog_manifest"] is None
+    assert bundle["library_manifest"] is None
+
+
+def test_appstore_manifest_fetch_downloads_component_manifests_when_dataset_changes(monkeypatch):
+    requested_urls = []
+
+    def record_download(url):
+        requested_urls.append(url)
+        return {
+            "schemaVersion": "1",
+            "datasetVersion": "2026.09.11.130000",
+            "catalog": {"datasetVersion": "catalog-2", "manifest": "catalog/manifest.json"},
+            "library": {"datasetVersion": "library-2", "manifest": "library/manifest.json"},
+        }
+
+    monkeypatch.setattr(runtime_assets, "download_json", record_download)
+    monkeypatch.delenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC", raising=False)
+
+    runtime_assets.fetch_appstore_manifests(
+        "https://artifact.example.test",
+        "dev",
+        "1",
+        previous_state={
+            "schemaVersion": "1",
+            "datasetVersion": "2026.09.11.120000",
+            "catalogDatasetVersion": "catalog-1",
+            "libraryDatasetVersion": "library-1",
+        },
+    )
+
+    assert requested_urls[0] == "https://artifact.example.test/appstore/dev/manifests/appstore-manifest.json"
+    assert len(requested_urls) == 3
+
+
 def test_fetch_appstore_manifests_downloads_root_manifest_once(monkeypatch):
     artifact_base = "https://artifact.example.test"
     root_url = "https://artifact.example.test/appstore/dev/manifests/appstore-manifest.json"
@@ -355,7 +548,10 @@ def test_main_records_remote_schema_after_comparing_existing_local_manifests(tmp
     monkeypatch.setenv("WEBSOFT9_LIBRARY_MARKER", str(library_root / "apps"))
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", str(tmp_path / "appstore"))
     monkeypatch.setenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(state_path))
+    prefetched_root = tmp_path / "prefetched"
+    prefetched_root.mkdir()
     monkeypatch.setattr(runtime_assets, "fetch_appstore_manifests", fetch_matching_remote_manifest)
+    monkeypatch.setattr(runtime_assets, "prepare_package_source", lambda *_args, **_kwargs: prefetched_root)
     monkeypatch.setattr(runtime_assets, "sync_package", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(runtime_assets, "build_and_publish_app_store_manifests", lambda *_args: None)
 

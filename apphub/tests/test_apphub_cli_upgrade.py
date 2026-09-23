@@ -95,10 +95,49 @@ sys.modules.setdefault('src.services.appstore_sync_manager', appstore_sync_manag
 from src.cli import apphub_cli as cli_module
 
 
-def test_upgrade_apps_accepts_rc_channel_and_uses_unified_sync_manager(monkeypatch):
+def test_upgrade_apps_is_a_deprecated_no_op(monkeypatch):
+    class UnexpectedSyncManager:
+        def sync(self, **kwargs):
+            raise AssertionError('AppStoreSyncManager.sync must not be called by the deprecated upgrade command')
+
+    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', UnexpectedSyncManager)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ['upgrade', 'apps', '--channel', 'rc', '--force-refresh'])
+
+    assert result.exit_code == 0
+    assert "'upgrade apps' no longer synchronizes App Store resources" in result.output
+    assert 'websoft9 appstore sync' in result.output
+
+
+def test_upgrade_apps_ignores_dev_flag_and_still_succeeds(monkeypatch):
+    class UnexpectedSyncManager:
+        def sync(self, **kwargs):
+            raise AssertionError('AppStoreSyncManager.sync must not be called by the deprecated upgrade command')
+
+    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', UnexpectedSyncManager)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ['upgrade', 'apps', '--dev'])
+
+    assert result.exit_code == 0
+    assert "'upgrade apps' no longer synchronizes App Store resources" in result.output
+
+
+def test_upgrade_apps_rejects_unknown_target():
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ['upgrade', 'unknown'])
+
+    assert result.exit_code != 0
+
+
+def test_appstore_sync_runs_inline_by_default(monkeypatch):
     calls = []
 
     class FakeSyncManager:
+        def is_sync_running(self):
+            return False
+
         def sync(self, **kwargs):
             calls.append(kwargs)
             return {'status': 'success', 'datasetVersion': '2026.06.08.120000'}
@@ -106,7 +145,7 @@ def test_upgrade_apps_accepts_rc_channel_and_uses_unified_sync_manager(monkeypat
     monkeypatch.setattr(cli_module, 'AppStoreSyncManager', FakeSyncManager)
 
     runner = CliRunner()
-    result = runner.invoke(cli_module.cli, ['upgrade', 'apps', '--channel', 'rc'])
+    result = runner.invoke(cli_module.cli, ['appstore', 'sync', '--channel', 'rc'])
 
     assert result.exit_code == 0
     assert calls == [{
@@ -119,10 +158,13 @@ def test_upgrade_apps_accepts_rc_channel_and_uses_unified_sync_manager(monkeypat
     assert 'App Store resources (rc) synchronized successfully: 2026.06.08.120000' in result.output
 
 
-def test_upgrade_apps_without_channel_uses_metadata_default(monkeypatch):
+def test_appstore_sync_without_channel_uses_metadata_default(monkeypatch):
     calls = []
 
     class FakeSyncManager:
+        def is_sync_running(self):
+            return False
+
         def sync(self, **kwargs):
             calls.append(kwargs)
             return {'status': 'success', 'datasetVersion': '2026.06.08.120000', 'channel': 'release'}
@@ -130,7 +172,7 @@ def test_upgrade_apps_without_channel_uses_metadata_default(monkeypatch):
     monkeypatch.setattr(cli_module, 'AppStoreSyncManager', FakeSyncManager)
 
     runner = CliRunner()
-    result = runner.invoke(cli_module.cli, ['upgrade', 'apps'])
+    result = runner.invoke(cli_module.cli, ['appstore', 'sync'])
 
     assert result.exit_code == 0
     assert calls == [{
@@ -143,55 +185,62 @@ def test_upgrade_apps_without_channel_uses_metadata_default(monkeypatch):
     assert 'App Store resources (release) synchronized successfully: 2026.06.08.120000' in result.output
 
 
-def test_upgrade_apps_rejects_conflicting_dev_and_release_channel(monkeypatch):
+def test_appstore_sync_dev_flag_resolves_dev_channel_in_no_wait_mode(monkeypatch):
+    calls = []
+
+    class FakeSyncManager:
+        def is_sync_running(self):
+            return False
+
+        def sync(self, **kwargs):
+            calls.append(kwargs)
+            return {'status': 'accepted', 'message': 'App Store sync started in background.'}
+
+    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', FakeSyncManager)
+
+    runner = CliRunner()
+    result = runner.invoke(cli_module.cli, ['appstore', 'sync', '--dev', '--no-wait'])
+
+    assert result.exit_code == 0
+    assert calls == [{
+        'trigger': 'cli',
+        'channel': 'dev',
+        'package_types': 'media,library',
+        'force_refresh': False,
+        'background': True,
+    }]
+    assert 'started in the background' in result.output
+
+
+def test_appstore_sync_rejects_conflicting_dev_and_release_channel(monkeypatch):
     class UnexpectedSyncManager:
+        def is_sync_running(self):
+            return False
+
         def sync(self, **kwargs):
             raise AssertionError('AppStoreSyncManager.sync should not be called for invalid arguments')
 
     monkeypatch.setattr(cli_module, 'AppStoreSyncManager', UnexpectedSyncManager)
 
     runner = CliRunner()
-    result = runner.invoke(cli_module.cli, ['upgrade', 'apps', '--dev', '--channel', 'release'])
+    result = runner.invoke(cli_module.cli, ['appstore', 'sync', '--dev', '--channel', 'release'])
 
     assert result.exit_code != 0
     assert '--dev cannot be combined with a non-dev --channel value' in result.output
 
 
-def test_appstore_versions_outputs_local_release_inventory(monkeypatch):
-    class FakeSyncManager:
-        def list_versions(self):
-            return {
-                'activeDatasetVersion': '2026.06.08.120000',
-                'versions': [
-                    {'datasetVersion': '2026.06.08.120000', 'active': True, 'packages': ['media', 'library']},
-                ],
-            }
+def test_appstore_sync_rejects_when_sync_is_already_running(monkeypatch):
+    class RunningSyncManager:
+        def is_sync_running(self):
+            return True
 
-    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', FakeSyncManager)
+        def sync(self, **kwargs):
+            raise AssertionError('AppStoreSyncManager.sync must not be called while a sync is running')
+
+    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', RunningSyncManager)
 
     runner = CliRunner()
-    result = runner.invoke(cli_module.cli, ['appstore-versions'])
+    result = runner.invoke(cli_module.cli, ['appstore', 'sync'])
 
-    assert result.exit_code == 0
-    assert '2026.06.08.120000' in result.output
-
-
-def test_activate_appstore_invokes_sync_manager_with_dataset_version(monkeypatch):
-    calls = []
-
-    class FakeSyncManager:
-        def activate(self, **kwargs):
-            calls.append(kwargs)
-            return {'status': 'success', 'datasetVersion': kwargs['dataset_version']}
-
-    monkeypatch.setattr(cli_module, 'AppStoreSyncManager', FakeSyncManager)
-
-    runner = CliRunner()
-    result = runner.invoke(cli_module.cli, ['activate-appstore', '--dataset-version', '2026.06.08.110000'])
-
-    assert result.exit_code == 0
-    assert calls == [{
-        'dataset_version': '2026.06.08.110000',
-        'trigger': 'cli',
-    }]
-    assert 'Activated App Store dataset version: 2026.06.08.110000' in result.output
+    assert result.exit_code != 0
+    assert 'already running' in result.output

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import atexit
 import configparser
+import fcntl
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
@@ -14,9 +16,19 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
+
+# Appstore synchronization is triggered from several places (runtime bootstrap, daily cron,
+# CLI, AppHub API).  The lock file serialises them; the PID marker file only feeds the
+# "sync running" status that the console shows.
+_APPSTORE_SYNC_LOCK_FILE_DEFAULT = "/opt/websoft9/data/config/appstore_sync.lock"
+_APPSTORE_SYNC_PID_FILE_DEFAULT = "/tmp/websoft9-appstore-sync.lock"
+_APPSTORE_SYNC_LOCK_POLL_SECONDS = 0.5
+# Sentinel for "the platform cannot host a lock file"; a sync still runs, it just is not serialised.
+_APPSTORE_SYNC_LOCK_UNAVAILABLE = object()
 
 try:
     from dotenv import dotenv_values
@@ -147,6 +159,87 @@ def sync_tree(source: Path, target: Path) -> None:
             shutil.copy2(item, destination)
 
 
+# App Store manifests are generated locally, so they are never part of a downloaded package.
+# Replacing a runtime tree would therefore expose a window where /media/json/app-store-manifest_*.json
+# does not exist, which makes the App Store look unavailable to the console and the API.
+_GENERATED_MANIFEST_FILENAMES = ("app-store-manifest_zh.json", "app-store-manifest_en.json")
+
+
+def preserve_generated_manifests(root: Path) -> dict[str, bytes]:
+    preserved: dict[str, bytes] = {}
+    for name in _GENERATED_MANIFEST_FILENAMES:
+        try:
+            preserved[name] = (root / "json" / name).read_bytes()
+        except OSError:
+            continue
+    return preserved
+
+
+def restore_generated_manifests(root: Path, preserved: dict[str, bytes]) -> None:
+    if not preserved:
+        return
+    json_dir = root / "json"
+    json_dir.mkdir(parents=True, exist_ok=True)
+    for name, payload in preserved.items():
+        target = json_dir / name
+        if target.exists():
+            continue
+        temporary_path = json_dir / f".{name}.tmp"
+        temporary_path.write_bytes(payload)
+        os.replace(temporary_path, target)
+
+
+def replace_tree_preserving_generated_manifests(source: Path, target: Path) -> None:
+    """Replace a runtime tree without ever exposing a missing published manifest.
+
+    The previously published manifests are written back before the payload is copied in, so the
+    App Store stays readable for the whole replacement instead of failing until the manifests are
+    rebuilt at the end of the sync.
+    """
+    target_dir = target.resolve() if target.is_symlink() else target
+    preserved = preserve_generated_manifests(source) or preserve_generated_manifests(target_dir)
+
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    restore_generated_manifests(target_dir, preserved)
+    sync_tree(source, target_dir)
+
+
+def _hardlink_or_copy_file(source: str, destination: str, *, follow_symlinks: bool = True) -> str:
+    """Hard-link a file when both paths live on the same filesystem, otherwise copy it."""
+    try:
+        os.link(source, destination, follow_symlinks=follow_symlinks)
+        return destination
+    except OSError:
+        return shutil.copy2(source, destination, follow_symlinks=follow_symlinks)
+
+
+def link_or_copy_tree(source: Path, target: Path) -> None:
+    """Materialise a tree with hard links where possible.
+
+    Snapshot copies inside the App Store root share file contents instead of duplicating
+    hundreds of megabytes on every sync.  Cross-device targets (for example the data volume)
+    transparently fall back to real copies.
+    """
+    target.mkdir(parents=True, exist_ok=True)
+    for item in source.iterdir():
+        destination = target / item.name
+        if item.is_dir():
+            shutil.copytree(item, destination, dirs_exist_ok=True, copy_function=_hardlink_or_copy_file)
+        else:
+            _hardlink_or_copy_file(str(item), str(destination))
+
+
+def replace_tree_linked(source: Path, target: Path) -> None:
+    """Replace a tree, linking file contents instead of copying them when possible."""
+    target_dir = target.resolve() if target.is_symlink() else target
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    link_or_copy_tree(source, target_dir)
+
+
 def replace_tree(source: Path, target: Path) -> None:
     target_dir = target.resolve() if target.is_symlink() else target
     if target_dir.exists():
@@ -160,7 +253,9 @@ def backup_trees(targets: list[Path], backup_root: Path) -> dict[Path, Path | No
     for index, target in enumerate(targets):
         if target.exists():
             backup_path = backup_root / str(index)
-            replace_tree(target, backup_path)
+            # Linking the rollback copy keeps the safety net without duplicating hundreds of
+            # megabytes; cross-device trees still fall back to a real copy.
+            replace_tree_linked(target, backup_path)
             backups[target] = backup_path
         else:
             backups[target] = None
@@ -173,7 +268,7 @@ def restore_trees(backups: dict[Path, Path | None]) -> None:
         if target_dir.exists():
             shutil.rmtree(target_dir)
         if backup_path is not None:
-            replace_tree(backup_path, target_dir)
+            replace_tree_preserving_generated_manifests(backup_path, target_dir)
 
 
 def extract_sync_root(extract_dir: Path, package_type: str) -> Path:
@@ -250,6 +345,54 @@ def resolve_json_url(base_url: str, relative_path: str) -> str:
     return urllib.request.urljoin(base_url, relative_path)
 
 
+def acquire_appstore_sync_lock(data_root: Path):
+    """Take the cross-process Appstore sync lock.
+
+    The process that owns the returned handle keeps the lock until it exits, so two syncs can
+    never rewrite the same media/library trees at the same time.  ``None`` means another sync
+    holds the lock (the caller should skip this round instead of queueing behind it).
+    """
+    lock_path = Path(
+        os.getenv("WEBSOFT9_APPSTORE_SYNC_LOCK_FILE", str(Path(data_root) / "config" / "appstore_sync.lock"))
+    )
+    try:
+        wait_seconds = float(os.getenv("WEBSOFT9_APPSTORE_SYNC_LOCK_WAIT", "0") or 0)
+    except ValueError:
+        wait_seconds = 0.0
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+")
+    deadline = time.monotonic() + max(wait_seconds, 0.0)
+    while True:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle
+        except OSError:
+            if time.monotonic() >= deadline:
+                handle.close()
+                return None
+            time.sleep(_APPSTORE_SYNC_LOCK_POLL_SECONDS)
+
+
+def clear_appstore_sync_pid_marker(pid_file: Path) -> None:
+    try:
+        if pid_file.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            pid_file.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def write_appstore_sync_pid_marker() -> Path | None:
+    """Publish this sync's PID so the console can report a running synchronization."""
+    pid_file = Path(os.getenv("WEBSOFT9_APPSTORE_SYNC_PID_FILE", _APPSTORE_SYNC_PID_FILE_DEFAULT))
+    try:
+        pid_file.write_text(str(os.getpid()), encoding="utf-8")
+    except OSError:
+        return None
+    atexit.register(clear_appstore_sync_pid_marker, pid_file)
+    return pid_file
+
+
 def compute_sha256(file_path: Path) -> str:
     digest = hashlib.sha256()
     with file_path.open("rb") as file_handle:
@@ -315,13 +458,83 @@ def _resolve_manifest_domains(appstore_manifest: dict[str, object], manifest_url
     raise RuntimeError(f"appstore manifest has unrecognized structure: {manifest_url}")
 
 
-def fetch_appstore_manifests(artifact_base: str, channel: str, local_schema_version: str | None) -> dict[str, object]:
+def _resolve_sync_state_path() -> Path:
+    data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
+    return Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(Path(data_root) / "config" / "appstore_sync_state.json")))
+
+
+def _appstore_dataset_already_active(
+    appstore_manifest: dict[str, object],
+    previous_state: dict[str, object] | None,
+    force_refresh: bool,
+) -> bool:
+    """Report whether the remote dataset is already active locally.
+
+    The root manifest carries the dataset and per-component versions, so an unchanged dataset
+    can be detected without downloading the catalog/library manifests at all.
+    """
+    if force_refresh:
+        return False
+    if not isinstance(previous_state, dict) or not previous_state:
+        return False
+
+    latest_dataset_version = appstore_manifest.get("datasetVersion")
+    if not latest_dataset_version or previous_state.get("datasetVersion") != latest_dataset_version:
+        return False
+
+    previous_schema_version = previous_state.get("schemaVersion")
+    latest_schema_version = appstore_manifest.get("schemaVersion")
+    if previous_schema_version and latest_schema_version and previous_schema_version != latest_schema_version:
+        return False
+
+    latest_catalog_dsv = _resolve_component_dataset_version(appstore_manifest, "catalog")
+    latest_library_dsv = _resolve_component_dataset_version(appstore_manifest, "library")
+    catalog_unchanged = (not latest_catalog_dsv) or latest_catalog_dsv == previous_state.get("catalogDatasetVersion")
+    library_unchanged = (not latest_library_dsv) or latest_library_dsv == previous_state.get("libraryDatasetVersion")
+    return bool(catalog_unchanged and library_unchanged)
+
+
+def fetch_appstore_manifests(
+    artifact_base: str,
+    channel: str,
+    local_schema_version: str | None,
+    previous_state: dict[str, object] | None = None,
+    force_refresh: bool | None = None,
+) -> dict[str, object]:
+    """Download the App Store manifests for a channel.
+
+    ``previous_state``/``force_refresh`` default to the runtime sync state and the
+    ``WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC`` flag so callers keep the simple three-argument form.
+    """
+    if previous_state is None:
+        previous_state = load_sync_state(_resolve_sync_state_path())
+    if force_refresh is None:
+        force_refresh = is_force_refresh_enabled()
+
     appstore_manifest_url = f"{artifact_base}/{_V2_APPSTORE_MANIFEST_PATH.format(channel=channel)}"
     appstore_manifest = download_json(appstore_manifest_url)
     if not isinstance(appstore_manifest, dict):
         raise RuntimeError(f"invalid appstore manifest payload: {appstore_manifest_url}")
 
     check_appstore_compatibility(appstore_manifest, local_schema_version)
+
+    # Fast path: when the dataset is already active, the component manifests (and the apps
+    # index that only feeds the manifest builder) carry no new information.  Each of those
+    # requests costs a full round trip to the artifact server, which dominates start-up time.
+    if _appstore_dataset_already_active(appstore_manifest, previous_state, force_refresh):
+        log(
+            "[platform-assets] appstore dataset "
+            f"{appstore_manifest.get('datasetVersion')} already active; component manifests not requested"
+        )
+        return {
+            "appstore_manifest_url": appstore_manifest_url,
+            "catalog_manifest_url": None,
+            "library_manifest_url": None,
+            "appstore_manifest": appstore_manifest,
+            "catalog_manifest": None,
+            "library_manifest": None,
+            "componentManifestsSkipped": True,
+        }
 
     catalog_relative, library_relative = _resolve_manifest_domains(appstore_manifest, appstore_manifest_url)
 
@@ -645,42 +858,60 @@ def publish_library_apps_index(library_root: Path, manifest_bundle: dict[str, ob
             verbose_log(f"[platform-assets] could not persist apps index at {target}: {exc}")
 
 
-def resolve_package_url(package_type: str, channel: str, artifact_base: str, manifest_bundle: dict[str, object] | None) -> str:
-    if manifest_bundle:
-        if package_type == "media":
-            catalog_manifest_url = str(manifest_bundle["catalog_manifest_url"])
-            catalog_manifest = manifest_bundle["catalog_manifest"]
-            if isinstance(catalog_manifest, dict):
-                # v2 spec: fullPackage points to the catalog zip
-                full_pkg = catalog_manifest.get("fullPackage")
-                if isinstance(full_pkg, str) and full_pkg:
-                    return resolve_json_url(catalog_manifest_url, full_pkg)
-                # Legacy field names
-                package_name = catalog_manifest.get("legacyMediaArchive") or catalog_manifest.get("catalogArchive")
-                if isinstance(package_name, str) and package_name:
-                    return resolve_json_url(catalog_manifest_url, package_name)
+def _resolve_domain_manifest(package_type: str, manifest_bundle: dict[str, object]) -> tuple[str, dict[str, object]] | None:
+    if package_type == "media":
+        manifest = manifest_bundle.get("catalog_manifest")
+        manifest_url = str(manifest_bundle.get("catalog_manifest_url") or "")
+    else:
+        manifest = manifest_bundle.get("library_manifest")
+        manifest_url = str(manifest_bundle.get("library_manifest_url") or "")
+    if not isinstance(manifest, dict):
+        return None
+    return manifest_url, manifest
 
-        if package_type == "library":
-            library_manifest_url = str(manifest_bundle["library_manifest_url"])
-            library_manifest = manifest_bundle["library_manifest"]
-            if isinstance(library_manifest, dict):
-                # v2 spec: fullPackage as string (e.g. "full/latest.zip")
-                full_pkg = library_manifest.get("fullPackage")
-                if isinstance(full_pkg, str) and full_pkg:
-                    return resolve_json_url(library_manifest_url, full_pkg)
-                # v2 spec (alt): fullPackage.latest for the channel-tagged full zip
-                if isinstance(full_pkg, dict):
-                    latest = full_pkg.get("latest")
-                    if isinstance(latest, str) and latest:
-                        return resolve_json_url(library_manifest_url, latest)
-                # Legacy field name
-                package_name = library_manifest.get("libraryPackage")
-                if isinstance(package_name, str) and package_name:
-                    return resolve_json_url(library_manifest_url, package_name)
+
+def _resolve_full_package_relative(package_type: str, manifest: dict[str, object]) -> str:
+    full_pkg = manifest.get("fullPackage")
+    if isinstance(full_pkg, str) and full_pkg:
+        return full_pkg
+    if isinstance(full_pkg, dict):
+        latest = full_pkg.get("latest")
+        if isinstance(latest, str) and latest:
+            return latest
+    legacy_keys = ("legacyMediaArchive", "catalogArchive") if package_type == "media" else ("libraryPackage",)
+    for key in legacy_keys:
+        value = manifest.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def resolve_package_artifact(
+    package_type: str,
+    channel: str,
+    artifact_base: str,
+    manifest_bundle: dict[str, object] | None,
+) -> tuple[str, str | None, str | None]:
+    """Resolve a package URL together with its manifest base URL and checksum path."""
+    if manifest_bundle:
+        entry = _resolve_domain_manifest(package_type, manifest_bundle)
+        if entry is not None:
+            manifest_url, manifest = entry
+            relative = _resolve_full_package_relative(package_type, manifest)
+            if relative:
+                checksum = manifest.get("checksum")
+                checksum_relative = ""
+                if isinstance(checksum, dict):
+                    checksum_relative = str(checksum.get("fullPackage") or "").strip()
+                return resolve_json_url(manifest_url, relative), manifest_url, checksum_relative or None
 
     # Ultimate fallback: legacy flat URL structure
     package_name = resolve_package_name(channel, package_type)
-    return f"{artifact_base}/{channel}/websoft9/plugin/{package_type}/{package_name}"
+    return f"{artifact_base}/{channel}/websoft9/plugin/{package_type}/{package_name}", None, None
+
+
+def resolve_package_url(package_type: str, channel: str, artifact_base: str, manifest_bundle: dict[str, object] | None) -> str:
+    return resolve_package_artifact(package_type, channel, artifact_base, manifest_bundle)[0]
 
 
 def stage_snapshot(source_root: Path, snapshot_root: Path, dataset_version: str, package_type: str) -> dict[str, Path]:
@@ -688,9 +919,11 @@ def stage_snapshot(source_root: Path, snapshot_root: Path, dataset_version: str,
     release_dir = snapshot_root / "releases" / dataset_version / package_type
     current_dir = snapshot_root / "current" / package_type
 
-    replace_tree(source_root, staging_dir)
-    replace_tree(staging_dir, release_dir)
-    replace_tree(staging_dir, current_dir)
+    # All three copies live inside the same App Store root, so they reuse the same file
+    # contents through hard links instead of copying the payload three times.
+    replace_tree_linked(source_root, staging_dir)
+    replace_tree_linked(staging_dir, release_dir)
+    replace_tree_linked(staging_dir, current_dir)
 
     return {
         "staging": staging_dir,
@@ -794,7 +1027,7 @@ def sync_library_package_delta(
     if not changed_apps and not removed_apps:
         return promote_existing_package_snapshot(reusable_source, target_dir, marker_path, snapshot_root, dataset_version, "library")
 
-    package_url = resolve_package_url("library", channel, artifact_base, manifest_bundle)
+    package_url, package_base_url, package_checksum_relative = resolve_package_artifact("library", channel, artifact_base, manifest_bundle)
     package_name = Path(urllib.request.urlparse(package_url).path).name or resolve_package_name(channel, "library")
     log(f"[platform-assets] applying library app delta from {package_url}; changed={changed_apps or []} removed={removed_apps or []}")
 
@@ -806,11 +1039,14 @@ def sync_library_package_delta(
 
         download_file(package_url, zip_path)
 
+        if package_base_url and package_checksum_relative:
+            verify_downloaded_file_checksum(package_base_url, package_url, package_checksum_relative, zip_path)
+
         extract_zip_with_permissions(zip_path, extract_dir)
 
         source_root = extract_sync_root(extract_dir, "library")
         staged_root = temp_dir / "staged-library"
-        replace_tree(reusable_source, staged_root)
+        replace_tree_linked(reusable_source, staged_root)
 
         staged_apps_dir = staged_root / "apps"
         staged_apps_dir.mkdir(parents=True, exist_ok=True)
@@ -885,7 +1121,9 @@ def hydrate_app_sidecar(
     local_path = temp_dir / f"{app_key}-{local_name}"
     download_file(resolve_json_url(base_url, relative_path), local_path)
     verify_downloaded_file_checksum(base_url, relative_path, checksum_relative, local_path)
-    shutil.copy2(local_path, app_root / local_name)
+    # Atomic replace: an in-place copy would corrupt the hard-linked snapshot copies that share
+    # this file's inode.
+    os.replace(local_path, app_root / local_name)
 
 
 def sync_library_app_artifacts_delta(
@@ -913,7 +1151,9 @@ def sync_library_app_artifacts_delta(
     with tempfile.TemporaryDirectory(prefix="websoft9-library-app-artifacts-") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
         staged_root = temp_dir / "staged-library"
-        replace_tree(reusable_source, staged_root)
+        # Reuse the current library payload through hard links: only the changed apps are
+        # rewritten, so the untouched 60+ MB does not need to be copied for a few KB of updates.
+        replace_tree_linked(reusable_source, staged_root)
         staged_apps_dir = staged_root / "apps"
         staged_apps_dir.mkdir(parents=True, exist_ok=True)
 
@@ -924,7 +1164,7 @@ def sync_library_app_artifacts_delta(
             elif app_path.exists():
                 app_path.unlink()
 
-        for app_key in changed_apps:
+        def apply_changed_app(app_key: str) -> None:
             app_metadata = apps_index.get(app_key)
             if not isinstance(app_metadata, dict):
                 raise RuntimeError(f"appsIndex is missing changed app metadata: {app_key}")
@@ -964,6 +1204,15 @@ def sync_library_app_artifacts_delta(
                 temp_dir,
             )
 
+        # Each app owns its own bundle, extraction and sidecar paths, so the per-app artifact
+        # downloads overlap instead of paying one round trip after another.
+        if changed_apps:
+            max_workers = min(_resolve_app_download_workers(), len(changed_apps))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(apply_changed_app, app_key) for app_key in changed_apps]
+                for future in futures:
+                    future.result()
+
         snapshot_paths = stage_snapshot(staged_root, snapshot_root, dataset_version, "library")
         sync_library_delta_target(snapshot_paths["current"], target_dir, changed_apps, removed_apps, marker_path)
 
@@ -972,6 +1221,136 @@ def sync_library_app_artifacts_delta(
 
     log(f"[platform-assets] applied library app artifacts delta into {target_dir}")
     return {key: str(value) for key, value in snapshot_paths.items()}
+
+
+def package_needs_sync(package_type: str, marker_path: Path, package_sync_plan: dict[str, bool] | None, force_refresh: bool) -> bool:
+    """Report whether a package must be downloaded and applied."""
+    if force_refresh:
+        return True
+    if package_sync_plan and not package_sync_plan.get(package_type, True):
+        return False
+    return not marker_exists(marker_path, package_type)
+
+
+def prepare_package_source(
+    package_type: str,
+    channel: str,
+    artifact_base: str,
+    manifest_bundle: dict[str, object] | None,
+    temp_dir: Path,
+) -> Path:
+    """Download, verify and extract a package; returns the extracted payload root.
+
+    Kept separate from the tree replacement so several packages can be fetched concurrently while
+    the runtime trees are still only rewritten one package at a time.
+    """
+    package_url, package_base_url, package_checksum_relative = resolve_package_artifact(package_type, channel, artifact_base, manifest_bundle)
+    package_name = Path(urllib.request.urlparse(package_url).path).name or resolve_package_name(channel, package_type)
+    log(f"[platform-assets] downloading {package_type} assets from {package_url}")
+
+    zip_path = temp_dir / package_name
+    extract_dir = temp_dir / "extract"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    download_file(package_url, zip_path)
+
+    if package_base_url and package_checksum_relative:
+        # Verify the downloaded archive before it can reach a runtime tree.
+        verify_downloaded_file_checksum(package_base_url, package_url, package_checksum_relative, zip_path)
+
+    extract_zip_with_permissions(zip_path, extract_dir)
+
+    source_root = extract_sync_root(extract_dir, package_type)
+
+    # v2 catalog zip ships JSON files flat; the runtime layout expects
+    # them under a json/ subdirectory (matching the legacy media.zip shape).
+    if package_type == "media" and not (source_root / "json").is_dir():
+        json_files = sorted(source_root.glob("*.json"))
+        if json_files:
+            json_dir = temp_dir / "wrapped-media"
+            nested_json = json_dir / "json"
+            nested_json.mkdir(parents=True, exist_ok=True)
+            for json_file in json_files:
+                shutil.move(str(json_file), str(nested_json / json_file.name))
+            # Carry over any non-JSON contents (logos, screenshots, etc.)
+            for item in source_root.iterdir():
+                if item.is_dir():
+                    shutil.copytree(item, json_dir / item.name)
+                elif not item.name.endswith(".json"):
+                    shutil.copy2(item, json_dir / item.name)
+            source_root = json_dir
+
+    return source_root
+
+
+def apply_package_source(
+    package_type: str,
+    target_dir: Path,
+    marker_path: Path,
+    source_root: Path,
+    snapshot_root: Path | None,
+    dataset_version: str | None,
+) -> dict[str, str] | None:
+    snapshot_paths = None
+    if snapshot_root is not None and dataset_version:
+        snapshot_paths = stage_snapshot(source_root, snapshot_root, dataset_version, package_type)
+        source_root = snapshot_paths["current"]
+    replace_tree_preserving_generated_manifests(source_root, target_dir)
+
+    if not marker_exists(marker_path, package_type):
+        raise RuntimeError(f"{package_type} assets are still missing after sync: {marker_path}")
+
+    log(f"[platform-assets] synced {package_type} assets into {target_dir}")
+    if snapshot_paths:
+        return {key: str(value) for key, value in snapshot_paths.items()}
+    return None
+
+
+def prefetch_pending_packages(
+    packages: list[tuple[str, Path, Path]],
+    package_sync_plan: dict[str, bool],
+    force_refresh: bool,
+    channel: str,
+    artifact_base: str,
+    manifest_bundle: dict[str, object] | None,
+) -> tuple[dict[str, Path], Path | None]:
+    """Download every package that needs updating concurrently.
+
+    Packages are independent, so fetching them in parallel removes one full round of download
+    latency (media + library).  The trees themselves are still rewritten one package at a time.
+    A failed prefetch is not fatal: the caller falls back to a serial download for that package.
+    """
+    pending = [
+        package
+        for package in packages
+        if package_needs_sync(package[0], package[2], package_sync_plan, force_refresh)
+    ]
+    if len(pending) < 2:
+        return {}, None
+
+    prefetch_root = Path(tempfile.mkdtemp(prefix="websoft9-appstore-prefetch-"))
+    prefetched: dict[str, Path] = {}
+    with ThreadPoolExecutor(max_workers=len(pending)) as executor:
+        futures = {}
+        for package_type, _target_dir, _marker_path in pending:
+            package_temp_dir = prefetch_root / package_type
+            package_temp_dir.mkdir(parents=True, exist_ok=True)
+            futures[
+                executor.submit(
+                    prepare_package_source,
+                    package_type,
+                    channel,
+                    artifact_base,
+                    manifest_bundle,
+                    package_temp_dir,
+                )
+            ] = package_type
+        for future, package_type in futures.items():
+            try:
+                prefetched[package_type] = future.result()
+            except Exception as exc:
+                log(f"[platform-assets] {package_type} prefetch failed; downloading it serially instead: {exc}")
+    return prefetched, prefetch_root
 
 
 def sync_package(
@@ -984,61 +1363,20 @@ def sync_package(
     snapshot_root: Path | None = None,
     dataset_version: str | None = None,
     force_sync: bool = False,
+    prefetched_source: Path | None = None,
 ) -> dict[str, str] | None:
-    force_refresh = (os.getenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    force_refresh = is_force_refresh_enabled()
 
     if marker_exists(marker_path, package_type) and not force_refresh and not force_sync:
         log(f"[platform-assets] {package_type} already present at {marker_path}")
         return None
 
-    package_url = resolve_package_url(package_type, channel, artifact_base, manifest_bundle)
-    package_name = Path(urllib.request.urlparse(package_url).path).name or resolve_package_name(channel, package_type)
-    action = "refreshing" if force_refresh else "syncing missing"
-    log(f"[platform-assets] {action} {package_type} assets from {package_url}")
+    if prefetched_source is not None:
+        return apply_package_source(package_type, target_dir, marker_path, prefetched_source, snapshot_root, dataset_version)
 
     with tempfile.TemporaryDirectory(prefix=f"websoft9-{package_type}-") as temp_dir_name:
-        temp_dir = Path(temp_dir_name)
-        zip_path = temp_dir / package_name
-        extract_dir = temp_dir / "extract"
-        extract_dir.mkdir(parents=True, exist_ok=True)
-
-        download_file(package_url, zip_path)
-
-        extract_zip_with_permissions(zip_path, extract_dir)
-
-        source_root = extract_sync_root(extract_dir, package_type)
-
-        # v2 catalog zip ships JSON files flat; the runtime layout expects
-        # them under a json/ subdirectory (matching the legacy media.zip shape).
-        if package_type == "media" and not (source_root / "json").is_dir():
-            json_files = sorted(source_root.glob("*.json"))
-            if json_files:
-                json_dir = temp_dir / "wrapped-media"
-                nested_json = json_dir / "json"
-                nested_json.mkdir(parents=True, exist_ok=True)
-                for json_file in json_files:
-                    shutil.move(str(json_file), str(nested_json / json_file.name))
-                # Carry over any non-JSON contents (logos, screenshots, etc.)
-                for item in source_root.iterdir():
-                    if item.is_dir():
-                        shutil.copytree(item, json_dir / item.name)
-                    elif not item.name.endswith(".json"):
-                        shutil.copy2(item, json_dir / item.name)
-                source_root = json_dir
-
-        snapshot_paths = None
-        if snapshot_root is not None and dataset_version:
-            snapshot_paths = stage_snapshot(source_root, snapshot_root, dataset_version, package_type)
-            source_root = snapshot_paths["current"]
-        replace_tree(source_root, target_dir)
-
-    if not marker_exists(marker_path, package_type):
-        raise RuntimeError(f"{package_type} assets are still missing after sync: {marker_path}")
-
-    log(f"[platform-assets] synced {package_type} assets into {target_dir}")
-    if snapshot_paths:
-        return {key: str(value) for key, value in snapshot_paths.items()}
-    return None
+        source_root = prepare_package_source(package_type, channel, artifact_base, manifest_bundle, Path(temp_dir_name))
+        return apply_package_source(package_type, target_dir, marker_path, source_root, snapshot_root, dataset_version)
 
 
 def load_initial_apps(config_path: Path) -> list[str]:
@@ -1481,6 +1819,55 @@ def is_force_refresh_enabled() -> bool:
     return (os.getenv("WEBSOFT9_RUNTIME_ASSET_FORCE_SYNC") or "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def resolve_env_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None or not str(raw_value).strip():
+        return default
+    try:
+        return int(str(raw_value).strip())
+    except ValueError:
+        return default
+
+
+def _resolve_app_download_workers() -> int:
+    """Concurrency for per-app artifact downloads (bounded to stay polite to the artifact server)."""
+    return max(1, min(resolve_env_int("WEBSOFT9_APPSTORE_APP_DOWNLOAD_WORKERS", 4), 16))
+
+
+def _tree_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def prune_stale_appstore_datasets(snapshot_root: Path, active_dataset_version: str | None) -> list[str]:
+    """Delete every staged/released App Store dataset except the active one.
+
+    This runtime does not roll back to older App Store datasets, so keeping them only wastes
+    disk: each historical dataset is a full media + library payload.  Best effort, and it never
+    runs when no dataset version is known.
+    """
+    active_version = (active_dataset_version or "").strip()
+    if not active_version:
+        return []
+
+    removed: list[str] = []
+    for dataset_root in (snapshot_root / "releases", snapshot_root / "staging"):
+        if not dataset_root.is_dir():
+            continue
+        for dataset_dir in dataset_root.iterdir():
+            if not dataset_dir.is_dir() or dataset_dir.name == active_version:
+                continue
+            try:
+                shutil.rmtree(dataset_dir)
+            except OSError as exc:
+                verbose_log(f"[platform-assets] could not remove App Store dataset {dataset_dir}: {exc}")
+                continue
+            removed.append(f"{dataset_root.name}/{dataset_dir.name}")
+    return removed
+
+
 def main() -> int:
     channel = detect_channel()
     artifact_base = os.getenv("WEBSOFT9_ARTIFACT_BASE", "https://artifact.websoft9.com")
@@ -1490,7 +1877,7 @@ def main() -> int:
         or os.getenv("WEBSOFT9_APPHUB_CONFIG", "/websoft9/apphub/src/config/config.ini")
     )
     data_root = os.getenv("WEBSOFT9_DATA_ROOT", "/opt/websoft9/data")
-    sync_state_path = Path(os.getenv("WEBSOFT9_APP_STORE_SYNC_STATE", str(Path(data_root) / "config" / "appstore_sync_state.json")))
+    sync_state_path = _resolve_sync_state_path()
     snapshot_root = Path(os.getenv("WEBSOFT9_APP_STORE_SNAPSHOT_ROOT", "/websoft9/appstore"))
 
     packages = [
@@ -1517,6 +1904,22 @@ def main() -> int:
 
     if requested_package_types:
         packages = [package for package in packages if package[0] in requested_package_types]
+
+    # Serialise every sync trigger.  Runtime bootstrap, daily cron, CLI and the API all funnel
+    # through this lock, so concurrent runs can never rewrite the same trees.  Image builds run
+    # alone and must not create runtime state, so they skip locking entirely.
+    if sync_mode != "build":
+        try:
+            sync_lock = acquire_appstore_sync_lock(Path(data_root))
+        except OSError as exc:
+            log(f"[platform-assets] Appstore sync lock unavailable ({exc}); continuing without cross-process serialisation")
+            sync_lock = _APPSTORE_SYNC_LOCK_UNAVAILABLE
+        if sync_lock is None:
+            log("[platform-assets] another Appstore sync is already running; skipping this round")
+            return 0
+        # Keep the handle alive for the process lifetime; closing it would release the lock.
+        _ = sync_lock
+        write_appstore_sync_pid_marker()
 
     rollback_backups: dict[Path, Path | None] = {}
     rollback_root: Path | None = None
@@ -1599,6 +2002,14 @@ def main() -> int:
             rollback_backups = backup_trees(rollback_targets, rollback_root)
 
         if not should_skip_package_sync:
+            prefetched_sources, prefetch_root = prefetch_pending_packages(
+                packages,
+                package_sync_plan,
+                force_refresh,
+                channel,
+                artifact_base,
+                manifest_bundle,
+            )
             for package_type, target_dir, marker_path in packages:
                 reusable_source = resolve_reusable_package_source(previous_state, package_type, target_dir, marker_path)
                 if not force_refresh and not package_sync_plan.get(package_type, True):
@@ -1655,9 +2066,13 @@ def main() -> int:
                     snapshot_root,
                     str(applied_dataset_version),
                     force_sync=package_sync_plan.get(package_type, True),
+                    prefetched_source=prefetched_sources.get(package_type),
                 )
                 if snapshot_paths:
                     package_snapshot_paths[package_type] = snapshot_paths
+
+            if prefetch_root is not None:
+                shutil.rmtree(prefetch_root, ignore_errors=True)
 
         # Persist the library apps index next to the active library and inside this dataset's
         # snapshots, so the manifest build and a later offline activation both see the per-app
@@ -1694,6 +2109,13 @@ def main() -> int:
             state_payload["libraryDatasetVersion"] = latest_library_dsv
         write_sync_state(sync_state_path, state_payload)
         log(f"[platform-assets] completed app store manifest build (mode={sync_mode})")
+
+        removed_datasets = prune_stale_appstore_datasets(
+            snapshot_root,
+            str(applied_dataset_version) if applied_dataset_version else None,
+        )
+        if removed_datasets:
+            log(f"[platform-assets] removed stale App Store datasets: {', '.join(sorted(removed_datasets))}")
     except AppStoreCompatibilityError as exc:
         if rollback_backups:
             try:
