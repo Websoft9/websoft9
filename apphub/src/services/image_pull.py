@@ -6,6 +6,10 @@ finally the accelerator prefixes the operator configured. An accelerated pull is
 another source for the same image, so the result is tagged back to the requested
 reference: the deployment keeps using the reference recorded in `.env`, and the upgrade
 runner verifies the image through the digest of the source it was pulled from.
+
+Where the accelerators come from is not decided here: `MirrorRegistry` owns that answer,
+including the credentials an accelerator may need. This module turns the answer into an
+ordered plan (`build_pull_plan`) and runs it on either Docker client.
 """
 
 from __future__ import annotations
@@ -15,11 +19,16 @@ import io
 import json
 import re
 import tarfile
+from typing import Mapping, Sequence
 
-import requests
+import yaml
 
-from src.core.config import ConfigManager
 from src.core.logger import logger
+from src.services.docker_mirror_store import (
+    normalize_mirror_url,
+    parse_mirror_entries,
+)
+from src.services.mirror_registry import Accelerator, MirrorRegistry
 
 DEFAULT_IMAGE_REPO = "websoft9dev/websoft9"
 ECR_PUBLIC_IMAGE_REPO = "public.ecr.aws/w6g2g5k1/websoft9"
@@ -34,7 +43,9 @@ ECR_PUBLIC_TAG_PATTERN = re.compile(r"^(latest|dev|\d+\.\d+|\d+\.\d+-dev)$")
 ECR_PUBLIC_ALIAS_PATTERN = re.compile(r"^(latest|\d+\.\d+)$")
 VERSION_FILE_PATH = "/websoft9/version.json"
 LOCAL_MIRROR_FILE = "/websoft9/mirrors.json"
-MIRROR_LIST_TIMEOUT_SECONDS = 10
+# An image reference carries no scheme, and a value that needs quirks (whitespace, a URL)
+# is not something any registry can serve - better to reject it than to pull something else.
+IMAGE_REFERENCE_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._\-/:@]*$")
 
 
 class ImagePullError(Exception):
@@ -58,66 +69,117 @@ def split_reference(reference: str) -> tuple[str, str]:
     return repository, tag
 
 
-def normalize_accelerator(value: str) -> str:
-    normalized = str(value or "").strip().rstrip("/")
-    for scheme in ("http://", "https://"):
-        if normalized.startswith(scheme):
-            normalized = normalized[len(scheme):]
-    return normalized
+def load_image_accelerators(
+    *, registry: MirrorRegistry | None = None
+) -> list[Accelerator]:
+    """Accelerators to try, resolved by the registry in one place.
 
-
-def parse_accelerator_entries(configured: str) -> list[str]:
-    entries = [
-        normalize_accelerator(item)
-        for item in str(configured or "").replace("\n", ",").split(",")
-    ]
-    return list(dict.fromkeys(entry for entry in entries if entry))
-
-
-def load_local_mirror_entries() -> list[str]:
-    """Read the mirror list shipped inside the image."""
-    try:
-        with open(LOCAL_MIRROR_FILE, encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except Exception:
-        return []
-    mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-    return [entry for entry in (normalize_accelerator(item) for item in mirrors) if entry]
-
-
-def load_image_accelerators(*, config: ConfigManager | None = None) -> list[str]:
-    """Read the operator's accelerator prefixes.
-
-    `docker_mirror.url` holds either the prefixes themselves (newline or comma separated)
-    or a URL that serves the mirror list. A successful fetch is cached back into
-    config.ini, and an unreachable URL falls back to the mirrors bundled with the image.
+    The operator's table wins when it has entries; the default list is used only when nothing
+    was configured, and a list with every entry switched off means no acceleration at all.
     """
-    manager = config or ConfigManager("config.ini")
-    try:
-        configured = str(manager.get_value("docker_mirror", "url") or "").strip()
-    except Exception as exc:
-        logger.error(f"Unable to read the docker mirror configuration: {exc}")
-        return []
-    if not configured:
-        return []
-    if not configured.startswith(("http://", "https://")):
-        return parse_accelerator_entries(configured)
+    return (registry or MirrorRegistry()).accelerators()
 
-    try:
-        response = requests.get(configured, timeout=MIRROR_LIST_TIMEOUT_SECONDS)
-        response.raise_for_status()
-        payload = response.json()
-        entries = payload.get("mirrors", []) if isinstance(payload, dict) else []
-    except Exception:
-        return load_local_mirror_entries()
 
-    resolved = [entry for entry in (normalize_accelerator(item) for item in entries) if entry]
-    if resolved:
-        try:
-            manager.set_value("docker_mirror", "url", "\n".join(resolved))
-        except Exception:
-            logger.debug("Unable to cache the resolved mirror list")
+def resolve_accelerators(
+    accelerators: "Sequence[str | Accelerator] | None",
+) -> list[Accelerator]:
+    """Normalise explicit accelerators, or ask the registry when none were given."""
+    if accelerators is None:
+        return load_image_accelerators()
+    resolved: list[Accelerator] = []
+    for item in accelerators:
+        if isinstance(item, Accelerator):
+            resolved.append(item)
+        else:
+            url = normalize_mirror_url(item)
+            if url:
+                resolved.append(Accelerator(url))
     return resolved
+
+
+def validate_image_reference(image: str) -> str:
+    """Reject a reference no registry could serve, before it reaches a pull.
+
+    A compose file may interpolate a variable that the `.env` never defines, and the result
+    would otherwise be pulled literally.
+    """
+    candidate = str(image or "").strip()
+    if not candidate or not IMAGE_REFERENCE_PATTERN.match(candidate):
+        raise ImagePullError(f"Invalid image reference: {image!r}")
+    return candidate
+
+
+def collect_compose_images(compose_payload, env_values: "Mapping[str, str] | None" = None) -> list[str]:
+    """List the images a compose file will need, in file order, variables substituted.
+
+    Services that build from source are skipped: the platform has no build context for them.
+    """
+    if isinstance(compose_payload, str):
+        try:
+            compose_payload = yaml.safe_load(compose_payload) or {}
+        except Exception as exc:
+            logger.warning(f"Unable to parse the compose file while collecting images: {exc}")
+            return []
+    services = (compose_payload or {}).get("services", {}) if isinstance(compose_payload, dict) else {}
+    images: list[str] = []
+    for service in services.values():
+        if not isinstance(service, dict) or "build" in service:
+            continue
+        image = service.get("image")
+        if not image:
+            continue
+        images.append(_substitute_env(str(image), env_values or {}))
+    return list(dict.fromkeys(images))
+
+
+def _substitute_env(text: str, env_values: "Mapping[str, str]") -> str:
+    def _replace(match: "re.Match[str]") -> str:
+        return str(env_values.get(match.group(1) or match.group(2), ""))
+
+    return re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)", _replace, text)
+
+
+@dataclass(frozen=True)
+class PullAttempt:
+    """One candidate for one image: what to pull, why, and with which credentials."""
+
+    reference: str
+    label: str
+    source: str
+    auth_config: dict[str, str] | None = None
+
+
+def build_pull_plan(
+    reference: str,
+    *,
+    accelerators: "Sequence[str | Accelerator] | None" = None,
+    alias_tags: list[str] | None = None,
+) -> list[PullAttempt]:
+    """Order the candidates: direct, Amazon ECR Public, then the operator's accelerators.
+
+    Both the synchronous and the asynchronous pull share this list, so the order and the
+    credentials cannot drift apart between the install path and the redeploy path.
+    """
+    plan = [PullAttempt(reference=reference, label="direct pull", source="direct")]
+    for ecr_reference in ecr_candidates(reference, alias_tags):
+        plan.append(
+            PullAttempt(
+                reference=ecr_reference,
+                label=f"Amazon ECR Public ({ecr_reference})",
+                source=ecr_reference,
+            )
+        )
+    for accelerator in resolve_accelerators(accelerators):
+        for candidate in _accelerated_references(accelerator.url, reference):
+            plan.append(
+                PullAttempt(
+                    reference=candidate,
+                    label=f"mirror {accelerator.url}",
+                    source=candidate,
+                    auth_config=accelerator.auth_config(),
+                )
+            )
+    return plan
 
 
 def first_digest(image) -> str:
@@ -243,58 +305,113 @@ def pull_with_fallback(
     *,
     expected_version: str = "",
     alias_tags: list[str] | None = None,
-    accelerators: list[str] | None = None,
+    accelerators: "Sequence[str | Accelerator] | None" = None,
+    on_progress=None,
 ) -> PulledImage:
     """Pull `reference`, trying direct, Amazon ECR Public and the accelerators in order.
 
     When `expected_version` is given, every candidate has to declare that version inside the
     image; a source that moved on to another patch release is discarded instead of being
-    installed under the wrong version.
+    installed under the wrong version. `on_progress` receives the raw progress lines when a
+    caller wants to surface them (the install log does).
     """
     errors: list[str] = []
+    plan = build_pull_plan(reference, accelerators=accelerators, alias_tags=alias_tags)
 
-    image = _pull_checked(client, reference, "direct pull", expected_version, errors)
-    if image is not None:
-        return _pulled(client, reference, image, "direct")
-
-    for ecr_reference in ecr_candidates(reference, alias_tags):
-        image = _pull_checked(client, ecr_reference, f"Amazon ECR Public ({ecr_reference})", expected_version, errors)
+    for attempt in plan:
+        image = _pull_checked(client, attempt, expected_version, errors, on_progress)
         if image is not None:
-            return _pulled(client, reference, image, ecr_reference)
-
-    # Reading the list touches config.ini and possibly the network, so it stays lazy: a
-    # direct pull never pays for it.
-    for accelerator in load_image_accelerators() if accelerators is None else accelerators:
-        for candidate in _accelerated_references(accelerator, reference):
-            image = _pull_checked(client, candidate, f"mirror {accelerator}", expected_version, errors)
-            if image is not None:
-                return _pulled(client, reference, image, candidate)
+            return _pulled(client, reference, image, attempt.source)
 
     raise ImagePullError("; ".join(errors) or f"Unable to pull {reference}")
 
 
-def _pull_checked(client, reference: str, label: str, expected_version: str, errors: list[str]):
-    image = _pull(client, reference, label, errors)
+async def pull_with_fallback_async(
+    client,
+    reference: str,
+    *,
+    alias_tags: list[str] | None = None,
+    accelerators: "Sequence[str | Accelerator] | None" = None,
+    log=None,
+) -> str:
+    """The same plan, driven by the asynchronous Docker client.
+
+    The redeploy path streams pull progress into the install log, so it cannot use the
+    synchronous client; sharing `build_pull_plan` keeps the order and the credentials
+    identical between the two transports. Returns the reference that served the image, which
+    is always tagged back to `reference` for the deployment to keep using.
+    """
+    errors: list[str] = []
+    for attempt in build_pull_plan(reference, accelerators=accelerators, alias_tags=alias_tags):
+        try:
+            if log is not None:
+                await log(f"Pulling image: {attempt.reference}")
+            stream = client.images.pull(
+                attempt.reference, stream=True, auth=attempt.auth_config
+            )
+            async for line in stream:
+                if log is not None:
+                    await log(line)
+        except Exception as exc:
+            errors.append(f"{attempt.label}: {exc}")
+            logger.warning(f"Image pull failed ({attempt.label}): {exc}")
+            continue
+        await _tag_back_async(client, reference, attempt.reference)
+        return attempt.reference
+
+    raise ImagePullError("; ".join(errors) or f"Unable to pull {reference}")
+
+
+async def _tag_back_async(client, reference: str, served: str) -> None:
+    """Make the requested name resolve after an accelerated pull."""
+    repository, tag = split_reference(reference)
+    if not (repository and tag) or served == reference:
+        return
+    try:
+        await client.images.tag(served, repo=repository, tag=tag)
+    except Exception as exc:
+        logger.debug(f"Unable to tag {served} as {reference}: {exc}")
+
+
+def _pull_checked(
+    client, attempt: PullAttempt, expected_version: str, errors: list[str], on_progress=None
+):
+    image = _pull(client, attempt, errors, on_progress)
     if image is None or not expected_version:
         return image
-    declared = read_image_version(client, reference)
+    declared = read_image_version(client, attempt.reference)
     if declared and declared != expected_version:
-        errors.append(f"{label}: the image declares {declared} instead of {expected_version}")
-        logger.warning(f"Discarding {reference}: it carries {declared}, expected {expected_version}")
+        errors.append(
+            f"{attempt.label}: the image declares {declared} instead of {expected_version}"
+        )
+        logger.warning(
+            f"Discarding {attempt.reference}: it carries {declared}, expected {expected_version}"
+        )
         try:
-            client.images.remove(reference)
+            client.images.remove(attempt.reference)
         except Exception:
-            logger.debug(f"Unable to drop the rejected image {reference}")
+            logger.debug(f"Unable to drop the rejected image {attempt.reference}")
         return None
     return image
 
 
-def _pull(client, reference: str, label: str, errors: list[str]):
+def _pull(client, attempt: PullAttempt, errors: list[str], on_progress=None):
     try:
-        return client.images.pull(reference)
+        if on_progress is None:
+            return client.images.pull(
+                attempt.reference, auth_config=attempt.auth_config
+            )
+        for line in client.api.pull(
+            attempt.reference,
+            stream=True,
+            decode=True,
+            auth_config=attempt.auth_config,
+        ):
+            on_progress(line)
+        return client.images.get(attempt.reference)
     except Exception as exc:
-        errors.append(f"{label}: {exc}")
-        logger.warning(f"Image pull failed ({label}): {exc}")
+        errors.append(f"{attempt.label}: {exc}")
+        logger.warning(f"Image pull failed ({attempt.label}): {exc}")
         return None
 
 

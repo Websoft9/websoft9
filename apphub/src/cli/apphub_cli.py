@@ -188,6 +188,24 @@ def appstore_sync(channel, dev, force_refresh, no_wait):
         raise click.ClickException(str(e))
 
 
+def _refresh_docker_mirror_list() -> None:
+    """Refresh the accelerator defaults without ever failing the daily check.
+
+    This runs from cron, so the exit code and the auto-download decision must not depend on
+    an artifact endpoint that happens to be slow or dead: a failure is only a warning. The
+    host-visible copy is written in the same pass, because a host-side upgrade reads that
+    file when it pulls the platform image on its own.
+    """
+    try:
+        from src.services.mirror_registry import MirrorRegistry
+
+        registry = MirrorRegistry()
+        registry.refresh_default_list(force=True)
+        registry.export_host_visible_list()
+    except Exception as exc:
+        click.echo(f"Unable to refresh the Docker mirror list: {exc}", err=True)
+
+
 @cli.command(name='check-update')
 def check_update():
     """Check the artifact channel for a newer platform release"""
@@ -197,6 +215,7 @@ def check_update():
         if not version:
             raise click.ClickException(f"Unable to determine the latest {channel} release")
         click.echo(f"Latest {channel} release: {version}")
+        _refresh_docker_mirror_list()
         if _dispatch_auto_download():
             click.echo("Upgrade download started in the background")
     except click.ClickException:

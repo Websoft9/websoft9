@@ -4,11 +4,14 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, Path, Query, Request, Response
-from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest
+from src.schemas.appSettings import AppSettings, PlatformGatewayBatchUpdateRequest, GenerateSelfSignedCertRequest, ApplyLetsEncryptCertRequest, UploadCertRequest, DockerMirrorEntriesRequest, DockerMirrorEntryPayload
 from src.schemas.errorResponse import ErrorResponse
 from src.schemas.productRuntimeState import ProductEditionStateResponse
 from src.schemas.settingsSummary import SettingsSummaryResponse
 
+from src.core.logger import logger
+from src.services.mirror_registry import Accelerator, MirrorRegistry, read_region
+from src.services.docker_mirror_store import validate_mirror_url
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME, ProductAuthService
 from src.core.exception import CustomException
@@ -384,3 +387,95 @@ def get_internal_product_edition_state(
         updated_at=state.updated_at,
         note=state.note,
     )
+
+
+# ── Docker accelerators ───────────────────────────────────────────────────────
+#
+# These paths carry a third segment on purpose: `/settings/{section}` would otherwise swallow
+# them, and the routing would then depend on the order the routes are declared in.
+
+
+def _mirror_payload(registry: MirrorRegistry) -> dict:
+    """The accelerator configuration as the console needs to see it."""
+    return {
+        "source": registry.source(),
+        "entries": [entry.masked() for entry in registry.store.list_entries()],
+        "default_mirrors": registry.default_entries(),
+        "region": read_region(),
+    }
+
+
+def _validated_mirror_url(url: str) -> str:
+    """Reject an address Docker could not use, while the console can still explain why."""
+    try:
+        return validate_mirror_url(url)
+    except ValueError as exc:
+        raise CustomException(400, "Invalid Request", str(exc))
+
+
+@router.get(
+    "/settings/docker_mirrors/entries",
+    summary="Get the configured Docker accelerators",
+    description="Ordered accelerators, with passwords reduced to a password_set flag",
+    responses={200: {"model": dict}, 500: {"model": ErrorResponse}},
+)
+def get_docker_mirror_entries():
+    return _mirror_payload(MirrorRegistry())
+
+
+@router.put(
+    "/settings/docker_mirrors/entries",
+    summary="Replace the configured Docker accelerators",
+    description="Store the whole list, in the order it must be tried",
+    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def put_docker_mirror_entries(payload: DockerMirrorEntriesRequest):
+    registry = MirrorRegistry()
+    try:
+        registry.store.replace_entries([entry.model_dump() for entry in payload.entries])
+    except ValueError as exc:
+        # The store rejects an address Docker could not use, and the operator needs that
+        # reason rather than a generic failure.
+        raise CustomException(400, "Invalid Request", str(exc))
+    except Exception as exc:
+        logger.error(f"Unable to store the Docker accelerators: {exc}")
+        raise CustomException(400, "Invalid Request", "Unable to store the accelerators")
+    # The host upgrades pull the platform image on their own, so they read a credential-free
+    # copy of this list from the data root.
+    registry.export_host_visible_list()
+    return _mirror_payload(registry)
+
+
+@router.post(
+    "/settings/docker_mirrors/test",
+    summary="Check one accelerator",
+    description="Confirm the accelerator answers and accepts its credentials, without a pull",
+    responses={200: {"model": dict}, 400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+def test_docker_mirror_entry(payload: DockerMirrorEntryPayload):
+    registry = MirrorRegistry()
+    url = _validated_mirror_url(payload.url)
+    password = payload.password
+    if password is None:
+        # The console never receives the stored password, so a re-test of an unchanged entry
+        # has to use it from the store, found by id so a renamed address still matches.
+        password = registry.store.lookup_password(payload.id, url) or None
+    return registry.probe(
+        Accelerator(url=url, username=payload.username, password=password or "")
+    )
+
+
+@router.post(
+    "/settings/docker_mirrors/refresh",
+    summary="Refresh the default accelerator list",
+    description="Fetch the channel list used when no accelerator is configured",
+    responses={200: {"model": dict}, 500: {"model": ErrorResponse}},
+)
+def refresh_docker_mirror_defaults():
+    registry = MirrorRegistry()
+    refreshed = registry.refresh_default_list(force=True)
+    return {
+        "refreshed": refreshed,
+        "mirrors": registry.default_entries(),
+        "source": registry.source(),
+    }

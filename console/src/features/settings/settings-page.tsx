@@ -2,7 +2,6 @@ import {
     Alert,
     Box,
     Button,
-    Chip,
     CircularProgress,
     IconButton,
     List,
@@ -40,6 +39,7 @@ import {
 } from '../../shared/upgrade-status'
 import { checkUpgrade, rememberCompletedUpgrade } from '../../shared/upgrade-status'
 import type { UpgradeLog, UpgradeStatus } from '../../shared/upgrade-status'
+import { MirrorAccelerators } from './mirror-accelerators'
 import './settings-page.css'
 
 // Lines requested from the upgrade log endpoint; reaching this count means the tail was cut off.
@@ -293,8 +293,8 @@ export function SettingsPage() {
     const surfacePalette = getSurfacePalette(isDarkMode)
     const settingsFieldSx = getSurfaceFieldSx(surfacePalette)
     const [drafts, setDrafts] = useState<Record<string, string>>({})
-    const [mirrorPendingInputs, setMirrorPendingInputs] = useState<Record<string, string>>({})
     const [activeModule, setActiveModule] = useState<SettingsModuleId>('app-domain')
+    const [mirrorAddRequest, setMirrorAddRequest] = useState(0)
     const [feedback, setFeedback] = useState<{ severity: 'success' | 'error' | 'info'; message: string } | null>(null)
     const [toastOpen, setToastOpen] = useState(false)
     const [savingModule, setSavingModule] = useState<SettingsModuleId | null>(null)
@@ -544,7 +544,6 @@ export function SettingsPage() {
     const globalDomainItem = items.find((item) => item.group === 'domain' && item.key === 'wildcard_domain') ?? null
     const httpsItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'https_enabled') ?? null
     const forceHttpsItem = items.find((item) => item.group === 'platform_gateway' && item.key === 'force_https') ?? null
-    const mirrorItem = items.find((item) => item.group === 'docker_mirror' && item.key === 'url') ?? null
     const portRangeItem = items.find((item) => item.group === 'port_allocation' && item.key === 'range') ?? null
     const brandTitleItem = items.find((item) => item.group === 'platform_brand' && item.key === 'title') ?? null
     const brandLogoItem = items.find((item) => item.group === 'platform_brand' && item.key === 'logo_url') ?? null
@@ -640,14 +639,6 @@ export function SettingsPage() {
             }
             return nextDrafts
         })
-
-        setMirrorPendingInputs((currentInputs) => {
-            const nextInputs = { ...currentInputs }
-            for (const draftKey of draftKeys) {
-                delete nextInputs[draftKey]
-            }
-            return nextInputs
-        })
     }
 
     function isPlatformBrandLogoUrl(value: string) {
@@ -679,34 +670,9 @@ export function SettingsPage() {
         )
     }
 
-    function parseMirrorEntries(value: string) {
-        return value
-            .split(/\r?\n|,/)
-            .map((item) => item.trim())
-            .filter(Boolean)
-    }
-
-    function isMirrorManifestUrl(value: string) {
-        const trimmed = value.trim()
-        if (!trimmed || /[\r\n,]/.test(trimmed)) {
-            return false
-        }
-
-        try {
-            const parsed = new URL(trimmed)
-            return parsed.pathname.endsWith('.json')
-        } catch {
-            return false
-        }
-    }
-
     function getModuleItems(moduleId: SettingsModuleId) {
         if (moduleId === 'app-domain') {
             return globalDomainItem ? [globalDomainItem] : []
-        }
-
-        if (moduleId === 'app-mirror') {
-            return mirrorItem ? [mirrorItem] : []
         }
 
         if (moduleId === 'app-ports') {
@@ -755,20 +721,13 @@ export function SettingsPage() {
     function validateItemValue(item: SettingsSummaryItem, nextValue: string) {
         const trimmed = nextValue.trim()
 
-        if (!trimmed && item.group !== 'domain' && item.group !== 'docker_mirror' && !(item.group === 'platform_brand' && (item.key === 'login_background' || item.key === 'copyright_text'))) {
+        if (!trimmed && item.group !== 'domain' && !(item.group === 'platform_brand' && (item.key === 'login_background' || item.key === 'copyright_text'))) {
             return t('settingsPage.validation.required')
         }
 
         if (item.group === 'domain' && item.key === 'wildcard_domain' && trimmed) {
             if (/^https?:\/\//i.test(trimmed)) {
                 return t('settingsPage.validation.domainNoProtocol')
-            }
-        }
-
-        if (item.group === 'docker_mirror' && item.key === 'url') {
-            const mirrorEntries = parseMirrorEntries(nextValue)
-            if (!isMirrorManifestUrl(nextValue) && !mirrorEntries.length) {
-                return null
             }
         }
 
@@ -1010,15 +969,6 @@ export function SettingsPage() {
         } finally {
             setSavingModule(null)
         }
-    }
-
-    function handleRestoreDefault(item: SettingsSummaryItem | null) {
-        const defaultValue = item?.metadata?.default_value
-        if (!item || typeof defaultValue !== 'string') {
-            return
-        }
-
-        setDraftValue(getDraftKey(item), defaultValue)
     }
 
     function renderDomainRow(item: SettingsSummaryItem | null) {
@@ -1414,88 +1364,6 @@ export function SettingsPage() {
                             </svg>
                             <span>{t('settingsPage.portRange.securityHint')}</span>
                         </Typography>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    function renderMirrorRow(item: SettingsSummaryItem | null) {
-        if (!item) {
-            return null
-        }
-
-        const draftKey = getDraftKey(item)
-        const currentValue = drafts[draftKey] ?? item.value
-        const entries = parseMirrorEntries(currentValue)
-        const pendingInput = mirrorPendingInputs[draftKey] ?? ''
-
-        function commitPendingMirrorValue() {
-            const nextValue = pendingInput.trim().replace(/,+$/, '')
-            if (!nextValue) {
-                return
-            }
-
-            setDraftValue(draftKey, [...entries, nextValue].join(','))
-            setMirrorPendingInputs((currentInputs) => ({
-                ...currentInputs,
-                [draftKey]: '',
-            }))
-        }
-
-        function removeMirrorEntry(entryToRemove: string, indexToRemove: number) {
-            const nextEntries = entries.filter((entry, index) => !(entry === entryToRemove && index === indexToRemove))
-            setDraftValue(draftKey, nextEntries.join(','))
-        }
-
-        return (
-            <div className="settings-form-row settings-form-row--domain-stacked" key={`${draftKey}-mirrors`}>
-                <Typography className="settings-form-label">{t('settingsPage.items.docker_mirror.url')}</Typography>
-
-                <div className="settings-form-control settings-form-control--field">
-                    <div className="settings-inline-content">
-                        <Box className="settings-mirror-edit-box">
-                            {entries.map((entry, index) => (
-                                <Chip className="settings-mirror-edit-chip" key={`${entry}-${index}`} label={entry} onDelete={() => removeMirrorEntry(entry, index)} size="small" />
-                            ))}
-                            <input
-                                className="settings-mirror-inline-input"
-                                value={pendingInput}
-                                onBlur={commitPendingMirrorValue}
-                                onChange={(event) => {
-                                    setMirrorPendingInputs((currentInputs) => ({
-                                        ...currentInputs,
-                                        [draftKey]: event.target.value,
-                                    }))
-                                }}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter' || event.key === ',') {
-                                        event.preventDefault()
-                                        commitPendingMirrorValue()
-                                        return
-                                    }
-
-                                    if (event.key === 'Backspace' && !pendingInput && entries.length) {
-                                        event.preventDefault()
-                                        const lastIndex = entries.length - 1
-                                        removeMirrorEntry(entries[lastIndex], lastIndex)
-                                    }
-                                }}
-                                placeholder={entries.length ? '' : t('settingsPage.mirror.placeholderInline')}
-                            />
-                        </Box>
-                        <div className="settings-mirror-helper-row">
-                            <Typography className="settings-field-helper settings-field-helper--inline">{t('settingsPage.mirror.helper')}</Typography>
-                            <Box
-                                className="settings-restore-link"
-                                component="button"
-                                disabled={savingModule === activeModule}
-                                onClick={() => handleRestoreDefault(item)}
-                                type="button"
-                            >
-                                {t('settingsPage.actions.restore')}
-                            </Box>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -2480,7 +2348,15 @@ export function SettingsPage() {
         }
 
         if (activeModule === 'app-mirror') {
-            return renderMirrorRow(mirrorItem)
+            return (
+                <MirrorAccelerators
+                    addRequest={mirrorAddRequest}
+                    onFeedback={(nextFeedback) => {
+                        setFeedback(nextFeedback)
+                        setToastOpen(true)
+                    }}
+                />
+            )
         }
 
         if (activeModule === 'app-ports') {
@@ -2499,18 +2375,16 @@ export function SettingsPage() {
     }
 
     function moduleHasChanges(moduleId: SettingsModuleId) {
-        const draftKeys = getModuleDraftKeys(moduleId)
-        const hasDrafts = draftKeys.some((draftKey) => hasDraftValue(draftKey))
-
+        // The accelerator editor keeps its own draft state and its own footer.
         if (moduleId === 'app-mirror') {
-            const mirrorDraftKey = mirrorItem ? getDraftKey(mirrorItem) : ''
-            return hasDrafts || Boolean(mirrorDraftKey && (mirrorPendingInputs[mirrorDraftKey] ?? '').trim())
+            return false
         }
 
-        return hasDrafts
+        const draftKeys = getModuleDraftKeys(moduleId)
+        return draftKeys.some((draftKey) => hasDraftValue(draftKey))
     }
 
-    const showModuleFooter = activeModule !== 'platform-system'
+    const showModuleFooter = activeModule !== 'platform-system' && activeModule !== 'app-mirror'
     const saveDisabled = savingModule === activeModule || !moduleHasChanges(activeModule)
     const resetDisabled = savingModule === activeModule || !moduleHasChanges(activeModule)
 
@@ -2561,6 +2435,17 @@ export function SettingsPage() {
                                         <Typography className="settings-module-title">{t(activeModuleConfig.titleKey)}</Typography>
                                         <Typography className="settings-module-subtitle">{t(activeModuleConfig.descriptionKey)}</Typography>
                                     </Box>
+                                    {activeModule === 'app-mirror' ? (
+                                        <Button
+                                            className="settings-action-button settings-action-button--primary settings-mirror-add-button"
+                                            onClick={() => setMirrorAddRequest((current) => current + 1)}
+                                            size="small"
+                                            type="button"
+                                            variant="contained"
+                                        >
+                                            {t('settingsPage.mirror.addRow')}
+                                        </Button>
+                                    ) : null}
                                 </Box>
 
                                 <Box className="settings-module-card">

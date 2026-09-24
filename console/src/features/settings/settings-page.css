@@ -1007,66 +1007,145 @@
     color: var(--shell-subtle-text);
 }
 
-/* ── Mirror editor ───────────────────────── */
-.settings-mirror-box {
+/* ── Mirror accelerator editor ───────────────────────── */
+.settings-mirror-panel {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    min-height: 40px;
-    padding: 7px 10px;
+    flex-direction: column;
+    gap: 12px;
     width: 100%;
-    border: 1px solid var(--shell-surface-border);
-    background: transparent;
+    padding-bottom: 14px;
 }
 
-.settings-mirror-chip {
-    display: inline-flex;
+.settings-mirror-panel--loading {
     align-items: center;
-    min-height: 28px;
-    padding: 0 12px;
+    padding: 16px 0;
+}
+
+.settings-mirror-source-chip,
+.settings-mirror-source-chip.MuiChip-root {
     border: 1px solid var(--shell-surface-border);
     border-radius: 999px;
     background: transparent;
     color: var(--shell-subtle-text);
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 12px;
 }
 
-.settings-mirror-edit-chip,
-.settings-mirror-edit-chip.MuiChip-root {
-    border-radius: 999px;
-    border: 1px solid var(--shell-surface-border);
-}
-
-.settings-mirror-edit-box {
+.settings-mirror-list {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
     gap: 8px;
-    min-height: 38px;
-    width: 100%;
-    padding: 6px 10px;
+    padding-top: 8px;
+}
+
+.settings-mirror-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
     border: 1px solid var(--shell-surface-border);
     border-radius: 2px;
     background: transparent;
 }
 
-.settings-mirror-inline-input {
-    min-width: 160px;
-    flex: 1 1 160px;
-    border: 0;
-    outline: 0;
-    padding: 4px 0;
-    background: transparent;
-    font: inherit;
-    color: var(--shell-strong-text);
+.settings-mirror-row--dragging {
+    border-color: var(--shell-accent-text, #1677ff);
+    background: color-mix(in srgb, var(--shell-accent-text, #1677ff) 8%, transparent);
+    opacity: 0.72;
 }
 
-.settings-mirror-helper-row {
+.settings-mirror-row--off {
+    opacity: 0.6;
+}
+
+/* Address, the optional account fields and the row actions on one line. The address keeps a
+   fixed comfort width instead of stretching, so the account fields that appear next to it
+   still have room; the row wraps when the panel is narrower than all of it. */
+.settings-mirror-row-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-mirror-add-button.MuiButton-root {
+    margin-left: auto;
+}
+
+.settings-mirror-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: var(--shell-subtle-text);
+    user-select: none;
+}
+
+.settings-mirror-drag-handle:active {
+    cursor: grabbing;
+    color: var(--shell-accent-text, #1677ff);
+}
+
+.settings-mirror-url-field {
+    flex: 0 1 440px;
+    min-width: 300px;
+}
+
+.settings-mirror-username-field,
+.settings-mirror-password-field {
+    flex: 0 1 220px;
+    min-width: 170px;
+}
+
+/* The test button reports its verdict through its own icon, so nothing else is needed. */
+.settings-mirror-test-icon--ok.MuiIconButton-root {
+    color: var(--shell-success-text, #389e0d) !important;
+}
+
+.settings-mirror-test-icon--failed.MuiIconButton-root {
+    color: var(--shell-danger-text, #d4380d) !important;
+}
+
+.settings-mirror-icon-button--active.MuiIconButton-root {
+    color: var(--shell-accent-text, #1677ff);
+}
+
+/* The accelerator list reads as a plain table of addresses, so its fields and buttons keep
+   square corners instead of the rounded shape used elsewhere in the form. */
+.settings-mirror-url-field .MuiOutlinedInput-root,
+.settings-mirror-username-field .MuiOutlinedInput-root,
+.settings-mirror-password-field .MuiOutlinedInput-root {
+    border-radius: 0;
+}
+
+.settings-mirror-url-field .MuiOutlinedInput-input,
+.settings-mirror-username-field .MuiOutlinedInput-input,
+.settings-mirror-password-field .MuiOutlinedInput-input {
+    font-size: 13px;
+}
+
+.settings-mirror-icon-button.MuiIconButton-root,
+.settings-mirror-field-icon.MuiIconButton-root {
+    border-radius: 0;
+    color: var(--shell-subtle-text);
+}
+
+.settings-mirror-probe--failed {
+    color: var(--shell-danger-text, #d4380d);
+}
+
+.settings-mirror-actions {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 8px;
+}
+
+.settings-mirror-hint {
+    margin-top: -2px;
+}
+
+.settings-mirror-actions-spacer {
+    flex: 1 1 auto;
 }
 
 .settings-restore-link {
@@ -1221,21 +1300,21 @@
     border-top-color: rgba(71, 85, 105, 0.52);
 }
 
-.app-shell-root--dark .settings-mirror-box,
-.app-shell-root--dark .settings-mirror-edit-box {
+.app-shell-root--dark .settings-mirror-source-chip,
+.app-shell-root--dark .settings-mirror-source-chip.MuiChip-root {
     border-color: rgba(71, 85, 105, 0.65);
     background: transparent;
 }
 
-.app-shell-root--dark .settings-mirror-chip,
-.app-shell-root--dark .settings-mirror-edit-chip,
-.app-shell-root--dark .settings-mirror-edit-chip.MuiChip-root {
+.app-shell-root--dark .settings-mirror-row {
     background: transparent;
     border-color: rgba(71, 85, 105, 0.65);
     color: var(--shell-strong-text);
 }
 
-.app-shell-root--dark .settings-mirror-inline-input {
+.app-shell-root--dark .settings-mirror-url-field .MuiOutlinedInput-input,
+.app-shell-root--dark .settings-mirror-username-field .MuiOutlinedInput-input,
+.app-shell-root--dark .settings-mirror-password-field .MuiOutlinedInput-input {
     color: var(--shell-strong-text);
 }
 
@@ -1303,8 +1382,7 @@
         align-items: flex-start;
     }
 
-    .settings-mirror-box,
-    .settings-mirror-edit-box {
+    .settings-mirror-row {
         flex-basis: auto;
     }
 }

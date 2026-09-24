@@ -30,6 +30,14 @@ from src.core.exception import CustomException
 from src.schemas.appInstall import appInstall
 from src.schemas.appResponse import AppResponse
 from src.services.common_check import check_endpointId
+from src.services.image_pull import (
+    ImagePullError,
+    collect_compose_images,
+    load_image_accelerators,
+    pull_with_fallback,
+    pull_with_fallback_async,
+    validate_image_reference,
+)
 from src.services.git_manager import GitManager
 from src.services.gitea_manager import GiteaManager
 from src.services.portainer_manager import PortainerManager
@@ -1642,49 +1650,19 @@ class AppManger:
             docker_client = aiodocker.Docker()
 
             async def docker_pull_image(image):
-                success = False  # 标志位，跟踪是否成功拉取镜像
-                if ":" not in image:  # 若镜像名不包含标签
-                    image = f"{image}:latest"  # 自动追加最新标签
+                async def report(line):
+                    await send_log(line)
+
+                # Direct, ECR Public and the operator's accelerators, in one shared order;
+                # Portainer is then asked to recreate the stack without pulling again.
                 try:
-                    # Try pulling the image directly first
-
-                    await send_log(f"Pulling image: {image}")
-                    pull_result = docker_client.images.pull(image, stream=True)
-                    async for line in pull_result:
-                        await send_log(line)
-                    success = True  # 成功拉取镜像
-                    return
-                # except docker.errors.APIError as e:
-                #     pass
-                except Exception as e:
-                    await send_log(f"Failed to pull image: {image}")
-                    pass
-
-                 # Get image accelerators
-                image_accelerators = self.download_image_accelerators()
-
-                # If direct pull fails, try using accelerators
-                for accelerator in image_accelerators:
-                    try:
-                        # Replace the image name with the accelerator URL
-                        accelerated_image = f"{accelerator}/{image}"
-                        await send_log(f"Pulling image: {accelerated_image}")
-                        pull_result = docker_client.images.pull(accelerated_image, stream=True)
-                        async for line in pull_result:
-                            await send_log(line)
-                        
-                        # Tag the image back to its original name
-                        await docker_client.images.tag(accelerated_image, image)
-                        # Remove the accelerated image tag
-                        await docker_client.images.delete(accelerated_image)
-                        success = True  # 成功拉取镜像
-                        break
-                    except docker.errors.APIError as e:
-                        logger.error(f"Failed to pull image from {accelerator}: {e}")
-                
-                # If all attempts fail, raise an exception
-                if not success:
-                    raise CustomException(f"Failed to pull image: {image}")
+                    served = await pull_with_fallback_async(
+                        docker_client, image, log=report
+                    )
+                except ImagePullError as exc:
+                    raise CustomException(f"Failed to pull image: {image} ({exc})")
+                if served != image:
+                    await send_log(f"Image pulled from {served}")
 
             tasks = []
             for yml_file in yml_files:
@@ -2498,56 +2476,6 @@ class AppManger:
             text = text.replace(f"${key}", value)
         return text
 
-    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
-    def download_image_accelerators(self):
-        try:
-            configured = (ConfigManager("config.ini").get_value("docker_mirror", "url") or "").strip()
-            if not configured:
-                return []
-            if configured.startswith("http://") or configured.startswith("https://"):
-                return self._resolve_url_mirrors(configured)
-            return [
-                self._normalize_image_accelerator(item)
-                for item in configured.replace("\n", ",").split(",")
-                if item.strip()
-            ]
-        except Exception as e:
-            logger.error(f"Failed to download image accelerators: {e}")
-            return []
-
-    def _resolve_url_mirrors(self, url: str) -> list:
-        """Fetch a mirror-list JSON URL and return normalized entries.
-        Writes resolved entries back to config.ini on success."""
-        try:
-            import requests as _req
-            response = _req.get(url, timeout=10)
-            response.raise_for_status()
-            payload = response.json()
-            entries = payload.get("mirrors", []) if isinstance(payload, dict) else []
-        except Exception:
-            from src.services.settings_manager import load_local_mirror_entries
-            entries = load_local_mirror_entries()
-        normalized = [
-            self._normalize_image_accelerator(str(e))
-            for e in entries if str(e).strip()
-        ]
-        if normalized:
-            try:
-                ConfigManager("config.ini").set_value(
-                    "docker_mirror", "url", "\n".join(normalized)
-                )
-            except Exception:
-                pass
-        return normalized
-
-    def _normalize_image_accelerator(self, value: str) -> str:
-        normalized = value.strip().rstrip("/")
-        if normalized.startswith("http://"):
-            normalized = normalized[7:]
-        elif normalized.startswith("https://"):
-            normalized = normalized[8:]
-        return normalized
-
     def pull_images_from_yml(self, app_tmp_dir_path, app_uuid):
         env_file_path = os.path.join(app_tmp_dir_path, '.env')
         env_helper = EnvHelper(env_file_path)
@@ -2557,63 +2485,32 @@ class AppManger:
         if not yml_files:
             raise CustomException("No yml files found in the directory")
 
-        # Get image accelerators
-        image_accelerators = self.download_image_accelerators()
-
         # Initialize Docker client with host's Docker socket
         docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
 
-        def pull_image(image):
-            success = False  # 标志位，跟踪是否成功拉取镜像
-            try:
-                logger.access(f"Pulling image: {image}")
-                # Try pulling the image directly first
-                for line in docker_client.api.pull(image, stream=True, decode=True):
-                    add_installing_logs(app_uuid,"Pulling docker image",line)
-                success = True  # 成功拉取镜像
-                return
-            except Exception as e:
-                pass
+        def report(line):
+            add_installing_logs(app_uuid, "Pulling docker image", line)
 
-            # If direct pull fails, try using accelerators
-            for accelerator in image_accelerators:
-                try:
-                    # Replace the image name with the accelerator URL
-                    accelerated_image = f"{accelerator}/{image}"
-                    logger.access(f"Pulling image from {accelerator}: {accelerated_image}")
-                    for line in docker_client.api.pull(accelerated_image, stream=True, decode=True):
-                        add_installing_logs(app_uuid,"Pulling docker image",line)
-                    
-                    # Tag the image back to its original name
-                    docker_client.api.tag(accelerated_image, image)
-                    # Remove the accelerated image tag
-                    docker_client.api.remove_image(accelerated_image)
-                    success = True  # 成功拉取镜像
-                    return
-                except docker.errors.APIError as e:
-                    logger.error(f"Failed to pull image from {accelerator}: {e}")
-            
-            if not success:
-                raise CustomException(f"Failed to pull image: {image}")
-
+        env_values = env_helper.get_all_values()
         for yml_file in yml_files:
             with open(yml_file, 'r') as file:
                 compose_content = yaml.safe_load(file)
-                services = compose_content.get('services', {})
-                # for service in services.values():
-                for service_name, service in services.items():
-                    if 'build' in service:
-                        logger.access(f"Service '{service_name}' has build configuration, skipping image pull.")
-                        continue
-                    image = service.get('image')
-                    if image:
-                        # Replace environment variables in the image string
-                        image = self._replace_env_variables(image, env_helper)
-                        try:
-                            # Check if the image already exists
-                            logger.access(f"Checking if image exists: {image}")
-                            docker_client.images.get(image)
-                            continue
-                        except docker.errors.ImageNotFound:
-                            logger.access(f"Image not found: {image}")
-                            pull_image(image)
+
+            for image in collect_compose_images(compose_content, env_values):
+                try:
+                    validate_image_reference(image)
+                except ImagePullError as exc:
+                    raise CustomException(str(exc))
+                try:
+                    # Check if the image already exists
+                    logger.access(f"Checking if image exists: {image}")
+                    docker_client.images.get(image)
+                    continue
+                except docker.errors.ImageNotFound:
+                    logger.access(f"Image not found: {image}")
+
+                logger.access(f"Pulling image: {image}")
+                try:
+                    pull_with_fallback(docker_client, image, on_progress=report)
+                except ImagePullError as exc:
+                    raise CustomException(f"Failed to pull image: {image} ({exc})")

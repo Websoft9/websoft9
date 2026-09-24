@@ -10,36 +10,14 @@ from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.runtime_paths import resolve_apphub_config_path
 from src.schemas.appSettings import AppSettings
+from src.services.docker_mirror_store import (
+    MirrorEntry,
+    is_mirror_list_url,
+    parse_mirror_entries,
+)
+from src.services.mirror_registry import MirrorRegistry
 from src.services.port_allocator import DEFAULT_PORT_RANGE_VALUE
 from src.services.product_metadata import read_product_edition, read_product_metadata
-
-
-def _mirror_list_url() -> str:
-    """Return the channel-aware URL for the default Docker mirror list."""
-    try:
-        from src.services.product_runtime_state import read_release_channel
-        channel = read_release_channel()
-    except Exception:
-        channel = "release"
-    return f"https://artifact.websoft9.com/websoft9/{channel}/mirrors.json"
-
-
-def load_local_mirror_entries() -> list[str]:
-    """Load Docker mirror entries from the local mirrors.json shipped with the image."""
-    local_path = "/websoft9/mirrors.json"
-    try:
-        if os.path.exists(local_path):
-            with open(local_path, "r", encoding="utf-8") as fh:
-                payload = json.load(fh)
-            mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-            return [
-                str(item).strip().rstrip("/").removeprefix("http://").removeprefix("https://")
-                for item in mirrors
-                if str(item).strip()
-            ]
-    except Exception:
-        pass
-    return []
 
 
 DEFAULT_PLATFORM_SELF_SIGNED_CERT_VALIDITY_DAYS = 3650
@@ -122,20 +100,6 @@ class SettingsManager:
                             "force_https",
                             self._bool_to_string(self._is_force_https_enabled()),
                             editable=True,
-                        ),
-                    ],
-                },
-                {
-                    "id": "delivery",
-                    "items": [
-                        self._build_item(
-                            "docker_mirror",
-                            "url",
-                            self._docker_mirror_display_value(),
-                            editable=True,
-                            metadata={
-                                "default_value": "\n".join(self._load_docker_mirror_entries(_mirror_list_url())),
-                            },
                         ),
                     ],
                 },
@@ -328,6 +292,8 @@ class SettingsManager:
                 return self._write_platform_gateway_text_setting("bound_domain", value)
             if section == "platform_brand":
                 return self._write_platform_brand_setting(key, value)
+            if section == "docker_mirror" and key == "url":
+                return self._write_docker_mirror_entries(value)
             # Check if section exists
             if section not in self.config.sections():
                 raise CustomException(
@@ -356,50 +322,33 @@ class SettingsManager:
     def _get_value(self, section: str, key: str) -> str:
         return self.config.get(section, key, fallback="")
 
-    def _docker_mirror_url(self) -> str:
-        """Read the configured Docker mirror URL from config.ini.
+    def _write_docker_mirror_entries(self, value: str) -> Dict[str, str]:
+        """Store an accelerator list that a console sent as a config.ini string.
 
-        This is a pure read — it no longer bootstraps an empty value from
-        mirrors.json.  The initial value is written once during install /
-        upgrade by ensure_docker_mirror_config(), and from then on
-        config.ini is the single source of truth.
-
-        One exception: legacy configs may store a JSON-URL (starting with
-        http:// or https://) instead of plain mirror entries.  We resolve
-        the URL once, write the resolved entries back, and return them.
+        The console now edits the entries through their own endpoint; this keeps a browser
+        running a cached older build working, and it writes to the same place the pull path
+        reads, so the setting actually takes effect. A value that is a list URL is not a list of
+        accelerators: it is left to the default-list refresh.
         """
-        configured = self.config.get("docker_mirror", "url", fallback="").strip()
-        if configured.startswith("http://") or configured.startswith("https://"):
-            resolved = self._resolve_mirror_url(configured)
-            if resolved:
-                self.config.set("docker_mirror", "url", resolved)
-                try:
-                    with open(self.config_file_path, "w") as configfile:
-                        self.config.write(configfile)
-                except Exception:
-                    pass
-                return resolved
-        return configured
+        urls = parse_mirror_entries(value)
+        if urls and not is_mirror_list_url(value):
+            registry = MirrorRegistry()
+            registry.store.replace_entries([MirrorEntry(url=url) for url in urls])
+            registry.export_host_visible_list()
+            self._remember_legacy_mirror_value(value)
+        return {"url": "\n".join(urls)}
 
-    def _resolve_mirror_url(self, url: str) -> str:
-        """Fetch a mirror-list JSON URL and return normalized entries.
-        Falls back to local mirrors.json if the URL is unreachable."""
+    def _remember_legacy_mirror_value(self, value: str) -> None:
+        """Keep config.ini in step, as the record of last resort if the database is lost."""
         try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            payload = response.json()
-            mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-        except Exception:
-            mirrors = load_local_mirror_entries()
-        normalized = "\n".join(
-            str(e).strip().rstrip("/").removeprefix("http://").removeprefix("https://")
-            for e in mirrors
-            if str(e).strip()
-        )
-        return normalized
-
-    def _docker_mirror_display_value(self) -> str:
-        return self._docker_mirror_url()
+            self.config.read(self.config_file_path)
+            if not self.config.has_section("docker_mirror"):
+                self.config.add_section("docker_mirror")
+            self.config.set("docker_mirror", "url", value)
+            with open(self.config_file_path, "w") as configfile:
+                self.config.write(configfile)
+        except Exception as exc:
+            logger.debug(f"Unable to keep the legacy mirror value in config.ini: {exc}")
 
     def _build_item(self, section: str, key: str, value: str, *, sensitive: bool = False, masked: bool = False, editable: bool = False, metadata: dict | None = None) -> dict:
         display_value = value
@@ -561,66 +510,6 @@ class SettingsManager:
         except Exception:
             pass
         return True
-
-    def _load_docker_mirror_entries(self, configured_value: str) -> list[str]:
-        candidate = (configured_value or "").strip()
-        if not candidate:
-            # No user override — use local mirrors.json shipped with the
-            # image as the primary source, then supplement with CDN entries.
-            local_mirrors = self._load_local_mirror_entries()
-            cdn_mirrors = self._load_cdn_mirror_entries()
-            merged: list[str] = []
-            seen: set[str] = set()
-            for entry in local_mirrors + cdn_mirrors:
-                if entry not in seen:
-                    seen.add(entry)
-                    merged.append(entry)
-            return merged
-
-        if candidate.startswith("http://") or candidate.startswith("https://"):
-            try:
-                response = requests.get(candidate, timeout=10)
-                response.raise_for_status()
-                payload = response.json()
-                mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-                normalized = [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
-                if normalized:
-                    return normalized
-            except Exception:
-                pass
-
-        else:
-            normalized = [
-                self._normalize_mirror_entry(item)
-                for item in candidate.replace("\n", ",").split(",")
-                if item.strip()
-            ]
-            if normalized:
-                return normalized
-
-        # Ultimate fallback: read the local mirrors.json shipped with the image.
-        return self._load_local_mirror_entries()
-
-    def _load_local_mirror_entries(self) -> list[str]:
-        return load_local_mirror_entries()
-
-    def _load_cdn_mirror_entries(self) -> list[str]:
-        try:
-            response = requests.get(_mirror_list_url(), timeout=10)
-            response.raise_for_status()
-            payload = response.json()
-            mirrors = payload.get("mirrors", []) if isinstance(payload, dict) else []
-            return [self._normalize_mirror_entry(str(item)) for item in mirrors if str(item).strip()]
-        except Exception:
-            return []
-
-    def _normalize_mirror_entry(self, value: str) -> str:
-        normalized = value.strip().rstrip("/")
-        if normalized.startswith("http://"):
-            normalized = normalized[7:]
-        elif normalized.startswith("https://"):
-            normalized = normalized[8:]
-        return normalized
 
     def _restart_platform_gateway(self) -> None:
         try:

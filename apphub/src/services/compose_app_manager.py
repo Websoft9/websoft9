@@ -11,11 +11,18 @@ import os
 import shutil
 import tempfile
 
+import docker
 from git import GitCommandError, Repo
 
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.services.gitea_manager import GiteaManager
+from src.services.image_pull import (
+    ImagePullError,
+    collect_compose_images,
+    pull_with_fallback,
+    validate_image_reference,
+)
 from src.services.integration_credentials import IntegrationCredentialProvider
 from src.services.portainer_manager import PortainerManager
 from src.utils.file_manager import FileHelper
@@ -189,6 +196,44 @@ class ComposeAppManager:
         # restart containers one by one (keep Portainer stack Active)
         portainer.restart_stack(app_id, eid)
 
+    # ── Image pre-pull ────────────────────────────────────────────────────────
+
+    def _pull_stack_images(self, app_id: str, gitea: GiteaManager) -> list[str]:
+        """Resolve the stack's images through the platform's accelerator chain.
+
+        Portainer pulls on its own when a redeploy asks for it, and that pull goes straight to
+        whatever the daemon can reach: an operator whose registry is only reachable through an
+        accelerator would see the redeploy fail. The platform therefore resolves the images
+        itself and tells Portainer not to pull.
+        """
+        content = gitea.get_file_raw_from_repo(app_id, "docker-compose.yml")
+        if not content:
+            logger.warning(
+                f"'{app_id}' has no docker-compose.yml in Gitea: skipping the image pre-pull"
+            )
+            return []
+        env_content = gitea.get_file_raw_from_repo(app_id, ".env") or ""
+        env_values = {
+            entry["key"]: entry["value"] for entry in _parse_user_env(env_content)
+        }
+
+        images = collect_compose_images(content, env_values)
+        if not images:
+            return []
+
+        client = docker.DockerClient(base_url="unix://var/run/docker.sock")
+        pulled: list[str] = []
+        for image in images:
+            validate_image_reference(image)
+            try:
+                client.images.get(image)
+                continue
+            except docker.errors.ImageNotFound:
+                logger.access(f"Pulling image for '{app_id}': {image}")
+            pull_with_fallback(client, image)
+            pulled.append(image)
+        return pulled
+
     # ── Redeploy (same content, from Gitea) ────────────────────────────────────
 
     def redeploy_compose_app(
@@ -206,16 +251,25 @@ class ComposeAppManager:
         stack_id = stack.get("Id")
         if stack_id is None:
             raise CustomException(404, "Not Found", f"Portainer stack for '{app_id}' has no Id")
+        if pull_image:
+            try:
+                self._pull_stack_images(app_id, gitea)
+            except ImagePullError as exc:
+                raise CustomException(502, "Image Pull Error", str(exc))
         stack_status = stack.get("Status", 0)
         # Inactive stacks (uninstalled but data retained) need up_stack rather
         # than the git-redeploy flow.  Portainer's git/redeploy endpoint is
         # designed for updating already-active stacks and may silently no-op
         # on inactive ones, leaving the status stuck at Inactive.
+        # `up_stack` starts containers from the images already present, which is why the
+        # pre-pull above runs before either branch.
         if stack_status == 2:
             portainer.up_stack(stack_id, eid)
             return
         credentials = IntegrationCredentialProvider().get_gitea_credentials()
-        portainer.redeploy_stack(stack_id, eid, pull_image, credentials.username, credentials.password)
+        # pull_image is always False here: the images were resolved above, through the plan
+        # that honours the operator's accelerators and credentials.
+        portainer.redeploy_stack(stack_id, eid, False, credentials.username, credentials.password)
 
     # ── Update (edit compose content → push Gitea → redeploy) ─────────────────
 
@@ -297,8 +351,13 @@ class ComposeAppManager:
         finally:
             shutil.rmtree(temp_root, ignore_errors=True)
 
-        # Redeploy from updated Gitea repo
-        portainer.redeploy_stack(stack_id, eid, True, credentials.username, credentials.password)
+        # Redeploy from updated Gitea repo. The new content may name images this host cannot
+        # reach directly, so they are resolved here first and Portainer is told not to pull.
+        try:
+            self._pull_stack_images(app_id, gitea)
+        except ImagePullError as exc:
+            raise CustomException(502, "Image Pull Error", str(exc))
+        portainer.redeploy_stack(stack_id, eid, False, credentials.username, credentials.password)
 
     # ── Remove ─────────────────────────────────────────────────────────────────
 

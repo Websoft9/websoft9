@@ -692,64 +692,52 @@ modern_compose() {
     "$@"
 }
 
-# ────────────────────────────────────────────────────────────
-# Mirror config bootstrap — write mirrors.json to config.ini
-# once during install / upgrade when the value is empty.
-# ────────────────────────────────────────────────────────────
-ensure_docker_mirror_config() {
+# The running platform exports the accelerators this host should use — the operator's own
+# list, in the order it was configured — so re-running this installer follows the console
+# instead of the list baked into the image. Credentials are deliberately absent from that
+# export: a host `docker pull` cannot present them, and copying secrets outside the
+# platform would widen their exposure for no gain.
+read_host_visible_mirrors() {
   local install_path="$1"
-  local data_root="${WEBSOFT9_DATA_ROOT:-/opt/websoft9/data}"
-  local config_path="${data_root}/config/apphub/config.ini"
+  local data_root
+  data_root="$(resolve_existing_runtime_data_root "$install_path" 2>/dev/null || true)"
+  [ -n "$data_root" ] || data_root="$(default_data_root_for_install_path "$install_path")"
 
-  if [ ! -f "$config_path" ]; then
-    log_info "docker_mirror: config.ini not found at $config_path, skipping"
-    return 0
-  fi
+  local exported_file="${data_root%/}/config/docker-mirror.host.json"
+  [ -s "$exported_file" ] || return 1
+  command_exists python3 || return 1
 
-  python3 - "$config_path" "$install_path" <<'PY'
-import json, os, sys, configparser
+  local mirrors
+  mirrors="$(python3 - "$exported_file" <<'PY'
+import json
+import sys
 
-config_path, install_path = sys.argv[1], sys.argv[2]
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        payload = json.load(handle)
+except Exception:
+    sys.exit(1)
 
-config = configparser.ConfigParser()
-config.read(config_path, encoding="utf-8")
-
-configured = config.get("docker_mirror", "url", fallback="").strip()
-if configured:
-    print("docker_mirror: already configured, skipping")
-    sys.exit(0)
-
-mirrors_file = os.path.join(install_path, "mirrors.json")
-if not os.path.exists(mirrors_file):
-    print("docker_mirror: no mirrors.json found, skipping")
-    sys.exit(0)
-
-with open(mirrors_file, encoding="utf-8") as fh:
-    payload = json.load(fh)
 entries = payload.get("mirrors", []) if isinstance(payload, dict) else []
-if not entries:
-    print("docker_mirror: mirrors.json is empty, skipping")
-    sys.exit(0)
-
-normalized = "\n".join(
-    str(e).strip().rstrip("/").removeprefix("http://").removeprefix("https://")
-    for e in entries if str(e).strip()
-)
-if not normalized:
-    print("docker_mirror: no valid entries after normalization, skipping")
-    sys.exit(0)
-
-if not config.has_section("docker_mirror"):
-    config.add_section("docker_mirror")
-config.set("docker_mirror", "url", normalized)
-with open(config_path, "w", encoding="utf-8") as fh:
-    config.write(fh)
-print(f"docker_mirror: bootstrapped with {len(normalized.splitlines())} entries")
+values = [str(item).strip().rstrip("/") for item in entries if str(item).strip()]
+if not values:
+    sys.exit(1)
+sys.stdout.write("\n".join(values) + "\n")
 PY
+)" || return 1
+  [ -n "$mirrors" ] || return 1
+  printf '%s\n' "$mirrors"
 }
 
 load_mirror_entries() {
   local install_path="$1"
+
+  local configured_mirrors
+  if configured_mirrors="$(read_host_visible_mirrors "$install_path")"; then
+    log_info "Using the accelerator list exported by the platform"
+    printf '%s\n' "$configured_mirrors"
+    return 0
+  fi
   local channel="${W9_CHANNEL:-release}"
   local mirrors_url="https://artifact.websoft9.com/websoft9/${channel}/mirrors.json"
   local mirrors_file="${install_path}/mirrors.json"

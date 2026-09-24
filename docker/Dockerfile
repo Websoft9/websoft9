@@ -153,6 +153,13 @@ COPY docker/proxy/config/http.conf /etc/websoft9/nginx/http.conf
 COPY docker/proxy/default_www/ /var/www/html/
 COPY docker/proxy/init_nginx.sh /app/init_nginx.sh
 COPY mirrors.json /websoft9/mirrors.json
+# The accelerators an image ships with belong to the network it was built for: the China
+# list is dead weight anywhere else, and an operator outside China should not be sent to a
+# host that cannot serve them. The marker is written next to the list so the running
+# platform can ask the artifact server for its own regional list as well.
+ARG WEBSOFT9_REGION=cn
+RUN printf '{"region":"%s"}\n' "$WEBSOFT9_REGION" > /websoft9/region.json \
+    && if [ "$WEBSOFT9_REGION" != "cn" ]; then printf '{\n  "mirrors": []\n}\n' > /websoft9/mirrors.json; fi
 COPY docker/gateway/nginx.conf /etc/websoft9/platform-gateway/nginx.conf
 COPY docker/gateway/default.conf /etc/websoft9/platform-gateway/default.conf
 COPY docker/gateway/platform-gateway-routes.conf /etc/websoft9/platform-gateway/platform-gateway-routes.conf

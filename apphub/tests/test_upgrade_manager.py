@@ -195,7 +195,7 @@ def test_prepare_writes_verified_task_with_precise_image_digest(tmp_path, monkey
         attrs = {"RepoDigests": ["websoft9dev/websoft9@sha256:" + "b" * 64]}
 
     class Images:
-        def pull(self, image_name):
+        def pull(self, image_name, **kwargs):
             assert image_name in {"websoft9dev/websoft9:2.5.0", upgrade_manager.RUNNER_IMAGE}
             return Image()
 

@@ -43,6 +43,23 @@ class ProductAuthSetting(BaseModel):
     enabled: str = Field(..., title="Whether product auth is enabled")
     protected_modules: str = Field(..., title="Protected modules list")
 
+
+class DockerMirrorEntryPayload(BaseModel):
+    # The stored entry being edited. It is what keeps a renamed address attached to its
+    # credentials, so the console sends it back for rows it loaded.
+    id: Optional[int] = Field(None, title="Identifier of the stored entry, when editing one")
+    url: str = Field(..., title="Accelerator prefix, for example docker.1ms.run")
+    username: str = Field('', title="Registry user name, empty for a public accelerator")
+    # None keeps the stored password: the console does not send it back after a read.
+    password: Optional[str] = Field(None, title="Registry password; null keeps the stored one")
+    enabled: bool = Field(True, title="Whether this accelerator may be used")
+
+
+class DockerMirrorEntriesRequest(BaseModel):
+    """The whole accelerator list, in the order it must be tried."""
+
+    entries: list[DockerMirrorEntryPayload] = Field(default_factory=list, title="Ordered accelerators")
+
 class AppSettings(BaseModel):
     api_key: ApiKeySetting
     domain: Domain

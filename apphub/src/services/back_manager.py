@@ -6,12 +6,12 @@ import threading
 import time
 import fcntl
 import docker
-import requests
 from typing import Any, Dict, List, Optional
 from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
+from src.services.image_pull import ImagePullError, pull_with_fallback
 from src.services.portainer_manager import PortainerManager
 
 RESTIC_CACHE_PATH = "/data/restic-cache"
@@ -51,51 +51,6 @@ def _extract_restic_error(data: Dict[str, Any]) -> str:
         return str(err_info) if err_info else "Unknown Restic error"
     # Fallback: any top-level message
     return data.get("message") or "Unknown Restic error"
-
-
-def _normalize_mirror(value: str) -> str:
-    normalized = value.strip().rstrip("/")
-    if normalized.startswith("http://"):
-        normalized = normalized[7:]
-    elif normalized.startswith("https://"):
-        normalized = normalized[8:]
-    return normalized
-
-
-def _fetch_mirrors() -> List[str]:
-    try:
-        config_manager = ConfigManager("config.ini")
-        configured = (config_manager.get_value("docker_mirror", "url") or "").strip()
-        if not configured:
-            return []
-        if configured.startswith("http://") or configured.startswith("https://"):
-            return _resolve_url_mirrors(configured)
-        return [_normalize_mirror(m) for m in configured.replace("\n", ",").split(",") if m.strip()]
-    except Exception as e:
-        logger.error(f"Failed to load mirrors: {e}")
-        return []
-
-
-def _resolve_url_mirrors(url: str) -> List[str]:
-    """Fetch a mirror-list JSON URL and return normalized entries.
-    Writes resolved entries back to config.ini on success."""
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        payload = response.json()
-        entries = payload.get("mirrors", []) if isinstance(payload, dict) else []
-    except Exception:
-        from src.services.settings_manager import load_local_mirror_entries
-        entries = load_local_mirror_entries()
-    normalized = [_normalize_mirror(str(e)) for e in entries if str(e).strip()]
-    if normalized:
-        try:
-            ConfigManager("config.ini").set_value(
-                "docker_mirror", "url", "\n".join(normalized)
-            )
-        except Exception:
-            pass
-    return normalized
 
 
 def _is_effective_runtime_container(container: Dict[str, Any], app_id: str) -> bool:
@@ -170,25 +125,18 @@ class BackupManager:
         except docker.errors.ImageNotFound:
             logger.access(f"Pulling Restic image: {self.restic_image}")
 
+        # The restic image is a Docker Hub official image, so the shared plan reaches it the
+        # same way the install and upgrade paths reach theirs.
         try:
-            self.docker_client.images.pull(self.restic_image)
-            return
-        except Exception as e:
-            logger.warning(f"Direct pull of {self.restic_image} failed, trying mirrors: {e}")
-
-        for mirror in _fetch_mirrors():
-            mirrored = f"{mirror}/{self.restic_image}"
-            try:
-                self.docker_client.images.pull(mirrored)
-                img = self.docker_client.images.get(mirrored)
-                img.tag(self.restic_image)
-                self.docker_client.images.remove(mirrored, force=True)
-                logger.access(f"Pulled {self.restic_image} via mirror: {mirror}")
-                return
-            except Exception as ex:
-                logger.warning(f"Mirror {mirror} failed: {ex}")
-
-        raise CustomException(500, f"Failed to pull {self.restic_image}", "Image Pull Error")
+            pulled = pull_with_fallback(self.docker_client, self.restic_image)
+        except ImagePullError as exc:
+            raise CustomException(
+                500, f"Failed to pull {self.restic_image}", "Image Pull Error"
+            ) from exc
+        if pulled.source != "direct":
+            logger.access(
+                f"Restic image {self.restic_image} came from {pulled.source}"
+            )
 
     def bootstrap_repository(self) -> None:
         """Prepare the image and empty repository during platform startup.

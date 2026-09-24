@@ -11,17 +11,20 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.services import image_pull
+from src.services.docker_mirror_store import DockerMirrorStore
 from src.services.image_pull import (
     DEFAULT_IMAGE_REPO,
     ECR_PUBLIC_IMAGE_REPO,
     ImagePullError,
+    build_pull_plan,
     ecr_candidates,
     load_image_accelerators,
-    parse_accelerator_entries,
     pull_with_fallback,
+    pull_with_fallback_async,
     require_local_image,
     split_reference,
 )
+from src.services.mirror_registry import Accelerator, MirrorRegistry
 
 
 def version_tar(version: str) -> bytes:
@@ -44,11 +47,13 @@ class FakeImages:
     def __init__(self, outcomes):
         self.outcomes = outcomes
         self.pulled: list[str] = []
+        self.auth: list[dict | None] = []
         self.removed: list[str] = []
         self.local: dict[str, FakeImage] = {}
 
-    def pull(self, reference):
+    def pull(self, reference, **kwargs):
         self.pulled.append(reference)
+        self.auth.append(kwargs.get("auth_config"))
         outcome = self.outcomes.get(reference)
         if outcome is None:
             raise RuntimeError(f"pull failed: {reference}")
@@ -77,6 +82,10 @@ class FakeApi:
 
     def tag(self, image, repository, tag=None, force=False):
         self.tags.append((image, repository, tag))
+
+    def pull(self, reference, stream=False, decode=False, auth_config=None):
+        """Yield one progress line per pull, like the daemon does."""
+        yield {"status": "pulling", "id": reference}
 
     def create_container(self, reference, command=None):
         self.probed.append(reference)
@@ -286,45 +295,99 @@ def test_an_unreadable_version_probe_does_not_block_the_upgrade():
     assert client.images.removed == []
 
 
-def test_accelerator_entries_are_normalized_and_deduplicated():
-    config = FakeConfig("mirror-a.example.test\nmirror-a.example.test, mirror-b.example.test/")
+def test_load_image_accelerators_answers_from_the_registry(tmp_path):
+    registry = MirrorRegistry(
+        store=DockerMirrorStore(tmp_path / "platform.sqlite"), data_root=tmp_path
+    )
+    registry.store.replace_entries(
+        [{"url": "registry.example.test", "username": "ops", "password": "s3cret"}]
+    )
 
-    assert load_image_accelerators(config=config) == ["mirror-a.example.test", "mirror-b.example.test"]
+    accelerators = load_image_accelerators(registry=registry)
 
-
-def test_accelerator_url_is_resolved_and_cached(monkeypatch):
-    config = FakeConfig("https://artifact.example.test/mirrors.json")
-
-    class Response:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"mirrors": ["http://mirror-c.example.test/"]}
-
-    monkeypatch.setattr(image_pull.requests, "get", lambda url, timeout=None: Response())
-
-    assert load_image_accelerators(config=config) == ["mirror-c.example.test"]
-    assert config.written is not None
-    assert config.written[0] == "docker_mirror"
+    assert [item.url for item in accelerators] == ["registry.example.test"]
+    assert accelerators[0].auth_config() == {"username": "ops", "password": "s3cret"}
 
 
-def test_unreachable_accelerator_url_falls_back_to_the_bundled_mirrors(monkeypatch, tmp_path):
-    config = FakeConfig("https://artifact.example.test/mirrors.json")
-    local_file = tmp_path / "mirrors.json"
-    local_file.write_text(json.dumps({"mirrors": ["mirror-d.example.test"]}), encoding="utf-8")
-    monkeypatch.setattr(image_pull, "LOCAL_MIRROR_FILE", str(local_file))
+@pytest.mark.asyncio
+async def test_async_pull_uses_default_accelerator_when_no_addresses_are_configured(tmp_path):
+    registry = MirrorRegistry(
+        store=DockerMirrorStore(tmp_path / "platform.sqlite"), data_root=tmp_path
+    )
+    registry.default_list_file.parent.mkdir(parents=True, exist_ok=True)
+    registry.default_list_file.write_text(
+        json.dumps({"mirrors": ["default.example.test"]}), encoding="utf-8"
+    )
+    pulled: list[str] = []
+    tagged: list[tuple[str, str, str]] = []
 
-    def offline(url, timeout=None):
-        raise RuntimeError("offline")
+    class AsyncImages:
+        def pull(self, reference, **_kwargs):
+            async def stream():
+                if reference != "default.example.test/other/image:1.0":
+                    raise RuntimeError("direct pull failed")
+                pulled.append(reference)
+                yield {"status": "pulled", "id": reference}
 
-    monkeypatch.setattr(image_pull.requests, "get", offline)
+            return stream()
 
-    assert load_image_accelerators(config=config) == ["mirror-d.example.test"]
+        async def tag(self, source, repo, tag):
+            tagged.append((source, repo, tag))
+
+    class AsyncClient:
+        images = AsyncImages()
+
+    served = await pull_with_fallback_async(
+        AsyncClient(),
+        "other/image:1.0",
+        accelerators=load_image_accelerators(registry=registry),
+    )
+
+    assert served == "default.example.test/other/image:1.0"
+    assert pulled == [served]
+    assert tagged == [(served, "other/image", "1.0")]
 
 
-def test_parse_accelerator_entries_drops_empty_values():
-    assert parse_accelerator_entries("\n , mirror.example.test \n") == ["mirror.example.test"]
+def test_pull_plan_orders_direct_ecr_then_accelerators_with_credentials():
+    plan = build_pull_plan(
+        "websoft9dev/websoft9:2.4.1",
+        alias_tags=["2.4"],
+        accelerators=[Accelerator("registry.example.test", "ops", "s3cret")],
+    )
+
+    assert [attempt.source for attempt in plan][:2] == [
+        "direct",
+        "public.ecr.aws/w6g2g5k1/websoft9:2.4",
+    ]
+    assert plan[0].auth_config is None
+    assert plan[-1].reference == "registry.example.test/websoft9dev/websoft9:2.4.1"
+    assert plan[-1].auth_config == {"username": "ops", "password": "s3cret"}
+
+
+def test_accelerated_pull_sends_the_configured_credentials():
+    client = FakeClient(
+        {"mirror.example.test/other/image:1.0": FakeImage("sha256:local")}
+    )
+
+    pull_with_fallback(
+        client,
+        "other/image:1.0",
+        accelerators=[Accelerator("mirror.example.test", "ops", "s3cret")],
+    )
+
+    assert client.images.auth == [None, {"username": "ops", "password": "s3cret"}]
+
+
+def test_progress_callback_receives_the_streamed_lines():
+    client = FakeClient({})
+    client.images.local["other/image:1.0"] = FakeImage("sha256:local")
+    lines = []
+
+    pull_with_fallback(
+        client, "other/image:1.0", accelerators=[], on_progress=lines.append
+    )
+
+    assert lines == [{"status": "pulling", "id": "other/image:1.0"}]
 
 
 def test_require_local_image_resolves_the_tag_and_checks_the_digest():
