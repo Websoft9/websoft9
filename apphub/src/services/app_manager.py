@@ -34,6 +34,7 @@ from src.services.image_pull import (
     ImagePullError,
     collect_compose_images,
     load_image_accelerators,
+    pull_error_detail,
     pull_with_fallback,
     pull_with_fallback_async,
     validate_image_reference,
@@ -1411,11 +1412,13 @@ class AppManger:
         except Exception as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
-            # modify app status: error
-            modify_app_information(app_uuid, "Pull docker image error")
+            # Keep the reason each source gave instead of a fixed sentence: the app error field is
+            # the only place the operator can read why the installation stopped here.
+            detail = pull_error_detail(e)
+            modify_app_information(app_uuid, detail)
             remove_installation_logs(app_uuid)
-            logger.error(f"Pull docker image error: {e}")
-            raise CustomException()
+            logger.error(f"Pull docker image error: {detail}")
+            raise CustomException(500, "Image Pull Error", detail) from e
 
         stack_id = None
 
@@ -1653,14 +1656,15 @@ class AppManger:
                 async def report(line):
                     await send_log(line)
 
-                # Direct, ECR Public and the operator's accelerators, in one shared order;
-                # Portainer is then asked to recreate the stack without pulling again.
+                # Direct and the operator's accelerators, in one shared order; Portainer is then
+                # asked to recreate the stack without pulling again. Only progress reaches the log:
+                # the reason a pull failed is reported once, as the error the operator reads.
                 try:
-                    served = await pull_with_fallback_async(
-                        docker_client, image, log=report
-                    )
+                    served = await pull_with_fallback_async(docker_client, image, log=report)
                 except ImagePullError as exc:
-                    raise CustomException(f"Failed to pull image: {image} ({exc})")
+                    raise CustomException(
+                        500, "Image Pull Error", pull_error_detail(exc)
+                    ) from exc
                 if served != image:
                     await send_log(f"Image pulled from {served}")
 
@@ -2483,12 +2487,18 @@ class AppManger:
         yml_files = [os.path.join(app_tmp_dir_path, f) for f in os.listdir(app_tmp_dir_path) if f == 'docker-compose.yml']
 
         if not yml_files:
-            raise CustomException("No yml files found in the directory")
+            raise CustomException(
+                500,
+                "Image Pull Error",
+                "The application has no docker-compose.yml, so no image could be resolved.",
+            )
 
         # Initialize Docker client with host's Docker socket
         docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
 
         def report(line):
+            # Progress only: the reason a pull failed belongs to the app error, which is what the
+            # operator reads once the installation has stopped.
             add_installing_logs(app_uuid, "Pulling docker image", line)
 
         env_values = env_helper.get_all_values()
@@ -2500,7 +2510,7 @@ class AppManger:
                 try:
                     validate_image_reference(image)
                 except ImagePullError as exc:
-                    raise CustomException(str(exc))
+                    raise CustomException(500, "Image Pull Error", pull_error_detail(exc)) from exc
                 try:
                     # Check if the image already exists
                     logger.access(f"Checking if image exists: {image}")
@@ -2513,4 +2523,4 @@ class AppManger:
                 try:
                     pull_with_fallback(docker_client, image, on_progress=report)
                 except ImagePullError as exc:
-                    raise CustomException(f"Failed to pull image: {image} ({exc})")
+                    raise CustomException(500, "Image Pull Error", pull_error_detail(exc)) from exc

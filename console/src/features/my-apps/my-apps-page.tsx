@@ -219,6 +219,23 @@ async function runRedeployRequest(appId: string, pullImage: boolean) {
 // Max sub-log lines shown inside the active stage (tail view, no scroll)
 const MAX_STAGE_LOG_LINES = 24
 
+/** A failed pull lists its sources as `  - <label> [<reference>]: <reason>`. */
+const PULL_SOURCE_LINE = /^\s*-\s*(.+?)\s*\[(.+?)\]:\s*(.*)$/
+
+/**
+ * Split an application error into its verdict and its supporting detail.
+ *
+ * The backend writes a multi-line explanation: the first line states what failed, the following
+ * lines name every source that was tried together with the reason it gave. Keeping the verdict
+ * apart is what makes the reason readable without having to read the list first.
+ */
+function splitApplicationError(error: string): { conclusion: string; details: string[] } {
+    const lines = String(error ?? '').split('\n')
+    const conclusion = (lines.shift() ?? '').trim()
+    const details = lines.filter((line) => line.trim() !== '')
+    return { conclusion, details }
+}
+
 function LogDialog({
     app,
     onClose,
@@ -235,6 +252,10 @@ function LogDialog({
     const isInstalling = app?.status === 3
     const stages = app?.logs ?? []
     const hasLogs = stages.some((stage) => stage.sub_logs && stage.sub_logs.length > 0)
+    const { conclusion: errorConclusion, details: errorDetailLines } = splitApplicationError(app?.error ?? '')
+    // The log narrates an installation while it runs. Once the app is in error there is usually
+    // nothing left to narrate, and an empty pane would only add a divider under the error.
+    const showLogArea = !isError || hasLogs
     const dialogPalette = getSurfacePalette(darkMode)
 
     return (
@@ -285,46 +306,90 @@ function LogDialog({
 
             {isError && app?.error ? (
                 <div style={{
-                    flexShrink: 0,
+                    flex: showLogArea ? '0 1 auto' : '1 1 auto',
+                    minHeight: 0,
                     backgroundColor: dialogPalette.dialogBg,
-                    borderBottom: `1px solid ${dialogPalette.border}`,
+                    borderBottom: showLogArea ? `1px solid ${dialogPalette.border}` : 'none',
                     padding: '14px 20px',
                     display: 'flex',
                     gap: 10,
                     alignItems: 'flex-start',
-                    maxHeight: hasLogs ? '160px' : '100%',
-                    overflow: 'auto',
+                    overflowY: 'auto',
                 }}>
                     <span style={{
                         flexShrink: 0,
                         width: 22,
                         height: 22,
                         borderRadius: '50%',
-                        backgroundColor: dialogPalette.actionBg,
+                        backgroundColor: dialogPalette.dangerSoft,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: dialogPalette.subtleText,
+                        color: dialogPalette.danger,
                         fontSize: '12px',
                         fontWeight: 700,
                         marginTop: 1,
                     }}>!</span>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* The verdict carries the weight: what failed, in one line. */}
                         <div style={{
-                            fontSize: '12px',
-                            color: dialogPalette.text,
-                            lineHeight: '1.7',
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-all',
-                            fontFamily: 'Menlo, Consolas, "Courier New", monospace',
+                            fontSize: '13.5px',
+                            fontWeight: 600,
+                            color: dialogPalette.danger,
+                            lineHeight: '1.55',
+                            wordBreak: 'break-word',
                         }}>
-                            {app.error}
+                            {errorConclusion}
                         </div>
+                        {errorDetailLines.length > 0 ? (
+                            <div style={{
+                                marginTop: 10,
+                                paddingTop: 10,
+                                borderTop: `1px dashed ${dialogPalette.divider}`,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 6,
+                            }}>
+                                {errorDetailLines.map((line, index) => {
+                                    const source = line.match(PULL_SOURCE_LINE)
+                                    if (!source) {
+                                        return (
+                                            <div key={index} style={{ fontSize: '12px', lineHeight: '1.6', color: dialogPalette.subtleText }}>
+                                                {line.trim()}
+                                            </div>
+                                        )
+                                    }
+                                    const [, label, reference, reason] = source
+                                    return (
+                                        <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 2 }}>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '12px', fontWeight: 600, color: dialogPalette.text }}>{label}</span>
+                                                <span style={{
+                                                    fontFamily: 'Menlo, Consolas, "Courier New", monospace',
+                                                    fontSize: '11px',
+                                                    color: dialogPalette.subtleText,
+                                                    wordBreak: 'break-all',
+                                                }}>{reference}</span>
+                                            </div>
+                                            <div style={{
+                                                fontFamily: 'Menlo, Consolas, "Courier New", monospace',
+                                                fontSize: '12px',
+                                                lineHeight: '1.6',
+                                                color: dialogPalette.subtleText,
+                                                wordBreak: 'break-all',
+                                            }}>
+                                                {reason}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             ) : null}
 
-            <Box sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: dialogPalette.dialogBg }}>
+            {showLogArea ? <Box sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: dialogPalette.dialogBg }}>
                 {stages.length > 0 && !isError ? (
                     <div style={{
                         flexShrink: 0,
@@ -431,7 +496,7 @@ function LogDialog({
                         </div>
                     ) : null}
                 </div>
-            </Box>
+            </Box> : null}
 
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.5, py: 2, backgroundColor: dialogPalette.dialogBg, borderTop: `1px solid ${dialogPalette.border}`, flexShrink: 0 }}>
                 <Button color="inherit" onClick={onClose} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>

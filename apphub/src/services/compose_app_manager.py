@@ -20,6 +20,7 @@ from src.services.gitea_manager import GiteaManager
 from src.services.image_pull import (
     ImagePullError,
     collect_compose_images,
+    pull_error_detail,
     pull_with_fallback,
     validate_image_reference,
 )
@@ -255,7 +256,7 @@ class ComposeAppManager:
             try:
                 self._pull_stack_images(app_id, gitea)
             except ImagePullError as exc:
-                raise CustomException(502, "Image Pull Error", str(exc))
+                raise CustomException(502, "Image Pull Error", pull_error_detail(exc)) from exc
         stack_status = stack.get("Status", 0)
         # Inactive stacks (uninstalled but data retained) need up_stack rather
         # than the git-redeploy flow.  Portainer's git/redeploy endpoint is

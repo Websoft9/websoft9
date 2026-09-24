@@ -11,7 +11,7 @@ from src.core.exception import CustomException
 from src.core.logger import logger
 from src.core.config import ConfigManager
 from src.services.app_manager import AppManger
-from src.services.image_pull import ImagePullError, pull_with_fallback
+from src.services.image_pull import ImagePullError, pull_error_detail, pull_with_fallback
 from src.services.portainer_manager import PortainerManager
 
 RESTIC_CACHE_PATH = "/data/restic-cache"
@@ -131,7 +131,7 @@ class BackupManager:
             pulled = pull_with_fallback(self.docker_client, self.restic_image)
         except ImagePullError as exc:
             raise CustomException(
-                500, f"Failed to pull {self.restic_image}", "Image Pull Error"
+                500, f"Failed to pull {self.restic_image}", pull_error_detail(exc)
             ) from exc
         if pulled.source != "direct":
             logger.access(

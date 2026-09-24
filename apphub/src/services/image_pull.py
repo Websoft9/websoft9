@@ -52,6 +52,70 @@ class ImagePullError(Exception):
     """Raised when every pull strategy failed."""
 
 
+# A daemon error is often a multi-line JSON blob, and these reasons are rendered in the install
+# error panel: each one is therefore collapsed to a single bounded line.
+MAX_REASON_LENGTH = 400
+# The Docker SDK prefixes its errors with the daemon endpoint it called, which repeats the
+# reference already named next to it and buries the registry's own answer.
+TRANSPORT_PREFIX_PATTERN = re.compile(r"^\d{3}\s+\w+\s+Error\s+for\s+http\+docker://\S*?:\s*")
+
+
+def concise_reason(exc: object) -> str:
+    """Collapse an exception into one bounded line a person can read."""
+    text = " ".join(str(exc).split())
+    text = TRANSPORT_PREFIX_PATTERN.sub("", text)
+    if len(text) > MAX_REASON_LENGTH:
+        text = text[: MAX_REASON_LENGTH - 1].rstrip() + "…"
+    return text or type(exc).__name__
+
+
+@dataclass(frozen=True)
+class PullFailure:
+    """One source that did not serve the image, kept so the message can explain all of them."""
+
+    label: str
+    reference: str
+    reason: str
+
+
+def describe_pull_failure(reference: str, failures: "Sequence[PullFailure]") -> str:
+    """Explain every source that was tried, in order, with the reason each one gave.
+
+    A bare "pull failed" leaves the operator guessing whether the network, the registry or a
+    credential was at fault. Naming the image, the ordered sources and each source's own reason
+    is what makes the failure actionable from the install screen.
+    """
+    lines = [f"Unable to pull image '{reference}'."]
+    if failures:
+        lines.append(f"Tried {len(failures)} source(s), in order:")
+        lines.extend(
+            f"  - {failure.label} [{failure.reference}]: {failure.reason}"
+            for failure in failures
+        )
+    else:
+        lines.append("No pull source was available for this image.")
+    lines.append(
+        "Check the network and the addresses under 'Settings > Image Accelerator', then retry."
+    )
+    return "\n".join(lines)
+
+
+def pull_error_detail(exc: object, fallback: str = "Pulling the application images failed") -> str:
+    """The most specific text an exception carries, for the caller to store and show.
+
+    Callers used to replace a pull failure with a fixed sentence, which is why the console could
+    only ever say "Pull docker image error". Keeping the detail from the exception is what makes
+    the reason reachable from the app error field.
+    """
+    detail = str(getattr(exc, "details", "") or "").strip()
+    if detail and detail != "Internal Server Error":
+        return detail
+    text = str(exc or "").strip()
+    if text and text != "Internal Server Error":
+        return text
+    return fallback
+
+
 @dataclass(frozen=True)
 class PulledImage:
     reference: str
@@ -105,7 +169,11 @@ def validate_image_reference(image: str) -> str:
     """
     candidate = str(image or "").strip()
     if not candidate or not IMAGE_REFERENCE_PATTERN.match(candidate):
-        raise ImagePullError(f"Invalid image reference: {image!r}")
+        raise ImagePullError(
+            f"Invalid image reference {image!r}: expected a registry reference such as "
+            "'nginx:1.27'. A compose file reaches this point when a variable it references is "
+            "missing from the application's .env."
+        )
     return candidate
 
 
@@ -154,21 +222,24 @@ def build_pull_plan(
     *,
     accelerators: "Sequence[str | Accelerator] | None" = None,
     alias_tags: list[str] | None = None,
+    use_ecr_public: bool = False,
 ) -> list[PullAttempt]:
-    """Order the candidates: direct, Amazon ECR Public, then the operator's accelerators.
+    """Order direct, optional Amazon ECR Public, then the operator's accelerators.
 
-    Both the synchronous and the asynchronous pull share this list, so the order and the
-    credentials cannot drift apart between the install path and the redeploy path.
+    Amazon ECR Public is only a platform-upgrade fallback. Application images must use their
+    own registry or the operator's accelerators rather than an AWS mirror of Docker Hub.
+    Both pull transports share this list, so their order and credentials cannot drift.
     """
     plan = [PullAttempt(reference=reference, label="direct pull", source="direct")]
-    for ecr_reference in ecr_candidates(reference, alias_tags):
-        plan.append(
-            PullAttempt(
-                reference=ecr_reference,
-                label=f"Amazon ECR Public ({ecr_reference})",
-                source=ecr_reference,
+    if use_ecr_public:
+        for ecr_reference in ecr_candidates(reference, alias_tags):
+            plan.append(
+                PullAttempt(
+                    reference=ecr_reference,
+                    label=f"Amazon ECR Public ({ecr_reference})",
+                    source=ecr_reference,
+                )
             )
-        )
     for accelerator in resolve_accelerators(accelerators):
         for candidate in _accelerated_references(accelerator.url, reference):
             plan.append(
@@ -306,24 +377,31 @@ def pull_with_fallback(
     expected_version: str = "",
     alias_tags: list[str] | None = None,
     accelerators: "Sequence[str | Accelerator] | None" = None,
+    use_ecr_public: bool = False,
     on_progress=None,
 ) -> PulledImage:
-    """Pull `reference`, trying direct, Amazon ECR Public and the accelerators in order.
+    """Pull `reference`, trying direct, optional ECR Public and accelerators in order.
 
     When `expected_version` is given, every candidate has to declare that version inside the
     image; a source that moved on to another patch release is discarded instead of being
-    installed under the wrong version. `on_progress` receives the raw progress lines when a
-    caller wants to surface them (the install log does).
+    installed under the wrong version. `on_progress` receives the raw progress lines when the
+    caller streams them into the install log; the reasons for a failure are summarised once, in
+    the raised error.
     """
-    errors: list[str] = []
-    plan = build_pull_plan(reference, accelerators=accelerators, alias_tags=alias_tags)
+    failures: list[PullFailure] = []
+    plan = build_pull_plan(
+        reference,
+        accelerators=accelerators,
+        alias_tags=alias_tags,
+        use_ecr_public=use_ecr_public,
+    )
 
     for attempt in plan:
-        image = _pull_checked(client, attempt, expected_version, errors, on_progress)
+        image = _pull_checked(client, attempt, expected_version, failures, on_progress)
         if image is not None:
             return _pulled(client, reference, image, attempt.source)
 
-    raise ImagePullError("; ".join(errors) or f"Unable to pull {reference}")
+    raise ImagePullError(describe_pull_failure(reference, failures))
 
 
 async def pull_with_fallback_async(
@@ -332,6 +410,7 @@ async def pull_with_fallback_async(
     *,
     alias_tags: list[str] | None = None,
     accelerators: "Sequence[str | Accelerator] | None" = None,
+    use_ecr_public: bool = False,
     log=None,
 ) -> str:
     """The same plan, driven by the asynchronous Docker client.
@@ -341,8 +420,13 @@ async def pull_with_fallback_async(
     identical between the two transports. Returns the reference that served the image, which
     is always tagged back to `reference` for the deployment to keep using.
     """
-    errors: list[str] = []
-    for attempt in build_pull_plan(reference, accelerators=accelerators, alias_tags=alias_tags):
+    failures: list[PullFailure] = []
+    for attempt in build_pull_plan(
+        reference,
+        accelerators=accelerators,
+        alias_tags=alias_tags,
+        use_ecr_public=use_ecr_public,
+    ):
         try:
             if log is not None:
                 await log(f"Pulling image: {attempt.reference}")
@@ -353,13 +437,20 @@ async def pull_with_fallback_async(
                 if log is not None:
                     await log(line)
         except Exception as exc:
-            errors.append(f"{attempt.label}: {exc}")
-            logger.warning(f"Image pull failed ({attempt.label}): {exc}")
+            failure = PullFailure(
+                label=attempt.label,
+                reference=attempt.reference,
+                reason=concise_reason(exc),
+            )
+            failures.append(failure)
+            logger.warning(
+                f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}"
+            )
             continue
         await _tag_back_async(client, reference, attempt.reference)
         return attempt.reference
 
-    raise ImagePullError("; ".join(errors) or f"Unable to pull {reference}")
+    raise ImagePullError(describe_pull_failure(reference, failures))
 
 
 async def _tag_back_async(client, reference: str, served: str) -> None:
@@ -374,16 +465,23 @@ async def _tag_back_async(client, reference: str, served: str) -> None:
 
 
 def _pull_checked(
-    client, attempt: PullAttempt, expected_version: str, errors: list[str], on_progress=None
+    client,
+    attempt: PullAttempt,
+    expected_version: str,
+    failures: list[PullFailure],
+    on_progress=None,
 ):
-    image = _pull(client, attempt, errors, on_progress)
+    image = _pull(client, attempt, failures, on_progress)
     if image is None or not expected_version:
         return image
     declared = read_image_version(client, attempt.reference)
     if declared and declared != expected_version:
-        errors.append(
-            f"{attempt.label}: the image declares {declared} instead of {expected_version}"
+        failure = PullFailure(
+            label=attempt.label,
+            reference=attempt.reference,
+            reason=f"the image declares {declared} instead of {expected_version}",
         )
+        failures.append(failure)
         logger.warning(
             f"Discarding {attempt.reference}: it carries {declared}, expected {expected_version}"
         )
@@ -395,7 +493,12 @@ def _pull_checked(
     return image
 
 
-def _pull(client, attempt: PullAttempt, errors: list[str], on_progress=None):
+def _pull(
+    client,
+    attempt: PullAttempt,
+    failures: list[PullFailure],
+    on_progress=None,
+):
     try:
         if on_progress is None:
             return client.images.pull(
@@ -410,8 +513,15 @@ def _pull(client, attempt: PullAttempt, errors: list[str], on_progress=None):
             on_progress(line)
         return client.images.get(attempt.reference)
     except Exception as exc:
-        errors.append(f"{attempt.label}: {exc}")
-        logger.warning(f"Image pull failed ({attempt.label}): {exc}")
+        failure = PullFailure(
+            label=attempt.label,
+            reference=attempt.reference,
+            reason=concise_reason(exc),
+        )
+        failures.append(failure)
+        logger.warning(
+            f"Image pull failed ({attempt.label}) for {attempt.reference}: {failure.reason}"
+        )
         return None
 
 

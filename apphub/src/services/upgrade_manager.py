@@ -523,8 +523,9 @@ class UpgradeManager:
                     f"{repository}:{version_tag}",
                     expected_version=target_version,
                     alias_tags=[str(entry) for entry in (image.get("alias_tags") or [])],
+                    use_ecr_public=True,
                 )
-                pull_with_fallback(docker_client, RUNNER_IMAGE)
+                pull_with_fallback(docker_client, RUNNER_IMAGE, use_ecr_public=True)
             except Exception as exc:
                 raise CustomException(502, "Upgrade Image Unavailable", f"Unable to pull an upgrade image: {exc}")
             digest = pulled.digest

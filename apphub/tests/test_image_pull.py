@@ -15,14 +15,19 @@ from src.services.docker_mirror_store import DockerMirrorStore
 from src.services.image_pull import (
     DEFAULT_IMAGE_REPO,
     ECR_PUBLIC_IMAGE_REPO,
+    MAX_REASON_LENGTH,
     ImagePullError,
     build_pull_plan,
+    concise_reason,
+    describe_pull_failure,
     ecr_candidates,
     load_image_accelerators,
+    pull_error_detail,
     pull_with_fallback,
     pull_with_fallback_async,
     require_local_image,
     split_reference,
+    validate_image_reference,
 )
 from src.services.mirror_registry import Accelerator, MirrorRegistry
 
@@ -155,6 +160,7 @@ def test_pull_falls_back_to_amazon_ecr_public_for_a_pinned_release_via_its_alias
         expected_version="2.4.1",
         alias_tags=["websoft9dev/websoft9:latest", "websoft9dev/websoft9:2.4"],
         accelerators=[],
+        use_ecr_public=True,
     )
 
     assert result.source == alias_reference
@@ -180,6 +186,7 @@ def test_ecr_alias_is_rejected_when_it_already_moved_to_a_newer_patch():
         expected_version="2.4.1",
         alias_tags=["2.4"],
         accelerators=["mirror.example.test"],
+        use_ecr_public=True,
     )
 
     assert result.source == mirror_reference
@@ -214,7 +221,7 @@ def test_runner_image_falls_back_to_the_ecr_library_mirror():
     ecr_reference = f"public.ecr.aws/docker/library/docker:29.8.0-cli@{digest}"
     client = FakeClient({ecr_reference: FakeImage("sha256:mirror", digest)})
 
-    result = pull_with_fallback(client, reference, accelerators=[])
+    result = pull_with_fallback(client, reference, accelerators=[], use_ecr_public=True)
 
     assert result.source == ecr_reference
     assert result.digest == digest
@@ -235,7 +242,9 @@ def test_accelerated_pull_tries_the_library_prefix_for_official_images():
     mirror_reference = f"mirror.example.test/library/docker:27.3-cli@{digest}"
     client = FakeClient({mirror_reference: FakeImage("sha256:mirror", "sha256:" + "d" * 64)})
 
-    result = pull_with_fallback(client, reference, accelerators=["mirror.example.test"])
+    result = pull_with_fallback(
+        client, reference, accelerators=["mirror.example.test"], use_ecr_public=True
+    )
 
     assert result.source == mirror_reference
     assert result.digest == "sha256:" + "d" * 64
@@ -271,12 +280,106 @@ def test_every_failed_source_is_reported():
             client,
             "websoft9dev/websoft9:2.4-dev",
             accelerators=["mirror.example.test"],
+            use_ecr_public=True,
         )
 
     message = str(error.value)
     assert "direct pull" in message
     assert "Amazon ECR Public" in message
     assert "mirror mirror.example.test" in message
+
+
+def test_failure_message_lists_every_source_with_its_reason():
+    client = FakeClient({})
+
+    with pytest.raises(ImagePullError) as error:
+        pull_with_fallback(
+            client,
+            "websoft9dev/websoft9:2.4.1",
+            accelerators=["mirror-a.example.test", "mirror-b.example.test"],
+        )
+
+    message = str(error.value)
+    assert message.startswith("Unable to pull image 'websoft9dev/websoft9:2.4.1'.")
+    assert "Tried 3 source(s), in order:" in message
+    # Every source is named with the reference it actually requested, so the operator can tell
+    # which accelerator to look at first.
+    assert "  - direct pull [websoft9dev/websoft9:2.4.1]: " in message
+    assert "  - mirror mirror-a.example.test [mirror-a.example.test/websoft9dev/websoft9:2.4.1]: " in message
+    assert "  - mirror mirror-b.example.test [mirror-b.example.test/websoft9dev/websoft9:2.4.1]: " in message
+    assert "Settings > Image Accelerator" in message
+
+
+@pytest.mark.asyncio
+async def test_async_failure_message_lists_every_source_with_its_reason():
+    class AsyncImages:
+        def pull(self, reference, **_kwargs):
+            async def stream():
+                raise RuntimeError(f"no such manifest: {reference}")
+                yield  # pragma: no cover - makes this an async generator
+
+            return stream()
+
+    class AsyncClient:
+        images = AsyncImages()
+
+    with pytest.raises(ImagePullError) as error:
+        await pull_with_fallback_async(
+            AsyncClient(),
+            "websoft9dev/websoft9:2.4.1",
+            accelerators=["mirror-a.example.test"],
+        )
+
+    message = str(error.value)
+    assert "direct pull [websoft9dev/websoft9:2.4.1]: no such manifest" in message
+    assert "mirror mirror-a.example.test" in message
+
+
+def test_a_multi_line_reason_is_collapsed_to_one_bounded_line():
+    noisy = "manifest unknown\n" + "detail " * 200
+
+    reason = concise_reason(RuntimeError(noisy))
+
+    assert "\n" not in reason
+    assert len(reason) <= MAX_REASON_LENGTH
+    assert reason.endswith("…")
+
+
+def test_a_docker_api_error_drops_the_transport_url_it_repeats():
+    raw = (
+        "404 Client Error for http+docker://localhost/v1.55/images/create?tag=0.0.1"
+        "&fromImage=websoft9dev%2Fmissing: Not Found (\"pull access denied\")"
+    )
+
+    # The reference is already named next to the reason, so the daemon URL only adds noise.
+    assert concise_reason(RuntimeError(raw)) == 'Not Found ("pull access denied")'
+
+
+def test_failure_message_without_any_source_still_explains_itself():
+    message = describe_pull_failure("websoft9dev/websoft9:2.4.1", [])
+
+    assert "No pull source was available for this image." in message
+    assert "Settings > Image Accelerator" in message
+
+
+def test_pull_error_detail_prefers_the_specific_text_the_exception_carries():
+    class WithDetails(Exception):
+        details = "direct pull: connection refused"
+
+    assert pull_error_detail(WithDetails("ignored")) == "direct pull: connection refused"
+    assert pull_error_detail(RuntimeError("boom")) == "boom"
+    # A bare exception carries nothing an operator can act on, so the caller's wording is kept.
+    assert pull_error_detail(RuntimeError("")) == "Pulling the application images failed"
+    assert pull_error_detail(RuntimeError("Internal Server Error")) == (
+        "Pulling the application images failed"
+    )
+
+
+def test_an_invalid_reference_names_the_likely_cause():
+    with pytest.raises(ImagePullError) as error:
+        validate_image_reference("${IMAGE_REPO}:latest")
+
+    assert "missing from the application's .env" in str(error.value)
 
 
 def test_an_unreadable_version_probe_does_not_block_the_upgrade():
@@ -289,6 +392,7 @@ def test_an_unreadable_version_probe_does_not_block_the_upgrade():
         expected_version="2.4.1",
         alias_tags=["2.4"],
         accelerators=[],
+        use_ecr_public=True,
     )
 
     assert result.source == reference
@@ -353,6 +457,7 @@ def test_pull_plan_orders_direct_ecr_then_accelerators_with_credentials():
         "websoft9dev/websoft9:2.4.1",
         alias_tags=["2.4"],
         accelerators=[Accelerator("registry.example.test", "ops", "s3cret")],
+        use_ecr_public=True,
     )
 
     assert [attempt.source for attempt in plan][:2] == [
@@ -362,6 +467,16 @@ def test_pull_plan_orders_direct_ecr_then_accelerators_with_credentials():
     assert plan[0].auth_config is None
     assert plan[-1].reference == "registry.example.test/websoft9dev/websoft9:2.4.1"
     assert plan[-1].auth_config == {"username": "ops", "password": "s3cret"}
+
+
+def test_application_pull_plan_does_not_try_ecr_public_for_docker_hub_images():
+    plan = build_pull_plan("wordpress:7.1", accelerators=["mirror.example.test"])
+
+    assert [attempt.reference for attempt in plan] == [
+        "wordpress:7.1",
+        "mirror.example.test/wordpress:7.1",
+        "mirror.example.test/library/wordpress:7.1",
+    ]
 
 
 def test_accelerated_pull_sends_the_configured_credentials():
