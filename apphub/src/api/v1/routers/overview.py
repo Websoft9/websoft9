@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Request
+from fastapi import APIRouter, Cookie, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.core.logger import logger
@@ -21,6 +21,14 @@ def _get_overview_service() -> OverviewService:
     return _overview_service
 
 
+def _normalize_locale(value: Optional[str]) -> str:
+    """Map the console language onto the two published App Store catalogues.
+
+    Any other value falls back to English, which is also what the store itself serves.
+    """
+    return "zh" if str(value or "").strip().lower().startswith("zh") else "en"
+
+
 @router.get(
     "/overview",
     summary="Get homepage overview summary",
@@ -28,9 +36,16 @@ def _get_overview_service() -> OverviewService:
     responses={200: {"model": OverviewResponse}, 401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def get_overview(
+    locale: Optional[str] = Query(
+        default=None, description="Console language (zh/en); decides which App Store catalogue is counted"
+    ),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
-    return overview_stream_cache.get_overview(session_token=session_token, force_refresh=True)
+    return overview_stream_cache.get_overview(
+        session_token=session_token,
+        locale=_normalize_locale(locale),
+        force_refresh=True,
+    )
 
 
 @router.get(
@@ -41,8 +56,13 @@ def get_overview(
 )
 async def stream_overview(
     request: Request,
+    locale: Optional[str] = Query(
+        default=None, description="Console language (zh/en); decides which App Store catalogue is counted"
+    ),
     session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
 ):
+    normalized_locale = _normalize_locale(locale)
+
     async def event_generator():
         last_digest: str | None = None
 
@@ -56,6 +76,7 @@ async def stream_overview(
                 snapshot = await asyncio.to_thread(
                     overview_stream_cache.get_snapshot,
                     session_token,
+                    locale=normalized_locale,
                     force_refresh=last_digest is None,
                 )
                 sleep_seconds = min(max(snapshot.refresh_interval_seconds, 1.0), 10.0)

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
+import { resolveAppCatalogLocale } from '../../shared/i18n/i18n'
 import type { AppStoreApp } from './app-store-model'
 
 type AppStoreError = Error & {
@@ -9,10 +10,6 @@ type AppStoreError = Error & {
 
 type AppStoreManifest = {
     apps?: AppStoreApp[]
-}
-
-function mapLocaleToApiLocale(locale: string) {
-    return locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
 }
 
 async function fetchJson<T>(url: string, errorMessage: string) {
@@ -57,7 +54,7 @@ async function fetchAppStoreApps(apiLocale: string) {
 export function useAppStoreApps() {
     const { i18n } = useTranslation('shell')
     const resolvedLocale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
-    const apiLocale = mapLocaleToApiLocale(resolvedLocale)
+    const apiLocale = resolveAppCatalogLocale(resolvedLocale)
 
     return useQuery<AppStoreApp[], AppStoreError>({
         queryKey: ['app-store-apps', apiLocale],

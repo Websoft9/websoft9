@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
-from src.core.config import ConfigManager
 from src.core.logger import logger
 from src.schemas.coreServices import CoreServiceSummary
 from src.schemas.overview import (
@@ -35,7 +34,7 @@ class OverviewService:
         self,
         auth_service: Optional[ProductAuthService] = None,
         product_metadata_loader: Optional[Callable[[], dict]] = None,
-        available_catalog_count_loader: Optional[Callable[[], Optional[int]]] = None,
+        available_catalog_count_loader: Optional[Callable[[str], Optional[int]]] = None,
         host_summary_loader: Optional[Callable[[], dict]] = None,
         host_runtime_summary_loader: Optional[Callable[[], dict]] = None,
         apps_loader: Optional[Callable[[], Sequence[object]]] = None,
@@ -62,12 +61,12 @@ class OverviewService:
         self._docker_host_info_cache_lock = threading.RLock()
         self._cached_docker_host_info: Optional[tuple[dict, int]] = None
 
-    def get_overview(self, session_token: Optional[str]) -> OverviewResponse:
+    def get_overview(self, session_token: Optional[str], locale: str = "en") -> OverviewResponse:
         self.auth_service._require_authenticated_operator(session_token)
 
         app_inventory = self._load_apps_inventory()
         apps = self._safe_apps_summary(app_inventory)
-        product = self._safe_product_summary(apps)
+        product = self._safe_product_summary(apps, locale)
         host = self._safe_host_summary()
         runtime = self._safe_runtime_summary()
         host_runtime = self._safe_host_runtime_summary()
@@ -86,12 +85,12 @@ class OverviewService:
             alerts=self._build_alerts(apps=apps, services=services, tasks=tasks),
         )
 
-    def _safe_product_summary(self, apps: OverviewAppsSummary) -> OverviewProductSummary:
+    def _safe_product_summary(self, apps: OverviewAppsSummary, locale: str = "en") -> OverviewProductSummary:
         try:
             payload = self._product_metadata_loader() or {}
             catalog_app_count: Optional[int] = None
             try:
-                catalog_app_count = self._available_catalog_count_loader()
+                catalog_app_count = self._available_catalog_count_loader(locale)
             except Exception:
                 catalog_app_count = None
             return OverviewProductSummary(
@@ -270,27 +269,23 @@ class OverviewService:
             "upgrade_state": "unknown",
         }
 
-    def _load_available_catalog_count(self) -> Optional[int]:
+    def _load_available_catalog_count(self, locale: str = "en") -> Optional[int]:
+        """Count the applications the App Store actually offers, for one language.
+
+        The dashboard number has to match the list an operator can install from, so it is read
+        from the published manifest the store serves: that manifest is the media catalogue
+        intersected with the Library templates that exist, and it already applies the
+        ``[initial_apps]`` allow list. Counting the media catalogue instead reported applications
+        that cannot be installed, and it always used the English file whatever language was asked
+        for.
+        """
         try:
             from src.services.app_manager import AppManger
 
-            initial_apps = ConfigManager("config.ini").get_value("initial_apps", "keys")
-            filtered_keys = {
-                item.strip()
-                for item in (initial_apps or "").split(",")
-                if item.strip()
-            }
-            media_path = AppManger()._ensure_media_asset("product_en.json")
-            with open(media_path, "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
-        except Exception:
+            return len(AppManger().get_available_apps(locale))
+        except Exception as exc:
+            logger.warning(f"Unable to count the available App Store applications: {exc}")
             return None
-
-        if not isinstance(payload, list):
-            return None
-        if not filtered_keys:
-            return len(payload)
-        return sum(1 for item in payload if isinstance(item, dict) and item.get("key") in filtered_keys)
 
     def _load_docker_host_info(self) -> dict:
         now_ns = time.monotonic_ns()

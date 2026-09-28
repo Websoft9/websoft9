@@ -22,7 +22,7 @@ from src.core.exception import CustomException
 from src.schemas.appResponse import AppResponse
 from src.schemas.coreServices import CoreServiceSummary
 from src.schemas.errorResponse import ErrorResponse
-from src.schemas.overview import OverviewTaskItem
+from src.schemas.overview import OverviewAppsSummary, OverviewTaskItem
 from src.services import overview_service
 from src.services.overview_service import OverviewService
 from src.services.overview_stream_cache import overview_stream_cache
@@ -61,7 +61,7 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
-        available_catalog_count_loader=lambda: 432,
+        available_catalog_count_loader=lambda locale: 432,
         host_summary_loader=lambda: {
             "hostname": "host-a",
             "os_name": "Ubuntu 24.04",
@@ -177,11 +177,54 @@ def test_overview_service_aggregates_product_apps_services_and_tasks():
     assert '"key": "portainer"' in warning.call_args.args[0]
 
 
+def test_overview_catalog_count_uses_the_published_app_store_manifest(monkeypatch):
+    """The dashboard number has to match what the App Store can actually install."""
+    from src.services import app_manager as app_manager_module
+
+    requested_locales: list[str] = []
+
+    def fake_get_available_apps(self, locale):
+        requested_locales.append(locale)
+        return [{"key": "wordpress"}, {"key": "mysql"}]
+
+    monkeypatch.setattr(app_manager_module.AppManger, "get_available_apps", fake_get_available_apps)
+
+    service = OverviewService(
+        auth_service=FakeAuthService(),
+        product_metadata_loader=lambda: {"version": "2.4.2", "edition_key": "free", "edition_name": "Free", "max_apps": None},
+    )
+
+    summary = service._safe_product_summary(OverviewAppsSummary(installed_count=1), "zh")
+
+    # The count is the installable catalogue for the requested language, not the media catalogue.
+    assert summary.catalog_app_count == 2
+    assert requested_locales == ["zh"]
+
+
+def test_overview_catalog_count_is_none_when_the_manifest_is_unavailable(monkeypatch):
+    from src.services import app_manager as app_manager_module
+
+    def failing_get_available_apps(self, locale):
+        raise RuntimeError("manifest is unavailable")
+
+    monkeypatch.setattr(app_manager_module.AppManger, "get_available_apps", failing_get_available_apps)
+
+    service = OverviewService(
+        auth_service=FakeAuthService(),
+        product_metadata_loader=lambda: {"version": "2.4.2", "edition_key": "free", "edition_name": "Free", "max_apps": None},
+    )
+
+    summary = service._safe_product_summary(OverviewAppsSummary(), "en")
+
+    # An unavailable catalogue leaves the tile empty instead of failing the whole overview.
+    assert summary.catalog_app_count is None
+
+
 def test_overview_service_degrades_per_section_instead_of_failing_whole_page():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
-        available_catalog_count_loader=lambda: 432,
+        available_catalog_count_loader=lambda locale: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
             "runtime_scope": "system",
@@ -239,7 +282,7 @@ def test_overview_service_supports_runtime_app_response_models():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
-        available_catalog_count_loader=lambda: 432,
+        available_catalog_count_loader=lambda locale: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
             "runtime_scope": "system",
@@ -303,7 +346,7 @@ def test_overview_service_reuses_loaded_apps_for_apps_and_tasks():
     service = OverviewService(
         auth_service=FakeAuthService(),
         product_metadata_loader=lambda: {"version": "2.2.17", "edition_key": "free", "edition_name": "Free", "max_apps": None},
-        available_catalog_count_loader=lambda: 432,
+        available_catalog_count_loader=lambda locale: 432,
         host_summary_loader=lambda: {"hostname": "host-a"},
         host_runtime_summary_loader=lambda: {
             "runtime_scope": "system",

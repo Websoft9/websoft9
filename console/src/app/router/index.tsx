@@ -10,6 +10,7 @@ import { ProductAuthPage } from '../../features/product-auth/product-auth-page'
 import { ProductAuthRouteGuard } from '../../features/product-auth/product-auth-route-guard'
 import { BrandPreviewPage } from '../../features/settings/brand-preview-page'
 import { queryClient } from '../../shared/lib/query-client'
+import { i18n, resolveAppCatalogLocale } from '../../shared/i18n/i18n'
 
 type LazyPageComponent = ComponentType<Record<string, unknown>>
 
@@ -45,10 +46,11 @@ const ApplicationsCustomInstallPage = lazyPage(() => import('../../features/appl
 const SetupWizardPage = lazyPage(() => import('../../features/setup-wizard/setup-wizard-page'), 'SetupWizardPage')
 
 async function prefetchOverviewSummary() {
+    const locale = resolveAppCatalogLocale(i18n.resolvedLanguage ?? i18n.language)
     await queryClient.prefetchQuery({
-        queryKey: ['overview-summary'],
+        queryKey: ['overview-summary', locale],
         queryFn: async () => {
-            const response = await fetch('/api/overview', {
+            const response = await fetch(`/api/overview?locale=${locale}`, {
                 credentials: 'include',
                 headers: {
                     Accept: 'application/json',

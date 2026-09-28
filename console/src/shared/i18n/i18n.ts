@@ -35,6 +35,16 @@ export function normalizeSupportedLocale(locale: string | null | undefined): Sup
     return locale?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
 
+/**
+ * The catalogue language the API serves.
+ *
+ * The App Store publishes one catalogue per language and the dashboard counts the same one, so
+ * both resolve it here instead of deciding on their own.
+ */
+export function resolveAppCatalogLocale(locale: string | null | undefined): 'zh' | 'en' {
+    return String(locale ?? '').toLowerCase().startsWith('zh') ? 'zh' : 'en'
+}
+
 function resolveInitialLocale(): SupportedLocale {
     if (typeof navigator === 'undefined') {
         return defaultLocale

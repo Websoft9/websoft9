@@ -30,9 +30,11 @@ class OverviewStreamCache:
         self,
         session_token: Optional[str],
         *,
+        locale: str = 'en',
         force_refresh: bool = False,
     ) -> OverviewStreamSnapshot:
-        cache_key = session_token or '__anonymous__'
+        # The catalogue count depends on the language, so one session can hold several snapshots.
+        cache_key = f'{locale}:{session_token or "__anonymous__"}'
         now = time.monotonic()
 
         with self._lock:
@@ -46,14 +48,14 @@ class OverviewStreamCache:
                     entry['refreshing'] = True
                     thread = threading.Thread(
                         target=self._refresh_entry_in_background,
-                        args=(cache_key, session_token),
+                        args=(cache_key, session_token, locale),
                         daemon=True,
                     )
                     thread.start()
                 return self._entry_to_snapshot(entry)
 
         try:
-            refreshed_entry = self._build_entry(session_token=session_token, now=now)
+            refreshed_entry = self._build_entry(session_token=session_token, locale=locale, now=now)
         except Exception as exc:
             with self._lock:
                 entry = self._entries.get(cache_key)
@@ -69,13 +71,21 @@ class OverviewStreamCache:
             self._entries[cache_key] = refreshed_entry
             return self._entry_to_snapshot(refreshed_entry)
 
-    def get_overview(self, session_token: Optional[str], *, force_refresh: bool = False) -> dict[str, Any]:
-        return self.get_snapshot(session_token, force_refresh=force_refresh).overview
+    def get_overview(
+        self,
+        session_token: Optional[str],
+        *,
+        locale: str = 'en',
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        return self.get_snapshot(session_token, locale=locale, force_refresh=force_refresh).overview
 
-    def _refresh_entry_in_background(self, cache_key: Optional[str], session_token: Optional[str]) -> None:
+    def _refresh_entry_in_background(
+        self, cache_key: Optional[str], session_token: Optional[str], locale: str = 'en'
+    ) -> None:
         now = time.monotonic()
         try:
-            refreshed_entry = self._build_entry(session_token=session_token, now=now)
+            refreshed_entry = self._build_entry(session_token=session_token, locale=locale, now=now)
         except Exception as exc:
             with self._lock:
                 entry = self._entries.get(cache_key)
@@ -89,8 +99,10 @@ class OverviewStreamCache:
             refreshed_entry['refreshing'] = False
             self._entries[cache_key] = refreshed_entry
 
-    def _build_entry(self, session_token: Optional[str], *, now: float) -> dict[str, Any]:
-        overview = jsonable_encoder(self._overview_service.get_overview(session_token=session_token))
+    def _build_entry(self, session_token: Optional[str], *, locale: str = 'en', now: float) -> dict[str, Any]:
+        overview = jsonable_encoder(
+            self._overview_service.get_overview(session_token=session_token, locale=locale)
+        )
         digest = self._compute_digest(overview)
         refresh_interval_seconds = self._resolve_refresh_interval_seconds(overview)
         event_json = json.dumps(

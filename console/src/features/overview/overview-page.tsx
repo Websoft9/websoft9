@@ -8,6 +8,7 @@ import { PageDescriptionHeader } from '../../shared/design-system/page-descripti
 import { useAppColorMode } from '../../app/providers/color-mode'
 import { useConnectionUnavailable } from '../../shared/connection/connection-provider'
 import { isPlatformUnavailableError } from '../../shared/lib/api-error'
+import { resolveAppCatalogLocale } from '../../shared/i18n/i18n'
 import { useProductAuth } from '../product-auth/product-auth-provider'
 import './overview-page.css'
 
@@ -147,6 +148,9 @@ function RefreshIcon() {
 
 export function OverviewPage() {
     const { t, i18n } = useTranslation('shell')
+    // The App Store serves one catalogue per language, so the dashboard asks for the same one it
+    // displays: otherwise its total would count a different catalogue than the store lists.
+    const catalogLocale = resolveAppCatalogLocale(i18n.resolvedLanguage ?? i18n.language)
     const { colorMode } = useAppColorMode()
     const isDarkMode = colorMode === 'dark'
     const { status } = useProductAuth()
@@ -156,8 +160,8 @@ export function OverviewPage() {
     const supportsEventSource = typeof window !== 'undefined' && typeof EventSource !== 'undefined'
 
     const { data, error, isLoading, refetch } = useQuery<OverviewResponse, Error>({
-        queryKey: ['overview-summary'],
-        queryFn: () => requestJson<OverviewResponse>('/api/overview'),
+        queryKey: ['overview-summary', catalogLocale],
+        queryFn: () => requestJson<OverviewResponse>(`/api/overview?locale=${catalogLocale}`),
         enabled: Boolean(status?.enabled && status?.authenticated),
         staleTime: supportsEventSource ? 10_000 : 2_000,
         refetchOnWindowFocus: false,
@@ -170,12 +174,12 @@ export function OverviewPage() {
             return
         }
 
-        const eventSource = new EventSource('/api/overview/stream', { withCredentials: true })
+        const eventSource = new EventSource(`/api/overview/stream?locale=${catalogLocale}`, { withCredentials: true })
         const handleSnapshot = (event: Event) => {
             try {
                 const payload = JSON.parse((event as MessageEvent<string>).data) as OverviewStreamPayload
                 if (payload.overview) {
-                    queryClient.setQueryData(['overview-summary'], payload.overview)
+                    queryClient.setQueryData(['overview-summary', catalogLocale], payload.overview)
                 }
             } catch {
                 // Ignore malformed events and wait for the next snapshot.
@@ -188,7 +192,7 @@ export function OverviewPage() {
             eventSource.removeEventListener('snapshot', handleSnapshot)
             eventSource.close()
         }
-    }, [Boolean(data), queryClient, status?.authenticated, status?.enabled, supportsEventSource])
+    }, [Boolean(data), catalogLocale, queryClient, status?.authenticated, status?.enabled, supportsEventSource])
 
     async function handleManualRefresh() {
         setIsManualRefreshing(true)
