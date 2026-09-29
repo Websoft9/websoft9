@@ -17,8 +17,69 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from croniter import croniter
 
 from src.core.exception import CustomException
+from src.core.logger import logger
 from src.services.host_access import HostAccessService
 from src.services.product_auth import ProductAuthService
+
+# A task command exits with this code to say "this run was skipped on purpose" (for example
+# because another run of the same maintenance job was already in progress). The runner records
+# it as skipped instead of failed and does not retry it.
+SKIPPED_EXIT_CODE = 75
+
+# Tasks the product owns. They are seeded as ordinary container tasks with a system origin, so
+# they execute and record runs through the same runner as an operator's tasks, while the console
+# shows them read-only.
+SYSTEM_ORIGIN = "system"
+SYSTEM_OPERATOR_ID = "system"
+PLATFORM_CLI_PATH = "/usr/local/bin/websoft9"
+SYSTEM_TASKS: tuple[dict[str, Any], ...] = (
+    {
+        "task_id": "system:appstore-sync",
+        "name": "App Store sync",
+        # The sync takes a global lock; asking it to skip keeps a manual sync from turning this
+        # scheduled run into a failure.
+        "schedule": "0 3 * * *",
+        "command": f"{PLATFORM_CLI_PATH} appstore sync --skip-if-running",
+        "timeout_seconds": 3600,
+    },
+    {
+        "task_id": "system:update-check",
+        "name": "Platform update check",
+        "schedule": "30 3 * * *",
+        "command": f"{PLATFORM_CLI_PATH} check-update",
+        "timeout_seconds": 900,
+    },
+)
+
+
+def _container_local_zone() -> str:
+    """The IANA zone this container resolves, the one cron schedules in.
+
+    cron reads a cron.d entry in the container's local time, so this is what a schedule is
+    really interpreted in. `/etc/timezone` and `/etc/localtime` are both supplied by the host
+    that runs the container, which makes them the deployment's own answer to the question.
+    """
+    candidates: list[str] = []
+    try:
+        candidates.append(Path("/etc/timezone").read_text(encoding="utf-8").strip())
+    except OSError:
+        pass
+    localtime = Path("/etc/localtime")
+    try:
+        target = os.readlink(localtime) if localtime.is_symlink() else ""
+        if "zoneinfo/" in target:
+            candidates.append(target.split("zoneinfo/", 1)[1])
+    except OSError:
+        pass
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            ZoneInfo(candidate)
+            return candidate
+        except (ZoneInfoNotFoundError, ValueError):
+            continue
+    return "UTC"
 
 
 class ScheduledTaskService:
@@ -28,7 +89,7 @@ class ScheduledTaskService:
     _host_capability_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
     _background_syncing: set[str] = set()
     _background_syncing_task_ids: dict[str, set[str]] = {}
-    _runner_version_marker = "# websoft9-task-runner-version: 4"
+    _runner_version_marker = "# websoft9-task-runner-version: 5"
     _run_retention_count = 20
     _run_retention_days = 3
     _log_read_line_limit = 200
@@ -122,8 +183,11 @@ class ScheduledTaskService:
             public_task = self._public_task(task)
             public_task["syncing"] = task["task_id"] in syncing_task_ids
             tasks.append(public_task)
+        # Platform tasks travel separately: they belong to the product rather than to the operator,
+        # and the console renders them read-only next to the operator's own tasks.
         return {
             "tasks": tasks,
+            "system_tasks": [self._public_task(task) for task in self._list_system_tasks()],
         }
 
     def start_sync(self, session_token: Optional[str]) -> dict[str, str]:
@@ -146,7 +210,13 @@ class ScheduledTaskService:
 
     def _sync_operator_tasks_in_background(self, session_token: Optional[str], operator_id: str) -> None:
         try:
-            tasks = self._list_tasks(operator_id)
+            # This runs on a thread of its own, so it cannot assume the request that spawned it
+            # already prepared the store.
+            self._ensure_storage()
+            # Platform tasks are owned by the product rather than the operator, so listing only
+            # the operator's own rows would leave their run history unseen forever: the console
+            # would keep showing "never" for a job that ran on schedule.
+            tasks = [*self._list_system_tasks(), *self._list_tasks(operator_id)]
             for task in tasks:
                 if task["target"] == "container":
                     self._upgrade_local_runner_if_needed(task)
@@ -246,6 +316,7 @@ class ScheduledTaskService:
         capability = self._host_capability_or_none(session_token, normalized)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
+            self._require_mutable(task)
             if task["name"] != normalized["name"] and self._task_name_exists(operator["id"], normalized["name"]):
                 raise CustomException(409, "Scheduled Task Already Exists", "A task with this name already exists")
             target_changed = task["target"] != normalized["target"] or task["profile_id"] != normalized["profile_id"]
@@ -296,6 +367,7 @@ class ScheduledTaskService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
+            self._require_mutable(task)
             self._write_task(task_id, enabled=int(enabled), updated_at=self._now_iso())
             self._sync_or_mark_failed(session_token, task_id)
         return self._public_task(self._get_task(operator["id"], task_id))
@@ -304,6 +376,7 @@ class ScheduledTaskService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
+            self._require_mutable(task)
             if task["target"] == "host":
                 try:
                     self._sync_host_tasks(session_token, task["profile_id"], exclude_task_id=task_id)
@@ -313,6 +386,11 @@ class ScheduledTaskService:
             else:
                 self._sync_without_task(task_id)
             self._delete_task(task_id)
+            # The run index is keyed by task_id alone, so it outlives the task row: without this
+            # the history of a deleted task stays in the database for good.
+            with self._db_connect() as connection:
+                connection.execute("DELETE FROM scheduled_task_runs WHERE task_id = ?", (task_id,))
+                connection.commit()
             for path in (self._runner_path(task_id), self._log_path(task_id), self._state_path(task_id), self._lock_path(task_id), self._uploaded_script_path(task)):
                 path.unlink(missing_ok=True)
             self._task_logs_dir(task_id).unlink(missing_ok=True) if self._task_logs_dir(task_id).is_file() else None
@@ -323,6 +401,7 @@ class ScheduledTaskService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
+            self._require_mutable(task)
             if task["sync_status"] != "synced":
                 self._sync_or_mark_failed(session_token, task_id)
                 task = self._get_task(operator["id"], task_id)
@@ -659,9 +738,14 @@ class ScheduledTaskService:
                     (record["run_id"], task["task_id"], record.get("started_at"), record.get("finished_at"), record.get("status", "running"), record.get("exit_code"), record.get("trigger", "cron"), record.get("log_path", "")),
                 )
             latest = connection.execute("SELECT status, COALESCE(finished_at, started_at) AS run_at FROM scheduled_task_runs WHERE task_id = ? ORDER BY started_at DESC LIMIT 1", (task["task_id"],)).fetchone()
+            previous = connection.execute("SELECT last_status, last_run_at FROM scheduled_tasks WHERE task_id = ?", (task["task_id"],)).fetchone()
             connection.commit()
-        if latest:
+        if latest and previous and (previous["last_status"] != latest["status"] or previous["last_run_at"] != latest["run_at"]):
             self._write_task(task["task_id"], last_status=latest["status"], last_run_at=latest["run_at"], updated_at=self._now_iso())
+        else:
+            # Rewriting a row that did not change would only move `updated_at`, which the console
+            # stream digests: every poll would then broadcast a snapshot and redraw the list.
+            pass
         self._prune_run_index(task["task_id"])
 
     def _sync_host_task_runs_batch(self, session_token: Optional[str], profile_id: str, tasks: list[sqlite3.Row]) -> None:
@@ -752,10 +836,11 @@ class ScheduledTaskService:
             "  attempt=$((attempt + 1))\n"
             f"  {execution} >> \"$LOG\" 2>&1\n"
             "  exit_code=$?\n"
-            f"  if [ \"$exit_code\" -eq 0 ] || [ \"$attempt\" -gt {int(retry_count)} ]; then break; fi\n"
+            f"  if [ \"$exit_code\" -eq 0 ] || [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ] || [ \"$attempt\" -gt {int(retry_count)} ]; then break; fi\n"
             f"  write_log \"RETRY trigger=$trigger attempt=$((attempt + 1))/{int(retry_count) + 1} exit_code=$exit_code\"\n"
             "done\n"
-            "if [ \"$exit_code\" -eq 0 ]; then status=success; else status=failed; fi\nfinished_at=$(date -Iseconds)\nduration=$(( $(date +%s) - started_epoch ))\nwrite_state \"$run_id\" \"$status\" \"$started_at\" \"$finished_at\" \"$exit_code\"\nwrite_log \"END trigger=$trigger status=$status exit_code=$exit_code duration=${duration}s\"\nwrite_run \"$finished_at\" \"$status\" \"$exit_code\"\nfind \"$RUNS\" -type f -name '*.json' -mtime +7 -delete\nfind \"$LOGS\" -type f -name '*.log' -mtime +7 -delete\nls -1t \"$RUNS\"/*.json 2>/dev/null | tail -n +51 | while read -r stale; do rm -f \"$stale\" \"$LOGS/$(basename \"$stale\" .json).log\"; done\nexit \"$exit_code\"\n"
+            f"if [ \"$exit_code\" -eq 0 ]; then status=success; elif [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ]; then status=skipped; write_log \"SKIPPED trigger=$trigger reason=command_reported_skip\"; else status=failed; fi\nfinished_at=$(date -Iseconds)\nduration=$(( $(date +%s) - started_epoch ))\nwrite_state \"$run_id\" \"$status\" \"$started_at\" \"$finished_at\" \"$exit_code\"\nwrite_log \"END trigger=$trigger status=$status exit_code=$exit_code duration=${{duration}}s\"\nwrite_run \"$finished_at\" \"$status\" \"$exit_code\"\nfind \"$RUNS\" -type f -name '*.json' -mtime +7 -delete\nfind \"$LOGS\" -type f -name '*.log' -mtime +7 -delete\nls -1t \"$RUNS\"/*.json 2>/dev/null | tail -n +51 | while read -r stale; do rm -f \"$stale\" \"$LOGS/$(basename \"$stale\" .json).log\"; done\n"
+            f"if [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ]; then exit 0; fi\nexit \"$exit_code\"\n"
         )
 
     def _remote_output(self, client: Any, command: str) -> str:
@@ -790,8 +875,13 @@ class ScheduledTaskService:
         lines = ["SHELL=/bin/bash", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", ""]
         for task in tasks:
             lines.append(f"{task['schedule']} root {self._runner_path(task['task_id'])}")
+        rendered = ("\n".join(lines) + "\n").encode("utf-8")
+        if previous_contents == rendered:
+            # Startup reconciles this file on every boot, and restarting cron for an identical
+            # file would interrupt nothing but still cost a service restart.
+            return
         temporary = self.cron_file.with_suffix(".tmp")
-        temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        temporary.write_bytes(rendered)
         temporary.chmod(0o644)
         temporary.replace(self.cron_file)
         try:
@@ -857,6 +947,7 @@ class ScheduledTaskService:
                     next_run_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    origin TEXT NOT NULL DEFAULT 'user',
                     UNIQUE(operator_id, name)
                 )
                 """
@@ -877,9 +968,50 @@ class ScheduledTaskService:
             )
             connection.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task_started ON scheduled_task_runs (task_id, started_at DESC)")
             columns = {row[1] for row in connection.execute("PRAGMA table_info(scheduled_tasks)")}
-            for name, definition in (("execution_mode", "TEXT NOT NULL DEFAULT 'command'"), ("script_path", "TEXT"), ("script_name", "TEXT"), ("timeout_seconds", "INTEGER NOT NULL DEFAULT 0"), ("retry_count", "INTEGER NOT NULL DEFAULT 0")):
+            for name, definition in (("execution_mode", "TEXT NOT NULL DEFAULT 'command'"), ("script_path", "TEXT"), ("script_name", "TEXT"), ("timeout_seconds", "INTEGER NOT NULL DEFAULT 0"), ("retry_count", "INTEGER NOT NULL DEFAULT 0"), ("origin", "TEXT NOT NULL DEFAULT 'user'")):
                 if name not in columns:
                     connection.execute(f"ALTER TABLE scheduled_tasks ADD COLUMN {name} {definition}")
+            connection.commit()
+        self._seed_system_tasks()
+
+    def _seed_system_tasks(self) -> None:
+        """Create the product's own tasks once, and never overwrite an existing row.
+
+        The platform's maintenance jobs used to live only in the image crontab. Keeping them in
+        the same store as an operator's tasks is what makes their run history and logs visible,
+        and `INSERT OR IGNORE` means a restart or an upgrade only fills in what is missing.
+        """
+        now = self._now_iso()
+        timezone_name = self._platform_timezone()
+        with self._db_connect() as connection:
+            for definition in SYSTEM_TASKS:
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO scheduled_tasks (
+                        task_id, operator_id, name, target, profile_id, schedule, timezone, command, execution_mode, script_path, script_name, timeout_seconds, retry_count, enabled,
+                        last_run_at, last_status, sync_status, next_run_at, created_at, updated_at, origin
+                    ) VALUES (?, ?, ?, 'container', NULL, ?, ?, ?, 'command', NULL, NULL, ?, 0, 1, NULL, 'never', 'synced', ?, ?, ?, ?)
+                    """,
+                    (
+                        definition["task_id"],
+                        SYSTEM_OPERATOR_ID,
+                        definition["name"],
+                        definition["schedule"],
+                        timezone_name,
+                        definition["command"],
+                        definition["timeout_seconds"],
+                        self._next_run(definition["schedule"], timezone_name),
+                        now,
+                        now,
+                        SYSTEM_ORIGIN,
+                    ),
+                )
+                # A platform task cannot be renamed by an operator, so its stored name may safely
+                # follow the definition; `INSERT OR IGNORE` alone would keep an older name.
+                connection.execute(
+                    "UPDATE scheduled_tasks SET name = ? WHERE task_id = ? AND origin = ? AND name != ?",
+                    (definition["name"], definition["task_id"], SYSTEM_ORIGIN, definition["name"]),
+                )
             connection.commit()
 
     def _db_connect(self) -> sqlite3.Connection:
@@ -920,11 +1052,22 @@ class ScheduledTaskService:
         self._ensure_storage()
         with self._db_connect() as connection:
             task = connection.execute(
-                "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND task_id = ?", (operator_id, task_id)
+                "SELECT * FROM scheduled_tasks WHERE task_id = ? AND (operator_id = ? OR origin = ?)",
+                (task_id, operator_id, SYSTEM_ORIGIN),
             ).fetchone()
         if task is None:
             raise CustomException(404, "Scheduled Task Not Found", "The requested task does not exist")
         return task
+
+    @staticmethod
+    def _require_mutable(task: sqlite3.Row) -> None:
+        """Refuse a write to a platform task: it is part of the product, not the operator's."""
+        if str(task["origin"] or "") == SYSTEM_ORIGIN:
+            raise CustomException(
+                403,
+                "Platform Task Read-only",
+                "Platform tasks are maintained by the product and cannot be edited, deleted, disabled or run manually",
+            )
 
     def _get_task_by_id(self, task_id: str) -> sqlite3.Row:
         self._ensure_storage()
@@ -938,6 +1081,13 @@ class ScheduledTaskService:
         with self._db_connect() as connection:
             return connection.execute(
                 "SELECT * FROM scheduled_tasks WHERE operator_id = ? ORDER BY created_at DESC", (operator_id,)
+            ).fetchall()
+
+    def _list_system_tasks(self) -> list[sqlite3.Row]:
+        """The platform's own tasks, listed apart from an operator's own."""
+        with self._db_connect() as connection:
+            return connection.execute(
+                "SELECT * FROM scheduled_tasks WHERE origin = ? ORDER BY created_at ASC", (SYSTEM_ORIGIN,)
             ).fetchall()
 
     def _list_enabled_tasks(self) -> list[sqlite3.Row]:
@@ -963,12 +1113,21 @@ class ScheduledTaskService:
 
     @staticmethod
     def _platform_timezone() -> str:
-        try:
-            timezone_name = os.getenv("TZ", "UTC").strip()
-            ZoneInfo(timezone_name)
-            return timezone_name
-        except (ZoneInfoNotFoundError, ValueError):
-            return "UTC"
+        """Zone this container's schedules are interpreted and displayed in.
+
+        `TZ` wins when the deployment declared one, because that is the value the install
+        states. Falling back to a literal "UTC" would instead make the console compute next
+        run times in UTC while cron fires them in the container's own local time, so the
+        container is asked when no usable `TZ` is present.
+        """
+        declared = os.getenv("TZ", "").strip()
+        if declared:
+            try:
+                ZoneInfo(declared)
+                return declared
+            except (ZoneInfoNotFoundError, ValueError):
+                logger.warning(f"Ignoring unusable TZ={declared!r}: it is not a known IANA zone")
+        return _container_local_zone()
 
     def _scripts_dir(self) -> Path:
         return self.data_dir / "scripts"
@@ -1037,6 +1196,7 @@ class ScheduledTaskService:
             "last_status": task["last_status"], "sync_status": task["sync_status"], "next_run_at": self._next_run(task["schedule"], task["timezone"]),
             "created_at": task["created_at"], "updated_at": task["updated_at"],
             "execution_path": self._execution_path(task),
+            "origin": str(task["origin"] or "user"),
         }
 
     @staticmethod

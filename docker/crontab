@@ -1,14 +1,12 @@
-# Websoft9 Platform — daily maintenance
-# 03:00 App Store auto-sync; 03:30 platform release check. The release check keeps the
-# cached latest version warm so the console upgrade hint never has to wait for the
-# artifact server on a request path.
-# Uses the image metadata channel from /websoft9/version.json unless an
-# operator explicitly overrides it via CLI flags.
-# NOTE: the App Store sync runs through `appstore sync`; `upgrade apps` is a deprecated
-# no-op kept only for external automation compatibility.
+# Websoft9 Platform — maintenance schedule
+#
+# The platform's own maintenance jobs (App Store sync at 03:00, platform release check at
+# 03:30) are no longer scheduled here. They are seeded as platform scheduled tasks, so the
+# console can show their schedule, run history and logs, and they register their cron entries
+# through the scheduled-task runner in /etc/cron.d/websoft9-tasks.
+#
+# Keep this file free of entries: a maintenance job listed here would also run from the platform
+# task store, and the two would race.
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-
-0 3 * * * root /usr/local/bin/websoft9 appstore sync >> /var/log/supervisord.log 2>&1
-30 3 * * * root /usr/local/bin/websoft9 check-update >> /var/log/supervisord.log 2>&1
 

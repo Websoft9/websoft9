@@ -31,6 +31,7 @@ from src.schemas.errorResponse import ErrorResponse
 from src.services.platform_readiness import PlatformReadinessService
 from src.services.product_runtime_state import read_release_channel
 from src.services.release_checker import ReleaseVersionChecker
+from src.services.scheduled_tasks import ScheduledTaskService
 from src.services.upgrade_manager import maybe_start_auto_download
 
 uvicorn_logger = logging.getLogger("uvicorn")
@@ -114,9 +115,20 @@ async def ensure_platform_storage():
     # host-access.sqlite is lazily created on first use; initialize it eagerly
     # so a fresh cloud boot can reach the fully-ready state.
     api_host_access._get_host_access_service()._ensure_storage()
+    # The container filesystem is rebuilt from the image on every upgrade, so the cron entries for
+    # container scheduled tasks — the platform's own maintenance jobs included — have to be
+    # restored here; this also seeds the platform tasks when they are missing.
+    threading.Thread(target=_reconcile_scheduled_tasks, daemon=True).start()
     # Warm the release-version cache in the background: a fresh deployment would otherwise
     # show no upgrade hint until the daily check runs. Runs off the request path on purpose.
     threading.Thread(target=_refresh_latest_release_version, daemon=True).start()
+
+
+def _reconcile_scheduled_tasks() -> None:
+    try:
+        ScheduledTaskService().reconcile_local_schedule()
+    except Exception as exc:  # pragma: no cover - startup must never fail because of this
+        logger.warning("Scheduled task reconciliation failed: %s", exc)
 
 
 def _refresh_latest_release_version() -> None:

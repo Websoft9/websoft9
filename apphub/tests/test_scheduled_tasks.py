@@ -16,7 +16,7 @@ from src.api.v1.routers import scheduled_tasks as scheduled_tasks_router
 from src.core.exception import CustomException
 from src.schemas.errorResponse import ErrorResponse
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
-from src.services.scheduled_tasks import ScheduledTaskService
+from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, SYSTEM_TASKS, ScheduledTaskService
 from fastapi.responses import JSONResponse
 
 
@@ -174,7 +174,13 @@ def test_platform_task_crud_renders_cron_and_preserves_operator_isolation(monkey
 
         listed = client.get("/scheduled-tasks", headers={"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"})
         assert listed.status_code == 200
-        assert [item["name"] for item in listed.json()["tasks"]] == ["Date"]
+        payload = listed.json()
+        assert [item["name"] for item in payload["tasks"]] == ["Date"]
+        # The platform's own tasks are exposed beside them, marked as system-owned.
+        assert {item["task_id"] for item in payload["system_tasks"]} == {
+            definition["task_id"] for definition in SYSTEM_TASKS
+        }
+        assert all(item["origin"] == "system" for item in payload["system_tasks"])
 
         toggled = client.post(
             f"/scheduled-tasks/{task['task_id']}/toggle",
@@ -182,7 +188,7 @@ def test_platform_task_crud_renders_cron_and_preserves_operator_isolation(monkey
             json={"enabled": False},
         )
         assert toggled.status_code == 200
-        assert " root " not in (tmp_path / "websoft9-tasks").read_text(encoding="utf-8")
+        assert task["task_id"] not in (tmp_path / "websoft9-tasks").read_text(encoding="utf-8")
 
         deleted = client.delete(f"/scheduled-tasks/{task['task_id']}", headers={"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"})
         assert deleted.status_code == 204
@@ -233,7 +239,10 @@ def test_reconcile_local_schedule_initializes_empty_storage(tmp_path):
 
     assert (data_dir / "scheduled-tasks.sqlite").is_file()
     assert cron_file.is_file()
-    assert " root " not in cron_file.read_text(encoding="utf-8")
+    # A store with no operator task still schedules the platform's own maintenance jobs.
+    cron = cron_file.read_text(encoding="utf-8")
+    for definition in SYSTEM_TASKS:
+        assert definition["task_id"] in cron
 
 
 def test_scheduled_task_defaults_and_history_retention(tmp_path):
@@ -413,6 +422,98 @@ def test_task_list_orders_by_creation_time_descending(tmp_path):
     assert [task["task_id"] for task in tasks] == [second["task_id"], first["task_id"]]
 
 
+def test_system_tasks_are_seeded_once_visible_and_read_only(tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+
+    # Seeding is idempotent: a restart, an upgrade and a second instance must not duplicate them.
+    ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )._ensure_storage()
+    service._ensure_storage()
+
+    tasks = service.list_tasks("valid-session")
+    system_tasks = tasks["system_tasks"]
+    assert [task["task_id"] for task in system_tasks] == [definition["task_id"] for definition in SYSTEM_TASKS]
+    assert all(task["enabled"] for task in system_tasks)
+    assert all(task["target"] == "container" for task in system_tasks)
+    # They are not part of an operator's own task list.
+    assert tasks["tasks"] == []
+
+    task_id = system_tasks[0]["task_id"]
+    assert service.refresh_status("valid-session", task_id)["origin"] == "system"
+    assert service.list_runs("valid-session", task_id)["runs"] == []
+
+    # Read-only means every write is refused, not just hidden in the console.
+    writes = (
+        lambda: service.update_task("valid-session", task_id, {"name": "Mine", "schedule": "* * * * *", "command": "date"}),
+        lambda: service.toggle_task("valid-session", task_id, False),
+        lambda: service.run_task("valid-session", task_id),
+        lambda: service.delete_task("valid-session", task_id),
+    )
+    for write in writes:
+        with pytest.raises(CustomException) as error:
+            write()
+        assert error.value.status_code == 403
+
+    # The refused writes must not have changed anything.
+    assert [task["task_id"] for task in service.list_tasks("valid-session")["system_tasks"]] == [
+        definition["task_id"] for definition in SYSTEM_TASKS
+    ]
+
+
+def test_system_task_runner_reports_a_skip_instead_of_a_failure():
+    service = ScheduledTaskService(data_dir="/tmp/unused", cron_file="/tmp/unused-cron", auth_service=FakeAuthService())
+
+    runner = service._runner_content("/tmp/state", "/tmp/lock", "/tmp/logs", "/tmp/runs", "system:appstore-sync", "true")
+
+    # `websoft9 appstore sync --skip-if-running` exits with this code when another sync holds the
+    # lock; the run has to be recorded as skipped and must not be retried.
+    assert f'-eq {SKIPPED_EXIT_CODE} ]; then status=skipped' in runner
+    assert f'-eq {SKIPPED_EXIT_CODE} ] || [ "$attempt" -gt 0 ]' in runner
+    for definition in SYSTEM_TASKS:
+        assert definition["command"].startswith("/usr/local/bin/websoft9")
+
+
+def test_platform_maintenance_is_not_also_scheduled_by_the_image_crontab():
+    crontab = (PROJECT_ROOT.parent / "docker" / "crontab").read_text(encoding="utf-8")
+
+    # Both jobs now run from the platform task store; a leftover entry here would run them twice.
+    assert "appstore sync" not in crontab
+    assert "check-update" not in crontab
+    assert not [line for line in crontab.splitlines() if line.strip() and not line.strip().startswith("#") and _looks_like_cron_entry(line)]
+
+
+def _looks_like_cron_entry(line: str) -> bool:
+    fields = line.split()
+    return len(fields) >= 6 and len(fields[0].split("*/")) > 0 and fields[0][0] in "0123456789*" and "=" not in fields[0]
+
+
+def test_appstore_sync_can_skip_when_another_sync_is_running(monkeypatch):
+    from click.testing import CliRunner
+
+    from src.cli import apphub_cli
+    from src.services.appstore_sync_manager import AppStoreSyncManager
+
+    monkeypatch.setattr(AppStoreSyncManager, "is_sync_running", lambda self: True)
+    runner = CliRunner()
+
+    skipped = runner.invoke(apphub_cli.cli, ["appstore", "sync", "--skip-if-running"])
+    assert skipped.exit_code == SKIPPED_EXIT_CODE
+
+    # Without the flag the CLI keeps its previous contract: fail loudly.
+    failed = runner.invoke(apphub_cli.cli, ["appstore", "sync"])
+    assert failed.exit_code != SKIPPED_EXIT_CODE
+    assert failed.exit_code != 0
+
+
 def test_host_capability_reuses_saved_host_access_profile(tmp_path):
     service = ScheduledTaskService(
         data_dir=str(tmp_path / "tasks"),
@@ -571,7 +672,7 @@ def test_host_runner_overlap_does_not_overwrite_active_state(tmp_path):
 
     runner = service._runner_content("/tmp/task.state", "/tmp/task.lock", "/tmp/task.logs", "/tmp/task.runs", "task-1", "sleep 1")
 
-    assert "# websoft9-task-runner-version: 4" in runner
+    assert service._runner_version_marker in runner
     assert "write_state skipped" not in runner
     assert "SKIPPED trigger=$trigger reason=previous_execution_running" in runner
 

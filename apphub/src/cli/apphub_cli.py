@@ -15,7 +15,7 @@ from src.services.settings_manager import SettingsManager
 from src.services.product_auth import ProductAuthService
 from src.core.exception import CustomException
 from src.services.appstore_sync_manager import AppStoreSyncManager
-from src.services.scheduled_tasks import ScheduledTaskService
+from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, ScheduledTaskService
 from src.services.product_runtime_state import read_release_channel
 from src.services.release_checker import ReleaseVersionChecker
 from src.cli.app_commands import app_group
@@ -151,7 +151,8 @@ def appstore():
 @click.option('--dev', is_flag=True, help='Sync using dev environment')
 @click.option('--force-refresh', is_flag=True, help='Force a full App Store sync instead of using incremental update detection')
 @click.option('--no-wait', is_flag=True, help='Return immediately and keep the sync running in the background')
-def appstore_sync(channel, dev, force_refresh, no_wait):
+@click.option('--skip-if-running', is_flag=True, help=f'Exit with code {SKIPPED_EXIT_CODE} instead of failing when another sync is already running')
+def appstore_sync(channel, dev, force_refresh, no_wait, skip_if_running):
     """Synchronize App Store assets"""
     try:
         if dev and channel and channel.lower() != 'dev':
@@ -160,6 +161,11 @@ def appstore_sync(channel, dev, force_refresh, no_wait):
         resolved_channel = (channel or ('dev' if dev else '')).lower() or None
         manager = AppStoreSyncManager()
         if manager.is_sync_running():
+            if skip_if_running:
+                # Scheduled maintenance reports a skip instead of a failure when an operator
+                # happens to be syncing: the job did not run, but nothing is wrong.
+                click.echo("An App Store sync is already running; skipping this run.")
+                sys.exit(SKIPPED_EXIT_CODE)
             raise click.ClickException("An App Store sync is already running")
 
         result = manager.sync(
