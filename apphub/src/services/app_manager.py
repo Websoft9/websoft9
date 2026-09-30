@@ -32,6 +32,7 @@ from src.schemas.appResponse import AppResponse
 from src.services.common_check import check_endpointId
 from src.services.image_pull import (
     ImagePullError,
+        InstallCancelled,
     collect_compose_images,
     load_image_accelerators,
     pull_error_detail,
@@ -52,7 +53,7 @@ from src.utils.password_generator import PasswordGenerator
 from tenacity import retry, stop_after_attempt, wait_fixed
 from src.utils.async_utils import AsyncWrapper
 
-from src.services.app_status import appInstalling, appInstallingError,start_app_installation,remove_app_installation,modify_app_information,remove_app_from_errors_by_app_id,add_installing_logs,remove_installation_logs
+from src.services.app_status import appInstalling, appInstallingCancelled, appInstallingError, add_installing_logs, begin_install_deploy, install_cancel_requested, mark_install_cancelled, modify_app_information, remove_app_from_errors_by_app_id, remove_app_installation, remove_installation_logs, set_install_phase, start_app_installation
 
 
 class AppManger:
@@ -972,39 +973,44 @@ class AppManger:
                         app_official = app.get("app_official", None),
                         is_compose_app = not bool(app.get("app_name")),
                         error = app.get("error", None),
-                        logs = app.get("logs", None)
+                        logs = app.get("logs", None),
+                        phase = app.get("phase"),
+                        cancel_requested = bool(app.get("cancel_requested")),
                     )
                 if any(app_info.app_id == app_response.app_id for app_info in apps_info):
                     #从apps_info中删除app_id对应的AppResponse
                     apps_info = [app_info for app_info in apps_info if app_info.app_id != app_response.app_id]
                 apps_info.append(app_response)
 
-            # Get the installing error apps.
+            # Get failed and cancelled install entries. Both retain partial resources until removed.
             # Auto-clean stale errors: if the app already appears in apps_info (recovered in Portainer
             # or still being installed), the previous error entry is no longer relevant and can be
             # discarded. This prevents a deleted-from-Portainer app from showing up as Error.
             existing_apps_by_id = {info.app_id: info for info in apps_info}
-            for app_uuid, app in list(appInstallingError.items()):
-                err_app_id = app.get("app_id")
-                existing_app = existing_apps_by_id.get(err_app_id)
-                if existing_app is not None and (
-                    existing_app.status == 3 or
-                    (existing_app.status == 1 and not existing_app.error)
-                ):
-                    # App recovered or is being re-deployed — remove the stale error entry
-                    appInstallingError.pop(app_uuid)
-                    continue
-                app_response = AppResponse(
-                    app_id=err_app_id,
-                    tracking_id=app.get("tracking_id", app_uuid),
-                    status=app.get("status", None),
-                    app_name=app.get("app_name", None),
-                    logo_url=self._resolve_available_app_logo_url(logo_map, app.get("app_name"), err_app_id),
-                    app_official=app.get("app_official", None),
-                    error=app.get("error", None),
-                    logs=app.get("logs", None),
-                )
-                apps_info.append(app_response)
+            for collection, entries in ((appInstallingError, appInstallingError.items()), (appInstallingCancelled, appInstallingCancelled.items())):
+                for app_uuid, app in list(entries):
+                    err_app_id = app.get("app_id")
+                    existing_app = existing_apps_by_id.get(err_app_id)
+                    if existing_app is not None and (
+                        existing_app.status == 3 or
+                        (existing_app.status == 1 and not existing_app.error)
+                    ):
+                        # App recovered or is being re-deployed — remove the stale error entry
+                        collection.pop(app_uuid)
+                        continue
+                    app_response = AppResponse(
+                        app_id=err_app_id,
+                        tracking_id=app.get("tracking_id", app_uuid),
+                        status=app.get("status", None),
+                        app_name=app.get("app_name", None),
+                        logo_url=self._resolve_available_app_logo_url(logo_map, app.get("app_name"), err_app_id),
+                        app_official=app.get("app_official", None),
+                        error=app.get("error", None),
+                        logs=app.get("logs", None),
+                        phase=app.get("phase"),
+                        cancel_requested=bool(app.get("cancel_requested")),
+                    )
+                    apps_info.append(app_response)
 
             return apps_info
         except CustomException as e:
@@ -1408,7 +1414,16 @@ class AppManger:
         # Install app - Step 3 : pull docker image
         try:
             add_installing_logs(app_uuid,"Pulling docker image","")
+            set_install_phase(app_uuid, "pulling")
             self.pull_images_from_yml(app_tmp_dir_path,app_uuid)
+            if not begin_install_deploy(app_uuid):
+                add_installing_logs(app_uuid, "Installation cancelled", "Image pull cancellation completed")
+                mark_install_cancelled(app_uuid)
+                return
+        except InstallCancelled:
+            add_installing_logs(app_uuid, "Installation cancelled", "Image pull cancellation completed")
+            mark_install_cancelled(app_uuid)
+            return
         except Exception as e:
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
@@ -1889,7 +1904,7 @@ class AppManger:
         """
         # validate the app_id is exists in appInstallingError
         try:
-            is_app_in_appInstallingError = any(item['app_id'] == app_id for item in appInstallingError.values())
+            is_app_in_appInstallingError = any(item['app_id'] == app_id for item in [*appInstallingError.values(), *appInstallingCancelled.values()])
             if not is_app_in_appInstallingError:
                 raise CustomException(
                     status_code=400,
@@ -2497,6 +2512,8 @@ class AppManger:
         docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
 
         def report(line):
+            if install_cancel_requested(app_uuid):
+                raise InstallCancelled()
             # Progress only: the reason a pull failed belongs to the app error, which is what the
             # operator reads once the installation has stopped.
             add_installing_logs(app_uuid, "Pulling docker image", line)
@@ -2507,6 +2524,8 @@ class AppManger:
                 compose_content = yaml.safe_load(file)
 
             for image in collect_compose_images(compose_content, env_values):
+                if install_cancel_requested(app_uuid):
+                    raise InstallCancelled()
                 try:
                     validate_image_reference(image)
                 except ImagePullError as exc:
@@ -2521,6 +2540,8 @@ class AppManger:
 
                 logger.access(f"Pulling image: {image}")
                 try:
-                    pull_with_fallback(docker_client, image, on_progress=report)
+                    pull_with_fallback(docker_client, image, on_progress=report, is_cancelled=lambda: install_cancel_requested(app_uuid))
+                except InstallCancelled:
+                    raise
                 except ImagePullError as exc:
                     raise CustomException(500, "Image Pull Error", pull_error_detail(exc)) from exc

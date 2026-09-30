@@ -3,8 +3,8 @@ import datetime
 from http.client import HTTPException
 import json
 import time
-from typing import Any, Dict
-from fastapi import APIRouter, Query,Path, Body, Request
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Cookie, Query,Path, Body, Request
 from fastapi.responses import StreamingResponse
 from src.core import logger
 from src.core.exception import CustomException
@@ -20,7 +20,11 @@ from src.schemas.appAccess import AppAccessCertificateRequest, AppAccessCustomCe
 from src.schemas.appCustomFields import AppCustomFieldResponse, AppCustomFieldsRequest
 from src.schemas.errorResponse import ErrorResponse
 from src.services.app_access_manager import AppAccessManager
-from src.services.app_status import get_app_custom_fields, save_app_custom_fields
+from src.services.app_status import get_app_custom_fields, request_install_cancel, save_app_custom_fields
+from src.services.image_prewarm import ImagePrewarmService
+from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
+from src.services.scheduled_tasks import ScheduledTaskService
+from src.schemas.scheduledTasks import ImagePrewarmRequest
 from src.services.app_manager import AppManger
 from src.services.apps_stream_cache import apps_stream_cache
 from src.services.compose_install import install_compose_application, prepare_compose_install_tracking, validate_compose_installation
@@ -31,6 +35,26 @@ from src.core.config import ConfigManager
 from threading import Thread
 
 router = APIRouter()
+
+
+@router.post("/apps/images/prewarm", status_code=202, responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
+def enqueue_app_image_prewarm(payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    service = ScheduledTaskService()
+    task = service.enqueue_prewarm(session_token, payload.app_name, payload.version)
+    service.dispatch_prewarm()
+    operator = service.auth_service._require_authenticated_operator(session_token)
+    return service._public_task(service._get_task(str(operator["id"]), task["task_id"]))
+
+
+@router.get("/apps/images/prewarm/status", responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}})
+def get_app_image_prewarm_status(
+    app_name: str = Query(...),
+    version: str = Query(...),
+    session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME),
+):
+    status = ImagePrewarmService().status(app_name, version)
+    status["task"] = ScheduledTaskService().get_prewarm_task(session_token, app_name, version)
+    return status
 
 @router.get(
         "/apps/catalog/{locale}",
@@ -414,6 +438,14 @@ async def local_apps_install(
         app_id=tracked_app_id,
         tracking_id=tracking_id,
     )
+
+
+@router.post("/apps/{app_id}/install/cancel", status_code=202, responses={409: {"model": ErrorResponse}})
+def cancel_app_install(app_id: str = Path(..., description="App ID whose image pull should be cancelled")):
+    tracking_id = request_install_cancel(app_id)
+    if tracking_id is None:
+        raise CustomException(409, "Installation Cannot Be Cancelled", "The application is not currently pulling images.")
+    return {"app_id": app_id, "tracking_id": tracking_id, "cancel_requested": True}
 
 
 @router.post(

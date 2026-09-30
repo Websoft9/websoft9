@@ -1,6 +1,9 @@
 import subprocess
+import os
+import signal
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -223,6 +226,208 @@ def test_reconcile_local_schedule_rebuilds_only_enabled_container_tasks(tmp_path
     assert (tmp_path / "tasks" / "scripts" / f"{enabled['task_id']}.sh").is_file()
     assert not (tmp_path / "tasks" / "scripts" / f"{disabled['task_id']}.sh").exists()
     assert len(host_access.client.commands) == remote_commands_before_reconcile
+
+
+def test_internal_one_time_schedule_is_not_rendered_to_cron(tmp_path):
+    cron_file = tmp_path / "websoft9-tasks"
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(cron_file),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+    task = service.create_task("valid-session", {"name": "Internal", "schedule": "* * * * *", "command": "date"})
+
+    with service._db_connect() as connection:
+        connection.execute("UPDATE scheduled_tasks SET schedule = '@once' WHERE task_id = ?", (task["task_id"],))
+        connection.commit()
+
+    service.reconcile_local_schedule()
+
+    assert task["task_id"] not in cron_file.read_text(encoding="utf-8")
+    assert service._next_run("@once") is None
+    assert service._normalize_payload({"name": "Internal", "schedule": "@once", "command": "date"}, allow_once=True)["schedule"] == "@once"
+    with pytest.raises(CustomException):
+        service.create_task("valid-session", {"name": "External", "schedule": "@once", "command": "date"})
+
+
+def test_enqueue_prewarm_creates_and_reuses_one_time_task(tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+
+    created = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    reused = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+
+    assert created["task_id"] == reused["task_id"]
+    assert created["schedule"] == "@once"
+    assert created["category"] == "prewarm"
+    assert created["subject_app"] == "wordpress"
+    assert created["subject_version"] == "6.3"
+    assert created["queue_state"] == "queued"
+    assert "images prewarm --app wordpress --version 6.3" in created["command"]
+    assert (tmp_path / "tasks" / "scripts" / f"{created['task_id']}.sh").is_file()
+
+
+def test_enqueue_prewarm_api_authenticates_and_returns_accepted(monkeypatch, tmp_path):
+    service = ScheduledTaskService(
+        data_dir=str(tmp_path / "tasks"),
+        cron_file=str(tmp_path / "websoft9-tasks"),
+        auth_service=FakeAuthService(),
+        cron_reloader=lambda: None,
+    )
+    monkeypatch.setattr(scheduled_tasks_router, "_scheduled_task_service", service)
+
+    with TestClient(create_test_app()) as client:
+        response = client.post(
+            "/scheduled-tasks/prewarm",
+            headers={"Cookie": f"{PRODUCT_AUTH_COOKIE_NAME}=valid-session"},
+            json={"app_name": "wordpress", "version": "6.3"},
+        )
+
+    assert response.status_code == 202
+    assert response.json()["queue_state"] == "running"
+
+
+def test_dispatch_prewarm_claims_and_starts_oldest_task(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+
+    class Process:
+        pid = 12345
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: Process())
+    result = service.dispatch_prewarm()
+
+    assert result == {"status": "started", "task_id": task["task_id"]}
+    refreshed = service._get_task("operator-1", task["task_id"])
+    assert refreshed["queue_state"] == "running"
+    assert refreshed["runner_pgid"] == 12345
+    with pytest.raises(CustomException):
+        service.run_task("valid-session", task["task_id"])
+
+
+def test_dispatch_prewarm_requeues_task_claimed_by_old_instance(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    service._write_task(task["task_id"], queue_state="running", claimed_by="old-instance", runner_pgid=12345)
+
+    class Process:
+        pid = 5678
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: Process())
+    result = service.dispatch_prewarm()
+
+    assert result == {"status": "started", "task_id": task["task_id"]}
+    refreshed = service._get_task("operator-1", task["task_id"])
+    assert refreshed["claimed_by"] != "old-instance"
+    assert refreshed["runner_pgid"] == 5678
+
+
+def test_dispatch_prewarm_recovers_missing_runner_before_starting_next(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
+    first = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    second = service.enqueue_prewarm("valid-session", "nginx", "1.27")
+    service._write_task(first["task_id"], queue_state="running", runner_pgid=12345)
+    monkeypatch.setattr(ScheduledTaskService, "_prewarm_runner_alive", staticmethod(lambda _pgid: False))
+
+    class Process:
+        pid = 5678
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: Process())
+    result = service.dispatch_prewarm()
+
+    assert result == {"status": "started", "task_id": first["task_id"]}
+    assert service._get_task("operator-1", second["task_id"])["queue_state"] == "queued"
+
+
+def test_cancel_running_prewarm_preserves_cancelled_state(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    service._write_task(task["task_id"], queue_state="running", runner_pgid=12345)
+    calls = []
+    monkeypatch.setattr(os, "killpg", lambda pgid, sig: calls.append((pgid, sig)))
+    monkeypatch.setattr(ScheduledTaskService, "_prewarm_runner_alive", staticmethod(lambda _pgid: False))
+
+    service.cancel_prewarm("valid-session", task["task_id"])
+    refreshed = service._get_task("operator-1", task["task_id"])
+
+    assert refreshed["queue_state"] == "cancelled"
+    assert refreshed["last_status"] == "cancelled"
+    assert refreshed["runner_pgid"] is None
+    assert calls == [(12345, signal.SIGTERM)]
+
+
+def test_cancel_running_prewarm_escalates_when_the_run_survives(monkeypatch, tmp_path):
+    """`timeout` moves the pull into its own process group, so the whole session is signalled."""
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    service._write_task(task["task_id"], queue_state="running", runner_pgid=4321)
+    group_calls = []
+    pid_calls = []
+    # 4322 stands for the CLI that `timeout` left behind in its own group of the same session.
+    survivors = {"pids": [4322]}
+    monkeypatch.setattr(os, "killpg", lambda pgid, sig: group_calls.append((pgid, sig)))
+    monkeypatch.setattr(os, "kill", lambda pid, sig: pid_calls.append((pid, sig)))
+    monkeypatch.setattr(ScheduledTaskService, "_prewarm_session_pids", staticmethod(lambda _sid: list(survivors["pids"])))
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+    service.cancel_prewarm("valid-session", task["task_id"])
+
+    assert group_calls == [(4321, signal.SIGTERM), (4321, signal.SIGKILL)]
+    assert pid_calls == [(4322, signal.SIGTERM), (4322, signal.SIGKILL)]
+
+
+def test_cancelled_run_is_not_reopened_by_the_runner_record(monkeypatch, tmp_path):
+    """The runner writes "running" while a run lives; that must not revive a run already closed."""
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    task_id = task["task_id"]
+    started_at = service._now_iso()
+    record = {"run_id": "run-1", "task_id": task_id, "started_at": started_at, "finished_at": "", "status": "running", "exit_code": None, "trigger": "manual", "log_path": ""}
+    with service._db_connect() as connection:
+        connection.execute(
+            "INSERT INTO scheduled_task_runs (run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("run-1", task_id, started_at, service._now_iso(), "cancelled", None, "manual", ""),
+        )
+        connection.commit()
+
+    service._sync_task_run_records(service._get_task("operator-1", task_id), [record])
+
+    with service._db_connect() as connection:
+        row = connection.execute("SELECT status, finished_at FROM scheduled_task_runs WHERE run_id = 'run-1'").fetchone()
+    assert row["status"] == "cancelled"
+
+
+def test_cancel_prewarm_closes_the_running_run_and_annotates_its_log(monkeypatch, tmp_path):
+    """A cancelled pull never writes its own result, so the history must not stay on `running`."""
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    service._write_task(task["task_id"], queue_state="running", runner_pgid=999)
+    log_path = tmp_path / "tasks" / "run.log"
+    log_path.write_text("START trigger=manual\n", encoding="utf-8")
+    with service._db_connect() as connection:
+        connection.execute(
+            "INSERT INTO scheduled_task_runs (run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("run-cancelled", task["task_id"], "2026-01-01T00:00:00+00:00", "", "running", None, "manual", str(log_path)),
+        )
+        connection.commit()
+    monkeypatch.setattr(os, "killpg", lambda _pgid, _sig: None)
+    monkeypatch.setattr(ScheduledTaskService, "_prewarm_runner_alive", staticmethod(lambda _pgid: False))
+
+    service.cancel_prewarm("valid-session", task["task_id"])
+
+    with service._db_connect() as connection:
+        run = connection.execute("SELECT status, finished_at FROM scheduled_task_runs WHERE run_id = 'run-cancelled'").fetchone()
+    assert run["status"] == "cancelled"
+    assert run["finished_at"]
+    assert "CANCELLED by operator" in log_path.read_text(encoding="utf-8")
 
 
 def test_reconcile_local_schedule_initializes_empty_storage(tmp_path):

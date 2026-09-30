@@ -146,6 +146,99 @@ def appstore():
     """Manage the local App Store dataset"""
 
 
+@cli.group()
+def images():
+    """Manage application image preparation"""
+
+
+@images.command(name="dispatch")
+@click.option('--skip-if-running', is_flag=True, help=f'Exit with code {SKIPPED_EXIT_CODE} when another dispatcher is active')
+def images_dispatch(skip_if_running):
+    """Start the next queued image prewarm task, if any."""
+    try:
+        result = ScheduledTaskService().dispatch_prewarm()
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    if result["status"] == "skipped" and skip_if_running:
+        raise click.exceptions.Exit(SKIPPED_EXIT_CODE)
+    click.echo(json.dumps(result))
+
+
+def _human_size(value) -> str:
+    size = float(value)
+    for unit in ("B", "KB", "MB"):
+        if size < 1024:
+            return f"{int(size)}{unit}" if unit == "B" else f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{size:.2f}GB"
+
+
+def _format_prewarm_event(event, state) -> str:
+    """Render one prewarm event as a readable log line, or '' when it repeats itself.
+
+    Docker reports every layer on every chunk it receives, so the raw stream repeats the same headers
+    hundreds of times and buries the useful information. Each layer status is therefore printed once
+    and download progress only when it crosses another 10% step.
+    """
+    if not isinstance(event, dict):
+        return ""
+
+    kind = event.get("event")
+    if kind == "image-ready":
+        return f"[prewarm] {event.get('image')} already present"
+    if kind == "image-pull-started":
+        state["image"] = str(event.get("image") or "")
+        return f"[prewarm] pulling {state['image']}"
+    if kind == "image-pull-completed":
+        return f"[prewarm] pulled {event.get('image')}"
+
+    status = str(event.get("status") or "").strip()
+    if not status:
+        return ""
+
+    layer = str(event.get("id") or "-")
+    progress = event.get("progressDetail") or {}
+    current = progress.get("current")
+    total = progress.get("total")
+
+    if status.lower() == "downloading" and isinstance(current, int) and isinstance(total, int) and total > 0:
+        percent = int(current * 100 / total)
+        key = (state["image"], layer)
+        # A finished layer is reported repeatedly, so 100% is throttled like every other step.
+        if percent - state["steps"].get(key, -10) < 10:
+            return ""
+        state["steps"][key] = percent
+        return f"[prewarm]   {layer} {status} {percent}% ({_human_size(current)}/{_human_size(total)})"
+
+    key = (state["image"], layer, status)
+    if key in state["seen"]:
+        return ""
+    state["seen"].add(key)
+    return f"[prewarm]   {layer} {status}"
+
+
+@images.command(name="prewarm")
+@click.option("--app", "app_name", required=True, help="Application key from the local App Store library")
+@click.option("--version", required=True, help="Supported community application version")
+def images_prewarm(app_name, version):
+    """Pull all images required by one application version."""
+    try:
+        from src.services.image_prewarm import ImagePrewarmService
+
+        state = {"image": "", "steps": {}, "seen": set()}
+
+        def report(event):
+            line = _format_prewarm_event(event, state)
+            if line:
+                click.echo(line)
+
+        click.echo(json.dumps(ImagePrewarmService().prewarm(app_name, version, on_progress=report), ensure_ascii=False))
+    except CustomException as exc:
+        raise click.ClickException(exc.details) from exc
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 @appstore.command(name='sync')
 @click.option('--channel', type=click.Choice(['release', 'rc', 'dev'], case_sensitive=False), help='Sync using the specified artifact channel')
 @click.option('--dev', is_flag=True, help='Sync using dev environment')

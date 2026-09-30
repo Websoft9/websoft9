@@ -22,7 +22,7 @@ import {
     Typography,
 } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppColorMode } from "../../app/providers/color-mode";
@@ -32,6 +32,7 @@ import {
     SurfaceStateCard,
 } from "../../shared/design-system/standard-surfaces";
 import { getSurfacePalette } from "../../shared/design-system/surface-theme";
+import { PrewarmStatusChip } from "../../shared/design-system/prewarm-status-chip";
 import { useConnectionUnavailable } from "../../shared/connection/connection-provider";
 import { isPlatformUnavailableError } from "../../shared/lib/api-error";
 import "./scheduled-tasks-page.css";
@@ -51,7 +52,7 @@ type ScheduledTask = {
     retry_count: number;
     enabled: boolean;
     last_run_at: string | null;
-    last_status: "never" | "running" | "success" | "failed" | "skipped";
+    last_status: "never" | "running" | "success" | "failed" | "skipped" | "cancelled";
     sync_status: "synced" | "failed" | "unreachable";
     execution_path: string;
     syncing?: boolean;
@@ -60,6 +61,10 @@ type ScheduledTask = {
     updated_at: string;
     /** `system` marks a task the product owns: readable, never editable. */
     origin?: "user" | "system";
+    category?: "prewarm" | null;
+    subject_app?: string | null;
+    subject_version?: string | null;
+    queue_state?: "queued" | "running" | "success" | "failed" | "cancelled" | null;
 };
 
 type TaskForm = Pick<
@@ -86,6 +91,7 @@ type ScheduleMode =
 type TimeoutUnit = "seconds" | "minutes" | "hours";
 type StatusFilter = "all" | ScheduledTask["last_status"];
 type EnabledFilter = "all" | "enabled" | "disabled";
+type KindFilter = "all" | "system" | "prewarm" | "user";
 
 type SavedHostProfile = {
     profile_id: string;
@@ -114,6 +120,46 @@ type ScheduledTasksResponse = {
 /** Platform tasks are seeded by the product itself and shown read-only. */
 function isSystemTask(task: ScheduledTask) {
     return task.origin === "system";
+}
+
+function isPrewarmTask(task: ScheduledTask) {
+    return task.category === "prewarm";
+}
+
+/** Stored prewarm names read as "Prewarm images mysql 9.5"; the subject itself reads better. */
+function prewarmSubjectLabel(task: ScheduledTask) {
+    const subject = `${task.subject_app ?? ""} ${task.subject_version ?? ""}`.trim();
+    return subject || task.name;
+}
+
+/**
+ * Prewarm rows are named after the images they fetch, in the console language. The stored name
+ * ("Prewarm images mysql 9.5") stays as the server-side record and the fallback for a record
+ * without a subject.
+ */
+function prewarmTaskName(
+    task: ScheduledTask,
+    t: (key: string, options?: { app?: string; version?: string; defaultValue?: string }) => string,
+) {
+    if (!task.subject_app) return task.name;
+    return t("scheduledTasks.prewarm.taskName", {
+        app: task.subject_app,
+        version: task.subject_version ?? "",
+        defaultValue: task.name,
+    }).trim();
+}
+
+/** The task list is filtered by who owns the record, not by execution target. */
+function matchesKindFilter(task: ScheduledTask, kind: KindFilter) {
+    if (kind === "system") return isSystemTask(task);
+    if (kind === "prewarm") return isPrewarmTask(task);
+    if (kind === "user") return !isSystemTask(task) && !isPrewarmTask(task);
+    return true;
+}
+
+/** Prewarm records only ever reach a terminal state of success, failed or cancelled. */
+function prewarmDeleteState(task: ScheduledTask) {
+    return task.queue_state === "failed" || task.queue_state === "cancelled" ? task.queue_state : "success";
 }
 
 /**
@@ -233,56 +279,99 @@ function isIntegerInRange(value: string, minimum: number, maximum: number) {
     );
 }
 
+/*
+ * Row actions use the same filled, rounded-corner geometry as the sidebar menu icons, only a
+ * little smaller (18px) so a table row stays light. Stroke-drawn icons read as a different family.
+ */
+function RowIcon({ size = 18, children }: { size?: number; children: ReactNode }) {
+    return (
+        <SvgIcon sx={{ fontSize: size }} viewBox="0 0 24 24">
+            {children}
+        </SvgIcon>
+    );
+}
+
 function RunIcon() {
     return (
-        <SvgIcon viewBox="0 0 24 24">
-            <path d="m8 5 11 7-11 7V5Z" />
-        </SvgIcon>
+        <RowIcon>
+            <path d="M8 5.14v13.72a1 1 0 0 0 1.52.86l11.03-6.86a1 1 0 0 0 0-1.72L9.52 4.28A1 1 0 0 0 8 5.14Z" />
+        </RowIcon>
     );
 }
 
-function RefreshIcon() {
+function RefreshIcon({ size }: { size?: number }) {
     return (
-        <SvgIcon viewBox="0 0 24 24">
+        <RowIcon size={size}>
             <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.3 0 2.5.42 3.47 1.13L13 10h7V3l-2.35 3.35Z" />
-        </SvgIcon>
+        </RowIcon>
     );
 }
 
+/** The sidebar "logs" glyph, so the run history button reads as the same family. */
 function LogIcon() {
     return (
-        <SvgIcon viewBox="0 0 24 24">
-            <path d="M5 4h14v16H5V4Zm2 3v2h10V7H7Zm0 4v2h10v-2H7Zm0 4v2h7v-2H7Z" />
-        </SvgIcon>
+        <RowIcon>
+            <path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm1 4v2h10V8H7Zm0 4v2h10v-2H7Zm0 4v2h7v-2H7Z" />
+        </RowIcon>
     );
 }
 
 function EditIcon() {
     return (
-        <SvgIcon viewBox="0 0 24 24">
-            <path d="m4 17.25V20h2.75L17.81 8.94l-2.75-2.75L4 17.25ZM19.96 6.79a1 1 0 0 0 0-1.41l-1.34-1.34a1 1 0 0 0-1.41 0l-1.05 1.05 2.75 2.75 1.05-1.05Z" />
-        </SvgIcon>
+        <RowIcon>
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z" />
+        </RowIcon>
     );
 }
 
 function DeleteIcon() {
     return (
-        <SvgIcon viewBox="0 0 24 24">
-            <path d="M6 7h12v13H6V7Zm2 2v9h8V9H8Zm2-5h4l1 1h4v2H5V5h4l1-1Z" />
-        </SvgIcon>
+        <RowIcon>
+            <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z" />
+        </RowIcon>
+    );
+}
+
+function CancelIcon() {
+    return (
+        <RowIcon>
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59Z" />
+        </RowIcon>
+    );
+}
+
+/** A replay arrow: retry the same prewarm after it failed. */
+function RetryIcon() {
+    return (
+        <RowIcon>
+            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8Z" />
+        </RowIcon>
+    );
+}
+
+/** A download arrow: pull those images again. */
+function PrewarmAgainIcon() {
+    return (
+        <RowIcon>
+            <path d="M13 3h-2v10L7.5 9.5l-1.4 1.4L12 16.8l5.9-5.9-1.4-1.4L13 13V3ZM5 19h14v2H5z" />
+        </RowIcon>
     );
 }
 
 function CloseIcon() {
     return (
-        <SvgIcon viewBox="0 0 24 24">
-            <path d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.29 19.7l-1.41-1.42L9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.29-6.3 1.42 1.42Z" />
-        </SvgIcon>
+        <RowIcon size={16}>
+            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 17 6.41Z" />
+        </RowIcon>
     );
 }
 
 function UploadIcon() {
-    return <SvgIcon viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" /></SvgIcon>;
+    return (
+        <RowIcon size={20}>
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6Zm-4 2h14v2H5v-2Z" />
+        </RowIcon>
+    );
 }
 
 export function ScheduledTasksPage() {
@@ -311,6 +400,7 @@ export function ScheduledTasksPage() {
     const [activeTarget, setActiveTarget] = useState<ScheduledTask["target"]>("container");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>("all");
+    const [kindFilter, setKindFilter] = useState<KindFilter>("all");
     const [saving, setSaving] = useState(false);
     const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
     const [refreshingTaskIds, setRefreshingTaskIds] = useState<Set<string>>(() => new Set());
@@ -321,6 +411,7 @@ export function ScheduledTasksPage() {
     const [logContent, setLogContent] = useState("");
     const [logLoading, setLogLoading] = useState(false);
     const [deleteTask, setDeleteTask] = useState<ScheduledTask | null>(null);
+    const [cancelPrewarmTask, setCancelPrewarmTask] = useState<ScheduledTask | null>(null);
     const [feedback, setFeedback] = useState<{
         severity: "success" | "error" | "info";
         message: string;
@@ -329,6 +420,7 @@ export function ScheduledTasksPage() {
     const supportsEventSource = typeof window !== "undefined" && typeof EventSource !== "undefined";
     const pageShellRef = useRef<HTMLDivElement | null>(null);
     const scheduleInputRef = useRef<HTMLInputElement | null>(null);
+    const logPanelRef = useRef<HTMLPreElement | null>(null);
     const [editorScope, setEditorScope] = useState<{
         top: number;
         left: number;
@@ -367,6 +459,7 @@ export function ScheduledTasksPage() {
         const query = searchValue.trim().toLowerCase();
         const searchableValues = [
             task.name,
+            isPrewarmTask(task) ? prewarmTaskName(task, t) : "",
             task.command,
             task.script_path ?? "",
             task.script_name ?? "",
@@ -380,8 +473,28 @@ export function ScheduledTasksPage() {
         ];
         return (!query || searchableValues.some((value) => value.toLowerCase().includes(query)))
             && task.target === activeTarget
+            && matchesKindFilter(task, kindFilter)
             && (statusFilter === "all" || task.last_status === statusFilter)
             && (enabledFilter === "all" || task.enabled === (enabledFilter === "enabled"));
+    }).sort((left, right) => {
+        // Platform-owned tasks lead, the operator's own follow, and image prewarm records -- one-off
+        // housekeeping entries rather than real schedules -- sit at the end.
+        const groupRank = (task: ScheduledTask) => (isSystemTask(task) ? 0 : isPrewarmTask(task) ? 2 : 1);
+        const group = groupRank(left) - groupRank(right);
+        if (group !== 0) {
+            return group;
+        }
+        if (!isPrewarmTask(left) || !isPrewarmTask(right)) {
+            // Keep the order the API returned inside the platform and operator groups.
+            return 0;
+        }
+        const prewarmRank = (task: ScheduledTask) => {
+            if (task.queue_state === "running") return 0;
+            if (task.queue_state === "queued") return 1;
+            return 2;
+        };
+        return prewarmRank(left) - prewarmRank(right)
+            || String(right.updated_at).localeCompare(String(left.updated_at));
     });
     const taskCounts: Record<ScheduledTask["target"], number> = {
         container: tasks.filter((task) => task.target === "container").length,
@@ -431,6 +544,35 @@ export function ScheduledTasksPage() {
             },
         },
     };
+
+    // Mirrors the My Apps uninstall dialog so destructive confirmations read the same everywhere.
+    const dialogCancelButtonSx = {
+        minWidth: 68,
+        borderRadius: 0,
+        boxShadow: "none",
+        border: `1px solid ${palette.border}`,
+        backgroundColor: palette.actionBg,
+        color: palette.subtleText,
+        "&:hover": {
+            backgroundColor: palette.actionHover,
+            color: palette.text,
+            boxShadow: "none",
+        },
+    };
+    const dialogWarningButtonSx = {
+        minWidth: 68,
+        borderRadius: 0,
+        boxShadow: "none",
+        backgroundColor: "#ffbc00",
+        border: "1px solid #ffbc00",
+        color: "#313a46",
+        "&:hover": {
+            backgroundColor: "#e0a700",
+            border: "1px solid #e0a700",
+            boxShadow: "none",
+        },
+    };
+    const dialogBodySx = { m: 0, fontSize: 14, lineHeight: 1.7, color: palette.subtleText };
 
     useEffect(() => {
         if (!runningTaskIds) {
@@ -751,6 +893,7 @@ export function ScheduledTasksPage() {
     }
 
     function scheduleLabel(schedule: string) {
+        if (schedule === "@once") return t("scheduledTasks.prewarm.oneTime");
         const parts = schedule.trim().split(/\s+/);
         if (parts.length !== 5) return schedule;
         const [minute, hour, day, month, weekday] = parts;
@@ -834,6 +977,33 @@ export function ScheduledTasksPage() {
         }
     }
 
+    async function cancelPrewarm(task: ScheduledTask) {
+        setPendingTaskId(task.task_id);
+        try {
+            await requestJson(`/api/scheduled-tasks/prewarm/${task.task_id}`, { method: "DELETE" });
+            await refreshTasks();
+            setCancelPrewarmTask(null);
+            setFeedback({ severity: "success", message: t("scheduledTasks.prewarm.cancelled") });
+        } catch (error) {
+            setFeedback({ severity: "error", message: localizedTaskError(error) });
+        } finally {
+            setPendingTaskId(null);
+        }
+    }
+
+    async function retryPrewarm(task: ScheduledTask) {
+        setPendingTaskId(task.task_id);
+        try {
+            await requestJson(`/api/scheduled-tasks/prewarm/${task.task_id}/retry`, { method: "POST" });
+            await refreshTasks();
+            setFeedback({ severity: "success", message: t("scheduledTasks.prewarm.retryQueued") });
+        } catch (error) {
+            setFeedback({ severity: "error", message: localizedTaskError(error) });
+        } finally {
+            setPendingTaskId(null);
+        }
+    }
+
     async function openLog(task: ScheduledTask) {
         setLogTask(task);
         setTaskRuns([]);
@@ -876,6 +1046,53 @@ export function ScheduledTasksPage() {
         }
     }
 
+    // Newest lines sit at the end of the log, so a run should open there instead of at the top of a
+    // wall of pull progress. The update fires on every refresh too, so it keeps following along.
+    useEffect(() => {
+        const panel = logPanelRef.current;
+        if (panel) {
+            panel.scrollTop = panel.scrollHeight;
+        }
+    }, [logContent, selectedRun]);
+
+    // A running task keeps writing to its log; follow it while the dialog is open so the operator
+    // does not have to close and reopen the run to see progress.
+    useEffect(() => {
+        if (!logTask || !selectedRun || selectedRun.status !== "running") {
+            return;
+        }
+
+        let cancelled = false;
+        const tick = async () => {
+            try {
+                const [runsResponse, log] = await Promise.all([
+                    requestJson<{ runs: ScheduledTaskRun[] }>(`/api/scheduled-tasks/${logTask.task_id}/runs`),
+                    requestJson<{ content: string; next_before: number | null }>(
+                        `/api/scheduled-tasks/${logTask.task_id}/runs/${selectedRun.run_id}/log`,
+                    ),
+                ]);
+                if (cancelled) {
+                    return;
+                }
+                setTaskRuns(runsResponse.runs);
+                setLogContent(log.content);
+                setLogBefore(log.next_before);
+                const updated = runsResponse.runs.find((run) => run.run_id === selectedRun.run_id);
+                if (updated && updated.status !== "running") {
+                    setSelectedRun(updated);
+                }
+            } catch {
+                // Keep the last snapshot; the next tick retries.
+            }
+        };
+
+        const timer = window.setInterval(() => void tick(), 3_000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+        };
+    }, [logTask, selectedRun]);
+
     function downloadRunLog(task: ScheduledTask, run: ScheduledTaskRun) {
         const link = document.createElement("a");
         link.href = `/api/scheduled-tasks/${task.task_id}/runs/${run.run_id}/log/download`;
@@ -913,7 +1130,10 @@ export function ScheduledTasksPage() {
             className="scheduled-tasks-page-shell"
             ref={pageShellRef}
             sx={{
-                minHeight: "calc(100vh - 120px)",
+                height: { xs: "auto", md: "calc(100vh - 120px)" },
+                minHeight: { xs: "calc(100vh - 120px)", md: 0 },
+                display: { xs: "block", md: "flex" },
+                flexDirection: "column",
                 position: "relative",
                 mx: { xs: -1, md: -3 },
                 my: { xs: -1.25, md: -2.25 },
@@ -921,7 +1141,7 @@ export function ScheduledTasksPage() {
                 py: { xs: 1.25, md: 1.5 },
                 backgroundColor: palette.pageBg,
                 color: palette.text,
-                overflowY: "auto",
+                overflowY: { xs: "auto", md: "hidden" },
             }}
         >
             <PageDescriptionHeader
@@ -960,7 +1180,7 @@ export function ScheduledTasksPage() {
                 </Alert>
             ) : null}
             {!tasksQuery.isLoading && !tasksQuery.error ? (
-                <Box className="scheduled-tasks-list-frame" sx={{ mb: 1.5 }}>
+                <Box className="scheduled-tasks-list-frame" sx={{ mb: 1.5, flex: { md: "1 1 auto" }, minHeight: { md: 0 } }}>
                     <Box className="scheduled-tasks-list-content">
                         <Box className="scheduled-tasks-toolbar">
                             <Tabs
@@ -1026,7 +1246,20 @@ export function ScheduledTasksPage() {
                                     slotProps={{ select: { MenuProps: { slotProps: { paper: { sx: { borderRadius: 0, mt: 0.5, "& .MuiMenuItem-root": { fontSize: 14, fontWeight: 500 } } } } } } }}
                                 >
                                     <MenuItem value="all">{t("scheduledTasks.filters.allStatuses")}</MenuItem>
-                                    {(["never", "running", "success", "failed", "skipped"] as StatusFilter[]).filter((status) => status !== "all").map((status) => <MenuItem key={status} value={status}>{t(`scheduledTasks.status.${status}`)}</MenuItem>)}
+                                    {(["never", "running", "success", "failed", "skipped", "cancelled"] as StatusFilter[]).filter((status) => status !== "all").map((status) => <MenuItem key={status} value={status}>{t(`scheduledTasks.status.${status}`)}</MenuItem>)}
+                                </TextField>
+                                <TextField
+                                    className="scheduled-tasks-toolbar-filter scheduled-tasks-toolbar-filter--kind"
+                                    select
+                                    size="small"
+                                    value={kindFilter}
+                                    onChange={(event) => setKindFilter(event.target.value as KindFilter)}
+                                    slotProps={{ select: { MenuProps: { slotProps: { paper: { sx: { borderRadius: 0, mt: 0.5, "& .MuiMenuItem-root": { fontSize: 14, fontWeight: 500 } } } } } } }}
+                                >
+                                    <MenuItem value="all">{t("scheduledTasks.filters.allKinds")}</MenuItem>
+                                    <MenuItem value="system">{t("scheduledTasks.filters.kindSystem")}</MenuItem>
+                                    <MenuItem value="prewarm">{t("scheduledTasks.filters.kindPrewarm")}</MenuItem>
+                                    <MenuItem value="user">{t("scheduledTasks.filters.kindUser")}</MenuItem>
                                 </TextField>
                                 <TextField
                                     className="scheduled-tasks-toolbar-filter scheduled-tasks-toolbar-filter--enabled"
@@ -1059,7 +1292,7 @@ export function ScheduledTasksPage() {
                                             {tasksQuery.isFetching ? (
                                                 <CircularProgress size={16} />
                                             ) : (
-                                                <RefreshIcon />
+                                                <RefreshIcon size={20} />
                                             )}
                                         </IconButton>
                                     </span>
@@ -1077,7 +1310,7 @@ export function ScheduledTasksPage() {
                             <Box
                                 className="scheduled-tasks-table"
                                 component="table"
-                                sx={{ width: "100%", minWidth: 1080, borderCollapse: "collapse" }}
+                                sx={{ width: "100%", minWidth: 1080, borderCollapse: "separate", borderSpacing: 0 }}
                             >
                                 <thead>
                                     <tr>
@@ -1166,11 +1399,11 @@ export function ScheduledTasksPage() {
                                             <tr className="scheduled-tasks-table-row" key={task.task_id}>
                                                 <td>
                                                     <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-                                                        <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                                                            {isSystemTask(task) ? systemTaskName(task, t) : task.name}
+                                                        <Typography sx={{ fontSize: 14 }}>
+                                                            {isSystemTask(task) ? systemTaskName(task, t) : isPrewarmTask(task) ? prewarmTaskName(task, t) : task.name}
                                                         </Typography>
                                                         {isSystemTask(task) ? (
-                                                            <Chip color="success" label={t("scheduledTasks.systemBadge")} size="small" />
+                                                            <Chip className="scheduled-tasks-compact-chip" color="success" label={t("scheduledTasks.systemBadge")} size="small" sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: 11 } }} />
                                                         ) : null}
                                                     </Stack>
                                                     {hostIdentityLabel(task) ? (
@@ -1214,7 +1447,9 @@ export function ScheduledTasksPage() {
                                                     <Tooltip title={task.schedule}><Typography sx={{ fontSize: 13 }}>{scheduleLabel(task.schedule)}</Typography></Tooltip>
                                                 </td>
                                                 <td>
-                                                    {task.syncing || refreshingTaskIds.has(task.task_id) ? (
+                                                    {isPrewarmTask(task) ? (
+                                                        <PrewarmStatusChip height={20} label={t(`scheduledTasks.prewarm.status.${task.queue_state ?? "queued"}`)} state={task.queue_state ?? "queued"} />
+                                                    ) : task.syncing || refreshingTaskIds.has(task.task_id) ? (
                                                         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", whiteSpace: "nowrap" }}>
                                                             <CircularProgress size={18} />
                                                             <Typography sx={{ fontSize: 12, color: "primary.main" }}>{t("scheduledTasks.syncStatus.taskSyncing")}</Typography>
@@ -1244,21 +1479,20 @@ export function ScheduledTasksPage() {
                                                     )}
                                                 </td>
                                                 <td>
-                                                    <Tooltip title={isSystemTask(task) ? t("scheduledTasks.systemReadOnlyHint") : ""}>
+                                                    <Tooltip title={isSystemTask(task) ? t("scheduledTasks.systemReadOnlyHint") : isPrewarmTask(task) ? t("scheduledTasks.prewarm.managedHint") : ""}>
                                                         <span>
-                                                            <Switch
+                                                            {isSystemTask(task) || isPrewarmTask(task) ? <Switch
                                                                 checked={task.enabled}
-                                                                disabled={isSystemTask(task) || pendingTaskId === task.task_id}
+                                                                disabled
+                                                                size="small"
+                                                                slotProps={{ input: { "aria-label": t("scheduledTasks.actions.toggle", { name: task.name }) } }}
+                                                            /> : <Switch
+                                                                checked={task.enabled}
+                                                                disabled={pendingTaskId === task.task_id}
                                                                 onChange={() => void updateTask(task, "toggle")}
                                                                 size="small"
-                                                                slotProps={{
-                                                                    input: {
-                                                                        "aria-label": t("scheduledTasks.actions.toggle", {
-                                                                            name: task.name,
-                                                                        }),
-                                                                    },
-                                                                }}
-                                                            />
+                                                                slotProps={{ input: { "aria-label": t("scheduledTasks.actions.toggle", { name: task.name }) } }}
+                                                            />}
                                                         </span>
                                                     </Tooltip>
                                                 </td>
@@ -1268,7 +1502,7 @@ export function ScheduledTasksPage() {
                                                         direction="row"
                                                         spacing={0.25}
                                                     >
-                                                        {!isSystemTask(task) ? (
+                                                        {!isSystemTask(task) && !isPrewarmTask(task) ? (
                                                             <Tooltip title={t("scheduledTasks.actions.run")}>
                                                                 <span>
                                                                     <IconButton
@@ -1303,7 +1537,29 @@ export function ScheduledTasksPage() {
                                                                 <LogIcon />
                                                             </IconButton>
                                                         </Tooltip>
-                                                        {!isSystemTask(task) ? (
+                                                        {isPrewarmTask(task) ? (
+                                                            task.queue_state === "queued" || task.queue_state === "running" ? (
+                                                                <Tooltip title={t("scheduledTasks.prewarm.cancel")}><span><IconButton color="warning" disabled={pendingTaskId === task.task_id} onClick={() => setCancelPrewarmTask(task)} size="small"><CancelIcon /></IconButton></span></Tooltip>
+                                                            ) : (
+                                                                <>
+                                                                    {task.queue_state === "failed" || task.queue_state === "cancelled" ? (
+                                                                        <Tooltip title={task.queue_state === "failed" ? t("scheduledTasks.actions.retry") : t("scheduledTasks.prewarm.resume")}>
+                                                                            <span>
+                                                                                <IconButton
+                                                                                    aria-label={task.queue_state === "failed" ? t("scheduledTasks.actions.retry") : t("scheduledTasks.prewarm.resume")}
+                                                                                    disabled={pendingTaskId === task.task_id}
+                                                                                    onClick={() => void retryPrewarm(task)}
+                                                                                    size="small"
+                                                                                >
+                                                                                    {task.queue_state === "failed" ? <RetryIcon /> : <PrewarmAgainIcon />}
+                                                                                </IconButton>
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    ) : null}
+                                                                    <Tooltip title={t("scheduledTasks.actions.delete")}><IconButton className="scheduled-tasks-row-action-danger" color="error" onClick={() => setDeleteTask(task)} size="small"><DeleteIcon /></IconButton></Tooltip>
+                                                                </>
+                                                            )
+                                                        ) : !isSystemTask(task) ? (
                                                             <>
                                                                 <Tooltip title={t("scheduledTasks.actions.edit")}>
                                                                     <IconButton
@@ -1363,8 +1619,8 @@ export function ScheduledTasksPage() {
                                 >
                                     <Box sx={{ minWidth: 0 }}>
                                         <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-                                            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
-                                                {isSystemTask(task) ? systemTaskName(task, t) : task.name}
+                                            <Typography sx={{ fontSize: 14 }}>
+                                                {isSystemTask(task) ? systemTaskName(task, t) : isPrewarmTask(task) ? prewarmTaskName(task, t) : task.name}
                                             </Typography>
                                             {isSystemTask(task) ? (
                                                 <Chip color="success" label={t("scheduledTasks.systemBadge")} size="small" />
@@ -1376,11 +1632,11 @@ export function ScheduledTasksPage() {
                                             </Typography>
                                         ) : null}
                                     </Box>
-                                    <Tooltip title={isSystemTask(task) ? t("scheduledTasks.systemReadOnlyHint") : ""}>
+                                    <Tooltip title={isSystemTask(task) ? t("scheduledTasks.systemReadOnlyHint") : isPrewarmTask(task) ? t("scheduledTasks.prewarm.managedHint") : ""}>
                                         <span>
                                             <Switch
                                                 checked={task.enabled}
-                                                disabled={isSystemTask(task) || pendingTaskId === task.task_id}
+                                                disabled={isSystemTask(task) || isPrewarmTask(task) || pendingTaskId === task.task_id}
                                                 onChange={() => void updateTask(task, "toggle")}
                                                 size="small"
                                                 slotProps={{
@@ -1420,11 +1676,15 @@ export function ScheduledTasksPage() {
                                     }}
                                 >
                                     <Stack spacing={0.3}>
-                                        <Chip
-                                            label={t(`scheduledTasks.status.${task.last_status}`)}
-                                            color={statusTone(task.last_status)}
-                                            size="small"
-                                        />
+                                        {isPrewarmTask(task) ? (
+                                            <PrewarmStatusChip height={20} label={t(`scheduledTasks.prewarm.status.${task.queue_state ?? "queued"}`)} state={task.queue_state ?? "queued"} />
+                                        ) : (
+                                            <Chip
+                                                label={t(`scheduledTasks.status.${task.last_status}`)}
+                                                color={statusTone(task.last_status)}
+                                                size="small"
+                                            />
+                                        )}
                                         {task.last_run_at ? (
                                             <Typography
                                                 sx={{ fontSize: 12, color: palette.subtleText }}
@@ -1439,7 +1699,7 @@ export function ScheduledTasksPage() {
                                         ) : null}
                                     </Stack>
                                     <Stack direction="row" spacing={0.25}>
-                                        {!isSystemTask(task) ? (
+                                        {!isSystemTask(task) && !isPrewarmTask(task) ? (
                                             <Tooltip title={t("scheduledTasks.actions.run")}>
                                                 <span>
                                                     <IconButton
@@ -1472,7 +1732,39 @@ export function ScheduledTasksPage() {
                                                 <LogIcon />
                                             </IconButton>
                                         </Tooltip>
-                                        {!isSystemTask(task) ? (
+                                        {isPrewarmTask(task) ? (
+                                            task.queue_state === "queued" || task.queue_state === "running" ? (
+                                                <Tooltip title={t("scheduledTasks.prewarm.cancel")}>
+                                                    <span>
+                                                        <IconButton color="warning" disabled={pendingTaskId === task.task_id} onClick={() => setCancelPrewarmTask(task)} size="small">
+                                                            <CancelIcon />
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                            ) : (
+                                                <>
+                                                    {task.queue_state === "failed" || task.queue_state === "cancelled" ? (
+                                                        <Tooltip title={task.queue_state === "failed" ? t("scheduledTasks.actions.retry") : t("scheduledTasks.prewarm.resume")}>
+                                                            <span>
+                                                                <IconButton
+                                                                    aria-label={task.queue_state === "failed" ? t("scheduledTasks.actions.retry") : t("scheduledTasks.prewarm.resume")}
+                                                                    disabled={pendingTaskId === task.task_id}
+                                                                    onClick={() => void retryPrewarm(task)}
+                                                                    size="small"
+                                                                >
+                                                                    {task.queue_state === "failed" ? <RetryIcon /> : <PrewarmAgainIcon />}
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
+                                                    ) : null}
+                                                    <Tooltip title={t("scheduledTasks.actions.delete")}>
+                                                        <IconButton color="error" onClick={() => setDeleteTask(task)} size="small">
+                                                            <DeleteIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </>
+                                            )
+                                        ) : !isSystemTask(task) ? (
                                             <>
                                                 <Tooltip title={t("scheduledTasks.actions.edit")}>
                                                     <IconButton
@@ -2215,7 +2507,7 @@ export function ScheduledTasksPage() {
                         </DialogTitle>
                         <DialogContent className="scheduled-tasks-log-content" dividers>
                             {selectedRun ? (
-                                <Box component="pre" className="scheduled-tasks-log-panel">
+                                <Box component="pre" className="scheduled-tasks-log-panel" ref={logPanelRef}>
                                     {logLoading ? t("scheduledTasks.loading") : logContent || t("scheduledTasks.logEmpty")}
                                 </Box>
                             ) : logLoading ? (
@@ -2251,16 +2543,22 @@ export function ScheduledTasksPage() {
                     <Box className="scheduled-tasks-scoped-dialog scheduled-tasks-delete-dialog" role="dialog" aria-modal="true">
                         <DialogTitle className="scheduled-tasks-scoped-title">
                             <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
-                                {t("scheduledTasks.delete.title")}
+                                {isPrewarmTask(deleteTask) ? t("scheduledTasks.prewarm.deleteTitle") : t("scheduledTasks.delete.title")}
                             </Typography>
                             <IconButton aria-label={t("scheduledTasks.actions.close")} onClick={() => setDeleteTask(null)} size="small">
                                 <CloseIcon />
                             </IconButton>
                         </DialogTitle>
                         <DialogContent dividers>
-                            <Typography>
-                                {t("scheduledTasks.delete.description", { name: deleteTask.name })}
-                            </Typography>
+                            {isPrewarmTask(deleteTask) ? (
+                                <Typography sx={dialogBodySx}>
+                                    {t(`scheduledTasks.prewarm.deleteDescription.${prewarmDeleteState(deleteTask)}`, { subject: prewarmSubjectLabel(deleteTask) })}
+                                </Typography>
+                            ) : (
+                                <Typography sx={dialogBodySx}>
+                                    {t("scheduledTasks.delete.description", { name: deleteTask.name })}
+                                </Typography>
+                            )}
                             {deleteTask.target === "host" && deleteTask.sync_status === "unreachable" ? (
                                 <Alert severity="warning" sx={{ mt: 2 }}>
                                     {t("scheduledTasks.delete.unreachableHostWarning")}
@@ -2268,9 +2566,34 @@ export function ScheduledTasksPage() {
                             ) : null}
                         </DialogContent>
                         <DialogActions className="scheduled-tasks-scoped-actions">
-                            <Button onClick={() => setDeleteTask(null)}>{t("scheduledTasks.actions.cancel")}</Button>
-                            <Button color="error" disabled={pendingTaskId === deleteTask.task_id} onClick={() => void confirmDelete()} variant="contained">
+                            <Button onClick={() => setDeleteTask(null)} sx={dialogCancelButtonSx}>{t("scheduledTasks.actions.cancel")}</Button>
+                            <Button disabled={pendingTaskId === deleteTask.task_id} onClick={() => void confirmDelete()} sx={dialogWarningButtonSx} variant="contained">
                                 {t("scheduledTasks.actions.delete")}
+                            </Button>
+                        </DialogActions>
+                    </Box>
+                </Box>
+            ) : null}
+
+            {cancelPrewarmTask && editorScope ? (
+                <Box className="scheduled-tasks-scoped-overlay" sx={editorScope}>
+                    <Box className="scheduled-tasks-scoped-backdrop" onClick={() => setCancelPrewarmTask(null)} />
+                    <Box className="scheduled-tasks-scoped-dialog scheduled-tasks-delete-dialog" role="dialog" aria-modal="true">
+                        <DialogTitle className="scheduled-tasks-scoped-title">
+                            <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
+                                {t("scheduledTasks.prewarm.cancelTitle")}
+                            </Typography>
+                            <IconButton aria-label={t("scheduledTasks.actions.close")} onClick={() => setCancelPrewarmTask(null)} size="small">
+                                <CloseIcon />
+                            </IconButton>
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Typography sx={dialogBodySx}>{t("scheduledTasks.prewarm.cancelDescription", { subject: prewarmSubjectLabel(cancelPrewarmTask) })}</Typography>
+                        </DialogContent>
+                        <DialogActions className="scheduled-tasks-scoped-actions">
+                            <Button onClick={() => setCancelPrewarmTask(null)} sx={dialogCancelButtonSx}>{t("scheduledTasks.actions.cancel")}</Button>
+                            <Button disabled={pendingTaskId === cancelPrewarmTask.task_id} onClick={() => void cancelPrewarm(cancelPrewarmTask)} sx={dialogWarningButtonSx} variant="contained">
+                                {t("scheduledTasks.prewarm.cancel")}
                             </Button>
                         </DialogActions>
                     </Box>

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Cookie, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
 from src.schemas.errorResponse import ErrorResponse
-from src.schemas.scheduledTasks import ScheduledTaskToggleRequest, ScheduledTaskWriteRequest
+from src.schemas.scheduledTasks import ImagePrewarmRequest, ScheduledTaskToggleRequest, ScheduledTaskWriteRequest
 from src.services.product_auth import PRODUCT_AUTH_COOKIE_NAME
 from src.services.scheduled_tasks import ScheduledTaskService
 
@@ -28,6 +28,25 @@ def list_scheduled_tasks(session_token: Optional[str] = Cookie(default=None, ali
 @router.post("/scheduled-tasks/sync", status_code=202, responses={401: {"model": ErrorResponse}})
 def sync_scheduled_tasks(session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
     return _get_scheduled_task_service().start_sync(session_token)
+
+
+@router.post("/scheduled-tasks/prewarm", status_code=202, responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
+def enqueue_image_prewarm(payload: ImagePrewarmRequest, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    service = _get_scheduled_task_service()
+    task = service.enqueue_prewarm(session_token, payload.app_name, payload.version)
+    service.dispatch_prewarm()
+    return service._public_task(service._get_task(service.auth_service._require_authenticated_operator(session_token)["id"], task["task_id"]))
+
+
+@router.delete("/scheduled-tasks/prewarm/{task_id}", status_code=204, responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}})
+def cancel_image_prewarm(task_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    _get_scheduled_task_service().cancel_prewarm(session_token, task_id)
+    return Response(status_code=204)
+
+
+@router.post("/scheduled-tasks/prewarm/{task_id}/retry", responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
+def retry_image_prewarm(task_id: str, session_token: Optional[str] = Cookie(default=None, alias=PRODUCT_AUTH_COOKIE_NAME)):
+    return _get_scheduled_task_service().retry_prewarm(session_token, task_id)
 
 
 @router.get("/scheduled-tasks/stream", responses={200: {"description": "Scheduled task stream established"}, 401: {"model": ErrorResponse}})

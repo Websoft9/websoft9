@@ -16,6 +16,11 @@ from src.services.app_status import (
     remove_app_installation,
     remove_installation_logs,
     save_app_custom_fields,
+    begin_install_deploy,
+    install_cancel_requested,
+    mark_install_cancelled,
+    request_install_cancel,
+    set_install_phase,
     start_app_installation,
 )
 
@@ -62,6 +67,20 @@ def test_completion_log_is_written_before_installation_cleanup(tmp_path):
     add_installing_logs(tracking_id, "Installation complete", "")
     remove_app_installation(tracking_id)
 
+    assert tracking_id not in appInstalling
+
+
+def test_install_cancellation_is_only_accepted_while_pulling(tmp_path):
+    configure_install_state_store(str(tmp_path))
+    tracking_id = start_app_installation("php_demo", "PHP")
+
+    assert request_install_cancel("php_demo") is None
+    set_install_phase(tracking_id, "pulling")
+    assert request_install_cancel("php_demo") == tracking_id
+    assert install_cancel_requested(tracking_id) is True
+    assert begin_install_deploy(tracking_id) is False
+
+    mark_install_cancelled(tracking_id)
     assert tracking_id not in appInstalling
 
 

@@ -29,9 +29,11 @@ export type MyApp = {
     volumes?: Array<Record<string, unknown>>
     error?: string | null
     logs?: MyAppLogStage[] | null
+    phase?: string | null
+    cancel_requested?: boolean
 }
 
-export type MyAppStatusKey = 'installing' | 'active' | 'inactive' | 'error'
+export type MyAppStatusKey = 'installing' | 'active' | 'inactive' | 'error' | 'cancelled'
 
 type MyAppsError = Error & {
     statusCode?: number
@@ -48,6 +50,7 @@ const statusOrder: Record<MyAppStatusKey, number> = {
     active: 1,
     inactive: 2,
     error: 3,
+    cancelled: 4,
 }
 
 export function getMyAppStatusKey(status: number): MyAppStatusKey {
@@ -61,6 +64,10 @@ export function getMyAppStatusKey(status: number): MyAppStatusKey {
 
     if (status === 4) {
         return 'error'
+    }
+
+    if (status === 6) {
+        return 'cancelled'
     }
 
     return 'active'

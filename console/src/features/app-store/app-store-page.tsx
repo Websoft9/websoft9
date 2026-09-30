@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 
 import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
+import { PrewarmStatusChip, type PrewarmStatusState } from '../../shared/design-system/prewarm-status-chip'
 import { SurfaceFeedbackToast, SurfaceNoticeAlert, SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { UnifiedAppCard } from '../../shared/design-system/unified-app-card'
@@ -46,6 +47,7 @@ import {
     type AppStoreApp,
 } from './app-store-model'
 import { checkPortAvailability, fetchPortSuggestions, isPortSettingKey, type PortCheckStatus, type PortSuggestion } from './app-store-ports'
+import { readAppStoreSessionState, writeAppStoreSessionState, type AppStoreSessionState } from './app-store-session-state'
 import { useAppStoreApps } from './use-app-store-apps'
 import { useAppStoreCatalogs } from './use-app-store-catalogs'
 import { useMyApps, type MyApp } from '../my-apps/use-my-apps'
@@ -62,18 +64,8 @@ function getDefaultImagePath(locale: string) {
     return locale.toLowerCase().startsWith('zh') ? '/default.png' : '/default-en.png'
 }
 
-function getDefaultScreenshotPath(locale: string) {
-    return locale.toLowerCase().startsWith('zh') ? '/default-screenshot-friendly.svg' : '/default-screenshot-friendly-en.svg'
-}
-
 function getAppLogoSources(app: AppStoreApp, locale: string) {
     const sources = [app.logo?.imageurl, getDefaultImagePath(locale)]
-    return sources.filter((value): value is string => Boolean(value))
-}
-
-function getAppScreenshotSources(app: AppStoreApp, locale: string) {
-    const screenshot = getPreferredAppStoreScreenshot(app)
-    const sources = [screenshot, getDefaultScreenshotPath(locale)]
     return sources.filter((value): value is string => Boolean(value))
 }
 
@@ -206,6 +198,26 @@ type InstallTaskAcceptedResponse = {
     details: string
 }
 
+type ImagePrewarmStatus = {
+    ready: boolean
+    missing: string[]
+    task?: ImagePrewarmTask | null
+}
+
+type ImagePrewarmTask = {
+    task_id: string
+    queue_state: 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
+}
+
+/** The chip label keys reuse the existing prewarm copy instead of duplicating the same wording. */
+const PREWARM_LABEL_KEYS: Record<PrewarmStatusState, string> = {
+    success: 'ready',
+    running: 'running',
+    queued: 'queued',
+    failed: 'failed',
+    cancelled: 'cancelled',
+}
+
 type ProductAuthFavoritesResponse = {
     favorites: string[]
 }
@@ -276,11 +288,14 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
     const payload = (await response.json().catch(() => null)) as { details?: string; message?: string } | T | null
     if (!response.ok) {
-        const errorMessage =
-            payload && typeof payload === 'object' && 'details' in payload
-                ? payload.details ?? payload.message ?? `HTTP ${response.status}`
-                : `HTTP ${response.status}`
-        throw new Error(errorMessage)
+        const body = payload && typeof payload === 'object' ? (payload as { details?: string; message?: string }) : null
+        const code = typeof body?.message === 'string' ? body.message : ''
+        const details = typeof body?.details === 'string' && body.details ? body.details : ''
+        // The backend answers in English; the code lets a caller show its own localized copy.
+        const error = new Error(details || code || `HTTP ${response.status}`) as Error & { code?: string; status?: number }
+        error.code = code
+        error.status = response.status
+        throw error
     }
 
     return payload as T
@@ -483,15 +498,17 @@ function AppLogo({ app, locale }: { app: AppStoreApp; locale: string }) {
     )
 }
 
-function AppScreenshot({ app, locale, alt }: { app: AppStoreApp; locale: string; alt: string }) {
-    const [sourceIndex, setSourceIndex] = useState(0)
-    const sources = getAppScreenshotSources(app, locale)
+function AppScreenshot({ app, alt }: { app: AppStoreApp; alt: string }) {
+    const screenshot = getPreferredAppStoreScreenshot(app)
+    const [failed, setFailed] = useState(false)
 
     useEffect(() => {
-        setSourceIndex(0)
-    }, [app.key, app.screenshots, locale])
+        setFailed(false)
+    }, [app.key, screenshot])
 
-    if (sources.length === 0 || sourceIndex >= sources.length) {
+    // Apps without a screenshot used to fall back to a placeholder graphic, which read as a broken
+    // preview and pushed the real content down. Hide the hero area entirely instead.
+    if (!screenshot || failed) {
         return null
     }
 
@@ -514,10 +531,10 @@ function AppScreenshot({ app, locale, alt }: { app: AppStoreApp; locale: string;
             <Box
                 component="img"
                 alt={alt}
-                src={sources[sourceIndex]}
+                src={screenshot}
                 referrerPolicy="no-referrer"
                 onError={() => {
-                    setSourceIndex((currentValue) => currentValue + 1)
+                    setFailed(true)
                 }}
                 sx={{
                     width: '100%',
@@ -862,15 +879,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [selectedSubCatalogKey, setSelectedSubCatalogKey] = useState('all')
     const [selectedApp, setSelectedApp] = useState<AppStoreApp | null>(null)
     const [isInstallMode, setIsInstallMode] = useState(false)
-    const [installName, setInstallName] = useState('')
-    const [selectedVersion, setSelectedVersion] = useState('latest')
-    const [installSettings, setInstallSettings] = useState<Record<string, string>>({})
+    // The page unmounts on navigation, so the surface the operator left behind is kept outside the
+    // component and read back on mount.
+    const appStoreSessionRef = useRef<AppStoreSessionState | null>(readAppStoreSessionState())
+    const sessionSettledRef = useRef(false)
+    const skipInstallSeedRef = useRef(false)
+    const [installName, setInstallName] = useState(() => appStoreSessionRef.current?.installName ?? '')
+    const [selectedVersion, setSelectedVersion] = useState(() => appStoreSessionRef.current?.selectedVersion ?? 'latest')
+    const [installSettings, setInstallSettings] = useState<Record<string, string>>(() => appStoreSessionRef.current?.installSettings ?? {})
     const [portCheckStates, setPortCheckStates] = useState<Record<string, PortCheckStatus>>({})
     const [portRangeExhausted, setPortRangeExhausted] = useState(false)
     const [showPortSuggestionSpinner, setShowPortSuggestionSpinner] = useState(false)
     const [isPortSuggestionPending, setIsPortSuggestionPending] = useState(false)
-    const [selectedInstallProfile, setSelectedInstallProfile] = useState<string | null>(null)
-    const [profileInstallSettings, setProfileInstallSettings] = useState<Record<string, Record<string, string>>>({})
+    const [selectedInstallProfile, setSelectedInstallProfile] = useState<string | null>(() => appStoreSessionRef.current?.selectedInstallProfile ?? null)
+    const [profileInstallSettings, setProfileInstallSettings] = useState<Record<string, Record<string, string>>>(() => appStoreSessionRef.current?.profileInstallSettings ?? {})
     const [isTestingDatabase, setIsTestingDatabase] = useState(false)
     const [isDatabasePasswordVisible, setIsDatabasePasswordVisible] = useState(false)
     const [installError, setInstallError] = useState<string | null>(null)
@@ -879,14 +901,18 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [installFeedback, setInstallFeedback] = useState<InstallFeedback | null>(null)
     const [testedDatabaseConnectionSignature, setTestedDatabaseConnectionSignature] = useState<string | null>(null)
     const [isSubmittingInstall, setIsSubmittingInstall] = useState(false)
+    const [isSubmittingPrewarm, setIsSubmittingPrewarm] = useState(false)
+    const [installConfirmOpen, setInstallConfirmOpen] = useState(false)
+    const [prewarmStatus, setPrewarmStatus] = useState<ImagePrewarmStatus | null>(null)
+    const [prewarmQueueState, setPrewarmQueueState] = useState<ImagePrewarmTask['queue_state'] | null>(null)
     const [isRefreshingStore, setIsRefreshingStore] = useState(false)
     const [isLocalRefreshing, setIsLocalRefreshing] = useState(false)
     const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false)
     const [refreshFeedback, setRefreshFeedback] = useState<{ severity: 'success' | 'error'; message: string } | null>(null)
-    const [wildcardDomain, setWildcardDomain] = useState('')
-    const [isDomainEnabled, setIsDomainEnabled] = useState(true)
+    const [wildcardDomain, setWildcardDomain] = useState(() => appStoreSessionRef.current?.wildcardDomain ?? '')
+    const [isDomainEnabled, setIsDomainEnabled] = useState(() => appStoreSessionRef.current?.isDomainEnabled ?? true)
     const MAX_CUSTOM_DOMAINS = 5
-    const [customDomains, setCustomDomains] = useState<string[]>([])
+    const [customDomains, setCustomDomains] = useState<string[]>(() => appStoreSessionRef.current?.customDomains ?? [])
     const [customDomainErrorIndex, setCustomDomainErrorIndex] = useState<number | null>(null)
     const [composeAppId, setComposeAppId] = useState('customapp')
     const [composeDomain, setComposeDomain] = useState('')
@@ -1157,6 +1183,59 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         [customDomains],
     )
     const availableVersions = selectedApp ? getAppStoreInstallDistributions(selectedApp).flatMap((distribution) => distribution.versions) : []
+    // Readiness must come from the local image check alone: a historical `success` on the task can
+    // outlive the images themselves (pruned or removed), which would advertise an app as ready when
+    // the install would still have to pull.
+    const isPrewarmReady = Boolean(prewarmStatus?.ready)
+    const isPrewarmActive = prewarmQueueState === 'queued' || prewarmQueueState === 'running'
+    // An in-flight pull outranks the local image check. Images can already be present while a task is
+    // still running, and showing "Images ready" then contradicted the task list, which reported the
+    // very same pull as still in progress.
+    // A cancelled prewarm fetches nothing, so there is no state worth a badge: the version simply is
+    // not ready and the prewarm button below says what to do about it. A failure is worth reporting
+    // because it means an attempt was already made and stopped short.
+    const prewarmChipState: PrewarmStatusState | null = isPrewarmActive
+        ? prewarmQueueState
+        : isPrewarmReady
+            ? 'success'
+            : prewarmQueueState === 'failed'
+                ? 'failed'
+                : null
+    const prewarmChipLabel = prewarmChipState
+        ? t(`appStorePage.install.prewarm.${PREWARM_LABEL_KEYS[prewarmChipState]}`)
+        : null
+    // The dropdown stays narrow so the pull status reads as a sibling of the version rather than a
+    // second full-width field. Solid chips with white text stay legible in both color modes.
+    const versionFieldSx = {
+        ...installDialogFieldSx,
+        width: '100%',
+        '& .MuiSelect-select': {
+            ...appStoreControlTextSx,
+            color: palette.text,
+        },
+    } as const
+    const effectiveVersionLabel = availableVersions.length > 1
+        ? selectedVersion
+        : availableVersions[0] ?? selectedVersion
+    const showLatestVersionWarning = effectiveVersionLabel.toLowerCase() === 'latest'
+
+    // The pull status lives inside the version field, right aligned, so the row reads as a single
+    // control instead of a narrow dropdown trailed by loose badges.
+    const prewarmStatusNode = prewarmChipState && prewarmChipLabel ? (
+        <PrewarmStatusChip height={22} label={prewarmChipLabel} state={prewarmChipState} />
+    ) : null
+    const prewarmLinkNode = isPrewarmActive ? (
+        <Link
+            component={RouterLink}
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onMouseUp={(event) => event.stopPropagation()}
+            to="/cronjob"
+            sx={{ fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+            {t('appStorePage.install.prewarm.viewTask')}
+        </Link>
+    ) : null
     const syncStatusTitle = effectiveIsSyncRunning ? t('appStorePage.actions.refreshing') : t('appStorePage.actions.refresh')
     const keywordMatchedApps = useMemo(() => apps.filter((app) => matchesAppStoreSearch(app, deferredSearchValue)), [apps, deferredSearchValue])
     const mainCategoryCounts = useMemo(() => {
@@ -1359,6 +1438,13 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             return
         }
 
+        // Restoring a remembered install form must not be re-seeded from the app template; that would
+        // discard every value the operator had already typed.
+        if (skipInstallSeedRef.current) {
+            skipInstallSeedRef.current = false
+            return
+        }
+
         const distribution = getPreferredAppStoreInstallDistribution(selectedApp)
         const templateSettings = selectedApp.settings ?? {}
         const appProfiles = selectedApp.profiles ?? {}
@@ -1492,6 +1578,43 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             setIsPortSuggestionPending(false)
         }
     }, [isInstallMode, selectedApp])
+
+    // One polling loop covers every case: the first load, a failed lookup, an in-flight pull and a
+    // pull that finishes while the dialog is open. Splitting these across two effects meant a single
+    // failed request left the field showing "Prewarm images" even when the images were present.
+    useEffect(() => {
+        if (!selectedApp?.key || !isInstallMode || !selectedVersion) {
+            setPrewarmStatus(null)
+            setPrewarmQueueState(null)
+            return
+        }
+        let cancelled = false
+        setPrewarmQueueState(null)
+
+        const load = async () => {
+            try {
+                const status = await requestJson<ImagePrewarmStatus>(
+                    `/api/apps/images/prewarm/status?app_name=${encodeURIComponent(selectedApp.key!)}&version=${encodeURIComponent(selectedVersion)}`,
+                    { method: 'GET' },
+                )
+                if (cancelled) return
+                setPrewarmStatus(status)
+                // The task's own state must survive even when the images are already present.
+                // Collapsing it to `success` whenever `ready` was true hid an in-flight pull and made
+                // this field disagree with the task list, which showed the same pull as running.
+                setPrewarmQueueState(status.task?.queue_state ?? null)
+            } catch {
+                if (!cancelled) setPrewarmStatus(null)
+            }
+        }
+
+        void load()
+        const timer = window.setInterval(() => void load(), 5_000)
+        return () => {
+            cancelled = true
+            window.clearInterval(timer)
+        }
+    }, [isInstallMode, selectedApp?.key, selectedVersion])
 
     function clearPortSuggestionSpinnerTimer() {
         if (portSuggestionSpinnerTimerRef.current !== null) {
@@ -1643,6 +1766,74 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         nextParams.delete('keyword')
         setSearchParams(nextParams, { replace: true })
     }, [apps, directOpenAppKey, location.pathname, location.search, navigate, quickAppKey, searchParams, selectedApp, setSearchParams])
+
+    // Reopen whatever the operator had on screen before navigating away.
+    useEffect(() => {
+        if (sessionSettledRef.current) {
+            return
+        }
+
+        const stored = appStoreSessionRef.current
+        if (!stored) {
+            sessionSettledRef.current = true
+            return
+        }
+
+        // An explicit deep link is a fresh instruction and wins over the remembered surface.
+        if (quickAppKey || directOpenAppKey) {
+            sessionSettledRef.current = true
+            return
+        }
+
+        // Wait for the catalog: the remembered app is restored by key, not by a stale snapshot.
+        if (!apps.length) {
+            return
+        }
+
+        sessionSettledRef.current = true
+        const matchedApp = apps.find((app) => (app.key ?? '').toLowerCase() === stored.appKey.toLowerCase())
+        if (!matchedApp) {
+            return
+        }
+
+        if (stored.isInstallMode) {
+            skipInstallSeedRef.current = true
+        }
+        openAppDetail(matchedApp, 'catalog')
+        setIsInstallMode(stored.isInstallMode)
+        setInstallName(stored.installName)
+        setSelectedVersion(stored.selectedVersion)
+        setInstallSettings(stored.installSettings)
+        setSelectedInstallProfile(stored.selectedInstallProfile)
+        setProfileInstallSettings(stored.profileInstallSettings)
+        setWildcardDomain(stored.wildcardDomain)
+        setIsDomainEnabled(stored.isDomainEnabled)
+        setCustomDomains(stored.customDomains)
+    }, [apps, directOpenAppKey, quickAppKey])
+
+    useEffect(() => {
+        if (!selectedApp?.key) {
+            // Only clear after the initial decision, otherwise mounting the page would wipe the very
+            // state it is about to restore.
+            if (sessionSettledRef.current) {
+                writeAppStoreSessionState(null)
+            }
+            return
+        }
+
+        writeAppStoreSessionState({
+            appKey: selectedApp.key,
+            isInstallMode,
+            installName,
+            selectedVersion,
+            installSettings,
+            selectedInstallProfile,
+            profileInstallSettings,
+            wildcardDomain,
+            isDomainEnabled,
+            customDomains,
+        })
+    }, [selectedApp, isInstallMode, installName, selectedVersion, installSettings, selectedInstallProfile, profileInstallSettings, wildcardDomain, isDomainEnabled, customDomains])
 
     useEffect(() => {
         if (!(contentScopeContainer instanceof HTMLElement) || (!selectedApp && !isFavoritesOpen)) {
@@ -1820,6 +2011,35 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         } finally {
             setIsSubmittingInstall(false)
         }
+    }
+
+    async function handleImagePrewarm() {
+        if (!selectedApp || !selectedApp.key || !selectedVersion) return
+        setIsSubmittingPrewarm(true)
+        try {
+            const task = await requestJson<ImagePrewarmTask>('/api/apps/images/prewarm', {
+                method: 'POST',
+                body: JSON.stringify({ app_name: selectedApp.key, version: selectedVersion }),
+            })
+            setPrewarmQueueState(task.queue_state)
+        } catch (error) {
+            setInstallError(localizedPrewarmError(error))
+        } finally {
+            setIsSubmittingPrewarm(false)
+        }
+    }
+
+    /** The prewarm endpoint answers in English; its code is what the console localizes. */
+    function localizedPrewarmError(error: unknown) {
+        const code = (error as { code?: string } | null)?.code ?? ''
+        const message = error instanceof Error ? error.message : ''
+        if (code === 'Prewarm Queue Full' || /prewarm queue is full/i.test(message)) {
+            return t('appStorePage.install.prewarm.queueFull')
+        }
+        if (code === 'Invalid Prewarm Request' || /application name and version are required/i.test(message)) {
+            return t('appStorePage.install.prewarm.invalidRequest')
+        }
+        return message || t('appStorePage.install.prewarm.enqueueFailed')
     }
 
     function handleCloseModal() {
@@ -3449,7 +3669,6 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         <AppScreenshot
                                             alt={selectedApp.trademark ?? selectedApp.key ?? t('appStorePage.card.imageFallbackAlt')}
                                             app={selectedApp}
-                                            locale={i18n.resolvedLanguage ?? i18n.language ?? 'en'}
                                         />
 
                                         <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 0.5, pb: 2.25 }}>
@@ -3645,29 +3864,19 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                         setInstallError(null)
                                                         setSelectedVersion(event.target.value)
                                                     }}
-                                                    helperText={selectedVersion.toLowerCase() === 'latest' ? (
-                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                            <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
-                                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
-                                                            </SvgIcon>
-                                                            {t('appStorePage.install.latestVersionWarning')}
-                                                        </Box>
-                                                    ) : undefined}
-                                                    sx={{
-                                                        ...installDialogFieldSx,
-                                                        '& .MuiSelect-select': {
-                                                            ...appStoreControlTextSx,
-                                                            color: palette.text,
-                                                        },
-                                                        ...(selectedVersion.toLowerCase() === 'latest' ? {
-                                                            '& .MuiFormHelperText-root': {
-                                                                color: palette.warning,
-                                                            },
-                                                        } : {}),
-                                                    }}
+                                                    sx={versionFieldSx}
                                                     slotProps={{
                                                         select: {
                                                             MenuProps: installDialogSelectMenuProps,
+                                                            renderValue: (value) => (
+                                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                                    <span>{String(value)}</span>
+                                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+                                                                        {prewarmStatusNode}
+                                                                        {prewarmLinkNode}
+                                                                    </Box>
+                                                                </Box>
+                                                            ),
                                                         },
                                                     }}
                                                 >
@@ -3681,22 +3890,20 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                 <TextField
                                                     fullWidth
                                                     size="small"
-                                                    value={availableVersions[0] ?? selectedVersion}
-                                                    helperText={(availableVersions[0] ?? selectedVersion).toLowerCase() === 'latest' ? (
-                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                            <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
-                                                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
-                                                            </SvgIcon>
-                                                            {t('appStorePage.install.latestVersionWarning')}
-                                                        </Box>
-                                                    ) : undefined}
+                                                    value={effectiveVersionLabel}
                                                     slotProps={{
                                                         input: {
                                                             readOnly: true,
+                                                            endAdornment: prewarmStatusNode || prewarmLinkNode ? (
+                                                                <InputAdornment position="end" sx={{ gap: 1 }}>
+                                                                    {prewarmStatusNode}
+                                                                    {prewarmLinkNode}
+                                                                </InputAdornment>
+                                                            ) : undefined,
                                                         },
                                                     }}
                                                     sx={{
-                                                        ...installDialogFieldSx,
+                                                        ...versionFieldSx,
                                                         '& .MuiOutlinedInput-root': {
                                                             ...installDialogFieldSx['& .MuiOutlinedInput-root'],
                                                             backgroundColor: palette.panelSoft,
@@ -3706,14 +3913,17 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                                             color: palette.text,
                                                             WebkitTextFillColor: palette.text,
                                                         },
-                                                        ...((availableVersions[0] ?? selectedVersion).toLowerCase() === 'latest' ? {
-                                                            '& .MuiFormHelperText-root': {
-                                                                color: palette.warning,
-                                                            },
-                                                        } : {}),
                                                     }}
                                                 />
                                             )}
+                                            {showLatestVersionWarning ? (
+                                                <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75, fontSize: 12, color: palette.warning }}>
+                                                    <SvgIcon viewBox="0 0 24 24" sx={{ fontSize: 15, color: palette.warning }}>
+                                                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                                                    </SvgIcon>
+                                                    {t('appStorePage.install.latestVersionWarning')}
+                                                </Box>
+                                            ) : null}
                                         </Box>
 
                                         {portRangeExhausted ? (
@@ -4043,9 +4253,32 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                         {t('appStorePage.actions.install')}
                                     </Button>
                                 ) : (
-                                    <Button disabled={isSubmittingInstall} onClick={() => void handleInstallSubmit()} variant="contained" sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}>
-                                        {isSubmittingInstall ? t('appStorePage.install.submitting') : t('appStorePage.actions.install')}
-                                    </Button>
+                                    <>
+                                        {!isPrewarmReady && !isPrewarmActive ? (
+                                            <Button
+                                                disabled={isSubmittingPrewarm}
+                                                onClick={() => void handleImagePrewarm()}
+                                                variant="outlined"
+                                                sx={{ minWidth: 112, borderRadius: 0, boxShadow: 'none' }}
+                                            >
+                                                {isSubmittingPrewarm ? t('appStorePage.install.prewarm.submitting') : t('appStorePage.install.prewarm.action')}
+                                            </Button>
+                                        ) : null}
+                                        <Button
+                                            disabled={isSubmittingInstall}
+                                            onClick={() => {
+                                                if (isPrewarmActive) {
+                                                    setInstallConfirmOpen(true)
+                                                    return
+                                                }
+                                                void handleInstallSubmit()
+                                            }}
+                                            variant="contained"
+                                            sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}
+                                        >
+                                            {isSubmittingInstall ? t('appStorePage.install.submitting') : t('appStorePage.actions.install')}
+                                        </Button>
+                                    </>
                                 )}
                             </DialogActions>
                         </>
@@ -4146,6 +4379,64 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                             sx={{ minWidth: 92, borderRadius: 0, textTransform: 'none', boxShadow: 'none' }}
                         >
                             {t('appStorePage.actions.confirmRefresh')}
+                        </Button>
+                    </DialogActions>
+                </AppStoreScopedOverlay>
+
+                <AppStoreScopedOverlay
+                    open={installConfirmOpen}
+                    scopeRect={contentViewportRect}
+                    onClose={() => setInstallConfirmOpen(false)}
+                    maxWidth={460}
+                    verticalPlacement="top"
+                    darkMode={isDarkMode}
+                >
+                    <DialogTitle sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, flexShrink: 0, backgroundColor: palette.dialogBg }}>
+                        <Typography sx={{ fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: palette.text }}>
+                            {t('appStorePage.install.prewarm.installConfirmTitle')}
+                        </Typography>
+                    </DialogTitle>
+                    <DialogContent
+                        dividers
+                        sx={{
+                            px: { xs: 2, md: 2.5 },
+                            py: 2,
+                            backgroundColor: palette.dialogBg,
+                            '&.MuiDialogContent-dividers': {
+                                borderTopColor: palette.border,
+                                borderBottomColor: palette.border,
+                            },
+                        }}
+                    >
+                        <Typography sx={{ fontSize: 14, color: palette.subtleText, lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                            {t('appStorePage.install.prewarm.installConfirmMessage')}
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${palette.border}`, backgroundColor: palette.dialogBg }}>
+                        <Button
+                            color="inherit"
+                            onClick={() => setInstallConfirmOpen(false)}
+                            variant="contained"
+                            sx={{
+                                minWidth: 68,
+                                backgroundColor: palette.actionBg,
+                                color: palette.subtleText,
+                                borderRadius: 0,
+                                boxShadow: 'none',
+                                '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none', color: palette.text },
+                            }}
+                        >
+                            {t('appStorePage.actions.cancel')}
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={() => {
+                                setInstallConfirmOpen(false)
+                                void handleInstallSubmit()
+                            }}
+                            sx={{ minWidth: 92, borderRadius: 0, textTransform: 'none', boxShadow: 'none' }}
+                        >
+                            {t('appStorePage.install.prewarm.installConfirmProceed')}
                         </Button>
                     </DialogActions>
                 </AppStoreScopedOverlay>

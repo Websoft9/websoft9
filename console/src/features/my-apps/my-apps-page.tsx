@@ -30,8 +30,8 @@ import './my-apps-page.css'
 // =====================
 // Types
 // =====================
-type StatusFilter = 'all' | '1' | '2' | '3' | '4'
-type RemoveType = 'inactive' | 'error'
+type StatusFilter = 'all' | '1' | '2' | '3' | '4' | '6'
+type RemoveType = 'inactive' | 'error' | 'cancelled'
 type ActionFeedback = {
     severity: 'success' | 'warning' | 'info'
     message: string
@@ -50,6 +50,7 @@ function getStatusLabel(status: number): string {
         case 2: return 'Inactive'
         case 3: return 'Installing'
         case 4: return 'Error'
+        case 6: return 'Cancelled'
         default: return 'Unknown'
     }
 }
@@ -60,6 +61,7 @@ function getStatusBadgeClass(status: number): string {
         case 2: return 'is-inactive'
         case 3: return 'is-installing'
         case 4: return 'is-error'
+        case 6: return 'is-error'
         default: return 'is-unknown'
     }
 }
@@ -239,17 +241,20 @@ function splitApplicationError(error: string): { conclusion: string; details: st
 function LogDialog({
     app,
     onClose,
+    onCancelInstall,
     darkMode,
     scopeRect,
 }: {
     app: MyApp | null
     onClose: () => void
+    onCancelInstall: (appId: string) => Promise<void>
     darkMode: boolean
     scopeRect: ContentScopeRect | null
 }) {
     const { t } = useTranslation('shell')
     const isError = Boolean(app?.error)
     const isInstalling = app?.status === 3
+    const canCancelInstall = isInstalling && app?.phase === 'pulling' && !app.cancel_requested
     const stages = app?.logs ?? []
     const hasLogs = stages.some((stage) => stage.sub_logs && stage.sub_logs.length > 0)
     const { conclusion: errorConclusion, details: errorDetailLines } = splitApplicationError(app?.error ?? '')
@@ -502,6 +507,11 @@ function LogDialog({
                 <Button color="inherit" onClick={onClose} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>
                     {t('myAppsPage.dialog.close')}
                 </Button>
+                {canCancelInstall ? (
+                    <Button color="warning" onClick={() => void onCancelInstall(app!.app_id)} variant="contained" sx={{ minWidth: 120, borderRadius: 0, boxShadow: 'none' }}>
+                        Cancel installation
+                    </Button>
+                ) : null}
                 {isError ? (
                     <Button
                         onClick={() => window.open('https://www.websoft9.com/ticket', '_blank')}
@@ -670,7 +680,7 @@ export function MyAppsPage() {
     )
 
     const statusCounts = useMemo(() => {
-        const counts: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0 }
+        const counts: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '6': 0 }
         for (const app of apps) {
             const key = String(app.status)
             if (key in counts) counts[key]++
@@ -708,7 +718,7 @@ export function MyAppsPage() {
                     backgroundScrollTop,
                 },
             })
-        } else if (app.status === 3 || app.status === 4) {
+        } else if (app.status === 3 || app.status === 4 || app.status === 6) {
             setLogDialogKey(app.tracking_id ?? app.app_id)
         }
     }
@@ -717,7 +727,7 @@ export function MyAppsPage() {
         if (!removeApp) return
         setActionBusy(true)
         try {
-            if (removeType === 'error') {
+            if (removeType === 'error' || removeType === 'cancelled') {
                 try {
                     await runDeleteRequest(`/api/apps/${encodeURIComponent(removeApp.app_id)}/error/remove`)
                 } catch {
@@ -733,6 +743,21 @@ export function MyAppsPage() {
             setFeedback({ severity: 'warning', message: err instanceof Error ? err.message : t('myAppsPage.dialog.actionFailed') })
         } finally {
             setActionBusy(false)
+        }
+    }
+
+    async function handleCancelInstall(appId: string) {
+        try {
+            const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/install/cancel`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { Accept: 'application/json' },
+            })
+            if (!response.ok) throw new Error(await parseJsonError(response, `Cancel failed: ${response.status}`))
+            setFeedback({ severity: 'info', message: 'Cancelling image pull...' })
+            await refetch()
+        } catch (err) {
+            setFeedback({ severity: 'warning', message: err instanceof Error ? err.message : 'Unable to cancel installation.' })
         }
     }
 
@@ -796,7 +821,7 @@ export function MyAppsPage() {
                         </Tooltip>
                     </>
                 )
-            } else if (app.status === 4) {
+            } else if (app.status === 4 || app.status === 6) {
                 actionsNode = (
                     <>
                         <Tooltip title={t('myAppsPage.card.openError', { defaultValue: 'Error Info' })}>
@@ -818,7 +843,7 @@ export function MyAppsPage() {
                                 onClick={(event) => {
                                     event.stopPropagation()
                                     setRemoveApp(app)
-                                    setRemoveType('error')
+                                    setRemoveType(app.status === 6 ? 'cancelled' : 'error')
                                 }}
                             >
                                 <IconTrash />
@@ -1012,6 +1037,7 @@ export function MyAppsPage() {
                         <option value="2">Inactive ({statusCounts['2']})</option>
                         <option value="3">Installing ({statusCounts['3']})</option>
                         <option value="4">Error ({statusCounts['4']})</option>
+                        <option value="6">Cancelled ({statusCounts['6']})</option>
                     </select>
                 </div>
                 <div className="myapps-toolbar-search">
@@ -1135,6 +1161,7 @@ export function MyAppsPage() {
             <LogDialog
                 app={logDialogApp}
                 onClose={() => setLogDialogKey(null)}
+                onCancelInstall={handleCancelInstall}
                 darkMode={isDarkMode}
                 scopeRect={contentScopeRect}
             />

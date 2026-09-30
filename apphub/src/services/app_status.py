@@ -15,7 +15,7 @@ from src.core.logger import logger, set_tracking_context
 MAX_SUB_LOGS = 30
 
 # Increment this when adding a new migration to _run_migrations().
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 def _utc_now() -> str:
@@ -119,6 +119,14 @@ class InstallStateStore:
             self._migrate_to_v1(connection)
             connection.execute("DELETE FROM schema_version")
             connection.execute("INSERT INTO schema_version (version) VALUES (1)")
+
+        if current < 2:
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(install_tasks)").fetchall()}
+            if "phase" not in columns:
+                connection.execute("ALTER TABLE install_tasks ADD COLUMN phase TEXT")
+            if "cancel_requested" not in columns:
+                connection.execute("ALTER TABLE install_tasks ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0")
+            connection.execute("UPDATE schema_version SET version = 2")
 
         # Future migrations — always preserve data using rename→create→copy→drop:
         # if current < 2:
@@ -339,6 +347,45 @@ class InstallStateStore:
             )
             connection.commit()
 
+    def set_phase(self, tracking_id: str, phase: str) -> None:
+        with self._lock, self._db_connect() as connection:
+            connection.execute("UPDATE install_tasks SET phase = ?, updated_at = ? WHERE tracking_id = ? AND status = 3", (phase, _utc_now(), tracking_id))
+            connection.commit()
+
+    def request_cancel(self, app_id: str) -> str | None:
+        with self._lock, self._db_connect() as connection:
+            row = connection.execute(
+                "SELECT tracking_id FROM install_tasks WHERE app_id = ? AND status = 3 AND phase = 'pulling' ORDER BY created_at DESC LIMIT 1",
+                (app_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            changed = connection.execute(
+                "UPDATE install_tasks SET cancel_requested = 1, updated_at = ? WHERE tracking_id = ? AND status = 3 AND phase = 'pulling'",
+                (_utc_now(), row["tracking_id"]),
+            )
+            connection.commit()
+            return str(row["tracking_id"]) if changed.rowcount == 1 else None
+
+    def is_cancel_requested(self, tracking_id: str) -> bool:
+        with self._lock, self._db_connect() as connection:
+            row = connection.execute("SELECT cancel_requested FROM install_tasks WHERE tracking_id = ?", (tracking_id,)).fetchone()
+            return bool(row and row["cancel_requested"])
+
+    def begin_deploy(self, tracking_id: str) -> bool:
+        with self._lock, self._db_connect() as connection:
+            changed = connection.execute(
+                "UPDATE install_tasks SET phase = 'deploying', updated_at = ? WHERE tracking_id = ? AND status = 3 AND phase = 'pulling' AND cancel_requested = 0",
+                (_utc_now(), tracking_id),
+            )
+            connection.commit()
+            return changed.rowcount == 1
+
+    def mark_cancelled(self, tracking_id: str) -> None:
+        with self._lock, self._db_connect() as connection:
+            connection.execute("UPDATE install_tasks SET status = 6, phase = 'cancelled', error = NULL, updated_at = ? WHERE tracking_id = ?", (_utc_now(), tracking_id))
+            connection.commit()
+
     def delete_task(self, tracking_id: str) -> None:
         with self._lock, self._db_connect() as connection:
             connection.execute("DELETE FROM install_tasks WHERE tracking_id = ?", (tracking_id,))
@@ -425,6 +472,8 @@ class InstallStateStore:
             "logs": grouped_logs,
             "reserved_ports": reserved_ports,
             "error": row["error"],
+            "phase": row["phase"] if "phase" in row.keys() else None,
+            "cancel_requested": bool(row["cancel_requested"]) if "cancel_requested" in row.keys() else False,
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -505,6 +554,7 @@ class InstallStateCollection:
 _install_state_store = InstallStateStore()
 appInstalling = InstallStateCollection(_install_state_store, (3,))
 appInstallingError = InstallStateCollection(_install_state_store, (4,))
+appInstallingCancelled = InstallStateCollection(_install_state_store, (6,))
 
 
 def configure_install_state_store(data_dir: str | None = None) -> None:
@@ -540,7 +590,27 @@ def remove_app_from_errors(app_uuid):
 
 
 def remove_app_from_errors_by_app_id(app_id):
-    _install_state_store.delete_tasks_by_app_id(app_id, statuses=(4,))
+    _install_state_store.delete_tasks_by_app_id(app_id, statuses=(4, 6))
+
+
+def set_install_phase(app_uuid: str, phase: str) -> None:
+    _install_state_store.set_phase(app_uuid, phase)
+
+
+def request_install_cancel(app_id: str) -> str | None:
+    return _install_state_store.request_cancel(app_id)
+
+
+def install_cancel_requested(app_uuid: str) -> bool:
+    return _install_state_store.is_cancel_requested(app_uuid)
+
+
+def begin_install_deploy(app_uuid: str) -> bool:
+    return _install_state_store.begin_deploy(app_uuid)
+
+
+def mark_install_cancelled(app_uuid: str) -> None:
+    _install_state_store.mark_cancelled(app_uuid)
 
 
 def get_app_custom_fields(app_id: str) -> list[dict[str, Any]]:

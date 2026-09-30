@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import base64
+import fcntl
 import json
 import shlex
+import signal
 import sqlite3
 import subprocess
 import threading
@@ -48,6 +50,13 @@ SYSTEM_TASKS: tuple[dict[str, Any], ...] = (
         "schedule": "30 3 * * *",
         "command": f"{PLATFORM_CLI_PATH} check-update",
         "timeout_seconds": 900,
+    },
+    {
+        "task_id": "system:image-prewarm-dispatch",
+        "name": "Image prewarm dispatch",
+        "schedule": "* * * * *",
+        "command": f"{PLATFORM_CLI_PATH} images dispatch --skip-if-running",
+        "timeout_seconds": 300,
     },
 )
 
@@ -175,6 +184,7 @@ class ScheduledTaskService:
     def list_cached_tasks(self, session_token: Optional[str]) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
         self._ensure_storage()
+        self.reconcile_prewarm_state()
         operator_id = str(operator["id"])
         with self._lock:
             syncing_task_ids = self._background_syncing_task_ids.get(operator_id, set()).copy()
@@ -292,6 +302,13 @@ class ScheduledTaskService:
             "next_run_at": self._next_run(normalized["schedule"]),
             "created_at": now,
             "updated_at": now,
+            "category": None,
+            "subject_app": None,
+            "subject_version": None,
+            "queue_state": None,
+            "claimed_at": None,
+            "claimed_by": None,
+            "runner_pgid": None,
         }
         with self._lock:
             self._ensure_storage()
@@ -309,6 +326,298 @@ class ScheduledTaskService:
                     raise
             self._sync_or_mark_failed(session_token, task["task_id"])
         return self._public_task(self._get_task(operator["id"], task["task_id"]))
+
+    def enqueue_prewarm(self, session_token: Optional[str], app_name: str, version: str) -> dict[str, Any]:
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        app_name = str(app_name or "").strip()
+        version = str(version or "").strip()
+        if not app_name or not version:
+            raise CustomException(400, "Invalid Prewarm Request", "An application name and version are required")
+
+        now = self._now_iso()
+        task_id: str | None = None
+        created_or_requeued = False
+        with self._lock:
+            self._ensure_storage()
+            with self._db_connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ?",
+                    (str(operator["id"]), app_name, version),
+                ).fetchone()
+                if existing:
+                    task_id = str(existing["task_id"])
+                    # Every finished task can be re-queued. The console only offers the pull button
+                    # while the local images are missing, which is exactly what happens once a
+                    # previously successful pull has been removed from the machine, so treating
+                    # `success` as terminal here left the button doing nothing at all.
+                    if existing["queue_state"] not in {"queued", "running"}:
+                        connection.execute(
+                            "UPDATE scheduled_tasks SET queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, updated_at = ? WHERE task_id = ?",
+                            (now, task_id),
+                        )
+                        created_or_requeued = True
+                else:
+                    active_count = connection.execute(
+                        "SELECT COUNT(*) FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state IN ('queued', 'running')"
+                    ).fetchone()[0]
+                    if active_count >= 5:
+                        raise CustomException(409, "Prewarm Queue Full", "The image prewarm queue is full")
+                    task_id = str(uuid.uuid4())
+                    task_name = f"Prewarm images {app_name} {version}"[:64]
+                    command = f"{PLATFORM_CLI_PATH} images prewarm --app {shlex.quote(app_name)} --version {shlex.quote(version)}"
+                    connection.execute(
+                        """
+                        INSERT INTO scheduled_tasks (
+                            task_id, operator_id, name, target, profile_id, schedule, timezone, command, execution_mode, script_path, script_name,
+                            timeout_seconds, retry_count, enabled, last_run_at, last_status, sync_status, next_run_at, created_at, updated_at, origin,
+                            category, subject_app, subject_version, queue_state, claimed_at, claimed_by, runner_pgid
+                        ) VALUES (?, ?, ?, 'container', NULL, '@once', ?, ?, 'command', NULL, NULL, 7200, 0, 1, NULL, 'never', 'synced', NULL, ?, ?, 'user',
+                                  'prewarm', ?, ?, 'queued', NULL, NULL, NULL)
+                        """,
+                        (task_id, str(operator["id"]), task_name, self._platform_timezone(), command, now, now, app_name, version),
+                    )
+                    created_or_requeued = True
+                connection.commit()
+
+            task = self._get_task(str(operator["id"]), task_id)
+            if created_or_requeued:
+                self._write_runner(task)
+        return self._public_task(self._get_task(str(operator["id"]), task_id))
+
+    def get_prewarm_task(self, session_token: Optional[str], app_name: str, version: str) -> Optional[dict[str, Any]]:
+        """Return this operator's prewarm record for one app version, if it exists."""
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        self._ensure_storage()
+        self.reconcile_prewarm_state()
+        with self._db_connect() as connection:
+            task = connection.execute(
+                "SELECT * FROM scheduled_tasks WHERE operator_id = ? AND category = 'prewarm' AND subject_app = ? AND subject_version = ?",
+                (str(operator["id"]), str(app_name or "").strip(), str(version or "").strip()),
+            ).fetchone()
+        return self._public_task(task) if task else None
+
+    def _reconcile_running_prewarm(self, connection) -> Optional[sqlite3.Row]:
+        """Finalize the running prewarm task once its runner is done, returning it while it lives."""
+        instance_id = self._prewarm_instance_id()
+        running = connection.execute(
+            "SELECT * FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state = 'running' ORDER BY claimed_at ASC LIMIT 1"
+        ).fetchone()
+        if running and running["claimed_by"] and running["claimed_by"] != instance_id:
+            connection.execute(
+                "UPDATE scheduled_tasks SET queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, updated_at = ? WHERE task_id = ? AND queue_state = 'running'",
+                (self._now_iso(), running["task_id"]),
+            )
+            connection.commit()
+            running = None
+        if not running:
+            return None
+        state = self._read_state(str(running["task_id"]))
+        state_status = state.get("status")
+        if state_status in {"success", "failed", "skipped"}:
+            queue_state = state_status if state_status != "skipped" else "queued"
+            connection.execute(
+                "UPDATE scheduled_tasks SET queue_state = ?, runner_pgid = NULL, updated_at = ? WHERE task_id = ? AND queue_state = 'running'",
+                (queue_state, self._now_iso(), running["task_id"]),
+            )
+            connection.commit()
+            return None
+        if not self._prewarm_runner_alive(running["runner_pgid"]):
+            queue_state = "failed" if state_status == "running" else "queued"
+            connection.execute(
+                "UPDATE scheduled_tasks SET queue_state = ?, claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, updated_at = ? WHERE task_id = ? AND queue_state = 'running'",
+                (queue_state, self._now_iso(), running["task_id"]),
+            )
+            connection.commit()
+            return None
+        return running
+
+    def reconcile_prewarm_state(self) -> None:
+        """Bring prewarm states up to date without starting anything.
+
+        The dispatcher only runs once a minute, so a task whose runner had already finished kept
+        reporting \"running\" for up to a minute after its pull ended -- the console showed a pull in
+        progress while the run history already said it succeeded. Read paths call this so the two
+        never disagree for longer than a request.
+        """
+        self._ensure_storage()
+        with self._db_connect() as connection:
+            self._reconcile_running_prewarm(connection)
+
+    def dispatch_prewarm(self) -> dict[str, Any]:
+        """Reconcile one completed prewarm task, then start at most one queued task."""
+        self._ensure_storage()
+        self._states_dir().mkdir(parents=True, exist_ok=True)
+        instance_id = self._prewarm_instance_id()
+        lock_path = self._states_dir() / "prewarm-dispatch.lock"
+        with lock_path.open("w", encoding="utf-8") as lock_file:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return {"status": "skipped"}
+
+            with self._db_connect() as connection:
+                running = self._reconcile_running_prewarm(connection)
+                if running:
+                    return {"status": "running", "task_id": running["task_id"]}
+
+                queued = connection.execute(
+                    "SELECT * FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state = 'queued' ORDER BY created_at ASC LIMIT 1"
+                ).fetchone()
+                if not queued:
+                    return {"status": "idle"}
+                claimed_at = self._now_iso()
+                claimed = connection.execute(
+                    "UPDATE scheduled_tasks SET queue_state = 'running', claimed_at = ?, claimed_by = ?, updated_at = ? WHERE task_id = ? AND queue_state = 'queued'",
+                    (claimed_at, instance_id, claimed_at, queued["task_id"]),
+                )
+                if claimed.rowcount != 1:
+                    connection.commit()
+                    return {"status": "skipped"}
+                connection.commit()
+
+            runner = self._runner_path(str(queued["task_id"]))
+            try:
+                process = subprocess.Popen([str(runner), "manual"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            except OSError as exc:
+                self._write_task(str(queued["task_id"]), queue_state="failed", runner_pgid=None, updated_at=self._now_iso())
+                raise CustomException(500, "Image Prewarm Dispatch Failed", f"Unable to start the prewarm runner: {exc}") from exc
+            self._write_task(str(queued["task_id"]), runner_pgid=process.pid)
+            return {"status": "started", "task_id": queued["task_id"]}
+
+    def cancel_prewarm(self, session_token: Optional[str], task_id: str) -> None:
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        with self._lock:
+            task = self._get_task(str(operator["id"]), task_id)
+            if str(task["category"] or "") != "prewarm":
+                raise CustomException(404, "Prewarm Task Not Found", "The requested task is not an image prewarm task")
+            if task["queue_state"] in {"success", "failed", "cancelled"}:
+                return
+            pgid = task["runner_pgid"]
+            self._write_task(task_id, queue_state="cancelled", last_status="cancelled", runner_pgid=None, updated_at=self._now_iso())
+        if pgid:
+            if not self._terminate_prewarm_run(pgid):
+                logger.warning(f"Prewarm task {task_id} still has processes after cancel: {pgid}")
+        # The killed runner never writes a result of its own, so its run is closed here. Without this
+        # the history kept reporting "running" for a pull the operator had already cancelled.
+        with self._db_connect() as connection:
+            running_runs = connection.execute(
+                "SELECT run_id, log_path FROM scheduled_task_runs WHERE task_id = ? AND status = 'running'",
+                (task_id,),
+            ).fetchall()
+            connection.execute(
+                "UPDATE scheduled_task_runs SET status = 'cancelled', finished_at = ? WHERE task_id = ? AND status = 'running'",
+                (self._now_iso(), task_id),
+            )
+            connection.commit()
+        log_paths = [run["log_path"] for run in running_runs]
+        if not log_paths:
+            # The run index is built lazily from the run files, so a pull cancelled before anyone
+            # opened its history has no row yet. The state file knows which run is live.
+            run_id = str(self._read_state(task_id).get("run_id") or "")
+            if run_id:
+                log_paths.append(str(self._task_logs_dir(task_id) / f"{run_id}.log"))
+        for log_path in log_paths:
+            self._append_cancel_marker(log_path)
+
+    def _append_cancel_marker(self, log_path: object) -> None:
+        """Close a cancelled run's log with a line that explains the early ending."""
+        if not log_path:
+            return
+        try:
+            path = Path(str(log_path))
+            if not path.exists():
+                return
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{self._now_iso()}] CANCELLED by operator\n")
+        except OSError as exc:
+            logger.warning(f"Unable to annotate cancelled prewarm log {log_path}: {exc}")
+
+    @staticmethod
+    def _prewarm_session_pids(session_id: object) -> list[int]:
+        """Return every process of one prewarm run.
+
+        Signalling the runner's process group is not enough: the runner wraps the pull in
+        `timeout`, and `timeout` puts the command in a **new** process group (measured: runner
+        pgid 40666 while `timeout` and the CLI sat in pgid 40675 of the same session). Killing the
+        group therefore left the real download alive, still appending progress lines to the run
+        log, so cancelling looked like it did nothing. The runner is started with
+        `start_new_session=True`, so its pid is also the session id of the whole run.
+        """
+        try:
+            wanted = int(session_id)
+        except (TypeError, ValueError):
+            return []
+        pids: list[int] = []
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                raw = (entry / "stat").read_text(encoding="utf-8")
+            except OSError:
+                continue
+            # `comm` may contain spaces and brackets, so fields are read after the last ')'.
+            fields = raw[raw.rfind(")") + 2 :].split()
+            # fields = state, ppid, pgrp, session, ...; a zombie has already exited and only waits
+            # to be reaped, so it must not count as a running prewarm.
+            if len(fields) >= 4 and fields[3] == str(wanted) and fields[0] != "Z":
+                pids.append(int(entry.name))
+        return pids
+
+    def _terminate_prewarm_run(self, pgid: object) -> bool:
+        """Stop a whole prewarm run, escalating from SIGTERM to SIGKILL. True when nothing is left."""
+        try:
+            leader = int(pgid)
+        except (TypeError, ValueError):
+            return True
+        mine = os.getpid()
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(leader, sig)
+            except ProcessLookupError:
+                pass
+            except OSError as exc:
+                logger.warning(f"Unable to signal prewarm process group {leader}: {exc}")
+            for pid in self._prewarm_session_pids(leader):
+                if pid == mine:
+                    continue
+                try:
+                    os.kill(pid, sig)
+                except ProcessLookupError:
+                    pass
+                except OSError as exc:
+                    logger.warning(f"Unable to signal prewarm process {pid}: {exc}")
+            for _ in range(20):
+                if not self._prewarm_session_pids(leader):
+                    return True
+                time.sleep(0.1)
+        return not self._prewarm_session_pids(leader)
+
+    def retry_prewarm(self, session_token: Optional[str], task_id: str) -> dict[str, Any]:
+        """Re-queue a failed or cancelled prewarm so its pull can be attempted again.
+
+        Retrying reuses the same task record rather than creating a new one, so the run history keeps
+        both attempts together. Layers already downloaded stay in the local store, which makes a retry
+        a continuation rather than a fresh download.
+        """
+        operator = self.auth_service._require_authenticated_operator(session_token)
+        with self._lock:
+            task = self._get_task(str(operator["id"]), task_id)
+            if str(task["category"] or "") != "prewarm":
+                raise CustomException(404, "Prewarm Task Not Found", "The requested task is not an image prewarm task")
+            if task["queue_state"] not in {"failed", "cancelled"}:
+                raise CustomException(409, "Prewarm Not Retryable", "Only a failed or cancelled image prewarm can be retried")
+            self._write_task(
+                task_id,
+                queue_state="queued",
+                claimed_at=None,
+                claimed_by=None,
+                runner_pgid=None,
+                updated_at=self._now_iso(),
+            )
+        self.dispatch_prewarm()
+        return self._public_task(self._get_task(str(operator["id"]), task_id))
 
     def update_task(self, session_token: Optional[str], task_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
@@ -376,7 +685,11 @@ class ScheduledTaskService:
         operator = self.auth_service._require_authenticated_operator(session_token)
         with self._lock:
             task = self._get_task(operator["id"], task_id)
-            self._require_mutable(task)
+            if str(task["category"] or "") == "prewarm":
+                if task["queue_state"] in {"queued", "running"}:
+                    raise CustomException(409, "Prewarm Task Running", "Cancel the image prewarm before deleting it")
+            else:
+                self._require_mutable(task)
             if task["target"] == "host":
                 try:
                     self._sync_host_tasks(session_token, task["profile_id"], exclude_task_id=task_id)
@@ -430,7 +743,16 @@ class ScheduledTaskService:
 
     def list_runs(self, session_token: Optional[str], task_id: str, offset: int = 0, limit: int = 20) -> dict[str, Any]:
         operator = self.auth_service._require_authenticated_operator(session_token)
-        self._get_task(operator["id"], task_id)
+        task = self._get_task(operator["id"], task_id)
+        # Read the runner's own records first: without this a run that just finished would still be
+        # reported as `running` until the next background sync, which made the run history lag behind
+        # the log the operator is reading. Remote tasks are skipped -- they cost an SSH round trip and
+        # their sync is handled in the background.
+        if task["target"] == "container":
+            try:
+                self._sync_task_runs(session_token, task)
+            except Exception:
+                pass
         bounded_offset = max(0, offset)
         bounded_limit = max(1, min(100, limit))
         with self._db_connect() as connection:
@@ -468,7 +790,7 @@ class ScheduledTaskService:
         except OSError:
             return b""
 
-    def _normalize_payload(self, payload: dict[str, Any], require_upload_content: bool = False) -> dict[str, Any]:
+    def _normalize_payload(self, payload: dict[str, Any], require_upload_content: bool = False, allow_once: bool = False) -> dict[str, Any]:
         target = str(payload.get("target") or "container")
         profile_id = str(payload.get("profile_id") or "").strip() or None
         if target not in {"container", "host"}:
@@ -504,12 +826,16 @@ class ScheduledTaskService:
             raise CustomException(400, "Invalid Scheduled Task", "Timeout must be between 0 and 86400 seconds")
         if retry_count < 0 or retry_count > 10:
             raise CustomException(400, "Invalid Scheduled Task", "Retry count must be between 0 and 10")
-        if len(schedule.split()) != 5 or "\n" in schedule:
+        if schedule == "@once":
+            if not allow_once or target != "container":
+                raise CustomException(400, "Invalid Schedule", "One-time schedules are reserved for internal container tasks")
+        elif len(schedule.split()) != 5 or "\n" in schedule:
             raise CustomException(400, "Invalid Schedule", "Schedule must be a five-field cron expression")
-        try:
-            croniter(schedule, datetime.now())
-        except (TypeError, ValueError) as exc:
-            raise CustomException(400, "Invalid Schedule", "Schedule must be a valid five-field cron expression") from exc
+        else:
+            try:
+                croniter(schedule, datetime.now())
+            except (TypeError, ValueError) as exc:
+                raise CustomException(400, "Invalid Schedule", "Schedule must be a valid five-field cron expression") from exc
         return {"name": name, "target": target, "profile_id": profile_id, "command": command if execution_mode == "command" else "", "execution_mode": execution_mode, "script_path": script_path if execution_mode == "path" else None, "script_name": script_name if execution_mode == "upload" else None, "script_content": script_content if execution_mode == "upload" else None, "timeout_seconds": timeout_seconds, "retry_count": retry_count, "schedule": schedule, "enabled": bool(payload.get("enabled", True))}
 
     def _host_capability_or_none(self, session_token: Optional[str], payload: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -548,7 +874,7 @@ class ScheduledTaskService:
 
     def _sync(self) -> None:
         self._ensure_storage()
-        self._sync_tasks([task for task in self._list_enabled_tasks() if task["target"] == "container"])
+        self._sync_tasks([task for task in self._list_enabled_tasks() if task["target"] == "container" and task["schedule"] != "@once"])
 
     def _refresh_container_task_timezones(self) -> None:
         self._ensure_storage()
@@ -582,7 +908,7 @@ class ScheduledTaskService:
             rows = connection.execute(
                 "SELECT * FROM scheduled_tasks WHERE target = 'host' AND profile_id = ? AND enabled = 1 ORDER BY created_at ASC", (profile_id,)
             ).fetchall()
-        return [task for task in rows if task["task_id"] != exclude_task_id]
+        return [task for task in rows if task["task_id"] != exclude_task_id and task["schedule"] != "@once"]
 
     def _remote_home(self, client: Any) -> str:
         home = self._remote_output(client, "printf '%s' \"$HOME\"").strip()
@@ -725,13 +1051,50 @@ class ScheduledTaskService:
     def _sync_task_runs(self, session_token: Optional[str], task: sqlite3.Row) -> None:
         records = self._read_host_runs(session_token, task) if task["target"] == "host" else self._read_local_runs(task["task_id"])
         self._sync_task_run_records(task, records)
+        if task["target"] == "container":
+            self._finalize_interrupted_runs(task)
+
+    def _finalize_interrupted_runs(self, task: sqlite3.Row) -> None:
+        """Close runs that were killed before they could report a result.
+
+        A run is recorded as `running` when it starts and rewritten when it ends. The local runner
+        holds the current run id, so any other run still marked `running` was interrupted (task
+        cancelled, container restarted) and would otherwise stay `running` in the history forever,
+        even after a later run of the same task had already succeeded.
+        """
+        current_run_id = str(self._read_state(str(task["task_id"])).get("run_id") or "")
+        # An interrupted run of a cancelled task is a cancellation, not a failure.
+        final_status = "cancelled" if str(task["queue_state"] or "") == "cancelled" else "failed"
+        statement = (
+            "UPDATE scheduled_task_runs SET status = ?, finished_at = COALESCE(NULLIF(finished_at, ''), ?) "
+            "WHERE task_id = ? AND status = 'running'"
+        )
+        parameters: list[Any] = [final_status, self._now_iso(), task["task_id"]]
+        if final_status != "cancelled":
+            # A live runner owns the run recorded in its state file; other runs were interrupted.
+            statement += " AND run_id != ?"
+            parameters.append(current_run_id)
+        with self._db_connect() as connection:
+            connection.execute(statement, parameters)
+            connection.commit()
 
     def _sync_task_run_records(self, task: sqlite3.Row, records: list[dict[str, Any]]) -> None:
         if not records:
             return
+        # The runner writes "running" when a run starts and rewrites it when the run ends. A run that
+        # was closed from the platform side (a cancelled pull, a container restart) therefore came
+        # back to life on the next read, so a cancelled prewarm kept showing "running" forever.
+        terminal = {"success", "failed", "skipped", "cancelled"}
         with self._db_connect() as connection:
+            stored = {
+                row["run_id"]: row["status"]
+                for row in connection.execute("SELECT run_id, status FROM scheduled_task_runs WHERE task_id = ?", (task["task_id"],))
+            }
             for record in records:
                 if record.get("task_id") != task["task_id"] or not record.get("run_id"):
+                    continue
+                incoming = record.get("status", "running")
+                if incoming == "running" and stored.get(record["run_id"]) in terminal:
                     continue
                 connection.execute(
                     "INSERT INTO scheduled_task_runs (run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(run_id) DO UPDATE SET finished_at = excluded.finished_at, status = excluded.status, exit_code = excluded.exit_code, log_path = excluded.log_path",
@@ -810,6 +1173,12 @@ class ScheduledTaskService:
             return 0
 
     @staticmethod
+    def _is_cron_schedule(schedule: Any) -> bool:
+        """Only five-field cron expressions may reach the system crontab."""
+        value = str(schedule or "").strip()
+        return bool(value) and not value.startswith("@") and len(value.split()) == 5
+
+    @staticmethod
     def _host_paths(home: str, task_id: str) -> dict[str, str]:
         root = f"{home}/.local/state/websoft9/scheduled-tasks"
         return {"scripts_dir": f"{root}/scripts", "logs_dir": f"{root}/logs", "runs_root": f"{root}/runs", "states_dir": f"{root}/state", "uploads_dir": f"{root}/uploads", "runner": f"{root}/scripts/{task_id}.sh", "upload": f"{root}/uploads/{task_id}.sh", "logs_task_dir": f"{root}/logs/{task_id}", "runs_dir": f"{root}/runs/{task_id}", "state": f"{root}/state/{task_id}.state", "lock": f"{root}/state/{task_id}.lock"}
@@ -874,6 +1243,11 @@ class ScheduledTaskService:
         previous_mode = self.cron_file.stat().st_mode if self.cron_file.exists() else None
         lines = ["SHELL=/bin/bash", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", ""]
         for task in tasks:
+            # `@once` marks a task this platform dispatches by hand, not a cron expression. Writing it
+            # produced an invalid line in /etc/cron.d, which made cron reject the entire file and
+            # silently stopped every scheduled task on the platform.
+            if not self._is_cron_schedule(task["schedule"]):
+                continue
             lines.append(f"{task['schedule']} root {self._runner_path(task['task_id'])}")
         rendered = ("\n".join(lines) + "\n").encode("utf-8")
         if previous_contents == rendered:
@@ -948,6 +1322,13 @@ class ScheduledTaskService:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     origin TEXT NOT NULL DEFAULT 'user',
+                    category TEXT,
+                    subject_app TEXT,
+                    subject_version TEXT,
+                    queue_state TEXT,
+                    claimed_at TEXT,
+                    claimed_by TEXT,
+                    runner_pgid INTEGER,
                     UNIQUE(operator_id, name)
                 )
                 """
@@ -968,9 +1349,10 @@ class ScheduledTaskService:
             )
             connection.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_task_runs_task_started ON scheduled_task_runs (task_id, started_at DESC)")
             columns = {row[1] for row in connection.execute("PRAGMA table_info(scheduled_tasks)")}
-            for name, definition in (("execution_mode", "TEXT NOT NULL DEFAULT 'command'"), ("script_path", "TEXT"), ("script_name", "TEXT"), ("timeout_seconds", "INTEGER NOT NULL DEFAULT 0"), ("retry_count", "INTEGER NOT NULL DEFAULT 0"), ("origin", "TEXT NOT NULL DEFAULT 'user'")):
+            for name, definition in (("execution_mode", "TEXT NOT NULL DEFAULT 'command'"), ("script_path", "TEXT"), ("script_name", "TEXT"), ("timeout_seconds", "INTEGER NOT NULL DEFAULT 0"), ("retry_count", "INTEGER NOT NULL DEFAULT 0"), ("origin", "TEXT NOT NULL DEFAULT 'user'"), ("category", "TEXT"), ("subject_app", "TEXT"), ("subject_version", "TEXT"), ("queue_state", "TEXT"), ("claimed_at", "TEXT"), ("claimed_by", "TEXT"), ("runner_pgid", "INTEGER")):
                 if name not in columns:
                     connection.execute(f"ALTER TABLE scheduled_tasks ADD COLUMN {name} {definition}")
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_prewarm ON scheduled_tasks(category, subject_app, subject_version, operator_id)")
             connection.commit()
         self._seed_system_tasks()
 
@@ -1025,10 +1407,12 @@ class ScheduledTaskService:
                 """
                 INSERT INTO scheduled_tasks (
                     task_id, operator_id, name, target, profile_id, schedule, timezone, command, execution_mode, script_path, script_name, timeout_seconds, retry_count, enabled,
-                    last_run_at, last_status, sync_status, next_run_at, created_at, updated_at
+                    last_run_at, last_status, sync_status, next_run_at, created_at, updated_at,
+                    category, subject_app, subject_version, queue_state, claimed_at, claimed_by, runner_pgid
                 ) VALUES (
                     :task_id, :operator_id, :name, :target, :profile_id, :schedule, :timezone, :command, :execution_mode, :script_path, :script_name, :timeout_seconds, :retry_count, :enabled,
-                    :last_run_at, :last_status, :sync_status, :next_run_at, :created_at, :updated_at
+                    :last_run_at, :last_status, :sync_status, :next_run_at, :created_at, :updated_at,
+                    :category, :subject_app, :subject_version, :queue_state, :claimed_at, :claimed_by, :runner_pgid
                 )
                 """,
                 task,
@@ -1068,6 +1452,12 @@ class ScheduledTaskService:
                 "Platform Task Read-only",
                 "Platform tasks are maintained by the product and cannot be edited, deleted, disabled or run manually",
             )
+        if str(task["category"] or "") == "prewarm":
+            raise CustomException(
+                403,
+                "Prewarm Task Managed",
+                "Image prewarm tasks must be managed through their dedicated controls",
+            )
 
     def _get_task_by_id(self, task_id: str) -> sqlite3.Row:
         self._ensure_storage()
@@ -1100,7 +1490,9 @@ class ScheduledTaskService:
                 "SELECT 1 FROM scheduled_tasks WHERE operator_id = ? AND name = ?", (operator_id, name)
             ).fetchone() is not None
 
-    def _next_run(self, schedule: str, timezone_name: Optional[str] = None) -> str:
+    def _next_run(self, schedule: str, timezone_name: Optional[str] = None) -> Optional[str]:
+        if schedule == "@once":
+            return None
         try:
             current_time = datetime.now(ZoneInfo(timezone_name or "UTC"))
         except (ZoneInfoNotFoundError, ValueError):
@@ -1146,6 +1538,32 @@ class ScheduledTaskService:
 
     def _states_dir(self) -> Path:
         return self.data_dir / "state"
+
+    @staticmethod
+    def _prewarm_instance_id() -> str:
+        path = Path(os.getenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", "/run/websoft9/prewarm-instance-id"))
+        try:
+            existing = path.read_text(encoding="utf-8").strip()
+            if existing:
+                return existing
+        except OSError:
+            pass
+        instance_id = str(uuid.uuid4())
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(instance_id, encoding="utf-8")
+        except OSError:
+            logger.warning("Unable to persist the prewarm dispatcher instance identifier")
+        return instance_id
+
+    @staticmethod
+    def _prewarm_runner_alive(pgid: object) -> bool:
+        """True while any process of the run is still running.
+
+        `os.killpg` alone would answer "alive" for the runner shell even after the pull it started
+        was killed, and also for a not yet reaped zombie, so liveness is read from the session.
+        """
+        return bool(ScheduledTaskService._prewarm_session_pids(pgid))
 
     def _runner_path(self, task_id: str) -> Path:
         return self._scripts_dir() / f"{task_id}.sh"
@@ -1197,6 +1615,8 @@ class ScheduledTaskService:
             "created_at": task["created_at"], "updated_at": task["updated_at"],
             "execution_path": self._execution_path(task),
             "origin": str(task["origin"] or "user"),
+            "category": task["category"], "subject_app": task["subject_app"], "subject_version": task["subject_version"],
+            "queue_state": task["queue_state"],
         }
 
     @staticmethod

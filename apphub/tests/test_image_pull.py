@@ -17,6 +17,7 @@ from src.services.image_pull import (
     ECR_PUBLIC_IMAGE_REPO,
     MAX_REASON_LENGTH,
     ImagePullError,
+    InstallCancelled,
     build_pull_plan,
     concise_reason,
     describe_pull_failure,
@@ -503,6 +504,32 @@ def test_progress_callback_receives_the_streamed_lines():
     )
 
     assert lines == [{"status": "pulling", "id": "other/image:1.0"}]
+
+
+def test_cancelled_progress_closes_stream_without_trying_fallback():
+    class Stream:
+        closed = False
+
+        def __iter__(self):
+            yield {"status": "pulling"}
+
+        def close(self):
+            self.closed = True
+
+    stream = Stream()
+    client = FakeClient({})
+    client.api.pull = lambda *_args, **_kwargs: stream
+    checks = 0
+
+    def is_cancelled():
+        nonlocal checks
+        checks += 1
+        return checks > 2
+
+    with pytest.raises(InstallCancelled):
+        pull_with_fallback(client, "wordpress:6.3", accelerators=["mirror.example.test"], on_progress=lambda _line: None, is_cancelled=is_cancelled)
+
+    assert stream.closed is True
 
 
 def test_require_local_image_resolves_the_tag_and_checks_the_digest():

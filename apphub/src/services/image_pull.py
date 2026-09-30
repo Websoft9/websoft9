@@ -52,6 +52,10 @@ class ImagePullError(Exception):
     """Raised when every pull strategy failed."""
 
 
+class InstallCancelled(Exception):
+    """Raised when an installation cancels its image pull."""
+
+
 # A daemon error is often a multi-line JSON blob, and these reasons are rendered in the install
 # error panel: each one is therefore collapsed to a single bounded line.
 MAX_REASON_LENGTH = 400
@@ -379,6 +383,7 @@ def pull_with_fallback(
     accelerators: "Sequence[str | Accelerator] | None" = None,
     use_ecr_public: bool = False,
     on_progress=None,
+    is_cancelled=None,
 ) -> PulledImage:
     """Pull `reference`, trying direct, optional ECR Public and accelerators in order.
 
@@ -397,7 +402,9 @@ def pull_with_fallback(
     )
 
     for attempt in plan:
-        image = _pull_checked(client, attempt, expected_version, failures, on_progress)
+        if is_cancelled is not None and is_cancelled():
+            raise InstallCancelled()
+        image = _pull_checked(client, attempt, expected_version, failures, on_progress, is_cancelled)
         if image is not None:
             return _pulled(client, reference, image, attempt.source)
 
@@ -470,8 +477,9 @@ def _pull_checked(
     expected_version: str,
     failures: list[PullFailure],
     on_progress=None,
+    is_cancelled=None,
 ):
-    image = _pull(client, attempt, failures, on_progress)
+    image = _pull(client, attempt, failures, on_progress, is_cancelled)
     if image is None or not expected_version:
         return image
     declared = read_image_version(client, attempt.reference)
@@ -498,20 +506,32 @@ def _pull(
     attempt: PullAttempt,
     failures: list[PullFailure],
     on_progress=None,
+    is_cancelled=None,
 ):
+    stream = None
     try:
+        if is_cancelled is not None and is_cancelled():
+            raise InstallCancelled()
         if on_progress is None:
             return client.images.pull(
                 attempt.reference, auth_config=attempt.auth_config
             )
-        for line in client.api.pull(
+        stream = client.api.pull(
             attempt.reference,
             stream=True,
             decode=True,
             auth_config=attempt.auth_config,
-        ):
+        )
+        for line in stream:
+            if is_cancelled is not None and is_cancelled():
+                raise InstallCancelled()
             on_progress(line)
         return client.images.get(attempt.reference)
+    except InstallCancelled:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
+        raise
     except Exception as exc:
         failure = PullFailure(
             label=attempt.label,
