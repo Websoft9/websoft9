@@ -6,13 +6,16 @@ import {
     CardContent,
     CircularProgress,
     IconButton,
+    Link,
     Switch,
     Tooltip,
     Typography,
 } from '@mui/material'
+import type { SxProps, Theme } from '@mui/material'
+import { Check, ChevronRight, CircleAlert, Copy, Download, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { useAppColorMode } from '../../app/providers/color-mode'
@@ -25,6 +28,7 @@ import { clearMyAppsDetailOverlayIntent, markMyAppsDetailOverlayIntent } from '.
 import { useMyApps, type MyApp } from './use-my-apps'
 import { fetchMyAppDetail } from './use-my-app-detail'
 import { LegacyMyAppLogo } from './my-app-media'
+import { buildInstallLogRows, getInstallError, getInstallExportText, getInstallSourceSummary, getInstallSteps } from './install-log-model'
 import './my-apps-page.css'
 
 // =====================
@@ -35,6 +39,7 @@ type RemoveType = 'inactive' | 'error' | 'cancelled'
 type ActionFeedback = {
     severity: 'success' | 'warning' | 'info'
     message: string
+    cancellingInstallKey?: string
 }
 
 type ContentScopeRect = {
@@ -61,7 +66,7 @@ function getStatusBadgeClass(status: number): string {
         case 2: return 'is-inactive'
         case 3: return 'is-installing'
         case 4: return 'is-error'
-        case 6: return 'is-error'
+        case 6: return 'is-cancelled'
         default: return 'is-unknown'
     }
 }
@@ -100,43 +105,6 @@ function IconTrash() {
             <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM7 9h2v8H7V9z" />
         </svg>
     )
-}
-
-function IconInfo() {
-    return (
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M11 10h2v7h-2v-7zm0-3h2v2h-2V7zm1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-        </svg>
-    )
-}
-
-// =====================
-// Log formatting
-// =====================
-function formatInstallLogLine(value: unknown): string {
-    if (typeof value === 'string') return value
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-    if (!value || typeof value !== 'object') return ''
-
-    const entry = value as {
-        status?: unknown
-        id?: unknown
-        message?: unknown
-        details?: unknown
-        progressDetail?: { current?: unknown; total?: unknown } | null
-    }
-
-    const parts: string[] = []
-    if (typeof entry.status === 'string') parts.push(entry.status)
-    if (typeof entry.message === 'string') parts.push(entry.message)
-    if (typeof entry.details === 'string') parts.push(entry.details)
-    if (typeof entry.id === 'string') parts.push(`#${entry.id}`)
-    if (entry.progressDetail && typeof entry.progressDetail === 'object') {
-        const nums = [entry.progressDetail.current, entry.progressDetail.total].filter((n) => typeof n === 'number')
-        if (nums.length > 0) parts.push(`(${nums.join('/')})`)
-    }
-    if (parts.length > 0) return parts.join(' ')
-    try { return JSON.stringify(value) } catch { return String(value) }
 }
 
 // =====================
@@ -218,52 +186,140 @@ async function runRedeployRequest(appId: string, pullImage: boolean) {
 // =====================
 // Log / Error Dialog
 // =====================
-// Max sub-log lines shown inside the active stage (tail view, no scroll)
-const MAX_STAGE_LOG_LINES = 24
-
-/** A failed pull lists its sources as `  - <label> [<reference>]: <reason>`. */
-const PULL_SOURCE_LINE = /^\s*-\s*(.+?)\s*\[(.+?)\]:\s*(.*)$/
-
-/**
- * Split an application error into its verdict and its supporting detail.
- *
- * The backend writes a multi-line explanation: the first line states what failed, the following
- * lines name every source that was tried together with the reason it gave. Keeping the verdict
- * apart is what makes the reason readable without having to read the list first.
- */
-function splitApplicationError(error: string): { conclusion: string; details: string[] } {
-    const lines = String(error ?? '').split('\n')
-    const conclusion = (lines.shift() ?? '').trim()
-    const details = lines.filter((line) => line.trim() !== '')
-    return { conclusion, details }
-}
+const MAX_INSTALL_LOG_LINES = 500
 
 function LogDialog({
     app,
     onClose,
     onCancelInstall,
+    onRemoveApp,
+    confirmationPlacementSx,
     darkMode,
     scopeRect,
 }: {
     app: MyApp | null
     onClose: () => void
     onCancelInstall: (appId: string) => Promise<void>
+    onRemoveApp: (app: MyApp) => void
+    confirmationPlacementSx: SxProps<Theme>
     darkMode: boolean
     scopeRect: ContentScopeRect | null
 }) {
-    const { t } = useTranslation('shell')
-    const isError = Boolean(app?.error)
+    const { t, i18n } = useTranslation('shell')
+    const supportUrl = (i18n.resolvedLanguage ?? i18n.language ?? 'en').toLowerCase().startsWith('zh')
+        ? 'https://support.websoft9.com/docs/helpdesk#contact'
+        : 'https://support.websoft9.com/en/docs/helpdesk#contact'
+    const followLogs = useRef(true)
+    const copyContainerRef = useRef<HTMLDivElement>(null)
+    const [copyMessage, setCopyMessage] = useState('')
+    const [isCancelling, setIsCancelling] = useState(false)
+    const cancelRequestInFlightRef = useRef(false)
+    const [cancelConfirmationAppId, setCancelConfirmationAppId] = useState<string | null>(null)
+    const isCancelled = app?.status === 6
+    const isError = !isCancelled && (Boolean(app?.error) || app?.status === 4)
     const isInstalling = app?.status === 3
     const canCancelInstall = isInstalling && app?.phase === 'pulling' && !app.cancel_requested
+    useEffect(() => {
+        setCancelConfirmationAppId(null)
+    }, [app?.app_id, app?.tracking_id, canCancelInstall])
     const stages = app?.logs ?? []
-    const hasLogs = stages.some((stage) => stage.sub_logs && stage.sub_logs.length > 0)
-    const { conclusion: errorConclusion, details: errorDetailLines } = splitApplicationError(app?.error ?? '')
-    // The log narrates an installation while it runs. Once the app is in error there is usually
-    // nothing left to narrate, and an empty pane would only add a divider under the error.
-    const showLogArea = !isError || hasLogs
+    const steps = app ? getInstallSteps(app) : []
+    const failure = app ? getInstallError(app) : null
     const dialogPalette = getSurfacePalette(darkMode)
+    const stageKeys: Record<string, string> = {
+        'Initializing installation': 'initializing',
+        'Pulling docker image': 'pulling',
+        'Starting the services': 'starting',
+        'Configuring the domain': 'domain',
+        'Installation complete': 'complete',
+        'Installation cancelled': 'cancelled',
+    }
+    const stageTitle = (title: string) => stageKeys[title] ? t(`myAppsPage.dialog.stages.${stageKeys[title]}`) : title
+    const logRows = buildInstallLogRows(stages)
+    const hasLogs = logRows.length > 0
+    const visibleRows = logRows.slice(-MAX_INSTALL_LOG_LINES)
+    const logOffset = logRows.length - visibleRows.length
+    const exportText = app ? getInstallExportText(app, stageTitle) : ''
+    const canExport = Boolean(exportText)
+    const installationNotice = isCancelled || isError ? <Box role={isCancelled ? 'status' : undefined} sx={{ display: 'flex', gap: 1.25, px: 2.5, py: 1.75, flexShrink: 0, backgroundColor: isCancelled ? darkMode ? 'rgba(245, 158, 11, 0.14)' : '#fff7e6' : darkMode ? dialogPalette.dangerSoft : '#fff5f5', color: isCancelled ? darkMode ? '#fbbf24' : '#a16207' : dialogPalette.danger, borderBottom: `1px solid ${dialogPalette.border}` }}>
+        <CircleAlert size={20} style={{ flexShrink: 0, marginTop: 2 }} />
+        <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 600 }}>{t(isCancelled ? 'myAppsPage.dialog.cancelledTitle' : `myAppsPage.dialog.errors.${failure?.category ?? 'unknown'}.title`)}</Typography>
+            <Typography sx={{ mt: 0.5, fontSize: 13, lineHeight: 1.7 }}>{t(isCancelled ? 'myAppsPage.dialog.cancelledDescription' : `myAppsPage.dialog.errors.${failure?.category ?? 'unknown'}.description`)}</Typography>
+        </Box>
+    </Box> : null
+    const detailSx = {
+        borderBottom: `1px solid ${dialogPalette.border}`,
+        '& summary': { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 16px', alignItems: 'center', gap: 1.25, py: 1.25, cursor: 'pointer', fontSize: 13, fontWeight: 600, listStyle: 'none', overflowWrap: 'anywhere' },
+        '& summary::-webkit-details-marker': { display: 'none' },
+        '& summary:focus-visible': { outline: `2px solid ${dialogPalette.accent}`, outlineOffset: 2 },
+        '&[open] > summary .detail-chevron': { transform: 'rotate(90deg)' },
+        '& .detail-chevron': { color: dialogPalette.subtleText, flexShrink: 0 },
+        '& pre': { m: 0, mb: 1.75, p: 1.75, backgroundColor: dialogPalette.panelSoft, fontSize: 12, lineHeight: 1.8, fontFamily: 'Menlo, Consolas, "Courier New", monospace', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: dialogPalette.subtleText },
+    }
 
-    return (
+    async function copyLogs() {
+        try {
+            let copied = false
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(exportText)
+                    copied = true
+                } catch {
+                    copied = false
+                }
+            }
+            if (!copied) {
+                const container = copyContainerRef.current
+                if (!container) throw new Error('Copy container unavailable')
+                const previousFocus = document.activeElement
+                const textarea = document.createElement('textarea')
+                textarea.value = exportText
+                textarea.readOnly = true
+                textarea.style.position = 'fixed'
+                textarea.style.opacity = '0'
+                textarea.style.width = '1px'
+                textarea.style.height = '1px'
+                textarea.tabIndex = -1
+                container.appendChild(textarea)
+                try {
+                    textarea.focus({ preventScroll: true })
+                    textarea.select()
+                    if (!document.execCommand('copy')) throw new Error('Copy failed')
+                } finally {
+                    textarea.remove()
+                    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true })
+                }
+            }
+            setCopyMessage(t('myAppsPage.dialog.copiedError'))
+        } catch {
+            setCopyMessage(t('myAppsPage.dialog.copyErrorFailed'))
+        }
+    }
+
+    function downloadLogs() {
+        const url = URL.createObjectURL(new Blob([exportText], { type: 'text/plain;charset=utf-8' }))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${app?.app_id ?? 'installation'}-install.log`
+        link.click()
+        window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    }
+
+    async function cancelInstall() {
+        if (!app || cancelRequestInFlightRef.current || !canCancelInstall || cancelConfirmationAppId !== app.app_id) return
+        cancelRequestInFlightRef.current = true
+        setCancelConfirmationAppId(null)
+        setIsCancelling(true)
+        try {
+            await onCancelInstall(app.app_id)
+        } finally {
+            cancelRequestInFlightRef.current = false
+            setIsCancelling(false)
+        }
+    }
+
+    return (<>
         <SurfaceDialog
             darkMode={darkMode}
             onClose={onClose}
@@ -271,10 +327,13 @@ function LogDialog({
             scope="content"
             scopeRect={scopeRect}
             contentStrategy="viewport-fixed"
+            aria-labelledby="installation-log-title"
+            sx={{ '& .MuiDialog-container': { alignItems: 'flex-start', px: 1.5, py: 2 } }}
             paperSx={{
-                width: { xs: 'min(100%, 880px)', md: 'min(880px, calc(100% - 20px))' },
-                maxWidth: '880px',
-                height: '62vh',
+                width: 'min(960px, 100%)',
+                maxWidth: '960px',
+                height: 'min(560px, 72dvh)',
+                maxHeight: 'calc(100% - 32px)',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -285,173 +344,124 @@ function LogDialog({
             }}
         >
             <Box
+                ref={copyContainerRef}
                 sx={{
                     backgroundColor: dialogPalette.dialogBg,
                     color: dialogPalette.text,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
-                    py: { xs: 1.5, md: 1.75 },
-                    px: { xs: 2, md: 2.5 },
+                    py: 1.5,
+                    px: 2,
                     flexShrink: 0,
                     userSelect: 'none',
                     borderBottom: `1px solid ${dialogPalette.border}`,
                 }}
             >
-                {isInstalling ? <CircularProgress size={15} thickness={5} sx={{ color: dialogPalette.accent, flexShrink: 0 }} /> : null}
-                <Typography sx={{ flex: 1, fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2, color: dialogPalette.text }}>
-                    {isError ? `${t('myAppsPage.dialog.errorTitle')} - ${app?.app_id}` : `${t('myAppsPage.dialog.logsTitle')} - ${app?.app_id}`}
-                </Typography>
-                <IconButton size="small" onClick={onClose} sx={{ width: 40, height: 40, color: dialogPalette.subtleText, borderRadius: '999px', backgroundColor: 'transparent', '&:hover': { color: dialogPalette.text, backgroundColor: 'transparent', opacity: 0.84 } }}>
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                    </svg>
-                </IconButton>
+                <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 12px' }}>
+                    <Typography id="installation-log-title" sx={{ fontSize: 16, fontWeight: 600, lineHeight: 1.5, flexShrink: 0 }}>
+                        {t(isError ? 'myAppsPage.dialog.errorTitle' : 'myAppsPage.dialog.logsTitle')}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: dialogPalette.subtleText, overflowWrap: 'anywhere', borderLeft: `1px solid ${dialogPalette.border}`, pl: 1.5 }}>{app?.app_id}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 0.5 }}>
+                    {isError ? <>
+                        <Tooltip title={t('myAppsPage.dialog.copyError')}><span><IconButton aria-label={t('myAppsPage.dialog.copyError')} disabled={!canExport} size="small" onClick={() => void copyLogs()} sx={{ color: dialogPalette.subtleText }}><Copy size={17} /></IconButton></span></Tooltip>
+                        <Tooltip title={t('myAppsPage.dialog.downloadError')}><span><IconButton aria-label={t('myAppsPage.dialog.downloadError')} disabled={!canExport} size="small" onClick={downloadLogs} sx={{ color: dialogPalette.subtleText }}><Download size={17} /></IconButton></span></Tooltip>
+                    </> : null}
+                    <Tooltip title={t('myAppsPage.dialog.close')}><IconButton aria-label={t('myAppsPage.dialog.close')} size="small" onClick={onClose} sx={{ color: dialogPalette.subtleText }}><X size={18} /></IconButton></Tooltip>
+                </Box>
             </Box>
 
-            {isError && app?.error ? (
-                <div style={{
-                    flex: showLogArea ? '0 1 auto' : '1 1 auto',
-                    minHeight: 0,
-                    backgroundColor: dialogPalette.dialogBg,
-                    borderBottom: showLogArea ? `1px solid ${dialogPalette.border}` : 'none',
-                    padding: '14px 20px',
-                    display: 'flex',
-                    gap: 10,
-                    alignItems: 'flex-start',
-                    overflowY: 'auto',
-                }}>
-                    <span style={{
-                        flexShrink: 0,
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        backgroundColor: dialogPalette.dangerSoft,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: dialogPalette.danger,
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        marginTop: 1,
-                    }}>!</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* The verdict carries the weight: what failed, in one line. */}
-                        <div style={{
-                            fontSize: '13.5px',
-                            fontWeight: 600,
-                            color: dialogPalette.danger,
-                            lineHeight: '1.55',
-                            wordBreak: 'break-word',
-                        }}>
-                            {errorConclusion}
-                        </div>
-                        {errorDetailLines.length > 0 ? (
-                            <div style={{
-                                marginTop: 10,
-                                paddingTop: 10,
-                                borderTop: `1px dashed ${dialogPalette.divider}`,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                            }}>
-                                {errorDetailLines.map((line, index) => {
-                                    const source = line.match(PULL_SOURCE_LINE)
-                                    if (!source) {
-                                        return (
-                                            <div key={index} style={{ fontSize: '12px', lineHeight: '1.6', color: dialogPalette.subtleText }}>
-                                                {line.trim()}
-                                            </div>
-                                        )
-                                    }
-                                    const [, label, reference, reason] = source
-                                    return (
-                                        <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 2 }}>
-                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                                                <span style={{ fontSize: '12px', fontWeight: 600, color: dialogPalette.text }}>{label}</span>
-                                                <span style={{
-                                                    fontFamily: 'Menlo, Consolas, "Courier New", monospace',
-                                                    fontSize: '11px',
-                                                    color: dialogPalette.subtleText,
-                                                    wordBreak: 'break-all',
-                                                }}>{reference}</span>
-                                            </div>
-                                            <div style={{
-                                                fontFamily: 'Menlo, Consolas, "Courier New", monospace',
-                                                fontSize: '12px',
-                                                lineHeight: '1.6',
-                                                color: dialogPalette.subtleText,
-                                                wordBreak: 'break-all',
-                                            }}>
-                                                {reason}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        ) : null}
-                    </div>
-                </div>
-            ) : null}
+            {isError && failure ? <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                {installationNotice}
+                <Box sx={{ px: { xs: 2, sm: 3 }, py: 2.75 }}>
+                    {failure.object ? <Box sx={{ mb: 2.25 }}>
+                        <Typography sx={{ fontSize: 12, color: dialogPalette.subtleText }}>{t(failure.category === 'image' ? 'myAppsPage.dialog.imageObject' : 'myAppsPage.dialog.failureObject')}</Typography>
+                        <Typography sx={{ mt: 0.875, fontSize: 13, color: dialogPalette.text, fontFamily: 'Menlo, Consolas, "Courier New", monospace', overflowWrap: 'anywhere' }}>{failure.object}</Typography>
+                    </Box> : null}
+                    {failure.sources.map((source, index) => {
+                        const summary = getInstallSourceSummary(source)
+                        return <Box component="details" key={`${index}:${source.reference}`} sx={{ ...detailSx, '&:first-of-type': { borderTop: `1px solid ${dialogPalette.border}` }, '& summary': { ...detailSx['& summary'], gridTemplateColumns: 'minmax(0, 1fr) auto 16px', gap: { xs: 1, sm: 2 }, py: 2 } }}>
+                            <summary>
+                                <Box component="span" sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: '108px minmax(0, 1fr)' }, alignItems: 'baseline', gap: { xs: 0.625, sm: 2 }, minWidth: 0 }}>
+                                    <span>{summary.nameKey ? t(`myAppsPage.dialog.${summary.nameKey}`) : source.label}</span>
+                                    <Box component="span" title={source.reference} sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 400, fontFamily: 'Menlo, Consolas, "Courier New", monospace', color: dialogPalette.subtleText, overflowWrap: 'anywhere', minWidth: 0 }}>{summary.registry}</Box>
+                                </Box>
+                                <Box component="span" sx={{ fontSize: { xs: 11, sm: 12 }, fontWeight: 400, color: dialogPalette.subtleText, whiteSpace: 'nowrap' }}>{t(`myAppsPage.dialog.sourceResults.${summary.result}`)}</Box>
+                                <ChevronRight size={16} className="detail-chevron" />
+                            </summary>
+                            <pre>{source.reason}</pre>
+                        </Box>
+                    })}
+                    {!failure.sources.length ? <Box component="pre" sx={{ m: 0, p: 1.5, borderLeft: `2px solid ${dialogPalette.border}`, backgroundColor: dialogPalette.panelSoft, color: dialogPalette.subtleText, fontFamily: 'Menlo, Consolas, "Courier New", monospace', fontSize: 12, lineHeight: 1.8, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{failure.raw || t('myAppsPage.dialog.noErrorDetails')}</Box> : null}
+                </Box>
+            </Box> : null}
 
-            {showLogArea ? <Box sx={{ p: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: dialogPalette.dialogBg }}>
-                {stages.length > 0 && !isError ? (
-                    <div style={{
+            {!isError ? <Box sx={{ p: 0, flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', backgroundColor: dialogPalette.dialogBg }}>
+                {!isCancelled && steps.length > 0 ? (
+                    <Box sx={{
                         flexShrink: 0,
-                        display: 'flex',
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' },
                         alignItems: 'stretch',
-                        gap: 0,
+                        columnGap: 1.5,
+                        rowGap: 1.5,
                         borderBottom: `1px solid ${dialogPalette.border}`,
-                        backgroundColor: dialogPalette.dialogBg,
-                        padding: '0 16px',
+                        backgroundColor: dialogPalette.panelSoft,
+                        padding: '16px 24px',
                     }}>
-                        {stages.map((stage, idx) => {
-                            const isActive = idx === stages.length - 1 && isInstalling
-                            const isDone = !isInstalling || idx < stages.length - 1
+                        {steps.map((step, idx) => {
+                            const isActive = step.state === 'active'
+                            const isDone = step.state === 'done'
                             return (
-                                <div
-                                    key={idx}
-                                    style={{
+                                <Box
+                                    key={step.key}
+                                    sx={{
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: 6,
-                                        padding: '8px 14px 8px 0',
-                                        marginRight: 16,
-                                        borderBottom: isActive ? `2px solid ${dialogPalette.accent}` : isDone ? '2px solid #0acf97' : '2px solid transparent',
-                                        fontSize: '12px',
-                                        fontWeight: isActive ? 700 : 500,
-                                        color: isActive ? dialogPalette.accent : isDone ? '#0acf97' : dialogPalette.subtleText,
+                                        gap: 1,
+                                        minWidth: 0,
+                                        fontSize: 13,
+                                        fontWeight: isActive ? 600 : 400,
+                                        color: isActive ? dialogPalette.accent : dialogPalette.subtleText,
                                         userSelect: 'none',
-                                        whiteSpace: 'nowrap',
+                                        whiteSpace: 'normal',
                                     }}
                                 >
-                                    {isActive
-                                        ? <CircularProgress size={11} thickness={6} sx={{ color: dialogPalette.accent, flexShrink: 0 }} />
-                                        : isDone
-                                            ? <svg viewBox="0 0 24 24" width="12" height="12" fill="#0acf97"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
-                                            : <span style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${dialogPalette.divider}`, display: 'inline-block' }} />}
-                                    <span>{`${idx + 1}. ${stage.title}`}</span>
-                                </div>
+                                    <Box component="span" sx={{ width: 22, height: 22, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 600, backgroundColor: isActive ? dialogPalette.accent : isDone ? darkMode ? 'rgba(52, 211, 153, 0.14)' : '#eaf7f1' : dialogPalette.actionBg, color: isActive ? '#fff' : isDone ? darkMode ? '#34d399' : '#169c78' : dialogPalette.subtleText }}>
+                                        {isDone ? <Check size={13} /> : step.state === 'interrupted' ? <X size={13} /> : idx + 1}
+                                    </Box>
+                                    <Box component="span" sx={{ minWidth: 0 }}>{`${t(`myAppsPage.dialog.stages.${step.key}`)}${step.state === 'skipped' ? ` (${t('myAppsPage.dialog.skipped')})` : ''}`}</Box>
+                                    {idx < steps.length - 1 ? <Box aria-hidden="true" sx={{ height: '1px', backgroundColor: dialogPalette.border, flex: 1, minWidth: 8, ml: 0.5, display: { xs: idx % 2 === 0 ? 'block' : 'none', sm: 'block' } }} /> : null}
+                                </Box>
                             )
                         })}
-                    </div>
+                    </Box>
                 ) : null}
 
-                <div style={{
+                {isCancelled ? installationNotice : null}
+
+                <div ref={(container) => {
+                    if (container && followLogs.current) container.scrollTop = container.scrollHeight
+                }} role="log" aria-label={t('myAppsPage.dialog.logsTitle')} aria-live="off" onScroll={(event) => {
+                    const container = event.currentTarget
+                    followLogs.current = container.scrollHeight - container.scrollTop - container.clientHeight < 48
+                }} style={{
                     flex: 1,
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-end',
+                    minHeight: 0,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
                     fontFamily: 'Menlo, Consolas, "Courier New", monospace',
                     fontSize: '12px',
-                    lineHeight: '1.7',
-                    padding: '10px 16px 10px 16px',
+                    lineHeight: '1.8',
+                    padding: '12px 16px',
                     boxSizing: 'border-box',
+                    backgroundColor: dialogPalette.dialogBg,
                 }}>
                     {!hasLogs && !isError ? (
                         <div style={{
-                            flex: 1,
+                            height: '100%',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
@@ -462,8 +472,8 @@ function LogDialog({
                             {isInstalling ? (
                                 <>
                                     <CircularProgress size={28} thickness={4} sx={{ color: dialogPalette.accent }} />
-                                    <span style={{ fontSize: '13px', color: dialogPalette.accent, fontFamily: 'inherit', letterSpacing: '0.01em' }}>
-                                        {stages.length > 0 ? stages[stages.length - 1].title : 'Preparing…'}
+                                    <span style={{ fontSize: '13px', color: dialogPalette.subtleText, fontFamily: 'inherit' }}>
+                                        {stages.length > 0 ? stageTitle(stages[stages.length - 1].title) : t('myAppsPage.dialog.preparing')}
                                     </span>
                                 </>
                             ) : (
@@ -472,58 +482,69 @@ function LogDialog({
                         </div>
                     ) : null}
 
-                    {(() => {
-                        const activeStage = [...stages].reverse().find((stage) => stage.sub_logs && stage.sub_logs.length > 0)
-                        if (!activeStage) {
-                            return null
-                        }
-
-                        const lines = (activeStage.sub_logs ?? []).filter((line) => line != null)
-                        const tail = lines.slice(-MAX_STAGE_LOG_LINES)
-                        const offset = lines.length - tail.length
-
-                        return tail.map((line, index) => (
-                            <div key={index} style={{ display: 'flex', gap: 10, padding: '1px 0', color: dialogPalette.text, borderBottom: `1px solid ${dialogPalette.divider}` }}>
-                                <span style={{ color: dialogPalette.subtleText, userSelect: 'none', minWidth: 28, textAlign: 'right', flexShrink: 0, fontSize: '11px' }}>
-                                    {offset + index + 1}
-                                </span>
-                                <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', flex: 1, overflow: 'hidden' }}>
-                                    {formatInstallLogLine(line)}
-                                </span>
-                            </div>
-                        ))
-                    })()}
-
-                    {isInstalling && hasLogs ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: dialogPalette.accent, marginTop: 4 }}>
-                            <CircularProgress size={10} thickness={6} sx={{ color: dialogPalette.accent }} />
-                            <span style={{ fontSize: '11px' }}>installing…</span>
-                        </div>
-                    ) : null}
+                    {visibleRows.map((row, index) => (
+                        <Box key={row.key}>
+                            {index === 0 || visibleRows[index - 1].stageIndex !== row.stageIndex ? (
+                                <Typography sx={{ pl: '44px', py: 1, mt: index === 0 ? 0 : 1, fontSize: 11, fontWeight: 600, color: dialogPalette.subtleText }}>{stageTitle(stages[row.stageIndex].title)}</Typography>
+                            ) : null}
+                            {row.image && (index === 0 || visibleRows[index - 1].image !== row.image || visibleRows[index - 1].stageIndex !== row.stageIndex) ? <Typography sx={{ pl: '44px', pt: 1, pb: 0.5, fontSize: 12, fontWeight: 600, color: dialogPalette.text, overflowWrap: 'anywhere' }}>{row.image}</Typography> : null}
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '32px minmax(0, 1fr)', gap: '12px', py: '2px', '&:hover': { backgroundColor: dialogPalette.panelHover } }}>
+                                <Box component="span" sx={{ color: dialogPalette.placeholderText, userSelect: 'none', textAlign: 'right', fontSize: 11 }}>{logOffset + index + 1}</Box>
+                                <Box component="span" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: /\b(error|failed|fatal)\b/i.test(row.text) ? dialogPalette.danger : dialogPalette.text }}>{row.text}</Box>
+                            </Box>
+                        </Box>
+                    ))}
                 </div>
             </Box> : null}
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, px: 2.5, py: 2, backgroundColor: dialogPalette.dialogBg, borderTop: `1px solid ${dialogPalette.border}`, flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, px: 2, py: 1.25, backgroundColor: dialogPalette.dialogBg, borderTop: `1px solid ${dialogPalette.border}`, flexShrink: 0 }}>
+                {isError && failure?.category === 'image' ? <Link component={RouterLink} to="/settings#app-mirror" onClick={onClose} underline="always" sx={{ width: { xs: '100%', sm: 'auto' }, mr: 'auto', alignSelf: 'center', fontSize: 13, color: dialogPalette.subtleText, '&:hover': { color: dialogPalette.text } }}>{t('myAppsPage.dialog.imageSettings')}</Link> : null}
                 <Button color="inherit" onClick={onClose} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>
                     {t('myAppsPage.dialog.close')}
                 </Button>
                 {canCancelInstall ? (
-                    <Button color="warning" onClick={() => void onCancelInstall(app!.app_id)} variant="contained" sx={{ minWidth: 120, borderRadius: 0, boxShadow: 'none' }}>
-                        Cancel installation
+                    <Button disabled={isCancelling} onClick={() => setCancelConfirmationAppId(app?.app_id ?? null)} variant="contained" sx={{ minWidth: 104, borderRadius: 0, boxShadow: 'none', backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a700', boxShadow: 'none' } }}>
+                        {t(isCancelling ? 'myAppsPage.dialog.status.cancelling' : 'myAppsPage.dialog.cancelInstall')}
                     </Button>
                 ) : null}
                 {isError ? (
                     <Button
-                        onClick={() => window.open('https://www.websoft9.com/ticket', '_blank')}
+                        onClick={() => window.open(supportUrl, '_blank')}
                         variant="contained"
-                        sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}
+                        sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}
                     >
                         {t('myAppsPage.dialog.support')}
                     </Button>
                 ) : null}
+                {app && (isCancelled || isError) ? <Button onClick={() => onRemoveApp(app)} variant="contained" sx={{ minWidth: 104, borderRadius: 0, boxShadow: 'none', backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a700', boxShadow: 'none' } }}>{t('myAppsPage.dialog.removeTitle')}</Button> : null}
             </Box>
         </SurfaceDialog>
-    )
+        <SurfaceDialog
+            darkMode={darkMode}
+            open={Boolean(app && cancelConfirmationAppId === app.app_id && canCancelInstall)}
+            onClose={() => setCancelConfirmationAppId(null)}
+            scope="content"
+            scopeRect={scopeRect}
+            contentStrategy="viewport-fixed"
+            sx={confirmationPlacementSx}
+            aria-labelledby="cancel-install-title"
+            aria-describedby="cancel-install-description"
+            paperSx={{ width: { xs: 'min(100%, 560px)', md: 'min(560px, calc(100% - 20px))' }, maxWidth: '560px', backgroundColor: dialogPalette.dialogBg, color: dialogPalette.text, border: `1px solid ${dialogPalette.border}` }}
+        >
+            <Box sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 1.75 }, borderBottom: `1px solid ${dialogPalette.border}`, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Typography id="cancel-install-title" sx={{ flex: 1, fontSize: { xs: 18, md: 20 }, fontWeight: 600, lineHeight: 1.2 }}>{t('myAppsPage.dialog.cancelConfirmTitle')}</Typography>
+                <IconButton aria-label={t('myAppsPage.dialog.close')} onClick={() => setCancelConfirmationAppId(null)} size="small" sx={{ width: 40, height: 40, color: dialogPalette.subtleText, backgroundColor: 'transparent', '&:hover': { backgroundColor: 'transparent', color: dialogPalette.text, opacity: 0.84 } }}><X size={16} /></IconButton>
+            </Box>
+            <Box sx={{ px: { xs: 2, md: 2.5 }, py: 2.25, borderBottom: `1px solid ${dialogPalette.border}` }}>
+                <Typography id="cancel-install-description" sx={{ fontSize: 14, lineHeight: 1.75, color: dialogPalette.subtleText, overflowWrap: 'anywhere' }}>{t('myAppsPage.dialog.cancelConfirmDescription', { app: app?.app_id })}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1, px: 2.5, py: 2, borderTop: `1px solid ${dialogPalette.border}` }}>
+                <Button autoFocus onClick={() => setCancelConfirmationAppId(null)} variant="contained" sx={{ minWidth: 68, backgroundColor: dialogPalette.actionBg, color: dialogPalette.subtleText, borderRadius: 0, boxShadow: 'none', '&:hover': { backgroundColor: dialogPalette.actionHover, boxShadow: 'none', color: dialogPalette.text } }}>{t('myAppsPage.dialog.continueInstall')}</Button>
+                <Button disabled={isCancelling || !canCancelInstall} onClick={() => void cancelInstall()} variant="contained" sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}>{t('myAppsPage.dialog.confirmCancel')}</Button>
+            </Box>
+        </SurfaceDialog>
+        <SurfaceFeedbackToast darkMode={darkMode} open={Boolean(copyMessage)} onClose={() => setCopyMessage('')} message={copyMessage} severity="info" />
+    </>)
 }
 
 // =====================
@@ -555,6 +576,14 @@ export function MyAppsPage() {
     const apps = data ?? []
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en'
     const apiLocale = locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+    const cancellationFeedbackKey = feedback?.cancellingInstallKey
+    const cancellationFeedbackApp = cancellationFeedbackKey ? apps.find((app) => (app.tracking_id ?? app.app_id) === cancellationFeedbackKey) : undefined
+    const cancellationFeedbackIsVisible = !cancellationFeedbackKey || cancellationFeedbackApp?.status === 3
+    useEffect(() => {
+        if (cancellationFeedbackKey && !cancellationFeedbackIsVisible) {
+            setFeedback((current) => current?.cancellingInstallKey === cancellationFeedbackKey ? null : current)
+        }
+    }, [cancellationFeedbackKey, cancellationFeedbackIsVisible])
     const palette = getSurfacePalette(isDarkMode)
     const dialogPalette = getSurfacePalette(isDarkMode)
     const contentScopedDialogPlacementSx = useMemo(() => ({
@@ -707,7 +736,7 @@ export function MyAppsPage() {
     const showLoadingState = isLoading || manualRefreshing
 
     function handleCardClick(app: MyApp) {
-        if (!isWebsoft9App(app)) return
+        if (!isWebsoft9App(app) && app.status !== 4 && app.status !== 6) return
         if (app.status === 1) {
             const contentScopeContainer = typeof document === 'undefined' ? null : document.querySelector('#app-shell-main')
             const backgroundScrollTop = contentScopeContainer instanceof HTMLElement ? contentScopeContainer.scrollTop : 0
@@ -747,6 +776,8 @@ export function MyAppsPage() {
     }
 
     async function handleCancelInstall(appId: string) {
+        const installation = queryClient.getQueryData<MyApp[]>(['my-apps', apiLocale])?.find((app) => app.app_id === appId)
+        const installationKey = installation?.tracking_id ?? appId
         try {
             const response = await fetch(`/api/apps/${encodeURIComponent(appId)}/install/cancel`, {
                 method: 'POST',
@@ -754,10 +785,13 @@ export function MyAppsPage() {
                 headers: { Accept: 'application/json' },
             })
             if (!response.ok) throw new Error(await parseJsonError(response, `Cancel failed: ${response.status}`))
-            setFeedback({ severity: 'info', message: 'Cancelling image pull...' })
+            const currentInstallation = queryClient.getQueryData<MyApp[]>(['my-apps', apiLocale])?.find((app) => (app.tracking_id ?? app.app_id) === installationKey)
+            if (currentInstallation?.status === 3) {
+                setFeedback({ severity: 'info', message: t('myAppsPage.dialog.cancelling'), cancellingInstallKey: installationKey })
+            }
             await refetch()
         } catch (err) {
-            setFeedback({ severity: 'warning', message: err instanceof Error ? err.message : 'Unable to cancel installation.' })
+            setFeedback({ severity: 'warning', message: err instanceof Error ? err.message : t('myAppsPage.dialog.cancelFailed') })
         }
     }
 
@@ -779,6 +813,7 @@ export function MyAppsPage() {
     function renderCards(appList: MyApp[], variant: 'managed' | 'other') {
         return appList.map((app) => {
             const canOpenDetail = app.app_official || Boolean(app.gitConfig && Object.keys(app.gitConfig).length > 0)
+            const canOpenCard = canOpenDetail || app.status === 4 || app.status === 6
             const showStatus = variant === 'managed' && canOpenDetail
             const logoSize = 80
 
@@ -821,46 +856,16 @@ export function MyAppsPage() {
                         </Tooltip>
                     </>
                 )
-            } else if (app.status === 4 || app.status === 6) {
-                actionsNode = (
-                    <>
-                        <Tooltip title={t('myAppsPage.card.openError', { defaultValue: 'Error Info' })}>
-                            <button
-                                type="button"
-                                className="myapps-card-icon-btn noti-icon"
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    setLogDialogKey(app.tracking_id ?? app.app_id)
-                                }}
-                            >
-                                <IconInfo />
-                            </button>
-                        </Tooltip>
-                        <Tooltip title={t('myAppsDetailPage.actions.uninstall')}>
-                            <button
-                                type="button"
-                                className="myapps-card-icon-btn noti-icon"
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    setRemoveApp(app)
-                                    setRemoveType(app.status === 6 ? 'cancelled' : 'error')
-                                }}
-                            >
-                                <IconTrash />
-                            </button>
-                        </Tooltip>
-                    </>
-                )
             }
 
             return (
                 <div
                     key={`${app.app_id}-${app.tracking_id ?? 'stable'}`}
-                    className={`myapps-vcard myapps-vcard--${variant}${canOpenDetail ? ' highlight' : ''}`}
-                    onClick={canOpenDetail ? () => handleCardClick(app) : undefined}
-                    role={canOpenDetail ? 'button' : undefined}
-                    tabIndex={canOpenDetail ? 0 : undefined}
-                    onKeyDown={canOpenDetail ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(app) } : undefined}
+                    className={`myapps-vcard myapps-vcard--${variant}${canOpenCard ? ' highlight' : ''}`}
+                    onClick={canOpenCard ? () => handleCardClick(app) : undefined}
+                    role={canOpenCard ? 'button' : undefined}
+                    tabIndex={canOpenCard ? 0 : undefined}
+                    onKeyDown={canOpenCard ? (e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(app) } : undefined}
                 >
                     {!app.app_official && isWebsoft9App(app) ? (
                         <div className="myapps-vcard-ribbon">
@@ -1159,9 +1164,16 @@ export function MyAppsPage() {
 
             {/* Log / Error info dialog */}
             <LogDialog
+                key={logDialogApp?.app_id ?? 'closed'}
                 app={logDialogApp}
                 onClose={() => setLogDialogKey(null)}
                 onCancelInstall={handleCancelInstall}
+                onRemoveApp={(app) => {
+                    setLogDialogKey(null)
+                    setRemoveApp(app)
+                    setRemoveType(app.status === 6 ? 'cancelled' : 'error')
+                }}
+                confirmationPlacementSx={contentScopedDialogPlacementSx}
                 darkMode={isDarkMode}
                 scopeRect={contentScopeRect}
             />
@@ -1202,7 +1214,7 @@ export function MyAppsPage() {
                         disabled={actionBusy}
                         onClick={() => void handleConfirmRemove()}
                         variant="contained"
-                        sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none' }}
+                        sx={{ minWidth: 68, borderRadius: 0, boxShadow: 'none', backgroundColor: '#ffbc00', color: '#313a46', '&:hover': { backgroundColor: '#e0a700', boxShadow: 'none' } }}
                     >
                         {actionBusy ? <span className="spinner-border-sm me-1" /> : null}
                         {t('myAppsPage.dialog.removeConfirm')}
@@ -1257,7 +1269,8 @@ export function MyAppsPage() {
             </SurfaceDialog>
 
             {/* Feedback toast */}
-            <SurfaceFeedbackToast
+            {cancellationFeedbackIsVisible ? <SurfaceFeedbackToast
+                key={cancellationFeedbackKey ? `cancel-install-${cancellationFeedbackKey}` : 'general-feedback'}
                 open={Boolean(feedback)}
                 onClose={() => setFeedback(null)}
                 severity={feedback?.severity ?? 'info'}
@@ -1265,7 +1278,8 @@ export function MyAppsPage() {
                 scope="content"
                 scopeRect={contentScopeRect}
                 darkMode={isDarkMode}
-            />
+                autoHideDuration={cancellationFeedbackKey ? null : undefined}
+            /> : null}
 
             <Outlet />
         </Box>

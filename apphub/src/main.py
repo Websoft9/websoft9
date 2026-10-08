@@ -126,7 +126,9 @@ async def ensure_platform_storage():
 
 def _reconcile_scheduled_tasks() -> None:
     try:
-        ScheduledTaskService().reconcile_local_schedule()
+        service = ScheduledTaskService()
+        service.reconcile_local_schedule()
+        service.dispatch_prewarm()
     except Exception as exc:  # pragma: no cover - startup must never fail because of this
         logger.warning("Scheduled task reconciliation failed: %s", exc)
 

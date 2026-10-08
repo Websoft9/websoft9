@@ -33,6 +33,7 @@ import {
 } from "../../shared/design-system/standard-surfaces";
 import { getSurfacePalette } from "../../shared/design-system/surface-theme";
 import { PrewarmStatusChip } from "../../shared/design-system/prewarm-status-chip";
+import { PrewarmResumeDialog } from "../../shared/design-system/prewarm-resume-dialog";
 import { useConnectionUnavailable } from "../../shared/connection/connection-provider";
 import { isPlatformUnavailableError } from "../../shared/lib/api-error";
 import "./scheduled-tasks-page.css";
@@ -412,6 +413,7 @@ export function ScheduledTasksPage() {
     const [logLoading, setLogLoading] = useState(false);
     const [deleteTask, setDeleteTask] = useState<ScheduledTask | null>(null);
     const [cancelPrewarmTask, setCancelPrewarmTask] = useState<ScheduledTask | null>(null);
+    const [resumePrewarmTask, setResumePrewarmTask] = useState<ScheduledTask | null>(null);
     const [feedback, setFeedback] = useState<{
         severity: "success" | "error" | "info";
         message: string;
@@ -992,6 +994,7 @@ export function ScheduledTasksPage() {
     }
 
     async function retryPrewarm(task: ScheduledTask) {
+        if (pendingTaskId === task.task_id) return;
         setPendingTaskId(task.task_id);
         try {
             await requestJson(`/api/scheduled-tasks/prewarm/${task.task_id}/retry`, { method: "POST" });
@@ -1001,6 +1004,14 @@ export function ScheduledTasksPage() {
             setFeedback({ severity: "error", message: localizedTaskError(error) });
         } finally {
             setPendingTaskId(null);
+        }
+    }
+
+    function requestPrewarmRetry(task: ScheduledTask) {
+        if (task.queue_state === "cancelled") {
+            setResumePrewarmTask(task);
+        } else {
+            void retryPrewarm(task);
         }
     }
 
@@ -1548,7 +1559,7 @@ export function ScheduledTasksPage() {
                                                                                 <IconButton
                                                                                     aria-label={task.queue_state === "failed" ? t("scheduledTasks.actions.retry") : t("scheduledTasks.prewarm.resume")}
                                                                                     disabled={pendingTaskId === task.task_id}
-                                                                                    onClick={() => void retryPrewarm(task)}
+                                                                                    onClick={() => requestPrewarmRetry(task)}
                                                                                     size="small"
                                                                                 >
                                                                                     {task.queue_state === "failed" ? <RetryIcon /> : <PrewarmAgainIcon />}
@@ -1749,7 +1760,7 @@ export function ScheduledTasksPage() {
                                                                 <IconButton
                                                                     aria-label={task.queue_state === "failed" ? t("scheduledTasks.actions.retry") : t("scheduledTasks.prewarm.resume")}
                                                                     disabled={pendingTaskId === task.task_id}
-                                                                    onClick={() => void retryPrewarm(task)}
+                                                                    onClick={() => requestPrewarmRetry(task)}
                                                                     size="small"
                                                                 >
                                                                     {task.queue_state === "failed" ? <RetryIcon /> : <PrewarmAgainIcon />}
@@ -2599,6 +2610,20 @@ export function ScheduledTasksPage() {
                     </Box>
                 </Box>
             ) : null}
+
+            <PrewarmResumeDialog
+                open={Boolean(resumePrewarmTask)}
+                subject={resumePrewarmTask ? prewarmSubjectLabel(resumePrewarmTask) : ""}
+                scopeRect={editorScope}
+                darkMode={darkMode}
+                onClose={() => setResumePrewarmTask(null)}
+                onConfirm={() => {
+                    if (!resumePrewarmTask) return;
+                    const task = resumePrewarmTask;
+                    setResumePrewarmTask(null);
+                    void retryPrewarm(task);
+                }}
+            />
 
             <SurfaceFeedbackToast
                 open={Boolean(feedback)}

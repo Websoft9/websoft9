@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>安装窗口 · 设计参考</title>
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            background: #e9edf1;
+            color: #26313c;
+            font: 14px 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+            letter-spacing: 0
+        }
+
+        button,
+        select {
+            font: inherit
+        }
+
+        button {
+            cursor: default
+        }
+
+        svg {
+            vertical-align: middle
+        }
+
+        .preview-bar {
+            width: min(960px, calc(100% - 32px));
+            margin: 28px auto 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            color: #6c7886;
+            font-size: 13px
+        }
+
+        .preview-bar select {
+            padding: 7px 28px 7px 12px;
+            border: 1px solid #d4dce5;
+            border-radius: 3px;
+            background: white;
+            color: #526171;
+            font-size: 12px
+        }
+
+        .window {
+            width: min(960px, calc(100% - 32px));
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #d8dee5;
+            border-radius: 4px;
+            box-shadow: 0 18px 52px #25313c18;
+            overflow: hidden
+        }
+
+        header {
+            min-height: 66px;
+            padding: 14px 26px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #e9edf1;
+            gap: 16px
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 600;
+            white-space: nowrap
+        }
+
+        .app {
+            border-left: 1px solid #dce2e8;
+            padding-left: 16px;
+            color: #7c8794;
+            font-size: 13px;
+            overflow-wrap: anywhere
+        }
+
+        .tools {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            flex-shrink: 0
+        }
+
+        .tools button {
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+            border: 0;
+            background: transparent;
+            color: #778390
+        }
+
+        .tools svg {
+            width: 17px;
+            height: 17px
+        }
+
+        .stages {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 16px 26px;
+            background: #fcfdfe;
+            border-bottom: 1px solid #e9edf1;
+            font-size: 13px;
+            overflow-x: auto;
+            white-space: nowrap
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            color: #8e98a4
+        }
+
+        .circle {
+            display: grid;
+            place-items: center;
+            width: 22px;
+            height: 22px;
+            background: #f0f3f6;
+            border-radius: 50%;
+            font-size: 11px;
+            flex-shrink: 0
+        }
+
+        .done {
+            color: #657381
+        }
+
+        .done .circle {
+            color: #169c78;
+            background: #eaf7f1
+        }
+
+        .active {
+            color: #2364cb;
+            font-weight: 600
+        }
+
+        .active .circle {
+            color: #fff;
+            background: #3477dc
+        }
+
+        .connector {
+            height: 1px;
+            width: 56px;
+            background: #e1e7ed;
+            flex-shrink: 0
+        }
+
+        .log-body {
+            padding: 22px 26px 26px;
+            min-height: 354px
+        }
+
+        .image-ref {
+            color: #7c8794;
+            font: 12px 'Liberation Mono', monospace;
+            margin: 0 0 18px 40px
+        }
+
+        .lines {
+            font: 13px/29px 'Liberation Mono', monospace
+        }
+
+        .line {
+            display: grid;
+            grid-template-columns: 27px minmax(0, 1fr);
+            gap: 14px
+        }
+
+        .num {
+            color: #b0bac4;
+            text-align: right;
+            font-size: 11px
+        }
+
+        .text {
+            color: #455160;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere
+        }
+
+        .good {
+            color: #21856b
+        }
+
+        .current-row {
+            background: #f3f7ff;
+            margin: 0 -10px;
+            padding: 0 10px;
+            border-radius: 2px
+        }
+
+        .current-row .text {
+            color: #2364cb
+        }
+
+        footer {
+            min-height: 65px;
+            border-top: 1px solid #e9edf1;
+            padding: 14px 26px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            background: #fff
+        }
+
+        .btn {
+            height: 34px;
+            border: 1px solid #dce2e8;
+            border-radius: 3px;
+            padding: 0 18px;
+            background: #fff;
+            color: #596675;
+            font-size: 13px
+        }
+
+        .warning {
+            background: #ffbc00;
+            border-color: #ffbc00;
+            color: #313a46
+        }
+
+        .primary {
+            background: #2869ca;
+            border-color: #2869ca;
+            color: #fff
+        }
+
+        .error-summary {
+            padding: 24px 26px 21px;
+            display: flex;
+            gap: 14px;
+            background: #fff8f7;
+            border-bottom: 1px solid #f1e7e5
+        }
+
+        .error-mark {
+            color: #d75b52;
+            padding-top: 2px
+        }
+
+        .error-mark svg {
+            width: 23px;
+            height: 23px
+        }
+
+        .summary {
+            min-width: 0
+        }
+
+        .summary h2 {
+            font-size: 17px;
+            color: #333d48;
+            margin: 0 0 8px;
+            font-weight: 600
+        }
+
+        .summary p {
+            margin: 0;
+            font-size: 13px;
+            color: #7a6870;
+            line-height: 1.7
+        }
+
+        .error-body {
+            padding: 22px 26px 18px
+        }
+
+        .meta {
+            display: flex;
+            gap: 44px;
+            padding-bottom: 19px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e9edf1
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            min-width: 0
+        }
+
+        .meta-label,
+        .section-label {
+            font-size: 12px;
+            color: #8793a1
+        }
+
+        .meta-value {
+            font-size: 13px;
+            color: #526171;
+            overflow-wrap: anywhere
+        }
+
+        .section-label {
+            margin-bottom: 12px
+        }
+
+        .source {
+            border-top: 1px solid #e9edf1
+        }
+
+        .source summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px
+        }
+
+        .source summary::-webkit-details-marker {
+            display: none
+        }
+
+        .source-name {
+            font-weight: 600;
+            min-width: 135px
+        }
+
+        .source-ref {
+            font: 12px 'Liberation Mono', monospace;
+            color: #7b8795;
+            flex: 1;
+            overflow-wrap: anywhere
+        }
+
+        .source-result {
+            font-size: 12px;
+            color: #b66058
+        }
+
+        .source summary svg {
+            width: 16px;
+            height: 16px;
+            color: #84909c;
+            flex-shrink: 0
+        }
+
+        .source[open] summary>svg {
+            transform: rotate(90deg)
+        }
+
+        .raw {
+            margin: 0 0 15px;
+            padding: 14px 18px;
+            background: #f7f9fb;
+            border-left: 2px solid #dce3ea;
+            font: 12px/1.8 'Liberation Mono', monospace;
+            color: #687583;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere
+        }
+
+        .advice {
+            margin-top: 8px;
+            padding: 17px 0 4px;
+            border-top: 1px solid #e9edf1;
+            display: flex;
+            align-items: baseline;
+            gap: 18px;
+            font-size: 13px
+        }
+
+        .advice b {
+            white-space: nowrap;
+            font-size: 12px;
+            font-weight: 600;
+            color: #667484
+        }
+
+        .advice span {
+            color: #727f8d;
+            line-height: 1.8
+        }
+
+        .footer-link {
+            margin-right: auto;
+            color: #64788f;
+            border: 0;
+            background: none;
+            padding: 0;
+            font-size: 13px
+        }
+
+        .note {
+            margin: 18px auto;
+            width: min(960px, calc(100% - 32px));
+            font-size: 12px;
+            color: #8995a1;
+            line-height: 1.7
+        }
+
+        [hidden] {
+            display: none !important
+        }
+
+        @media(max-width:600px) {
+            header {
+                padding: 14px 16px;
+                gap: 10px;
+                flex-wrap: wrap
+            }
+
+            .tools {
+                gap: 1px
+            }
+
+            .app {
+                font-size: 12px
+            }
+
+            .stages {
+                padding: 14px 16px;
+                gap: 14px
+            }
+
+            .connector {
+                width: 20px
+            }
+
+            .log-body,
+            .error-body,
+            .error-summary {
+                padding: 20px 16px
+            }
+
+            .meta {
+                gap: 22px;
+                flex-wrap: wrap
+            }
+
+            .source summary {
+                flex-wrap: wrap;
+                gap: 10px
+            }
+
+            .source-name {
+                min-width: 100px
+            }
+
+            .source-ref {
+                flex-basis: 100%;
+                order: 4
+            }
+
+            .advice {
+                align-items: flex-start
+            }
+
+            footer {
+                padding: 14px 16px
+            }
+
+            .preview-bar {
+                align-items: flex-start;
+                flex-direction: column
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="preview-bar"><span id="preview-title"></span><select id="scenario" aria-label="失败场景" hidden>
+            <option value="port">端口冲突 / 服务启动</option>
+            <option value="disk">磁盘空间不足</option>
+            <option value="permission">文件权限错误</option>
+            <option value="network">网络超时</option>
+            <option value="configuration">配置格式错误</option>
+            <option value="image">镜像来源失败</option>
+            <option value="unknown">未知错误</option>
+        </select></div>
+    <section class="window" id="log-window" hidden>
+        <header>
+            <h1>安装日志</h1><span class="app">gitea_3nwec</span>
+            <div class="tools"><button title="复制日志" data-icon="Copy"></button><button title="下载日志"
+                    data-icon="Download"></button><button title="关闭" data-icon="X"></button></div>
+        </header>
+        <div class="stages"><span class="step done"><span class="circle" data-icon="Check"></span>初始化</span><span
+                class="connector"></span><span class="step active"><span class="circle">2</span>拉取镜像</span><span
+                class="connector"></span><span class="step"><span class="circle">3</span>启动服务</span></div>
+        <div class="log-body">
+            <div class="image-ref">gitea/gitea:1.27</div>
+            <div class="lines" id="lines"></div>
+        </div>
+        <footer><button class="btn">关闭</button><button class="btn warning">取消安装</button></footer>
+    </section>
+    <section class="window" id="error-window" hidden>
+        <header>
+            <h1>安装错误</h1><span class="app" id="error-app"></span>
+            <div class="tools"><button title="复制错误详情" data-icon="Copy"></button><button title="下载错误详情"
+                    data-icon="Download"></button><button title="关闭" data-icon="X"></button></div>
+        </header>
+        <div class="error-summary">
+            <div class="error-mark" data-icon="CircleAlert"></div>
+            <div class="summary">
+                <h2 id="error-title"></h2>
+                <p id="error-description"></p>
+            </div>
+        </div>
+        <div class="error-body">
+            <div class="meta" id="metadata"></div>
+            <div class="section-label" id="details-title"></div>
+            <div id="sources"></div>
+            <div class="advice" id="advice"><b>建议处理</b><span id="advice-text"></span></div>
+        </div>
+        <footer><button class="footer-link" id="settings-link" hidden>镜像加速器设置</button><button
+                class="btn">关闭</button><button class="btn primary">获取支持</button></footer>
+    </section>
+    <div class="note" id="note"></div>
+    <script>
+        const paths = { Copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>', Download: '<path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path>', X: '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>', Check: '<path d="M20 6 9 17l-5-5"></path>', CircleAlert: '<circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line>', ChevronRight: '<path d="m9 18 6-6-6-6"></path>' };
+        function icon(name) { const node = document.createElement('span'); node.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>'; return node.firstChild }
+        for (const element of document.querySelectorAll('[data-icon]')) element.append(icon(element.dataset.icon));
+        const previewURL = new URL(location.href);
+        if (previewURL.search && !previewURL.searchParams.has('view')) {
+            previewURL.search = decodeURIComponent(previewURL.search);
+            history.replaceState(null, '', previewURL);
+        }
+        const cases = {
+            port: { app: 'wordpress_4ab6t', title: '服务启动失败', description: '应用端口 8080 已被其他服务占用。', phase: '启动服务', object: '端口 8080', sources: [{ name: '容器启动', raw: 'Error response from daemon: failed to set up container networking\nBind for 0.0.0.0:8080 failed: port is already allocated' }], advice: '确认端口占用情况；更换应用端口后重新安装。' },
+            disk: { app: 'graylog_rvire', title: '磁盘空间不足', description: '写入镜像数据时，可用空间不足。', phase: '拉取镜像', object: '/var/lib/docker', sources: [{ name: '磁盘写入', raw: 'failed to register layer: write /var/lib/docker/tmp/image-layer: no space left on device' }], advice: '检查可用磁盘空间；清理不再使用的数据或扩容后重新安装。' },
+            permission: { app: 'app_3nwec', title: '文件访问被拒绝', description: '安装过程无法读取所需的配置文件。', phase: '初始化', object: '/data/config.yml', sources: [{ name: '文件访问', raw: 'open /data/config.yml: permission denied' }], advice: '检查文件归属与访问权限，确认安装进程具备所需权限。' },
+            network: { app: 'dify_cmxx1', title: '连接镜像仓库超时', description: '在规定时间内未能完成与镜像仓库的连接。', phase: '拉取镜像', object: 'registry-1.docker.io', sources: [{ name: '仓库连接', raw: 'Get "https://registry-1.docker.io/v2/": net/http: TLS handshake timeout' }], advice: '检查网络连接与代理配置；确认仓库地址可以访问。' },
+            configuration: { app: 'compose_5rk2t', title: '应用配置无效', description: '服务配置文件无法解析，未能继续启动。', phase: '启动服务', object: 'docker-compose.yml', sources: [{ name: '配置解析', raw: 'yaml: line 12: mapping values are not allowed in this context' }], advice: '检查配置文件对应行的缩进与语法，修正后重新安装。' },
+            image: { app: 'test_cnqjc', title: '镜像拉取失败', description: '已尝试的两个镜像来源均未能完成拉取。', phase: '拉取镜像', object: 'websoft9dev/websoft9-missing:0.0.1', sources: [{ name: 'Docker Hub', reference: 'docker.io', result: '仓库访问被拒绝', raw: 'pull access denied for websoft9dev/websoft9-missing\nrepository does not exist or may require docker login' }, { name: '镜像加速器', reference: 'mirror.invalid', result: '服务连接异常', raw: 'failed to resolve reference mirror.invalid/websoft9dev/websoft9-missing:0.0.1\nHead https://mirror.invalid/v2/websoft9dev/websoft9-missing/manifests/0.0.1: EOF' }], advice: '核对镜像名称、版本及登录凭据；检查镜像加速器地址是否可用。' },
+            unknown: { app: 'app_install', title: '安装失败', description: '安装过程中发生异常。', sources: [{ name: '原始错误', raw: 'Unexpected error during installation\nUnable to complete the installation task.' }] }
+        };
+        function textNode(tag, className, text) { const element = document.createElement(tag); element.className = className; element.textContent = text; return element }
+        function renderError(key) { const data = cases[key] || cases.unknown; document.getElementById('error-app').textContent = data.app; document.getElementById('error-title').textContent = data.title; document.getElementById('error-description').textContent = data.description; const meta = document.getElementById('metadata'); meta.replaceChildren(); for (const [label, value] of [['失败环节', data.phase], ['关键对象', data.object]]) { if (!value) continue; const field = document.createElement('div'); field.className = 'meta-item'; field.append(textNode('span', 'meta-label', label), textNode('span', 'meta-value', value)); meta.append(field) } meta.hidden = !meta.children.length; document.getElementById('details-title').textContent = data.sources.length > 1 ? '失败来源' : '错误详情'; const sources = document.getElementById('sources'); sources.replaceChildren(); data.sources.forEach((source, index) => { const details = document.createElement('details'); details.className = 'source'; details.open = index === 0; const summary = document.createElement('summary'); summary.append(textNode('span', 'source-name', source.name), textNode('span', 'source-ref', source.reference || ''), textNode('span', 'source-result', source.result || ''), icon('ChevronRight')); details.append(summary, textNode('pre', 'raw', source.raw)); sources.append(details) }); document.getElementById('advice').hidden = !data.advice; document.getElementById('advice-text').textContent = data.advice || ''; document.getElementById('settings-link').hidden = key !== 'image' }
+        const params = new URLSearchParams(location.search); const logView = params.get('view') === 'log'; document.getElementById('log-window').hidden = !logView; document.getElementById('error-window').hidden = logView; document.getElementById('scenario').hidden = logView; document.getElementById('preview-title').textContent = logView ? '01 / 安装日志 · 设计参考' : '02 / 安装错误 · 通用模板参考'; document.title = logView ? '安装日志 · 设计参考' : '安装错误 · 通用模板参考'; document.getElementById('note').textContent = logView ? '设计参考：底部仅保留操作；安装结束后只显示关闭按钮。' : '设计参考：仅展示已知环节和对象；未知错误保留原文，不推断原因或生成虚构建议。'; const lines = ['Pulling from gitea/gitea', 'Pulling fs layer   #73d3cb31f401', 'Pulling fs layer   #695934694764', 'Pulling fs layer   #25bdf5dd5ca7', 'Pulling fs layer   #c0929ac58b42', 'Already exists     #44136fa355b3', 'Download complete  #278fd8dbc337', 'Download complete  #25bdf5dd5ca7', 'Extracting         #695934694764  65.8 MB / 104.2 MB']; lines.forEach((line, index) => { const row = document.createElement('div'); row.className = index === 8 ? 'line current-row' : 'line'; row.append(textNode('span', 'num', index + 1), textNode('span', index === 6 || index === 7 ? 'text good' : 'text', line)); document.getElementById('lines').append(row) }); const scenario = document.getElementById('scenario'); scenario.value = cases[params.get('case')] ? params.get('case') : 'port'; renderError(scenario.value); scenario.addEventListener('change', () => renderError(scenario.value));
+    </script>
+</body>
+
+</html>

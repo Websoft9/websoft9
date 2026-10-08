@@ -5,6 +5,7 @@ import base64
 import fcntl
 import json
 import shlex
+import shutil
 import signal
 import sqlite3
 import subprocess
@@ -51,13 +52,6 @@ SYSTEM_TASKS: tuple[dict[str, Any], ...] = (
         "command": f"{PLATFORM_CLI_PATH} check-update",
         "timeout_seconds": 900,
     },
-    {
-        "task_id": "system:image-prewarm-dispatch",
-        "name": "Image prewarm dispatch",
-        "schedule": "* * * * *",
-        "command": f"{PLATFORM_CLI_PATH} images dispatch --skip-if-running",
-        "timeout_seconds": 300,
-    },
 )
 
 
@@ -98,7 +92,7 @@ class ScheduledTaskService:
     _host_capability_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
     _background_syncing: set[str] = set()
     _background_syncing_task_ids: dict[str, set[str]] = {}
-    _runner_version_marker = "# websoft9-task-runner-version: 5"
+    _runner_version_marker = "# websoft9-task-runner-version: 7"
     _run_retention_count = 20
     _run_retention_days = 3
     _log_read_line_limit = 200
@@ -403,7 +397,7 @@ class ScheduledTaskService:
         running = connection.execute(
             "SELECT * FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state = 'running' ORDER BY claimed_at ASC LIMIT 1"
         ).fetchone()
-        if running and running["claimed_by"] and running["claimed_by"] != instance_id:
+        if running and running["claimed_by"] and running["claimed_by"] != instance_id and not self._prewarm_runner_alive(running["runner_pgid"]):
             connection.execute(
                 "UPDATE scheduled_tasks SET queue_state = 'queued', claimed_at = NULL, claimed_by = NULL, runner_pgid = NULL, updated_at = ? WHERE task_id = ? AND queue_state = 'running'",
                 (self._now_iso(), running["task_id"]),
@@ -457,6 +451,16 @@ class ScheduledTaskService:
                 return {"status": "skipped"}
 
             with self._db_connect() as connection:
+                prewarm_tasks = connection.execute("SELECT * FROM scheduled_tasks WHERE category = 'prewarm'").fetchall()
+            for task in prewarm_tasks:
+                self._sync_task_runs(None, task)
+            with self._db_connect() as connection:
+                cancelled = connection.execute("SELECT task_id, runner_pgid FROM scheduled_tasks WHERE category = 'prewarm' AND queue_state = 'cancelled' AND runner_pgid IS NOT NULL").fetchall()
+                for task in cancelled:
+                    if self._prewarm_runner_alive(task["runner_pgid"]):
+                        return {"status": "running", "task_id": task["task_id"]}
+                    connection.execute("UPDATE scheduled_tasks SET runner_pgid = NULL WHERE task_id = ? AND queue_state = 'cancelled'", (task["task_id"],))
+                connection.commit()
                 running = self._reconcile_running_prewarm(connection)
                 if running:
                     return {"status": "running", "task_id": running["task_id"]}
@@ -478,6 +482,7 @@ class ScheduledTaskService:
 
             runner = self._runner_path(str(queued["task_id"]))
             try:
+                self._upgrade_local_runner_if_needed(queued)
                 process = subprocess.Popen([str(runner), "manual"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             except OSError as exc:
                 self._write_task(str(queued["task_id"]), queue_state="failed", runner_pgid=None, updated_at=self._now_iso())
@@ -487,16 +492,33 @@ class ScheduledTaskService:
 
     def cancel_prewarm(self, session_token: Optional[str], task_id: str) -> None:
         operator = self.auth_service._require_authenticated_operator(session_token)
+        self._ensure_storage()
+        self._states_dir().mkdir(parents=True, exist_ok=True)
+        with (self._states_dir() / "prewarm-dispatch.lock").open("w", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            with self._lock:
+                self._cancel_prewarm(str(operator["id"]), task_id)
+        self._dispatch_prewarm_safely()
+
+    def _dispatch_prewarm_safely(self) -> None:
+        try:
+            self.dispatch_prewarm()
+        except Exception as exc:
+            logger.warning(f"Unable to continue image prewarm queue: {exc}")
+
+    def _cancel_prewarm(self, operator_id: str, task_id: str) -> None:
         with self._lock:
-            task = self._get_task(str(operator["id"]), task_id)
+            task = self._get_task(operator_id, task_id)
             if str(task["category"] or "") != "prewarm":
                 raise CustomException(404, "Prewarm Task Not Found", "The requested task is not an image prewarm task")
             if task["queue_state"] in {"success", "failed", "cancelled"}:
                 return
             pgid = task["runner_pgid"]
-            self._write_task(task_id, queue_state="cancelled", last_status="cancelled", runner_pgid=None, updated_at=self._now_iso())
+            self._write_task(task_id, queue_state="cancelled", last_status="cancelled", updated_at=self._now_iso())
         if pgid:
-            if not self._terminate_prewarm_run(pgid):
+            if self._terminate_prewarm_run(pgid):
+                self._write_task(task_id, runner_pgid=None)
+            else:
                 logger.warning(f"Prewarm task {task_id} still has processes after cancel: {pgid}")
         # The killed runner never writes a result of its own, so its run is closed here. Without this
         # the history kept reporting "running" for a pull the operator had already cancelled.
@@ -519,6 +541,7 @@ class ScheduledTaskService:
                 log_paths.append(str(self._task_logs_dir(task_id) / f"{run_id}.log"))
         for log_path in log_paths:
             self._append_cancel_marker(log_path)
+        self._sync_task_runs(None, self._get_task(operator_id, task_id))
 
     def _append_cancel_marker(self, log_path: object) -> None:
         """Close a cancelled run's log with a line that explains the early ending."""
@@ -608,6 +631,8 @@ class ScheduledTaskService:
                 raise CustomException(404, "Prewarm Task Not Found", "The requested task is not an image prewarm task")
             if task["queue_state"] not in {"failed", "cancelled"}:
                 raise CustomException(409, "Prewarm Not Retryable", "Only a failed or cancelled image prewarm can be retried")
+            if self._prewarm_runner_alive(task["runner_pgid"]):
+                raise CustomException(409, "Prewarm Task Running", "The previous image prewarm process has not stopped")
             self._write_task(
                 task_id,
                 queue_state="queued",
@@ -686,7 +711,7 @@ class ScheduledTaskService:
         with self._lock:
             task = self._get_task(operator["id"], task_id)
             if str(task["category"] or "") == "prewarm":
-                if task["queue_state"] in {"queued", "running"}:
+                if task["queue_state"] in {"queued", "running"} or self._prewarm_runner_alive(task["runner_pgid"]):
                     raise CustomException(409, "Prewarm Task Running", "Cancel the image prewarm before deleting it")
             else:
                 self._require_mutable(task)
@@ -1085,6 +1110,7 @@ class ScheduledTaskService:
         # was closed from the platform side (a cancelled pull, a container restart) therefore came
         # back to life on the next read, so a cancelled prewarm kept showing "running" forever.
         terminal = {"success", "failed", "skipped", "cancelled"}
+        cancelled_run_id = self._read_state(str(task["task_id"])).get("run_id") if task["queue_state"] == "cancelled" else None
         with self._db_connect() as connection:
             stored = {
                 row["run_id"]: row["status"]
@@ -1093,8 +1119,10 @@ class ScheduledTaskService:
             for record in records:
                 if record.get("task_id") != task["task_id"] or not record.get("run_id"):
                     continue
+                if record["run_id"] == cancelled_run_id:
+                    record = {**record, "status": "cancelled", "finished_at": record.get("finished_at") or self._now_iso()}
                 incoming = record.get("status", "running")
-                if incoming == "running" and stored.get(record["run_id"]) in terminal:
+                if stored.get(record["run_id"]) == "cancelled" or (incoming == "running" and stored.get(record["run_id"]) in terminal):
                     continue
                 connection.execute(
                     "INSERT INTO scheduled_task_runs (run_id, task_id, started_at, finished_at, status, exit_code, trigger, log_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(run_id) DO UPDATE SET finished_at = excluded.finished_at, status = excluded.status, exit_code = excluded.exit_code, log_path = excluded.log_path",
@@ -1159,7 +1187,7 @@ class ScheduledTaskService:
     def _prune_run_index(self, task_id: str) -> None:
         cutoff = datetime.now(timezone.utc).timestamp() - self._run_retention_days * 86400
         with self._db_connect() as connection:
-            rows = connection.execute("SELECT run_id, started_at FROM scheduled_task_runs WHERE task_id = ? ORDER BY started_at DESC", (task_id,)).fetchall()
+            rows = connection.execute("SELECT run_id, started_at, status FROM scheduled_task_runs WHERE task_id = ? ORDER BY started_at DESC, run_id DESC", (task_id,)).fetchall()
             stale = [row["run_id"] for index, row in enumerate(rows) if index >= self._run_retention_count or self._parse_timestamp(row["started_at"]) < cutoff]
             if stale:
                 connection.executemany("DELETE FROM scheduled_task_runs WHERE run_id = ?", [(run_id,) for run_id in stale])
@@ -1183,7 +1211,7 @@ class ScheduledTaskService:
         root = f"{home}/.local/state/websoft9/scheduled-tasks"
         return {"scripts_dir": f"{root}/scripts", "logs_dir": f"{root}/logs", "runs_root": f"{root}/runs", "states_dir": f"{root}/state", "uploads_dir": f"{root}/uploads", "runner": f"{root}/scripts/{task_id}.sh", "upload": f"{root}/uploads/{task_id}.sh", "logs_task_dir": f"{root}/logs/{task_id}", "runs_dir": f"{root}/runs/{task_id}", "state": f"{root}/state/{task_id}.state", "lock": f"{root}/state/{task_id}.lock"}
 
-    def _runner_content(self, state_path: str, lock_path: str, logs_dir: str, runs_dir: str, task_id: str, command: str, timeout_seconds: int = 0, retry_count: int = 0) -> str:
+    def _runner_content(self, state_path: str, lock_path: str, logs_dir: str, runs_dir: str, task_id: str, command: str, timeout_seconds: int = 0, retry_count: int = 0, prewarm: bool = False) -> str:
         state = shlex.quote(state_path)
         lock = shlex.quote(lock_path)
         logs = shlex.quote(logs_dir)
@@ -1191,6 +1219,11 @@ class ScheduledTaskService:
         quoted_task_id = shlex.quote(task_id)
         user_command = shlex.quote(command)
         execution = f"timeout {int(timeout_seconds)} bash -c {user_command}" if timeout_seconds else f"bash -c {user_command}"
+        cleanup = (
+            "find \"$RUNS\" -type f -name '*.json' -mtime +7 -delete\nfind \"$LOGS\" -type f -name '*.log' -mtime +7 -delete\n"
+            "ls -1t \"$RUNS\"/*.json 2>/dev/null | tail -n +51 | while read -r stale; do rm -f \"$stale\" \"$LOGS/$(basename \"$stale\" .json).log\"; done\n"
+        )
+        completion = f"exec 9>&-\ntimeout 30 {shlex.quote(PLATFORM_CLI_PATH)} images dispatch --quiet || true\n" if prewarm else ""
         return (
             f"#!/bin/bash\n{self._runner_version_marker}\nset -u\n"
             f"STATE={state}\nLOCK={lock}\nLOGS={logs}\nRUNS={runs}\nTASK_ID={quoted_task_id}\n"
@@ -1208,8 +1241,9 @@ class ScheduledTaskService:
             f"  if [ \"$exit_code\" -eq 0 ] || [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ] || [ \"$attempt\" -gt {int(retry_count)} ]; then break; fi\n"
             f"  write_log \"RETRY trigger=$trigger attempt=$((attempt + 1))/{int(retry_count) + 1} exit_code=$exit_code\"\n"
             "done\n"
-            f"if [ \"$exit_code\" -eq 0 ]; then status=success; elif [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ]; then status=skipped; write_log \"SKIPPED trigger=$trigger reason=command_reported_skip\"; else status=failed; fi\nfinished_at=$(date -Iseconds)\nduration=$(( $(date +%s) - started_epoch ))\nwrite_state \"$run_id\" \"$status\" \"$started_at\" \"$finished_at\" \"$exit_code\"\nwrite_log \"END trigger=$trigger status=$status exit_code=$exit_code duration=${{duration}}s\"\nwrite_run \"$finished_at\" \"$status\" \"$exit_code\"\nfind \"$RUNS\" -type f -name '*.json' -mtime +7 -delete\nfind \"$LOGS\" -type f -name '*.log' -mtime +7 -delete\nls -1t \"$RUNS\"/*.json 2>/dev/null | tail -n +51 | while read -r stale; do rm -f \"$stale\" \"$LOGS/$(basename \"$stale\" .json).log\"; done\n"
-            f"if [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ]; then exit 0; fi\nexit \"$exit_code\"\n"
+            f"if [ \"$exit_code\" -eq 0 ]; then status=success; elif [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ]; then status=skipped; write_log \"SKIPPED trigger=$trigger reason=command_reported_skip\"; else status=failed; fi\nfinished_at=$(date -Iseconds)\nduration=$(( $(date +%s) - started_epoch ))\nwrite_state \"$run_id\" \"$status\" \"$started_at\" \"$finished_at\" \"$exit_code\"\nwrite_log \"END trigger=$trigger status=$status exit_code=$exit_code duration=${{duration}}s\"\nwrite_run \"$finished_at\" \"$status\" \"$exit_code\"\n"
+            + cleanup + completion
+            + f"if [ \"$exit_code\" -eq {SKIPPED_EXIT_CODE} ]; then exit 0; fi\nexit \"$exit_code\"\n"
         )
 
     def _remote_output(self, client: Any, command: str) -> str:
@@ -1241,7 +1275,8 @@ class ScheduledTaskService:
         self.cron_file.parent.mkdir(parents=True, exist_ok=True)
         previous_contents = self.cron_file.read_bytes() if self.cron_file.exists() else None
         previous_mode = self.cron_file.stat().st_mode if self.cron_file.exists() else None
-        lines = ["SHELL=/bin/bash", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", ""]
+        lines = ["SHELL=/bin/bash", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "",
+             f"* * * * * root {PLATFORM_CLI_PATH} images dispatch --quiet"]
         for task in tasks:
             # `@once` marks a task this platform dispatches by hand, not a cron expression. Writing it
             # produced an invalid line in /etc/cron.d, which made cron reject the entire file and
@@ -1285,7 +1320,7 @@ class ScheduledTaskService:
         log = shlex.quote(str(self._log_path(task["task_id"])))
         command = self._task_command(task, str(self._uploaded_script_path(task)))
         runner.write_text(
-            self._runner_content(str(self._state_path(task["task_id"])), str(self._lock_path(task["task_id"])), str(self._task_logs_dir(task["task_id"])), str(self._runs_dir(task["task_id"])), task["task_id"], command, task["timeout_seconds"], task["retry_count"]),
+            self._runner_content(str(self._state_path(task["task_id"])), str(self._lock_path(task["task_id"])), str(self._task_logs_dir(task["task_id"])), str(self._runs_dir(task["task_id"])), task["task_id"], command, task["timeout_seconds"], task["retry_count"], prewarm=str(task["category"] or "") == "prewarm"),
             encoding="utf-8",
         )
         runner.chmod(0o700)
@@ -1353,7 +1388,17 @@ class ScheduledTaskService:
                 if name not in columns:
                     connection.execute(f"ALTER TABLE scheduled_tasks ADD COLUMN {name} {definition}")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_prewarm ON scheduled_tasks(category, subject_app, subject_version, operator_id)")
+            legacy_id = "system:image-prewarm-dispatch"
+            legacy = connection.execute("SELECT task_id FROM scheduled_tasks WHERE task_id = ? AND origin = ?", (legacy_id, SYSTEM_ORIGIN)).fetchone()
+            if legacy:
+                connection.execute("DELETE FROM scheduled_task_runs WHERE task_id = ?", (legacy_id,))
+                connection.execute("DELETE FROM scheduled_tasks WHERE task_id = ?", (legacy_id,))
             connection.commit()
+        if legacy:
+            for path in (self._runner_path(legacy_id), self._state_path(legacy_id), self._lock_path(legacy_id)):
+                path.unlink(missing_ok=True)
+            for path in (self._task_logs_dir(legacy_id), self._runs_dir(legacy_id)):
+                shutil.rmtree(path, ignore_errors=True)
         self._seed_system_tasks()
 
     def _seed_system_tasks(self) -> None:

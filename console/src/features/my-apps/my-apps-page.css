@@ -368,6 +368,11 @@
     color: #ffffff;
 }
 
+.myapps-status-badge.is-cancelled {
+    background: #ffbc00;
+    color: #313a46;
+}
+
 .myapps-status-badge.is-unknown {
     background: #6c757d;
     color: #ffffff;

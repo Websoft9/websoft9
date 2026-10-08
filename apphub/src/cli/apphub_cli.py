@@ -14,6 +14,7 @@ from src.services.product_metadata import write_product_edition
 from src.services.settings_manager import SettingsManager
 from src.services.product_auth import ProductAuthService
 from src.core.exception import CustomException
+from src.core.logger import logger
 from src.services.appstore_sync_manager import AppStoreSyncManager
 from src.services.scheduled_tasks import SKIPPED_EXIT_CODE, ScheduledTaskService
 from src.services.product_runtime_state import read_release_channel
@@ -153,15 +154,18 @@ def images():
 
 @images.command(name="dispatch")
 @click.option('--skip-if-running', is_flag=True, help=f'Exit with code {SKIPPED_EXIT_CODE} when another dispatcher is active')
-def images_dispatch(skip_if_running):
+@click.option('--quiet', is_flag=True, help='Suppress normal dispatch output for internal queue checks')
+def images_dispatch(skip_if_running, quiet):
     """Start the next queued image prewarm task, if any."""
     try:
         result = ScheduledTaskService().dispatch_prewarm()
     except Exception as exc:
+        logger.warning(f"Image prewarm dispatch failed: {exc}")
         raise click.ClickException(str(exc)) from exc
     if result["status"] == "skipped" and skip_if_running:
         raise click.exceptions.Exit(SKIPPED_EXIT_CODE)
-    click.echo(json.dumps(result))
+    if not quiet:
+        click.echo(json.dumps(result))
 
 
 def _human_size(value) -> str:

@@ -235,6 +235,7 @@ const PLATFORM_GATEWAY_UPLOAD_INTERMEDIATE_PEM_DRAFT_KEY = 'platform_gateway.upl
 const PORT_RANGE_START_DRAFT_SUFFIX = ':start'
 const PORT_RANGE_END_DRAFT_SUFFIX = ':end'
 const PORTS_SECTION_HASH = '#application-ports'
+const MIRRORS_SECTION_HASH = '#app-mirror'
 
 function parsePortRangeValue(value: string | undefined) {
     const match = /^\s*(\d{1,5})\s*-\s*(\d{1,5})\s*$/.exec(value ?? '')
@@ -536,6 +537,8 @@ export function SettingsPage() {
             setActiveModule('platform-system')
         } else if (location.hash === PORTS_SECTION_HASH) {
             setActiveModule('app-ports')
+        } else if (location.hash === MIRRORS_SECTION_HASH) {
+            setActiveModule('app-mirror')
         }
     }, [location.hash])
 

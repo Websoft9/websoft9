@@ -347,6 +347,129 @@ def test_dispatch_prewarm_recovers_missing_runner_before_starting_next(monkeypat
     assert service._get_task("operator-1", second["task_id"])["queue_state"] == "queued"
 
 
+def test_cancel_prewarm_starts_next_only_after_process_stops(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    first = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    second = service.enqueue_prewarm("valid-session", "nginx", "1.27")
+    service._write_task(first["task_id"], queue_state="running", runner_pgid=4321)
+    monkeypatch.setattr(service, "_terminate_prewarm_run", lambda _pgid: False)
+    alive = {"value": True}
+    monkeypatch.setattr(service, "_prewarm_runner_alive", lambda pgid: bool(pgid) and alive["value"])
+    calls = []
+    monkeypatch.setattr(subprocess, "Popen", lambda *_args, **_kwargs: calls.append("started") or type("Process", (), {"pid": 5678})())
+    service.cancel_prewarm("valid-session", first["task_id"])
+    assert calls == []
+    assert service._get_task("operator-1", first["task_id"])["runner_pgid"] == 4321
+    with pytest.raises(CustomException):
+        service.retry_prewarm("valid-session", first["task_id"])
+    with pytest.raises(CustomException):
+        service.delete_task("valid-session", first["task_id"])
+    alive["value"] = False
+    assert service.dispatch_prewarm() == {"status": "started", "task_id": second["task_id"]}
+    assert calls == ["started"]
+
+
+def test_cancel_prewarm_holds_operator_lock_until_run_is_closed(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    service._write_task(task["task_id"], queue_state="running", runner_pgid=4321)
+    acquired = []
+
+    def terminate(_pgid):
+        def try_lock():
+            locked = service._lock.acquire(blocking=False)
+            acquired.append(locked)
+            if locked:
+                service._lock.release()
+
+        thread = threading.Thread(target=try_lock)
+        thread.start()
+        thread.join(5)
+        return True
+
+    monkeypatch.setattr(service, "_terminate_prewarm_run", terminate)
+    service.cancel_prewarm("valid-session", task["task_id"])
+    assert acquired == [False]
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_prewarm_runner_continues_after_releasing_lock(monkeypatch, tmp_path, exit_code):
+    import shlex
+    from src.services import scheduled_tasks
+
+    dispatcher = tmp_path / "dispatcher"
+    lock = tmp_path / "task.lock"
+    marker = tmp_path / "dispatched"
+    dispatcher.write_text(f"#!/bin/bash\nflock -n {shlex.quote(str(lock))} touch {shlex.quote(str(marker))}\nexit 7\n")
+    dispatcher.chmod(0o700)
+    monkeypatch.setattr(scheduled_tasks, "PLATFORM_CLI_PATH", str(dispatcher))
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService())
+    runner = tmp_path / "runner.sh"
+    runner.write_text(service._runner_content(str(tmp_path / "state"), str(lock), str(tmp_path / "logs"), str(tmp_path / "runs"), "prewarm-1", f"exit {exit_code}", prewarm=True))
+    result = subprocess.run(["bash", str(runner)], capture_output=True, text=True)
+    assert result.returncode == exit_code
+    assert marker.exists()
+
+
+def test_prewarm_queue_continues_across_runner_processes(monkeypatch, tmp_path):
+    from src.services import scheduled_tasks
+
+    dispatcher = tmp_path / "dispatcher"
+    dispatcher.write_text(f"#!{sys.executable}\nimport sys\nsys.path.insert(0, {str(PROJECT_ROOT)!r})\nfrom src.services import scheduled_tasks\nscheduled_tasks.PLATFORM_CLI_PATH = __file__\nscheduled_tasks.ScheduledTaskService().dispatch_prewarm()\n")
+    dispatcher.chmod(0o700)
+    monkeypatch.setattr(scheduled_tasks, "PLATFORM_CLI_PATH", str(dispatcher))
+    monkeypatch.setenv("WEBSOFT9_SCHEDULED_TASKS_DATA_DIR", str(tmp_path / "tasks"))
+    monkeypatch.setenv("WEBSOFT9_PREWARM_INSTANCE_ID_FILE", str(tmp_path / "instance-id"))
+    service = ScheduledTaskService(auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    tasks = [service.enqueue_prewarm("valid-session", app_name, "1.0") for app_name in ("first", "second")]
+    for task in tasks:
+        service._write_task(task["task_id"], command="true")
+        service._write_runner(service._get_task("operator-1", task["task_id"]))
+    try:
+        assert service.dispatch_prewarm()["status"] == "started"
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            with service._db_connect() as connection:
+                states = [row[0] for row in connection.execute("SELECT queue_state FROM scheduled_tasks WHERE category = 'prewarm'")]
+            if states == ["success", "success"]:
+                break
+            threading.Event().wait(0.05)
+        assert states == ["success", "success"]
+        assert all(len(service.list_runs("valid-session", task["task_id"])["runs"]) == 1 for task in tasks)
+    finally:
+        for task in tasks:
+            pgid = service._get_task("operator-1", task["task_id"])["runner_pgid"]
+            if pgid and service._prewarm_runner_alive(pgid):
+                service._terminate_prewarm_run(pgid)
+
+
+def test_concurrent_prewarm_dispatch_claims_only_once(monkeypatch, tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def start(*_args, **_kwargs):
+        calls.append("started")
+        entered.set()
+        assert release.wait(5)
+        return type("Process", (), {"pid": 5678})()
+
+    monkeypatch.setattr(subprocess, "Popen", start)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        first = executor.submit(service.dispatch_prewarm)
+        try:
+            assert entered.wait(5)
+            assert service.dispatch_prewarm() == {"status": "skipped"}
+        finally:
+            release.set()
+        assert first.result() == {"status": "started", "task_id": task["task_id"]}
+    assert calls == ["started"]
+
+
 def test_cancel_running_prewarm_preserves_cancelled_state(monkeypatch, tmp_path):
     service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
     task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
@@ -403,6 +526,19 @@ def test_cancelled_run_is_not_reopened_by_the_runner_record(monkeypatch, tmp_pat
     with service._db_connect() as connection:
         row = connection.execute("SELECT status, finished_at FROM scheduled_task_runs WHERE run_id = 'run-1'").fetchone()
     assert row["status"] == "cancelled"
+
+
+def test_cancelled_prewarm_imports_late_success_as_cancelled(tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    task_id = task["task_id"]
+    service._write_task(task_id, queue_state="cancelled", last_status="cancelled")
+    service._state_path(task_id).write_text("run_id=late-run\nstatus=success\n")
+    service._sync_task_run_records(service._get_task("operator-1", task_id), [{"run_id": "late-run", "task_id": task_id, "started_at": service._now_iso(), "status": "success", "exit_code": 0}])
+    with service._db_connect() as connection:
+        run = connection.execute("SELECT status FROM scheduled_task_runs WHERE run_id = 'late-run'").fetchone()
+    assert run["status"] == "cancelled"
+    assert service._get_task("operator-1", task_id)["last_status"] == "cancelled"
 
 
 def test_cancel_prewarm_closes_the_running_run_and_annotates_its_log(monkeypatch, tmp_path):
@@ -464,6 +600,111 @@ def test_scheduled_task_defaults_and_history_retention(tmp_path):
     assert task["retry_count"] == 3
     assert service._run_retention_count == 20
     assert service._run_retention_days == 3
+
+
+def test_prewarm_dispatch_migrates_to_internal_cron(monkeypatch, tmp_path):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    service._ensure_storage()
+    real_task = service.enqueue_prewarm("valid-session", "wordpress", "6.3")
+    legacy_id = "system:image-prewarm-dispatch"
+    with service._db_connect() as connection:
+        connection.execute("INSERT INTO scheduled_tasks SELECT ?, operator_id, 'Image prewarm dispatch', target, profile_id, schedule, timezone, command, execution_mode, script_path, script_name, timeout_seconds, retry_count, enabled, last_run_at, last_status, sync_status, next_run_at, created_at, updated_at, origin, category, subject_app, subject_version, queue_state, claimed_at, claimed_by, runner_pgid FROM scheduled_tasks WHERE task_id = 'system:appstore-sync'", (legacy_id,))
+        connection.commit()
+    service._runner_path(legacy_id).write_text("old runner")
+    service.reconcile_local_schedule()
+    cron = service.cron_file.read_text()
+    assert "images dispatch --quiet" in cron
+    assert legacy_id not in cron
+    assert not service._runner_path(legacy_id).exists()
+    assert service._get_task("operator-1", real_task["task_id"])["queue_state"] == "queued"
+    assert legacy_id not in {task["task_id"] for task in service.list_tasks("valid-session")["system_tasks"]}
+
+
+def test_prewarm_dispatch_cli_quiet(monkeypatch):
+    from click.testing import CliRunner
+    from src.cli import apphub_cli
+
+    monkeypatch.setattr(ScheduledTaskService, "dispatch_prewarm", lambda self: {"status": "idle"})
+    result = CliRunner().invoke(apphub_cli.cli, ["images", "dispatch", "--quiet"])
+    assert result.exit_code == 0
+    assert result.output == ""
+
+
+@pytest.mark.parametrize("prewarm", [False, True])
+def test_task_history_uses_shared_count_retention(tmp_path, prewarm):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3") if prewarm else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    task_id = task["task_id"]
+    for index in range(22):
+        run_id = f"run-{index:02}"
+        started_at = (datetime.now(timezone.utc) - timedelta(seconds=30 - index)).isoformat()
+        record = {"run_id": run_id, "task_id": task_id, "started_at": started_at, "finished_at": started_at, "status": "success", "exit_code": 0, "trigger": "manual", "log_path": str(service._task_logs_dir(task_id) / f"{run_id}.log")}
+        (service._runs_dir(task_id) / f"{run_id}.json").write_text(json.dumps(record))
+        (service._task_logs_dir(task_id) / f"{run_id}.log").write_text("END")
+    response = service.list_runs("valid-session", task_id)
+    assert len(response["runs"]) == 20
+    assert "run-00" not in {run["run_id"] for run in response["runs"]}
+    assert len(list(service._runs_dir(task_id).glob("*.json"))) == 22
+    assert len(list(service._task_logs_dir(task_id).glob("*.log"))) == 22
+    assert "-mtime +7" in service._runner_path(task_id).read_text()
+    assert len(service.list_runs("valid-session", task_id)["runs"]) == 20
+
+
+@pytest.mark.parametrize("prewarm", [False, True])
+def test_task_history_uses_shared_age_retention(tmp_path, prewarm):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3") if prewarm else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    service._sync_task_run_records(service._get_task("operator-1", task["task_id"]), [{"run_id": "old-run", "task_id": task["task_id"], "started_at": "2020-01-01T00:00:00+00:00", "status": "success", "exit_code": 0}])
+    assert service.list_runs("valid-session", task["task_id"])["runs"] == []
+    assert "-mtime +7" in service._runner_path(task["task_id"]).read_text()
+
+
+@pytest.mark.parametrize("prewarm", [False, True])
+def test_task_runner_uses_shared_file_retention(monkeypatch, tmp_path, prewarm):
+    from src.services import scheduled_tasks
+
+    monkeypatch.setattr(scheduled_tasks, "PLATFORM_CLI_PATH", "/bin/true")
+    logs = tmp_path / "logs"
+    runs = tmp_path / "runs"
+    logs.mkdir()
+    runs.mkdir()
+    for folder, suffix in ((logs, "log"), (runs, "json")):
+        for index in range(55):
+            path = folder / f"run-{index:02}.{suffix}"
+            path.write_text("{}")
+            timestamp = time.time() - index - 60
+            os.utime(path, (timestamp, timestamp))
+        old = folder / f"old.{suffix}"
+        old.write_text("{}")
+        os.utime(old, (0, 0))
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), auth_service=FakeAuthService())
+    runner = tmp_path / "runner.sh"
+    runner.write_text(service._runner_content(str(tmp_path / "state"), str(tmp_path / "lock"), str(logs), str(runs), "task-1", "true", prewarm=prewarm))
+    subprocess.run(["bash", str(runner)], check=True)
+    assert len(list(runs.glob("*.json"))) == 50
+    assert len(list(logs.glob("*.log"))) == 50
+    assert not (runs / "old.json").exists()
+    assert not (logs / "old.log").exists()
+
+
+@pytest.mark.parametrize("prewarm", [False, True])
+def test_deleting_task_removes_history_and_logs(tmp_path, prewarm):
+    service = ScheduledTaskService(data_dir=str(tmp_path / "tasks"), cron_file=str(tmp_path / "cron"), auth_service=FakeAuthService(), cron_reloader=lambda: None)
+    task = service.enqueue_prewarm("valid-session", "wordpress", "6.3") if prewarm else service.create_task("valid-session", {"name": "Periodic", "schedule": "* * * * *", "command": "true"})
+    task_id = task["task_id"]
+    if prewarm:
+        service._write_task(task_id, queue_state="success")
+    (service._runs_dir(task_id) / "run-1.json").write_text("{}")
+    (service._task_logs_dir(task_id) / "run-1.log").write_text("END")
+    service._sync_task_run_records(service._get_task("operator-1", task_id), [{"run_id": "run-1", "task_id": task_id, "started_at": service._now_iso(), "status": "success", "exit_code": 0}])
+    service.delete_task("valid-session", task_id)
+    assert not service._runs_dir(task_id).exists()
+    assert not service._task_logs_dir(task_id).exists()
+    with service._db_connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM scheduled_task_runs WHERE task_id = ?", (task_id,)).fetchone()[0] == 0
 
 
 def test_platform_timezone_uses_container_tz(monkeypatch):

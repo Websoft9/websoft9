@@ -310,14 +310,30 @@ class InstallStateStore:
             now = _utc_now()
 
             if message != "" or raw_payload not in (None, '""'):
-                next_order = connection.execute(
-                    "SELECT COALESCE(MAX(entry_order), 0) + 1 AS next_order FROM install_stage_logs WHERE stage_id = ?",
-                    (stage_row["id"],),
-                ).fetchone()["next_order"]
-                connection.execute(
-                    "INSERT INTO install_stage_logs (stage_id, entry_order, level, message, raw_payload, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (stage_row["id"], next_order, level, message, raw_payload, now),
-                )
+                previous = None
+                progress_statuses = ("Downloading", "Extracting", "Pulling fs layer", "Download complete", "Pull complete", "Already exists", "Waiting", "Verifying Checksum")
+                if isinstance(log, dict) and log.get("image") and log.get("id") and log.get("status") in progress_statuses:
+                    previous = connection.execute(
+                        """SELECT id FROM install_stage_logs WHERE stage_id = ?
+                        AND json_extract(raw_payload, '$.image') = ? AND json_extract(raw_payload, '$.id') = ?
+                        AND json_extract(raw_payload, '$.status') IN (?, ?, ?, ?, ?, ?, ?, ?)
+                        ORDER BY id DESC LIMIT 1""",
+                        (stage_row["id"], log["image"], log["id"], *progress_statuses),
+                    ).fetchone()
+                if previous:
+                    connection.execute(
+                        "UPDATE install_stage_logs SET level = ?, message = ?, raw_payload = ? WHERE id = ?",
+                        (level, message, raw_payload, previous["id"]),
+                    )
+                else:
+                    next_order = connection.execute(
+                        "SELECT COALESCE(MAX(entry_order), 0) + 1 AS next_order FROM install_stage_logs WHERE stage_id = ?",
+                        (stage_row["id"],),
+                    ).fetchone()["next_order"]
+                    connection.execute(
+                        "INSERT INTO install_stage_logs (stage_id, entry_order, level, message, raw_payload, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (stage_row["id"], next_order, level, message, raw_payload, now),
+                    )
 
                 overflow_rows = connection.execute(
                     "SELECT id FROM install_stage_logs WHERE stage_id = ? ORDER BY entry_order DESC, id DESC LIMIT -1 OFFSET ?",

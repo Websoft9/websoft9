@@ -842,11 +842,6 @@ class AppManger:
             stacks = portainerManager.get_stacks(endpointId)
             all_containers = portainerManager.get_containers(endpointId)
             proxy_hosts_by_app = self._group_proxy_hosts_by_app(self._get_proxy_hosts_safe())
-            install_errors_by_app_id = {
-                app.get("app_id"): (app_uuid, app)
-                for app_uuid, app in appInstallingError.items()
-                if isinstance(app.get("app_id"), str) and app.get("app_id")
-            }
 
             stack_names = {
                 stack.get("Name")
@@ -877,10 +872,6 @@ class AppManger:
                     stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, stack_containers)
                     display_error = self._resolve_display_error(stack_name, stack_error)
                     stack_volumes = portainerManager.get_volumes_by_stack_name(stack_name, endpointId, False)
-
-                    if stack_status == 1 and stack_containers and not stack_error and stack_name in install_errors_by_app_id:
-                        remove_app_from_errors_by_app_id(stack_name)
-                        install_errors_by_app_id.pop(stack_name, None)
 
                     if stack_status == 1 and stack_containers:
                         main_container_id = None
@@ -983,20 +974,12 @@ class AppManger:
                 apps_info.append(app_response)
 
             # Get failed and cancelled install entries. Both retain partial resources until removed.
-            # Auto-clean stale errors: if the app already appears in apps_info (recovered in Portainer
-            # or still being installed), the previous error entry is no longer relevant and can be
-            # discarded. This prevents a deleted-from-Portainer app from showing up as Error.
             existing_apps_by_id = {info.app_id: info for info in apps_info}
-            for collection, entries in ((appInstallingError, appInstallingError.items()), (appInstallingCancelled, appInstallingCancelled.items())):
+            for entries in (appInstallingError.items(), appInstallingCancelled.items()):
                 for app_uuid, app in list(entries):
                     err_app_id = app.get("app_id")
                     existing_app = existing_apps_by_id.get(err_app_id)
-                    if existing_app is not None and (
-                        existing_app.status == 3 or
-                        (existing_app.status == 1 and not existing_app.error)
-                    ):
-                        # App recovered or is being re-deployed — remove the stale error entry
-                        collection.pop(app_uuid)
+                    if existing_app is not None and existing_app.status == 3:
                         continue
                     app_response = AppResponse(
                         app_id=err_app_id,
@@ -1010,6 +993,7 @@ class AppManger:
                         phase=app.get("phase"),
                         cancel_requested=bool(app.get("cancel_requested")),
                     )
+                    apps_info = [info for info in apps_info if info.app_id != err_app_id]
                     apps_info.append(app_response)
 
             return apps_info
@@ -1093,9 +1077,6 @@ class AppManger:
             app_containers = portainerManager.get_containers_by_stack_name(app_id,endpointId) if stack_status == 1 else []
             stack_status, stack_error = self._resolve_stack_runtime_state(stack_status, app_containers)
             display_error = self._resolve_display_error(app_id, stack_error)
-
-            if stack_status == 1 and app_containers and not stack_error:
-                remove_app_from_errors_by_app_id(app_id)
 
             # if stack is empty(status=2-inactive),can not get it
             if stack_status == 1:
@@ -1255,6 +1236,17 @@ class AppManger:
         return databases
 
     def install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None, library_path: str = None):
+        app_id = tracked_app_id or appInstall.app_id
+        app_uuid = tracking_id or start_app_installation(app_id, appInstall.app_name)
+        try:
+            return self._install_app(appInstall, endpointId, app_id, app_uuid, library_path)
+        except Exception as exc:
+            if app_uuid in appInstalling:
+                detail = getattr(exc, "details", None) or str(exc) or type(exc).__name__
+                modify_app_information(app_uuid, detail)
+            raise
+
+    def _install_app(self,appInstall: appInstall, endpointId: int = None, tracked_app_id: str = None, tracking_id: str = None, library_path: str = None):
         """
         Install app
 
@@ -1294,7 +1286,7 @@ class AppManger:
             raise
         except Exception as e:
             # modify app status: error
-            modify_app_information(app_uuid,"Create repo error")
+            modify_app_information(app_uuid,str(e) or "Create repo error")
             remove_installation_logs(app_uuid)
             logger.error(f"Create repo error:{e}")
             raise CustomException()
@@ -1396,17 +1388,15 @@ class AppManger:
             # Commit and push to remote repo
             self._init_local_repo_and_push_to_remote(app_tmp_dir_path,repo_url)
         except CustomException as e:
+            modify_app_information(app_uuid, e.details)
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
-            # modify app status: error
-            modify_app_information(app_uuid, e.details)
             remove_installation_logs(app_uuid)
             raise
         except Exception as e:
+            modify_app_information(app_uuid, str(e) or "Initialize repo error")
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
-            # modify app status: error
-            modify_app_information(app_uuid, "Initialize repo error")
             remove_installation_logs(app_uuid)
             logger.error(f"Initialize repo error:{e}")
             raise CustomException()
@@ -1425,12 +1415,11 @@ class AppManger:
             mark_install_cancelled(app_uuid)
             return
         except Exception as e:
-            # Rollback: remove repo in gitea
-            giteaManager.remove_repo(app_id)
             # Keep the reason each source gave instead of a fixed sentence: the app error field is
             # the only place the operator can read why the installation stopped here.
             detail = pull_error_detail(e)
             modify_app_information(app_uuid, detail)
+            giteaManager.remove_repo(app_id)
             remove_installation_logs(app_uuid)
             logger.error(f"Pull docker image error: {detail}")
             raise CustomException(500, "Image Pull Error", detail) from e
@@ -1461,6 +1450,7 @@ class AppManger:
                     details=self._missing_stack_containers_error,
                 )
         except CustomException as e:
+            modify_app_information(app_uuid,e.details)
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # Remove stack and volumes when a stack record was already created.
@@ -1481,11 +1471,10 @@ class AppManger:
                         portainerManager.remove_vloumes(app_id, endpointId)
                 except Exception:
                     portainerManager.remove_vloumes(app_id, endpointId)
-            # modify app status: error
-            modify_app_information(app_uuid,e.details)
             remove_installation_logs(app_uuid)
             raise
         except Exception as e:
+            modify_app_information(app_uuid,str(e) or "Create stack error")
             # Rollback: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # Remove stack and volumes when a stack record was already created.
@@ -1503,18 +1492,16 @@ class AppManger:
                         portainerManager.remove_vloumes(app_id, endpointId)
                 except Exception:
                     portainerManager.remove_vloumes(app_id, endpointId)
-            # modify app status: error
-            modify_app_information(app_uuid,"Create stack error")
             remove_installation_logs(app_uuid)
             logger.error(f"Create stack error:{e}")
             raise CustomException()
             
         # Install app - Step 5 : create proxy in nginx proxy manager
         try:
-            add_installing_logs(app_uuid,"Configuring the domain","")
             # check the app is web app
             if is_web_app is not None :
                 if proxy_enabled and domain_names:
+                    add_installing_logs(app_uuid,"Configuring the domain","")
                     # Get the forward port form env file
                     http_port = EnvHelper(env_file_path).get_value("W9_HTTP_PORT")
                     https_port = EnvHelper(env_file_path).get_value("W9_HTTPS_PORT")
@@ -1537,27 +1524,26 @@ class AppManger:
                         # Create proxy in nginx proxy manager
                         ProxyManager().create_proxy_by_app(domain_names,app_id,forward_port,forward_scheme=forward_scheme)
         except CustomException as e:
+            modify_app_information(app_uuid,e.details)
             # Rollback-1: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # Rollback-2: remove stack in portainer
             portainerManager.remove_stack_and_volumes(stack_id,endpointId)
-            # modify app status: error
-            modify_app_information(app_uuid,e.details)
             remove_installation_logs(app_uuid)
             raise
         except Exception as e:
+            modify_app_information(app_uuid,str(e) or "Create proxy error")
             # Rollback-1: remove repo in gitea
             giteaManager.remove_repo(app_id)
             # Rollback-2: remove stack in portainer
             portainerManager.remove_stack_and_volumes(stack_id,endpointId)
-            # modify app status: error
-            modify_app_information(app_uuid,"Create proxy error")
             remove_installation_logs(app_uuid)
             logger.error(f"Create proxy error:{e}")
             raise CustomException()
 
         logger.access(f"Installed app: [{app_id}]")
         add_installing_logs(app_uuid,"Installation complete","")
+        remove_app_from_errors_by_app_id(app_id)
         # remove app from installing
         remove_app_installation(app_uuid)
 
@@ -2516,7 +2502,8 @@ class AppManger:
                 raise InstallCancelled()
             # Progress only: the reason a pull failed belongs to the app error, which is what the
             # operator reads once the installation has stopped.
-            add_installing_logs(app_uuid, "Pulling docker image", line)
+            payload = {**line, "image": image} if isinstance(line, dict) else {"message": str(line), "image": image}
+            add_installing_logs(app_uuid, "Pulling docker image", payload)
 
         env_values = env_helper.get_all_values()
         for yml_file in yml_files:
@@ -2534,13 +2521,16 @@ class AppManger:
                     # Check if the image already exists
                     logger.access(f"Checking if image exists: {image}")
                     docker_client.images.get(image)
+                    report({"event": "image-ready", "status": "Already present"})
                     continue
                 except docker.errors.ImageNotFound:
                     logger.access(f"Image not found: {image}")
 
                 logger.access(f"Pulling image: {image}")
                 try:
+                    report({"event": "image-pull-started", "status": "Pulling image"})
                     pull_with_fallback(docker_client, image, on_progress=report, is_cancelled=lambda: install_cancel_requested(app_uuid))
+                    report({"event": "image-pull-completed", "status": "Image ready"})
                 except InstallCancelled:
                     raise
                 except ImagePullError as exc:

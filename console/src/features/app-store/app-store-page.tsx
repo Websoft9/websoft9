@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next'
 import { getSurfaceFieldSx } from '../../shared/design-system/form-field-sx'
 import { PageDescriptionHeader } from '../../shared/design-system/page-description-header'
 import { PrewarmStatusChip, type PrewarmStatusState } from '../../shared/design-system/prewarm-status-chip'
+import { PrewarmResumeDialog } from '../../shared/design-system/prewarm-resume-dialog'
 import { SurfaceFeedbackToast, SurfaceNoticeAlert, SurfaceStateCard } from '../../shared/design-system/standard-surfaces'
 import { getSurfacePalette } from '../../shared/design-system/surface-theme'
 import { UnifiedAppCard } from '../../shared/design-system/unified-app-card'
@@ -903,6 +904,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     const [isSubmittingInstall, setIsSubmittingInstall] = useState(false)
     const [isSubmittingPrewarm, setIsSubmittingPrewarm] = useState(false)
     const [installConfirmOpen, setInstallConfirmOpen] = useState(false)
+    const [prewarmResumeOpen, setPrewarmResumeOpen] = useState(false)
     const [prewarmStatus, setPrewarmStatus] = useState<ImagePrewarmStatus | null>(null)
     const [prewarmQueueState, setPrewarmQueueState] = useState<ImagePrewarmTask['queue_state'] | null>(null)
     const [isRefreshingStore, setIsRefreshingStore] = useState(false)
@@ -1589,6 +1591,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             return
         }
         let cancelled = false
+        setPrewarmStatus(null)
         setPrewarmQueueState(null)
 
         const load = async () => {
@@ -2014,7 +2017,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
     }
 
     async function handleImagePrewarm() {
-        if (!selectedApp || !selectedApp.key || !selectedVersion) return
+        if (!selectedApp || !selectedApp.key || !selectedVersion || isSubmittingPrewarm) return
         setIsSubmittingPrewarm(true)
         try {
             const task = await requestJson<ImagePrewarmTask>('/api/apps/images/prewarm', {
@@ -2026,6 +2029,15 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
             setInstallError(localizedPrewarmError(error))
         } finally {
             setIsSubmittingPrewarm(false)
+        }
+    }
+
+    function requestImagePrewarm() {
+        if (!prewarmStatus || isSubmittingPrewarm) return
+        if (prewarmQueueState === 'cancelled') {
+            setPrewarmResumeOpen(true)
+        } else {
+            void handleImagePrewarm()
         }
     }
 
@@ -2046,6 +2058,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
         const shouldRestoreFavorites = detailDialogSource === 'favorites'
 
         setSelectedApp(null)
+        setPrewarmResumeOpen(false)
         setIsInstallMode(false)
         setInstallError(null)
         setInstallFieldErrors({})
@@ -3540,7 +3553,7 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
 
                 <AppStoreScopedOverlay
                     open={Boolean(selectedApp)}
-                    onClose={handleCloseModal}
+                    onClose={prewarmResumeOpen ? () => setPrewarmResumeOpen(false) : handleCloseModal}
                     scopeRect={contentViewportRect}
                     maxWidth={840}
                     verticalPlacement="top"
@@ -4256,10 +4269,19 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                                     <>
                                         {!isPrewarmReady && !isPrewarmActive ? (
                                             <Button
-                                                disabled={isSubmittingPrewarm}
-                                                onClick={() => void handleImagePrewarm()}
-                                                variant="outlined"
-                                                sx={{ minWidth: 112, borderRadius: 0, boxShadow: 'none' }}
+                                                disabled={isSubmittingPrewarm || !prewarmStatus}
+                                                onClick={requestImagePrewarm}
+                                                variant="contained"
+                                                color="inherit"
+                                                sx={{
+                                                    minWidth: 68,
+                                                    backgroundColor: palette.actionBg,
+                                                    color: palette.text,
+                                                    borderRadius: 0,
+                                                    border: `1px solid ${palette.border}`,
+                                                    boxShadow: 'none',
+                                                    '&:hover': { backgroundColor: palette.actionHover, boxShadow: 'none' },
+                                                }}
                                             >
                                                 {isSubmittingPrewarm ? t('appStorePage.install.prewarm.submitting') : t('appStorePage.install.prewarm.action')}
                                             </Button>
@@ -4441,6 +4463,18 @@ export function AppStorePage({ lockedInstallSource, hideInstallSourceSelector = 
                     </DialogActions>
                 </AppStoreScopedOverlay>
             </Box>
+
+            <PrewarmResumeDialog
+                open={prewarmResumeOpen}
+                subject={selectedApp && selectedVersion ? `${selectedApp.key} ${selectedVersion}` : ''}
+                scopeRect={contentViewportRect}
+                darkMode={isDarkMode}
+                onClose={() => setPrewarmResumeOpen(false)}
+                onConfirm={() => {
+                    setPrewarmResumeOpen(false)
+                    void handleImagePrewarm()
+                }}
+            />
 
             <SurfaceFeedbackToast
                 key={installToastRevision}

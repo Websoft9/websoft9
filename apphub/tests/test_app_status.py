@@ -60,6 +60,30 @@ def test_error_transition_keeps_persisted_stage_logs(tmp_path):
     assert errored["logs"][0]["sub_logs"][0]["message"] == "Booting containers"
 
 
+def test_image_layer_progress_updates_in_place_without_losing_other_layers(tmp_path):
+    configure_install_state_store(str(tmp_path))
+    tracking_id = start_app_installation("progress_demo", "Progress")
+    for layer in range(25):
+        add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": str(layer), "status": "Downloading", "progressDetail": {"current": 1, "total": 100}})
+    for current in range(2, 101):
+        add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "0", "status": "Downloading", "progressDetail": {"current": current, "total": 100}})
+    logs = dict(appInstalling.items())[tracking_id]["logs"][0]["sub_logs"]
+    assert len(logs) == 25
+    assert logs[0]["progressDetail"]["current"] == 100
+    add_installing_logs(tracking_id, "Pulling docker image", {"image": "redis:7", "id": "0", "status": "Downloading"})
+    assert len(dict(appInstalling.items())[tracking_id]["logs"][0]["sub_logs"]) == 26
+
+
+def test_image_progress_does_not_overwrite_raw_error_records(tmp_path):
+    configure_install_state_store(str(tmp_path))
+    tracking_id = start_app_installation("progress_demo", "Progress")
+    add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "abc", "status": "error", "details": "timeout"})
+    add_installing_logs(tracking_id, "Pulling docker image", {"image": "mysql:8", "id": "abc", "status": "Downloading"})
+    logs = dict(appInstalling.items())[tracking_id]["logs"][0]["sub_logs"]
+    assert len(logs) == 2
+    assert logs[0]["details"] == "timeout"
+
+
 def test_completion_log_is_written_before_installation_cleanup(tmp_path):
     configure_install_state_store(str(tmp_path))
 
